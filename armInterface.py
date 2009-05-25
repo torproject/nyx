@@ -375,7 +375,8 @@ def drawSummary(screen, vals, maxX, maxY):
   # adds note when default exit policy is appended
   if maxY >= 5:
     exitPolicy = vals["ExitPolicy"]
-    if not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
+    if exitPolicy == None: exitPolicy = "<default>"
+    elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
       exitPolicy += ", <default>"
     screen.addstr(4, 0, ("Exit Policy: %s" % exitPolicy)[:maxX - 1], SUMMARY_ATTR)
   
