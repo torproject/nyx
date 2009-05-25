@@ -407,10 +407,13 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       COLOR_ATTR[name] = curses.color_pair(colorpair)
   
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
-  curses.curs_set(0)                    # makes cursor invisible
   staticInfo = getStaticInfo(conn)
   y, x = stdscr.getmaxyx()
   oldX, oldY = -1, -1
+  
+  # attempts to make the cursor invisible (not supported in all terminals)
+  try: curses.curs_set(0)
+  except curses.error: pass
   
   # note: subwindows need a character buffer (either in the x or y direction)
   # from actual content to prevent crash when shrank
