@@ -47,7 +47,7 @@ class LogMonitor(TorCtl.PostEventListener):
   subwindow.
   """
   
-  def __init__(self, logScreen, includeBW):
+  def __init__(self, logScreen, includeBW, includeUnknown):
     TorCtl.PostEventListener.__init__(self)
     self.msgLog = []                # tuples of (isMsgFirstLine, logText, color)
     self.logScreen = logScreen      # curses window where log's displayed
@@ -55,6 +55,7 @@ class LogMonitor(TorCtl.PostEventListener):
     self.pauseBuffer = []           # location where messages are buffered if paused
     self.msgLogLock = Lock()        # haven't noticed any concurrency errors but better safe...
     self.includeBW = includeBW      # true if we're supposed to listen for BW events
+    self.includeUnknown = includeUnknown    # true if registering unrecognized events
   
   # Listens for all event types and redirects to registerEvent
   # TODO: not sure how to stimulate all event types - should be tried before
@@ -92,7 +93,7 @@ class LogMonitor(TorCtl.PostEventListener):
     self.registerEvent("NEWCONSENSUS", "<STUB>", "white") # TODO: implement - variables: event.nslist
   
   def unknown_event(self, event):
-    self.registerEvent("UNKNOWN", event.event_string, "red")
+    if self.includeUnknown: self.registerEvent("UNKNOWN", event.event_string, "red")
   
   def registerEvent(self, type, msg, color):
     """
@@ -391,6 +392,15 @@ def drawPauseLabel(screen, isPaused, maxX):
   screen.refresh()
 
 def drawTorMonitor(stdscr, conn, loggedEvents):
+  """
+  Starts arm interface reflecting information on provided control port.
+  
+  stdscr - curses window
+  conn - active Tor control port connection
+  loggedEvents - types of events to be logged (plus an optional "UNKNOWN" for
+    otherwise unrecognized events)
+  """
+  
   global COLOR_ATTR_INITIALIZED
   
   # use terminal defaults to allow things like semi-transparent backgrounds
@@ -425,7 +435,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   logScreen = stdscr.subwin(y - 17, x, 17, 0)   # uses all remaining space for message log
   
   # listeners that update bandwidthScreen and logScreen with Tor statuses
-  logListener = LogMonitor(logScreen, "BW" in loggedEvents)
+  logListener = LogMonitor(logScreen, "BW" in loggedEvents, "UNKNOWN" in loggedEvents)
   conn.add_event_listener(logListener)
   
   bandwidthListener = BandwidthMonitor(bandwidthScreen)
@@ -438,7 +448,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   while not eventsSet:
     try:
       # adds BW events if not already included (so bandwidth monitor will work)
-      conn.set_events(loggedEvents.union(set(["BW"])))
+      # removes UNKNOWN since not an actual event type
+      connEvents = loggedEvents.union(set(["BW"]))
+      connEvents.discard("UNKNOWN")
+      conn.set_events(connEvents)
       eventsSet = True
     except TorCtl.ErrorReply, exc:
       msg = str(exc)
@@ -454,6 +467,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         logListener.registerEvent("ARM-ERR", "Unsupported event type: %s" % eventType, "red")
       else:
         raise exc
+  loggedEvents = list(loggedEvents)
+  loggedEvents.sort() # alphabetizes
   eventsListing = ", ".join(loggedEvents)
   
   bandwidthScreen.refresh()

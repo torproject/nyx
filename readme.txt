@@ -1,4 +1,4 @@
-ARM (ARM Relay Monitor) - Terminal status monitor for Tor relays.
+arm (arm relay monitor) - Terminal status monitor for Tor relays.
 Developed by Damian Johnson (www.atagar.com - atagar1@gmail.com)
 All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 

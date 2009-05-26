@@ -13,13 +13,19 @@ import os
 import socket
 import getpass
 import binascii
+
+try:
+  from TorCtl import TorCtl
+except ImportError:
+  print "Unable to load TorCtl (see readme for instructions)"
+  sys.exit()
+
 import armInterface
-from TorCtl import TorCtl
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
 DEFAULT_AUTH_COOKIE = os.path.expanduser("~/.tor/control_auth_cookie") # TODO: Check if this is valid for macs
-DEFAULT_LOGGED_EVENTS = "wefz" # WARN, ERR, DESCCHANGED, STATUS_SERVER
+DEFAULT_LOGGED_EVENTS = "nwe" # NOTICE, WARN, ERR
 
 NO_AUTH, COOKIE_AUTH, PASSWORD_AUTH = range(3) # enums for authentication type
 EVENT_TYPES = {
@@ -29,7 +35,7 @@ EVENT_TYPES = {
   "w": "WARN",    "f": "DESCCHANGED", "s": "STREAM",    "y": "STATUS_CLIENT",
   "e": "ERR",     "g": "GUARD",       "t": "STREAM_BW", "z": "STATUS_SERVER"}
 
-HELP_TEXT = """Usage arm.py [OPTION]
+HELP_TEXT = """Usage arm [OPTION]
 Terminal Tor relay status monitor.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
@@ -38,18 +44,18 @@ Terminal Tor relay status monitor.
   -p, --password[=PASSWORD]       authenticates using password, prompting
                                     without terminal echo if not provided
   -e, --event=[EVENT FLAGS]       event types in message log  (default: %s)
-        d DEBUG     a ADDRMAP       l NEWDESC       u AUTHDIR_NEWDESCS
-        i INFO      b BW            m NS            v CLIENTS_SEEN
-        n NOTICE    c CIRC          o ORCONN        x STATUS_GENERAL
-        w WARN      f DESCCHANGED   s STREAM        y STATUS_CLIENT
-        e ERR       g GUARD         t STREAM_BW     z STATUS_SERVER
-        Aliases:    A All Events    N No Events     R Runlevels (dinwe)
+        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
+        i INFO      b BW            m NS              v CLIENTS_SEEN
+        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
+        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
+        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
+        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)
   -h, --help                      presents this help
 
 Example:
-arm.py -c                 authenticate using the default cookie
-arm.py -i 1643 -p         prompt for password using control port 1643
-arm.py -e=we -p=nemesis   use password 'nemesis' with 'WARN'/'ERR' events
+arm -c                  authenticate using the default cookie
+arm -i 1643 -p          prompt for password using control port 1643
+arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
 """ % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS)
 
 class Input:
@@ -182,9 +188,8 @@ if __name__ == '__main__':
     if flag == "A":
       expandedEvents = set(EVENT_TYPES.values())
       break
-    elif flag == "N":
-      expandedEvents = set()
-      break
+    elif flag == "U":
+      expandedEvents.add("UNKNOWN")
     elif flag == "R":
       expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
     elif flag in EVENT_TYPES:
