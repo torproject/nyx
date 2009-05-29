@@ -16,6 +16,7 @@ import binascii
 
 try:
   from TorCtl import TorCtl
+  from TorCtl import TorUtil
 except ImportError:
   print "Unable to load TorCtl (see readme for instructions)"
   sys.exit()
@@ -187,6 +188,7 @@ if __name__ == '__main__':
   for flag in input.loggedEvents:
     if flag == "A":
       expandedEvents = set(EVENT_TYPES.values())
+      expandedEvents.add("UNKNOWN")
       break
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
@@ -199,6 +201,9 @@ if __name__ == '__main__':
       isValid = False
   if not isValid: sys.exit()
   
+  # disables TorCtl from logging events (can possibly interrupt curses)
+  TorUtil.loglevel = "NONE"
+  
   # attempts to open a socket to the tor server
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   try:
@@ -209,18 +214,8 @@ if __name__ == '__main__':
     if input.authType == NO_AUTH:
       conn.authenticate("")
     elif input.authType == COOKIE_AUTH:
-      # BUG: about a quarter of the time authentication fails with "Wrong 
-      # length on authentication cookie." or "Invalid quoted string.  You 
-      # need to put the password in double quotes." - this is possibly a TorCtl
-      # issue, but after sinking dozens of hours into this intermittent problem 
-      # I'm throwing in the towl for now...
-      
       authCookie = open(input.authCookieLoc)
-      #conn.authenticate(authCookie.read(-1))
-      
-      # experimenting with an alternative to see if it works better - so far so good...
-      conn.sendAndRecv("AUTHENTICATE %s\r\n" % binascii.b2a_hex(authCookie.read()))
-      
+      conn.authenticate_cookie(authCookie)
       authCookie.close()
     else:
       assert input.authType == PASSWORD_AUTH, "Invalid value in input.authType enum: " + str(input.authType)

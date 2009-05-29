@@ -9,15 +9,18 @@ import os
 import sys
 import time
 import curses
-from threading import Lock
+from curses.ascii import isprint
+from threading import RLock
 from TorCtl import TorCtl
 
 REFRESH_RATE = 5                    # seconds between redrawing screen
-BANDWIDTH_GRAPH_SAMPLES = 5         # seconds of data used for bar in graph
+BANDWIDTH_GRAPH_SAMPLES = 5         # seconds of data used for a bar in the graph
 BANDWIDTH_GRAPH_COL = 30            # columns of data in graph
 BANDWIDTH_GRAPH_COLOR_DL = "green"  # download section color
 BANDWIDTH_GRAPH_COLOR_UL = "cyan"   # upload section color
 MAX_LOG_ENTRIES = 80                # size of log buffer (max number of entries)
+cursesLock = RLock()                # curses isn't thread safe and concurrency
+                                    # bugs produce especially sinister glitches
 
 # default formatting constants
 LABEL_ATTR = curses.A_STANDOUT
@@ -49,13 +52,12 @@ class LogMonitor(TorCtl.PostEventListener):
   
   def __init__(self, logScreen, includeBW, includeUnknown):
     TorCtl.PostEventListener.__init__(self)
-    self.msgLog = []                # tuples of (isMsgFirstLine, logText, color)
-    self.logScreen = logScreen      # curses window where log's displayed
+    self.msgLog = []                      # tuples of (logText, color)
+    self.logScreen = logScreen            # curses window where log's displayed
     self.isPaused = False
-    self.pauseBuffer = []           # location where messages are buffered if paused
-    self.msgLogLock = Lock()        # haven't noticed any concurrency errors but better safe...
-    self.includeBW = includeBW      # true if we're supposed to listen for BW events
-    self.includeUnknown = includeUnknown    # true if registering unrecognized events
+    self.pauseBuffer = []                 # location where messages are buffered if paused
+    self.includeBW = includeBW            # true if we're supposed to listen for BW events
+    self.includeUnknown = includeUnknown  # true if registering unrecognized events
   
   # Listens for all event types and redirects to registerEvent
   # TODO: not sure how to stimulate all event types - should be tried before
@@ -100,6 +102,9 @@ class LogMonitor(TorCtl.PostEventListener):
     Notes event and redraws log. If paused it's held in a temporary buffer.
     """
     
+    # strips control characters to avoid screwing up the terminal
+    msg = "".join([char for char in msg if isprint(char)])
+    
     eventTime = time.localtime()
     msgLine = "%02i:%02i:%02i [%s] %s" % (eventTime[3], eventTime[4], eventTime[5], type, msg)
     
@@ -107,11 +112,9 @@ class LogMonitor(TorCtl.PostEventListener):
       self.pauseBuffer.insert(0, (msgLine, color))
       if len(self.pauseBuffer) > MAX_LOG_ENTRIES: del self.pauseBuffer[MAX_LOG_ENTRIES:]
     else:
-      self.msgLogLock.acquire()
       self.msgLog.insert(0, (msgLine, color))
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
       self.refreshDisplay()
-      self.msgLogLock.release()
   
   def refreshDisplay(self):
     """
@@ -119,24 +122,29 @@ class LogMonitor(TorCtl.PostEventListener):
     contain up to two lines. Starts with newest entries.
     """
     
-    self.logScreen.erase()
-    y, x = self.logScreen.getmaxyx()
-    lineCount = 0
-    
-    for (line, color) in self.msgLog:
-      # splits over too lines if too long
-      if len(line) < x:
-        self.logScreen.addstr(lineCount, 0, line[:x - 1], LOG_ATTR | COLOR_ATTR[color])
-        lineCount += 1
-      else:
-        if lineCount >= y - 1: break
-        (line1, line2) = self._splitLine(line, x)
-        self.logScreen.addstr(lineCount, 0, line1, LOG_ATTR | COLOR_ATTR[color])
-        self.logScreen.addstr(lineCount + 1, 0, line2[:x - 1], LOG_ATTR | COLOR_ATTR[color])
-        lineCount += 2
-      
-      if lineCount >= y: break
-    self.logScreen.refresh()
+    if self.logScreen:
+      if not cursesLock.acquire(False): return
+      try:
+        self.logScreen.erase()
+        y, x = self.logScreen.getmaxyx()
+        lineCount = 0
+        
+        for (line, color) in self.msgLog:
+          # splits over too lines if too long
+          if len(line) < x:
+            self.logScreen.addstr(lineCount, 0, line[:x - 1], LOG_ATTR | COLOR_ATTR[color])
+            lineCount += 1
+          else:
+            if lineCount >= y - 1: break
+            (line1, line2) = self._splitLine(line, x)
+            self.logScreen.addstr(lineCount, 0, line1, LOG_ATTR | COLOR_ATTR[color])
+            self.logScreen.addstr(lineCount + 1, 0, line2[:x - 1], LOG_ATTR | COLOR_ATTR[color])
+            lineCount += 2
+          
+          if lineCount >= y: break
+        self.logScreen.refresh()
+      finally:
+        cursesLock.release()
   
   def setPaused(self, isPause):
     """
@@ -148,11 +156,9 @@ class LogMonitor(TorCtl.PostEventListener):
     self.isPaused = isPause
     if self.isPaused: self.pauseBuffer = []
     else:
-      self.msgLog = self.pauseBuffer + self.msgLog
-      self.msgLogLock.acquire()
+      self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
       self.refreshDisplay()
-      self.msgLogLock.release()
-    
+  
   # divides long message to cover two lines
   def _splitLine(self, message, x):
     # divides message into two lines, attempting to do it on a wordbreak
@@ -225,37 +231,43 @@ class BandwidthMonitor(TorCtl.PostEventListener):
     
     # doesn't draw if headless (indicating that the instance is for a pause buffer)
     if self.bandwidthScreen:
-      self.bandwidthScreen.erase()
-      y, x = self.bandwidthScreen.getmaxyx()
-      dlColor = COLOR_ATTR[BANDWIDTH_GRAPH_COLOR_DL]
-      ulColor = COLOR_ATTR[BANDWIDTH_GRAPH_COLOR_UL]
-      
-      # current numeric measures
-      self.bandwidthScreen.addstr(0, 0, ("Downloaded (%s/sec):" % getSizeLabel(self.lastDownloadRate))[:x - 1], curses.A_BOLD | dlColor)
-      if x > 35: self.bandwidthScreen.addstr(0, 35, ("Uploaded (%s/sec):" % getSizeLabel(self.lastUploadRate))[:x - 36], curses.A_BOLD | ulColor)
-      
-      # graph bounds in KB (uses highest recorded value as max)
-      self.bandwidthScreen.addstr(1, 0, ("%4s" % str(self.maxDownloadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES))[:x - 1], dlColor)
-      self.bandwidthScreen.addstr(6, 0, "   0"[:x - 1], dlColor)
-      
-      if x > 35:
-        self.bandwidthScreen.addstr(1, 35, ("%4s" % str(self.maxUploadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES))[:x - 36], ulColor)
-        self.bandwidthScreen.addstr(6, 35, "   0"[:x - 36], ulColor)
-      
-      # creates bar graph of bandwidth usage over time
-      for col in range(BANDWIDTH_GRAPH_COL):
-        if col > x - 8: break
-        bytesDownloaded = self.downloadRates[col + 1]
-        colHeight = min(5, 5 * bytesDownloaded / self.maxDownloadRate)
-        for row in range(colHeight): self.bandwidthScreen.addstr(6 - row, col + 5, " ", curses.A_STANDOUT | dlColor)
-      
-      for col in range(BANDWIDTH_GRAPH_COL):
-        if col > x - 42: break
-        bytesUploaded = self.uploadRates[col + 1]
-        colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate)
-        for row in range(colHeight): self.bandwidthScreen.addstr(6 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
+      if not cursesLock.acquire(False): return
+      try:
+        self.bandwidthScreen.erase()
+        y, x = self.bandwidthScreen.getmaxyx()
+        dlColor = COLOR_ATTR[BANDWIDTH_GRAPH_COLOR_DL]
+        ulColor = COLOR_ATTR[BANDWIDTH_GRAPH_COLOR_UL]
         
-      self.bandwidthScreen.refresh()
+        # current numeric measures
+        self.bandwidthScreen.addstr(0, 0, ("Downloaded (%s/sec):" % getSizeLabel(self.lastDownloadRate))[:x - 1], curses.A_BOLD | dlColor)
+        if x > 35: self.bandwidthScreen.addstr(0, 35, ("Uploaded (%s/sec):" % getSizeLabel(self.lastUploadRate))[:x - 36], curses.A_BOLD | ulColor)
+        
+        # graph bounds in KB (uses highest recorded value as max)
+        if y > 1:self.bandwidthScreen.addstr(1, 0, ("%4s" % str(self.maxDownloadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES))[:x - 1], dlColor)
+        if y > 6: self.bandwidthScreen.addstr(6, 0, "   0"[:x - 1], dlColor)
+        
+        if x > 35:
+          if y > 1: self.bandwidthScreen.addstr(1, 35, ("%4s" % str(self.maxUploadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES))[:x - 36], ulColor)
+          if y > 6: self.bandwidthScreen.addstr(6, 35, "   0"[:x - 36], ulColor)
+        
+        # creates bar graph of bandwidth usage over time
+        for col in range(BANDWIDTH_GRAPH_COL):
+          if col > x - 8: break
+          bytesDownloaded = self.downloadRates[col + 1]
+          colHeight = min(5, 5 * bytesDownloaded / self.maxDownloadRate)
+          for row in range(colHeight):
+            if y > (6 - row): self.bandwidthScreen.addstr(6 - row, col + 5, " ", curses.A_STANDOUT | dlColor)
+        
+        for col in range(BANDWIDTH_GRAPH_COL):
+          if col > x - 42: break
+          bytesUploaded = self.uploadRates[col + 1]
+          colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate)
+          for row in range(colHeight):
+            if y > (6 - row): self.bandwidthScreen.addstr(6 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
+          
+        self.bandwidthScreen.refresh()
+      finally:
+        cursesLock.release()
   
   def setPaused(self, isPause):
     """
@@ -267,19 +279,24 @@ class BandwidthMonitor(TorCtl.PostEventListener):
     self.isPaused = isPause
     if self.isPaused:
       if self.pauseBuffer == None:
-        self.pauseBuffer = BandwidthMonitor(None, None, None)
+        self.pauseBuffer = BandwidthMonitor(None)
       
       self.pauseBuffer.tick = self.tick
       self.pauseBuffer.lastDownloadRate = self.lastDownloadRate
       self.pauseBuffer.lastuploadRate = self.lastUploadRate
-      self.pauseBuffer.downloadRates = self.downloadRates
-      self.pauseBuffer.uploadRates = self.uploadRates
+      self.pauseBuffer.maxDownloadRate = self.maxDownloadRate
+      self.pauseBuffer.maxUploadRate = self.maxUploadRate
+      self.pauseBuffer.downloadRates = list(self.downloadRates)
+      self.pauseBuffer.uploadRates = list(self.uploadRates)
     else:
       self.tick = self.pauseBuffer.tick
       self.lastDownloadRate = self.pauseBuffer.lastDownloadRate
       self.lastUploadRate = self.pauseBuffer.lastuploadRate
+      self.maxDownloadRate = self.pauseBuffer.maxDownloadRate
+      self.maxUploadRate = self.pauseBuffer.maxUploadRate
       self.downloadRates = self.pauseBuffer.downloadRates
       self.uploadRates = self.pauseBuffer.uploadRates
+      self.refreshDisplay()
   
 def getSizeLabel(bytes):
   """
@@ -345,6 +362,12 @@ def drawSummary(screen, vals, maxX, maxY):
   Exit Policy: reject *:*
   """
   
+  # extra erase/refresh is needed to avoid internal caching screwing up and
+  # refusing to redisplay content in the case of graphical glitches - probably
+  # an obscure curses bug...
+  screen.erase()
+  screen.refresh()
+  
   screen.erase()
   
   # Line 1
@@ -372,10 +395,10 @@ def drawSummary(screen, vals, maxX, maxY):
   # Lines 3-5
   if maxY >= 3: screen.addstr(2, 0, ("Fingerprint: %s" % vals["fingerprint"])[:maxX - 1], SUMMARY_ATTR)
   if maxY >= 4: screen.addstr(3, 0, ("Config: %s" % vals["config-file"])[:maxX - 1], SUMMARY_ATTR)
-  
-  # adds note when default exit policy is appended
   if maxY >= 5:
     exitPolicy = vals["ExitPolicy"]
+    
+    # adds note when default exit policy is appended
     if exitPolicy == None: exitPolicy = "<default>"
     elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
       exitPolicy += ", <default>"
@@ -389,6 +412,46 @@ def drawPauseLabel(screen, isPaused, maxX):
   screen.erase()
   if isPaused: screen.addstr(0, 0, "Paused"[:maxX - 1], LABEL_ATTR)
   else: screen.addstr(0, 0, "q: quit, p: pause"[:maxX - 1])
+  screen.refresh()
+
+def drawBandwidthLabel(screen, staticInfo, maxX):
+  """ Draws bandwidth label text (drops stats if not enough room). """
+  rateLabel = getSizeLabel(int(staticInfo["BandwidthRate"]))
+  burstLabel = getSizeLabel(int(staticInfo["BandwidthBurst"]))
+  labelContents = "Bandwidth (cap: %s, burst: %s):" % (rateLabel, burstLabel)
+  if maxX < len(labelContents):
+    labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
+    if x < len(labelContents): labelContents = "Bandwidth:"           # removes both
+  
+  screen.erase()
+  screen.addstr(0, 0, labelContents[:maxX - 1], LABEL_ATTR)
+  screen.refresh()
+
+def drawEventLogLabel(screen, eventsListing, maxX):
+  """
+  Draws single line label for event log. Uses ellipsis if too long, for instance:
+  Events (DEBUG, INFO, NOTICE, WARN...):
+  """
+  
+  eventsLabel = "Events"
+  
+  firstLabelLen = eventsListing.find(", ")
+  if firstLabelLen == -1: firstLabelLen = len(eventsListing)
+  else: firstLabelLen += 3
+  
+  if maxX > 10 + firstLabelLen:
+    eventsLabel += " ("
+    if len(eventsListing) > maxX - 11:
+      labelBreak = eventsListing[:maxX - 12].rfind(", ")
+      eventsLabel += "%s..." % eventsListing[:labelBreak]
+    else: eventsLabel += eventsListing
+    eventsLabel += ")"
+  eventsLabel += ":"
+  
+  screen.erase()
+  # not sure why but when stressed this call sometimes fails
+  try: screen.addstr(0, 0, eventsLabel[:maxX - 1], LABEL_ATTR)
+  except curses.error: pass
   screen.refresh()
 
 def drawTorMonitor(stdscr, conn, loggedEvents):
@@ -427,12 +490,13 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   # note: subwindows need a character buffer (either in the x or y direction)
   # from actual content to prevent crash when shrank
-  summaryScreen = stdscr.subwin(6, x, 0, 0)     # top static content
-  pauseLabel = stdscr.subwin(1, x, 6, 0)        # line concerned with user interface
-  bandwidthLabel = stdscr.subwin(1, x, 7, 0)    # bandwidth section label
-  bandwidthScreen = stdscr.subwin(8, x, 8, 0)   # bandwidth measurements / graph
-  logLabel = stdscr.subwin(1, x, 16, 0)         # message log label
-  logScreen = stdscr.subwin(y - 17, x, 17, 0)   # uses all remaining space for message log
+  # max/min calls are to allow the program to initialize if the screens too small
+  summaryScreen = stdscr.subwin(min(y, 6), x, 0, 0)                   # top static content
+  pauseLabel = stdscr.subwin(1, x, min(y - 1, 6), 0)                  # line concerned with user interface
+  bandwidthLabel = stdscr.subwin(1, x, min(y - 1, 7), 0)              # bandwidth section label
+  bandwidthScreen = stdscr.subwin(min(y - 8, 8), x, min(y - 2, 8), 0) # bandwidth measurements / graph
+  logLabel = stdscr.subwin(1, x, min(y - 1, 16), 0)                   # message log label
+  logScreen = stdscr.subwin(max(1, y - 17), x, min(y - 1, 17), 0)     # uses all remaining space for message log
   
   # listeners that update bandwidthScreen and logScreen with Tor statuses
   logListener = LogMonitor(logScreen, "BW" in loggedEvents, "UNKNOWN" in loggedEvents)
@@ -474,68 +538,68 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   bandwidthScreen.refresh()
   logScreen.refresh()
   isPaused = False
+  tick = -1 # loop iteration
   
   while True:
+    tick += 1
     y, x = stdscr.getmaxyx()
     
-    if x != oldX or y != oldY:
-      # Screen size changed - redraw content to conform to the new dimensions.
-      # Labels attempt to shrink gracefully.
+    if x != oldX or y != oldY or tick % 5 == 0:
+      # resized - redraws content
+      # occasionally refreshes anyway to help make resilient against an
+      # occasional graphical glitch - currently only known cause of this is 
+      # displaced subwindows overwritting static content when resized to be 
+      # very small
       
-      drawSummary(summaryScreen, staticInfo, x, y)
-      drawPauseLabel(pauseLabel, isPaused, x)
+      # note: Having this refresh only occure after this resize is detected 
+      # (getmaxyx changes) introduces a noticeable lag in screen updates. If 
+      # it's done every pass through the loop resize repaint responsiveness is 
+      # perfect, but this is much more demanding in the common case (no resizing).
+      cursesLock.acquire()
       
-      # Bandwidth label (drops stats if not enough room)
-      rateLabel = getSizeLabel(int(staticInfo["BandwidthRate"]))
-      burstLabel = getSizeLabel(int(staticInfo["BandwidthBurst"]))
-      labelContents = "Bandwidth (cap: %s, burst: %s):" % (rateLabel, burstLabel)
-      if x < len(labelContents):
-        labelContents = "%s):" % labelContents[:labelContents.find(",")] # removes burst measure
-        if x < len(labelContents): labelContents = "Bandwidth:"
-      
-      bandwidthLabel.erase()
-      bandwidthLabel.addstr(0, 0, labelContents[:x - 1], LABEL_ATTR)
-      bandwidthLabel.refresh()
-      
-      # gives bandwidth display a chance to redraw with new size
-      bandwidthListener.refreshDisplay()
-      
-      # Event log label - uses ellipsis if too long, for instance:
-      # Events (DEBUG, INFO, NOTICE, WARN...):
-      eventsLabel = "Events"
-      
-      firstLabelLen = eventsListing.find(", ")
-      if firstLabelLen == -1: firstLabelLen = len(eventsListing)
-      else: firstLabelLen += 3
-      
-      if x > 10 + firstLabelLen:
-        eventsLabel += " ("
-        if len(eventsListing) > x - 11:
-          labelBreak = eventsListing[:x - 12].rfind(", ")
-          eventsLabel += "%s..." % eventsListing[:labelBreak]
-        else: eventsLabel += eventsListing
-        eventsLabel += ")"
-      eventsLabel += ":"
-      
-      # gives message log a chance to redraw with new size
-      logLabel.erase()
-      logLabel.addstr(0, 0, eventsLabel[:x - 1], LABEL_ATTR)
-      logLabel.refresh()
-      
-      logListener.msgLogLock.acquire()
-      logListener.refreshDisplay()
-      logListener.msgLogLock.release()
-      oldX, oldY = x, y
+      try:
+        if y > oldY:
+          # screen height increased - recreates subwindows that are able to grow
+          # I'm not sure if this is some sort of memory leak but the Python curses
+          # bindings seem to lack all of the following:
+          # - subwindow deletion (to tell curses to free the memory)
+          # - subwindow moving/resizing (to restore the displaced windows)
+          # so this is the only option (besides removing subwindows entirly which 
+          # would mean more complicated code and no more selective refreshing)
+          if oldY < 6: summaryScreen = stdscr.subwin(y, x, 0, 0)
+          elif oldY < 7: pauseLabel = stdscr.subwin(1, x, 6, 0)
+          elif oldY < 8: bandwidthLabel = stdscr.subwin(1, x, 7, 0)
+          elif oldY < 16:
+            bandwidthScreen = stdscr.subwin(y - 8, x, 8, 0)
+            bandwidthListener.bandwidthScreen = bandwidthScreen
+          elif oldY < 17: logLabel = stdscr.subwin(1, x, 16, 0)
+          else:
+            logScreen = stdscr.subwin(y - 17, x, 17, 0)
+            logListener.logScreen = logScreen
+        
+        drawSummary(summaryScreen, staticInfo, x, y)
+        drawPauseLabel(pauseLabel, isPaused, x)
+        drawBandwidthLabel(bandwidthLabel, staticInfo, x)
+        bandwidthListener.refreshDisplay()
+        drawEventLogLabel(logLabel, eventsListing, x)
+        logListener.refreshDisplay()
+        oldX, oldY = x, y
+        stdscr.refresh()
+      finally:
+        cursesLock.release()
     
-    stdscr.refresh()
     key = stdscr.getch()
     if key == ord('q') or key == ord('Q'): break # quits
     elif key == ord('p') or key == ord('P'):
       # toggles update freezing
-      isPaused = not isPaused
-      logListener.setPaused(isPaused)
-      bandwidthListener.setPaused(isPaused)
-      drawPauseLabel(pauseLabel, isPaused, x)
+      cursesLock.acquire()
+      try:
+        isPaused = not isPaused
+        logListener.setPaused(isPaused)
+        bandwidthListener.setPaused(isPaused)
+        drawPauseLabel(pauseLabel, isPaused, x)
+      finally:
+        cursesLock.release()
 
 def startTorMonitor(conn, loggedEvents):
   curses.wrapper(drawTorMonitor, conn, loggedEvents)
