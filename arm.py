@@ -21,7 +21,8 @@ except ImportError:
   print "Unable to load TorCtl (see readme for instructions)"
   sys.exit()
 
-import armInterface
+from interface import controller
+from interface import eventLog
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -29,12 +30,6 @@ DEFAULT_AUTH_COOKIE = os.path.expanduser("~/.tor/control_auth_cookie") # TODO: C
 DEFAULT_LOGGED_EVENTS = "nwe" # NOTICE, WARN, ERR
 
 NO_AUTH, COOKIE_AUTH, PASSWORD_AUTH = range(3) # enums for authentication type
-EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",     "l": "NEWDESC",   "u": "AUTHDIR_NEWDESCS",
-  "i": "INFO",    "b": "BW",          "m": "NS",        "v": "CLIENTS_SEEN",
-  "n": "NOTICE",  "c": "CIRC",        "o": "ORCONN",    "x": "STATUS_GENERAL",
-  "w": "WARN",    "f": "DESCCHANGED", "s": "STREAM",    "y": "STATUS_CLIENT",
-  "e": "ERR",     "g": "GUARD",       "t": "STREAM_BW", "z": "STATUS_SERVER"}
 
 HELP_TEXT = """Usage arm [OPTION]
 Terminal Tor relay status monitor.
@@ -45,19 +40,14 @@ Terminal Tor relay status monitor.
   -p, --password[=PASSWORD]       authenticates using password, prompting
                                     without terminal echo if not provided
   -e, --event=[EVENT FLAGS]       event types in message log  (default: %s)
-        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
-        i INFO      b BW            m NS              v CLIENTS_SEEN
-        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
-        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
-        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
-        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)
+%s
   -h, --help                      presents this help
 
 Example:
 arm -c                  authenticate using the default cookie
 arm -i 1643 -p          prompt for password using control port 1643
 arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
-""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS)
+""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, eventLog.EVENT_LISTING)
 
 class Input:
   "Collection of the user's command line input"
@@ -183,23 +173,12 @@ if __name__ == '__main__':
     input.authPassword = getpass.getpass()
   
   # validates and expands logged event flags
-  expandedEvents = set()
-  isValid = True
-  for flag in input.loggedEvents:
-    if flag == "A":
-      expandedEvents = set(EVENT_TYPES.values())
-      expandedEvents.add("UNKNOWN")
-      break
-    elif flag == "U":
-      expandedEvents.add("UNKNOWN")
-    elif flag == "R":
-      expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
-    elif flag in EVENT_TYPES:
-      expandedEvents.add(EVENT_TYPES[flag])
-    else:
+  try:
+    expandedEvents = eventLog.expandEvents(input.loggedEvents)
+  except ValueError, exc:
+    for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
-      isValid = False
-  if not isValid: sys.exit()
+    sys.exit()
   
   # disables TorCtl from logging events (can possibly interrupt curses)
   TorUtil.loglevel = "NONE"
@@ -227,6 +206,6 @@ if __name__ == '__main__':
     print "Connection failed: %s" % exc
     sys.exit()
   
-  armInterface.startTorMonitor(conn, expandedEvents)
+  controller.startTorMonitor(conn, expandedEvents)
   conn.close()
 
