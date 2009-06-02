@@ -22,7 +22,7 @@ except ImportError:
   sys.exit()
 
 from interface import controller
-from interface import eventLog
+from interface import logPanel
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -47,7 +47,7 @@ Example:
 arm -c                  authenticate using the default cookie
 arm -i 1643 -p          prompt for password using control port 1643
 arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
-""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, eventLog.EVENT_LISTING)
+""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
 
 class Input:
   "Collection of the user's command line input"
@@ -174,13 +174,13 @@ if __name__ == '__main__':
   
   # validates and expands logged event flags
   try:
-    expandedEvents = eventLog.expandEvents(input.loggedEvents)
+    expandedEvents = logPanel.expandEvents(input.loggedEvents)
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
     sys.exit()
   
-  # disables TorCtl from logging events (can possibly interrupt curses)
+  # disables TorCtl from logging events (noisy and can possibly interrupt curses)
   TorUtil.loglevel = "NONE"
   
   # attempts to open a socket to the tor server

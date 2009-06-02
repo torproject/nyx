@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-# eventLog.py -- Resources related to Tor event monitoring.
+# logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import time
 import curses
-import controller
 from curses.ascii import isprint
 from TorCtl import TorCtl
+
+import util
 
 MAX_LOG_ENTRIES = 80                # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
@@ -33,6 +34,9 @@ def expandEvents(eventAbbr):
   U - "UNKNOWN" events
   R - alias for runtime events (DEBUG, INFO, NOTICE, WARN, ERR)
   Raises ValueError with invalid input if any part isn't recognized.
+  
+  Example:
+  "inUt" -> ["INFO", "NOTICE", "UNKNOWN", "STREAM_BW"]
   """
   
   expandedEvents = set()
@@ -54,11 +58,13 @@ def expandEvents(eventAbbr):
   if invalidFlags: raise ValueError(invalidFlags)
   else: return expandedEvents
 
-def drawEventLogLabel(screen, eventsListing, maxX):
+def drawEventLogLabel(scr, eventsListing):
   """
   Draws single line label for event log. Uses ellipsis if too long, for instance:
   Events (DEBUG, INFO, NOTICE, WARN...):
   """
+  scr.clear()
+  maxX = scr.maxX
   
   eventsLabel = "Events"
   
@@ -75,11 +81,8 @@ def drawEventLogLabel(screen, eventsListing, maxX):
     eventsLabel += ")"
   eventsLabel += ":"
   
-  screen.erase()
-  # not sure why but when stressed this call sometimes fails
-  try: screen.addstr(0, 0, eventsLabel[:maxX - 1], controller.LABEL_ATTR)
-  except curses.error: pass
-  screen.refresh()
+  scr.addstr(0, 0, eventsLabel, util.LABEL_ATTR)
+  scr.refresh()
 
 class LogMonitor(TorCtl.PostEventListener):
   """
@@ -87,15 +90,14 @@ class LogMonitor(TorCtl.PostEventListener):
   subwindow.
   """
   
-  def __init__(self, logScreen, includeBW, includeUnknown, cursesLock):
+  def __init__(self, scr, includeBW, includeUnknown):
     TorCtl.PostEventListener.__init__(self)
+    self.scr = scr                        # associated subwindow
     self.msgLog = []                      # tuples of (logText, color)
-    self.logScreen = logScreen            # curses window where log's displayed
     self.isPaused = False
     self.pauseBuffer = []                 # location where messages are buffered if paused
     self.includeBW = includeBW            # true if we're supposed to listen for BW events
     self.includeUnknown = includeUnknown  # true if registering unrecognized events
-    self.cursesLock = cursesLock          # lock to safely use logScreen
   
   # Listens for all event types and redirects to registerEvent
   # TODO: not sure how to stimulate all event types - should be tried before
@@ -160,29 +162,28 @@ class LogMonitor(TorCtl.PostEventListener):
     contain up to two lines. Starts with newest entries.
     """
     
-    if self.logScreen:
-      if not self.cursesLock.acquire(False): return
+    if self.scr:
+      if not self.scr.lock.acquire(False): return
       try:
-        self.logScreen.erase()
-        y, x = self.logScreen.getmaxyx()
+        self.scr.clear()
+        x, y = self.scr.maxX, self.scr.maxY
         lineCount = 0
         
         for (line, color) in self.msgLog:
           # splits over too lines if too long
           if len(line) < x:
-            self.logScreen.addstr(lineCount, 0, line[:x - 1], controller.COLOR_ATTR[color])
+            self.scr.addstr(lineCount, 0, line, util.getColor(color))
             lineCount += 1
           else:
-            if lineCount >= y - 1: break
             (line1, line2) = self._splitLine(line, x)
-            self.logScreen.addstr(lineCount, 0, line1, controller.COLOR_ATTR[color])
-            self.logScreen.addstr(lineCount + 1, 0, line2[:x - 1], controller.COLOR_ATTR[color])
+            self.scr.addstr(lineCount, 0, line1, util.getColor(color))
+            self.scr.addstr(lineCount + 1, 0, line2, util.getColor(color))
             lineCount += 2
           
-          if lineCount >= y: break
-        self.logScreen.refresh()
+          if lineCount >= y: break # further log messages wouldn't fit
+        self.scr.refresh()
       finally:
-        self.cursesLock.release()
+        self.scr.lock.release()
   
   def setPaused(self, isPause):
     """

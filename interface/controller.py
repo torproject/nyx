@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # controller.py -- arm interface (curses monitor for relay status).
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
@@ -5,155 +6,43 @@
 Curses (terminal) interface for the arm relay status monitor.
 """
 
-import os
-import sys
 import time
 import curses
-
-import eventLog
-import bandwidthMonitor
-
 from threading import RLock
 from TorCtl import TorCtl
 
-REFRESH_RATE = 5                    # seconds between redrawing screen
-cursesLock = RLock()                # curses isn't thread safe and concurrency
-                                    # bugs produce especially sinister glitches
+import util
+import staticPanel
+import bandwidthPanel
+import logPanel
 
-# default formatting constants
-LABEL_ATTR = curses.A_STANDOUT
-SUMMARY_ATTR = curses.A_NORMAL
+REFRESH_RATE = 5        # seconds between redrawing screen
+cursesLock = RLock()    # global curses lock (curses isn't thread safe and
+                        # concurrency bugs produce especially sinister glitches
 
-# colors curses can handle
-COLOR_LIST = (("red", curses.COLOR_RED),
-             ("green", curses.COLOR_GREEN),
-             ("yellow", curses.COLOR_YELLOW),
-             ("blue", curses.COLOR_BLUE),
-             ("cyan", curses.COLOR_CYAN),
-             ("magenta", curses.COLOR_MAGENTA),
-             ("black", curses.COLOR_BLACK),
-             ("white", curses.COLOR_WHITE))
+CTL_HELP, CTL_PAUSED, CTL_EVENT_INPUT, CTL_EVENT_ERR = range(4) # enums for message in control label
 
-# TODO: change COLOR_ATTR into something that can be imported via 'from'
-# foreground color mappings (starts uninitialized - all colors associated with default white fg / black bg)
-COLOR_ATTR_INITIALIZED = False
-COLOR_ATTR = dict([(color[0], 0) for color in COLOR_LIST])
+# mapping of panels to (height, start y), -1 if unlimited
+PANEL_INFO = {
+  "summary": (6, 0),          # top static content
+  "control": (1, 6),          # line for user input
+  "bandwidthLabel": (1, 7),   # bandwidth section label
+  "bandwidth": (8, 8),        # bandwidth measurements / graph
+  "logLabel": (1, 16),        # message log label
+  "log": (-1, 17)}            # uses all remaining space for message log
 
-def getSizeLabel(bytes):
-  """
-  Converts byte count into label in its most significant units, for instance
-  7500 bytes would return "7 KB".
-  """
-  
-  if bytes >= 1073741824: return "%i GB" % (bytes / 1073741824)
-  elif bytes >= 1048576: return "%i MB" % (bytes / 1048576)
-  elif bytes >= 1024: return "%i KB" % (bytes / 1024)
-  else: return "%i bytes" % bytes
-
-def getStaticInfo(conn):
-  """
-  Provides mapping of static Tor settings and system information to their
-  corresponding string values. Keys include:
-  info - version, config-file, address, fingerprint
-  sys - sys-name, sys-os, sys-version
-  config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy, BandwidthRate, BandwidthBurst
-  config booleans - IsPasswordAuthSet, IsCookieAuthSet
-  """
-  
-  vals = conn.get_info(["version", "config-file"])
-  
-  # gets parameters that throw errors if unavailable
-  for param in ["address", "fingerprint"]:
-    try:
-      vals.update(conn.get_info(param))
-    except TorCtl.ErrorReply:
-      vals[param] = "Unknown"
-  
-  # populates with some basic system information
-  unameVals = os.uname()
-  vals["sys-name"] = unameVals[1]
-  vals["sys-os"] = unameVals[0]
-  vals["sys-version"] = unameVals[2]
-  
-  # parameters from the user's torrc
-  configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy", "BandwidthRate", "BandwidthBurst"]
-  vals.update(dict([(key, conn.get_option(key)[0][1]) for key in configFields]))
-  
-  # simply keeps booleans for if authentication info is set
-  vals["IsPasswordAuthSet"] = not conn.get_option("HashedControlPassword")[0][1] == None
-  vals["IsCookieAuthSet"] = conn.get_option("CookieAuthentication")[0][1] == "1"
-  
-  return vals
-
-def drawSummary(screen, vals, maxX, maxY):
-  """
-  Draws top area containing static information.
-  
-  arm - <System Name> (<OS> <Version>)     Tor <Tor Version>
-  <Relay Nickname> - <IP Addr>:<ORPort>, [Dir Port: <DirPort>, ]Control Port (<open, password, cookie>): <ControlPort>
-  Fingerprint: <Fingerprint>
-  Config: <Config>
-  Exit Policy: <ExitPolicy>
-  
-  Example:
-  arm - odin (Linux 2.6.24-24-generic)     Tor 0.2.0.34 (r18423)
-  odin - 76.104.132.98:9001, Dir Port: 9030, Control Port (cookie): 9051
-  Fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
-  Config: /home/atagar/.vidalia/torrc
-  Exit Policy: reject *:*
-  """
-  
-  # extra erase/refresh is needed to avoid internal caching screwing up and
-  # refusing to redisplay content in the case of graphical glitches - probably
-  # an obscure curses bug...
-  screen.erase()
-  screen.refresh()
-  
-  screen.erase()
-  
-  # Line 1
-  if maxY >= 1:
-    screen.addstr(0, 0, ("arm - %s (%s %s)" % (vals["sys-name"], vals["sys-os"], vals["sys-version"]))[:maxX - 1], SUMMARY_ATTR)
-    if 45 < maxX: screen.addstr(0, 45, ("Tor %s" % vals["version"])[:maxX - 46], SUMMARY_ATTR)
-  
-  # Line 2 (authentication label red if open, green if credentials required)
-  if maxY >= 2:
-    dirPortLabel = "Dir Port: %s, " % vals["DirPort"] if not vals["DirPort"] == None else ""
-    
-    # TODO: if both cookie and password are set then which takes priority?
-    if vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
-    elif vals["IsCookieAuthSet"]: controlPortAuthLabel = "cookie"
-    else: controlPortAuthLabel = "open"
-    controlPortAuthColor = "red" if controlPortAuthLabel == "open" else "green"
-    
-    labelStart = "%s - %s:%s, %sControl Port (" % (vals["Nickname"], vals["address"], vals["ORPort"], dirPortLabel)
-    screen.addstr(1, 0, labelStart[:maxX - 1], SUMMARY_ATTR)
-    xLoc = len(labelStart)
-    if xLoc < maxX: screen.addstr(1, xLoc, controlPortAuthLabel[:maxX - xLoc - 1], COLOR_ATTR[controlPortAuthColor] | SUMMARY_ATTR)
-    xLoc += len(controlPortAuthLabel)
-    if xLoc < maxX: screen.addstr(1, xLoc, ("): %s" % vals["ControlPort"])[:maxX - xLoc - 1], SUMMARY_ATTR)
-    
-  # Lines 3-5
-  if maxY >= 3: screen.addstr(2, 0, ("Fingerprint: %s" % vals["fingerprint"])[:maxX - 1], SUMMARY_ATTR)
-  if maxY >= 4: screen.addstr(3, 0, ("Config: %s" % vals["config-file"])[:maxX - 1], SUMMARY_ATTR)
-  if maxY >= 5:
-    exitPolicy = vals["ExitPolicy"]
-    
-    # adds note when default exit policy is appended
-    if exitPolicy == None: exitPolicy = "<default>"
-    elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
-      exitPolicy += ", <default>"
-    screen.addstr(4, 0, ("Exit Policy: %s" % exitPolicy)[:maxX - 1], SUMMARY_ATTR)
-  
-  screen.refresh()
-
-def drawPauseLabel(screen, isPaused, maxX):
+def drawControlLabel(scr, msgType, arg=""):
   """ Draws single line label for interface controls. """
-  # TODO: possibly include 'h: help' if the project grows much
-  screen.erase()
-  if isPaused: screen.addstr(0, 0, "Paused"[:maxX - 1], LABEL_ATTR)
-  else: screen.addstr(0, 0, "q: quit, e: change events, p: pause"[:maxX - 1])
-  screen.refresh()
+  scr.clear()
+  
+  if msgType == CTL_HELP: scr.addstr(0, 0, "q: quit, e: change events, p: pause")
+  elif msgType == CTL_PAUSED: scr.addstr(0, 0, "Paused", curses.A_STANDOUT)
+  elif msgType == CTL_EVENT_INPUT: scr.addstr(0, 0, "Events to log: ")
+  elif msgType == CTL_EVENT_ERR: scr.addstr(0, 0, arg, curses.A_STANDOUT)
+  else:
+    assert False, "Unrecognized event type for control label: " + str(msgType)
+  
+  scr.refresh()
 
 def setEventListening(loggedEvents, conn, logListener):
   """
@@ -185,9 +74,49 @@ def setEventListening(loggedEvents, conn, logListener):
         logListener.registerEvent("ARM-ERR", "Unsupported event type: %s" % eventType, "red")
       else:
         raise exc
+  
   loggedEvents = list(loggedEvents)
   loggedEvents.sort() # alphabetizes
   return loggedEvents
+
+def refreshSubwindows(stdscr, panels={}):
+  """
+  Creates constituent parts of the display. Any subwindows that have been
+  displaced are recreated to take advantage of the maximum bounds.
+  """
+  
+  y, x = stdscr.getmaxyx()
+  
+  if panels == {}:
+    # initializes subwindows - upper left must be a valid coordinate
+    for panelName, (maxHeight, startY) in PANEL_INFO.items():
+      if maxHeight == -1: height = max(1, y - startY)
+      else: height = max(1, min(maxHeight, y - startY))
+      startY = min(startY, y - 1)
+      panels[panelName] = util.TermSubwindow(stdscr.subwin(height, x, startY, 0), cursesLock, startY)
+  else:
+    # I'm not sure if recreating subwindows is some sort of memory leak but the
+    # Python curses bindings seem to lack all of the following:
+    # - subwindow deletion (to tell curses to free the memory)
+    # - subwindow moving/resizing (to restore the displaced windows)
+    # so this is the only option (besides removing subwindows entirly which 
+    # would mean more complicated code and no more selective refreshing)
+    
+    for panelName, (maxHeight, startY) in PANEL_INFO.items():
+      if startY > y: continue # out of bounds - ignore
+      panelSrc = panels[panelName]
+      currentY, currentX = panelSrc.win.getparyx()
+      currentHeight, currentWidth = panelSrc.win.getmaxyx()
+      
+      # figure out panel can grow - if so recreate
+      if maxHeight == -1: height = max(1, y - startY)
+      else: height = max(1, min(maxHeight, y - startY))
+      startY = min(startY, y - 1)
+      
+      if currentY < startY or currentHeight < height:
+        panels[panelName].win = stdscr.subwin(height, x, startY, 0)
+  
+  return panels
 
 def drawTorMonitor(stdscr, conn, loggedEvents):
   """
@@ -199,110 +128,59 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     otherwise unrecognized events)
   """
   
-  global COLOR_ATTR_INITIALIZED
-  
-  # use terminal defaults to allow things like semi-transparent backgrounds
-  curses.use_default_colors()
-  
-  # initializes color mappings if able
-  if curses.has_colors() and not COLOR_ATTR_INITIALIZED:
-    COLOR_ATTR_INITIALIZED = True
-    colorpair = 0
-    
-    for name, fgColor in COLOR_LIST:
-      colorpair += 1
-      curses.init_pair(colorpair, fgColor, -1) # -1 allows for default (possibly transparent) background
-      COLOR_ATTR[name] = curses.color_pair(colorpair)
-  
+  curses.use_default_colors()           # allows things like semi-transparent backgrounds
+  util.initColors()                     # initalizes color pairs for colored text
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
-  staticInfo = getStaticInfo(conn)
-  y, x = stdscr.getmaxyx()
-  oldX, oldY = -1, -1
   
   # attempts to make the cursor invisible (not supported in all terminals)
   try: curses.curs_set(0)
   except curses.error: pass
   
-  # note: subwindows need a character buffer (either in the x or y direction)
-  # from actual content to prevent crash when shrank
-  # max/min calls are to allow the program to initialize if the screens too small
-  summaryScreen = stdscr.subwin(min(y, 6), x, 0, 0)                   # top static content
-  pauseLabel = stdscr.subwin(1, x, min(y - 1, 6), 0)                  # line concerned with user interface
-  bandwidthLabel = stdscr.subwin(1, x, min(y - 1, 7), 0)              # bandwidth section label
-  bandwidthScreen = stdscr.subwin(min(y - 8, 8), x, min(y - 2, 8), 0) # bandwidth measurements / graph
-  logLabel = stdscr.subwin(1, x, min(y - 1, 16), 0)                   # message log label
-  logScreen = stdscr.subwin(max(1, y - 17), x, min(y - 1, 17), 0)     # uses all remaining space for message log
+  panels = refreshSubwindows(stdscr)
+  staticInfo = staticPanel.getStaticInfo(conn)
   
-  # listeners that update bandwidthScreen and logScreen with Tor statuses
-  logListener = eventLog.LogMonitor(logScreen, "BW" in loggedEvents, "UNKNOWN" in loggedEvents, cursesLock)
+  # listeners that update bandwidth and log panels with Tor status
+  logListener = logPanel.LogMonitor(panels["log"], "BW" in loggedEvents, "UNKNOWN" in loggedEvents)
   conn.add_event_listener(logListener)
   
-  bandwidthListener = bandwidthMonitor.BandwidthMonitor(bandwidthScreen, cursesLock)
+  bandwidthListener = bandwidthPanel.BandwidthMonitor(panels["bandwidth"])
   conn.add_event_listener(bandwidthListener)
   
   loggedEvents = setEventListening(loggedEvents, conn, logListener)
   eventsListing = ", ".join(loggedEvents)
-  
-  bandwidthScreen.refresh()
-  logScreen.refresh()
+  oldY, oldX = -1, -1
   isPaused = False
-  tick = -1 # loop iteration
   
   while True:
-    tick += 1
-    y, x = stdscr.getmaxyx()
+    # tried only refreshing when the screen was resized but it caused a
+    # noticeable lag when resizing and didn't have an appreciable effect
+    # on system usage
     
-    if x != oldX or y != oldY or tick % 5 == 0:
-      # resized - redraws content
-      # occasionally refreshes anyway to help make resilient against an
-      # occasional graphical glitch - currently only known cause of this is 
-      # displaced subwindows overwritting static content when resized to be 
-      # very small
+    cursesLock.acquire()
+    try:
+      y, x = stdscr.getmaxyx()
+      if y > oldY: panels = refreshSubwindows(stdscr, panels)
       
-      # note: Having this refresh only occure after this resize is detected 
-      # (getmaxyx changes) introduces a noticeable lag in screen updates. If 
-      # it's done every pass through the loop resize repaint responsiveness is 
-      # perfect, but this is much more demanding in the common case (no resizing).
-      cursesLock.acquire()
+      staticPanel.drawSummary(panels["summary"], staticInfo)
       
-      try:
-        if y > oldY:
-          # screen height increased - recreates subwindows that are able to grow
-          # I'm not sure if this is some sort of memory leak but the Python curses
-          # bindings seem to lack all of the following:
-          # - subwindow deletion (to tell curses to free the memory)
-          # - subwindow moving/resizing (to restore the displaced windows)
-          # so this is the only option (besides removing subwindows entirly which 
-          # would mean more complicated code and no more selective refreshing)
-          
-          # TODO: BUG - this fails if doing maximize operation (relies on gradual growth/shrink - 
-          # fix would be to eliminate elif and consult new y)
-          if oldY < 6: summaryScreen = stdscr.subwin(y, x, 0, 0)
-          elif oldY < 7: pauseLabel = stdscr.subwin(1, x, 6, 0)
-          elif oldY < 8: bandwidthLabel = stdscr.subwin(1, x, 7, 0)
-          elif oldY < 16:
-            bandwidthScreen = stdscr.subwin(y - 8, x, 8, 0)
-            bandwidthListener.bandwidthScreen = bandwidthScreen
-          elif oldY < 17: logLabel = stdscr.subwin(1, x, 16, 0)
-          else:
-            logScreen = stdscr.subwin(y - 17, x, 17, 0)
-            logListener.logScreen = logScreen
-        
-        drawSummary(summaryScreen, staticInfo, x, y)
-        drawPauseLabel(pauseLabel, isPaused, x)
-        bandwidthMonitor.drawBandwidthLabel(bandwidthLabel, staticInfo, x)
-        bandwidthListener.refreshDisplay()
-        eventLog.drawEventLogLabel(logLabel, eventsListing, x)
-        logListener.refreshDisplay()
-        oldX, oldY = x, y
-        stdscr.refresh()
-      finally:
-        cursesLock.release()
+      msgType = CTL_PAUSED if isPaused else CTL_HELP
+      drawControlLabel(panels["control"], msgType)
+      
+      bandwidthPanel.drawBandwidthLabel(panels["bandwidthLabel"], staticInfo)
+      bandwidthListener.refreshDisplay()
+      
+      logPanel.drawEventLogLabel(panels["logLabel"], eventsListing)
+      logListener.refreshDisplay()
+      
+      oldY, oldX = y, x
+      stdscr.refresh()
+    finally:
+      cursesLock.release()
     
     key = stdscr.getch()
-    if key == ord('q') or key == ord('Q'): break # quits
+    if key == 27 or key == ord('q') or key == ord('Q'): break # quits (also on esc)
     elif key == ord('e') or key == ord('E'):
-      # allow user to enter new types of events to log - blank leaves unchanged
+      # allow user to enter new types of events to log - unchanged if left blank
       
       cursesLock.acquire()
       try:
@@ -314,9 +192,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         logListener.setPaused(True)
         
         # provides prompt
-        pauseLabel.erase()
-        pauseLabel.addstr(0, 0, "Events to log: "[:x - 1])
-        pauseLabel.refresh()
+        drawControlLabel(panels["control"], CTL_EVENT_INPUT)
         
         # makes cursor and typing visible
         try: curses.curs_set(1)
@@ -324,22 +200,20 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         curses.echo()
         
         # switches bandwidth area to list event types
-        bandwidthLabel.erase()
-        bandwidthLabel.addstr(0, 0, "Event Types:"[:x - 1], LABEL_ATTR)
-        bandwidthLabel.refresh()
+        panels["bandwidthLabel"].clear()
+        panels["bandwidthLabel"].addstr(0, 0, "Event Types:", util.LABEL_ATTR)
+        panels["bandwidthLabel"].refresh()
         
-        bandwidthScreen.erase()
-        bandwidthScreenMaxY, tmp = bandwidthScreen.getmaxyx()
+        panels["bandwidth"].clear()
         lineNum = 0
-        for line in eventLog.EVENT_LISTING.split("\n"):
+        for line in logPanel.EVENT_LISTING.split("\n"):
           line = line.strip()
-          if bandwidthScreenMaxY <= lineNum: break
-          bandwidthScreen.addstr(lineNum, 0, line[:x - 1])
+          panels["bandwidth"].addstr(lineNum, 0, line[:x - 1])
           lineNum += 1
-        bandwidthScreen.refresh()
+        panels["bandwidth"].refresh()
         
         # gets user input (this blocks monitor updates)
-        eventsInput = pauseLabel.getstr(0, 15)
+        eventsInput = panels["control"].win.getstr(0, 15)
         
         # strips spaces
         eventsInput = eventsInput.replace(' ', '')
@@ -352,27 +226,21 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         # TODO: it would be nice to quit on esc, but looks like this might not be possible...
         if eventsInput != "":
           try:
-            expandedEvents = eventLog.expandEvents(eventsInput)
+            expandedEvents = logPanel.expandEvents(eventsInput)
             logListener.includeBW = "BW" in expandedEvents
             logListener.includeUnknown = "UNKNOWN" in expandedEvents
             
             loggedEvents = setEventListening(expandedEvents, conn, logListener)
             eventsListing = ", ".join(loggedEvents)
           except ValueError, exc:
-            pauseLabel.erase()
-            pauseLabel.addstr(0, 0, ("Invalid flags: %s" % str(exc))[:x - 1], curses.A_STANDOUT)
-            pauseLabel.refresh()
+            drawControlLabel(panels["control"], CTL_EVENT_ERR, "Invalid flags: %s" % str(exc))
             time.sleep(2)
         
         # returns listeners to previous pause status
         bandwidthListener.setPaused(isBwPaused)
         logListener.setPaused(isLogPaused)
-        
-        oldX = -1 # forces refresh (by spoofing a resize)
       finally:
         cursesLock.release()
-      
-      
     elif key == ord('p') or key == ord('P'):
       # toggles update freezing
       cursesLock.acquire()
@@ -380,7 +248,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         isPaused = not isPaused
         logListener.setPaused(isPaused)
         bandwidthListener.setPaused(isPaused)
-        drawPauseLabel(pauseLabel, isPaused, x)
+        msgType = CTL_PAUSED if isPaused else CTL_HELP
+        drawControlLabel(panels["control"], msgType)
       finally:
         cursesLock.release()
 
