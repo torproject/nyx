@@ -98,6 +98,7 @@ class LogMonitor(TorCtl.PostEventListener):
     self.pauseBuffer = []                 # location where messages are buffered if paused
     self.includeBW = includeBW            # true if we're supposed to listen for BW events
     self.includeUnknown = includeUnknown  # true if registering unrecognized events
+    self.lastHeartbeat = time.time()      # time of last BW event
   
   # Listens for all event types and redirects to registerEvent
   # TODO: not sure how to stimulate all event types - should be tried before
@@ -117,6 +118,7 @@ class LogMonitor(TorCtl.PostEventListener):
     self.registerEvent("STREAM_BW", "<STUB>", "white") # TODO: implement - variables: event.strm_id, event.bytes_read, event.bytes_written
   
   def bandwidth_event(self, event):
+    self.lastHeartbeat = time.time()
     if self.includeBW: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
@@ -136,6 +138,10 @@ class LogMonitor(TorCtl.PostEventListener):
   
   def unknown_event(self, event):
     if self.includeUnknown: self.registerEvent("UNKNOWN", event.event_string, "red")
+  
+  def monitor_event(self, level, msg):
+    # events provided by the arm monitor - types use the same as runlevel
+    self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
   def registerEvent(self, type, msg, color):
     """
@@ -197,6 +203,13 @@ class LogMonitor(TorCtl.PostEventListener):
     else:
       self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
       self.refreshDisplay()
+  
+  def getHeartbeat(self):
+    """
+    Provides the number of seconds since the last BW event.
+    """
+    
+    return time.time() - self.lastHeartbeat
   
   # divides long message to cover two lines
   def _splitLine(self, message, x):

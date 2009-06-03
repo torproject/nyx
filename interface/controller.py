@@ -24,12 +24,12 @@ CTL_HELP, CTL_PAUSED, CTL_EVENT_INPUT, CTL_EVENT_ERR = range(4) # enums for mess
 
 # mapping of panels to (height, start y), -1 if unlimited
 PANEL_INFO = {
-  "summary": (6, 0),          # top static content
-  "control": (1, 6),          # line for user input
-  "bandwidthLabel": (1, 7),   # bandwidth section label
-  "bandwidth": (8, 8),        # bandwidth measurements / graph
-  "logLabel": (1, 16),        # message log label
-  "log": (-1, 17)}            # uses all remaining space for message log
+  "summary":        (6, 0),     # top static content
+  "control":        (1, 6),     # line for user input
+  "bandwidthLabel": (1, 7),     # bandwidth section label
+  "bandwidth":      (8, 8),     # bandwidth measurements / graph
+  "logLabel":       (1, 16),    # message log label
+  "log":            (-1, 17)}   # uses all remaining space for message log
 
 def drawControlLabel(scr, msgType, arg=""):
   """ Draws single line label for interface controls. """
@@ -71,9 +71,11 @@ def setEventListening(loggedEvents, conn, logListener):
         
         # removes and notes problem
         loggedEvents.remove(eventType)
-        logListener.registerEvent("ARM-ERR", "Unsupported event type: %s" % eventType, "red")
+        logListener.monitor_event("WARN", "Unsupported event type: %s" % eventType)
       else:
         raise exc
+    except TorCtl.TorCtlClosed:
+      return []
   
   loggedEvents = list(loggedEvents)
   loggedEvents.sort() # alphabetizes
@@ -149,7 +151,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   loggedEvents = setEventListening(loggedEvents, conn, logListener)
   eventsListing = ", ".join(loggedEvents)
   oldY, oldX = -1, -1
-  isPaused = False
+  isUnresponsive = False    # true if it's been over five seconds since the last BW event (probably due to Tor closing)
+  isPaused = False          # if true updates are frozen
   
   while True:
     # tried only refreshing when the screen was resized but it caused a
@@ -174,6 +177,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       oldY, oldX = y, x
       stdscr.refresh()
+      
+      # if it's been at least five seconds since the last BW event Tor's probably done
+      if not isUnresponsive and logListener.getHeartbeat() >= 5:
+        isUnresponsive = True
+        logListener.monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(logListener.lastHeartbeat))
+      elif isUnresponsive and logListener.getHeartbeat() < 5:
+        # this really shouldn't happen - BW events happen every second...
+        isUnresponsive = False
+        logListener.monitor_event("WARN", "Relay resumed")
     finally:
       cursesLock.release()
     
