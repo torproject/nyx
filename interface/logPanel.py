@@ -106,16 +106,28 @@ class LogMonitor(TorCtl.PostEventListener):
   # important, and to make sure of variable's types so we don't get exceptions.
   
   def circ_status_event(self, event):
-    self.registerEvent("CIRC", "<STUB>", "white") # TODO: implement - variables: event.circ_id, event.status, event.path, event.purpose, event.reason, event.remote_reason
+    # TODO: sanity check on how we're presenting event
+    try:
+      self.registerEvent("CIRC", "ID: %s STATUS: %s PATH: %s PURPOSE: %s REASON: %s REMOTE_REASON: %s" % (event.circ_id, event.status, event.path, event.purpose, event.reason, event.remote_reason), "white")
+    except TypeError:
+      self.registerEvent("CIRC", "DEBUG -> ID: %s STATUS: %s PATH: %s PURPOSE: %s REASON: %s REMOTE_REASON: %s" % (type(event.circ_id), type(event.status), type(event.path), type(event.purpose), type(event.reason), type(event.remote_reason)), "white")
   
   def stream_status_event(self, event):
-    self.registerEvent("STREAM", "<STUB>", "white") # TODO: implement - variables: event.strm_id, event.status, event.circ_id, event.target_host, event.target_port, event.reason, event.remote_reason, event.source, event.source_addr, event.purpose
+    # TODO: sanity check on how we're presenting event
+    try:
+      self.registerEvent("STREAM", "ID: %s STATUS: %s CIRC_ID: %s TARGET: %s:%s REASON: %s REMOTE_REASON: %s SOURCE: %s SOURCE_ADDR: %s PURPOSE: %s" % (event.strm_id, event.status, event.circ_id, event.target_host, event.target_port, event.reason, event.remote_reason, event.source, event.source_addr, event.purpose), "white")
+    except TypeError:
+      self.registerEvent("STREAM", "DEBUG -> ID: %s STATUS: %s CIRC_ID: %s TARGET: %s:%s REASON: %s REMOTE_REASON: %s SOURCE: %s SOURCE_ADDR: %s PURPOSE: %s" % (type(event.strm_id), type(event.status), type(event.circ_id), type(event.target_host), type(event.target_port), type(event.reason), type(event.remote_reason), type(event.source), type(event.source_addr), type(event.purpose)), "white")
   
   def or_conn_status_event(self, event):
-    self.registerEvent("ORCONN", "<STUB>", "white") # TODO: implement - variables: event.status, event.endpoint, event.age, event.read_bytes, event.wrote_bytes, event.reason, event.ncircs
+    self.registerEvent("ORCONN", "STATUS: %-10s ENDPOINT: %-22s AGE: %-3s READ: %-4s WRITTEN: %-4s REASON: %-6s NCIRCS: %s" % (event.status, event.endpoint, event.age, event.read_bytes, event.wrote_bytes, event.reason, event.ncircs), "white")
   
   def stream_bw_event(self, event):
-    self.registerEvent("STREAM_BW", "<STUB>", "white") # TODO: implement - variables: event.strm_id, event.bytes_read, event.bytes_written
+    # TODO: sanity check on how we're presenting event
+    try:
+      self.registerEvent("STREAM_BW", "ID: %s READ: %i WRITTEN: %i" % (event.strm_id, event.bytes_read, event.bytes_written), "white")
+    except TypeError:
+      self.registerEvent("STREAM_BW", "DEBUG -> ID: %s READ: %i WRITTEN: %i" % (type(event.strm_id), type(event.bytes_read), type(event.bytes_written)), "white")
   
   def bandwidth_event(self, event):
     self.lastHeartbeat = time.time()
@@ -125,16 +137,25 @@ class LogMonitor(TorCtl.PostEventListener):
     self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
   
   def new_desc_event(self, event):
-    self.registerEvent("NEWDESC", "<STUB>", "white") # TODO: implement - variables: event.idlist
+    idlistStr = [str(item) for item in event.idlist]
+    self.registerEvent("NEWDESC", ", ".join(idlistStr), "white")
   
   def address_mapped_event(self, event):
-    self.registerEvent("ADDRMAP", "<STUB>", "white") # TODO: implement - variables: event.from_addr, event.to_addr, event.when
+    # TODO: sanity check on how we're presenting event
+    try:
+      self.registerEvent("ADDRMAP", "%s FROM: %s TO: %s" % (event.when, event.from_addr, event.to_addr), "white")
+    except TypeError:
+      self.registerEvent("ADDRMAP", "DEBUG -> %s FROM: %s TO: %s" % (type(event.when), type(event.from_addr), type(event.to_addr)), "white")
   
   def ns_event(self, event):
-    self.registerEvent("NS", "<STUB>", "white") # TODO: implement - variables: event.nslist
+    # TODO: sanity check on how we're presenting event
+    nslistStr = [str(item) for item in event.nslist]
+    self.registerEvent("NS", ", ".join(nslistStr), "white")
   
   def new_consensus_event(self, event):
-    self.registerEvent("NEWCONSENSUS", "<STUB>", "white") # TODO: implement - variables: event.nslist
+    # TODO: sanity check on how we're presenting event
+    nslistStr = [str(item) for item in event.nslist]
+    self.registerEvent("NEWCONSENSUS", str(nslistStr), "white")
   
   def unknown_event(self, event):
     if self.includeUnknown: self.registerEvent("UNKNOWN", event.event_string, "red")
