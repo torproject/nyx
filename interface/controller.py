@@ -164,6 +164,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       y, x = stdscr.getmaxyx()
       if y > oldY: panels = refreshSubwindows(stdscr, panels)
       
+      # if it's been at least five seconds since the last BW event Tor's probably done
+      if not isUnresponsive and logListener.getHeartbeat() >= 5:
+        isUnresponsive = True
+        logListener.monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(logListener.lastHeartbeat))
+      elif isUnresponsive and logListener.getHeartbeat() < 5:
+        # this really shouldn't happen - BW events happen every second...
+        isUnresponsive = False
+        logListener.monitor_event("WARN", "Relay resumed")
+      
       staticPanel.drawSummary(panels["summary"], staticInfo)
       
       msgType = CTL_PAUSED if isPaused else CTL_HELP
@@ -177,15 +186,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       oldY, oldX = y, x
       stdscr.refresh()
-      
-      # if it's been at least five seconds since the last BW event Tor's probably done
-      if not isUnresponsive and logListener.getHeartbeat() >= 5:
-        isUnresponsive = True
-        logListener.monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(logListener.lastHeartbeat))
-      elif isUnresponsive and logListener.getHeartbeat() < 5:
-        # this really shouldn't happen - BW events happen every second...
-        isUnresponsive = False
-        logListener.monitor_event("WARN", "Relay resumed")
     finally:
       cursesLock.release()
     

@@ -101,29 +101,31 @@ class LogMonitor(TorCtl.PostEventListener):
     self.lastHeartbeat = time.time()      # time of last BW event
   
   # Listens for all event types and redirects to registerEvent
-  # TODO: not sure how to stimulate all event types - should be tried before
-  # implemented to see what's the best formatting, what information is
-  # important, and to make sure of variable's types so we don't get exceptions.
-  
   def circ_status_event(self, event):
-    # TODO: sanity check on how we're presenting event
-    try:
-      self.registerEvent("CIRC", "ID: %s STATUS: %s PATH: %s PURPOSE: %s REASON: %s REMOTE_REASON: %s" % (event.circ_id, event.status, event.path, event.purpose, event.reason, event.remote_reason), "white")
-    except TypeError:
-      self.registerEvent("CIRC", "DEBUG -> ID: %s STATUS: %s PATH: %s PURPOSE: %s REASON: %s REMOTE_REASON: %s" % (type(event.circ_id), type(event.status), type(event.path), type(event.purpose), type(event.reason), type(event.remote_reason)), "white")
+    optionalParams = ""
+    if event.purpose: optionalParams += " PURPOSE: %s" % event.purpose
+    if event.reason: optionalParams += " REASON: %s" % event.reason
+    if event.remote_reason: optionalParams += " REMOTE_REASON: %s" % event.remote_reason
+    self.registerEvent("CIRC", "ID: %-3s STATUS: %-10s PATH: %s%s" % (event.circ_id, event.status, ", ".join(event.path), optionalParams), "yellow")
   
   def stream_status_event(self, event):
-    # TODO: sanity check on how we're presenting event
+    # TODO: not sure how to stimulate event - needs sanity check
     try:
       self.registerEvent("STREAM", "ID: %s STATUS: %s CIRC_ID: %s TARGET: %s:%s REASON: %s REMOTE_REASON: %s SOURCE: %s SOURCE_ADDR: %s PURPOSE: %s" % (event.strm_id, event.status, event.circ_id, event.target_host, event.target_port, event.reason, event.remote_reason, event.source, event.source_addr, event.purpose), "white")
     except TypeError:
       self.registerEvent("STREAM", "DEBUG -> ID: %s STATUS: %s CIRC_ID: %s TARGET: %s:%s REASON: %s REMOTE_REASON: %s SOURCE: %s SOURCE_ADDR: %s PURPOSE: %s" % (type(event.strm_id), type(event.status), type(event.circ_id), type(event.target_host), type(event.target_port), type(event.reason), type(event.remote_reason), type(event.source), type(event.source_addr), type(event.purpose)), "white")
   
   def or_conn_status_event(self, event):
-    self.registerEvent("ORCONN", "STATUS: %-10s ENDPOINT: %-22s AGE: %-3s READ: %-4s WRITTEN: %-4s REASON: %-6s NCIRCS: %s" % (event.status, event.endpoint, event.age, event.read_bytes, event.wrote_bytes, event.reason, event.ncircs), "white")
+    optionalParams = ""
+    if event.age: optionalParams += " AGE: %-3s" % event.age
+    if event.read_bytes: optionalParams += " READ: %-4i" % event.read_bytes
+    if event.wrote_bytes: optionalParams += " WRITTEN: %-4i" % event.wrote_bytes
+    if event.reason: optionalParams += " REASON: %-6s" % event.reason
+    if event.ncircs: optionalParams += " NCIRCS: %i" % event.ncircs
+    self.registerEvent("ORCONN", "STATUS: %-10s ENDPOINT: %-20s%s" % (event.status, event.endpoint, optionalParams), "white")
   
   def stream_bw_event(self, event):
-    # TODO: sanity check on how we're presenting event
+    # TODO: not sure how to stimulate event - needs sanity check
     try:
       self.registerEvent("STREAM_BW", "ID: %s READ: %i WRITTEN: %i" % (event.strm_id, event.bytes_read, event.bytes_written), "white")
     except TypeError:
@@ -141,21 +143,21 @@ class LogMonitor(TorCtl.PostEventListener):
     self.registerEvent("NEWDESC", ", ".join(idlistStr), "white")
   
   def address_mapped_event(self, event):
-    # TODO: sanity check on how we're presenting event
-    try:
-      self.registerEvent("ADDRMAP", "%s FROM: %s TO: %s" % (event.when, event.from_addr, event.to_addr), "white")
-    except TypeError:
-      self.registerEvent("ADDRMAP", "DEBUG -> %s FROM: %s TO: %s" % (type(event.when), type(event.from_addr), type(event.to_addr)), "white")
+    self.registerEvent("ADDRMAP", "%s, %s -> %s" % (event.when, event.from_addr, event.to_addr), "white")
   
   def ns_event(self, event):
-    # TODO: sanity check on how we're presenting event
-    nslistStr = [str(item) for item in event.nslist]
-    self.registerEvent("NS", ", ".join(nslistStr), "white")
+    # NetworkStatus params: nickname, idhash, orhash, ip, orport (int), dirport (int), flags, idhex, bandwidth, updated (datetime)
+    msg = ""
+    for ns in event.nslist:
+      msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
+    if len(msg) > 1: msg = msg[2:]
+    self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
   
   def new_consensus_event(self, event):
-    # TODO: sanity check on how we're presenting event
-    nslistStr = [str(item) for item in event.nslist]
-    self.registerEvent("NEWCONSENSUS", str(nslistStr), "white")
+    msg = ""
+    for ns in event.nslist:
+      msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
+    self.registerEvent("NEWCONSENSUS", "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
   
   def unknown_event(self, event):
     if self.includeUnknown: self.registerEvent("UNKNOWN", event.event_string, "red")
