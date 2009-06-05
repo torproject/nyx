@@ -62,33 +62,74 @@ def getSizeLabel(bytes):
   elif bytes >= 1024: return "%i KB" % (bytes / 1024)
   else: return "%i bytes" % bytes
 
-class TermSubwindow():
+class Panel():
   """
-  Wrapper for curses subwindows. This provides safe proxies to common methods.
+  Wrapper for curses subwindows. This provides safe proxies to common methods
+  and is extended by panels.
   """
   
-  def __init__(self, win, lock, startY):
-    self.win = win          # associated curses subwindow
-    self.lock = lock        # global curses lock
-    self.startY = startY    # y-coordinate where made
-    self.disable = False    # set if we detect being displaced
-    self._resetBounds()     # sets last known dimensions of win
+  def __init__(self, lock, height):
+    self.win = None           # associated curses subwindow
+    self.lock = lock          # global curses lock
+    self.startY = -1          # top in parent window when created
+    self.height = height      # preferred (max) height of panel, -1 if infinite
+    self.isDisplaced = False  # window isn't in the right location - don't redraw
+    self._resetBounds()       # sets last known dimensions of win (maxX and maxY)
+  
+  def redraw(self):
+    pass # overwritten by implementations
+  
+  def recreate(self, stdscr, startY):
+    """
+    Creates a new subwindow for the panel if:
+    - panel currently doesn't have a subwindow
+    - the panel is being moved (startY is different)
+    - there's room for the panel to grow
+    
+    Returns True if subwindow's created, False otherwise.
+    """
+    
+    # I'm not sure if recreating subwindows is some sort of memory leak but the
+    # Python curses bindings seem to lack all of the following:
+    # - subwindow deletion (to tell curses to free the memory)
+    # - subwindow moving/resizing (to restore the displaced windows)
+    # so this is the only option (besides removing subwindows entirly which 
+    # would mean more complicated code and no more selective refreshing)
+    
+    y, x = stdscr.getmaxyx()
+    self._resetBounds()
+    
+    if self.win and startY > y:
+      return False # trying to make panel out of bounds
+    
+    newHeight = y - startY
+    if self.height != -1: newHeight = min(newHeight, self.height)
+    
+    if self.startY != startY or newHeight > self.maxY or self.isDisplaced:
+      # window growing or moving - recreate
+      self.startY = startY
+      startY = min(startY, y - 1) # better create a displaced window than leave it as None
+    
+      self.win = stdscr.subwin(newHeight, x, startY, 0)
+      return True
+    else: return False
   
   def clear(self):
     """
     Erases window and resets bounds used in writting to it.
     """
     
-    self.disable = self.startY > self.win.getparyx()[0]
-    if not self.disable: self.win.erase()
-    self._resetBounds()
+    if self.win:
+      self.isDisplaced = self.startY > self.win.getparyx()[0]
+      if not self.isDisplaced: self.win.erase()
+      self._resetBounds()
   
   def refresh(self):
     """
     Proxy for window refresh.
     """
     
-    if not self.disable: self.win.refresh()
+    if self.win and not self.isDisplaced: self.win.refresh()
   
   def addstr(self, y, x, msg, attr=curses.A_NORMAL):
     """
@@ -98,9 +139,10 @@ class TermSubwindow():
     
     # subwindows need a character buffer (either in the x or y direction) from
     # actual content to prevent crash when shrank
-    if self.maxX > x and self.maxY > y:
-      if not self.disable: self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+    if self.win and self.maxX > x and self.maxY > y:
+      if not self.isDisplaced: self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
   
   def _resetBounds(self):
-    self.maxY, self.maxX = self.win.getmaxyx()
+    if self.win: self.maxY, self.maxX = self.win.getmaxyx()
+    else: self.maxY, self.maxX = -1, -1
 

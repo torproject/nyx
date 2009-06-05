@@ -14,12 +14,12 @@ def getStaticInfo(conn):
   corresponding string values. Keys include:
   info - version, config-file, address, fingerprint
   sys - sys-name, sys-os, sys-version
-  config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy, BandwidthRate, BandwidthBurst
-  config booleans - IsPasswordAuthSet, IsCookieAuthSet
+  config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy
+  config booleans - IsPasswordAuthSet, IsCookieAuthSet, IsAccountingEnabled
   """
   
   vals = conn.get_info(["version", "config-file"])
-  
+ 
   # gets parameters that throw errors if unavailable
   for param in ["address", "fingerprint"]:
     try:
@@ -34,16 +34,18 @@ def getStaticInfo(conn):
   vals["sys-version"] = unameVals[2]
   
   # parameters from the user's torrc
-  configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy", "BandwidthRate", "BandwidthBurst"]
+  configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
   vals.update(dict([(key, conn.get_option(key)[0][1]) for key in configFields]))
   
   # simply keeps booleans for if authentication info is set
   vals["IsPasswordAuthSet"] = not conn.get_option("HashedControlPassword")[0][1] == None
   vals["IsCookieAuthSet"] = conn.get_option("CookieAuthentication")[0][1] == "1"
   
+  vals["IsAccountingEnabled"] = conn.get_info('accounting/enabled')['accounting/enabled'] == "1"
+  
   return vals
 
-def drawSummary(scr, vals):
+class SummaryPanel(util.Panel):
   """
   Draws top area containing static information.
   
@@ -61,44 +63,52 @@ def drawSummary(scr, vals):
   Exit Policy: reject *:*
   """
   
-  # extra erase/refresh is needed to avoid internal caching screwing up and
-  # refusing to redisplay content in the case of graphical glitches - probably
-  # an obscure curses bug...
-  scr.win.erase()
-  scr.win.refresh()
+  def __init__(self, lock, vals):
+    util.Panel.__init__(self, lock, 6)
+    self.vals = vals          # mapping of information to be presented
   
-  scr.clear()
-  
-  # Line 1
-  scr.addstr(0, 0, "arm - %s (%s %s)" % (vals["sys-name"], vals["sys-os"], vals["sys-version"]))
-  scr.addstr(0, 45, "Tor %s" % vals["version"])
-  
-  # Line 2 (authentication label red if open, green if credentials required)
-  dirPortLabel = "Dir Port: %s, " % vals["DirPort"] if not vals["DirPort"] == None else ""
-  
-  # TODO: if both cookie and password are set then which takes priority?
-  if vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
-  elif vals["IsCookieAuthSet"]: controlPortAuthLabel = "cookie"
-  else: controlPortAuthLabel = "open"
-  controlPortAuthColor = "red" if controlPortAuthLabel == "open" else "green"
-  
-  labelStart = "%s - %s:%s, %sControl Port (" % (vals["Nickname"], vals["address"], vals["ORPort"], dirPortLabel)
-  scr.addstr(1, 0, labelStart)
-  xLoc = len(labelStart)
-  scr.addstr(1, xLoc, controlPortAuthLabel, util.getColor(controlPortAuthColor))
-  xLoc += len(controlPortAuthLabel)
-  scr.addstr(1, xLoc, "): %s" % vals["ControlPort"])
-  
-  # Lines 3-5
-  scr.addstr(2, 0, "Fingerprint: %s" % vals["fingerprint"])
-  scr.addstr(3, 0, "Config: %s" % vals["config-file"])
-  exitPolicy = vals["ExitPolicy"]
-  
-  # adds note when default exit policy is appended
-  if exitPolicy == None: exitPolicy = "<default>"
-  elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
-    exitPolicy += ", <default>"
-  scr.addstr(4, 0, "Exit Policy: %s" % exitPolicy)
-  
-  scr.refresh()
+  def redraw(self):
+    i = 1
+    
+    if self.win:
+      # extra erase/refresh is needed to avoid internal caching screwing up and
+      # refusing to redisplay content in the case of graphical glitches - probably
+      # an obscure curses bug...
+      self.win.erase()
+      self.win.refresh()
+      
+      self.clear()
+      
+      # Line 1
+      self.addstr(0, 0, "arm - %s (%s %s)" % (self.vals["sys-name"], self.vals["sys-os"], self.vals["sys-version"]))
+      self.addstr(0, 45, "Tor %s" % self.vals["version"])
+      
+      # Line 2 (authentication label red if open, green if credentials required)
+      dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if not self.vals["DirPort"] == None else ""
+      
+      # TODO: if both cookie and password are set then which takes priority?
+      if self.vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
+      elif self.vals["IsCookieAuthSet"]: controlPortAuthLabel = "cookie"
+      else: controlPortAuthLabel = "open"
+      controlPortAuthColor = "red" if controlPortAuthLabel == "open" else "green"
+      
+      labelStart = "%s - %s:%s, %sControl Port (" % (self.vals["Nickname"], self.vals["address"], self.vals["ORPort"], dirPortLabel)
+      self.addstr(1, 0, labelStart)
+      xLoc = len(labelStart)
+      self.addstr(1, xLoc, controlPortAuthLabel, util.getColor(controlPortAuthColor))
+      xLoc += len(controlPortAuthLabel)
+      self.addstr(1, xLoc, "): %s" % self.vals["ControlPort"])
+      
+      # Lines 3-5
+      self.addstr(2, 0, "Fingerprint: %s" % self.vals["fingerprint"])
+      self.addstr(3, 0, "Config: %s" % self.vals["config-file"])
+      exitPolicy = self.vals["ExitPolicy"]
+      
+      # adds note when default exit policy is appended
+      if exitPolicy == None: exitPolicy = "<default>"
+      elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
+        exitPolicy += ", <default>"
+      self.addstr(4, 0, "Exit Policy: %s" % exitPolicy)
+      
+      self.refresh()
 

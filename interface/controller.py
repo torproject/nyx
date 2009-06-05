@@ -18,31 +18,40 @@ import logPanel
 
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
-                        # concurrency bugs produce especially sinister glitches
+                        # concurrency bugs produce especially sinister glitches)
 
-CTL_HELP, CTL_PAUSED, CTL_EVENT_INPUT, CTL_EVENT_ERR = range(4) # enums for message in control label
+# enums for message in control label
+CTL_HELP, CTL_PAUSED, CTL_EVENT_INPUT, CTL_EVENT_ERR = range(4)
 
-# mapping of panels to (height, start y), -1 if unlimited
-PANEL_INFO = {
-  "summary":        (6, 0),     # top static content
-  "control":        (1, 6),     # line for user input
-  "bandwidthLabel": (1, 7),     # bandwidth section label
-  "bandwidth":      (8, 8),     # bandwidth measurements / graph
-  "logLabel":       (1, 16),    # message log label
-  "log":            (-1, 17)}   # uses all remaining space for message log
+# panel order per page
+PAGE_1 = ["summary", "control", "bandwidth", "log"]
+# TODO: page 2: configuration information
+# TODO: page 3: current connections
 
-def drawControlLabel(scr, msgType, arg=""):
+class ControlPanel(util.Panel):
   """ Draws single line label for interface controls. """
-  scr.clear()
   
-  if msgType == CTL_HELP: scr.addstr(0, 0, "q: quit, e: change events, p: pause")
-  elif msgType == CTL_PAUSED: scr.addstr(0, 0, "Paused", curses.A_STANDOUT)
-  elif msgType == CTL_EVENT_INPUT: scr.addstr(0, 0, "Events to log: ")
-  elif msgType == CTL_EVENT_ERR: scr.addstr(0, 0, arg, curses.A_STANDOUT)
-  else:
-    assert False, "Unrecognized event type for control label: " + str(msgType)
+  def __init__(self, lock):
+    util.Panel.__init__(self, lock, 1)
+    self.msgType = CTL_HELP
+    self.arg = ""
   
-  scr.refresh()
+  def setMsg(self, msgType, arg=""):
+    self.msgType = msgType
+    self.arg = arg
+  
+  def redraw(self):
+    if self.win:
+      self.clear()
+      
+      if self.msgType == CTL_HELP: self.addstr(0, 0, "q: quit, e: change events, p: pause")
+      elif self.msgType == CTL_PAUSED: self.addstr(0, 0, "Paused", curses.A_STANDOUT)
+      elif self.msgType == CTL_EVENT_INPUT: self.addstr(0, 0, "Events to log: ")
+      elif self.msgType == CTL_EVENT_ERR: self.addstr(0, 0, self.arg, curses.A_STANDOUT)
+      else:
+        assert False, "Unrecognized event type for control label: " + str(self.msgType)
+      
+      self.refresh()
 
 def setEventListening(loggedEvents, conn, logListener):
   """
@@ -81,45 +90,6 @@ def setEventListening(loggedEvents, conn, logListener):
   loggedEvents.sort() # alphabetizes
   return loggedEvents
 
-def refreshSubwindows(stdscr, panels={}):
-  """
-  Creates constituent parts of the display. Any subwindows that have been
-  displaced are recreated to take advantage of the maximum bounds.
-  """
-  
-  y, x = stdscr.getmaxyx()
-  
-  if panels == {}:
-    # initializes subwindows - upper left must be a valid coordinate
-    for panelName, (maxHeight, startY) in PANEL_INFO.items():
-      if maxHeight == -1: height = max(1, y - startY)
-      else: height = max(1, min(maxHeight, y - startY))
-      startY = min(startY, y - 1)
-      panels[panelName] = util.TermSubwindow(stdscr.subwin(height, x, startY, 0), cursesLock, startY)
-  else:
-    # I'm not sure if recreating subwindows is some sort of memory leak but the
-    # Python curses bindings seem to lack all of the following:
-    # - subwindow deletion (to tell curses to free the memory)
-    # - subwindow moving/resizing (to restore the displaced windows)
-    # so this is the only option (besides removing subwindows entirly which 
-    # would mean more complicated code and no more selective refreshing)
-    
-    for panelName, (maxHeight, startY) in PANEL_INFO.items():
-      if startY > y: continue # out of bounds - ignore
-      panelSrc = panels[panelName]
-      currentY, currentX = panelSrc.win.getparyx()
-      currentHeight, currentWidth = panelSrc.win.getmaxyx()
-      
-      # figure out panel can grow - if so recreate
-      if maxHeight == -1: height = max(1, y - startY)
-      else: height = max(1, min(maxHeight, y - startY))
-      startY = min(startY, y - 1)
-      
-      if currentY < startY or currentHeight < height:
-        panels[panelName].win = stdscr.subwin(height, x, startY, 0)
-  
-  return panels
-
 def drawTorMonitor(stdscr, conn, loggedEvents):
   """
   Starts arm interface reflecting information on provided control port.
@@ -138,18 +108,21 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   try: curses.curs_set(0)
   except curses.error: pass
   
-  panels = refreshSubwindows(stdscr)
   staticInfo = staticPanel.getStaticInfo(conn)
+  panels = {
+    "summary": staticPanel.SummaryPanel(cursesLock, staticInfo),
+    "control": ControlPanel(cursesLock),
+    "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
+    "log": logPanel.LogMonitor(cursesLock, loggedEvents)}
   
   # listeners that update bandwidth and log panels with Tor status
-  logListener = logPanel.LogMonitor(panels["log"], "BW" in loggedEvents, "UNKNOWN" in loggedEvents)
-  conn.add_event_listener(logListener)
+  conn.add_event_listener(panels["log"])
+  conn.add_event_listener(panels["bandwidth"])
   
-  bandwidthListener = bandwidthPanel.BandwidthMonitor(panels["bandwidth"])
-  conn.add_event_listener(bandwidthListener)
+  # tells Tor to listen to the events we're interested
+  loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
+  panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
-  loggedEvents = setEventListening(loggedEvents, conn, logListener)
-  eventsListing = ", ".join(loggedEvents)
   oldY, oldX = -1, -1
   isUnresponsive = False    # true if it's been over five seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
@@ -162,28 +135,24 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     cursesLock.acquire()
     try:
       y, x = stdscr.getmaxyx()
-      if y > oldY: panels = refreshSubwindows(stdscr, panels)
+      if y > oldY:
+        # gives panels a chance to take advantage of the maximum bounds
+        startY = 0
+        for panelKey in PAGE_1:
+          panels[panelKey].recreate(stdscr, startY)
+          startY += panels[panelKey].height
       
       # if it's been at least five seconds since the last BW event Tor's probably done
-      if not isUnresponsive and logListener.getHeartbeat() >= 5:
+      if not isUnresponsive and panels["log"].getHeartbeat() >= 5:
         isUnresponsive = True
-        logListener.monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(logListener.lastHeartbeat))
-      elif isUnresponsive and logListener.getHeartbeat() < 5:
+        panels["log"].monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
+      elif isUnresponsive and panels["log"].getHeartbeat() < 5:
         # this really shouldn't happen - BW events happen every second...
         isUnresponsive = False
-        logListener.monitor_event("WARN", "Relay resumed")
+        panels["log"].monitor_event("WARN", "Relay resumed")
       
-      staticPanel.drawSummary(panels["summary"], staticInfo)
-      
-      msgType = CTL_PAUSED if isPaused else CTL_HELP
-      drawControlLabel(panels["control"], msgType)
-      
-      bandwidthPanel.drawBandwidthLabel(panels["bandwidthLabel"], staticInfo)
-      bandwidthListener.refreshDisplay()
-      
-      logPanel.drawEventLogLabel(panels["logLabel"], eventsListing)
-      logListener.refreshDisplay()
-      
+      # I haven't the foggiest why, but doesn't work if redrawn out of order...
+      for panelKey in PAGE_1: panels[panelKey].redraw()
       oldY, oldX = y, x
       stdscr.refresh()
     finally:
@@ -198,13 +167,14 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       try:
         # pauses listeners so events can still be handed (otherwise they wait
         # on curses lock which might get demanding if the user takes their time)
-        isBwPaused = bandwidthListener.isPaused
-        isLogPaused = logListener.isPaused
-        bandwidthListener.setPaused(True)
-        logListener.setPaused(True)
+        isBwPaused = panels["bandwidth"].isPaused
+        isLogPaused = panels["log"].isPaused
+        panels["bandwidth"].setPaused(True)
+        panels["log"].setPaused(True)
         
         # provides prompt
-        drawControlLabel(panels["control"], CTL_EVENT_INPUT)
+        panels["control"].setMsg(CTL_EVENT_INPUT)
+        panels["control"].redraw()
         
         # makes cursor and typing visible
         try: curses.curs_set(1)
@@ -212,23 +182,19 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         curses.echo()
         
         # switches bandwidth area to list event types
-        panels["bandwidthLabel"].clear()
-        panels["bandwidthLabel"].addstr(0, 0, "Event Types:", util.LABEL_ATTR)
-        panels["bandwidthLabel"].refresh()
-        
-        panels["bandwidth"].clear()
-        lineNum = 0
+        bwPanel = panels["bandwidth"]
+        bwPanel.clear()
+        bwPanel.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
+        lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
           line = line.strip()
-          panels["bandwidth"].addstr(lineNum, 0, line[:x - 1])
+          bwPanel.addstr(lineNum, 0, line[:x - 1])
           lineNum += 1
-        panels["bandwidth"].refresh()
+        bwPanel.refresh()
         
         # gets user input (this blocks monitor updates)
         eventsInput = panels["control"].win.getstr(0, 15)
-        
-        # strips spaces
-        eventsInput = eventsInput.replace(' ', '')
+        eventsInput = eventsInput.replace(' ', '') # strips spaces
         
         # reverts visability settings
         try: curses.curs_set(0)
@@ -239,18 +205,19 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         if eventsInput != "":
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
-            logListener.includeBW = "BW" in expandedEvents
-            logListener.includeUnknown = "UNKNOWN" in expandedEvents
-            
-            loggedEvents = setEventListening(expandedEvents, conn, logListener)
-            eventsListing = ", ".join(loggedEvents)
+            loggedEvents = setEventListening(expandedEvents, conn, panels["log"])
+            panels["log"].loggedEvents = loggedEvents
           except ValueError, exc:
-            drawControlLabel(panels["control"], CTL_EVENT_ERR, "Invalid flags: %s" % str(exc))
+            panels["control"].setMsg(CTL_EVENT_ERR, "Invalid flags: %s" % str(exc))
+            panels["control"].redraw()
             time.sleep(2)
         
+        msgType = CTL_PAUSED if isPaused else CTL_HELP
+        panels["control"].setMsg(msgType)
+        
         # returns listeners to previous pause status
-        bandwidthListener.setPaused(isBwPaused)
-        logListener.setPaused(isLogPaused)
+        panels["bandwidth"].setPaused(isBwPaused)
+        panels["log"].setPaused(isLogPaused)
       finally:
         cursesLock.release()
     elif key == ord('p') or key == ord('P'):
@@ -258,10 +225,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       cursesLock.acquire()
       try:
         isPaused = not isPaused
-        logListener.setPaused(isPaused)
-        bandwidthListener.setPaused(isPaused)
+        panels["log"].setPaused(isPaused)
+        panels["bandwidth"].setPaused(isPaused)
         msgType = CTL_PAUSED if isPaused else CTL_HELP
-        drawControlLabel(panels["control"], msgType)
+        panels["control"].setMsg(msgType)
       finally:
         cursesLock.release()
 

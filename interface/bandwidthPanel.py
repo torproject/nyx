@@ -12,31 +12,17 @@ BANDWIDTH_GRAPH_COL = 30            # columns of data in graph
 BANDWIDTH_GRAPH_COLOR_DL = "green"  # download section color
 BANDWIDTH_GRAPH_COLOR_UL = "cyan"   # upload section color
 
-def drawBandwidthLabel(scr, staticInfo):
-  """ Draws bandwidth label text (drops stats if not enough room). """
-  scr.clear()
-  maxX = scr.maxX
-  
-  rateLabel = util.getSizeLabel(int(staticInfo["BandwidthRate"]))
-  burstLabel = util.getSizeLabel(int(staticInfo["BandwidthBurst"]))
-  labelContents = "Bandwidth (cap: %s, burst: %s):" % (rateLabel, burstLabel)
-  if maxX < len(labelContents):
-    labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
-    if maxX < len(labelContents): labelContents = "Bandwidth:"           # removes both
-  
-  scr.addstr(0, 0, labelContents, util.LABEL_ATTR)
-  scr.refresh()
-
-class BandwidthMonitor(TorCtl.PostEventListener):
+class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
   """
   Tor event listener, taking bandwidth sampling and drawing bar graph. This is
   updated every second by the BW events and graph samples are spaced at
   BANDWIDTH_GRAPH_SAMPLES second intervals.
   """
   
-  def __init__(self, scr):
+  def __init__(self, lock, conn):
     TorCtl.PostEventListener.__init__(self)
-    self.scr = scr                # associated subwindow
+    util.Panel.__init__(self, lock, 9)
+    self.conn = conn              # Tor control port connection
     self.tick = 0                 # number of updates performed
     self.lastDownloadRate = 0     # most recently sampled rates
     self.lastUploadRate = 0
@@ -48,6 +34,13 @@ class BandwidthMonitor(TorCtl.PostEventListener):
     # graphed download (read) and upload (write) rates - first index accumulator
     self.downloadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
     self.uploadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
+    
+    # retrieves static stats for label
+    if conn:
+      bwStats = conn.get_option(['BandwidthRate', 'BandwidthBurst'])
+      self.bwRate = util.getSizeLabel(int(bwStats[0][1]))
+      self.bwBurst = util.getSizeLabel(int(bwStats[1][1]))
+    else: self.bwRate, self.bwBurst = -1, -1
   
   def bandwidth_event(self, event):
     if self.isPaused: self.pauseBuffer.bandwidth_event(event)
@@ -68,45 +61,53 @@ class BandwidthMonitor(TorCtl.PostEventListener):
         self.uploadRates.insert(0, 0)
         del self.uploadRates[BANDWIDTH_GRAPH_COL + 1:]
       
-      self.refreshDisplay()
+      self.redraw()
   
-  def refreshDisplay(self):
+  def redraw(self):
     """ Redraws bandwidth panel. """
     # doesn't draw if headless (indicating that the instance is for a pause buffer)
-    if self.scr:
-      if not self.scr.lock.acquire(False): return
+    if self.win:
+      if not self.lock.acquire(False): return
       try:
-        self.scr.clear()
+        self.clear()
         dlColor = util.getColor(BANDWIDTH_GRAPH_COLOR_DL)
         ulColor = util.getColor(BANDWIDTH_GRAPH_COLOR_UL)
         
+        # draws label, dropping stats if there's not enough room
+        labelContents = "Bandwidth (cap: %s, burst: %s):" % (self.bwRate, self.bwBurst)
+        if self.maxX < len(labelContents):
+          labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
+          if self.maxX < len(labelContents): labelContents = "Bandwidth:"   # removes both
+        
+        self.addstr(0, 0, labelContents, util.LABEL_ATTR)
+        
         # current numeric measures
-        self.scr.addstr(0, 0, "Downloaded (%s/sec):" % util.getSizeLabel(self.lastDownloadRate), curses.A_BOLD | dlColor)
-        self.scr.addstr(0, 35, "Uploaded (%s/sec):" % util.getSizeLabel(self.lastUploadRate), curses.A_BOLD | ulColor)
+        self.addstr(1, 0, "Downloaded (%s/sec):" % util.getSizeLabel(self.lastDownloadRate), curses.A_BOLD | dlColor)
+        self.addstr(1, 35, "Uploaded (%s/sec):" % util.getSizeLabel(self.lastUploadRate), curses.A_BOLD | ulColor)
         
         # graph bounds in KB (uses highest recorded value as max)
-        self.scr.addstr(1, 0, "%4s" % str(self.maxDownloadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), dlColor)
-        self.scr.addstr(6, 0, "   0", dlColor)
+        self.addstr(2, 0, "%4s" % str(self.maxDownloadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), dlColor)
+        self.addstr(7, 0, "   0", dlColor)
         
-        self.scr.addstr(1, 35, "%4s" % str(self.maxUploadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), ulColor)
-        self.scr.addstr(6, 35, "   0", ulColor)
+        self.addstr(2, 35, "%4s" % str(self.maxUploadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), ulColor)
+        self.addstr(7, 35, "   0", ulColor)
         
         # creates bar graph of bandwidth usage over time
         for col in range(BANDWIDTH_GRAPH_COL):
           bytesDownloaded = self.downloadRates[col + 1]
           colHeight = min(5, 5 * bytesDownloaded / self.maxDownloadRate)
           for row in range(colHeight):
-            self.scr.addstr(6 - row, col + 5, " ", curses.A_STANDOUT | dlColor)
+            self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | dlColor)
         
         for col in range(BANDWIDTH_GRAPH_COL):
           bytesUploaded = self.uploadRates[col + 1]
           colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate)
           for row in range(colHeight):
-            self.scr.addstr(6 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
+            self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
         
-        self.scr.refresh()
+        self.refresh()
       finally:
-        self.scr.lock.release()
+        self.lock.release()
   
   def setPaused(self, isPause):
     """
@@ -117,7 +118,7 @@ class BandwidthMonitor(TorCtl.PostEventListener):
     
     self.isPaused = isPause
     if self.isPaused:
-      if self.pauseBuffer == None: self.pauseBuffer = BandwidthMonitor(None)
+      if self.pauseBuffer == None: self.pauseBuffer = BandwidthMonitor(None, None)
       
       self.pauseBuffer.tick = self.tick
       self.pauseBuffer.lastDownloadRate = self.lastDownloadRate
@@ -134,5 +135,5 @@ class BandwidthMonitor(TorCtl.PostEventListener):
       self.maxUploadRate = self.pauseBuffer.maxUploadRate
       self.downloadRates = self.pauseBuffer.downloadRates
       self.uploadRates = self.pauseBuffer.uploadRates
-      self.refreshDisplay()
+      self.redraw()
 

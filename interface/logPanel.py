@@ -58,46 +58,18 @@ def expandEvents(eventAbbr):
   if invalidFlags: raise ValueError(invalidFlags)
   else: return expandedEvents
 
-def drawEventLogLabel(scr, eventsListing):
+class LogMonitor(TorCtl.PostEventListener, util.Panel):
   """
-  Draws single line label for event log. Uses ellipsis if too long, for instance:
-  Events (DEBUG, INFO, NOTICE, WARN...):
-  """
-  scr.clear()
-  maxX = scr.maxX
-  
-  eventsLabel = "Events"
-  
-  firstLabelLen = eventsListing.find(", ")
-  if firstLabelLen == -1: firstLabelLen = len(eventsListing)
-  else: firstLabelLen += 3
-  
-  if maxX > 10 + firstLabelLen:
-    eventsLabel += " ("
-    if len(eventsListing) > maxX - 11:
-      labelBreak = eventsListing[:maxX - 12].rfind(", ")
-      eventsLabel += "%s..." % eventsListing[:labelBreak]
-    else: eventsLabel += eventsListing
-    eventsLabel += ")"
-  eventsLabel += ":"
-  
-  scr.addstr(0, 0, eventsLabel, util.LABEL_ATTR)
-  scr.refresh()
-
-class LogMonitor(TorCtl.PostEventListener):
-  """
-  Tor event listener, noting messages, the time, and their type in a curses
-  subwindow.
+  Tor event listener, noting messages, the time, and their type in a panel.
   """
   
-  def __init__(self, scr, includeBW, includeUnknown):
+  def __init__(self, lock, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
-    self.scr = scr                        # associated subwindow
+    util.Panel.__init__(self, lock, -1)
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
     self.pauseBuffer = []                 # location where messages are buffered if paused
-    self.includeBW = includeBW            # true if we're supposed to listen for BW events
-    self.includeUnknown = includeUnknown  # true if registering unrecognized events
+    self.loggedEvents = loggedEvents      # events we're listening to
     self.lastHeartbeat = time.time()      # time of last BW event
   
   # Listens for all event types and redirects to registerEvent
@@ -133,7 +105,7 @@ class LogMonitor(TorCtl.PostEventListener):
   
   def bandwidth_event(self, event):
     self.lastHeartbeat = time.time()
-    if self.includeBW: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
+    if "BW" in self.loggedEvents: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
     self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
@@ -160,7 +132,7 @@ class LogMonitor(TorCtl.PostEventListener):
     self.registerEvent("NEWCONSENSUS", "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
   
   def unknown_event(self, event):
-    if self.includeUnknown: self.registerEvent("UNKNOWN", event.event_string, "red")
+    if "UNKNOWN" in self.loggedEvents: self.registerEvent("UNKNOWN", event.event_string, "red")
   
   def monitor_event(self, level, msg):
     # events provided by the arm monitor - types use the same as runlevel
@@ -183,36 +155,57 @@ class LogMonitor(TorCtl.PostEventListener):
     else:
       self.msgLog.insert(0, (msgLine, color))
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
-      self.refreshDisplay()
+      self.redraw()
   
-  def refreshDisplay(self):
+  def redraw(self):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
     """
     
-    if self.scr:
-      if not self.scr.lock.acquire(False): return
+    if self.win:
+      if not self.lock.acquire(False): return
       try:
-        self.scr.clear()
-        x, y = self.scr.maxX, self.scr.maxY
-        lineCount = 0
+        self.clear()
+        
+        # draws label - uses ellipsis if too long, for instance:
+        # Events (DEBUG, INFO, NOTICE, WARN...):
+        eventsLabel = "Events"
+        eventsListing = ", ".join(self.loggedEvents)
+        
+        firstLabelLen = eventsListing.find(", ")
+        if firstLabelLen == -1: firstLabelLen = len(eventsListing)
+        else: firstLabelLen += 3
+        
+        if self.maxX > 10 + firstLabelLen:
+          eventsLabel += " ("
+          if len(eventsListing) > self.maxX - 11:
+            labelBreak = eventsListing[:self.maxX - 12].rfind(", ")
+            eventsLabel += "%s..." % eventsListing[:labelBreak]
+          else: eventsLabel += eventsListing
+          eventsLabel += ")"
+        eventsLabel += ":"
+        
+        self.addstr(0, 0, eventsLabel, util.LABEL_ATTR)
+        
+        # log entries
+        lineCount = 1
         
         for (line, color) in self.msgLog:
           # splits over too lines if too long
-          if len(line) < x:
-            self.scr.addstr(lineCount, 0, line, util.getColor(color))
+          if len(line) < self.maxX:
+            self.addstr(lineCount, 0, line, util.getColor(color))
             lineCount += 1
           else:
-            (line1, line2) = self._splitLine(line, x)
-            self.scr.addstr(lineCount, 0, line1, util.getColor(color))
-            self.scr.addstr(lineCount + 1, 0, line2, util.getColor(color))
+            (line1, line2) = self._splitLine(line, self.maxX)
+            self.addstr(lineCount, 0, line1, util.getColor(color))
+            self.addstr(lineCount + 1, 0, line2, util.getColor(color))
             lineCount += 2
           
-          if lineCount >= y: break # further log messages wouldn't fit
-        self.scr.refresh()
+          if lineCount >= self.maxY: break # further log messages wouldn't fit
+        self.refresh()
       finally:
-        self.scr.lock.release()
+        self.lock.release()
   
   def setPaused(self, isPause):
     """
@@ -225,7 +218,7 @@ class LogMonitor(TorCtl.PostEventListener):
     if self.isPaused: self.pauseBuffer = []
     else:
       self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
-      self.refreshDisplay()
+      self.redraw()
   
   def getHeartbeat(self):
     """
