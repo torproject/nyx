@@ -9,10 +9,10 @@ Requirements:
 Python 2.5
 TorCtl - This needs to be in your Python path. In Linux this can be done via:
   svn co https://tor-svn.freehaven.net/svn/torctl
-  export PYTHONPATH=$PWD/trunk/python/
+  export PYTHONPATH=$PWD/torctl/trunk/python/
 Tor is running with an available control port. This means either...
   ... starting Tor with '--controlport <PORT>'
   ... or including 'ControlPort <PORT>' in your torrc
 
-This is started via arm.py (use the '--help' argument for usage).
+This is started via 'arm' (use the '--help' argument for usage).
 

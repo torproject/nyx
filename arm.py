@@ -14,14 +14,6 @@ import socket
 import getpass
 import binascii
 
-try:
-  from TorCtl import TorCtl
-  from TorCtl import TorUtil
-except ImportError:
-  print "Unable to load TorCtl (see readme for instructions)"
-  sys.exit()
-
-from interface import controller
 from interface import logPanel
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
@@ -41,6 +33,7 @@ Terminal Tor relay status monitor.
                                     without terminal echo if not provided
   -e, --event=[EVENT FLAGS]       event types in message log  (default: %s)
 %s
+  --path-to-torctl=[PATH]         location of TorCtl if not in Python path
   -h, --help                      presents this help
 
 Example:
@@ -48,6 +41,13 @@ arm -c                  authenticate using the default cookie
 arm -i 1643 -p          prompt for password using control port 1643
 arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
 """ % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
+
+EVENT_LISTING = """        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
+        i INFO      b BW            m NS              v CLIENTS_SEEN
+        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
+        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
+        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
+        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)"""
 
 class Input:
   "Collection of the user's command line input"
@@ -59,6 +59,7 @@ class Input:
     self.authCookieLoc = DEFAULT_AUTH_COOKIE    # location of authentication cookie
     self.authPassword = ""                      # authentication password
     self.loggedEvents = DEFAULT_LOGGED_EVENTS   # flags for event types in message log
+    self.pathAppend = ""                        # additions to Python path
     self.isValid = True                         # determines if the program should run
     self.printHelp = False                      # prints help then quits
     self._parseArgs(args)
@@ -123,6 +124,10 @@ class Input:
       if args[0].startswith("-e="): self.loggedEvents = args[0][3:]
       else: self.loggedEvents = args[0][8:]
       self._parseArgs(args[1:])
+    elif args[0].startswith("--path-to-torctl="):
+      # appends location to Python path (to help find TorCtl)
+      self.pathAppend = args[0][17:]
+      self._parseArgs(args[1:])
     elif args[0] == "-h" or args[0] == "--help":
       self.printHelp = True
       self._parseArgs(args[1:])
@@ -161,6 +166,20 @@ if __name__ == '__main__':
   # if help flag's set then prints help and quits
   if input.printHelp:
     print HELP_TEXT
+    sys.exit()
+  
+  # appends appending to Python path
+  if input.pathAppend:
+    sys.path.append(input.pathAppend)
+  
+  # tries to load TorCtl
+  try:
+    from TorCtl import TorCtl
+    from TorCtl import TorUtil
+    
+    from interface import controller
+  except ImportError:
+    print "Unable to load TorCtl (see readme for instructions)"
     sys.exit()
   
   # validates that cookie authentication path exists
