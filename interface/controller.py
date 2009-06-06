@@ -11,6 +11,7 @@ import curses
 from threading import RLock
 from TorCtl import TorCtl
 
+import arm
 import util
 import staticPanel
 import bandwidthPanel
@@ -186,7 +187,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         bwPanel.clear()
         bwPanel.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
         lineNum = 1
-        for line in logPanel.EVENT_LISTING.split("\n"):
+        for line in arm.EVENT_LISTING.split("\n"):
           line = line.strip()
           bwPanel.addstr(lineNum, 0, line[:x - 1])
           lineNum += 1

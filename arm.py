@@ -14,14 +14,19 @@ import socket
 import getpass
 import binascii
 
-from interface import logPanel
-
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
 DEFAULT_AUTH_COOKIE = os.path.expanduser("~/.tor/control_auth_cookie") # TODO: Check if this is valid for macs
 DEFAULT_LOGGED_EVENTS = "nwe" # NOTICE, WARN, ERR
 
 NO_AUTH, COOKIE_AUTH, PASSWORD_AUTH = range(3) # enums for authentication type
+
+EVENT_LISTING = """        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
+        i INFO      b BW            m NS              v CLIENTS_SEEN
+        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
+        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
+        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
+        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)"""
 
 HELP_TEXT = """Usage arm [OPTION]
 Terminal Tor relay status monitor.
@@ -40,7 +45,7 @@ Example:
 arm -c                  authenticate using the default cookie
 arm -i 1643 -p          prompt for password using control port 1643
 arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
-""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
+""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, EVENT_LISTING)
 
 EVENT_LISTING = """        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
         i INFO      b BW            m NS              v CLIENTS_SEEN
@@ -178,6 +183,7 @@ if __name__ == '__main__':
     from TorCtl import TorUtil
     
     from interface import controller
+    from interface import logPanel
   except ImportError:
     print "Unable to load TorCtl (see readme for instructions)"
     sys.exit()
