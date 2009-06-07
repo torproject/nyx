@@ -2,6 +2,7 @@
 # bandwidthPanel.py -- Resources related to monitoring Tor bandwidth usage.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
+import time
 import curses
 from TorCtl import TorCtl
 
@@ -21,7 +22,10 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
   
   def __init__(self, lock, conn):
     TorCtl.PostEventListener.__init__(self)
-    util.Panel.__init__(self, lock, 9)
+    self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
+    height = 12 if self.isAccounting else 9
+    util.Panel.__init__(self, lock, height)
+    
     self.conn = conn              # Tor control port connection
     self.tick = 0                 # number of updates performed
     self.lastDownloadRate = 0     # most recently sampled rates
@@ -104,6 +108,38 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
           colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate)
           for row in range(colHeight):
             self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
+        
+        if self.isAccounting:
+          try:
+            accountingParams = self.conn.get_info(["accounting/hibernating", "accounting/bytes", "accounting/bytes-left", "accounting/interval-end"])
+            
+            hibernateStr = accountingParams["accounting/hibernating"]
+            hibernateColor = "green"
+            if hibernateStr == "soft": hibernateColor = "yellow"
+            elif hibernateStr == "hard": hibernateColor = "red"
+            
+            self.addstr(9, 0, "Accounting (", curses.A_BOLD)
+            self.addstr(9, 12, hibernateStr, curses.A_BOLD | util.getColor(hibernateColor))
+            self.addstr(9, 12 + len(hibernateStr), "):", curses.A_BOLD)
+            
+            sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time()
+            resetHours = sec / 3600
+            sec %= 3600
+            resetMin = sec / 60
+            sec %= 60
+            
+            self.addstr(9, 35, "Time to reset: %i:%02i:%02i" % (resetHours, resetMin, sec))
+            
+            read = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[0]))
+            written = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[1]))
+            limit = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[0]) + int(accountingParams["accounting/bytes-left"].split(" ")[0]))
+            
+            self.addstr(10, 2, "%s / %s" % (read, limit), dlColor)
+            self.addstr(10, 37, "%s / %s" % (written, limit), ulColor)
+            
+          except TorCtl.TorCtlClosed:
+            self.addstr(9, 0, "Accounting:", curses.A_BOLD)
+            self.addstr(9, 12, "Shutting Down...")
         
         self.refresh()
       finally:
