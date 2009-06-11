@@ -22,7 +22,9 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
   
   def __init__(self, lock, conn):
     TorCtl.PostEventListener.__init__(self)
-    self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
+    if conn: self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
+    else: self.isAccounting = False
+    
     height = 12 if self.isAccounting else 9
     util.Panel.__init__(self, lock, height)
     

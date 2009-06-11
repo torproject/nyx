@@ -18,6 +18,13 @@ EVENT_TYPES = {
   "n": "NOTICE",  "c": "CIRC",        "o": "ORCONN",    "x": "STATUS_GENERAL",
   "w": "WARN",    "f": "DESCCHANGED", "s": "STREAM",    "y": "STATUS_CLIENT",
   "e": "ERR",     "g": "GUARD",       "t": "STREAM_BW", "z": "STATUS_SERVER"}
+
+EVENT_LISTING = """        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
+        i INFO      b BW            m NS              v CLIENTS_SEEN
+        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
+        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
+        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
+        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)"""
   
 def expandEvents(eventAbbr):
   """
