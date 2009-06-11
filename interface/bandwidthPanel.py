@@ -122,7 +122,8 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
             self.addstr(9, 12, hibernateStr, curses.A_BOLD | util.getColor(hibernateColor))
             self.addstr(9, 12 + len(hibernateStr), "):", curses.A_BOLD)
             
-            sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time()
+            # timezone subtraction converts from gmt to local
+            sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - time.timezone
             resetHours = sec / 3600
             sec %= 3600
             resetMin = sec / 60
