@@ -34,6 +34,7 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     self.lastUploadRate = 0
     self.maxDownloadRate = 1      # max rates seen, used to determine graph bounds
     self.maxUploadRate = 1
+    self.accountingInfo = None    # accounting data (set by _updateAccountingInfo method)
     self.isPaused = False
     self.pauseBuffer = None       # mirror instance used to track updates when paused
     
@@ -112,35 +113,22 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
             self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
         
         if self.isAccounting:
-          try:
-            accountingParams = self.conn.get_info(["accounting/hibernating", "accounting/bytes", "accounting/bytes-left", "accounting/interval-end"])
-            
-            hibernateStr = accountingParams["accounting/hibernating"]
+          if not self.isPaused: self._updateAccountingInfo()
+          
+          if self.accountingInfo:
+            status = self.accountingInfo["status"]
             hibernateColor = "green"
-            if hibernateStr == "soft": hibernateColor = "yellow"
-            elif hibernateStr == "hard": hibernateColor = "red"
+            if status == "soft": hibernateColor = "yellow"
+            elif status == "hard": hibernateColor = "red"
             
             self.addstr(9, 0, "Accounting (", curses.A_BOLD)
-            self.addstr(9, 12, hibernateStr, curses.A_BOLD | util.getColor(hibernateColor))
-            self.addstr(9, 12 + len(hibernateStr), "):", curses.A_BOLD)
+            self.addstr(9, 12, status, curses.A_BOLD | util.getColor(hibernateColor))
+            self.addstr(9, 12 + len(status), "):", curses.A_BOLD)
             
-            # timezone subtraction converts from gmt to local
-            sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - time.timezone
-            resetHours = sec / 3600
-            sec %= 3600
-            resetMin = sec / 60
-            sec %= 60
-            
-            self.addstr(9, 35, "Time to reset: %i:%02i:%02i" % (resetHours, resetMin, sec))
-            
-            read = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[0]))
-            written = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[1]))
-            limit = util.getSizeLabel(int(accountingParams["accounting/bytes"].split(" ")[0]) + int(accountingParams["accounting/bytes-left"].split(" ")[0]))
-            
-            self.addstr(10, 2, "%s / %s" % (read, limit), dlColor)
-            self.addstr(10, 37, "%s / %s" % (written, limit), ulColor)
-            
-          except TorCtl.TorCtlClosed:
+            self.addstr(9, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
+            self.addstr(10, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), dlColor)
+            self.addstr(10, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), ulColor)
+          else:
             self.addstr(9, 0, "Accounting:", curses.A_BOLD)
             self.addstr(9, 12, "Shutting Down...")
         
@@ -175,4 +163,38 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
       self.downloadRates = self.pauseBuffer.downloadRates
       self.uploadRates = self.pauseBuffer.uploadRates
       self.redraw()
+  
+  def _updateAccountingInfo(self):
+    """
+    Updates mapping used for accounting info. This includes the following keys:
+    status, resetTime, read, written, readLimit, writtenLimit
+    
+    Sets mapping to None if the Tor connection is closed.
+    """
+    
+    try:
+      self.accountingInfo = {}
+      
+      accountingParams = self.conn.get_info(["accounting/hibernating", "accounting/bytes", "accounting/bytes-left", "accounting/interval-end"])
+      self.accountingInfo["status"] = accountingParams["accounting/hibernating"]
+      
+      # altzone subtraction converts from gmt to local with respect to DST
+      sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - time.altzone
+      resetHours = sec / 3600
+      sec %= 3600
+      resetMin = sec / 60
+      sec %= 60
+      self.accountingInfo["resetTime"] = "%i:%02i:%02i" % (resetHours, resetMin, sec)
+      
+      read = int(accountingParams["accounting/bytes"].split(" ")[0])
+      written = int(accountingParams["accounting/bytes"].split(" ")[1])
+      readLeft = int(accountingParams["accounting/bytes-left"].split(" ")[0])
+      writtenLeft = int(accountingParams["accounting/bytes-left"].split(" ")[1])
+      
+      self.accountingInfo["read"] = util.getSizeLabel(read)
+      self.accountingInfo["written"] = util.getSizeLabel(written)
+      self.accountingInfo["readLimit"] = util.getSizeLabel(read + readLeft)
+      self.accountingInfo["writtenLimit"] = util.getSizeLabel(written + writtenLeft)
+    except TorCtl.TorCtlClosed:
+      self.accountingInfo = None
 

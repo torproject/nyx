@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# controller.py -- arm interface (curses monitor for relay status).
+# controller.py -- arm interface (curses monitor for relay status)
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 """
@@ -12,7 +12,8 @@ from threading import RLock
 from TorCtl import TorCtl
 
 import util
-import staticPanel
+import headerPanel
+import confPanel
 import bandwidthPanel
 import logPanel
 
@@ -21,10 +22,15 @@ cursesLock = RLock()    # global curses lock (curses isn't thread safe and
                         # concurrency bugs produce especially sinister glitches)
 
 # enums for message in control label
-CTL_HELP, CTL_PAUSED, CTL_EVENT_INPUT, CTL_EVENT_ERR = range(4)
+CTL_HELP, CTL_PAUSED = range(2)
 
 # panel order per page
-PAGE_1 = ["summary", "control", "bandwidth", "log"]
+PAGE_S = ["header", "control", "popup"]    # sticky (ie, always available) page
+PAGES = [
+  ["bandwidth", "log"],
+  ["torrc"]]
+PAUSEABLE = ["header", "bandwidth", "log"]
+PAGE_COUNT = 2 # all page numbering is internally represented as 0-indexed
 # TODO: page 2: configuration information
 # TODO: page 3: current connections
 
@@ -33,24 +39,34 @@ class ControlPanel(util.Panel):
   
   def __init__(self, lock):
     util.Panel.__init__(self, lock, 1)
-    self.msgType = CTL_HELP
-    self.arg = ""
+    self.msgText = CTL_HELP           # message text to be displyed
+    self.msgAttr = curses.A_NORMAL    # formatting attributes
+    self.page = 1                     # page number currently being displayed
   
-  def setMsg(self, msgType, arg=""):
-    self.msgType = msgType
-    self.arg = arg
+  def setMsg(self, msgText, msgAttr=curses.A_NORMAL):
+    """
+    Sets the message and display attributes. If msgType matches CTL_HELP or
+    CTL_PAUSED then uses the default message for those statuses.
+    """
+    
+    self.msgText = msgText
+    self.msgAttr = msgAttr
   
   def redraw(self):
     if self.win:
       self.clear()
       
-      if self.msgType == CTL_HELP: self.addstr(0, 0, "q: quit, e: change events, p: pause")
-      elif self.msgType == CTL_PAUSED: self.addstr(0, 0, "Paused", curses.A_STANDOUT)
-      elif self.msgType == CTL_EVENT_INPUT: self.addstr(0, 0, "Events to log: ")
-      elif self.msgType == CTL_EVENT_ERR: self.addstr(0, 0, self.arg, curses.A_STANDOUT)
-      else:
-        assert False, "Unrecognized event type for control label: " + str(self.msgType)
+      msgText = self.msgText
+      msgAttr = self.msgAttr
       
+      if msgText == CTL_HELP:
+        msgText = "page %i / %i - q: quit, p: pause, h: help" % (self.page, PAGE_COUNT)
+        msgAttr = curses.A_NORMAL
+      elif msgText == CTL_PAUSED:
+        msgText = "Paused"
+        msgAttr = curses.A_STANDOUT
+      
+      self.addstr(0, 0, msgText, msgAttr)
       self.refresh()
 
 def setEventListening(loggedEvents, conn, logListener):
@@ -108,12 +124,13 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   try: curses.curs_set(0)
   except curses.error: pass
   
-  staticInfo = staticPanel.getStaticInfo(conn)
   panels = {
-    "summary": staticPanel.SummaryPanel(cursesLock, staticInfo),
+    "header": headerPanel.HeaderPanel(cursesLock, conn),
     "control": ControlPanel(cursesLock),
+    "popup": util.Panel(cursesLock, 8),
     "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
-    "log": logPanel.LogMonitor(cursesLock, loggedEvents)}
+    "log": logPanel.LogMonitor(cursesLock, loggedEvents),
+    "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
   
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
@@ -126,6 +143,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   oldY, oldX = -1, -1
   isUnresponsive = False    # true if it's been over five seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
+  page = 0
   
   while True:
     # tried only refreshing when the screen was resized but it caused a
@@ -135,12 +153,21 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     cursesLock.acquire()
     try:
       y, x = stdscr.getmaxyx()
-      if y > oldY:
+      if x > oldX or y > oldY:
         # gives panels a chance to take advantage of the maximum bounds
         startY = 0
-        for panelKey in PAGE_1:
+        for panelKey in PAGE_S[:2]:
           panels[panelKey].recreate(stdscr, startY)
           startY += panels[panelKey].height
+        
+        isChanged = panels["popup"].recreate(stdscr, startY, 80)
+        
+        for panelSet in PAGES:
+          tmpStartY = startY
+          
+          for panelKey in panelSet:
+            panels[panelKey].recreate(stdscr, tmpStartY)
+            tmpStartY += panels[panelKey].height
       
       # if it's been at least five seconds since the last BW event Tor's probably done
       if not isUnresponsive and panels["log"].getHeartbeat() >= 5:
@@ -152,7 +179,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         panels["log"].monitor_event("WARN", "Relay resumed")
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
-      for panelKey in PAGE_1: panels[panelKey].redraw()
+      for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()
       oldY, oldX = y, x
       stdscr.refresh()
     finally:
@@ -160,20 +187,73 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     
     key = stdscr.getch()
     if key == 27 or key == ord('q') or key == ord('Q'): break # quits (also on esc)
-    elif key == ord('e') or key == ord('E'):
-      # allow user to enter new types of events to log - unchanged if left blank
+    elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
+      # switch page
+      if key == curses.KEY_LEFT: page = (page - 1) % PAGE_COUNT
+      else: page = (page + 1) % PAGE_COUNT
       
+      # pauses panels that aren't visible to prevent events from accumilating
+      # (otherwise they'll wait on the curses lock which might get demanding)
+      for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+      
+      panels["control"].page = page + 1
+      panels["control"].refresh()
+    elif key == ord('p') or key == ord('P'):
+      # toggles update freezing
       cursesLock.acquire()
       try:
-        # pauses listeners so events can still be handed (otherwise they wait
-        # on curses lock which might get demanding if the user takes their time)
-        isBwPaused = panels["bandwidth"].isPaused
-        isLogPaused = panels["log"].isPaused
-        panels["bandwidth"].setPaused(True)
-        panels["log"].setPaused(True)
+        isPaused = not isPaused
+        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+        msgType = CTL_PAUSED if isPaused else CTL_HELP
+        panels["control"].setMsg(msgType)
+      finally:
+        cursesLock.release()
+    elif key == ord('h') or key == ord('H'):
+      # displays popup for current page's controls
+      cursesLock.acquire()
+      try:
+        for key in PAUSEABLE: panels[key].setPaused(True)
+        
+        panels["control"].setMsg("Press any key...")
+        panels["control"].redraw()
+        
+        # lists commands
+        popup = panels["popup"]
+        popup.clear()
+        popup.win.box()
+        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), util.LABEL_ATTR)
+        
+        if page == 0:
+          popup.addstr(1, 2, "e: change logged events")
+        elif page == 1:
+          popup.addstr(1, 2, "up arrow: scroll up a line")
+          popup.addstr(1, 35, "down arrow: scroll down a line")
+          popup.addstr(2, 2, "page up: scroll up a page")
+          popup.addstr(2, 35, "page down: scroll down a page")
+          popup.addstr(3, 2, "s: toggle comment stripping")
+          popup.addstr(3, 35, "n: toggle line numbering")
+          popup.addstr(4, 2, "r: reload torrc")
+        
+        popup.refresh()
+        
+        curses.cbreak()
+        stdscr.getch()
+        curses.halfdelay(REFRESH_RATE * 10)
+        
+        msgType = CTL_PAUSED if isPaused else CTL_HELP
+        panels["control"].setMsg(msgType)
+        
+        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+      finally:
+        cursesLock.release()
+    elif page == 0 and (key == ord('e') or key == ord('E')):
+      # allow user to enter new types of events to log - unchanged if left blank
+      cursesLock.acquire()
+      try:
+        for key in PAUSEABLE: panels[key].setPaused(True)
         
         # provides prompt
-        panels["control"].setMsg(CTL_EVENT_INPUT)
+        panels["control"].setMsg("Events to log: ")
         panels["control"].redraw()
         
         # makes cursor and typing visible
@@ -181,16 +261,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         except curses.error: pass
         curses.echo()
         
-        # switches bandwidth area to list event types
-        bwPanel = panels["bandwidth"]
-        bwPanel.clear()
-        bwPanel.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
+        # lists event types
+        popup = panels["popup"]
+        popup.clear()
+        popup.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
         lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
           line = line.strip()
-          bwPanel.addstr(lineNum, 0, line[:x - 1])
+          popup.addstr(lineNum, 0, line[:x - 1])
           lineNum += 1
-        bwPanel.refresh()
+        popup.refresh()
         
         # gets user input (this blocks monitor updates)
         eventsInput = panels["control"].win.getstr(0, 15)
@@ -200,6 +280,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         try: curses.curs_set(0)
         except curses.error: pass
         curses.noecho()
+        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
         
         # TODO: it would be nice to quit on esc, but looks like this might not be possible...
         if eventsInput != "":
@@ -208,29 +289,18 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             loggedEvents = setEventListening(expandedEvents, conn, panels["log"])
             panels["log"].loggedEvents = loggedEvents
           except ValueError, exc:
-            panels["control"].setMsg(CTL_EVENT_ERR, "Invalid flags: %s" % str(exc))
+            panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
             panels["control"].redraw()
             time.sleep(2)
         
         msgType = CTL_PAUSED if isPaused else CTL_HELP
         panels["control"].setMsg(msgType)
         
-        # returns listeners to previous pause status
-        panels["bandwidth"].setPaused(isBwPaused)
-        panels["log"].setPaused(isLogPaused)
+        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
       finally:
         cursesLock.release()
-    elif key == ord('p') or key == ord('P'):
-      # toggles update freezing
-      cursesLock.acquire()
-      try:
-        isPaused = not isPaused
-        panels["log"].setPaused(isPaused)
-        panels["bandwidth"].setPaused(isPaused)
-        msgType = CTL_PAUSED if isPaused else CTL_HELP
-        panels["control"].setMsg(msgType)
-      finally:
-        cursesLock.release()
+    elif page == 1:
+      panels["torrc"].handleKey(key)
 
 def startTorMonitor(conn, loggedEvents):
   curses.wrapper(drawTorMonitor, conn, loggedEvents)
