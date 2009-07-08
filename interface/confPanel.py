@@ -24,18 +24,21 @@ class ConfPanel(util.Panel):
     """
     Reloads torrc contents and resets scroll height.
     """
-    confFile = open(self.confLocation, "r")
-    self.confContents = confFile.readlines()
-    confFile.close()
+    try:
+      confFile = open(self.confLocation, "r")
+      self.confContents = confFile.readlines()
+      confFile.close()
+    except IOError:
+      self.confContents = ["### Unable to load torrc ###"]
     self.scroll = 0
   
   def handleKey(self, key):
     self._resetBounds()
     pageHeight = self.maxY - 1
     if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
-    elif key == curses.KEY_DOWN: self.scroll = min(self.scroll + 1, len(self.confContents) - pageHeight)
+    elif key == curses.KEY_DOWN: self.scroll = max(0, min(self.scroll + 1, len(self.confContents) - pageHeight))
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - pageHeight, 0)
-    elif key == curses.KEY_NPAGE: self.scroll = min(self.scroll + pageHeight, len(self.confContents) - pageHeight)
+    elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + pageHeight, len(self.confContents) - pageHeight))
     elif key == ord('n') or key == ord('N'): self.showLineNum = not self.showLineNum
     elif key == ord('r') or key == ord('R'): self.reset()
     elif key == ord('s') or key == ord('S'):

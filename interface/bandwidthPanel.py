@@ -25,8 +25,8 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     if conn: self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
     else: self.isAccounting = False
     
-    height = 12 if self.isAccounting else 9
-    util.Panel.__init__(self, lock, height)
+    self.contentHeight = 13 if self.isAccounting else 10
+    util.Panel.__init__(self, lock, self.contentHeight)
     
     self.conn = conn              # Tor control port connection
     self.tick = 0                 # number of updates performed
@@ -36,11 +36,16 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     self.maxUploadRate = 1
     self.accountingInfo = None    # accounting data (set by _updateAccountingInfo method)
     self.isPaused = False
+    self.isVisible = True
     self.pauseBuffer = None       # mirror instance used to track updates when paused
     
     # graphed download (read) and upload (write) rates - first index accumulator
     self.downloadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
     self.uploadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
+    
+    # used to calculate averages, uses tick for time
+    self.totalDownload = 0
+    self.totalUpload = 0
     
     # retrieves static stats for label
     if conn:
@@ -50,13 +55,16 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     else: self.bwRate, self.bwBurst = -1, -1
   
   def bandwidth_event(self, event):
-    if self.isPaused: self.pauseBuffer.bandwidth_event(event)
+    if self.isPaused or not self.isVisible: self.pauseBuffer.bandwidth_event(event)
     else:
       self.lastDownloadRate = event.read
       self.lastUploadRate = event.written
       
       self.downloadRates[0] += event.read
       self.uploadRates[0] += event.written
+      
+      self.totalDownload += event.read
+      self.totalUpload += event.written
       
       self.tick += 1
       if self.tick % BANDWIDTH_GRAPH_SAMPLES == 0:
@@ -112,8 +120,17 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
           for row in range(colHeight):
             self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
         
+        # provides average dl/ul rates
+        if self.tick > 0:
+          avgDownload = self.totalDownload / self.tick
+          avgUpload = self.totalUpload / self.tick
+        else: avgDownload, avgUpload = 0, 0
+        self.addstr(8, 1, "avg: %s/sec" % util.getSizeLabel(avgDownload), dlColor)
+        self.addstr(8, 36, "avg: %s/sec" % util.getSizeLabel(avgUpload), ulColor)
+        
+        # accounting stats if enabled
         if self.isAccounting:
-          if not self.isPaused: self._updateAccountingInfo()
+          if not self.isPaused and self.isVisible: self._updateAccountingInfo()
           
           if self.accountingInfo:
             status = self.accountingInfo["status"]
@@ -121,16 +138,12 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
             if status == "soft": hibernateColor = "yellow"
             elif status == "hard": hibernateColor = "red"
             
-            self.addstr(9, 0, "Accounting (", curses.A_BOLD)
-            self.addstr(9, 12, status, curses.A_BOLD | util.getColor(hibernateColor))
-            self.addstr(9, 12 + len(status), "):", curses.A_BOLD)
-            
-            self.addstr(9, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
-            self.addstr(10, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), dlColor)
-            self.addstr(10, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), ulColor)
+            self.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)" % (hibernateColor, status, hibernateColor))
+            self.addstr(10, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
+            self.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), dlColor)
+            self.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), ulColor)
           else:
-            self.addstr(9, 0, "Accounting:", curses.A_BOLD)
-            self.addstr(9, 12, "Shutting Down...")
+            self.addfstr(10, 0, "<b>Accounting:</b> Shutting Down...")
         
         self.refresh()
       finally:
@@ -142,9 +155,24 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     """
     
     if isPause == self.isPaused: return
-    
     self.isPaused = isPause
-    if self.isPaused:
+    if self.isVisible: self._parameterSwap()
+  
+  def setVisible(self, isVisible):
+    """
+    Toggles panel visability, hiding if false.
+    """
+    
+    if isVisible == self.isVisible: return
+    self.isVisible = isVisible
+    
+    if self.isVisible: self.height = self.contentHeight
+    else: self.height = 0
+    
+    if not self.isPaused: self._parameterSwap()
+  
+  def _parameterSwap(self):
+    if self.isPaused or not self.isVisible:
       if self.pauseBuffer == None: self.pauseBuffer = BandwidthMonitor(None, None)
       
       self.pauseBuffer.tick = self.tick
@@ -154,6 +182,10 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
       self.pauseBuffer.maxUploadRate = self.maxUploadRate
       self.pauseBuffer.downloadRates = list(self.downloadRates)
       self.pauseBuffer.uploadRates = list(self.uploadRates)
+      self.pauseBuffer.totalDownload = self.totalDownload
+      self.pauseBuffer.totalUpload = self.totalUpload
+      self.pauseBuffer.bwRate = self.bwRate
+      self.pauseBuffer.bwBurst = self.bwBurst
     else:
       self.tick = self.pauseBuffer.tick
       self.lastDownloadRate = self.pauseBuffer.lastDownloadRate
@@ -162,6 +194,10 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
       self.maxUploadRate = self.pauseBuffer.maxUploadRate
       self.downloadRates = self.pauseBuffer.downloadRates
       self.uploadRates = self.pauseBuffer.uploadRates
+      self.totalDownload = self.pauseBuffer.totalDownload
+      self.totalUpload = self.pauseBuffer.totalUpload
+      self.bwRate = self.pauseBuffer.bwRate
+      self.bwBurst = self.pauseBuffer.bwBurst
       self.redraw()
   
   def _updateAccountingInfo(self):

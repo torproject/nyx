@@ -3,6 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import curses
+from sys import maxint
 
 LABEL_ATTR = curses.A_STANDOUT          # default formatting constant
 
@@ -15,6 +16,11 @@ COLOR_LIST = (("red", curses.COLOR_RED),
              ("magenta", curses.COLOR_MAGENTA),
              ("black", curses.COLOR_BLACK),
              ("white", curses.COLOR_WHITE))
+
+FORMAT_TAGS = {"<b>": curses.A_BOLD,
+               "<u>": curses.A_UNDERLINE,
+               "<h>": curses.A_STANDOUT}
+for (colorLabel, cursesAttr) in COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = curses.A_NORMAL
 
 # foreground color mappings (starts uninitialized - all colors associated with default white fg / black bg)
 COLOR_ATTR_INITIALIZED = False
@@ -38,6 +44,9 @@ def initColors():
         colorpair += 1
         curses.init_pair(colorpair, fgColor, -1) # -1 allows for default (possibly transparent) background
         COLOR_ATTR[name] = curses.color_pair(colorpair)
+      
+      # maps color tags to initialized attributes
+      for colorLabel in COLOR_ATTR.keys(): FORMAT_TAGS["<%s>" % colorLabel] = COLOR_ATTR[colorLabel]
 
 def getColor(color):
   """
@@ -140,8 +149,64 @@ class Panel():
     
     # subwindows need a character buffer (either in the x or y direction) from
     # actual content to prevent crash when shrank
-    if self.win and self.maxX > x and self.maxY > y:
-      if not self.isDisplaced: self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+    if self.win and self.maxX > x and self.maxY > y and not self.isDisplaced:
+      self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+  
+  def addfstr(self, y, x, msg):
+    """
+    Writes string to subwindow. The message can contain xhtml-style tags for
+    formatting, including:
+    <b>text</b>               bold
+    <u>text</u>               underline
+    <h>text</h>               highlight
+    <[color]>text</[color]>   use color (see COLOR_LIST for constants)
+    
+    Tag nexting is supported and tag closing is not strictly enforced. This 
+    does not valididate input and unrecognized tags are treated as normal text.
+    Currently this funtion has the following restrictions:
+    - Duplicate tags nested (such as "<b><b>foo</b></b>") is invalid and may
+    throw an error.
+    - Color tags shouldn't be nested in each other (results are undefined).
+    """
+    
+    if self.win and self.maxY > y and not self.isDisplaced:
+      formatting = [curses.A_NORMAL]
+      expectedCloseTags = []
+      
+      while self.maxX > x and len(msg) > 0:
+        # finds next consumeable tag
+        nextTag, nextTagIndex = None, maxint
+        
+        for tag in FORMAT_TAGS.keys() + expectedCloseTags:
+          tagLoc = msg.find(tag)
+          if tagLoc != -1 and tagLoc < nextTagIndex:
+            nextTag, nextTagIndex = tag, tagLoc
+        
+        # splits into text before and after tag
+        if nextTag:
+          msgSegment = msg[:nextTagIndex]
+          msg = msg[nextTagIndex + len(nextTag):]
+        else:
+          msgSegment = msg
+          msg = ""
+        
+        # adds text before tag with current formatting
+        attr = 0
+        for format in formatting: attr |= format
+        self.win.addstr(y, x, msgSegment[:self.maxX - x - 1], attr)
+        
+        # applies tag attributes for future text
+        if nextTag:
+          if not nextTag.startswith("</"):
+            # open tag - add formatting
+            expectedCloseTags.append("</" + nextTag[1:])
+            formatting.append(FORMAT_TAGS[nextTag])
+          else:
+            # close tag - remove formatting
+            expectedCloseTags.remove(nextTag)
+            formatting.remove(FORMAT_TAGS["<" + nextTag[2:]])
+        
+        x += len(msgSegment)
   
   def _resetBounds(self):
     if self.win: self.maxY, self.maxX = self.win.getmaxyx()

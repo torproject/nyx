@@ -4,6 +4,7 @@
 
 import os
 import curses
+import socket
 from TorCtl import TorCtl
 
 import util
@@ -48,7 +49,7 @@ class HeaderPanel(util.Panel):
       self.addstr(0, 45, "Tor %s" % self.vals["version"])
       
       # Line 2 (authentication label red if open, green if credentials required)
-      dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if not self.vals["DirPort"] == None else ""
+      dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if self.vals["DirPort"] != "0" else ""
       
       # TODO: if both cookie and password are set then which takes priority?
       if self.vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
@@ -57,11 +58,7 @@ class HeaderPanel(util.Panel):
       controlPortAuthColor = "red" if controlPortAuthLabel == "open" else "green"
       
       labelStart = "%s - %s:%s, %sControl Port (" % (self.vals["Nickname"], self.vals["address"], self.vals["ORPort"], dirPortLabel)
-      self.addstr(1, 0, labelStart)
-      xLoc = len(labelStart)
-      self.addstr(1, xLoc, controlPortAuthLabel, util.getColor(controlPortAuthColor))
-      xLoc += len(controlPortAuthLabel)
-      self.addstr(1, xLoc, "): %s" % self.vals["ControlPort"])
+      self.addfstr(1, 0, "%s<%s>%s</%s>): %s" % (labelStart, controlPortAuthColor, controlPortAuthLabel, controlPortAuthColor, self.vals["ControlPort"]))
       
       # Line 3 (system usage info)
       self.addstr(2, 0, "cpu: %s%%" % self.vals["%cpu"])
@@ -108,7 +105,7 @@ class HeaderPanel(util.Panel):
     
     if not self.vals:
       # retrieves static params
-      self.vals = self.conn.get_info(["version", "config-file"])
+      self.vals = self.conn.get_info(["version"])
       
       # populates with some basic system information
       unameVals = os.uname()
@@ -132,6 +129,9 @@ class HeaderPanel(util.Panel):
       except TorCtl.ErrorReply: self.vals[param] = "Unknown"
       except TorCtl.TorCtlClosed:
         # Tor shut down - keep last known values
+        if not self.vals[param]: self.vals[param] = "Unknown"
+      except socket.error:
+        # Can be caused if tor crashed
         if not self.vals[param]: self.vals[param] = "Unknown"
     
     # ps call provides header followed by params for tor

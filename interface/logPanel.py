@@ -101,7 +101,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     try:
       self.registerEvent("STREAM_BW", "ID: %s READ: %i WRITTEN: %i" % (event.strm_id, event.bytes_read, event.bytes_written), "white")
     except TypeError:
-      self.registerEvent("STREAM_BW", "DEBUG -> ID: %s READ: %i WRITTEN: %i" % (type(event.strm_id), type(event.bytes_read), type(event.bytes_written)), "white")
+      self.registerEvent("STREAM_BW", "DEBUG -> ID: %s READ: %s WRITTEN: %s" % (type(event.strm_id), type(event.bytes_read), type(event.bytes_written)), "white")
   
   def bandwidth_event(self, event):
     self.lastHeartbeat = time.time()
