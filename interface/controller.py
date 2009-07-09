@@ -131,8 +131,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     "popup": util.Panel(cursesLock, 9),
     "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
     "log": logPanel.LogMonitor(cursesLock, loggedEvents),
-    "conn": connPanel.ConnPanel(cursesLock, conn),
     "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
+  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, panels["log"])
   
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
@@ -237,7 +237,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(1, 41, "down arrow: scroll down a line")
           popup.addstr(2, 2, "page up: scroll up a page")
           popup.addstr(2, 41, "page down: scroll down a page")
-          #popup.addstr(3, 2, "s: sort ordering")
+          popup.addstr(3, 2, "s: sort ordering")
           #popup.addstr(4, 2, "r: resolve hostnames")
           #popup.addstr(4, 41, "R: hostname auto-resolution")
           #popup.addstr(5, 2, "h: show IP/hostnames")
@@ -323,8 +323,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       finally:
         cursesLock.release()
     elif page == 1 and (key == ord('s') or key == ord('S')):
-      continue
-      
       # set ordering for connection listing
       cursesLock.acquire()
       try:
@@ -343,7 +341,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         # Makes listing of all options
         options = []
-        for (type, label) in connPanel.SORT_TYPES: options.append(label)
+        for (type, label, func) in connPanel.SORT_TYPES: options.append(label)
         options.append("Cancel")
         
         while len(selections) < 3:
@@ -383,7 +381,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
               options.remove(selection)
               cursorLoc = min(cursorLoc, len(options) - 1)
           
-        if len(selections) == 3: panels["conn"].sortOrdering = selections
+        if len(selections) == 3:
+          panels["conn"].sortOrdering = selections
+          panels["conn"].sortConnections()
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         cursesLock.release()
