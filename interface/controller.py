@@ -31,18 +31,20 @@ PAGES = [
   ["bandwidth", "log"],
   ["conn"],
   ["torrc"]]
-PAUSEABLE = ["header", "bandwidth", "log"]
+PAUSEABLE = ["header", "bandwidth", "log", "conn"]
 PAGE_COUNT = 3 # all page numbering is internally represented as 0-indexed
 # TODO: page for configuration information
 
 class ControlPanel(util.Panel):
   """ Draws single line label for interface controls. """
   
-  def __init__(self, lock):
+  def __init__(self, lock, resolver):
     util.Panel.__init__(self, lock, 1)
     self.msgText = CTL_HELP           # message text to be displyed
     self.msgAttr = curses.A_NORMAL    # formatting attributes
     self.page = 1                     # page number currently being displayed
+    self.resolver = resolver          # dns resolution thread
+    self.resolvingBatchSize = 0       # number of entries in batch being resolved
   
   def setMsg(self, msgText, msgAttr=curses.A_NORMAL):
     """
@@ -61,8 +63,21 @@ class ControlPanel(util.Panel):
       msgAttr = self.msgAttr
       
       if msgText == CTL_HELP:
-        msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, PAGE_COUNT)
         msgAttr = curses.A_NORMAL
+        
+        if self.resolvingBatchSize > 0:
+          if self.resolver.unresolvedQueue.empty() or self.resolver.isPaused:
+            # done resolving dns batch
+            self.resolvingBatchSize = 0
+            curses.halfdelay(REFRESH_RATE * 10) # revert to normal refresh rate
+          else:
+            entryCount = self.resolvingBatchSize - self.resolver.unresolvedQueue.qsize()
+            progress = 100 * entryCount / self.resolvingBatchSize
+            additive = "(or l) " if self.page == 2 else ""
+            msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, self.resolvingBatchSize, progress, additive)
+        
+        if self.resolvingBatchSize == 0:
+          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, PAGE_COUNT)
       elif msgText == CTL_PAUSED:
         msgText = "Paused"
         msgAttr = curses.A_STANDOUT
@@ -127,16 +142,17 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn),
-    "control": ControlPanel(cursesLock),
     "popup": util.Panel(cursesLock, 9),
     "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
     "log": logPanel.LogMonitor(cursesLock, loggedEvents),
     "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
   panels["conn"] = connPanel.ConnPanel(cursesLock, conn, panels["log"])
+  panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
   
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["bandwidth"])
+  conn.add_event_listener(panels["conn"])
   
   # tells Tor to listen to the events we're interested
   loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
@@ -183,7 +199,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       # if it's been at least five seconds since the last refresh of connection listing, update
       currentTime = time.time()
-      if currentTime - netstatRefresh >= 5:
+      if not panels["conn"].isPaused and currentTime - netstatRefresh >= 5:
         panels["conn"].reset()
         netstatRefresh = currentTime
       
@@ -195,7 +211,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       cursesLock.release()
     
     key = stdscr.getch()
-    if key == 27 or key == ord('q') or key == ord('Q'): break # quits (also on esc)
+    if key == ord('q') or key == ord('Q'): break # quits
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
       if key == curses.KEY_LEFT: page = (page - 1) % PAGE_COUNT
@@ -230,18 +246,25 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         if page == 0:
           bwVisibleLabel = "visible" if panels["bandwidth"].isVisible else "hidden"
-          popup.addfstr(1, 2, "b: toggle <u>b</u>andwidth panel (<b>%s</b>)" % bwVisibleLabel)
-          popup.addfstr(1, 41, "e: change logged <u>e</u>vents")
+          popup.addfstr(1, 2, "b: toggle bandwidth panel (<b>%s</b>)" % bwVisibleLabel)
+          popup.addstr(1, 41, "e: change logged events")
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
           popup.addstr(2, 2, "page up: scroll up a page")
           popup.addstr(2, 41, "page down: scroll down a page")
-          popup.addstr(3, 2, "s: sort ordering")
-          #popup.addstr(4, 2, "r: resolve hostnames")
-          #popup.addstr(4, 41, "R: hostname auto-resolution")
-          #popup.addstr(5, 2, "h: show IP/hostnames")
-          #popup.addstr(5, 41, "c: clear hostname cache")
+          
+          listingEnum = panels["conn"].listingType
+          if listingEnum == connPanel.LIST_IP: listingType = "ip address"
+          elif listingEnum == connPanel.LIST_HOSTNAME: listingType = "hostname"
+          else: listingType = "fingerprint"
+          
+          popup.addfstr(3, 2, "l: listed identity (<b>%s</b>)" % listingType)
+          
+          allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
+          popup.addfstr(3, 41, "r: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
+          
+          popup.addstr(4, 2, "s: sort ordering")
         elif page == 2:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -249,12 +272,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(2, 41, "page down: scroll down a page")
           
           strippingLabel = "on" if panels["torrc"].stripComments else "off"
-          popup.addfstr(3, 2, "s: comment <u>s</u>tripping (<b>%s</b>)" % strippingLabel)
+          popup.addfstr(3, 2, "s: comment stripping (<b>%s</b>)" % strippingLabel)
           
           lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
-          popup.addfstr(3, 41, "n: line <u>n</u>umbering (<b>%s</b>)" % lineNumLabel)
+          popup.addfstr(3, 41, "n: line numbering (<b>%s</b>)" % lineNumLabel)
           
-          popup.addfstr(4, 2, "r: <u>r</u>eload torrc")
+          popup.addfstr(4, 2, "r: reload torrc")
         
         popup.addstr(7, 2, "Press any key...")
         
@@ -322,6 +345,22 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
       finally:
         cursesLock.release()
+    elif (page == 1 and (key == ord('l') or key == ord('L'))) or (key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingBatchSize > 0):
+      # either pressed 'l' on connection listing or canceling hostname resolution (esc on any page)
+      panels["conn"].listingType = (panels["conn"].listingType + 1) % 3
+      
+      if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
+        curses.halfdelay(10) # refreshes display every second until done resolving
+        panels["control"].resolvingBatchSize = len(panels["conn"].connections)
+        
+        resolver = panels["conn"].resolver
+        resolver.setPaused(not panels["conn"].allowDNS)
+        for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
+      else:
+        panels["control"].resolvingBatchSize = 0
+        resolver.setPaused(True)
+      
+      panels["conn"].sortConnections()
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection listing
       cursesLock.acquire()
@@ -336,12 +375,18 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         # listing of inital ordering
         prevOrdering = "<b>Current Order: "
-        for sort in panels["conn"].sortOrdering: prevOrdering += connPanel.getSortLabel(sort, True) + ", "
+        for sort in panels["conn"].sortOrdering: prevOrdering += panels["conn"].getSortLabel(sort, True) + ", "
         prevOrdering = prevOrdering[:-2] + "</b>"
         
         # Makes listing of all options
         options = []
-        for (type, label, func) in connPanel.SORT_TYPES: options.append(label)
+        for (type, label, func) in connPanel.SORT_TYPES:
+          label = panels["conn"].getSortLabel(type)
+          
+          # replaces 'Fingerprint' listings with shorter description
+          if label.startswith("Fingerprint"): label = label.replace("Fingerprint", "Tor ID")
+          
+          options.append(label)
         options.append("Cancel")
         
         while len(selections) < 3:
@@ -353,7 +398,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           # provides new ordering
           newOrdering = "<b>New Order: "
           if selections:
-            for sort in selections: newOrdering += connPanel.getSortLabel(sort, True) + ", "
+            for sort in selections: newOrdering += panels["conn"].getSortLabel(sort, True) + ", "
             newOrdering = newOrdering[:-2] + "</b>"
           else: newOrdering += "</b>"
           popup.addfstr(2, 2, newOrdering)
@@ -377,7 +422,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             selection = options[cursorLoc]
             if selection == "Cancel": break
             else:
-              selections.append(connPanel.getSortType(selection))
+              selections.append(connPanel.getSortType(selection.replace("Tor ID", "Fingerprint")))
               options.remove(selection)
               cursorLoc = min(cursorLoc, len(options) - 1)
           

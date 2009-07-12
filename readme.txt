@@ -14,3 +14,5 @@ Tor is running with an available control port. This means either...
 
 This is started via 'arm' (use the '--help' argument for usage).
 
+Warning: The second page (connections) provides the hostnames of Tor relays you're connected to. This means reverse DNS lookups which, if monitored, could leak your current connections to an eavesdropper. You can disable lookups with 'r' (see the page's help for the current status).
+
