@@ -111,7 +111,7 @@ class Panel():
     if self.win and startY > y:
       return False # trying to make panel out of bounds
     
-    newHeight = y - startY
+    newHeight = max(0, y - startY)
     if self.height != -1: newHeight = min(newHeight, self.height)
     
     if self.startY != startY or newHeight > self.maxY or self.isDisplaced or (self.maxX > maxX and maxX != -1):

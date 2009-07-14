@@ -65,6 +65,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.isPaused = False
     self.resolver = hostnameResolver.HostnameResolver()
+    self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, OR identity), ...]
     
     # gets process id to make sure we get the correct netstat data
@@ -92,9 +93,11 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
   
   # when consensus changes update fingerprint mappings
   def new_consensus_event(self, n):
+    self.fingerprintLookupCache = {}
     self.fingerprintMappings = _getFingerprintMappings(self.conn)
   
   def new_desc_event(self, d):
+    self.fingerprintLookupCache = {}
     self.fingerprintMappings = _getFingerprintMappings(self.conn)
   
   def reset(self):
@@ -190,7 +193,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
               dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
               dst = "%-37s" % dst
             else:
-              src = "localhost "
+              src = "localhost  "
               if entry[CONN_TYPE] == "control": dst = "localhost"
               else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
               dst = "%-41s" % dst
@@ -210,15 +213,21 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     returns "UNKNOWN".
     """
     
-    if ipAddr in self.fingerprintMappings.keys():
-      potentialMatches = self.fingerprintMappings[ipAddr]
+    if (ipAddr, port) in self.fingerprintLookupCache:
+      return self.fingerprintLookupCache[(ipAddr, port)]
+    else:
+      match = "UNKNOWN"
       
-      if len(potentialMatches) == 1: return potentialMatches[0][1]
-      else:
-        for (entryPort, entryFingerprint) in potentialMatches:
-          if entryPort == port: return entryFingerprint
-    
-    return "UNKNOWN"
+      if ipAddr in self.fingerprintMappings.keys():
+        potentialMatches = self.fingerprintMappings[ipAddr]
+        
+        if len(potentialMatches) == 1: match = potentialMatches[0][1]
+        else:
+          for (entryPort, entryFingerprint) in potentialMatches:
+            if entryPort == port: match = entryFingerprint
+      
+      self.fingerprintLookupCache[(ipAddr, port)] = match
+      return match
   
   def setPaused(self, isPause):
     """
@@ -272,10 +281,10 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       listingWrapper = lambda ip, port: _ipToInt(ip)
     elif self.listingType == LIST_HOSTNAME:
       # alphanumeric hostnames followed by unresolved IP addresses
-      listingWrapper = lambda ip, port: self.resolver.resolve(ip).upper() if self.resolver.resolve(ip) else "ZZZZZ" + ip
+      listingWrapper = lambda ip, port: self.resolver.resolve(ip).upper() if self.resolver.resolve(ip) else "ZZZZZ%099i" % _ipToInt(ip)
     elif self.listingType == LIST_FINGERPRINT:
       # alphanumeric fingerprints followed by UNKNOWN entries
-      listingWrapper = lambda ip, port: self.getFingerprint(ip, port) if self.getFingerprint(ip, port) != "UNKNOWN" else "ZZZZZ" + ip
+      listingWrapper = lambda ip, port: self.getFingerprint(ip, port) if self.getFingerprint(ip, port) != "UNKNOWN" else "ZZZZZ%099i" % _ipToInt(ip)
     
     for entry in self.sortOrdering:
       if entry == ORD_FOREIGN_LISTING:

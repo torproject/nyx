@@ -36,6 +36,7 @@ class HostnameResolver(Thread):
     self.recentQueries = []           # recent resolution requests to prevent duplicate requests
     self.counter = itertools.count()  # atomic counter to track age of entries (for trimming)
     self.threadPool = []              # worker threads that process requests
+    self.totalResolves = 0            # counter for the total number of addresses querried to be resolved
     self.isPaused = True
     
     for i in range(RESOLVER_THREAD_POOL_SIZE):
@@ -58,6 +59,7 @@ class HostnameResolver(Thread):
     if ipAddr in self.resolvedCache.keys():
       return self.resolvedCache[ipAddr][0]
     elif ipAddr not in self.recentQueries:
+      self.totalResolves += 1
       self.recentQueries.append(ipAddr)
       self.unresolvedQueue.put(ipAddr)
       

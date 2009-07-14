@@ -44,7 +44,7 @@ class ControlPanel(util.Panel):
     self.msgAttr = curses.A_NORMAL    # formatting attributes
     self.page = 1                     # page number currently being displayed
     self.resolver = resolver          # dns resolution thread
-    self.resolvingBatchSize = 0       # number of entries in batch being resolved
+    self.resolvingCounter = -1         # count of resolver when starting (-1 if we aren't working on a batch)
   
   def setMsg(self, msgText, msgAttr=curses.A_NORMAL):
     """
@@ -65,18 +65,19 @@ class ControlPanel(util.Panel):
       if msgText == CTL_HELP:
         msgAttr = curses.A_NORMAL
         
-        if self.resolvingBatchSize > 0:
+        if self.resolvingCounter != -1:
           if self.resolver.unresolvedQueue.empty() or self.resolver.isPaused:
             # done resolving dns batch
-            self.resolvingBatchSize = 0
+            self.resolvingCounter = -1
             curses.halfdelay(REFRESH_RATE * 10) # revert to normal refresh rate
           else:
-            entryCount = self.resolvingBatchSize - self.resolver.unresolvedQueue.qsize()
-            progress = 100 * entryCount / self.resolvingBatchSize
+            batchSize = self.resolver.totalResolves - self.resolvingCounter
+            entryCount = batchSize - self.resolver.unresolvedQueue.qsize()
+            progress = 100 * entryCount / batchSize
             additive = "(or l) " if self.page == 2 else ""
-            msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, self.resolvingBatchSize, progress, additive)
+            msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
         
-        if self.resolvingBatchSize == 0:
+        if self.resolvingCounter == -1:
           msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, PAGE_COUNT)
       elif msgText == CTL_PAUSED:
         msgText = "Paused"
@@ -345,19 +346,19 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
       finally:
         cursesLock.release()
-    elif (page == 1 and (key == ord('l') or key == ord('L'))) or (key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingBatchSize > 0):
+    elif (page == 1 and (key == ord('l') or key == ord('L'))) or (key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1):
       # either pressed 'l' on connection listing or canceling hostname resolution (esc on any page)
       panels["conn"].listingType = (panels["conn"].listingType + 1) % 3
       
       if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
         curses.halfdelay(10) # refreshes display every second until done resolving
-        panels["control"].resolvingBatchSize = len(panels["conn"].connections)
+        panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves
         
         resolver = panels["conn"].resolver
         resolver.setPaused(not panels["conn"].allowDNS)
         for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
       else:
-        panels["control"].resolvingBatchSize = 0
+        panels["control"].resolvingCounter = -1
         resolver.setPaused(True)
       
       panels["conn"].sortConnections()
