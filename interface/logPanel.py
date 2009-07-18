@@ -13,18 +13,21 @@ MAX_LOG_ENTRIES = 80                # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 
 EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",     "l": "NEWDESC",   "u": "AUTHDIR_NEWDESCS",
-  "i": "INFO",    "b": "BW",          "m": "NS",        "v": "CLIENTS_SEEN",
-  "n": "NOTICE",  "c": "CIRC",        "o": "ORCONN",    "x": "STATUS_GENERAL",
-  "w": "WARN",    "f": "DESCCHANGED", "s": "STREAM",    "y": "STATUS_CLIENT",
-  "e": "ERR",     "g": "GUARD",       "t": "STREAM_BW", "z": "STATUS_SERVER"}
+  "d": "DEBUG",   "a": "ADDRMAP",       "l": "NEWDESC",     "v": "AUTHDIR_NEWDESCS",
+  "i": "INFO",    "b": "BW",            "m": "NS",          "x": "STATUS_GENERAL",
+  "n": "NOTICE",  "c": "CIRC",          "o": "ORCONN",      "y": "STATUS_CLIENT",
+  "w": "WARN",    "f": "DESCCHANGED",   "s": "STREAM",      "z": "STATUS_SERVER",
+  "e": "ERR",     "g": "GUARD",         "t": "STREAM_BW",
+                  "k": "NEWCONSENSUS",  "u": "CLIENTS_SEEN"}
 
-EVENT_LISTING = """        d DEBUG     a ADDRMAP       l NEWDESC         u AUTHDIR_NEWDESCS
-        i INFO      b BW            m NS              v CLIENTS_SEEN
-        n NOTICE    c CIRC          o ORCONN          x STATUS_GENERAL
-        w WARN      f DESCCHANGED   s STREAM          y STATUS_CLIENT
-        e ERR       g GUARD         t STREAM_BW       z STATUS_SERVER
-        Aliases:    A All Events    U Unknown Events  R Runlevels (dinwe)"""
+EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUTHDIR_NEWDESCS
+        i INFO      b BW              m NS              x STATUS_GENERAL
+        n NOTICE    c CIRC            o ORCONN          y STATUS_CLIENT
+        w WARN      f DESCCHANGED     s STREAM          z STATUS_SERVER
+        e ERR       g GUARD           t STREAM_BW
+                    k NEWCONSENSUS    u CLIENTS_SEEN
+        Aliases:    A All Events      X No Events       U Unknown Events
+                    DINWE Runlevel and higher severity"""
   
 def expandEvents(eventAbbr):
   """
@@ -46,10 +49,15 @@ def expandEvents(eventAbbr):
       expandedEvents = set(EVENT_TYPES.values())
       expandedEvents.add("UNKNOWN")
       break
-    elif flag == "U":
-      expandedEvents.add("UNKNOWN")
-    elif flag == "R":
-      expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
+    elif flag == "X":
+      expandedEvents = set()
+      break
+    elif flag == "U": expandedEvents.add("UNKNOWN")
+    elif flag == "D": expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
+    elif flag == "I": expandedEvents = expandedEvents.union(set(["INFO", "NOTICE", "WARN", "ERR"]))
+    elif flag == "N": expandedEvents = expandedEvents.union(set(["NOTICE", "WARN", "ERR"]))
+    elif flag == "W": expandedEvents = expandedEvents.union(set(["WARN", "ERR"]))
+    elif flag == "E": expandedEvents.add("ERR")
     elif flag in EVENT_TYPES:
       expandedEvents.add(EVENT_TYPES[flag])
     else:
@@ -70,7 +78,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     self.isPaused = False
     self.pauseBuffer = []                 # location where messages are buffered if paused
     self.loggedEvents = loggedEvents      # events we're listening to
-    self.lastHeartbeat = time.time()      # time of last BW event
+    self.lastHeartbeat = time.time()      # time of last event
   
   # Listens for all event types and redirects to registerEvent
   def circ_status_event(self, event):
@@ -104,15 +112,16 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
       self.registerEvent("STREAM_BW", "DEBUG -> ID: %s READ: %s WRITTEN: %s" % (type(event.strm_id), type(event.bytes_read), type(event.bytes_written)), "white")
   
   def bandwidth_event(self, event):
-    self.lastHeartbeat = time.time()
+    self.lastHeartbeat = time.time() # ensures heartbeat at least once a second
     if "BW" in self.loggedEvents: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
     self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
   
   def new_desc_event(self, event):
-    idlistStr = [str(item) for item in event.idlist]
-    self.registerEvent("NEWDESC", ", ".join(idlistStr), "white")
+    if "NEWDESC" in self.loggedEvents:
+      idlistStr = [str(item) for item in event.idlist]
+      self.registerEvent("NEWDESC", ", ".join(idlistStr), "white")
   
   def address_mapped_event(self, event):
     self.registerEvent("ADDRMAP", "%s, %s -> %s" % (event.when, event.from_addr, event.to_addr), "white")
@@ -126,10 +135,11 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
   
   def new_consensus_event(self, event):
-    msg = ""
-    for ns in event.nslist:
-      msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
-    self.registerEvent("NEWCONSENSUS", "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
+    if "NEWCONSENSUS" in self.loggedEvents:
+      msg = ""
+      for ns in event.nslist:
+        msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
+      self.registerEvent("NEWCONSENSUS", "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
   
   def unknown_event(self, event):
     if "UNKNOWN" in self.loggedEvents: self.registerEvent("UNKNOWN", event.event_string, "red")
@@ -142,6 +152,8 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     """
     Notes event and redraws log. If paused it's held in a temporary buffer.
     """
+    
+    self.lastHeartbeat = time.time()
     
     # strips control characters to avoid screwing up the terminal
     msg = "".join([char for char in msg if isprint(char)])
@@ -222,7 +234,9 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   
   def getHeartbeat(self):
     """
-    Provides the number of seconds since the last BW event.
+    Provides the number of seconds since the last registered event (this always
+    listens to BW events so should be less than a second if relay's still
+    responsive).
     """
     
     return time.time() - self.lastHeartbeat

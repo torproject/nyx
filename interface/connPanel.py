@@ -10,17 +10,17 @@ import util
 import hostnameResolver
 
 # enums for listing types
-LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT = range(3)
-LIST_LABEL = {LIST_IP: "IP", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint"}
+LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
+LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
 # enums for sorting types (note: ordering corresponds to SORT_TYPES for easy lookup)
 # TODO: add ORD_BANDWIDTH -> (ORD_BANDWIDTH, "Bandwidth", lambda x, y: ???)
 ORD_TYPE, ORD_FOREIGN_LISTING, ORD_SRC_LISTING, ORD_DST_LISTING, ORD_COUNTRY, ORD_FOREIGN_PORT, ORD_SRC_PORT, ORD_DST_PORT = range(8)
 SORT_TYPES = [(ORD_TYPE, "Connection Type",
                 lambda x, y: TYPE_WEIGHTS[x[CONN_TYPE]] - TYPE_WEIGHTS[y[CONN_TYPE]]),
-              (ORD_FOREIGN_LISTING, "* (Foreign)", None),
-              (ORD_SRC_LISTING, "* (Source)", None),
-              (ORD_DST_LISTING, "* (Dest.)", None),
+              (ORD_FOREIGN_LISTING, "Listing (Foreign)", None),
+              (ORD_SRC_LISTING, "Listing (Source)", None),
+              (ORD_DST_LISTING, "Listing (Dest.)", None),
               (ORD_COUNTRY, "Country Code",
                 lambda x, y: cmp(x[CONN_COUNTRY], y[CONN_COUNTRY])),
               (ORD_FOREIGN_PORT, "Port (Foreign)",
@@ -36,7 +36,34 @@ TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2}
 # enums for indexes of ConnPanel 'connections' fields
 CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY = range(6)
 
-# provides bi-directional mapping of sorts with their associated labels (with getSortLabel)
+# provides bi-directional mapping of sorts with their associated labels
+def getSortLabel(sortType, withColor = False):
+  """
+  Provides label associated with a type of sorting. Throws ValueEror if no such
+  sort exists. If adding color formatting this wraps with the following mappings:
+  Connection Type     red
+  Listing *           blue
+  Port *              green
+  Bandwidth           cyan
+  Country Code        yellow
+  """
+  
+  for (type, label, func) in SORT_TYPES:
+    if sortType == type:
+      color = None
+      
+      if withColor:
+        if label == "Connection Type": color = "red"
+        elif label.startswith("Listing"): color = "blue"
+        elif label.startswith("Port"): color = "green"
+        elif label == "Bandwidth": color = "cyan"
+        elif label == "Country Code": color = "yellow"
+      
+      if color: return "<%s>%s</%s>" % (color, label, color)
+      else: return label
+  
+  raise ValueError(sortType)
+
 def getSortType(sortLabel):
   """
   Provides sort type associated with a given label. Throws ValueEror if label
@@ -45,8 +72,6 @@ def getSortType(sortLabel):
   
   for (type, label, func) in SORT_TYPES:
     if sortLabel == label: return type
-    elif label.startswith("*"):
-      if sortLabel in [label.replace("*", listingType) for listingType in LIST_LABEL.values()]: return type
   raise ValueError(sortLabel)
 
 class ConnPanel(TorCtl.PostEventListener, util.Panel):
@@ -66,7 +91,9 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.isPaused = False
     self.resolver = hostnameResolver.HostnameResolver()
     self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
+    self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, OR identity), ...]
+    self.nickname = self.conn.get_option("Nickname")[0][1]
     
     # gets process id to make sure we get the correct netstat data
     psCall = os.popen('ps -C tor -o pid')
@@ -92,13 +119,44 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.reset()
   
   # when consensus changes update fingerprint mappings
-  def new_consensus_event(self, n):
-    self.fingerprintLookupCache = {}
-    self.fingerprintMappings = _getFingerprintMappings(self.conn)
+  def new_consensus_event(self, event):
+    self.fingerprintLookupCache.clear()
+    self.nicknameLookupCache.clear()
+    self.fingerprintMappings = _getFingerprintMappings(self.conn, event.nslist)
   
-  def new_desc_event(self, d):
-    self.fingerprintLookupCache = {}
-    self.fingerprintMappings = _getFingerprintMappings(self.conn)
+  def new_desc_event(self, event):
+    for fingerprint in event.idlist:
+      # clears entries with this fingerprint from the cache
+      if fingerprint in self.fingerprintLookupCache.values():
+        invalidEntries = set(k for k, v in self.fingerprintLookupCache.iteritems() if v == fingerprint)
+        for k in invalidEntries:
+          # nicknameLookupCache keys are a subset of fingerprintLookupCache
+          del self.fingerprintLookupCache[k]
+          if k in self.nicknameLookupCache.keys(): del self.nicknameLookupCache[k]
+      
+      # gets consensus data for the new description
+      nsData = self.conn.get_network_status("id/%s" % fingerprint)
+      if len(nsData) > 1:
+        # multiple records for fingerprint (shouldn't happen)
+        self.logger.monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
+        return
+      nsEntry = nsData[0]
+      
+      # updates fingerprintMappings with new data
+      if nsEntry.ip in self.fingerprintMappings.keys():
+        # if entry already exists with the same orport, remove it
+        orportMatch = None
+        for entryPort, entryFingerprint in self.fingerprintMappings[nsEntry.ip]:
+          if entryPort == nsEntry.orport:
+            orportMatch = (entryPort, entryFingerprint)
+            break
+        
+        if orportMatch: self.fingerprintMappings[nsEntry.ip].remove(orportMatch)
+        
+        # add new entry
+        self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhash))
+      else:
+        self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhash)]
   
   def reset(self):
     """
@@ -192,10 +250,15 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
               
               dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
               dst = "%-37s" % dst
-            else:
+            elif self.listingType == LIST_FINGERPRINT:
               src = "localhost  "
               if entry[CONN_TYPE] == "control": dst = "localhost"
               else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+              dst = "%-41s" % dst
+            else:
+              src = "%-11s" % self.nickname
+              if entry[CONN_TYPE] == "control": dst = self.nickname
+              else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
               dst = "%-41s" % dst
             
             if type == "inbound": src, dst = dst, src
@@ -229,40 +292,26 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       self.fingerprintLookupCache[(ipAddr, port)] = match
       return match
   
+  def getNickname(self, ipAddr, port):
+    """
+    Attempts to provide the nickname for an ip/port combination, "UNKNOWN"
+    if this can't be determined.
+    """
+    
+    if (ipAddr, port) in self.nicknameLookupCache:
+      return self.nicknameLookupCache[(ipAddr, port)]
+    else:
+      match = self.getFingerprint(ipAddr, port)
+      if match != "UNKNOWN": match = self.conn.get_network_status("id/%s" % match)[0].nickname
+      self.nicknameLookupCache[(ipAddr, port)] = match
+      return match
+  
   def setPaused(self, isPause):
     """
     If true, prevents connection listing from being updated.
     """
     
     self.isPaused = isPause
-  
-  def getSortLabel(self, sortType, withColor = False):
-    """
-    Provides label associated with a type of sorting. Throws ValueEror if no such
-    sort exists. If adding color formatting this wraps with the following mappings:
-    Connection Type     red
-    [Listing] *         blue
-    Port *              green
-    Bandwidth           cyan
-    Country Code        yellow
-    """
-    
-    for (type, label, func) in SORT_TYPES:
-      if sortType == type:
-        color = None
-        
-        if withColor:
-          if label == "Connection Type": color = "red"
-          elif label.startswith("*"): color = "blue"
-          elif label.startswith("Port"): color = "green"
-          elif label == "Bandwidth": color = "cyan"
-          elif label == "Country Code": color = "yellow"
-        
-        if label.startswith("*"): label = label.replace("*", LIST_LABEL[self.listingType])
-        if color: return "<%s>%s</%s>" % (color, label, color)
-        else: return label
-    
-    raise ValueError(sortType)
   
   def sortConnections(self):
     """
@@ -281,10 +330,13 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       listingWrapper = lambda ip, port: _ipToInt(ip)
     elif self.listingType == LIST_HOSTNAME:
       # alphanumeric hostnames followed by unresolved IP addresses
-      listingWrapper = lambda ip, port: self.resolver.resolve(ip).upper() if self.resolver.resolve(ip) else "ZZZZZ%099i" % _ipToInt(ip)
+      listingWrapper = lambda ip, port: self.resolver.resolve(ip).upper() if self.resolver.resolve(ip) else "zzzzz%099i" % _ipToInt(ip)
     elif self.listingType == LIST_FINGERPRINT:
       # alphanumeric fingerprints followed by UNKNOWN entries
-      listingWrapper = lambda ip, port: self.getFingerprint(ip, port) if self.getFingerprint(ip, port) != "UNKNOWN" else "ZZZZZ%099i" % _ipToInt(ip)
+      listingWrapper = lambda ip, port: self.getFingerprint(ip, port) if self.getFingerprint(ip, port) != "UNKNOWN" else "zzzzz%099i" % _ipToInt(ip)
+    elif self.listingType == LIST_NICKNAME:
+      # alphanumeric nicknames followed by Unnamed then UNKNOWN entries
+      listingWrapper = lambda ip, port: self.getNickname(ip, port) if self.getNickname(ip, port) not in ("UNKNOWN", "Unnamed") else "zzzzz%i%099i" % (0 if self.getNickname(ip, port) == "Unnamed" else 1, _ipToInt(ip))
     
     for entry in self.sortOrdering:
       if entry == ORD_FOREIGN_LISTING:
@@ -312,18 +364,16 @@ def _ipToInt(ipAddr):
   return total
 
 # uses consensus data to map IP addresses to port / fingerprint combinations
-def _getFingerprintMappings(conn):
+def _getFingerprintMappings(conn, nsList = None):
   ipToFingerprint = {}
   
-  try:
-    lastIp, lastPort = None, None
-    for line in conn.get_info("desc/all-recent")["desc/all-recent"].split("\n"):
-      if line.startswith("router "): lastIp, lastPort = line.split()[2], line.split()[3]
-      elif line.startswith("opt fingerprint "):
-        fingerprint = "".join(line.split()[2:])
-        if lastIp in ipToFingerprint.keys(): ipToFingerprint[lastIp].append((lastPort, fingerprint))
-        else: ipToFingerprint[lastIp] = [(lastPort, fingerprint)]
-  except TorCtl.TorCtlClosed: pass
+  if not nsList:
+    try: nsList = conn.get_network_status()
+    except TorCtl.TorCtlClosed: nsList = []
+  
+  for entry in nsList:
+    if entry.ip in ipToFingerprint.keys(): ipToFingerprint[entry.ip].append((entry.orport, entry.idhex))
+    else: ipToFingerprint[entry.ip] = [(entry.orport, entry.idhex)]
   
   return ipToFingerprint
 

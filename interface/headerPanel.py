@@ -9,6 +9,11 @@ from TorCtl import TorCtl
 
 import util
 
+FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red",    "Exit": "cyan",
+               "Fast": "yellow",      "Guard": "green",     "HSDir": "magenta",       "Named": "blue",
+               "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
+               "V2Dir": "cyan",       "V3Dir": "white"}
+
 class HeaderPanel(util.Panel):
   """
   Draws top area containing static information.
@@ -26,7 +31,7 @@ class HeaderPanel(util.Panel):
   """
   
   def __init__(self, lock, conn):
-    util.Panel.__init__(self, lock, 5)
+    util.Panel.__init__(self, lock, 6)
     self.vals = []            # mapping of information to be presented
     self.conn = conn          # Tor control port connection
     self.isPaused = False
@@ -69,16 +74,14 @@ class HeaderPanel(util.Panel):
       # Line 4 (fingerprint)
       self.addstr(3, 0, "fingerprint: %s" % self.vals["fingerprint"])
       
+      # Line 5 (flags)
+      flagLine = "flags: "
+      for flag in self.vals["flags"]:
+        flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
+        flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
       
-      # Lines 3-5
-      #self.addstr(3, 0, "Config: %s" % self.vals["config-file"])
-      #exitPolicy = self.vals["ExitPolicy"]
-      
-      # adds note when default exit policy is appended
-      #if exitPolicy == None: exitPolicy = "<default>"
-      #elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
-      #  exitPolicy += ", <default>"
-      #self.addstr(4, 0, "Exit Policy: %s" % exitPolicy)
+      if len(self.vals["flags"]) > 0: flagLine = flagLine[:-2]
+      self.addfstr(4, 0, flagLine)
       
       self.refresh()
   
@@ -93,10 +96,10 @@ class HeaderPanel(util.Panel):
     """
     Updates mapping of static Tor settings and system information to their
     corresponding string values. Keys include:
-    info - version, config-file, *address, *fingerprint
+    info - version, *address, *fingerprint, *flags
     sys - sys-name, sys-os, sys-version
     ps - *%cpu, *rss, *%mem, *pid, *etime
-    config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy
+    config - Nickname, ORPort, DirPort, ControlPort
     config booleans - IsPasswordAuthSet, IsCookieAuthSet, IsAccountingEnabled
     
     * volatile parameter that'll be reset (otherwise won't be checked if
@@ -114,7 +117,7 @@ class HeaderPanel(util.Panel):
       self.vals["sys-version"] = unameVals[2]
       
       # parameters from the user's torrc
-      configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
+      configFields = ["Nickname", "ORPort", "DirPort", "ControlPort"]
       self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
       
       # simply keeps booleans for if authentication info is set
@@ -133,6 +136,13 @@ class HeaderPanel(util.Panel):
       except socket.error:
         # Can be caused if tor crashed
         if not self.vals[param]: self.vals[param] = "Unknown"
+    
+    # flags held by relay
+    self.vals["flags"] = []
+    if self.vals["fingerprint"] != "Unknown":
+      try: self.vals["flags"] = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])[0].flags
+      except TorCtl.TorCtlClosed: pass
+      except socket.error: pass
     
     # ps call provides header followed by params for tor
     psParams = ["%cpu", "rss", "%mem", "pid", "etime"]

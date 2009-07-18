@@ -40,7 +40,6 @@ class ConfPanel(util.Panel):
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - pageHeight, 0)
     elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + pageHeight, len(self.confContents) - pageHeight))
     elif key == ord('n') or key == ord('N'): self.showLineNum = not self.showLineNum
-    elif key == ord('r') or key == ord('R'): self.reset()
     elif key == ord('s') or key == ord('S'):
       self.stripComments = not self.stripComments
       self.scroll = 0

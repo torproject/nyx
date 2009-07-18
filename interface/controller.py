@@ -35,6 +35,9 @@ PAUSEABLE = ["header", "bandwidth", "log", "conn"]
 PAGE_COUNT = 3 # all page numbering is internally represented as 0-indexed
 # TODO: page for configuration information
 
+# events needed for panels other than the event log
+REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS"]
+
 class ControlPanel(util.Panel):
   """ Draws single line label for interface controls. """
   
@@ -98,7 +101,7 @@ def setEventListening(loggedEvents, conn, logListener):
     try:
       # adds BW events if not already included (so bandwidth monitor will work)
       # removes UNKNOWN since not an actual event type
-      connEvents = loggedEvents.union(set(["BW"]))
+      connEvents = loggedEvents.union(set(REQ_EVENTS))
       connEvents.discard("UNKNOWN")
       conn.set_events(connEvents)
       eventsSet = True
@@ -255,11 +258,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(2, 2, "page up: scroll up a page")
           popup.addstr(2, 41, "page down: scroll down a page")
           
-          listingEnum = panels["conn"].listingType
-          if listingEnum == connPanel.LIST_IP: listingType = "ip address"
-          elif listingEnum == connPanel.LIST_HOSTNAME: listingType = "hostname"
-          else: listingType = "fingerprint"
-          
+          listingType = connPanel.LIST_LABEL[panels["conn"].listingType].lower()
           popup.addfstr(3, 2, "l: listed identity (<b>%s</b>)" % listingType)
           
           allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
@@ -277,8 +276,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           
           lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
           popup.addfstr(3, 41, "n: line numbering (<b>%s</b>)" % lineNumLabel)
-          
-          popup.addfstr(4, 2, "r: reload torrc")
         
         popup.addstr(7, 2, "Press any key...")
         
@@ -316,7 +313,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         popup.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
         lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
-          line = "  " + line.strip()
+          line = line[6:]
           popup.addstr(lineNum, 0, line)
           lineNum += 1
         popup.refresh()
@@ -348,7 +345,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         cursesLock.release()
     elif (page == 1 and (key == ord('l') or key == ord('L'))) or (key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1):
       # either pressed 'l' on connection listing or canceling hostname resolution (esc on any page)
-      panels["conn"].listingType = (panels["conn"].listingType + 1) % 3
+      panels["conn"].listingType = (panels["conn"].listingType + 1) % len(connPanel.LIST_LABEL)
       
       if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
         curses.halfdelay(10) # refreshes display every second until done resolving
@@ -376,18 +373,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         # listing of inital ordering
         prevOrdering = "<b>Current Order: "
-        for sort in panels["conn"].sortOrdering: prevOrdering += panels["conn"].getSortLabel(sort, True) + ", "
+        for sort in panels["conn"].sortOrdering: prevOrdering += connPanel.getSortLabel(sort, True) + ", "
         prevOrdering = prevOrdering[:-2] + "</b>"
         
         # Makes listing of all options
         options = []
-        for (type, label, func) in connPanel.SORT_TYPES:
-          label = panels["conn"].getSortLabel(type)
-          
-          # replaces 'Fingerprint' listings with shorter description
-          if label.startswith("Fingerprint"): label = label.replace("Fingerprint", "Tor ID")
-          
-          options.append(label)
+        for (type, label, func) in connPanel.SORT_TYPES: options.append(connPanel.getSortLabel(type))
         options.append("Cancel")
         
         while len(selections) < 3:
@@ -399,7 +390,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           # provides new ordering
           newOrdering = "<b>New Order: "
           if selections:
-            for sort in selections: newOrdering += panels["conn"].getSortLabel(sort, True) + ", "
+            for sort in selections: newOrdering += connPanel.getSortLabel(sort, True) + ", "
             newOrdering = newOrdering[:-2] + "</b>"
           else: newOrdering += "</b>"
           popup.addfstr(2, 2, newOrdering)
