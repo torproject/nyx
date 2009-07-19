@@ -46,11 +46,12 @@ class HostnameResolver(Thread):
       t.start()
       self.threadPool.append(t)
   
-  def resolve(self, ipAddr):
+  def resolve(self, ipAddr, blockTime = 0):
     """
     Provides hostname associated with an IP address. If not found this returns
     None and performs a reverse DNS lookup for future reference. This also
-    provides None if the address couldn't be resolved.
+    provides None if the address couldn't be resolved. This can be made to block
+    if some delay is tolerable.
     """
     
     # if outstanding requests are done then clear recentQueries so we can run erronious requests again
@@ -73,6 +74,16 @@ class HostnameResolver(Thread):
           if entryAge < threshold: toDelete.append(entryAddr)
         
         for entryAddr in toDelete: del self.resolvedCache[entryAddr]
+      
+      if blockTime > 0 and not self.isPaused:
+        timeWaited = 0
+        
+        while ipAddr not in self.resolvedCache.keys() and timeWaited < blockTime:
+          time.sleep(0.1)
+          timeWaited += 0.1
+        
+        if ipAddr in self.resolvedCache.keys(): return self.resolvedCache[ipAddr][0]
+        else: return None
   
   def setPaused(self, isPause):
     """

@@ -87,6 +87,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.logger = logger            # notified in case of problems
     self.listingType = LIST_IP      # information used in listing entries
     self.allowDNS = True            # permits hostname resolutions if true
+    self.showLabel = True           # shows top label if true, hides otherwise
+    self.showingDetails = False     # augments display to accomidate details window if true
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.isPaused = False
     self.resolver = hostnameResolver.HostnameResolver()
@@ -94,6 +96,10 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, OR identity), ...]
     self.nickname = self.conn.get_option("Nickname")[0][1]
+    
+    self.isCursorEnabled = True
+    self.cursorSelection = None
+    self.cursorLoc = 0              # fallback cursor location if selection disappears
     
     # gets process id to make sure we get the correct netstat data
     psCall = os.popen('ps -C tor -o pid')
@@ -206,12 +212,34 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def handleKey(self, key):
-    self._resetBounds()
-    pageHeight = self.maxY - 1
-    if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
-    elif key == curses.KEY_DOWN: self.scroll = max(0, self.scroll + 1)
-    elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - pageHeight, 0)
-    elif key == curses.KEY_NPAGE: self.scroll = max(0, self.scroll + pageHeight)
+    # cursor or scroll movement
+    if key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
+      self._resetBounds()
+      pageHeight = self.maxY - 1
+      if self.showingDetails: pageHeight -= 8
+      
+      # determines location parameter to use
+      if self.isCursorEnabled:
+        try: currentLoc = self.connections.index(self.cursorSelection)
+        except ValueError: currentLoc = self.cursorLoc # fall back to nearby entry
+      else: currentLoc = self.scroll
+      
+      # location offset
+      if key == curses.KEY_UP: shift = -1
+      elif key == curses.KEY_DOWN: shift = 1
+      elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if self.isCursorEnabled else -pageHeight
+      elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if self.isCursorEnabled else pageHeight
+      newLoc = currentLoc + shift
+      
+      # restricts to valid bounds
+      maxLoc = len(self.connections) - 1 if self.isCursorEnabled else len(self.connections) - pageHeight
+      newLoc = max(0, min(newLoc, maxLoc))
+      
+      # applies to proper parameter
+      if self.isCursorEnabled: self.cursorSelection, self.cursorLoc = self.connections[newLoc], newLoc
+      else: self.scroll = newLoc
+    elif key == ord('c') or key == ord('C'):
+      self.isCursorEnabled = not self.isCursorEnabled
     elif key == ord('r') or key == ord('R'):
       self.allowDNS = not self.allowDNS
       if not self.allowDNS: self.resolver.setPaused(True)
@@ -227,9 +255,25 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         if self.listingType == LIST_HOSTNAME: self.sortConnections()
         
         self.clear()
-        self.addstr(0, 0, "Connections (%i inbound, %i outbound, %i control):" % tuple(self.connectionCount), util.LABEL_ATTR)
+        if self.showLabel: self.addstr(0, 0, "Connections (%i inbound, %i outbound, %i control):" % tuple(self.connectionCount), util.LABEL_ATTR)
         
-        self.scroll = max(min(self.scroll, len(self.connections) - self.maxY + 1), 0)
+        listingHeight = self.maxY - 1
+        if self.showingDetails: listingHeight -= 8
+        
+        # ensure cursor location and scroll top are within bounds
+        self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
+        self.scroll = max(min(self.scroll, len(self.connections) - listingHeight), 0)
+        
+        if self.isCursorEnabled:
+          # update cursorLoc with selection (or vice versa if selection not found)
+          if self.cursorSelection not in self.connections:
+            self.cursorSelection = self.connections[self.cursorLoc]
+          else: self.cursorLoc = self.connections.index(self.cursorSelection)
+          
+          # shift scroll if necessary for cursor to be visible
+          if self.cursorLoc < self.scroll: self.scroll = self.cursorLoc
+          elif self.cursorLoc - listingHeight + 1 > self.scroll: self.scroll = self.cursorLoc - listingHeight + 1
+        
         lineNum = (-1 * self.scroll) + 1
         for entry in self.connections:
           if lineNum >= 1:
@@ -262,7 +306,12 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
               dst = "%-41s" % dst
             
             if type == "inbound": src, dst = dst, src
-            self.addfstr(lineNum, 0, "<%s>%s -->   %s   (<b>%s</b>)</%s>" % (color, src, dst, type.upper(), color))
+            lineEntry = "<%s>%s -->   %s   (<b>%s</b>)</%s>" % (color, src, dst, type.upper(), color)
+            if self.isCursorEnabled and entry == self.cursorSelection:
+              lineEntry = "<h>%s</h>" % lineEntry
+            
+            offset = 0 if not self.showingDetails else 8
+            self.addfstr(lineNum + offset, 0, lineEntry)
           lineNum += 1
         
         self.refresh()
@@ -302,7 +351,11 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       return self.nicknameLookupCache[(ipAddr, port)]
     else:
       match = self.getFingerprint(ipAddr, port)
-      if match != "UNKNOWN": match = self.conn.get_network_status("id/%s" % match)[0].nickname
+      
+      try:
+        if match != "UNKNOWN": match = self.conn.get_network_status("id/%s" % match)[0].nickname
+      except TorCtl.ErrorReply: return "UNKNOWN" # don't cache result
+      
       self.nicknameLookupCache[(ipAddr, port)] = match
       return match
   
