@@ -142,6 +142,7 @@ class HeaderPanel(util.Panel):
     if self.vals["fingerprint"] != "Unknown":
       try: self.vals["flags"] = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])[0].flags
       except TorCtl.TorCtlClosed: pass
+      except TorCtl.ErrorReply: pass
       except socket.error: pass
     
     # ps call provides header followed by params for tor

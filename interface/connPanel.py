@@ -257,62 +257,63 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         self.clear()
         if self.showLabel: self.addstr(0, 0, "Connections (%i inbound, %i outbound, %i control):" % tuple(self.connectionCount), util.LABEL_ATTR)
         
-        listingHeight = self.maxY - 1
-        if self.showingDetails: listingHeight -= 8
-        
-        # ensure cursor location and scroll top are within bounds
-        self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
-        self.scroll = max(min(self.scroll, len(self.connections) - listingHeight), 0)
-        
-        if self.isCursorEnabled:
-          # update cursorLoc with selection (or vice versa if selection not found)
-          if self.cursorSelection not in self.connections:
-            self.cursorSelection = self.connections[self.cursorLoc]
-          else: self.cursorLoc = self.connections.index(self.cursorSelection)
+        if self.connections:
+          listingHeight = self.maxY - 1
+          if self.showingDetails: listingHeight -= 8
           
-          # shift scroll if necessary for cursor to be visible
-          if self.cursorLoc < self.scroll: self.scroll = self.cursorLoc
-          elif self.cursorLoc - listingHeight + 1 > self.scroll: self.scroll = self.cursorLoc - listingHeight + 1
-        
-        lineNum = (-1 * self.scroll) + 1
-        for entry in self.connections:
-          if lineNum >= 1:
-            type = entry[CONN_TYPE]
-            color = TYPE_COLORS[type]
+          # ensure cursor location and scroll top are within bounds
+          self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
+          self.scroll = max(min(self.scroll, len(self.connections) - listingHeight), 0)
+          
+          if self.isCursorEnabled:
+            # update cursorLoc with selection (or vice versa if selection not found)
+            if self.cursorSelection not in self.connections:
+              self.cursorSelection = self.connections[self.cursorLoc]
+            else: self.cursorLoc = self.connections.index(self.cursorSelection)
             
-            if self.listingType == LIST_IP:
-              src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
-              dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
-              src, dst = "%-26s" % src, "%-26s" % dst
-            elif self.listingType == LIST_HOSTNAME:
-              src = "localhost:%-5s" % entry[CONN_L_PORT]
-              hostname = self.resolver.resolve(entry[CONN_F_IP])
+            # shift scroll if necessary for cursor to be visible
+            if self.cursorLoc < self.scroll: self.scroll = self.cursorLoc
+            elif self.cursorLoc - listingHeight + 1 > self.scroll: self.scroll = self.cursorLoc - listingHeight + 1
+          
+          lineNum = (-1 * self.scroll) + 1
+          for entry in self.connections:
+            if lineNum >= 1:
+              type = entry[CONN_TYPE]
+              color = TYPE_COLORS[type]
               
-              # truncates long hostnames
-              portDigits = len(str(entry[CONN_F_PORT]))
-              if hostname and (len(hostname) + portDigits) > 36: hostname = hostname[:(33 - portDigits)] + "..."
+              if self.listingType == LIST_IP:
+                src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
+                dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                src, dst = "%-26s" % src, "%-26s" % dst
+              elif self.listingType == LIST_HOSTNAME:
+                src = "localhost:%-5s" % entry[CONN_L_PORT]
+                hostname = self.resolver.resolve(entry[CONN_F_IP])
+                
+                # truncates long hostnames
+                portDigits = len(str(entry[CONN_F_PORT]))
+                if hostname and (len(hostname) + portDigits) > 36: hostname = hostname[:(33 - portDigits)] + "..."
+                
+                dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
+                dst = "%-37s" % dst
+              elif self.listingType == LIST_FINGERPRINT:
+                src = "localhost  "
+                if entry[CONN_TYPE] == "control": dst = "localhost"
+                else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+                dst = "%-41s" % dst
+              else:
+                src = "%-11s" % self.nickname
+                if entry[CONN_TYPE] == "control": dst = self.nickname
+                else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
+                dst = "%-41s" % dst
               
-              dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
-              dst = "%-37s" % dst
-            elif self.listingType == LIST_FINGERPRINT:
-              src = "localhost  "
-              if entry[CONN_TYPE] == "control": dst = "localhost"
-              else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
-              dst = "%-41s" % dst
-            else:
-              src = "%-11s" % self.nickname
-              if entry[CONN_TYPE] == "control": dst = self.nickname
-              else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-              dst = "%-41s" % dst
-            
-            if type == "inbound": src, dst = dst, src
-            lineEntry = "<%s>%s -->   %s   (<b>%s</b>)</%s>" % (color, src, dst, type.upper(), color)
-            if self.isCursorEnabled and entry == self.cursorSelection:
-              lineEntry = "<h>%s</h>" % lineEntry
-            
-            offset = 0 if not self.showingDetails else 8
-            self.addfstr(lineNum + offset, 0, lineEntry)
-          lineNum += 1
+              if type == "inbound": src, dst = dst, src
+              lineEntry = "<%s>%s -->   %s   (<b>%s</b>)</%s>" % (color, src, dst, type.upper(), color)
+              if self.isCursorEnabled and entry == self.cursorSelection:
+                lineEntry = "<h>%s</h>" % lineEntry
+              
+              offset = 0 if not self.showingDetails else 8
+              self.addfstr(lineNum + offset, 0, lineEntry)
+            lineNum += 1
         
         self.refresh()
       finally:

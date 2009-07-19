@@ -499,15 +499,22 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             # fingerprint found - retrieve related data
             if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
             else:
-              nsData = conn.get_network_status("id/%s" % fingerprint)
+              # ns lookup fails... weird
+              try: nsData = conn.get_network_status("id/%s" % fingerprint)
+              except TorCtl.ErrorReply: break
               
               if len(nsData) > 1:
                 # multiple records for fingerprint (shouldn't happen)
                 panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
               
               nsEntry = nsData[0]
-              descLookupCmd = "desc/id/%s" % fingerprint
-              descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+              
+              # desc lookup fails... also weird
+              try:
+                descLookupCmd = "desc/id/%s" % fingerprint
+                descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+              except TorCtl.ErrorReply: break
+              
               relayLookupCache[selection] = (nsEntry, descEntry)
             
             popup.addstr(2, 15, "fingerprint: %s" % fingerprint, format)
