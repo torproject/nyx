@@ -145,9 +145,9 @@ class HeaderPanel(util.Panel):
       except TorCtl.ErrorReply: pass
       except socket.error: pass
     
+    psParams = ["%cpu", "rss", "%mem", "etime"]
     if self.vals["pid"]:
       # ps call provides header followed by params for tor
-      psParams = ["%cpu", "rss", "%mem", "etime"]
       psCall = os.popen('ps -p %s -o %s' % (self.vals["pid"], ",".join(psParams)))
       
       try: sampling = psCall.read().strip().split()[len(psParams):]

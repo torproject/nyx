@@ -228,7 +228,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       newLoc = max(0, min(newLoc, maxLoc))
       
       # applies to proper parameter
-      if self.isCursorEnabled: self.cursorSelection, self.cursorLoc = self.connections[newLoc], newLoc
+      if self.isCursorEnabled and self.connections:
+        self.cursorSelection, self.cursorLoc = self.connections[newLoc], newLoc
       else: self.scroll = newLoc
     elif key == ord('c') or key == ord('C'):
       self.isCursorEnabled = not self.isCursorEnabled
