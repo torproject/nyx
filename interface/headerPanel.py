@@ -30,10 +30,10 @@ class HeaderPanel(util.Panel):
   fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
   """
   
-  def __init__(self, lock, conn):
+  def __init__(self, lock, conn, torPid):
     util.Panel.__init__(self, lock, 6)
-    self.vals = []            # mapping of information to be presented
-    self.conn = conn          # Tor control port connection
+    self.vals = {"pid": torPid}     # mapping of information to be presented
+    self.conn = conn                # Tor control port connection
     self.isPaused = False
     self._updateParams()
   
@@ -68,7 +68,7 @@ class HeaderPanel(util.Panel):
       # Line 3 (system usage info)
       self.addstr(2, 0, "cpu: %s%%" % self.vals["%cpu"])
       self.addstr(2, 13, "mem: %s (%s%%)" % (util.getSizeLabel(int(self.vals["rss"]) * 1024), self.vals["%mem"]))
-      self.addstr(2, 34, "pid: %s" % self.vals["pid"])
+      self.addstr(2, 34, "pid: %s" % (self.vals["pid"] if self.vals["etime"] else ""))
       self.addstr(2, 47, "uptime: %s" % self.vals["etime"])
       
       # Line 4 (fingerprint)
@@ -106,9 +106,9 @@ class HeaderPanel(util.Panel):
     already set)
     """
     
-    if not self.vals:
-      # retrieves static params
-      self.vals = self.conn.get_info(["version"])
+    if len(self.vals) <= 1:
+      # only contains 'pid' - retrieves static params
+      self.vals["version"] = self.conn.get_info(["version"])["version"]
       
       # populates with some basic system information
       unameVals = os.uname()
@@ -145,15 +145,18 @@ class HeaderPanel(util.Panel):
       except TorCtl.ErrorReply: pass
       except socket.error: pass
     
-    # ps call provides header followed by params for tor
-    psParams = ["%cpu", "rss", "%mem", "pid", "etime"]
-    psCall = os.popen('ps -C %s -o %s' % ("tor", ",".join(psParams)))
+    if self.vals["pid"]:
+      # ps call provides header followed by params for tor
+      psParams = ["%cpu", "rss", "%mem", "etime"]
+      psCall = os.popen('ps -p %s -o %s' % (self.vals["pid"], ",".join(psParams)))
+      
+      try: sampling = psCall.read().strip().split()[len(psParams):]
+      except IOError: sampling = [] # ps call failed
+      psCall.close()
+    else:
+      sampling = [] # no pid known - blank fields
     
-    try: sampling = psCall.read().strip().split()[len(psParams):]
-    except IOError: sampling = [] # ps call failed
-    psCall.close()
-    
-    if len(sampling) < 5:
+    if len(sampling) < 4:
       # either ps failed or returned no tor instance
       sampling = [""] * len(psParams)
       

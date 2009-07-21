@@ -79,12 +79,13 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
   Lists netstat provided network data of tor.
   """
   
-  def __init__(self, lock, conn, logger):
+  def __init__(self, lock, conn, torPid, logger):
     TorCtl.PostEventListener.__init__(self)
     util.Panel.__init__(self, lock, -1)
     self.scroll = 0
     self.conn = conn                # tor connection for querrying country codes
     self.logger = logger            # notified in case of problems
+    self.pid = torPid               # tor process ID to make sure we've got the right instance
     self.listingType = LIST_IP      # information used in listing entries
     self.allowDNS = True            # permits hostname resolutions if true
     self.showLabel = True           # shows top label if true, hides otherwise
@@ -100,15 +101,6 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.isCursorEnabled = True
     self.cursorSelection = None
     self.cursorLoc = 0              # fallback cursor location if selection disappears
-    
-    # gets process id to make sure we get the correct netstat data
-    psCall = os.popen('ps -C tor -o pid')
-    try: self.pid = psCall.read().strip().split()[1]
-    except Exception:
-      # ps call failed
-      self.logger.monitor_event("ERR", "Unable to resolve tor pid, abandoning connection listing")
-      self.pid = -1
-    psCall.close()
     
     # uses ports to identify type of connections
     self.orPort = self.conn.get_option("ORPort")[0][1]
@@ -169,7 +161,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     Reloads netstat results.
     """
     
-    if self.isPaused or self.pid == -1: return
+    if self.isPaused or not self.pid: return
     self.connections = []
     self.connectionCount = [0, 0, 0]
     

@@ -6,6 +6,7 @@
 Curses (terminal) interface for the arm relay status monitor.
 """
 
+import os
 import time
 import curses
 from threading import RLock
@@ -146,14 +147,30 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   try: curses.curs_set(0)
   except curses.error: pass
   
+  # gets pid of tor instance with control port open
+  torPid = None       # None if couldn't be resolved (provides error later)
+  pidCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
+  try:
+    results = pidCall.readlines()
+    
+    if len(results) == 1:
+      results = results[0].split()[6] # process field (ex. "7184/tor")
+      torPid = results[:results.find("/")]
+  except IOError: pass # netstat call failed
+  
+  pidCall.close()
+  
   panels = {
-    "header": headerPanel.HeaderPanel(cursesLock, conn),
+    "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
     "popup": util.Panel(cursesLock, 9),
     "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
     "log": logPanel.LogMonitor(cursesLock, loggedEvents),
     "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
-  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, panels["log"])
+  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, torPid, panels["log"])
   panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
+  
+  # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
+  if not torPid: panels["log"].monitor_event("ERR", "Unable to resolve tor pid, abandoning connection listing")
   
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
@@ -165,7 +182,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
   oldY, oldX = -1, -1
-  isUnresponsive = False    # true if it's been over five seconds since the last BW event (probably due to Tor closing)
+  isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
   page = 0
   netstatRefresh = time.time()  # time of last netstat refresh
@@ -194,8 +211,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             panels[panelKey].recreate(stdscr, tmpStartY)
             tmpStartY += panels[panelKey].height
       
-      # if it's been at least five seconds since the last BW event Tor's probably done
-      if not isUnresponsive and panels["log"].getHeartbeat() >= 5:
+      # if it's been at least ten seconds since the last BW event Tor's probably done
+      if not isUnresponsive and panels["log"].getHeartbeat() >= 10:
         isUnresponsive = True
         panels["log"].monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
       elif isUnresponsive and panels["log"].getHeartbeat() < 5:
