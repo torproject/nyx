@@ -149,16 +149,27 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   # gets pid of tor instance with control port open
   torPid = None       # None if couldn't be resolved (provides error later)
-  pidCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
+  
+  pidOfCall = os.popen("pidof tor")
+  netstatCall = None
   try:
-    results = pidCall.readlines()
+    # gets pid if there's only one possability
+    results = pidOfCall.readlines()
     
-    if len(results) == 1:
-      results = results[0].split()[6] # process field (ex. "7184/tor")
-      torPid = results[:results.find("/")]
+    if len(results) == 1 and len(results[0].split()) == 1: torPid = results[0].strip()
+    else:
+      # uses netstat to identify process with open control port (might not
+      # work if tor's being run as a different user due to permissions)
+      netstatCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
+      results = netstatCall.readlines()
+      
+      if len(results) == 1:
+        results = results[0].split()[6] # process field (ex. "7184/tor")
+        torPid = results[:results.find("/")]
   except IOError: pass # netstat call failed
   
-  pidCall.close()
+  pidOfCall.close()
+  if netstatCall: netstatCall.close()
   
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
@@ -170,7 +181,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
-  if not torPid: panels["log"].monitor_event("ERR", "Unable to resolve tor pid, abandoning connection listing")
+  if not torPid: panels["log"].monitor_event("WARN", "Unable to resolve tor pid, abandoning connection listing")
   
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
