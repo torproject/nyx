@@ -3,6 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import os
+import socket
 import curses
 from TorCtl import TorCtl
 
@@ -97,6 +98,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, OR identity), ...]
     self.nickname = self.conn.get_option("Nickname")[0][1]
+    self.providedGeoipWarning = False
     
     self.isCursorEnabled = True
     self.cursorSelection = None
@@ -191,7 +193,11 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         try:
           countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
           countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-        except socket.error: countryCode = "??"
+        except socket.error:
+          countryCode = "??"
+          if not self.providedGeoipWarning:
+            self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
+            self.providedGeoipWarning = True
         
         self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
     except IOError:
