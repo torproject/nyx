@@ -14,6 +14,9 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
                "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
                "V2Dir": "cyan",       "V3Dir": "white"}
 
+VERSION_STATUS_COLORS = {"new": "blue",     "new in series": "blue",    "recommended": "green",
+                         "old": "red",      "obsolete": "red",          "unrecommended": "red"}
+
 class HeaderPanel(util.Panel):
   """
   Draws top area containing static information.
@@ -51,7 +54,10 @@ class HeaderPanel(util.Panel):
       
       # Line 1
       self.addstr(0, 0, "arm - %s (%s %s)" % (self.vals["sys-name"], self.vals["sys-os"], self.vals["sys-version"]))
-      self.addstr(0, 45, "Tor %s" % self.vals["version"])
+      
+      versionStatus = self.vals["status/version/current"]
+      versionColor = VERSION_STATUS_COLORS[versionStatus] if versionStatus in VERSION_STATUS_COLORS else "white"
+      self.addfstr(0, 43, "Tor %s (<%s>%s</%s>)" % (self.vals["version"], versionColor, versionStatus, versionColor))
       
       # Line 2 (authentication label red if open, green if credentials required)
       dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if self.vals["DirPort"] != "0" else ""
@@ -96,7 +102,7 @@ class HeaderPanel(util.Panel):
     """
     Updates mapping of static Tor settings and system information to their
     corresponding string values. Keys include:
-    info - version, *address, *fingerprint, *flags
+    info - version, *address, *fingerprint, *flags, status/version/current
     sys - sys-name, sys-os, sys-version
     ps - *%cpu, *rss, *%mem, *pid, *etime
     config - Nickname, ORPort, DirPort, ControlPort
@@ -106,9 +112,10 @@ class HeaderPanel(util.Panel):
     already set)
     """
     
+    infoFields = ["address", "fingerprint"] # keys for which get_info will be called
     if len(self.vals) <= 1:
-      # only contains 'pid' - retrieves static params
-      self.vals["version"] = self.conn.get_info(["version"])["version"]
+      # first call (only contasns 'pid' mapping) - retrieve static params
+      infoFields += ["version", "status/version/current"]
       
       # populates with some basic system information
       unameVals = os.uname()
@@ -127,7 +134,7 @@ class HeaderPanel(util.Panel):
       self.vals["IsAccountingEnabled"] = self.conn.get_info('accounting/enabled')['accounting/enabled'] == "1"
     
     # gets parameters that throw errors if unavailable
-    for param in ["address", "fingerprint"]:
+    for param in infoFields:
       try: self.vals.update(self.conn.get_info(param))
       except TorCtl.ErrorReply: self.vals[param] = "Unknown"
       except TorCtl.TorCtlClosed:

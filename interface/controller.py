@@ -537,11 +537,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
               
               nsEntry = nsData[0]
               
-              # desc lookup fails... also weird
               try:
                 descLookupCmd = "desc/id/%s" % fingerprint
                 descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
-              except TorCtl.ErrorReply: break
+              except TorCtl.ErrorReply: break # desc lookup fails... also weird
               
               relayLookupCache[selection] = (nsEntry, descEntry)
             

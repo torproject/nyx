@@ -8,6 +8,7 @@ Command line application for monitoring Tor relays, providing real time status i
 Requirements:
 Python 2.5
 TorCtl (retrieved in svn checkout)
+Common *nix commands including: ps, pidof, host, and netstat
 Tor is running with an available control port. This means either...
   ... starting Tor with '--controlport <PORT>'
   ... or including 'ControlPort <PORT>' in your torrc

@@ -154,9 +154,9 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         if orportMatch: self.fingerprintMappings[nsEntry.ip].remove(orportMatch)
         
         # add new entry
-        self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhash))
+        self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhex))
       else:
-        self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhash)]
+        self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhex)]
   
   def reset(self):
     """
@@ -325,19 +325,46 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     returns "UNKNOWN".
     """
     
+    port = int(port)
     if (ipAddr, port) in self.fingerprintLookupCache:
       return self.fingerprintLookupCache[(ipAddr, port)]
     else:
-      match = "UNKNOWN"
+      match = None
       
       if ipAddr in self.fingerprintMappings.keys():
         potentialMatches = self.fingerprintMappings[ipAddr]
         
         if len(potentialMatches) == 1: match = potentialMatches[0][1]
-        else:
+        
+        if not match:
+          # multiple potential matches - look for exact match with port
           for (entryPort, entryFingerprint) in potentialMatches:
-            if entryPort == port: match = entryFingerprint
-      
+            if entryPort == port:
+              match = entryFingerprint
+              break
+        
+        if not match:
+          # still haven't found it - use trick from Mike's ConsensusTracker,
+          # excluding possiblities that have...
+          # ... lost their Running flag
+          # ... list a bandwidth of 0
+          # ... have 'opt hibernating' set
+          operativeMatches = list(potentialMatches)
+          for (entryPort, entryFingerprint) in potentialMatches:
+            # gets router description to see if 'down' is set
+            try:
+              nsData = self.conn.get_network_status("id/%s" % entryFingerprint)
+              if len(nsData) != 1: continue # ns lookup failed... weird
+              else: nsEntry = nsData[0]
+              
+              descLookupCmd = "desc/id/%s" % entryFingerprint
+              descEntry = TorCtl.Router.build_from_desc(self.conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+              if descEntry.down: operativeMatches.remove((entryPort, entryFingerprint))
+            except TorCtl.ErrorReply: pass # ns or desc lookup fails... also weird
+          
+          if len(operativeMatches) == 1: match = operativeMatches[0][1]
+          
+      if not match: match = "UNKNOWN"
       self.fingerprintLookupCache[(ipAddr, port)] = match
       return match
   
