@@ -3,21 +3,26 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import time
+import copy
 import curses
 from TorCtl import TorCtl
 
 import util
 
-BANDWIDTH_GRAPH_SAMPLES = 5         # seconds of data used for a bar in the graph
 BANDWIDTH_GRAPH_COL = 30            # columns of data in graph
 BANDWIDTH_GRAPH_COLOR_DL = "green"  # download section color
 BANDWIDTH_GRAPH_COLOR_UL = "cyan"   # upload section color
+
+# time intervals at which graphs can be updated
+DEFAULT_INTERVAL_INDEX = 1   # defaults to using five seconds of data per bar in the graph
+UPDATE_INTERVALS = [("each second", 1),     ("5 seconds", 5),   ("30 seconds", 30),   ("minutely", 60),
+                    ("half hour", 1800),    ("hourly", 3600),   ("daily", 86400)]
 
 class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
   """
   Tor event listener, taking bandwidth sampling and drawing bar graph. This is
   updated every second by the BW events and graph samples are spaced at
-  BANDWIDTH_GRAPH_SAMPLES second intervals.
+  a timescale determined by the updateIntervalIndex.
   """
   
   def __init__(self, lock, conn):
@@ -32,16 +37,23 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     self.tick = 0                 # number of updates performed
     self.lastDownloadRate = 0     # most recently sampled rates
     self.lastUploadRate = 0
-    self.maxDownloadRate = 1      # max rates seen, used to determine graph bounds
-    self.maxUploadRate = 1
     self.accountingInfo = None    # accounting data (set by _updateAccountingInfo method)
     self.isPaused = False
     self.isVisible = True
+    self.showLabel = True         # shows top label if true, hides otherwise
     self.pauseBuffer = None       # mirror instance used to track updates when paused
+    self.updateIntervalIndex = DEFAULT_INTERVAL_INDEX
     
     # graphed download (read) and upload (write) rates - first index accumulator
-    self.downloadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
-    self.uploadRates = [0] * (BANDWIDTH_GRAPH_COL + 1)
+    # iterative insert is to avoid issue with shallow copies (nasty, nasty gotcha)
+    self.downloadRates, self.uploadRates = [], []
+    for i in range(len(UPDATE_INTERVALS)):
+      self.downloadRates.insert(0, (BANDWIDTH_GRAPH_COL + 1) * [0])
+      self.uploadRates.insert(0, (BANDWIDTH_GRAPH_COL + 1) * [0])
+    
+    # max rates seen, used to determine graph bounds
+    self.maxDownloadRate = len(UPDATE_INTERVALS) * [1]
+    self.maxUploadRate = len(UPDATE_INTERVALS) * [1]
     
     # used to calculate averages, uses tick for time
     self.totalDownload = 0
@@ -60,21 +72,24 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
       self.lastDownloadRate = event.read
       self.lastUploadRate = event.written
       
-      self.downloadRates[0] += event.read
-      self.uploadRates[0] += event.written
-      
       self.totalDownload += event.read
       self.totalUpload += event.written
       
+      # updates graphs for all time intervals
       self.tick += 1
-      if self.tick % BANDWIDTH_GRAPH_SAMPLES == 0:
-        self.maxDownloadRate = max(self.maxDownloadRate, self.downloadRates[0])
-        self.downloadRates.insert(0, 0)
-        del self.downloadRates[BANDWIDTH_GRAPH_COL + 1:]
+      for i in range(len(UPDATE_INTERVALS)):
+        self.downloadRates[i][0] += event.read
+        self.uploadRates[i][0] += event.written
+        interval = UPDATE_INTERVALS[i][1]
         
-        self.maxUploadRate = max(self.maxUploadRate, self.uploadRates[0])
-        self.uploadRates.insert(0, 0)
-        del self.uploadRates[BANDWIDTH_GRAPH_COL + 1:]
+        if self.tick % interval == 0:
+          self.maxDownloadRate[i] = max(self.maxDownloadRate[i], self.downloadRates[i][0] / interval)
+          self.downloadRates[i].insert(0, 0)
+          del self.downloadRates[i][BANDWIDTH_GRAPH_COL + 1:]
+          
+          self.maxUploadRate[i] = max(self.maxUploadRate[i], self.uploadRates[i][0] / interval)
+          self.uploadRates[i].insert(0, 0)
+          del self.uploadRates[i][BANDWIDTH_GRAPH_COL + 1:]
       
       self.redraw()
   
@@ -94,29 +109,29 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
           labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
           if self.maxX < len(labelContents): labelContents = "Bandwidth:"   # removes both
         
-        self.addstr(0, 0, labelContents, util.LABEL_ATTR)
+        if self.showLabel: self.addstr(0, 0, labelContents, util.LABEL_ATTR)
         
         # current numeric measures
         self.addstr(1, 0, "Downloaded (%s/sec):" % util.getSizeLabel(self.lastDownloadRate), curses.A_BOLD | dlColor)
         self.addstr(1, 35, "Uploaded (%s/sec):" % util.getSizeLabel(self.lastUploadRate), curses.A_BOLD | ulColor)
         
         # graph bounds in KB (uses highest recorded value as max)
-        self.addstr(2, 0, "%4s" % str(self.maxDownloadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), dlColor)
+        self.addstr(2, 0, "%4s" % str(self.maxDownloadRate[self.updateIntervalIndex] / 1024), dlColor)
         self.addstr(7, 0, "   0", dlColor)
         
-        self.addstr(2, 35, "%4s" % str(self.maxUploadRate / 1024 / BANDWIDTH_GRAPH_SAMPLES), ulColor)
+        self.addstr(2, 35, "%4s" % str(self.maxUploadRate[self.updateIntervalIndex] / 1024), ulColor)
         self.addstr(7, 35, "   0", ulColor)
         
         # creates bar graph of bandwidth usage over time
         for col in range(BANDWIDTH_GRAPH_COL):
-          bytesDownloaded = self.downloadRates[col + 1]
-          colHeight = min(5, 5 * bytesDownloaded / self.maxDownloadRate)
+          bytesDownloaded = self.downloadRates[self.updateIntervalIndex][col + 1] / UPDATE_INTERVALS[self.updateIntervalIndex][1]
+          colHeight = min(5, 5 * bytesDownloaded / self.maxDownloadRate[self.updateIntervalIndex])
           for row in range(colHeight):
             self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | dlColor)
         
         for col in range(BANDWIDTH_GRAPH_COL):
-          bytesUploaded = self.uploadRates[col + 1]
-          colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate)
+          bytesUploaded = self.uploadRates[self.updateIntervalIndex][col + 1] / UPDATE_INTERVALS[self.updateIntervalIndex][1]
+          colHeight = min(5, 5 * bytesUploaded / self.maxUploadRate[self.updateIntervalIndex])
           for row in range(colHeight):
             self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | ulColor)
         
@@ -149,6 +164,16 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
       finally:
         self.lock.release()
   
+  def setUpdateInterval(self, intervalIndex):
+    """
+    Sets the timeframe at which the graph is updated. This throws a ValueError
+    if the index isn't within UPDATE_INTERVALS.
+    """
+    
+    if intervalIndex >= 0 and intervalIndex < len(UPDATE_INTERVALS):
+      self.updateIntervalIndex = intervalIndex
+    else: raise ValueError("%i out of bounds of UPDATE_INTERVALS" % intervalIndex)
+  
   def setPaused(self, isPause):
     """
     If true, prevents bandwidth updates from being presented.
@@ -175,13 +200,14 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     if self.isPaused or not self.isVisible:
       if self.pauseBuffer == None: self.pauseBuffer = BandwidthMonitor(None, None)
       
+      # TODO: use a more clever swap using 'active' and 'inactive' instances
       self.pauseBuffer.tick = self.tick
       self.pauseBuffer.lastDownloadRate = self.lastDownloadRate
-      self.pauseBuffer.lastuploadRate = self.lastUploadRate
-      self.pauseBuffer.maxDownloadRate = self.maxDownloadRate
-      self.pauseBuffer.maxUploadRate = self.maxUploadRate
-      self.pauseBuffer.downloadRates = list(self.downloadRates)
-      self.pauseBuffer.uploadRates = list(self.uploadRates)
+      self.pauseBuffer.lastUploadRate = self.lastUploadRate
+      self.pauseBuffer.maxDownloadRate = list(self.maxDownloadRate)
+      self.pauseBuffer.maxUploadRate = list(self.maxUploadRate)
+      self.pauseBuffer.downloadRates = copy.deepcopy(self.downloadRates)
+      self.pauseBuffer.uploadRates = copy.deepcopy(self.uploadRates)
       self.pauseBuffer.totalDownload = self.totalDownload
       self.pauseBuffer.totalUpload = self.totalUpload
       self.pauseBuffer.bwRate = self.bwRate
@@ -189,7 +215,7 @@ class BandwidthMonitor(TorCtl.PostEventListener, util.Panel):
     else:
       self.tick = self.pauseBuffer.tick
       self.lastDownloadRate = self.pauseBuffer.lastDownloadRate
-      self.lastUploadRate = self.pauseBuffer.lastuploadRate
+      self.lastUploadRate = self.pauseBuffer.lastUploadRate
       self.maxDownloadRate = self.pauseBuffer.maxDownloadRate
       self.maxUploadRate = self.pauseBuffer.maxUploadRate
       self.downloadRates = self.pauseBuffer.downloadRates

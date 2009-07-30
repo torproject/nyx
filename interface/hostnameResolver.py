@@ -13,11 +13,11 @@ RESOLVER_MAX_CACHE_SIZE = 5000
 RESOLVER_CACHE_TRIM_SIZE = 2000   # entries removed when max cache size reached
 DNS_ERROR_CODES = ("1(FORMERR)", "2(SERVFAIL)", "3(NXDOMAIN)", "4(NOTIMP)", "5(REFUSED)", "6(YXDOMAIN)", "7(YXRRSET)", "8(NXRRSET)", "9(NOTAUTH)", "10(NOTZONE)", "16(BADVERS)")
 
-class HostnameResolver(Thread):
+class HostnameResolver():
   """
-  Background thread that quietly performs reverse DNS lookup of address with
-  caching. This is non-blocking, providing None in the case of errors or
-  new requests.
+  Provides background threads that quietly performs reverse DNS lookup of
+  address with caching. This is non-blocking, providing None in the case of
+  errors or new requests.
   """
   
   # Resolutions are made using os 'host' calls as opposed to 'gethostbyaddr' in
@@ -30,7 +30,6 @@ class HostnameResolver(Thread):
   # however, I didn't find this to be the case. As always, suggestions welcome!
   
   def __init__(self):
-    Thread.__init__(self)
     self.resolvedCache = {}           # IP Address => (hostname, age) (None if couldn't be resolved)
     self.unresolvedQueue = Queue.Queue()
     self.recentQueries = []           # recent resolution requests to prevent duplicate requests

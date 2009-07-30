@@ -1,6 +1,7 @@
-arm (arm relay monitor) - Terminal status monitor for Tor relays.
+arm (anonymizing relay monitor) - Terminal status monitor for Tor relays.
 Developed by Damian Johnson (www.atagar.com - atagar1@gmail.com)
 All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+Project page: www.atagar.com/arm
 
 Description:
 Command line application for monitoring Tor relays, providing real time status information such as the current configuration, bandwidth usage, message log, current connections, etc. This uses a curses interface much like 'top' does for system usage.

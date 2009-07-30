@@ -3,7 +3,6 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import time
-import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
@@ -153,7 +152,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     Notes event and redraws log. If paused it's held in a temporary buffer.
     """
     
-    self.lastHeartbeat = time.time()
+    if not type.startswith("ARM"): self.lastHeartbeat = time.time()
     
     # strips control characters to avoid screwing up the terminal
     msg = "".join([char for char in msg if isprint(char)])
@@ -209,7 +208,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
             self.addstr(lineCount, 0, line, util.getColor(color))
             lineCount += 1
           else:
-            (line1, line2) = self._splitLine(line, self.maxX)
+            (line1, line2) = splitLine(line, self.maxX)
             self.addstr(lineCount, 0, line1, util.getColor(color))
             self.addstr(lineCount + 1, 0, line2, util.getColor(color))
             lineCount += 2
@@ -240,27 +239,29 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     """
     
     return time.time() - self.lastHeartbeat
+
+def splitLine(message, x):
+  """
+  Divides message into two lines, attempting to do it on a wordbreak.
+  """
   
-  # divides long message to cover two lines
-  def _splitLine(self, message, x):
-    # divides message into two lines, attempting to do it on a wordbreak
-    lastWordbreak = message[:x].rfind(" ")
-    if x - lastWordbreak < 10:
-      line1 = message[:lastWordbreak]
-      line2 = "  %s" % message[lastWordbreak:].strip()
-    else:
-      # over ten characters until the last word - dividing
-      line1 = "%s-" % message[:x - 2]
-      line2 = "  %s" % message[x - 2:].strip()
+  lastWordbreak = message[:x].rfind(" ")
+  if x - lastWordbreak < 10:
+    line1 = message[:lastWordbreak]
+    line2 = "  %s" % message[lastWordbreak:].strip()
+  else:
+    # over ten characters until the last word - dividing
+    line1 = "%s-" % message[:x - 2]
+    line2 = "  %s" % message[x - 2:].strip()
+  
+  # ends line with ellipsis if too long
+  if len(line2) > x:
+    lastWordbreak = line2[:x - 4].rfind(" ")
     
-    # ends line with ellipsis if too long
-    if len(line2) > x:
-      lastWordbreak = line2[:x - 4].rfind(" ")
-      
-      # doesn't use wordbreak if it's a long word or the whole line is one 
-      # word (picking up on two space indent to have index 1)
-      if x - lastWordbreak > 10 or lastWordbreak == 1: lastWordbreak = x - 4
-      line2 = "%s..." % line2[:lastWordbreak]
-    
-    return (line1, line2)
+    # doesn't use wordbreak if it's a long word or the whole line is one 
+    # word (picking up on two space indent to have index 1)
+    if x - lastWordbreak > 10 or lastWordbreak == 1: lastWordbreak = x - 4
+    line2 = "%s..." % line2[:lastWordbreak]
+  
+  return (line1, line2)
 

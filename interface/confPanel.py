@@ -4,7 +4,6 @@
 
 import math
 import curses
-from TorCtl import TorCtl
 
 import util
 
@@ -18,6 +17,8 @@ class ConfPanel(util.Panel):
     self.confLocation = confLocation
     self.showLineNum = True
     self.stripComments = False
+    self.confContents = []
+    self.scroll = 0
     self.reset()
   
   def reset(self):
@@ -65,26 +66,54 @@ class ConfPanel(util.Panel):
         
         pageHeight = self.maxY - 1
         numFieldWidth = int(math.log10(len(displayText))) + 1
+        lineNum = 1
         for i in range(self.scroll, min(len(displayText), self.scroll + pageHeight)):
           lineText = displayText[i].strip()
-          endBreak = 0
           
+          numOffset = 0     # offset for line numbering
           if self.showLineNum:
-            self.addstr(i - self.scroll + 1, 0, ("%%%ii" % numFieldWidth) % (i + 1), curses.A_BOLD | util.getColor("yellow"))
+            self.addstr(lineNum, 0, ("%%%ii" % numFieldWidth) % (i + 1), curses.A_BOLD | util.getColor("yellow"))
             numOffset = numFieldWidth + 1
-          else: numOffset = 0
           
-          if not lineText: continue
-          elif not lineText[0] == "#":
-            ctlBreak = lineText.find(" ")
-            endBreak = lineText.find("#")
-            if endBreak == -1: endBreak = len(lineText)
+          command, argument, comment = "", "", ""
+          if not lineText: continue # no text
+          elif lineText[0] == "#":
+            # whole line is commented out
+            comment = lineText
+          else:
+            # parse out command, argument, and possible comment
+            ctlEnd = lineText.find(" ")   # end of command
+            argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
+            if argEnd == -1: argEnd = len(lineText)
             
-            self.addstr(i - self.scroll + 1, numOffset, lineText[:ctlBreak], curses.A_BOLD | util.getColor("green"))
-            self.addstr(i - self.scroll + 1, numOffset + ctlBreak, lineText[ctlBreak:endBreak], curses.A_BOLD | util.getColor("cyan"))
-          self.addstr(i - self.scroll + 1, numOffset + endBreak, lineText[endBreak:], util.getColor("white"))
-        
+            command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
+          
+          xLoc = 0
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, command, curses.A_BOLD | util.getColor("green"))
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, argument, curses.A_BOLD | util.getColor("cyan"))
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, comment, util.getColor("white"))
+          lineNum += 1
+          
         self.refresh()
       finally:
         self.lock.release()
+  
+  def addstr_wrap(self, y, x, indent, text, formatting):
+    """
+    Writes text with word wrapping, returning the ending y/x coordinate.
+    """
+    
+    if not text: return (y, x)        # nothing to write
+    lineWidth = self.maxX - indent    # room for text
+    while True:
+      if len(text) > lineWidth - x - 1:
+        chunkSize = text.rfind(" ", 0, lineWidth - x)
+        writeText = text[:chunkSize]
+        text = text[chunkSize:].strip()
+        
+        self.addstr(y, x + indent, writeText, formatting)
+        y, x = y + 1, 0
+      else:
+        self.addstr(y, x + indent, text, formatting)
+        return (y, x + len(text))
 

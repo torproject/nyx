@@ -34,7 +34,6 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "bandwidth", "log", "conn"]
 PAGE_COUNT = 3 # all page numbering is internally represented as 0-indexed
-# TODO: page for configuration information
 
 # events needed for panels other than the event log
 REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS"]
@@ -92,6 +91,64 @@ class ControlPanel(util.Panel):
       self.addstr(0, 0, msgText, msgAttr)
       self.refresh()
 
+def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
+  """
+  Resets the isPaused state of panels. If overwrite is True then this pauses
+  reguardless of the monitor is paused or not.
+  """
+  
+  for key in PAUSEABLE: panels[key].setPaused(overwrite or monitorIsPaused or (key not in PAGES[currentPage] and key not in PAGE_S))
+
+def showMenu(stdscr, popup, title, options, initialSelection):
+  """
+  Provides menu with options laid out in a single column. User can cancel
+  selection with the escape key, in which case this proives -1. Otherwise this
+  returns the index of the selection. If initialSelection is -1 then the first
+  option is used and the carrot indicating past selection is ommitted.
+  """
+  
+  selection = initialSelection if initialSelection != -1 else 0
+  
+  if popup.win:
+    if not popup.lock.acquire(False): return -1
+    try:
+      curses.cbreak() # wait indefinitely for key presses (no timeout)
+      
+      # uses smaller dimentions more fitting for small content
+      popup.height = len(options) + 2
+      
+      newWidth = max([len(label) for label in options]) + 9
+      popup.recreate(stdscr, popup.startY, newWidth)
+      
+      key = 0
+      while key not in (curses.KEY_ENTER, 10, ord(' ')):
+        popup.clear()
+        popup.win.box()
+        popup.addstr(0, 0, title, util.LABEL_ATTR)
+        
+        for i in range(len(options)):
+          label = options[i]
+          format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+          tab = "> " if i == initialSelection else "  "
+          popup.addstr(i + 1, 2, tab)
+          popup.addstr(i + 1, 4, " %s " % label, format)
+        
+        popup.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP: selection = max(0, selection - 1)
+        elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
+        elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
+      
+      # reverts popup dimensions and conn panel label
+      popup.height = 9
+      popup.recreate(stdscr, popup.startY, 80)
+      
+      curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+    finally:
+      cursesLock.release()
+  
+  return selection
+
 def setEventListening(loggedEvents, conn, logListener):
   """
   Tries to set events being listened for, displaying error for any event
@@ -100,12 +157,14 @@ def setEventListening(loggedEvents, conn, logListener):
   """
   eventsSet = False
   
+  # adds events used for panels to function if not already included
+  connEvents = loggedEvents.union(set(REQ_EVENTS))
+  
+  # removes UNKNOWN since not an actual event type
+  connEvents.discard("UNKNOWN")
+  
   while not eventsSet:
     try:
-      # adds BW events if not already included (so bandwidth monitor will work)
-      # removes UNKNOWN since not an actual event type
-      connEvents = loggedEvents.union(set(REQ_EVENTS))
-      connEvents.discard("UNKNOWN")
       conn.set_events(connEvents)
       eventsSet = True
     except TorCtl.ErrorReply, exc:
@@ -115,13 +174,17 @@ def setEventListening(loggedEvents, conn, logListener):
         start = msg.find("event \"") + 7
         end = msg.rfind("\"")
         eventType = msg[start:end]
-        if eventType == "BW": raise exc # bandwidth monitoring won't work - best to crash
         
         # removes and notes problem
-        loggedEvents.remove(eventType)
-        logListener.monitor_event("WARN", "Unsupported event type: %s" % eventType)
-      else:
-        raise exc
+        connEvents.discard(eventType)
+        if eventType in loggedEvents: loggedEvents.remove(eventType)
+        
+        if eventType in REQ_EVENTS:
+          if eventType == "BW": msg = "(bandwidth panel won't function)"
+          elif eventType in ("NEWDESC", "NEWCONSENSUS"): msg = "(connections listing can't register consensus changes)"
+          else: msg = ""
+          logListener.monitor_event("ERR", "Unsupported event type: %s %s" % (eventType, msg))
+        else: logListener.monitor_event("WARN", "Unsupported event type: %s" % eventType)
     except TorCtl.TorCtlClosed:
       return []
   
@@ -226,10 +289,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       if not isUnresponsive and panels["log"].getHeartbeat() >= 10:
         isUnresponsive = True
         panels["log"].monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
-      elif isUnresponsive and panels["log"].getHeartbeat() < 5:
-        # this really shouldn't happen - BW events happen every second...
+      elif isUnresponsive and panels["log"].getHeartbeat() < 10:
+        # shouldn't happen unless Tor freezes for a bit - BW events happen every second...
         isUnresponsive = False
-        panels["log"].monitor_event("WARN", "Relay resumed")
+        panels["log"].monitor_event("NOTICE", "Relay resumed")
       
       # if it's been at least five seconds since the last refresh of connection listing, update
       currentTime = time.time()
@@ -253,7 +316,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       # pauses panels that aren't visible to prevent events from accumilating
       # (otherwise they'll wait on the curses lock which might get demanding)
-      for key in PAUSEABLE: panels[key].setPaused(isPaused or (key not in PAGES[page] and key not in PAGE_S))
+      setPauseState(panels, isPaused, page)
       
       panels["control"].page = page + 1
       panels["control"].refresh()
@@ -262,7 +325,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       cursesLock.acquire()
       try:
         isPaused = not isPaused
-        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+        setPauseState(panels, isPaused, page)
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
       finally:
         cursesLock.release()
@@ -270,7 +333,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # displays popup for current page's controls
       cursesLock.acquire()
       try:
-        for key in PAUSEABLE: panels[key].setPaused(True)
+        setPauseState(panels, isPaused, page, True)
         
         # lists commands
         popup = panels["popup"]
@@ -281,7 +344,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         if page == 0:
           bwVisibleLabel = "visible" if panels["bandwidth"].isVisible else "hidden"
           popup.addfstr(1, 2, "b: toggle bandwidth panel (<b>%s</b>)" % bwVisibleLabel)
-          popup.addstr(1, 41, "e: change logged events")
+          
+          # matches timescale used by bandwith panel to recognized labeling
+          intervalLabel = bandwidthPanel.UPDATE_INTERVALS[panels["bandwidth"].updateIntervalIndex][0]
+          popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % intervalLabel)
+          popup.addstr(2, 2, "e: change logged events")
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -317,18 +384,37 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         stdscr.getch()
         curses.halfdelay(REFRESH_RATE * 10)
         
-        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+        setPauseState(panels, isPaused, page)
       finally:
         cursesLock.release()
     elif page == 0 and (key == ord('b') or key == ord('B')):
       # toggles bandwidth panel visability
       panels["bandwidth"].setVisible(not panels["bandwidth"].isVisible)
       oldY = -1 # force resize event
+    elif page == 0 and (key == ord('i') or key == ord('I')):
+      # provides menu to pick bandwidth graph update interval
+      options = [label for (label, intervalTime) in bandwidthPanel.UPDATE_INTERVALS]
+      initialSelection = panels["bandwidth"].updateIntervalIndex
+      
+      # hides top label of bandwidth panel and pauses panels
+      panels["bandwidth"].showLabel = False
+      panels["bandwidth"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Update Interval:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["bandwidth"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1:
+        panels["bandwidth"].setUpdateInterval(selection)
     elif page == 0 and (key == ord('e') or key == ord('E')):
       # allow user to enter new types of events to log - unchanged if left blank
       cursesLock.acquire()
       try:
-        for key in PAUSEABLE: panels[key].setPaused(True)
+        setPauseState(panels, isPaused, page, True)
         
         # provides prompt
         panels["control"].setMsg("Events to log: ")
@@ -360,7 +446,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         curses.noecho()
         curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
         
-        # TODO: it would be nice to quit on esc, but looks like this might not be possible...
+        # it would be nice to quit on esc, but looks like this might not be possible...
         if eventsInput != "":
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
@@ -372,7 +458,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             time.sleep(2)
         
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        for key in PAUSEABLE: panels[key].setPaused(isPaused or key not in PAGES[page])
+        setPauseState(panels, isPaused, page)
       finally:
         cursesLock.release()
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
@@ -383,80 +469,42 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       panels["conn"].sortConnections()
     elif page == 1 and (key == ord('l') or key == ord('L')):
       # provides menu to pick identification info listed for connections
-      cursesLock.acquire()
-      try:
-        for key in PAUSEABLE: panels[key].setPaused(True)
-        curses.cbreak() # wait indefinitely for key presses (no timeout)
-        popup = panels["popup"]
+      optionTypes = [connPanel.LIST_IP, connPanel.LIST_HOSTNAME, connPanel.LIST_FINGERPRINT, connPanel.LIST_NICKNAME]
+      options = [connPanel.LIST_LABEL[sortType] for sortType in optionTypes]
+      initialSelection = panels["conn"].listingType   # enums correspond to index
+      
+      # hides top label of conn panel and pauses panels
+      panels["conn"].showLabel = False
+      panels["conn"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "List By:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["conn"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1 and optionTypes[selection] != panels["conn"].listingType:
+        panels["conn"].listingType = optionTypes[selection]
         
-        # uses smaller dimentions more fitting for small content
-        panels["popup"].height = 6
-        panels["popup"].recreate(stdscr, startY, 20)
-        
-        # hides top label of conn panel
-        panels["conn"].showLabel = False
-        panels["conn"].redraw()
-        
-        selection = panels["conn"].listingType    # starts with current option selected
-        options = [connPanel.LIST_IP, connPanel.LIST_HOSTNAME, connPanel.LIST_FINGERPRINT, connPanel.LIST_NICKNAME]
-        key = 0
-        
-        while key not in (curses.KEY_ENTER, 10, ord(' ')):
-          popup.clear()
-          popup.win.box()
-          popup.addstr(0, 0, "List By:", util.LABEL_ATTR)
+        if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
+          curses.halfdelay(10) # refreshes display every second until done resolving
+          panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves - panels["conn"].resolver.unresolvedQueue.qsize()
           
-          for i in range(len(options)):
-            sortType = options[i]
-            format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-            
-            if panels["conn"].listingType == sortType: tab = "> "
-            else: tab = "  "
-            sortLabel = connPanel.LIST_LABEL[sortType]
-            
-            popup.addstr(i + 1, 2, tab)
-            popup.addstr(i + 1, 4, sortLabel, format)
-          
-          popup.refresh()
-          key = stdscr.getch()
-          if key == curses.KEY_UP: selection = max(0, selection - 1)
-          elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
-          elif key == 27:
-            # esc - cancel
-            selection = panels["conn"].listingType
-            key = curses.KEY_ENTER
+          resolver = panels["conn"].resolver
+          resolver.setPaused(not panels["conn"].allowDNS)
+          for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
+        else:
+          panels["control"].resolvingCounter = -1
+          panels["conn"].resolver.setPaused(True)
         
-        # reverts popup dimensions and conn panel label
-        panels["popup"].height = 9
-        panels["popup"].recreate(stdscr, startY, 80)
-        panels["conn"].showLabel = True
-        
-        # applies new setting
-        pickedOption = options[selection]
-        if pickedOption != panels["conn"].listingType:
-          panels["conn"].listingType = pickedOption
-          
-          if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
-            curses.halfdelay(10) # refreshes display every second until done resolving
-            panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves - panels["conn"].resolver.unresolvedQueue.qsize()
-            
-            resolver = panels["conn"].resolver
-            resolver.setPaused(not panels["conn"].allowDNS)
-            for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
-          else:
-            panels["control"].resolvingCounter = -1
-            panels["conn"].resolver.setPaused(True)
-          
-          panels["conn"].sortConnections()
-        
-        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-      finally:
-        cursesLock.release()
+        panels["conn"].sortConnections()
     elif page == 1 and panels["conn"].isCursorEnabled and key in (curses.KEY_ENTER, 10, ord(' ')):
       # provides details on selected connection
       cursesLock.acquire()
       try:
-        for key in PAUSEABLE: panels[key].setPaused(True)
+        setPauseState(panels, isPaused, page, True)
         popup = panels["popup"]
         
         # reconfigures connection panel to accomidate details dialog
@@ -468,9 +516,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         resolver.setPaused(not panels["conn"].allowDNS)
         relayLookupCache = {} # temporary cache of entry -> (ns data, desc data)
         
+        curses.cbreak() # wait indefinitely for key presses (no timeout)
+        key = 0
+        
         while key not in (curses.KEY_ENTER, 10, ord(' ')):
-          key = 0
-          curses.cbreak() # wait indefinitely for key presses (no timeout)
           popup.clear()
           popup.win.box()
           popup.addstr(0, 0, "Connection Details:", util.LABEL_ATTR)
@@ -577,6 +626,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         panels["conn"].showLabel = True
         panels["conn"].showingDetails = False
         resolver.setPaused(not panels["conn"].allowDNS and panels["conn"].listingType == connPanel.LIST_HOSTNAME)
+        setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         cursesLock.release()
@@ -585,7 +635,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # set ordering for connection listing
       cursesLock.acquire()
       try:
-        for key in PAUSEABLE: panels[key].setPaused(True)
+        setPauseState(panels, isPaused, page, True)
         curses.cbreak() # wait indefinitely for key presses (no timeout)
         
         # lists event types
@@ -644,6 +694,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         if len(selections) == 3:
           panels["conn"].sortOrdering = selections
           panels["conn"].sortConnections()
+        setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         cursesLock.release()

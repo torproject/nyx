@@ -14,6 +14,13 @@ import hostnameResolver
 LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
 LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
+# attributes for connection types
+TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red"}
+TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2} # defines ordering
+
+# enums for indexes of ConnPanel 'connections' fields
+CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY = range(6)
+
 # enums for sorting types (note: ordering corresponds to SORT_TYPES for easy lookup)
 # TODO: add ORD_BANDWIDTH -> (ORD_BANDWIDTH, "Bandwidth", lambda x, y: ???)
 ORD_TYPE, ORD_FOREIGN_LISTING, ORD_SRC_LISTING, ORD_DST_LISTING, ORD_COUNTRY, ORD_FOREIGN_PORT, ORD_SRC_PORT, ORD_DST_PORT = range(8)
@@ -30,12 +37,6 @@ SORT_TYPES = [(ORD_TYPE, "Connection Type",
                 lambda x, y: int(x[CONN_F_PORT] if x[CONN_TYPE] == "inbound" else x[CONN_L_PORT]) - int(y[CONN_F_PORT] if y[CONN_TYPE] == "inbound" else y[CONN_L_PORT])),
               (ORD_DST_PORT, "Port (Dest.)",
                 lambda x, y: int(x[CONN_L_PORT] if x[CONN_TYPE] == "inbound" else x[CONN_F_PORT]) - int(y[CONN_L_PORT] if y[CONN_TYPE] == "inbound" else y[CONN_F_PORT]))]
-
-TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red"}
-TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2}
-
-# enums for indexes of ConnPanel 'connections' fields
-CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY = range(6)
 
 # provides bi-directional mapping of sorts with their associated labels
 def getSortLabel(sortType, withColor = False):
@@ -123,6 +124,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.fingerprintLookupCache.clear()
     self.nicknameLookupCache.clear()
     self.fingerprintMappings = _getFingerprintMappings(self.conn, event.nslist)
+    if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def new_desc_event(self, event):
     for fingerprint in event.idlist:
@@ -157,6 +159,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhex))
       else:
         self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhex)]
+    if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def reset(self):
     """

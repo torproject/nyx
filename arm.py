@@ -12,7 +12,6 @@ import sys
 import os
 import socket
 import getpass
-import binascii
 
 from TorCtl import TorCtl
 from TorCtl import TorUtil
@@ -28,7 +27,7 @@ DEFAULT_LOGGED_EVENTS = "nwe" # NOTICE, WARN, ERR
 NO_AUTH, COOKIE_AUTH, PASSWORD_AUTH = range(3) # enums for authentication type
 
 HELP_TEXT = """Usage arm [OPTION]
-Terminal Tor relay status monitor.
+Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -c, --cookie[=PATH]             authenticates using cookie, PATH defaults to

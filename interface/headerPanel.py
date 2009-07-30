@@ -3,7 +3,6 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import os
-import curses
 import socket
 from TorCtl import TorCtl
 
@@ -62,7 +61,6 @@ class HeaderPanel(util.Panel):
       # Line 2 (authentication label red if open, green if credentials required)
       dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if self.vals["DirPort"] != "0" else ""
       
-      # TODO: if both cookie and password are set then which takes priority?
       if self.vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
       elif self.vals["IsCookieAuthSet"]: controlPortAuthLabel = "cookie"
       else: controlPortAuthLabel = "open"

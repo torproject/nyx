@@ -83,6 +83,7 @@ class Panel():
     self.startY = -1          # top in parent window when created
     self.height = height      # preferred (max) height of panel, -1 if infinite
     self.isDisplaced = False  # window isn't in the right location - don't redraw
+    self.maxY, self.maxX = -1, -1
     self._resetBounds()       # sets last known dimensions of win (maxX and maxY)
   
   def redraw(self):
@@ -114,7 +115,7 @@ class Panel():
     newHeight = max(0, y - startY)
     if self.height != -1: newHeight = min(newHeight, self.height)
     
-    if self.startY != startY or newHeight > self.maxY or self.isDisplaced or (self.maxX > maxX and maxX != -1):
+    if self.startY != startY or newHeight > self.maxY or self.isDisplaced or (self.maxX != maxX and maxX != -1):
       # window growing or moving - recreate
       self.startY = startY
       startY = min(startY, y - 1) # better create a displaced window than leave it as None
