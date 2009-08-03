@@ -4,7 +4,7 @@ All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 Project page: www.atagar.com/arm
 
 Description:
-Command line application for monitoring Tor relays, providing real time status information such as the current configuration, bandwidth usage, message log, current connections, etc. This uses a curses interface much like 'top' does for system usage.
+Command line application for monitoring Tor relays, providing real time status information such as the current configuration, bandwidth usage, message log, connections, etc. This uses a curses interface much like 'top' does for system usage.
 
 Requirements:
 Python 2.5
@@ -17,4 +17,23 @@ Tor is running with an available control port. This means either...
 This is started via 'arm' (use the '--help' argument for usage).
 
 Warning: The second page (connections) provides the hostnames of Tor relays you're connected to. This means reverse DNS lookups which, if monitored, could leak your current connections to an eavesdropper. You can disable lookups with 'r' (see the page's help for the current status).
+
+FAQ:
+> Why is it called 'arm'?
+
+Simple - because it makes the command short and memorable. Terminal applications need to be easy to type (like 'top', 'ssh', etc), and anything longer is just begging command-line aficionados to alias it down. I chose the meaning of the acronym ('anonymizing relay monitor') afterward.
+
+> If you're listing connections then what about exit nodes? Won't this include people's traffic?
+
+While arm isn't intended to be a sniffer it does provide real time connection data which, for exit nodes, includes the endpoints being visited through you. Unfortunately this is pretty unavoidable. The control port doesn't provide a means of distinguishing those connections and trying to figure it out by correlating against consensus data has proved pretty inaccurate.
+
+That said, this really isn't much of a concern. For Tor users the real threats come from things like Wireshark and MITM attacks on their unencrypted traffic. Simply seeing an unknown individual's endpoints is no great feat in itself. Just attach netstat to a cron job and voilà! You've got a sniffer that's just as mighty as arm.
+
+> Is it harmful to share the information provided by arm?
+
+Not really, but it's discouraged. The original plan for arm included a special emphasis that it wouldn't log any data. The reason is that if a large number of relay operators published the details of their connections then correlation attacks could break Tor user's anonymity. Just show some moderation in what you share and it should be fine.
+
+> When arm starts it gives "Unable to resolve tor pid, abandoning connection listing"... why?
+
+If you're running multiple instances of tor then arm needs to figure out which pid belongs to the open control port. If it's running as a different user (such as being in a chroot jail) then it's probably failing due to permission issues. Arm still runs, just no connection listing or ps stats.
 
