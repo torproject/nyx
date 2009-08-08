@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+# bandwidthMonitor.py -- Tracks stats concerning bandwidth usage.
+# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+
+import time
+from TorCtl import TorCtl
+
+import graphPanel
+import util
+
+DL_COLOR = "green"  # download section color
+UL_COLOR = "cyan"   # upload section color
+
+class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
+  """
+  Tor event listener, taking bandwidth sampling to draw a bar graph. This is
+  updated every second by the BW events.
+  """
+  
+  def __init__(self, conn):
+    graphPanel.GraphStats.__init__(self)
+    TorCtl.PostEventListener.__init__(self)
+    self.conn = conn              # Tor control port connection
+    self.accountingInfo = None    # accounting data (set by _updateAccountingInfo method)
+    
+    if conn:
+      self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
+      
+      # static limit stats for label
+      bwStats = conn.get_option(['BandwidthRate', 'BandwidthBurst'])
+      self.bwRate = util.getSizeLabel(int(bwStats[0][1]))
+      self.bwBurst = util.getSizeLabel(int(bwStats[1][1]))
+    else:
+      self.isAccounting = False
+      self.bwRate, self.bwBurst = -1, -1
+    
+    # this doesn't track accounting stats when paused so doesn't need a custom pauseBuffer
+    contentHeight = 13 if self.isAccounting else 10
+    graphPanel.GraphStats.initialize(self, DL_COLOR, UL_COLOR, contentHeight)
+  
+  def bandwidth_event(self, event):
+    self._processEvent(event.read / 1024.0, event.written / 1024.0)
+  
+  def redraw(self, panel):
+    # provides accounting stats if enabled
+    if self.isAccounting:
+      if not self.isPaused: self._updateAccountingInfo()
+      
+      if self.accountingInfo:
+        status = self.accountingInfo["status"]
+        hibernateColor = "green"
+        if status == "soft": hibernateColor = "yellow"
+        elif status == "hard": hibernateColor = "red"
+        
+        panel.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)" % (hibernateColor, status, hibernateColor))
+        panel.addstr(10, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
+        panel.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), util.getColor(self.primaryColor))
+        panel.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), util.getColor(self.secondaryColor))
+      else:
+        panel.addfstr(10, 0, "<b>Accounting:</b> Shutting Down...")
+  
+  def getTitle(self, width):
+    # provides label, dropping stats if there's not enough room
+    labelContents = "Bandwidth (cap: %s, burst: %s):" % (self.bwRate, self.bwBurst)
+    if width < len(labelContents):
+      labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
+      if width < len(labelContents): labelContents = "Bandwidth:"       # removes both
+    
+    return labelContents
+  
+  def getHeaderLabel(self, isPrimary):
+    if isPrimary: return "Downloaded (%s/sec):" % util.getSizeLabel(self.lastPrimary * 1024)
+    else: return "Uploaded (%s/sec):" % util.getSizeLabel(self.lastSecondary * 1024)
+  
+  def getFooterLabel(self, isPrimary):
+    avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
+    return "avg: %s/sec" % util.getSizeLabel(avg * 1024)
+  
+  def _updateAccountingInfo(self):
+    """
+    Updates mapping used for accounting info. This includes the following keys:
+    status, resetTime, read, written, readLimit, writtenLimit
+    
+    Sets mapping to None if the Tor connection is closed.
+    """
+    
+    try:
+      self.accountingInfo = {}
+      
+      accountingParams = self.conn.get_info(["accounting/hibernating", "accounting/bytes", "accounting/bytes-left", "accounting/interval-end"])
+      self.accountingInfo["status"] = accountingParams["accounting/hibernating"]
+      
+      # altzone subtraction converts from gmt to local with respect to DST
+      sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - time.altzone
+      resetHours = sec / 3600
+      sec %= 3600
+      resetMin = sec / 60
+      sec %= 60
+      self.accountingInfo["resetTime"] = "%i:%02i:%02i" % (resetHours, resetMin, sec)
+      
+      read = int(accountingParams["accounting/bytes"].split(" ")[0])
+      written = int(accountingParams["accounting/bytes"].split(" ")[1])
+      readLeft = int(accountingParams["accounting/bytes-left"].split(" ")[0])
+      writtenLeft = int(accountingParams["accounting/bytes-left"].split(" ")[1])
+      
+      self.accountingInfo["read"] = util.getSizeLabel(read)
+      self.accountingInfo["written"] = util.getSizeLabel(written)
+      self.accountingInfo["readLimit"] = util.getSizeLabel(read + readLeft)
+      self.accountingInfo["writtenLimit"] = util.getSizeLabel(written + writtenLeft)
+    except TorCtl.TorCtlClosed:
+      self.accountingInfo = None
+

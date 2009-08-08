@@ -3,6 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import os
+import time
 import socket
 import curses
 from TorCtl import TorCtl
@@ -92,6 +93,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.allowDNS = True            # permits hostname resolutions if true
     self.showLabel = True           # shows top label if true, hides otherwise
     self.showingDetails = False     # augments display to accomidate details window if true
+    self.lastUpdate = -1            # time last stats was retrived
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.isPaused = False
     self.resolver = hostnameResolver.HostnameResolver()
@@ -172,7 +174,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     
     # looks at netstat for tor with stderr redirected to /dev/null, options are:
     # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
-    netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor" % self.pid)
+    netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.pid)
     try:
       results = netstatCall.readlines()
       
@@ -201,6 +203,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           if not self.providedGeoipWarning:
             self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
             self.providedGeoipWarning = True
+        except error:
+          countryCode = "??"
         
         self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
     except IOError:
@@ -208,6 +212,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
     
     netstatCall.close()
+    self.lastUpdate = time.time()
     
     # hostnames are sorted at redraw - otherwise now's a good time
     if self.listingType != LIST_HOSTNAME: self.sortConnections()

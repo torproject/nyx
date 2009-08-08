@@ -12,12 +12,15 @@ import curses
 from threading import RLock
 from TorCtl import TorCtl
 
-import util
 import headerPanel
-import bandwidthPanel
+import graphPanel
 import logPanel
 import connPanel
 import confPanel
+
+import util
+import bandwidthMonitor
+import connCountMonitor
 
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
@@ -29,10 +32,10 @@ CTL_HELP, CTL_PAUSED = range(2)
 # panel order per page
 PAGE_S = ["header", "control", "popup"]    # sticky (ie, always available) page
 PAGES = [
-  ["bandwidth", "log"],
+  ["graph", "log"],
   ["conn"],
   ["torrc"]]
-PAUSEABLE = ["header", "bandwidth", "log", "conn"]
+PAUSEABLE = ["header", "graph", "log", "conn"]
 PAGE_COUNT = 3 # all page numbering is internally represented as 0-indexed
 
 # events needed for panels other than the event log
@@ -180,7 +183,7 @@ def setEventListening(loggedEvents, conn, logListener):
         if eventType in loggedEvents: loggedEvents.remove(eventType)
         
         if eventType in REQ_EVENTS:
-          if eventType == "BW": msg = "(bandwidth panel won't function)"
+          if eventType == "BW": msg = "(bandwidth graph won't function)"
           elif eventType in ("NEWDESC", "NEWCONSENSUS"): msg = "(connections listing can't register consensus changes)"
           else: msg = ""
           logListener.monitor_event("ERR", "Unsupported event type: %s %s" % (eventType, msg))
@@ -237,7 +240,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
     "popup": util.Panel(cursesLock, 9),
-    "bandwidth": bandwidthPanel.BandwidthMonitor(cursesLock, conn),
+    "graph": graphPanel.GraphPanel(cursesLock),
     "log": logPanel.LogMonitor(cursesLock, loggedEvents),
     "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
   panels["conn"] = connPanel.ConnPanel(cursesLock, conn, torPid, panels["log"])
@@ -246,9 +249,14 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: panels["log"].monitor_event("WARN", "Unable to resolve tor pid, abandoning connection listing")
   
+  # statistical monitors for graph
+  panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
+  panels["graph"].addStats("connection count", connCountMonitor.ConnCountMonitor(panels["conn"]))
+  panels["graph"].setStats("bandwidth")
+  
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
-  conn.add_event_listener(panels["bandwidth"])
+  conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["conn"])
   
   # tells Tor to listen to the events we're interested
@@ -342,13 +350,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         popup.addstr(0, 0, "Page %i Commands:" % (page + 1), util.LABEL_ATTR)
         
         if page == 0:
-          bwVisibleLabel = "visible" if panels["bandwidth"].isVisible else "hidden"
-          popup.addfstr(1, 2, "b: toggle bandwidth panel (<b>%s</b>)" % bwVisibleLabel)
-          
-          # matches timescale used by bandwith panel to recognized labeling
-          intervalLabel = bandwidthPanel.UPDATE_INTERVALS[panels["bandwidth"].updateIntervalIndex][0]
-          popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % intervalLabel)
-          popup.addstr(2, 2, "e: change logged events")
+          graphedStats = panels["graph"].currentDisplay
+          if not graphedStats: graphedStats = "none"
+          popup.addfstr(1, 2, "s: graphed stats (<b>%s</b>)" % graphedStats)
+          popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
+          popup.addfstr(2, 2, "b: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
+          popup.addstr(2, 41, "e: change logged events")
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -387,29 +394,62 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         setPauseState(panels, isPaused, page)
       finally:
         cursesLock.release()
-    elif page == 0 and (key == ord('b') or key == ord('B')):
-      # toggles bandwidth panel visability
-      panels["bandwidth"].setVisible(not panels["bandwidth"].isVisible)
-      oldY = -1 # force resize event
-    elif page == 0 and (key == ord('i') or key == ord('I')):
-      # provides menu to pick bandwidth graph update interval
-      options = [label for (label, intervalTime) in bandwidthPanel.UPDATE_INTERVALS]
-      initialSelection = panels["bandwidth"].updateIntervalIndex
+    elif page == 0 and (key == ord('s') or key == ord('S')):
+      # provides menu to pick stats to be graphed
+      #options = ["None"] + [label for label in panels["graph"].stats.keys()]
+      options = ["None"]
       
-      # hides top label of bandwidth panel and pauses panels
-      panels["bandwidth"].showLabel = False
-      panels["bandwidth"].redraw()
+      # appends stats labels with first letters of each word capitalized
+      initialSelection, i = -1, 1
+      if not panels["graph"].currentDisplay: initialSelection = 0
+      for label in panels["graph"].stats.keys():
+        if label == panels["graph"].currentDisplay: initialSelection = i
+        words = label.split()
+        options.append(" ".join(word[0].upper() + word[1:] for word in words))
+        i += 1
+      
+      # hides top label of the graph panel and pauses panels
+      if panels["graph"].currentDisplay:
+        panels["graph"].showLabel = False
+        panels["graph"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Graphed Stats:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["graph"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1 and selection != initialSelection:
+        if selection == 0: panels["graph"].setStats(None)
+        else: panels["graph"].setStats(options[selection].lower())
+        oldY = -1 # force resize event
+    elif page == 0 and (key == ord('i') or key == ord('I')):
+      # provides menu to pick graph panel update interval
+      options = [label for (label, intervalTime) in graphPanel.UPDATE_INTERVALS]
+      
+      initialSelection = -1
+      for i in range(len(options)):
+        if options[i] == panels["graph"].updateInterval: initialSelection = i
+      
+      # hides top label of the graph panel and pauses panels
+      if panels["graph"].currentDisplay:
+        panels["graph"].showLabel = False
+        panels["graph"].redraw()
       setPauseState(panels, isPaused, page, True)
       
       selection = showMenu(stdscr, panels["popup"], "Update Interval:", options, initialSelection)
       
       # reverts changes made for popup
-      panels["bandwidth"].showLabel = True
+      panels["graph"].showLabel = True
       setPauseState(panels, isPaused, page)
       
       # applies new setting
-      if selection != -1:
-        panels["bandwidth"].setUpdateInterval(selection)
+      if selection != -1: panels["graph"].updateInterval = options[selection]
+    elif page == 0 and (key == ord('b') or key == ord('B')):
+      # uses the next boundary type for graph
+      panels["graph"].bounds = (panels["graph"].bounds + 1) % 2
     elif page == 0 and (key == ord('e') or key == ord('E')):
       # allow user to enter new types of events to log - unchanged if left blank
       cursesLock.acquire()
