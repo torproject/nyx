@@ -115,8 +115,8 @@ class Panel():
     newHeight = max(0, y - startY)
     if self.height != -1: newHeight = min(newHeight, self.height)
     
-    if self.startY != startY or newHeight > self.maxY or self.isDisplaced or (self.maxX != maxX and maxX != -1):
-      # window growing or moving - recreate
+    if self.startY != startY or newHeight != self.maxY or self.isDisplaced or (self.maxX != maxX and maxX != -1):
+      # window resized or moving - recreate
       self.startY = startY
       startY = min(startY, y - 1) # better create a displaced window than leave it as None
       if maxX != -1: x = min(x, maxX)
@@ -208,6 +208,32 @@ class Panel():
             formatting.remove(FORMAT_TAGS["<" + nextTag[2:]])
         
         x += len(msgSegment)
+  
+  def addstr_wrap(self, y, x, text, formatting, startX = 0, endX = -1, maxY = -1):
+    """
+    Writes text with word wrapping, returning the ending y/x coordinate.
+    y: starting write line
+    x: column offset from startX
+    text / formatting: content to be written
+    startX / endX: column bounds in which text may be written
+    """
+    
+    if not text: return (y, x)          # nothing to write
+    if endX == -1: endX = self.maxX     # defaults to writing to end of panel
+    if maxY == -1: maxY = self.maxY + 1 # defaults to writing to bottom of panel
+    lineWidth = endX - startX           # room for text
+    while True:
+      if len(text) > lineWidth - x - 1:
+        chunkSize = text.rfind(" ", 0, lineWidth - x)
+        writeText = text[:chunkSize]
+        text = text[chunkSize:].strip()
+        
+        self.addstr(y, x + startX, writeText, formatting)
+        y, x = y + 1, 0
+        if y >= maxY: return (y, x)
+      else:
+        self.addstr(y, x + startX, text, formatting)
+        return (y, x + len(text))
   
   def _resetBounds(self):
     if self.win: self.maxY, self.maxX = self.win.getmaxyx()

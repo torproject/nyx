@@ -4,7 +4,10 @@ All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 Project page: www.atagar.com/arm
 
 Description:
-Command line application for monitoring Tor relays, providing real time status information such as the current configuration, bandwidth usage, message log, connections, etc. This uses a curses interface much like 'top' does for system usage.
+Command line application for monitoring Tor relays, providing real time status information such as the current configuration, bandwidth usage, message log, connections, etc. This uses a curses interface much like 'top' does for system usage. The application is intended for command-line aficionados, ssh connections, and anyone stuck with a tty terminal for checking their relay's status. Releases should be stable so if you manage to make it crash (or have a feature request) then please let me know!
+
+The project was originally proposed in 2008 by Jacob and Karsten (http://archives.seul.org/or/dev/Jan-2008/msg00005.html). An interview by Brenno Winter discussing the project is available at:
+  http://www.atagar.com/arm/HFM_INT_0001.mp3
 
 Requirements:
 Python 2.5
@@ -15,8 +18,6 @@ Tor is running with an available control port. This means either...
   ... or including 'ControlPort <PORT>' in your torrc
 
 This is started via 'arm' (use the '--help' argument for usage).
-
-Warning: The second page (connections) provides the hostnames of Tor relays you're connected to. This means reverse DNS lookups which, if monitored, could leak your current connections to an eavesdropper. You can disable lookups with 'r' (see the page's help for the current status).
 
 FAQ:
 > Why is it called 'arm'?
@@ -32,6 +33,10 @@ That said, this really isn't much of a concern. For Tor users the real threats c
 > Is it harmful to share the information provided by arm?
 
 Not really, but it's discouraged. The original plan for arm included a special emphasis that it wouldn't log any data. The reason is that if a large number of relay operators published the details of their connections then correlation attacks could break Tor user's anonymity. Just show some moderation in what you share and it should be fine.
+
+> Is there any chance that arm will leak data?
+
+Yes - arm is a passive listener with one exception. The second page (connections) provides the hostnames of Tor relays you're connected to. This means reverse DNS lookups which, if monitored, could leak your current connections to an eavesdropper. However, lookups are only made upon request (when showing connection details or listing connections by hostname) and you can disable lookups entirely with 'r' - see the page's help for the current status.
 
 > When arm starts it gives "Unable to resolve tor pid, abandoning connection listing"... why?
 

@@ -105,12 +105,18 @@ class _ResolverWorker(Thread):
     self.unresolvedQueue = unresolvedQueue
     self.counter = counter
     self.isPaused = False
+    self.halt = False         # terminates thread if true
   
   def run(self):
-    while True:
-      while self.isPaused: time.sleep(1)
+    while not self.halt:
+      while self.isPaused and not self.halt: time.sleep(0.25)
+      if self.halt: break
       
-      ipAddr = self.unresolvedQueue.get() # snag next available ip
+      # snags next available ip, timeout is because queue can't be woken up
+      # when 'halt' is set
+      try: ipAddr = self.unresolvedQueue.get(True, 0.25)
+      except Queue.Empty: continue
+      
       resolutionFailed = False            # if true don't cache results
       hostCall = os.popen("host %s" % ipAddr)
       

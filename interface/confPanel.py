@@ -89,31 +89,12 @@ class ConfPanel(util.Panel):
             command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
           
           xLoc = 0
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, command, curses.A_BOLD | util.getColor("green"))
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, argument, curses.A_BOLD | util.getColor("cyan"))
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, numOffset, comment, util.getColor("white"))
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, command, curses.A_BOLD | util.getColor("green"), numOffset)
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, argument, curses.A_BOLD | util.getColor("cyan"), numOffset)
+          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, comment, util.getColor("white"), numOffset)
           lineNum += 1
           
         self.refresh()
       finally:
         self.lock.release()
-  
-  def addstr_wrap(self, y, x, indent, text, formatting):
-    """
-    Writes text with word wrapping, returning the ending y/x coordinate.
-    """
-    
-    if not text: return (y, x)        # nothing to write
-    lineWidth = self.maxX - indent    # room for text
-    while True:
-      if len(text) > lineWidth - x - 1:
-        chunkSize = text.rfind(" ", 0, lineWidth - x)
-        writeText = text[:chunkSize]
-        text = text[chunkSize:].strip()
-        
-        self.addstr(y, x + indent, writeText, formatting)
-        y, x = y + 1, 0
-      else:
-        self.addstr(y, x + indent, text, formatting)
-        return (y, x + len(text))
 

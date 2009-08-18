@@ -162,8 +162,9 @@ class HeaderPanel(util.Panel):
       sampling = [] # no pid known - blank fields
     
     if len(sampling) < 4:
-      # either ps failed or returned no tor instance
-      sampling = [""] * len(psParams)
+      # either ps failed or returned no tor instance, blank information except runtime
+      if "etime" in self.vals: sampling = [""] * (len(psParams) - 1) + [self.vals["etime"]]
+      else: sampling = [""] * len(psParams)
       
       # %cpu, rss, and %mem are better zeroed out
       for i in range(3): sampling[i] = "0"

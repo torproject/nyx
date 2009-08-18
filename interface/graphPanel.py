@@ -7,7 +7,7 @@ import curses
 
 import util
 
-GRAPH_COL = 30  # columns of data in graph
+MAX_GRAPH_COL = 150  # max columns of data in graph
 
 # enums for graph bounds:
 #   BOUNDS_MAX - global maximum (highest value ever seen)
@@ -58,8 +58,8 @@ class GraphStats:
       
       # historic stats for graph, first is accumulator
       # iterative insert needed to avoid making shallow copies (nasty, nasty gotcha)
-      self.primaryCounts[label] = (GRAPH_COL + 1) * [0]
-      self.secondaryCounts[label] = (GRAPH_COL + 1) * [0]
+      self.primaryCounts[label] = (MAX_GRAPH_COL + 1) * [0]
+      self.secondaryCounts[label] = (MAX_GRAPH_COL + 1) * [0]
   
   def initialize(self, primaryColor, secondaryColor, height, pauseBuffer=None):
     """
@@ -69,7 +69,7 @@ class GraphStats:
     # used because of python's inability to have overloaded constructors
     self.primaryColor = primaryColor        # colors used to draw stats/graphs
     self.secondaryColor = secondaryColor
-    self.height = height                    # vertical size of content
+    self.height = height
     
     # mirror instance used to track updates when paused
     if not pauseBuffer: self.pauseBuffer = GraphStats()
@@ -154,12 +154,12 @@ class GraphStats:
           self.maxPrimary[label] = max(self.maxPrimary[label], self.primaryCounts[label][0] / timescale)
           self.primaryCounts[label][0] /= timescale
           self.primaryCounts[label].insert(0, 0)
-          del self.primaryCounts[label][GRAPH_COL + 1:]
+          del self.primaryCounts[label][MAX_GRAPH_COL + 1:]
           
           self.maxSecondary[label] = max(self.maxSecondary[label], self.secondaryCounts[label][0] / timescale)
           self.secondaryCounts[label][0] /= timescale
           self.secondaryCounts[label].insert(0, 0)
-          del self.secondaryCounts[label][GRAPH_COL + 1:]
+          del self.secondaryCounts[label][MAX_GRAPH_COL + 1:]
       
       if self.graphPanel: self.graphPanel.redraw()
 
@@ -174,7 +174,7 @@ class GraphPanel(util.Panel):
     self.updateInterval = DEFAULT_UPDATE_INTERVAL
     self.isPaused = False
     self.showLabel = True         # shows top label if true, hides otherwise
-    self.bounds = BOUNDS_MAX      # determines bounds on graph
+    self.bounds = BOUNDS_TIGHT    # determines bounds on graph
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
   
@@ -184,6 +184,7 @@ class GraphPanel(util.Panel):
       if not self.lock.acquire(False): return
       try:
         self.clear()
+        graphCol = min(self.maxX / 2, MAX_GRAPH_COL)
         
         if self.currentDisplay:
           param = self.stats[self.currentDisplay]
@@ -195,7 +196,7 @@ class GraphPanel(util.Panel):
           # top labels
           left, right = param.getHeaderLabel(True), param.getHeaderLabel(False)
           if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
-          if right: self.addstr(1, 35, right, curses.A_BOLD | secondaryColor)
+          if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
           
           # determines max value on the graph
           primaryBound, secondaryBound = -1, -1
@@ -211,22 +212,22 @@ class GraphPanel(util.Panel):
           self.addstr(2, 0, "%4s" % str(int(primaryBound)), primaryColor)
           self.addstr(7, 0, "   0", primaryColor)
           
-          self.addstr(2, 35, "%4s" % str(int(secondaryBound)), secondaryColor)
-          self.addstr(7, 35, "   0", secondaryColor)
+          self.addstr(2, graphCol + 5, "%4s" % str(int(secondaryBound)), secondaryColor)
+          self.addstr(7, graphCol + 5, "   0", secondaryColor)
           
           # creates bar graph of bandwidth usage over time
-          for col in range(GRAPH_COL):
-            colHeight = min(5, 5 * param.primaryCounts[self.updateInterval][col + 1] / primaryBound)
+          for col in range(graphCol):
+            colHeight = min(5, 5 * param.primaryCounts[self.updateInterval][col + 1] / max(1, primaryBound))
             for row in range(colHeight): self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
           
-          for col in range(GRAPH_COL):
-            colHeight = min(5, 5 * param.secondaryCounts[self.updateInterval][col + 1] / secondaryBound)
-            for row in range(colHeight): self.addstr(7 - row, col + 40, " ", curses.A_STANDOUT | secondaryColor)
+          for col in range(graphCol):
+            colHeight = min(5, 5 * param.secondaryCounts[self.updateInterval][col + 1] / max(1, secondaryBound))
+            for row in range(colHeight): self.addstr(7 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
           
           # bottom labels
           left, right = param.getFooterLabel(True), param.getFooterLabel(False)
           if left: self.addstr(8, 1, left, primaryColor)
-          if right: self.addstr(8, 36, right, secondaryColor)
+          if right: self.addstr(8, graphCol + 6, right, secondaryColor)
           
           # allows for finishing touches by monitor
           param.redraw(self)
@@ -257,16 +258,8 @@ class GraphPanel(util.Panel):
         self.height = 0
       elif label in self.stats.keys():
         self.currentDisplay = label
-        
         newStats = self.stats[label]
-        
-        # TODO: BUG - log panel's partly overwritten if showing a smaller panel
-        # (simple workaround is to use max size, but fix would be preferable)
-        #self.height = newStats.height
-        maxHeight = 0
-        for panel in self.stats.values(): maxHeight = max(panel.height, maxHeight)
-        self.height = maxHeight
-        
+        self.height = newStats.height
         newStats.setPaused(self.isPaused)
       else: raise ValueError("Unrecognized stats label: %s" % label)
   

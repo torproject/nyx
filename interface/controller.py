@@ -17,6 +17,7 @@ import graphPanel
 import logPanel
 import connPanel
 import confPanel
+import descriptorPopup
 
 import util
 import bandwidthMonitor
@@ -30,13 +31,12 @@ cursesLock = RLock()    # global curses lock (curses isn't thread safe and
 CTL_HELP, CTL_PAUSED = range(2)
 
 # panel order per page
-PAGE_S = ["header", "control", "popup"]    # sticky (ie, always available) page
+PAGE_S = ["header", "control", "popup"] # sticky (ie, always available) page
 PAGES = [
   ["graph", "log"],
   ["conn"],
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
-PAGE_COUNT = 3 # all page numbering is internally represented as 0-indexed
 
 # events needed for panels other than the event log
 REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS"]
@@ -86,7 +86,7 @@ class ControlPanel(util.Panel):
             msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
         
         if self.resolvingCounter == -1:
-          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, PAGE_COUNT)
+          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, len(PAGES))
       elif msgText == CTL_PAUSED:
         msgText = "Paused"
         msgAttr = curses.A_STANDOUT
@@ -257,6 +257,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # listeners that update bandwidth and log panels with Tor status
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
+  conn.add_event_listener(panels["graph"].stats["connection count"])
   conn.add_event_listener(panels["conn"])
   
   # tells Tor to listen to the events we're interested
@@ -316,11 +317,20 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       cursesLock.release()
     
     key = stdscr.getch()
-    if key == ord('q') or key == ord('Q'): break # quits
+    if key == ord('q') or key == ord('Q'):
+      daemonThreads = panels["conn"].resolver.threadPool
+      
+      # sets halt flags for all worker daemon threads
+      for worker in daemonThreads: worker.halt = True
+      
+      # joins on workers (prevents noisy termination)
+      for worker in daemonThreads: worker.join()
+      
+      break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
-      if key == curses.KEY_LEFT: page = (page - 1) % PAGE_COUNT
-      else: page = (page + 1) % PAGE_COUNT
+      if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
+      else: page = (page + 1) % len(PAGES)
       
       # pauses panels that aren't visible to prevent events from accumilating
       # (otherwise they'll wait on the curses lock which might get demanding)
@@ -362,7 +372,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(2, 2, "page up: scroll up a page")
           popup.addstr(2, 41, "page down: scroll down a page")
           popup.addstr(3, 2, "enter: connection details")
-          popup.addfstr(3, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
+          popup.addstr(3, 41, "d: raw consensus descriptor")
           
           listingType = connPanel.LIST_LABEL[panels["conn"].listingType].lower()
           popup.addfstr(4, 2, "l: listed identity (<b>%s</b>)" % listingType)
@@ -371,6 +381,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(4, 41, "r: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
           
           popup.addstr(5, 2, "s: sort ordering")
+          popup.addfstr(5, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
         elif page == 2:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -507,39 +518,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       panels["control"].resolvingCounter = -1
       panels["conn"].resolver.setPaused(True)
       panels["conn"].sortConnections()
-    elif page == 1 and (key == ord('l') or key == ord('L')):
-      # provides menu to pick identification info listed for connections
-      optionTypes = [connPanel.LIST_IP, connPanel.LIST_HOSTNAME, connPanel.LIST_FINGERPRINT, connPanel.LIST_NICKNAME]
-      options = [connPanel.LIST_LABEL[sortType] for sortType in optionTypes]
-      initialSelection = panels["conn"].listingType   # enums correspond to index
-      
-      # hides top label of conn panel and pauses panels
-      panels["conn"].showLabel = False
-      panels["conn"].redraw()
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "List By:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["conn"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1 and optionTypes[selection] != panels["conn"].listingType:
-        panels["conn"].listingType = optionTypes[selection]
-        
-        if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
-          curses.halfdelay(10) # refreshes display every second until done resolving
-          panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves - panels["conn"].resolver.unresolvedQueue.qsize()
-          
-          resolver = panels["conn"].resolver
-          resolver.setPaused(not panels["conn"].allowDNS)
-          for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
-        else:
-          panels["control"].resolvingCounter = -1
-          panels["conn"].resolver.setPaused(True)
-        
-        panels["conn"].sortConnections()
     elif page == 1 and panels["conn"].isCursorEnabled and key in (curses.KEY_ENTER, 10, ord(' ')):
       # provides details on selected connection
       cursesLock.acquire()
@@ -619,6 +597,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
               # ns lookup fails... weird
               try: nsData = conn.get_network_status("id/%s" % fingerprint)
               except TorCtl.ErrorReply: break
+              except TorCtl.TorCtlClosed: break
               
               if len(nsData) > 1:
                 # multiple records for fingerprint (shouldn't happen)
@@ -662,6 +641,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           
           if key in (curses.KEY_DOWN, curses.KEY_UP, curses.KEY_PPAGE, curses.KEY_NPAGE):
             panels["conn"].handleKey(key)
+          elif key in (ord('d'), ord('D')):
+            descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, conn, panels["conn"])
+            panels["conn"].redraw()
         
         panels["conn"].showLabel = True
         panels["conn"].showingDetails = False
@@ -670,7 +652,55 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         cursesLock.release()
+    elif page == 1 and panels["conn"].isCursorEnabled and key in (ord('d'), ord('D')):
+      # presents popup for raw consensus data
+      cursesLock.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        curses.cbreak() # wait indefinitely for key presses (no timeout)
+        panels["conn"].showLabel = False
+        panels["conn"].redraw()
+        
+        descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, conn, panels["conn"])
+        
+        setPauseState(panels, isPaused, page)
+        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+        panels["conn"].showLabel = True
+      finally:
+        cursesLock.release()
+    elif page == 1 and (key == ord('l') or key == ord('L')):
+      # provides menu to pick identification info listed for connections
+      optionTypes = [connPanel.LIST_IP, connPanel.LIST_HOSTNAME, connPanel.LIST_FINGERPRINT, connPanel.LIST_NICKNAME]
+      options = [connPanel.LIST_LABEL[sortType] for sortType in optionTypes]
+      initialSelection = panels["conn"].listingType   # enums correspond to index
       
+      # hides top label of conn panel and pauses panels
+      panels["conn"].showLabel = False
+      panels["conn"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "List By:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["conn"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1 and optionTypes[selection] != panels["conn"].listingType:
+        panels["conn"].listingType = optionTypes[selection]
+        
+        if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
+          curses.halfdelay(10) # refreshes display every second until done resolving
+          panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves - panels["conn"].resolver.unresolvedQueue.qsize()
+          
+          resolver = panels["conn"].resolver
+          resolver.setPaused(not panels["conn"].allowDNS)
+          for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
+        else:
+          panels["control"].resolvingCounter = -1
+          panels["conn"].resolver.setPaused(True)
+        
+        panels["conn"].sortConnections()
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection listing
       cursesLock.acquire()

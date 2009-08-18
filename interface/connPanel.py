@@ -8,16 +8,16 @@ import socket
 import curses
 from TorCtl import TorCtl
 
-import util
 import hostnameResolver
+import util
 
 # enums for listing types
 LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
 LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
 # attributes for connection types
-TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red"}
-TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2} # defines ordering
+TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red", "localhost": "cyan"}
+TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2, "localhost": 3} # defines ordering
 
 # enums for indexes of ConnPanel 'connections' fields
 CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY = range(6)
@@ -203,13 +203,29 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           if not self.providedGeoipWarning:
             self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
             self.providedGeoipWarning = True
-        except error:
-          countryCode = "??"
         
         self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
     except IOError:
       # netstat call failed
       self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
+    
+    # appends localhost connection to allow user to look up their own consensus entry
+    selfAddress, selfPort, selfFingerprint = None, None, None
+    try:
+      selfAddress = self.conn.get_info("address")["address"]
+      selfPort = self.conn.get_option("ORPort")[0][1]
+      selfFingerprint = self.conn.get_info("fingerprint")["fingerprint"]
+    except TorCtl.ErrorReply: pass
+    except TorCtl.TorCtlClosed: pass
+    except socket.error: pass
+    
+    if selfAddress and selfPort and selfFingerprint:
+      try:
+        countryCodeQuery = "ip-to-country/%s" % selfAddress
+        selfCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+      except socket.error:
+        selfCountryCode = "??"
+      self.connections.append(("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode))
     
     netstatCall.close()
     self.lastUpdate = time.time()

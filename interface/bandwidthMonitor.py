@@ -73,8 +73,9 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     else: return "Uploaded (%s/sec):" % util.getSizeLabel(self.lastSecondary * 1024)
   
   def getFooterLabel(self, isPrimary):
-    avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
-    return "avg: %s/sec" % util.getSizeLabel(avg * 1024)
+    total = self.primaryTotal if isPrimary else self.secondaryTotal
+    avg = total / max(1, self.tick)
+    return "avg: %s/sec, total: %s" % (util.getSizeLabel(avg * 1024), util.getSizeLabel(total * 1024))
   
   def _updateAccountingInfo(self):
     """
