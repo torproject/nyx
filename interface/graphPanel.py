@@ -8,6 +8,7 @@ import curses
 import util
 
 MAX_GRAPH_COL = 150  # max columns of data in graph
+WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # enums for graph bounds:
 #   BOUNDS_MAX - global maximum (highest value ever seen)
@@ -82,16 +83,9 @@ class GraphStats:
     
     return ""
   
-  def getHeaderLabel(self, isPrimary):
+  def getHeaderLabel(self, width, isPrimary):
     """
     Provides labeling presented at the top of the graph.
-    """
-    
-    return ""
-  
-  def getFooterLabel(self, isPrimary):
-    """
-    Provides labeling present at the bottom of the graph.
     """
     
     return ""
@@ -184,7 +178,7 @@ class GraphPanel(util.Panel):
       if not self.lock.acquire(False): return
       try:
         self.clear()
-        graphCol = min(self.maxX / 2, MAX_GRAPH_COL)
+        graphCol = min((self.maxX - 10) / 2, MAX_GRAPH_COL)
         
         if self.currentDisplay:
           param = self.stats[self.currentDisplay]
@@ -194,7 +188,7 @@ class GraphPanel(util.Panel):
           if self.showLabel: self.addstr(0, 0, param.getTitle(self.maxX), util.LABEL_ATTR)
           
           # top labels
-          left, right = param.getHeaderLabel(True), param.getHeaderLabel(False)
+          left, right = param.getHeaderLabel(self.maxX / 2, True), param.getHeaderLabel(self.maxX / 2, False)
           if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
           if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
           
@@ -205,8 +199,8 @@ class GraphPanel(util.Panel):
             primaryBound = param.maxPrimary[self.updateInterval]
             secondaryBound = param.maxSecondary[self.updateInterval]
           elif self.bounds == BOUNDS_TIGHT:
-            for value in param.primaryCounts[self.updateInterval][1:]: primaryBound = max(value, primaryBound)
-            for value in param.secondaryCounts[self.updateInterval][1:]: secondaryBound = max(value, secondaryBound)
+            for value in param.primaryCounts[self.updateInterval][1:graphCol + 1]: primaryBound = max(value, primaryBound)
+            for value in param.secondaryCounts[self.updateInterval][1:graphCol + 1]: secondaryBound = max(value, secondaryBound)
           
           # displays bound
           self.addstr(2, 0, "%4s" % str(int(primaryBound)), primaryColor)
@@ -224,11 +218,29 @@ class GraphPanel(util.Panel):
             colHeight = min(5, 5 * param.secondaryCounts[self.updateInterval][col + 1] / max(1, secondaryBound))
             for row in range(colHeight): self.addstr(7 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
           
-          # bottom labels
-          left, right = param.getFooterLabel(True), param.getFooterLabel(False)
-          if left: self.addstr(8, 1, left, primaryColor)
-          if right: self.addstr(8, graphCol + 6, right, secondaryColor)
+          # bottom labeling of x-axis
+          intervalSec = 1
+          for (label, timescale) in UPDATE_INTERVALS:
+            if label == self.updateInterval: intervalSec = timescale
           
+          intervalSpacing = 10 if graphCol >= WIDE_LABELING_GRAPH_COL else 5
+          unitsLabel, decimalPrecision = None, 0
+          for i in range(1, (graphCol + intervalSpacing - 4) / intervalSpacing):
+            loc = i * intervalSpacing
+            timeLabel = util.getTimeLabel(loc * intervalSec, decimalPrecision)
+            
+            if not unitsLabel: unitsLabel = timeLabel[-1]
+            elif unitsLabel != timeLabel[-1]:
+              # upped scale so also up precision of future measurements
+              unitsLabel = timeLabel[-1]
+              decimalPrecision += 1
+            else:
+              # if constrained on space then strips labeling since already provided
+              timeLabel = timeLabel[:-1]
+            
+            self.addstr(8, 4 + loc, timeLabel, primaryColor)
+            self.addstr(8, graphCol + 10 + loc, timeLabel, secondaryColor)
+            
           # allows for finishing touches by monitor
           param.redraw(self)
           

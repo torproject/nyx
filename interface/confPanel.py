@@ -76,7 +76,7 @@ class ConfPanel(util.Panel):
             numOffset = numFieldWidth + 1
           
           command, argument, comment = "", "", ""
-          if not lineText: continue # no text
+          if not lineText: pass # no text
           elif lineText[0] == "#":
             # whole line is commented out
             comment = lineText

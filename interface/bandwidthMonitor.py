@@ -11,6 +11,10 @@ import util
 DL_COLOR = "green"  # download section color
 UL_COLOR = "cyan"   # upload section color
 
+# width at which panel abandons placing optional stats (avg and total) with
+# header in favor of replacing the x-axis label
+COLLAPSE_WIDTH = 120
+
 class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
   Tor event listener, taking bandwidth sampling to draw a bar graph. This is
@@ -42,6 +46,18 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     self._processEvent(event.read / 1024.0, event.written / 1024.0)
   
   def redraw(self, panel):
+    # if display is narrow, overwrites x-axis labels with avg / total stats
+    if panel.maxX <= COLLAPSE_WIDTH:
+      # clears line
+      panel.addstr(8, 0, " " * 200)
+      graphCol = min((panel.maxX - 10) / 2, graphPanel.MAX_GRAPH_COL)
+      
+      primaryFooter = "%s, %s" % (self._getAvgLabel(True), self._getTotalLabel(True))
+      secondaryFooter = "%s, %s" % (self._getAvgLabel(False), self._getTotalLabel(False))
+      
+      panel.addstr(8, 1, primaryFooter, util.getColor(self.primaryColor))
+      panel.addstr(8, graphCol + 6, secondaryFooter, util.getColor(self.secondaryColor))
+    
     # provides accounting stats if enabled
     if self.isAccounting:
       if not self.isPaused: self._updateAccountingInfo()
@@ -68,14 +84,37 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     
     return labelContents
   
-  def getHeaderLabel(self, isPrimary):
-    if isPrimary: return "Downloaded (%s/sec):" % util.getSizeLabel(self.lastPrimary * 1024)
-    else: return "Uploaded (%s/sec):" % util.getSizeLabel(self.lastSecondary * 1024)
-  
-  def getFooterLabel(self, isPrimary):
+  def getHeaderLabel(self, width, isPrimary):
+    graphType = "Downloaded" if isPrimary else "Uploaded"
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    avg = total / max(1, self.tick)
-    return "avg: %s/sec, total: %s" % (util.getSizeLabel(avg * 1024), util.getSizeLabel(total * 1024))
+    stats = [""]
+    
+    # conditional is to avoid flickering as stats change size for tty terminals
+    if width * 2 > COLLAPSE_WIDTH:
+      stats = [""] * 3
+      stats[1] = "- %s" % self._getAvgLabel(isPrimary)
+      stats[2] = ", %s" % self._getTotalLabel(isPrimary)
+    
+    stats[0] = "%-14s" % ("%s/sec" % util.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1))
+    
+    labeling = graphType + " (" + "".join(stats).strip() + "):"
+    while (len(labeling) >= width):
+      if len(stats) > 1:
+        del stats[-1]
+        labeling = graphType + " (" + "".join(stats).strip() + "):"
+      else:
+        labeling = graphType + ":"
+        break
+    
+    return labeling
+  
+  def _getAvgLabel(self, isPrimary):
+    total = self.primaryTotal if isPrimary else self.secondaryTotal
+    return "avg: %s/sec" % util.getSizeLabel((total / max(1, self.tick)) * 1024, 1)
+  
+  def _getTotalLabel(self, isPrimary):
+    total = self.primaryTotal if isPrimary else self.secondaryTotal
+    return "total: %s" % util.getSizeLabel(total * 1024, 1)
   
   def _updateAccountingInfo(self):
     """

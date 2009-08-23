@@ -19,7 +19,7 @@ SIG_START_KEYS = ["-----BEGIN RSA PUBLIC KEY-----", "-----BEGIN SIGNATURE-----"]
 SIG_END_KEYS = ["-----END RSA PUBLIC KEY-----", "-----END SIGNATURE-----"]
 
 UNRESOLVED_MSG = "No consensus data available"
-ERROR_MSG = "Unable to retrieve consensus data"
+ERROR_MSG = "Unable to retrieve data"
 
 class PopupProperties:
   """
@@ -50,14 +50,19 @@ class PopupProperties:
         nsCommand = "ns/id/%s" % fingerprint
         self.text.append(nsCommand)
         self.text = self.text + self.conn.get_info(nsCommand)[nsCommand].split("\n")
-        
+      except TorCtl.ErrorReply:
+        self.text = self.text + [ERROR_MSG, ""]
+      except TorCtl.TorCtlClosed:
+        self.text = self.text + [ERROR_MSG, ""]
+      
+      try:
         descCommand = "desc/id/%s" % fingerprint
         self.text.append(descCommand)
         self.text = self.text + self.conn.get_info(descCommand)[descCommand].split("\n")
       except TorCtl.ErrorReply:
-        self.fingerprint = None
-        self.showLineNum = False
-        self.text.append(ERROR_MSG)
+        self.text = self.text + [ERROR_MSG]
+      except TorCtl.TorCtlClosed:
+        self.text = self.text + [ERROR_MSG]
   
   def handleKey(self, key, height):
     if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
@@ -80,7 +85,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
   try:
     while isVisible:
       selection = connectionPanel.cursorSelection
-      if not selection: break
+      if not selection or not connectionPanel.connections: break
       fingerprint = connectionPanel.getFingerprint(selection[connPanel.CONN_F_IP], selection[connPanel.CONN_F_PORT])
       entryColor = connPanel.TYPE_COLORS[selection[connPanel.CONN_TYPE]]
       properties.reset(fingerprint, entryColor)
@@ -128,6 +133,13 @@ def draw(popup, properties):
     else: popup.addstr(0, 0, "Consensus Descriptor:", util.LABEL_ATTR)
     
     isEncryption = False          # true if line is part of an encryption block
+    
+    # checks if first line is in an encryption block
+    for i in range(0, properties.scroll):
+      lineText = properties.text[i].strip()
+      if lineText in SIG_START_KEYS: isEncryption = True
+      elif lineText in SIG_END_KEYS: isEncryption = False
+    
     pageHeight = popup.maxY - 2
     numFieldWidth = int(math.log10(len(properties.text))) + 1
     lineNum = 1

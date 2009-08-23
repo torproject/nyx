@@ -38,6 +38,8 @@ Not really, but it's discouraged. The original plan for arm included a special e
 
 Yes - arm is a passive listener with one exception. The second page (connections) provides the hostnames of Tor relays you're connected to. This means reverse DNS lookups which, if monitored, could leak your current connections to an eavesdropper. However, lookups are only made upon request (when showing connection details or listing connections by hostname) and you can disable lookups entirely with 'r' - see the page's help for the current status.
 
+That said, this is a non-issue. ISPs and anyone sniffing your connection already has this data - the only difference is that instead of saying "I am talking to x" you're saying "I'm talking to x. who's x?"
+
 > When arm starts it gives "Unable to resolve tor pid, abandoning connection listing"... why?
 
 If you're running multiple instances of tor then arm needs to figure out which pid belongs to the open control port. If it's running as a different user (such as being in a chroot jail) then it's probably failing due to permission issues. Arm still runs, just no connection listing or ps stats.

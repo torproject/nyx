@@ -8,6 +8,10 @@ from TorCtl import TorCtl
 
 import util
 
+# minimum width for which panel attempts to double up contents (two columns to
+# better use screen real estate)
+MIN_DUAL_ROW_WIDTH = 140
+
 FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red",    "Exit": "cyan",
                "Fast": "yellow",      "Guard": "green",     "HSDir": "magenta",       "Named": "blue",
                "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
@@ -37,7 +41,18 @@ class HeaderPanel(util.Panel):
     self.vals = {"pid": torPid}     # mapping of information to be presented
     self.conn = conn                # Tor control port connection
     self.isPaused = False
+    self.isWide = False             # doubles up parameters to shorten section if room's available
     self._updateParams()
+  
+  def recreate(self, stdscr, startY, maxX=-1):
+    # might need to recreate twice so we have a window to get width
+    if not self.win: util.Panel.recreate(self, stdscr, startY, maxX)
+    
+    self._resetBounds()
+    self.isWide = self.maxX >= MIN_DUAL_ROW_WIDTH
+    self.height = 4 if self.isWide else 6
+    
+    util.Panel.recreate(self, stdscr, startY, maxX)
   
   def redraw(self):
     if self.win:
@@ -69,23 +84,49 @@ class HeaderPanel(util.Panel):
       labelStart = "%s - %s:%s, %sControl Port (" % (self.vals["Nickname"], self.vals["address"], self.vals["ORPort"], dirPortLabel)
       self.addfstr(1, 0, "%s<%s>%s</%s>): %s" % (labelStart, controlPortAuthColor, controlPortAuthLabel, controlPortAuthColor, self.vals["ControlPort"]))
       
-      # Line 3 (system usage info)
-      self.addstr(2, 0, "cpu: %s%%" % self.vals["%cpu"])
-      self.addstr(2, 13, "mem: %s (%s%%)" % (util.getSizeLabel(int(self.vals["rss"]) * 1024), self.vals["%mem"]))
-      self.addstr(2, 34, "pid: %s" % (self.vals["pid"] if self.vals["etime"] else ""))
-      self.addstr(2, 47, "uptime: %s" % self.vals["etime"])
+      # Line 3 (system usage info) - line 1 right if wide
+      y, x = 0 if self.isWide else 2, 75 if self.isWide else 0
+      self.addstr(y, x, "cpu: %s%%" % self.vals["%cpu"])
+      self.addstr(y, x + 13, "mem: %s (%s%%)" % (util.getSizeLabel(int(self.vals["rss"]) * 1024), self.vals["%mem"]))
+      self.addstr(y, x + 34, "pid: %s" % (self.vals["pid"] if self.vals["etime"] else ""))
+      self.addstr(y, x + 47, "uptime: %s" % self.vals["etime"])
       
-      # Line 4 (fingerprint)
-      self.addstr(3, 0, "fingerprint: %s" % self.vals["fingerprint"])
+      # Line 4 (fingerprint) - line 2 right if wide
+      y, x = 1 if self.isWide else 3, 75 if self.isWide else 0
+      self.addstr(y, x, "fingerprint: %s" % self.vals["fingerprint"])
       
-      # Line 5 (flags)
+      # Line 5 (flags) - line 3 left if wide
       flagLine = "flags: "
       for flag in self.vals["flags"]:
         flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
         flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
       
       if len(self.vals["flags"]) > 0: flagLine = flagLine[:-2]
-      self.addfstr(4, 0, flagLine)
+      self.addfstr(2 if self.isWide else 4, 0, flagLine)
+      
+      # Line 3 right (exit policy) - not present if not wide
+      if self.isWide:
+        exitPolicy = self.vals["ExitPolicy"]
+        
+        # adds note when default exit policy is appended
+        if exitPolicy == None: exitPolicy = "<default>"
+        elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
+          exitPolicy += ", <default>"
+        
+        policies = exitPolicy.split(", ")
+        
+        # color codes accepts to be green, rejects to be red, and default marker to be cyan
+        isSimple = len(policies) <= 2 # if policy is short then it's kept verbose, otherwise 'accept' and 'reject' keywords removed
+        for i in range(len(policies)):
+          policy = policies[i].strip()
+          displayedPolicy = policy if isSimple else policy.replace("accept", "").replace("reject", "").strip()
+          if policy.startswith("accept"): policy = "<green><b>%s</b></green>" % displayedPolicy
+          elif policy.startswith("reject"): policy = "<red><b>%s</b></red>" % displayedPolicy
+          elif policy.startswith("<default>"): policy = "<cyan><b>%s</b></cyan>" % displayedPolicy
+          policies[i] = policy
+        exitPolicy = ", ".join(policies)
+        
+        self.addfstr(2, 75, "exit policy: %s" % exitPolicy)
       
       self.refresh()
   
@@ -96,14 +137,14 @@ class HeaderPanel(util.Panel):
     
     self.isPaused = isPause
   
-  def _updateParams(self):
+  def _updateParams(self, forceReload = False):
     """
     Updates mapping of static Tor settings and system information to their
     corresponding string values. Keys include:
     info - version, *address, *fingerprint, *flags, status/version/current
     sys - sys-name, sys-os, sys-version
     ps - *%cpu, *rss, *%mem, *pid, *etime
-    config - Nickname, ORPort, DirPort, ControlPort
+    config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy
     config booleans - IsPasswordAuthSet, IsCookieAuthSet, IsAccountingEnabled
     
     * volatile parameter that'll be reset (otherwise won't be checked if
@@ -111,7 +152,7 @@ class HeaderPanel(util.Panel):
     """
     
     infoFields = ["address", "fingerprint"] # keys for which get_info will be called
-    if len(self.vals) <= 1:
+    if len(self.vals) <= 1 or forceReload:
       # first call (only contasns 'pid' mapping) - retrieve static params
       infoFields += ["version", "status/version/current"]
       
@@ -122,7 +163,7 @@ class HeaderPanel(util.Panel):
       self.vals["sys-version"] = unameVals[2]
       
       # parameters from the user's torrc
-      configFields = ["Nickname", "ORPort", "DirPort", "ControlPort"]
+      configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
       self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
       
       # simply keeps booleans for if authentication info is set

@@ -94,6 +94,20 @@ class ControlPanel(util.Panel):
       self.addstr(0, 0, msgText, msgAttr)
       self.refresh()
 
+class sighupListener(TorCtl.PostEventListener):
+  """
+  Listens for reload signal (hup), which is produced by:
+  pkill -sighup tor
+  causing the torrc and internal state to be reset.
+  """
+  
+  def __init__(self):
+    TorCtl.PostEventListener.__init__(self)
+    self.isReset = False
+  
+  def msg_event(self, event):
+    self.isReset |= event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)")
+
 def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
   """
   Resets the isPaused state of panels. If overwrite is True then this pauses
@@ -255,16 +269,17 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   panels["graph"].setStats("bandwidth")
   
   # listeners that update bandwidth and log panels with Tor status
+  sighupTracker = sighupListener()
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["graph"].stats["connection count"])
   conn.add_event_listener(panels["conn"])
+  conn.add_event_listener(sighupTracker)
   
   # tells Tor to listen to the events we're interested
   loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
-  oldY, oldX = -1, -1
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
   page = 0
@@ -278,21 +293,30 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     cursesLock.acquire()
     try:
       y, x = stdscr.getmaxyx()
-      if x > oldX or y > oldY:
-        # gives panels a chance to take advantage of the maximum bounds
-        startY = 0
-        for panelKey in PAGE_S[:2]:
-          panels[panelKey].recreate(stdscr, startY)
-          startY += panels[panelKey].height
+      
+      # if sighup received then reload related information
+      if sighupTracker.isReset:
+        panels["header"]._updateParams(True)
+        panels["torrc"].reset()
+        sighupTracker.isReset = False
+      
+      # gives panels a chance to take advantage of the maximum bounds
+      # originally this checked in the bounds changed but 'recreate' is a no-op
+      # if panel properties are unchanged and checking every redraw is more
+      # resilient in case of funky changes (such as resizing during popups)
+      startY = 0
+      for panelKey in PAGE_S[:2]:
+        panels[panelKey].recreate(stdscr, startY)
+        startY += panels[panelKey].height
+      
+      panels["popup"].recreate(stdscr, startY, 80)
+      
+      for panelSet in PAGES:
+        tmpStartY = startY
         
-        panels["popup"].recreate(stdscr, startY, 80)
-        
-        for panelSet in PAGES:
-          tmpStartY = startY
-          
-          for panelKey in panelSet:
-            panels[panelKey].recreate(stdscr, tmpStartY)
-            tmpStartY += panels[panelKey].height
+        for panelKey in panelSet:
+          panels[panelKey].recreate(stdscr, tmpStartY)
+          tmpStartY += panels[panelKey].height
       
       # if it's been at least ten seconds since the last BW event Tor's probably done
       if not isUnresponsive and panels["log"].getHeartbeat() >= 10:
@@ -311,13 +335,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
       for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()
-      oldY, oldX = y, x
       stdscr.refresh()
     finally:
       cursesLock.release()
     
     key = stdscr.getch()
     if key == ord('q') or key == ord('Q'):
+      # quits arm
+      # very occasionally stderr gets "close failed: [Errno 11] Resource temporarily unavailable"
+      # this appears to be a python bug: http://bugs.python.org/issue3014
       daemonThreads = panels["conn"].resolver.threadPool
       
       # sets halt flags for all worker daemon threads
@@ -435,7 +461,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       if selection != -1 and selection != initialSelection:
         if selection == 0: panels["graph"].setStats(None)
         else: panels["graph"].setStats(options[selection].lower())
-        oldY = -1 # force resize event
     elif page == 0 and (key == ord('i') or key == ord('I')):
       # provides menu to pick graph panel update interval
       options = [label for (label, intervalTime) in graphPanel.UPDATE_INTERVALS]
@@ -543,7 +568,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(0, 0, "Connection Details:", util.LABEL_ATTR)
           
           selection = panels["conn"].cursorSelection
-          if not selection: break
+          if not selection or not panels["conn"].connections: break
           selectionColor = connPanel.TYPE_COLORS[selection[connPanel.CONN_TYPE]]
           format = util.getColor(selectionColor) | curses.A_BOLD
           
@@ -583,7 +608,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
               matchings = panels["conn"].fingerprintMappings[selectedIp]
               
               line = 4
-              for (matchPort, matchFingerprint) in matchings:
+              for (matchPort, matchFingerprint, matchNickname) in matchings:
                 popup.addstr(line, 2, "%i. or port: %-5s fingerprint: %s" % (line - 3, matchPort, matchFingerprint), format)
                 line += 1
                 
@@ -592,46 +617,50 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
                   break
           else:
             # fingerprint found - retrieve related data
+            lookupErrored = False
             if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
             else:
-              # ns lookup fails... weird
+              # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
               try: nsData = conn.get_network_status("id/%s" % fingerprint)
-              except TorCtl.ErrorReply: break
-              except TorCtl.TorCtlClosed: break
+              except TorCtl.ErrorReply: lookupErrored = True
+              except TorCtl.TorCtlClosed: lookupErrored = True
               
-              if len(nsData) > 1:
-                # multiple records for fingerprint (shouldn't happen)
-                panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
+              if not lookupErrored:
+                if len(nsData) > 1:
+                  # multiple records for fingerprint (shouldn't happen)
+                  panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
+                
+                nsEntry = nsData[0]
+                
+                try:
+                  descLookupCmd = "desc/id/%s" % fingerprint
+                  descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+                  relayLookupCache[selection] = (nsEntry, descEntry)
+                except TorCtl.ErrorReply: lookupErrored = True # desc lookup failed
+            
+            if lookupErrored:
+              popup.addstr(3, 2, "Unable to retrieve consensus data", format)
+            else:
+              popup.addstr(2, 15, "fingerprint: %s" % fingerprint, format)
               
-              nsEntry = nsData[0]
+              nickname = panels["conn"].getNickname(selectedIp, selectedPort)
+              dirPortLabel = "dirport: %i" % nsEntry.dirport if nsEntry.dirport else ""
+              popup.addstr(3, 2, "nickname: %-25s orport: %-10i %s" % (nickname, nsEntry.orport, dirPortLabel), format)
               
-              try:
-                descLookupCmd = "desc/id/%s" % fingerprint
-                descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
-              except TorCtl.ErrorReply: break # desc lookup fails... also weird
+              popup.addstr(4, 2, "published: %-24s os: %-14s version: %s" % (descEntry.published, descEntry.os, descEntry.version), format)
+              popup.addstr(5, 2, "flags: %s" % ", ".join(nsEntry.flags), format)
               
-              relayLookupCache[selection] = (nsEntry, descEntry)
-            
-            popup.addstr(2, 15, "fingerprint: %s" % fingerprint, format)
-            
-            nickname = panels["conn"].getNickname(selectedIp, selectedPort)
-            dirPortLabel = "dirport: %i" % nsEntry.dirport if nsEntry.dirport else ""
-            popup.addstr(3, 2, "nickname: %-25s orport: %-10i %s" % (nickname, nsEntry.orport, dirPortLabel), format)
-            
-            popup.addstr(4, 2, "published: %-24s os: %-14s version: %s" % (descEntry.published, descEntry.os, descEntry.version), format)
-            popup.addstr(5, 2, "flags: %s" % ", ".join(nsEntry.flags), format)
-            
-            exitLine = ", ".join([str(k) for k in descEntry.exitpolicy])
-            if len(exitLine) > 63: exitLine = "%s..." % exitLine[:60]
-            popup.addstr(6, 2, "exit policy: %s" % exitLine, format)
-            
-            if descEntry.contact:
-              # clears up some common obscuring
-              contactAddr = descEntry.contact
-              obscuring = [(" at ", "@"), (" AT ", "@"), ("AT", "@"), (" dot ", "."), (" DOT ", ".")]
-              for match, replace in obscuring: contactAddr = contactAddr.replace(match, replace)
-              if len(contactAddr) > 67: contactAddr = "%s..." % contactAddr[:64]
-              popup.addstr(7, 2, "contact: %s" % contactAddr, format)
+              exitLine = ", ".join([str(k) for k in descEntry.exitpolicy])
+              if len(exitLine) > 63: exitLine = "%s..." % exitLine[:60]
+              popup.addstr(6, 2, "exit policy: %s" % exitLine, format)
+              
+              if descEntry.contact:
+                # clears up some common obscuring
+                contactAddr = descEntry.contact
+                obscuring = [(" at ", "@"), (" AT ", "@"), ("AT", "@"), (" dot ", "."), (" DOT ", ".")]
+                for match, replace in obscuring: contactAddr = contactAddr.replace(match, replace)
+                if len(contactAddr) > 67: contactAddr = "%s..." % contactAddr[:64]
+                popup.addstr(7, 2, "contact: %s" % contactAddr, format)
           
           popup.refresh()
           key = stdscr.getch()

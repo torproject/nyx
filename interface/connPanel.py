@@ -6,6 +6,7 @@ import os
 import time
 import socket
 import curses
+from threading import RLock
 from TorCtl import TorCtl
 
 import hostnameResolver
@@ -16,7 +17,7 @@ LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
 LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
 # attributes for connection types
-TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red", "localhost": "cyan"}
+TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red", "localhost": "yellow"}
 TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2, "localhost": 3} # defines ordering
 
 # enums for indexes of ConnPanel 'connections' fields
@@ -94,14 +95,17 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.showLabel = True           # shows top label if true, hides otherwise
     self.showingDetails = False     # augments display to accomidate details window if true
     self.lastUpdate = -1            # time last stats was retrived
+    self.localhostEntry = None      # special connection - tuple with (entry for this node, fingerprint)
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.isPaused = False
     self.resolver = hostnameResolver.HostnameResolver()
     self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
     self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
-    self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, OR identity), ...]
+    self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, fingerprint, nickname), ...]
     self.nickname = self.conn.get_option("Nickname")[0][1]
     self.providedGeoipWarning = False
+    self.orconnStatusCache = []           # cache for 'orconn-status' calls
+    self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
     
     self.isCursorEnabled = True
     self.cursorSelection = None
@@ -115,6 +119,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     # netstat results are tuples of the form:
     # (type, local IP, local port, foreign IP, foreign port, country code)
     self.connections = []
+    self.connectionsLock = RLock()    # limits modifications of connections
     
     # count of total inbound, outbound, and control connections
     self.connectionCount = [0, 0, 0]
@@ -123,12 +128,15 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
   
   # when consensus changes update fingerprint mappings
   def new_consensus_event(self, event):
+    self.orconnStatusCacheValid = False
     self.fingerprintLookupCache.clear()
     self.nicknameLookupCache.clear()
     self.fingerprintMappings = _getFingerprintMappings(self.conn, event.nslist)
     if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def new_desc_event(self, event):
+    self.orconnStatusCacheValid = False
+    
     for fingerprint in event.idlist:
       # clears entries with this fingerprint from the cache
       if fingerprint in self.fingerprintLookupCache.values():
@@ -150,17 +158,17 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       if nsEntry.ip in self.fingerprintMappings.keys():
         # if entry already exists with the same orport, remove it
         orportMatch = None
-        for entryPort, entryFingerprint in self.fingerprintMappings[nsEntry.ip]:
+        for entryPort, entryFingerprint, entryNickname in self.fingerprintMappings[nsEntry.ip]:
           if entryPort == nsEntry.orport:
-            orportMatch = (entryPort, entryFingerprint)
+            orportMatch = (entryPort, entryFingerprint, entryNickname)
             break
         
         if orportMatch: self.fingerprintMappings[nsEntry.ip].remove(orportMatch)
         
         # add new entry
-        self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhex))
+        self.fingerprintMappings[nsEntry.ip].append((nsEntry.orport, nsEntry.idhex, nsEntry.nickname))
       else:
-        self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhex)]
+        self.fingerprintMappings[nsEntry.ip] = [(nsEntry.orport, nsEntry.idhex, nsEntry.nickname)]
     if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def reset(self):
@@ -169,69 +177,77 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     """
     
     if self.isPaused or not self.pid: return
-    self.connections = []
-    self.connectionCount = [0, 0, 0]
-    
-    # looks at netstat for tor with stderr redirected to /dev/null, options are:
-    # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
-    netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.pid)
+    self.connectionsLock.acquire()
     try:
-      results = netstatCall.readlines()
+      self.connections = []
+      self.connectionCount = [0, 0, 0]
       
-      for line in results:
-        if not line.startswith("tcp"): continue
-        param = line.split()
-        local, foreign = param[3], param[4]
-        localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
-        localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
-        
-        if localPort in (self.orPort, self.dirPort):
-          type = "inbound"
-          self.connectionCount[0] += 1
-        elif localPort == self.controlPort:
-          type = "control"
-          self.connectionCount[2] += 1
-        else:
-          type = "outbound"
-          self.connectionCount[1] += 1
-        
-        try:
-          countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
-          countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-        except socket.error:
-          countryCode = "??"
-          if not self.providedGeoipWarning:
-            self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
-            self.providedGeoipWarning = True
-        
-        self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
-    except IOError:
-      # netstat call failed
-      self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
-    
-    # appends localhost connection to allow user to look up their own consensus entry
-    selfAddress, selfPort, selfFingerprint = None, None, None
-    try:
-      selfAddress = self.conn.get_info("address")["address"]
-      selfPort = self.conn.get_option("ORPort")[0][1]
-      selfFingerprint = self.conn.get_info("fingerprint")["fingerprint"]
-    except TorCtl.ErrorReply: pass
-    except TorCtl.TorCtlClosed: pass
-    except socket.error: pass
-    
-    if selfAddress and selfPort and selfFingerprint:
+      # looks at netstat for tor with stderr redirected to /dev/null, options are:
+      # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
+      netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.pid)
       try:
-        countryCodeQuery = "ip-to-country/%s" % selfAddress
-        selfCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-      except socket.error:
-        selfCountryCode = "??"
-      self.connections.append(("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode))
-    
-    netstatCall.close()
-    self.lastUpdate = time.time()
-    
-    # hostnames are sorted at redraw - otherwise now's a good time
-    if self.listingType != LIST_HOSTNAME: self.sortConnections()
+        results = netstatCall.readlines()
+        
+        for line in results:
+          if not line.startswith("tcp"): continue
+          param = line.split()
+          local, foreign = param[3], param[4]
+          localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
+          localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
+          
+          if localPort in (self.orPort, self.dirPort):
+            type = "inbound"
+            self.connectionCount[0] += 1
+          elif localPort == self.controlPort:
+            type = "control"
+            self.connectionCount[2] += 1
+          else:
+            type = "outbound"
+            self.connectionCount[1] += 1
+          
+          try:
+            countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
+            countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+          except socket.error:
+            countryCode = "??"
+            if not self.providedGeoipWarning:
+              self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
+              self.providedGeoipWarning = True
+          
+          self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
+      except IOError:
+        # netstat call failed
+        self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
+      
+      # appends localhost connection to allow user to look up their own consensus entry
+      selfAddress, selfPort, selfFingerprint = None, None, None
+      try:
+        selfAddress = self.conn.get_info("address")["address"]
+        selfPort = self.conn.get_option("ORPort")[0][1]
+        selfFingerprint = self.conn.get_info("fingerprint")["fingerprint"]
+      except TorCtl.ErrorReply: pass
+      except TorCtl.TorCtlClosed: pass
+      except socket.error: pass
+      
+      if selfAddress and selfPort and selfFingerprint:
+        try:
+          countryCodeQuery = "ip-to-country/%s" % selfAddress
+          selfCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+        except socket.error:
+          selfCountryCode = "??"
+        
+        self.localhostEntry = (("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode), selfFingerprint)
+        self.connections.append(self.localhostEntry[0])
+      else:
+        self.localhostEntry = None
+      
+      netstatCall.close()
+      self.lastUpdate = time.time()
+      
+      # hostnames are sorted at redraw - otherwise now's a good time
+      if self.listingType != LIST_HOSTNAME: self.sortConnections()
+    finally:
+      self.connectionsLock.release()
   
   def handleKey(self, key):
     # cursor or scroll movement
@@ -240,27 +256,31 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       pageHeight = self.maxY - 1
       if self.showingDetails: pageHeight -= 8
       
-      # determines location parameter to use
-      if self.isCursorEnabled:
-        try: currentLoc = self.connections.index(self.cursorSelection)
-        except ValueError: currentLoc = self.cursorLoc # fall back to nearby entry
-      else: currentLoc = self.scroll
-      
-      # location offset
-      if key == curses.KEY_UP: shift = -1
-      elif key == curses.KEY_DOWN: shift = 1
-      elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if self.isCursorEnabled else -pageHeight
-      elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if self.isCursorEnabled else pageHeight
-      newLoc = currentLoc + shift
-      
-      # restricts to valid bounds
-      maxLoc = len(self.connections) - 1 if self.isCursorEnabled else len(self.connections) - pageHeight
-      newLoc = max(0, min(newLoc, maxLoc))
-      
-      # applies to proper parameter
-      if self.isCursorEnabled and self.connections:
-        self.cursorSelection, self.cursorLoc = self.connections[newLoc], newLoc
-      else: self.scroll = newLoc
+      self.connectionsLock.acquire()
+      try:
+        # determines location parameter to use
+        if self.isCursorEnabled:
+          try: currentLoc = self.connections.index(self.cursorSelection)
+          except ValueError: currentLoc = self.cursorLoc # fall back to nearby entry
+        else: currentLoc = self.scroll
+        
+        # location offset
+        if key == curses.KEY_UP: shift = -1
+        elif key == curses.KEY_DOWN: shift = 1
+        elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if self.isCursorEnabled else -pageHeight
+        elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if self.isCursorEnabled else pageHeight
+        newLoc = currentLoc + shift
+        
+        # restricts to valid bounds
+        maxLoc = len(self.connections) - 1 if self.isCursorEnabled else len(self.connections) - pageHeight
+        newLoc = max(0, min(newLoc, maxLoc))
+        
+        # applies to proper parameter
+        if self.isCursorEnabled and self.connections:
+          self.cursorSelection, self.cursorLoc = self.connections[newLoc], newLoc
+        else: self.scroll = newLoc
+      finally:
+        self.connectionsLock.release()
     elif key == ord('c') or key == ord('C'):
       self.isCursorEnabled = not self.isCursorEnabled
     elif key == ord('r') or key == ord('R'):
@@ -273,6 +293,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
   def redraw(self):
     if self.win:
       if not self.lock.acquire(False): return
+      self.connectionsLock.acquire()
       try:
         # hostnames frequently get updated so frequent sorting needed
         if self.listingType == LIST_HOSTNAME: self.sortConnections()
@@ -341,6 +362,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         self.refresh()
       finally:
         self.lock.release()
+        self.connectionsLock.release()
   
   def getFingerprint(self, ipAddr, port):
     """
@@ -349,20 +371,35 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     returns "UNKNOWN".
     """
     
+    # checks to see if this matches the localhost entry
+    if self.localhostEntry and ipAddr == self.localhostEntry[0][CONN_L_IP] and port == self.localhostEntry[0][CONN_L_PORT]:
+      return self.localhostEntry[1]
+    
     port = int(port)
     if (ipAddr, port) in self.fingerprintLookupCache:
       return self.fingerprintLookupCache[(ipAddr, port)]
     else:
       match = None
       
+      # orconn-status provides a listing of Tor's current connections - used to
+      # eliminated ambiguity for inbound connections
+      if not self.orconnStatusCacheValid:
+        self.orconnStatusCache, isOdd = [], True
+        self.orconnStatusCacheValid = True
+        try:
+          for entry in self.conn.get_info("orconn-status")["orconn-status"].split():
+            if isOdd: self.orconnStatusCache.append(entry)
+            isOdd = not isOdd
+        except TorCtl.TorCtlClosed: self.orconnStatusCache = None
+        except TorCtl.ErrorReply: self.orconnStatusCache = None
+      
       if ipAddr in self.fingerprintMappings.keys():
         potentialMatches = self.fingerprintMappings[ipAddr]
         
         if len(potentialMatches) == 1: match = potentialMatches[0][1]
-        
-        if not match:
+        else:
           # multiple potential matches - look for exact match with port
-          for (entryPort, entryFingerprint) in potentialMatches:
+          for (entryPort, entryFingerprint, entryNickname) in potentialMatches:
             if entryPort == port:
               match = entryFingerprint
               break
@@ -374,21 +411,29 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           # ... list a bandwidth of 0
           # ... have 'opt hibernating' set
           operativeMatches = list(potentialMatches)
-          for (entryPort, entryFingerprint) in potentialMatches:
+          for entryPort, entryFingerprint, entryNickname in potentialMatches:
             # gets router description to see if 'down' is set
+            toRemove = False
             try:
               nsData = self.conn.get_network_status("id/%s" % entryFingerprint)
-              if len(nsData) != 1: continue # ns lookup failed... weird
+              if len(nsData) != 1: raise TorCtl.ErrorReply() # ns lookup failed... weird
               else: nsEntry = nsData[0]
               
               descLookupCmd = "desc/id/%s" % entryFingerprint
               descEntry = TorCtl.Router.build_from_desc(self.conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
-              if descEntry.down: operativeMatches.remove((entryPort, entryFingerprint))
+              toRemove = descEntry.down
             except TorCtl.ErrorReply: pass # ns or desc lookup fails... also weird
+            
+            # eliminates connections not reported by orconn-status -
+            # this has *very* little impact since few ips have multiple relays
+            if self.orconnStatusCache and not toRemove: toRemove = entryNickname not in self.orconnStatusCache
+            
+            if toRemove: operativeMatches.remove((entryPort, entryFingerprint, entryNickname))
           
           if len(operativeMatches) == 1: match = operativeMatches[0][1]
-          
+      
       if not match: match = "UNKNOWN"
+      
       self.fingerprintLookupCache[(ipAddr, port)] = match
       return match
   
@@ -451,7 +496,9 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         sorts.append(lambda x, y: cmp(listingWrapper(x[CONN_L_IP] if x[CONN_TYPE] == "inbound" else x[CONN_F_IP], x[CONN_F_PORT]), listingWrapper(y[CONN_L_IP] if y[CONN_TYPE] == "inbound" else y[CONN_F_IP], y[CONN_F_PORT])))
       else: sorts.append(SORT_TYPES[entry][2])
     
-    self.connections.sort(lambda x, y: _multisort(x, y, sorts))
+    self.connectionsLock.acquire()
+    try: self.connections.sort(lambda x, y: _multisort(x, y, sorts))
+    finally: self.connectionsLock.release()
 
 # recursively checks primary, secondary, and tertiary sorting parameter in ties
 def _multisort(conn1, conn2, sorts):
@@ -476,8 +523,8 @@ def _getFingerprintMappings(conn, nsList = None):
     except TorCtl.TorCtlClosed: nsList = []
   
   for entry in nsList:
-    if entry.ip in ipToFingerprint.keys(): ipToFingerprint[entry.ip].append((entry.orport, entry.idhex))
-    else: ipToFingerprint[entry.ip] = [(entry.orport, entry.idhex)]
+    if entry.ip in ipToFingerprint.keys(): ipToFingerprint[entry.ip].append((entry.orport, entry.idhex, entry.nickname))
+    else: ipToFingerprint[entry.ip] = [(entry.orport, entry.idhex, entry.nickname)]
   
   return ipToFingerprint
 

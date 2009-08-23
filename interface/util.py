@@ -60,16 +60,29 @@ def getColor(color):
   
   return COLOR_ATTR[color]
 
-def getSizeLabel(bytes):
+def getSizeLabel(bytes, decimal = 0):
   """
   Converts byte count into label in its most significant units, for instance
   7500 bytes would return "7 KB".
   """
   
-  if bytes >= 1073741824: return "%i GB" % (bytes / 1073741824)
-  elif bytes >= 1048576: return "%i MB" % (bytes / 1048576)
-  elif bytes >= 1024: return "%i KB" % (bytes / 1024)
+  format = "%%.%if" % decimal
+  if bytes >= 1073741824: return (format + " GB") % (bytes / 1073741824.0)
+  elif bytes >= 1048576: return (format + " MB") % (bytes / 1048576.0)
+  elif bytes >= 1024: return (format + " KB") % (bytes / 1024.0)
   else: return "%i bytes" % bytes
+
+def getTimeLabel(seconds, decimal = 0):
+  """
+  Concerts seconds into a time label truncated to its most significant units,
+  for instance 7500 seconds would return "". Units go up through days.
+  """
+  
+  format = "%%.%if" % decimal
+  if seconds >= 86400: return (format + "d") % (seconds / 86400.0)
+  elif seconds >= 3600: return (format + "h") % (seconds / 3600.0)
+  elif seconds >= 60: return (format + "m") % (seconds / 60.0)
+  else: return "%is" % seconds
 
 class Panel():
   """

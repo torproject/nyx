@@ -18,7 +18,7 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   def __init__(self, connectionPanel):
     graphPanel.GraphStats.__init__(self)
     TorCtl.PostEventListener.__init__(self)
-    graphPanel.GraphStats.initialize(self, connPanel.TYPE_COLORS["inbound"], connPanel.TYPE_COLORS["outbound"], 9)
+    graphPanel.GraphStats.initialize(self, connPanel.TYPE_COLORS["inbound"], connPanel.TYPE_COLORS["outbound"], 10)
     self.connectionPanel = connectionPanel  # connection panel, used to limit netstat calls
   
   def bandwidth_event(self, event):
@@ -54,7 +54,7 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   def getTitle(self, width):
     return "Connection Count:"
   
-  def getHeaderLabel(self, isPrimary):
+  def getHeaderLabel(self, width, isPrimary):
     avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
     if isPrimary: return "Inbound (%s, avg: %s):" % (self.lastPrimary, avg)
     else: return "Outbound (%s, avg: %s):" % (self.lastSecondary, avg)
