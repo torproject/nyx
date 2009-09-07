@@ -12,9 +12,10 @@ connections, and anyone stuck with a tty terminal for checking their relay's
 status. Releases should be stable so if you manage to make it crash (or have a 
 feature request) then please let me know!
 
-The project was originally proposed in 2008 by Jacob and Karsten 
-(http://archives.seul.org/or/dev/Jan-2008/msg00005.html). An interview by 
-Brenno Winter discussing the project is available at:
+The project was originally proposed in 2008 by Jacob and Karsten:
+  http://archives.seul.org/or/dev/Jan-2008/msg00005.html
+
+An interview by Brenno Winter discussing the project is available at:
   http://www.atagar.com/arm/HFM_INT_0001.mp3
 
 Requirements:

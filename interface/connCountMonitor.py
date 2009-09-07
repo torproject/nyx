@@ -12,13 +12,14 @@ import graphPanel
 class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
   Tracks number of connections, using cached values in connPanel if recent
-  enough (otherwise retrieved independently).
+  enough (otherwise retrieved independently). Client connections are counted
+  as outbound.
   """
   
   def __init__(self, connectionPanel):
     graphPanel.GraphStats.__init__(self)
     TorCtl.PostEventListener.__init__(self)
-    graphPanel.GraphStats.initialize(self, connPanel.TYPE_COLORS["inbound"], connPanel.TYPE_COLORS["outbound"], 10)
+    graphPanel.GraphStats.initialize(self, "green", "cyan", 10)
     self.connectionPanel = connectionPanel  # connection panel, used to limit netstat calls
   
   def bandwidth_event(self, event):
@@ -28,7 +29,7 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     if self.connectionPanel.lastUpdate + 1 >= time.time():
       # reuses netstat results if recent enough
       counts = self.connectionPanel.connectionCount
-      self._processEvent(counts[0], counts[1])
+      self._processEvent(counts[0], counts[1] + counts[2])
     else:
       # cached results stale - requery netstat
       inbound, outbound, control = 0, 0, 0

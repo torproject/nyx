@@ -3,6 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import os
+import time
 import socket
 from TorCtl import TorCtl
 
@@ -42,6 +43,7 @@ class HeaderPanel(util.Panel):
     self.conn = conn                # Tor control port connection
     self.isPaused = False
     self.isWide = False             # doubles up parameters to shorten section if room's available
+    self.lastUpdate = -1            # time last stats was retrived
     self._updateParams()
   
   def recreate(self, stdscr, startY, maxX=-1):
@@ -212,4 +214,6 @@ class HeaderPanel(util.Panel):
     
     for i in range(len(psParams)):
       self.vals[psParams[i]] = sampling[i]
+    
+    self.lastUpdate = time.time()
 

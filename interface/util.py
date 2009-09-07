@@ -75,7 +75,7 @@ def getSizeLabel(bytes, decimal = 0):
 def getTimeLabel(seconds, decimal = 0):
   """
   Concerts seconds into a time label truncated to its most significant units,
-  for instance 7500 seconds would return "". Units go up through days.
+  for instance 7500 seconds would return "2h". Units go up through days.
   """
   
   format = "%%.%if" % decimal
@@ -83,6 +83,34 @@ def getTimeLabel(seconds, decimal = 0):
   elif seconds >= 3600: return (format + "h") % (seconds / 3600.0)
   elif seconds >= 60: return (format + "m") % (seconds / 60.0)
   else: return "%is" % seconds
+
+def drawScrollBar(panel, drawTop, drawBottom, top, bottom, size):
+  """
+  Draws scroll bar reflecting position within a vertical listing. This is
+  squared off at the bottom, having a layout like:
+   | 
+  *|
+  *|
+  *|
+   |
+  -+
+  """
+  
+  barTop = (drawBottom - drawTop) * top / size
+  barSize = (drawBottom - drawTop) * (bottom - top) / size
+  
+  # makes sure bar isn't at top or bottom unless really at those extreme bounds
+  if top > 0: barTop = max(barTop, 1)
+  if bottom != size: barTop = min(barTop, drawBottom - drawTop - barSize - 2)
+  
+  for i in range(drawBottom - drawTop):
+    if i >= barTop and i <= barTop + barSize:
+      panel.addstr(i + drawTop, 0, " ", curses.A_STANDOUT)
+  
+  # draws box around scroll bar
+  panel.win.vline(drawTop, 1, curses.ACS_VLINE, panel.maxY - 2)
+  panel.win.vline(drawBottom, 1, curses.ACS_LRCORNER, 1)
+  panel.win.hline(drawBottom, 0, curses.ACS_HLINE, 1)
 
 class Panel():
   """

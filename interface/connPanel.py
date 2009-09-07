@@ -17,15 +17,15 @@ LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
 LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
 # attributes for connection types
-TYPE_COLORS = {"inbound": "green", "outbound": "blue", "control": "red", "localhost": "yellow"}
-TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "control": 2, "localhost": 3} # defines ordering
+TYPE_COLORS = {"inbound": "green", "outbound": "blue", "client": "cyan", "control": "red", "localhost": "yellow"}
+TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "client": 2, "control": 3, "localhost": 4} # defines ordering
 
 # enums for indexes of ConnPanel 'connections' fields
-CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY = range(6)
+CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY, CONN_TIME = range(7)
 
 # enums for sorting types (note: ordering corresponds to SORT_TYPES for easy lookup)
 # TODO: add ORD_BANDWIDTH -> (ORD_BANDWIDTH, "Bandwidth", lambda x, y: ???)
-ORD_TYPE, ORD_FOREIGN_LISTING, ORD_SRC_LISTING, ORD_DST_LISTING, ORD_COUNTRY, ORD_FOREIGN_PORT, ORD_SRC_PORT, ORD_DST_PORT = range(8)
+ORD_TYPE, ORD_FOREIGN_LISTING, ORD_SRC_LISTING, ORD_DST_LISTING, ORD_COUNTRY, ORD_FOREIGN_PORT, ORD_SRC_PORT, ORD_DST_PORT, ORD_TIME = range(9)
 SORT_TYPES = [(ORD_TYPE, "Connection Type",
                 lambda x, y: TYPE_WEIGHTS[x[CONN_TYPE]] - TYPE_WEIGHTS[y[CONN_TYPE]]),
               (ORD_FOREIGN_LISTING, "Listing (Foreign)", None),
@@ -38,7 +38,9 @@ SORT_TYPES = [(ORD_TYPE, "Connection Type",
               (ORD_SRC_PORT, "Port (Source)",
                 lambda x, y: int(x[CONN_F_PORT] if x[CONN_TYPE] == "inbound" else x[CONN_L_PORT]) - int(y[CONN_F_PORT] if y[CONN_TYPE] == "inbound" else y[CONN_L_PORT])),
               (ORD_DST_PORT, "Port (Dest.)",
-                lambda x, y: int(x[CONN_L_PORT] if x[CONN_TYPE] == "inbound" else x[CONN_F_PORT]) - int(y[CONN_L_PORT] if y[CONN_TYPE] == "inbound" else y[CONN_F_PORT]))]
+                lambda x, y: int(x[CONN_L_PORT] if x[CONN_TYPE] == "inbound" else x[CONN_F_PORT]) - int(y[CONN_L_PORT] if y[CONN_TYPE] == "inbound" else y[CONN_F_PORT])),
+              (ORD_TIME, "Connection Time",
+                lambda x, y: cmp(-x[CONN_TIME], -y[CONN_TIME]))]
 
 # provides bi-directional mapping of sorts with their associated labels
 def getSortLabel(sortType, withColor = False):
@@ -62,6 +64,7 @@ def getSortLabel(sortType, withColor = False):
         elif label.startswith("Port"): color = "green"
         elif label == "Bandwidth": color = "cyan"
         elif label == "Country Code": color = "yellow"
+        elif label == "Connection Time": color = "magenta"
       
       if color: return "<%s>%s</%s>" % (color, label, color)
       else: return label
@@ -106,6 +109,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.providedGeoipWarning = False
     self.orconnStatusCache = []           # cache for 'orconn-status' calls
     self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
+    self.clientConnectionCache = None     # listing of nicknames for our client connections
+    self.clientConnectionLock = RLock()   # lock for clientConnectionCache
     
     self.isCursorEnabled = True
     self.cursorSelection = None
@@ -121,10 +126,16 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.connections = []
     self.connectionsLock = RLock()    # limits modifications of connections
     
-    # count of total inbound, outbound, and control connections
-    self.connectionCount = [0, 0, 0]
+    # count of total inbound, outbound, client, and control connections
+    self.connectionCount = [0, 0, 0, 0]
     
     self.reset()
+  
+  # change in client circuits
+  def circ_status_event(self, event):
+    self.clientConnectionLock.acquire()
+    self.clientConnectionCache = None
+    self.clientConnectionLock.release()
   
   # when consensus changes update fingerprint mappings
   def new_consensus_event(self, event):
@@ -147,7 +158,9 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           if k in self.nicknameLookupCache.keys(): del self.nicknameLookupCache[k]
       
       # gets consensus data for the new description
-      nsData = self.conn.get_network_status("id/%s" % fingerprint)
+      try: nsData = self.conn.get_network_status("id/%s" % fingerprint)
+      except TorCtl.ErrorReply: return
+      
       if len(nsData) > 1:
         # multiple records for fingerprint (shouldn't happen)
         self.logger.monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
@@ -178,9 +191,18 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     
     if self.isPaused or not self.pid: return
     self.connectionsLock.acquire()
+    self.clientConnectionLock.acquire()
     try:
+      if self.clientConnectionCache == None:
+        # client connection cache was invalidated
+        self.clientConnectionCache = _getClientConnections(self.conn)
+      
+      connTimes = {} # mapping of ip/port to connection time
+      for entry in self.connections:
+        connTimes[(entry[CONN_F_IP], entry[CONN_F_PORT])] = entry[CONN_TIME]
+      
       self.connections = []
-      self.connectionCount = [0, 0, 0]
+      self.connectionCount = [0, 0, 0, 0]
       
       # looks at netstat for tor with stderr redirected to /dev/null, options are:
       # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
@@ -200,10 +222,23 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
             self.connectionCount[0] += 1
           elif localPort == self.controlPort:
             type = "control"
-            self.connectionCount[2] += 1
+            self.connectionCount[3] += 1
           else:
-            type = "outbound"
-            self.connectionCount[1] += 1
+            fingerprint = self.getFingerprint(foreignIP, foreignPort)
+            nickname = self.getNickname(foreignIP, foreignPort)
+            
+            isClient = False
+            for clientName in self.clientConnectionCache:
+              if nickname == clientName or (len(clientName) > 1 and clientName[0] == "$" and fingerprint == clientName[1:]):
+                isClient = True
+                break
+            
+            if isClient:
+              type = "client"
+              self.connectionCount[2] += 1
+            else:
+              type = "outbound"
+              self.connectionCount[1] += 1
           
           try:
             countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
@@ -214,7 +249,10 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
               self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
               self.providedGeoipWarning = True
           
-          self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode))
+          if (foreignIP, foreignPort) in connTimes: connTime = connTimes[(foreignIP, foreignPort)]
+          else: connTime = time.time()
+          
+          self.connections.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime))
       except IOError:
         # netstat call failed
         self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
@@ -236,7 +274,10 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         except socket.error:
           selfCountryCode = "??"
         
-        self.localhostEntry = (("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode), selfFingerprint)
+        if (selfAddress, selfPort) in connTimes: connTime = connTimes[(selfAddress, selfPort)]
+        else: connTime = time.time()
+        
+        self.localhostEntry = (("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode, connTime), selfFingerprint)
         self.connections.append(self.localhostEntry[0])
       else:
         self.localhostEntry = None
@@ -248,6 +289,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       if self.listingType != LIST_HOSTNAME: self.sortConnections()
     finally:
       self.connectionsLock.release()
+      self.clientConnectionLock.release()
   
   def handleKey(self, key):
     # cursor or scroll movement
@@ -281,8 +323,6 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         else: self.scroll = newLoc
       finally:
         self.connectionsLock.release()
-    elif key == ord('c') or key == ord('C'):
-      self.isCursorEnabled = not self.isCursorEnabled
     elif key == ord('r') or key == ord('R'):
       self.allowDNS = not self.allowDNS
       if not self.allowDNS: self.resolver.setPaused(True)
@@ -299,11 +339,19 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         if self.listingType == LIST_HOSTNAME: self.sortConnections()
         
         self.clear()
-        if self.showLabel: self.addstr(0, 0, "Connections (%i inbound, %i outbound, %i control):" % tuple(self.connectionCount), util.LABEL_ATTR)
+        clientCountLabel = "" if self.connectionCount[2] == 0 else "%i client, " % self.connectionCount[2]
+        if self.showLabel: self.addstr(0, 0, "Connections (%i inbound, %i outbound, %s%i control):" % (self.connectionCount[0], self.connectionCount[1], clientCountLabel, self.connectionCount[3]), util.LABEL_ATTR)
         
         if self.connections:
           listingHeight = self.maxY - 1
-          if self.showingDetails: listingHeight -= 8
+          currentTime = time.time()
+          
+          if self.showingDetails:
+            listingHeight -= 8
+            isScrollBarVisible = len(self.connections) > self.maxY - 9
+          else:
+            isScrollBarVisible = len(self.connections) > self.maxY - 1
+          xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
           
           # ensure cursor location and scroll top are within bounds
           self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
@@ -345,19 +393,24 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                 else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
                 dst = "%-41s" % dst
               else:
-                src = "%-11s" % self.nickname
+                src = "%-26s" % self.nickname
                 if entry[CONN_TYPE] == "control": dst = self.nickname
                 else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                dst = "%-41s" % dst
+                dst = "%-26s" % dst
               
               if type == "inbound": src, dst = dst, src
-              lineEntry = "<%s>%s -->   %s   (<b>%s</b>)</%s>" % (color, src, dst, type.upper(), color)
+              lineEntry = "<%s>%s -->  %s %5s (<b>%s</b>)</%s>" % (color, src, dst, util.getTimeLabel(currentTime - entry[CONN_TIME], 1), type.upper(), color)
               if self.isCursorEnabled and entry == self.cursorSelection:
                 lineEntry = "<h>%s</h>" % lineEntry
               
-              offset = 0 if not self.showingDetails else 8
-              self.addfstr(lineNum + offset, 0, lineEntry)
+              yOffset = 0 if not self.showingDetails else 8
+              self.addfstr(lineNum + yOffset, xOffset, lineEntry)
             lineNum += 1
+          
+          if isScrollBarVisible:
+            topY = 9 if self.showingDetails else 1
+            bottomEntry = self.scroll + self.maxY - 9 if self.showingDetails else self.scroll + self.maxY - 1
+            util.drawScrollBar(self, topY, self.maxY - 1, self.scroll, bottomEntry, len(self.connections))
         
         self.refresh()
       finally:
@@ -382,7 +435,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       match = None
       
       # orconn-status provides a listing of Tor's current connections - used to
-      # eliminated ambiguity for inbound connections
+      # eliminated ambiguity for outbound connections
       if not self.orconnStatusCacheValid:
         self.orconnStatusCache, isOdd = [], True
         self.orconnStatusCacheValid = True
@@ -521,10 +574,26 @@ def _getFingerprintMappings(conn, nsList = None):
   if not nsList:
     try: nsList = conn.get_network_status()
     except TorCtl.TorCtlClosed: nsList = []
+    except TorCtl.ErrorReply: nsList = []
   
   for entry in nsList:
     if entry.ip in ipToFingerprint.keys(): ipToFingerprint[entry.ip].append((entry.orport, entry.idhex, entry.nickname))
     else: ipToFingerprint[entry.ip] = [(entry.orport, entry.idhex, entry.nickname)]
   
   return ipToFingerprint
+
+# provides client relays we're currently attached to (first hops in circuits)
+# this consists of the nicknames and ${fingerprint} if unnamed
+def _getClientConnections(conn):
+  clients = []
+  
+  try:
+    for line in conn.get_info("circuit-status")["circuit-status"].split("\n"):
+      components = line.split()
+      if len(components) > 3: clients += [components[2].split(",")[0]]
+  except TorCtl.ErrorReply: pass
+  except TorCtl.TorCtlClosed: pass
+  except socket.error: pass
+  
+  return clients
 

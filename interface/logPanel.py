@@ -2,13 +2,15 @@
 # logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
+import re
 import time
+import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
 import util
 
-MAX_LOG_ENTRIES = 80                # size of log buffer (max number of entries)
+MAX_LOG_ENTRIES = 1000               # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 
 EVENT_TYPES = {
@@ -27,7 +29,7 @@ EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUT
                     k NEWCONSENSUS    u CLIENTS_SEEN
         Aliases:    A All Events      X No Events       U Unknown Events
                     DINWE Runlevel and higher severity"""
-  
+
 def expandEvents(eventAbbr):
   """
   Expands event abbreviations to their full names. Beside mappings privided in
@@ -73,19 +75,38 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   def __init__(self, lock, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
     util.Panel.__init__(self, lock, -1)
+    self.scroll = 0
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
     self.pauseBuffer = []                 # location where messages are buffered if paused
     self.loggedEvents = loggedEvents      # events we're listening to
     self.lastHeartbeat = time.time()      # time of last event
+    self.regexFilter = None               # filter for presented log events (no filtering if None)
+  
+  def handleKey(self, key):
+    # scroll movement
+    if key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
+      self._resetBounds()
+      pageHeight, shift = self.maxY - 1, 0
+      
+      # location offset
+      if key == curses.KEY_UP: shift = -1
+      elif key == curses.KEY_DOWN: shift = 1
+      elif key == curses.KEY_PPAGE: shift = -pageHeight
+      elif key == curses.KEY_NPAGE: shift = pageHeight
+      
+      # restricts to valid bounds and applies
+      maxLoc = self.getLogDisplayLength() - pageHeight
+      self.scroll = max(0, min(self.scroll + shift, maxLoc))
   
   # Listens for all event types and redirects to registerEvent
   def circ_status_event(self, event):
-    optionalParams = ""
-    if event.purpose: optionalParams += " PURPOSE: %s" % event.purpose
-    if event.reason: optionalParams += " REASON: %s" % event.reason
-    if event.remote_reason: optionalParams += " REMOTE_REASON: %s" % event.remote_reason
-    self.registerEvent("CIRC", "ID: %-3s STATUS: %-10s PATH: %s%s" % (event.circ_id, event.status, ", ".join(event.path), optionalParams), "yellow")
+    if "CIRC" in self.loggedEvents:
+      optionalParams = ""
+      if event.purpose: optionalParams += " PURPOSE: %s" % event.purpose
+      if event.reason: optionalParams += " REASON: %s" % event.reason
+      if event.remote_reason: optionalParams += " REMOTE_REASON: %s" % event.remote_reason
+      self.registerEvent("CIRC", "ID: %-3s STATUS: %-10s PATH: %s%s" % (event.circ_id, event.status, ", ".join(event.path), optionalParams), "yellow")
   
   def stream_status_event(self, event):
     # TODO: not sure how to stimulate event - needs sanity check
@@ -179,10 +200,14 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
       try:
         self.clear()
         
+        isScrollBarVisible = self.getLogDisplayLength() > self.maxY - 1
+        xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
+        
         # draws label - uses ellipsis if too long, for instance:
         # Events (DEBUG, INFO, NOTICE, WARN...):
         eventsLabel = "Events"
         eventsListing = ", ".join(self.loggedEvents)
+        filterLabel = "" if not self.regexFilter else " - filter: %s" % self.regexFilter.pattern
         
         firstLabelLen = eventsListing.find(", ")
         if firstLabelLen == -1: firstLabelLen = len(eventsListing)
@@ -190,33 +215,58 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
         
         if self.maxX > 10 + firstLabelLen:
           eventsLabel += " ("
+          
           if len(eventsListing) > self.maxX - 11:
             labelBreak = eventsListing[:self.maxX - 12].rfind(", ")
             eventsLabel += "%s..." % eventsListing[:labelBreak]
-          else: eventsLabel += eventsListing
+          elif len(eventsListing) + len(filterLabel) > self.maxX - 11:
+            eventsLabel += eventsListing
+          else: eventsLabel += eventsListing + filterLabel
           eventsLabel += ")"
         eventsLabel += ":"
         
         self.addstr(0, 0, eventsLabel, util.LABEL_ATTR)
         
         # log entries
-        lineCount = 1
+        maxLoc = self.getLogDisplayLength() - self.maxY + 1
+        self.scroll = max(0, min(self.scroll, maxLoc))
+        lineCount = 1 - self.scroll
         
         for (line, color) in self.msgLog:
+          if self.regexFilter and not self.regexFilter.search(line):
+            continue  # filter doesn't match log message - skip
+          
           # splits over too lines if too long
           if len(line) < self.maxX:
-            self.addstr(lineCount, 0, line, util.getColor(color))
+            if lineCount >= 1: self.addstr(lineCount, xOffset, line, util.getColor(color))
             lineCount += 1
           else:
-            (line1, line2) = splitLine(line, self.maxX)
-            self.addstr(lineCount, 0, line1, util.getColor(color))
-            self.addstr(lineCount + 1, 0, line2, util.getColor(color))
+            (line1, line2) = splitLine(line, self.maxX - xOffset)
+            if lineCount >= 1: self.addstr(lineCount, xOffset, line1, util.getColor(color))
+            if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, util.getColor(color))
             lineCount += 2
           
           if lineCount >= self.maxY: break # further log messages wouldn't fit
+        
+        if isScrollBarVisible: util.drawScrollBar(self, 1, self.maxY - 1, self.scroll, self.scroll + self.maxY - 1, self.getLogDisplayLength())
         self.refresh()
       finally:
         self.lock.release()
+  
+  def getLogDisplayLength(self):
+    """
+    Provides the number of lines the log would currently occupy.
+    """
+    
+    logLength = len(self.msgLog)
+    
+    # takes into account filtered and wrapped messages
+    self._resetBounds()
+    for (line, color) in self.msgLog:
+      if self.regexFilter and not self.regexFilter.search(line): logLength -= 1
+      elif len(line) >= self.maxX: logLength += 1
+    
+    return logLength
   
   def setPaused(self, isPause):
     """

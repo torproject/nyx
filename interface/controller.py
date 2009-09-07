@@ -6,6 +6,7 @@
 Curses (terminal) interface for the arm relay status monitor.
 """
 
+import re
 import os
 import time
 import curses
@@ -21,11 +22,13 @@ import descriptorPopup
 
 import util
 import bandwidthMonitor
+import cpuMemMonitor
 import connCountMonitor
 
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
                         # concurrency bugs produce especially sinister glitches)
+MAX_REGEX_FILTERS = 5   # maximum number of previous regex filters that'll be remembered
 
 # enums for message in control label
 CTL_HELP, CTL_PAUSED = range(2)
@@ -39,7 +42,7 @@ PAGES = [
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
 # events needed for panels other than the event log
-REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS"]
+REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS", "CIRC"]
 
 class ControlPanel(util.Panel):
   """ Draws single line label for interface controls. """
@@ -265,6 +268,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
+  panels["graph"].addStats("cpu / memory", cpuMemMonitor.CpuMemMonitor(panels["header"]))
   panels["graph"].addStats("connection count", connCountMonitor.ConnCountMonitor(panels["conn"]))
   panels["graph"].setStats("bandwidth")
   
@@ -272,6 +276,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   sighupTracker = sighupListener()
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
+  conn.add_event_listener(panels["graph"].stats["cpu / memory"])
   conn.add_event_listener(panels["graph"].stats["connection count"])
   conn.add_event_listener(panels["conn"])
   conn.add_event_listener(sighupTracker)
@@ -284,6 +289,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   isPaused = False          # if true updates are frozen
   page = 0
   netstatRefresh = time.time()  # time of last netstat refresh
+  regexFilters = []             # previously used log regex filters
   
   while True:
     # tried only refreshing when the screen was resized but it caused a
@@ -329,7 +335,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       
       # if it's been at least five seconds since the last refresh of connection listing, update
       currentTime = time.time()
-      if not panels["conn"].isPaused and currentTime - netstatRefresh >= 5:
+      if not panels["conn"].isPaused and (currentTime - netstatRefresh >= 5):
         panels["conn"].reset()
         netstatRefresh = currentTime
       
@@ -392,6 +398,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
           popup.addfstr(2, 2, "b: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
           popup.addstr(2, 41, "e: change logged events")
+          
+          regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
+          popup.addfstr(3, 2, "r: log regex filter (<b>%s</b>)" % regexLabel)
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -407,7 +416,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(4, 41, "r: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
           
           popup.addstr(5, 2, "s: sort ordering")
-          popup.addfstr(5, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
+          popup.addstr(5, 41, "c: client circuits")
+          #popup.addfstr(5, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
         elif page == 2:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -421,7 +431,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(3, 41, "n: line numbering (<b>%s</b>)" % lineNumLabel)
         
         popup.addstr(7, 2, "Press any key...")
-        
         popup.refresh()
         
         curses.cbreak()
@@ -503,12 +512,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         # lists event types
         popup = panels["popup"]
+        popup.height = 10
+        popup.recreate(stdscr, popup.startY, 80)
+        
         popup.clear()
+        popup.win.box()
         popup.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
         lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
           line = line[6:]
-          popup.addstr(lineNum, 0, line)
+          popup.addstr(lineNum, 1, line)
           lineNum += 1
         popup.refresh()
         
@@ -533,10 +546,82 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             panels["control"].redraw()
             time.sleep(2)
         
+        # reverts popup dimensions
+        popup.height = 9
+        popup.recreate(stdscr, popup.startY, 80)
+        
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
         setPauseState(panels, isPaused, page)
       finally:
         cursesLock.release()
+    elif page == 0 and (key == ord('r') or key == ord('R')):
+      # provides menu to pick previous regular expression filters or to add a new one
+      # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
+      options = ["None"] + regexFilters + ["New..."]
+      initialSelection = 0 if not panels["log"].regexFilter else 1
+      
+      # hides top label of the graph panel and pauses panels
+      if panels["graph"].currentDisplay:
+        panels["graph"].showLabel = False
+        panels["graph"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Log Filter:", options, initialSelection)
+      
+      # applies new setting
+      if selection == 0:
+        panels["log"].regexFilter = None
+      elif selection == len(options) - 1:
+        # selected 'New...' option - prompt user to input regular expression
+        cursesLock.acquire()
+        try:
+          # provides prompt
+          panels["control"].setMsg("Regular expression: ")
+          panels["control"].redraw()
+          
+          # makes cursor and typing visible
+          try: curses.curs_set(1)
+          except curses.error: pass
+          curses.echo()
+          
+          # gets user input (this blocks monitor updates)
+          regexInput = panels["control"].win.getstr(0, 20)
+          
+          # reverts visability settings
+          try: curses.curs_set(0)
+          except curses.error: pass
+          curses.noecho()
+          curses.halfdelay(REFRESH_RATE * 10)
+          
+          if regexInput != "":
+            try:
+              panels["log"].regexFilter = re.compile(regexInput)
+              if regexInput in regexFilters: regexFilters.remove(regexInput)
+              regexFilters = [regexInput] + regexFilters
+            except re.error, exc:
+              panels["control"].setMsg("Unable to compile expression: %s" % str(exc), curses.A_STANDOUT)
+              panels["control"].redraw()
+              time.sleep(2)
+          panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        finally:
+          cursesLock.release()
+      elif selection != -1:
+        try:
+          panels["log"].regexFilter = re.compile(regexFilters[selection - 1])
+          
+          # move selection to top
+          regexFilters = [regexFilters[selection - 1]] + regexFilters
+          del regexFilters[selection]
+        except re.error, exc:
+          # shouldn't happen since we've already checked validity
+          panels["log"].monitor_event("WARN", "Invalid regular expression ('%s': %s) - removing from listing" % (regexFilters[selection - 1], str(exc)))
+          del regexFilters[selection - 1]
+      
+      if len(regexFilters) > MAX_REGEX_FILTERS: del regexFilters[MAX_REGEX_FILTERS:]
+      
+      # reverts changes made for popup
+      panels["graph"].showLabel = True
+      setPauseState(panels, isPaused, page)
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP
@@ -797,6 +882,61 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         cursesLock.release()
+    elif page == 1 and (key == ord('c') or key == ord('C')):
+      # displays popup with client circuits
+      clientCircuits = None
+      try:
+        clientCircuits = conn.get_info("circuit-status")["circuit-status"].split("\n")
+      except TorCtl.ErrorReply: pass
+      except TorCtl.TorCtlClosed: pass
+      except socket.error: pass
+      
+      maxEntryLength = 0
+      if clientCircuits:
+        for clientEntry in clientCircuits: maxEntryLength = max(len(clientEntry), maxEntryLength)
+      
+      cursesLock.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # makes sure there's room for the longest entry
+        popup = panels["popup"]
+        popup._resetBounds()
+        if clientCircuits and maxEntryLength + 4 > popup.maxX:
+          popup.height = max(popup.height, len(clientCircuits) + 3)
+          popup.recreate(stdscr, popup.startY, maxEntryLength + 4)
+        
+        # lists commands
+        popup.clear()
+        popup.win.box()
+        popup.addstr(0, 0, "Client Circuits:", util.LABEL_ATTR)
+        
+        if clientCircuits == None:
+          popup.addstr(1, 2, "Unable to retireve current circuits")
+        elif len(clientCircuits) == 1 and clientCircuits[0] == "":
+          popup.addstr(1, 2, "No active client circuits")
+        else:
+          line = 1
+          for clientEntry in clientCircuits:
+            popup.addstr(line, 2, clientEntry)
+            line += 1
+            
+        popup.addstr(popup.height - 2, 2, "Press any key...")
+        popup.refresh()
+        
+        curses.cbreak()
+        stdscr.getch()
+        curses.halfdelay(REFRESH_RATE * 10)
+        
+        # reverts popup dimensions
+        popup.height = 9
+        popup.recreate(stdscr, popup.startY, 80)
+        
+        setPauseState(panels, isPaused, page)
+      finally:
+        cursesLock.release()
+    elif page == 0:
+      panels["log"].handleKey(key)
     elif page == 1:
       panels["conn"].handleKey(key)
     elif page == 2:
