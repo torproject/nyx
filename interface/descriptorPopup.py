@@ -50,18 +50,14 @@ class PopupProperties:
         nsCommand = "ns/id/%s" % fingerprint
         self.text.append(nsCommand)
         self.text = self.text + self.conn.get_info(nsCommand)[nsCommand].split("\n")
-      except TorCtl.ErrorReply:
-        self.text = self.text + [ERROR_MSG, ""]
-      except TorCtl.TorCtlClosed:
+      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed):
         self.text = self.text + [ERROR_MSG, ""]
       
       try:
         descCommand = "desc/id/%s" % fingerprint
         self.text.append(descCommand)
         self.text = self.text + self.conn.get_info(descCommand)[descCommand].split("\n")
-      except TorCtl.ErrorReply:
-        self.text = self.text + [ERROR_MSG]
-      except TorCtl.TorCtlClosed:
+      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed):
         self.text = self.text + [ERROR_MSG]
   
   def handleKey(self, key, height):

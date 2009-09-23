@@ -707,8 +707,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             else:
               # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
               try: nsData = conn.get_network_status("id/%s" % fingerprint)
-              except TorCtl.ErrorReply: lookupErrored = True
-              except TorCtl.TorCtlClosed: lookupErrored = True
+              except (TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
               
               if not lookupErrored:
                 if len(nsData) > 1:
@@ -887,9 +886,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       clientCircuits = None
       try:
         clientCircuits = conn.get_info("circuit-status")["circuit-status"].split("\n")
-      except TorCtl.ErrorReply: pass
-      except TorCtl.TorCtlClosed: pass
-      except socket.error: pass
+      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
       
       maxEntryLength = 0
       if clientCircuits:

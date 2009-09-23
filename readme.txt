@@ -69,9 +69,10 @@ connections to an eavesdropper. However, lookups are only made upon request
 can disable lookups entirely with 'r' - see the page's help for the current 
 status.
 
-That said, this is a non-issue. ISPs and anyone sniffing your connection 
-already has this data - the only difference is that instead of saying "I am 
-talking to x" you're saying "I'm talking to x. who's x?"
+That said, this is not a terribly big whoop. ISPs and anyone sniffing your 
+connection already has this data - the only difference is that instead of 
+saying "I am talking to x" you're saying "I'm talking to x, who's x?", meaning 
+the resolver's also aware of who they are.
 
 > When arm starts it gives "Unable to resolve tor pid, abandoning connection 
 listing"... why?

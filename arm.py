@@ -19,6 +19,9 @@ from TorCtl import TorUtil
 from interface import controller
 from interface import logPanel
 
+VERSION = "1.1.1"
+LAST_MODIFIED = "Sep 23, 2009"
+
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
 DEFAULT_AUTH_COOKIE = os.path.expanduser("~/.tor/control_auth_cookie") # TODO: Check if this is valid for macs
@@ -36,6 +39,7 @@ Terminal status monitor for Tor relays.
                                     without terminal echo if not provided
   -e, --event=[EVENT FLAGS]       event types in message log  (default: %s)
 %s
+  -v, --version                   provides version information
   -h, --help                      presents this help
 
 Example:
@@ -55,6 +59,7 @@ class Input:
     self.authPassword = ""                      # authentication password
     self.loggedEvents = DEFAULT_LOGGED_EVENTS   # flags for event types in message log
     self.isValid = True                         # determines if the program should run
+    self.printVersion = False                   # prints version then quits
     self.printHelp = False                      # prints help then quits
     self._parseArgs(args)
   
@@ -118,6 +123,9 @@ class Input:
       if args[0].startswith("-e="): self.loggedEvents = args[0][3:]
       else: self.loggedEvents = args[0][8:]
       self._parseArgs(args[1:])
+    elif args[0] == "-v" or args[0] == "--version":
+      self.printVersion = True
+      self._parseArgs(args[1:])
     elif args[0] == "-h" or args[0] == "--help":
       self.printHelp = True
       self._parseArgs(args[1:])
@@ -153,9 +161,12 @@ if __name__ == '__main__':
   input = Input(sys.argv[1:])
   if not input.isValid: sys.exit()
   
-  # if help flag's set then prints help and quits
+  # if help or version flags are set then prints and quits
   if input.printHelp:
     print HELP_TEXT
+    sys.exit()
+  elif input.printVersion:
+    print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
     sys.exit()
   
   # validates that cookie authentication path exists

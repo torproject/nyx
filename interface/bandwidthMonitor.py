@@ -30,10 +30,12 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     if conn:
       self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
       
-      # static limit stats for label
+      # static limit stats for label, uses relay stats if defined (internal behavior of tor)
       bwStats = conn.get_option(['BandwidthRate', 'BandwidthBurst'])
-      self.bwRate = util.getSizeLabel(int(bwStats[0][1]))
-      self.bwBurst = util.getSizeLabel(int(bwStats[1][1]))
+      relayStats = conn.get_option(['RelayBandwidthRate', 'RelayBandwidthBurst'])
+      
+      self.bwRate = util.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
+      self.bwBurst = util.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
     else:
       self.isAccounting = False
       self.bwRate, self.bwBurst = -1, -1

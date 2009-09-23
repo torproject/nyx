@@ -29,7 +29,7 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     if self.connectionPanel.lastUpdate + 1 >= time.time():
       # reuses netstat results if recent enough
       counts = self.connectionPanel.connectionCount
-      self._processEvent(counts[0], counts[1] + counts[2])
+      self._processEvent(counts[0], counts[1] + counts[2] + counts[3])
     else:
       # cached results stale - requery netstat
       inbound, outbound, control = 0, 0, 0

@@ -178,20 +178,15 @@ class HeaderPanel(util.Panel):
     for param in infoFields:
       try: self.vals.update(self.conn.get_info(param))
       except TorCtl.ErrorReply: self.vals[param] = "Unknown"
-      except TorCtl.TorCtlClosed:
-        # Tor shut down - keep last known values
-        if not self.vals[param]: self.vals[param] = "Unknown"
-      except socket.error:
-        # Can be caused if tor crashed
+      except (TorCtl.TorCtlClosed, socket.error):
+        # Tor shut down or crashed - keep last known values
         if not self.vals[param]: self.vals[param] = "Unknown"
     
     # flags held by relay
     self.vals["flags"] = []
     if self.vals["fingerprint"] != "Unknown":
       try: self.vals["flags"] = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])[0].flags
-      except TorCtl.TorCtlClosed: pass
-      except TorCtl.ErrorReply: pass
-      except socket.error: pass
+      except (TorCtl.TorCtlClosed, TorCtl.ErrorReply, socket.error): pass
     
     psParams = ["%cpu", "rss", "%mem", "etime"]
     if self.vals["pid"]:
