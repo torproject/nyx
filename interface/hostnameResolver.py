@@ -118,10 +118,12 @@ class _ResolverWorker(Thread):
       except Queue.Empty: continue
       
       resolutionFailed = False            # if true don't cache results
-      hostCall = os.popen("host %s" % ipAddr)
+      hostCall = os.popen("host %s 2> /dev/null" % ipAddr)
       
       try:
-        hostname = hostCall.read().split()[-1:][0]
+        hostname = hostCall.read()
+        if hostname: hostname = hostname.split()[-1:][0]
+        else: raise IOError # call failed ('host' command probably unavailable)
         
         if hostname == "reached":
           # got message: ";; connection timed out; no servers could be reached"

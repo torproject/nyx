@@ -25,6 +25,7 @@ import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
 
+DISABLE_CONNECTIONS_PAGE = False
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
                         # concurrency bugs produce especially sinister glitches)
@@ -89,7 +90,14 @@ class ControlPanel(util.Panel):
             msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
         
         if self.resolvingCounter == -1:
-          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (self.page, len(PAGES))
+          currentPage = self.page
+          pageCount = len(PAGES)
+          
+          if DISABLE_CONNECTIONS_PAGE:
+            if currentPage >= 2: currentPage -= 1
+            pageCount -= 1
+          
+          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (currentPage, pageCount)
       elif msgText == CTL_PAUSED:
         msgText = "Paused"
         msgAttr = curses.A_STANDOUT
@@ -233,14 +241,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # gets pid of tor instance with control port open
   torPid = None       # None if couldn't be resolved (provides error later)
   
-  pidOfCall = os.popen("pidof tor")
-  netstatCall = None
+  pidOfCall = os.popen("pidof tor 2> /dev/null")
   try:
     # gets pid if there's only one possability
     results = pidOfCall.readlines()
-    
     if len(results) == 1 and len(results[0].split()) == 1: torPid = results[0].strip()
-    else:
+  except IOError: pass # pid call failed
+  pidOfCall.close()
+  
+  if not torPid:
+    try:
       # uses netstat to identify process with open control port (might not
       # work if tor's being run as a different user due to permissions)
       netstatCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
@@ -249,10 +259,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       if len(results) == 1:
         results = results[0].split()[6] # process field (ex. "7184/tor")
         torPid = results[:results.find("/")]
-  except IOError: pass # netstat call failed
-  
-  pidOfCall.close()
-  if netstatCall: netstatCall.close()
+    except IOError: pass # netstat call failed
+    netstatCall.close()
   
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
@@ -262,6 +270,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
   panels["conn"] = connPanel.ConnPanel(cursesLock, conn, torPid, panels["log"])
   panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
+  
+  # prevents netstat calls by connPanel if not being used
+  if DISABLE_CONNECTIONS_PAGE: panels["conn"].isDisabled = True
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: panels["log"].monitor_event("WARN", "Unable to resolve tor pid, abandoning connection listing")
@@ -303,6 +314,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # if sighup received then reload related information
       if sighupTracker.isReset:
         panels["header"]._updateParams(True)
+        panels["graph"].stats["bandwidth"].resetStaticData()
+        
+        # if bandwidth graph is being shown then height might have changed
+        if panels["graph"].currentDisplay == "bandwidth":
+          panels["graph"].height = panels["graph"].stats["bandwidth"].height
+        
         panels["torrc"].reset()
         sighupTracker.isReset = False
       
@@ -363,6 +380,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # switch page
       if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
       else: page = (page + 1) % len(PAGES)
+      
+      # skip connections listing if it's disabled
+      if page == 1 and DISABLE_CONNECTIONS_PAGE:
+        if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
+        else: page = (page + 1) % len(PAGES)
       
       # pauses panels that aren't visible to prevent events from accumilating
       # (otherwise they'll wait on the curses lock which might get demanding)

@@ -30,7 +30,7 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     else:
       # cached results stale - requery ps
       inbound, outbound, control = 0, 0, 0
-      psCall = os.popen('ps -p %s -o %s' % (self.headerPanel.vals["pid"], "%cpu,rss"))
+      psCall = os.popen('ps -p %s -o %s  2> /dev/null' % (self.headerPanel.vals["pid"], "%cpu,rss"))
       try:
         sampling = psCall.read().strip().split()[2:]
         psCall.close()
@@ -41,8 +41,9 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
         else:
           self._processEvent(float(sampling[0]), float(sampling[1]) / 1024.0)
       except IOError:
-        # ps call failed
-        self.connectionPanel.monitor_event("WARN", "Unable to query ps for resource usage")
+        # ps call failed - we need to register something (otherwise timescale
+        # would be thrown off) so keep old results
+        self._processEvent(self.lastPrimary, self.lastSecondary)
   
   def getTitle(self, width):
     return "System Resources:"

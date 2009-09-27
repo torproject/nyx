@@ -1,0 +1,122 @@
+TODO
+
+- Bugs
+	* make netstat lookups a best-effort service (separate from draw thread)
+			Call appears to be heavier than expected and causing display to be
+			unusable on especially active relays (like directory servers).
+			caught by arma and StrangeCharm, notify coderman for testing
+	* Mac OSX and BSD may have issues with netstat options
+			Reported that they aren't cross platform. Possibly use lsof as a 
+			fallback if an issue's detected.
+			caught by Christopher Davis
+	* quitting can hang several seconds when there's hostnames left to resolve
+			Not sure how to address this - problem is that the calls to 'host' can 
+			take a while to time out. Might need another thread to kill the calls?
+			Or forcefully terminate thread if it's taking too long (might be noisy)?
+	* connection details covers right side
+	* version labels provided on Debian are longer than expected
+			caught by hexa
+	* unable to load torrc if it was loaded via a relative path
+			When tor's started via "tor -f <relative path>" we don't know what it's 
+			relative of - check to see if there's a way of finding the pwd of
+			another process.
+			caught by arma
+	* new connections don't have uptime tracked when not visible
+			Previous fix attempted to resolve, but evidently didn't work.
+
+- Features / Site
+	* provide observed bandwidth
+			Newer relays have a 'w' entry that states the bandwidth and old versions
+			have client side measurements (third argument in 'Bandwidth' of
+			descriptor, note that it's in KB/s). Label the former (server side) as 
+			'Measured' and later (client side) as 'Observed' to differentiate.
+			requested by arma
+	* show advertised bandwidth
+			if set and there's extra room available show 'MaxAdvertisedBandwidth'
+	* when help popup is showing options let them be directly opened
+			requested by arma
+	* update site's screenshots (pretty out of date...)
+	* add arm to listings of support programs
+			https://wiki.torproject.org/noreply/TheOnionRouter/SupportPrograms
+			https://www.torproject.org/projects/
+
+- Ideas (low priority)
+	* provide performance ARM-DEBUG events
+			Might help with debugging bottlenecks. This requires that there's more
+			refined controls for selecting logged arm runlevel.
+	* show qos stats
+			Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
+			available and interesting.
+	* get a test environment for Mac OSX or BSD
+			Set up a vm for FreeBSD but found working in it to be... painful (wasted
+			five hours and gave up when even asking for a working copy of vim was 
+			too much to ask). As for OSX seems that getting a test environment would
+			cost quite a bit. Hence mothballing this - someone that actually uses
+			these platforms will need to resolve portability issues if they arise.
+	* localization
+			Abstract strings from code and provide on translation portal. Thus far
+			there hasn't been any requests for this.
+	* provide option for a consensus page
+			Shows full consensus with an interface similar to the connection panel.
+			For this Mike's ConsensusTracker would be helpful (though boost the
+			startup time by several seconds)
+	* provide Debian repository for arm
+			Look into debian packaging, note system call dependencies, and mail
+			submit@bugs.debian.org with subject "RFP: arm" and starting with a line
+			"Package: wnpp".
+			requested by helmut
+
+- Control Protocol Wishlist (low priority)
+	* listing of tor's current connections (netstat / lsof replacement)
+			Keeping the netstat available would be good for auditing (external view
+			of tor and more likely monitored by host based IDS) but tor's listing
+			would probably be more effecient, accurate, and could contain additional
+			details making it a preferable default.
+	* bandwidth usage per connection
+			This would need to be rounded and averaged over time to avoid 
+			correlation problems. Probably the most interesting stat arm currently
+			doesn't have since for most purposes (like security threats) especially
+			active connections are of most interest.
+	* identification of hop type
+			Identification if the first, middle or last hop. When this is available
+			I'll hide exit connections by default. Another interesting distinction
+			would be when we're serving directory data verses acting as a relay.
+	* associate connections to circuits
+			Currently listing is connection based rather than circuit, ie it lists:
+			previous hop -> localhost
+			previous hop -> localhost
+			localhost -> next hop
+			
+			rather than:
+			previous hop -> localhost -> next hop
+			previous hop -> localhost -> *unestablished*
+			
+			From a debugging and secuirty standpoint this could highlight potential
+			issues, for instance relays really shouldn't have any non-client
+			connections like:
+			*unestablished* -> localhost -> next hop
+			
+			and entries like:
+			previous hop -> localhost -> *extension failed (error X)*
+			
+			might indicate a firewall blocking tor outbound connections. This would
+			be especially helpful if paired with server related circuit status
+			events (which would note attempted extensions, failures, etc). We could
+			also note other circuit based stats like the amount of buffered data.
+	* mapping of ip/port to fingerprint
+			Currently inferring the mappings but this only has around a 90% success
+			rate (not sure why it fails...). Tor has an internal connection
+			identifier so what would probably be best is bidirectional translation
+			functions with that, ie getting fingerprint would be done via:
+			ip/port -> connection id -> fingerprint
+			
+			In theory this should be able to tell us if the connection is the first
+			or last hop (since in those cases the foreign address doesn't have a
+			fingerprint).
+	* additional get_info data
+			effective relay bandwidth / burst - currently internally mimicing the
+				logic of tor (which is RelayBandwidthRate/Burst if set, otherwise 
+				BandwidthRate/Burst)
+			list of directory authorities recognized by that instance of tor
+			total data relayed by tor - this is already kinda tracked for accounting
+

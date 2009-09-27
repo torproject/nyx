@@ -27,18 +27,29 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     self.conn = conn              # Tor control port connection
     self.accountingInfo = None    # accounting data (set by _updateAccountingInfo method)
     
-    if conn:
-      self.isAccounting = conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
+    # dummy values for static data
+    self.isAccounting = False
+    self.bwRate, self.bwBurst = -1, -1
+    self.resetStaticData()
+  
+  def resetStaticData(self):
+    """
+    Checks with tor for static bandwidth parameters (rates, accounting
+    information, etc).
+    """
+    
+    try:
+      if not self.conn: raise ValueError
+      self.isAccounting = self.conn.get_info('accounting/enabled')['accounting/enabled'] == '1'
       
       # static limit stats for label, uses relay stats if defined (internal behavior of tor)
-      bwStats = conn.get_option(['BandwidthRate', 'BandwidthBurst'])
-      relayStats = conn.get_option(['RelayBandwidthRate', 'RelayBandwidthBurst'])
+      bwStats = self.conn.get_option(['BandwidthRate', 'BandwidthBurst'])
+      relayStats = self.conn.get_option(['RelayBandwidthRate', 'RelayBandwidthBurst'])
       
       self.bwRate = util.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
       self.bwBurst = util.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
-    else:
-      self.isAccounting = False
-      self.bwRate, self.bwBurst = -1, -1
+    except (ValueError, TorCtl.TorCtlClosed):
+      pass # keep old values
     
     # this doesn't track accounting stats when paused so doesn't need a custom pauseBuffer
     contentHeight = 13 if self.isAccounting else 10

@@ -122,6 +122,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
     self.clientConnectionCache = None     # listing of nicknames for our client connections
     self.clientConnectionLock = RLock()   # lock for clientConnectionCache
+    self.isDisabled = False               # prevent panel from updating entirely
     
     self.isCursorEnabled = True
     self.cursorSelection = None
@@ -205,7 +206,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     Reloads netstat results.
     """
     
-    if not self.pid: return
+    if not self.pid or self.isDisabled: return
     self.connectionsLock.acquire()
     self.clientConnectionLock.acquire()
     
@@ -432,7 +433,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                 src = "localhost:%-5s" % entry[CONN_L_PORT]
                 
                 # space available for foreign hostname (stretched to claim any free space)
-                foreignHostnameSpace = self.maxX - len(self.nickname) - 38
+                foreignHostnameSpace = self.maxX - 42 - xOffset
                 
                 etc = ""
                 if self.maxX > 102 + xOffset:
@@ -448,7 +449,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                 if self.maxX > 151 + xOffset:
                   # show nickname (column width: min 17 characters, uses half of the remainder)
                   nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                  nicknameSpace = 15 + (self.maxX - 151) / 2
+                  nicknameSpace = 15 + (self.maxX - xOffset - 151) / 2
                   foreignHostnameSpace -= (nicknameSpace + 2)
                   
                   if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
@@ -488,7 +489,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                 else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
                 
                 # space available for foreign nickname
-                foreignNicknameSpace = self.maxX - len(self.nickname) - 27
+                foreignNicknameSpace = self.maxX - len(self.nickname) - 27 - xOffset
                 
                 etc = ""
                 if self.maxX > 92 + xOffset:

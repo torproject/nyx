@@ -1,0 +1,226 @@
+CHANGE LOG
+
+9/27/09 - version 1.1.2
+Few issues discussed on irc.
+
+    * added: changelog and cleaned up todo documents (requested by arma)
+    * added: option in controller.py to disable connection panel (feature request by Sebastian)
+    * fix: failed to work on osx and bsd due to crashes after failed system calls (caught by Sebastian and Christopher Davis)
+    * fix: reloading static data in bandwidth panel after HUP (caught by hexa)
+    * fix: couple alignment issues with the connection listings
+
+9/23/09 - version 1.1.1 (r20655)
+Bundle of semi-low hanging fruit, including a few issues discussed on irc.
+
+    * added: showing extra parameters in connection listings if room's available
+    * added: identifying directory server connections
+    * change: providing an error message if running an incompatible python version (issue spotted by arma)
+    * change: giving arm a version to help in bug reports
+    * change: minor tweak to the wording of a faq entry (requested by Sebastian)
+    * fix: wasn't accounting for RelayBandwidthRate/Burst in effective bandwidth (caught by hexa and arma)
+    * fix: timing issue when shutting down (caught by arma)
+    * fix: couple issues with connection time being tracked when paused
+    * fix: preserving old results when netstat fails
+
+9/6/09 - r20493
+Several substantial features (last tasks for arm's todo list).
+
+    * added: scroll bars for connections listing and event log
+    * added: made log scrollable (feature request by StrangeCharm)
+    * added: regular expression filtering for log (feature request by StrangeCharm)
+    * added: connection uptimes (time since connection was first made)
+    * added: identifying client from server connections and providing popup for client circuits
+    * added: graph for system resource usage (cpu/memory)
+    * change: removed cursor toggling option for connection page
+    * fix: minor display issue when changing event types
+
+8/22/09 - r20354
+Several fixes and changes, mostly concerning the graph panel and making better use of screen real estate.
+
+    * added: labeled the graph's x-axis and reordered the information with changes omitted for small (tty sized) terminals (feature request by StrangeCharm)
+    * added: doubling up contents of header panel in case of wide screens to take advantage of added space
+    * added: exit policy to header if a wide display
+    * change: added precision for bandwidth measurements
+    * change: using "orconn-status" info to eliminated ambiguity in identifying inbound connection fingerprints (clever idea, but had very little impact)
+    * fix: when sighup signal is received reloads torrc and internal state (caught by StrangeCharm)
+    * fix: probable resolution of nasty concurrent bug concerning access to connection cache
+    * fix: minor issues concerning connection panel including graph widths and miscalculating local maxima
+    * fix: short circuits fingerprint cache when looking up localhost descriptor (preventing lookup failures)
+    * fix: minor issues with connection panel and description popups when no connections are available
+    * fix: descriptor popup wasn't determining if the first visible line belonged to an encryption block
+    * fix: made interface more resilient against arbitrary resizing (such as during popups)
+
+8/17/09 - r20331
+Work done over this last week.
+
+    * added: popup for raw consensus description
+    * added: total bandwidth measurement (feature request by StrangeCharm)
+    * added: connection entry for lookup of local consensus data
+    * change: widened graphs to utilize full screen width (clever idea by StrangeCharm)
+    * change: preserving runtime and pid when shutting down
+    * change: few tweaks to the readme
+    * fix: joining on worker daemon threads to exit gracefully (had a noisy race condition)
+    * fix: using BW events to keep connection count graph in sync with bandwidth graph
+    * fix: can now support graphs of multiple sizes
+
+8/8/09 - r20233
+Rewrote graph panel so it can handle any real time statistics.
+
+    * added: option to graph connection counts (feature request by phobos)
+    * added: custom graph bounds (global or local maxima)
+
+8/4/09
+Announced the project on the or-talk mailing list today which spurred an interview with Brenno Winter (who works on the cleverly named Little Sister project). The interview is available here.
+
+8/3/09 - r20210
+Added start of a faq to the readme in preparation for announcement on or-talk.
+
+7/30/09 - r20198
+Work done over the trip.
+
+    * added: customizable update interval for bandwidth graph (feature request by StrangeCharm)
+    * change: noted new project page in the readme (www.atagar.com/arm)
+    * change: added word wrapping to conf panel
+    * change: added function for custom popup menus
+    * change: logs error message when required event types are unsupported rather than throwing an exception
+    * change: using different screenshot images
+    * fix: resolved issue that caused monitor to think tor was resumed when quit
+    * fix: bug with panel utility's resize detection
+    * fix: resorts connections after NEWDESC and NEWCONSENSUS events
+    * fix: forgetting to to resume monitor at multiple points after a temporary pause
+    * fix: minor refactoring based on suggestions from pylint (unused imports and such)
+
+7/22/09 - r20115
+Another small grab bag update.
+
+    * added: version status to header panel
+    * change: noted "Common *nix commands including: ps, pidof, host, and netstat" among requirements in readme
+    * change: took some tricks from Mike's ConsensusTracker to further improve match rate
+    * fix: type mismatch that greatly diminished fingerprint matching
+    * fix: accidentally used idhash rather than idhex for fingerprints when updating cache with the contents of a NEWDESC event
+
+7/21/09 - r20100
+Quick fixes based on discussion on irc.
+
+    * change: provides warning when geoip database is unavailable (thanks to SwissTorExit and karsten)
+    * fix: missing import for the socket module
+
+7/20/09 - r20096, r20097, r20098
+Couple fixes so arm plays nicely in the case of multiple running tor instances.
+
+    * fix: can now deal with multiple tor instances: checks pid of process with the open control port
+    * fix: if only one tor process is running use that pid (netstat fails if running as a different user
+
+7/19/09 - r20087, r20090
+Last substantial feature on my to-do list.
+
+    * added: connections can be selected to view consensus details (very spiffy!)
+    * added: listing selection is by menu rather than cycling
+    * fix: couple bugs, the most interesting being when netstat can't resolve a connections listing (spotted by phobos)
+
+7/18/09 - r20078, r20079
+Miscellaneous fix and feature batch.
+
+    * added: relay's flags to the header
+    * added: listing by relay nickname
+    * added: additional event aliases and option for NEWCONSENSUS
+    * added (phobos): screenshot of arm in action so people can see what it looks like
+    * change: use constant "Listing" label for sorting rather than current view
+    * change: removed 'reload torrc' option (deceptive and useless)
+    * fix: updates cached consensus mappings with NEWDESC and NEWCONSENSUS events
+
+7/14/09 - r20016
+Resolved a few quick bugs:
+
+    * fix: added fingerprint lookup cache to resolve substantial performance issue
+    * fix: hostname resolution progress accounts for newly added entries (no more negative progress)
+    * fix: resolved bug that prevented arm from starting if too small
+    * fix: ordering issue when sorting unresolved ip addresses
+
+7/11/09 - r19975
+Connections panel can now list by IP, hostname, or fingerprint: reverse resolution was easy, but comparing three different implementations and making it non-blocking with a pausable thread-pool backend? Not so much.
+
+7/8/09 - r19953, r19957
+Just got back from Toorcamp. Preliminary connection page and miscellaneous additions.
+
+    * added: basic connection listing page (using netstat results)
+    * added: connection listing now has user configurable sort functionality (it's actually pretty spiffy: supports secondary and tertiary sub-keys)
+    * added: 'addfstr' to util which allows for embedded formatting tags (VERY helpful)
+    * added: help shows page's current settings
+    * added: made bandwidth panel toggleable
+    * added: avg bandwidth to bottom of panel
+    * fix: prevented header from being paused on page change
+    * fix: prevented bandwidth accounting events from being lost when paused
+
+6/14/09 - r19716
+Decently big batch of feature additions and bug fixes.
+
+    * added: second page that presents torrc with syntax highlighting, optional comment stripping, etc
+    * added: ps sampling (cpu/memory usage, pid, and uptime)
+    * added: help popup with page controls
+    * fix: corrected issue that caused periodic refreshing to fail
+    * fix: accounting reset time takes into account DST
+    * fix: make accounting input and header pausable
+
+6/10/09 - r19708, r19709
+Couple quick changes.
+
+    * change: removed '--path-to-torctl' startup option
+    * fix: accounting 'time to reset' now includes gmt to local conversion
+
+6/7/09 - r19646, r19655, r19656
+Couple features.
+
+    * added: svn external inclusion of TorCtl
+    * added: bandwidth panel now displays accounting data if set
+
+6/6/09 - r19636, r19637
+Quick change based on discussion on irc.
+
+    * added: command line argument to specify location of TorCtl without changing Python path first (feature request by phobos)
+
+6/5/09 - r19629
+Substantial refactoring changes.
+
+    * change: switched from a functional to an OO implementation which further simplified the controller: as an added plus this should make adding additional 'pages' trivial
+    * change: offloaded resizing to the curses wrapper
+    * fix: dealt with another curses wtf bug where panels wouldn't repaint unless done in a specific order
+
+6/4/09 - r19626
+Tested and corrected formatting for all event types except STREAM and STREAM_BW (not sure how to make those occur...).
+
+6/2/09 - r19615, r19619, r19620
+Introduced layer of abstraction from curses, simplifying its use and greatly improving reliability.
+
+    * added: introduced wrapper to hide curses ugliness which greatly simplified interface code
+    * added: notice when relay's been silent for five seconds (based on BW events so probably due to Tor being closed), another idea by karsten
+    * changed: unchecked events have stubs to present information and provide debugging information in case of type mismatch
+    * fix: all problems with resizing: it's now rock solid
+
+5/29/09 - r19580, r19594
+Fixes for several rather sinister reliability problems:
+
+    * added: allows logged events to be changed while running (suggested feature by karsten) and experimenting with a more modular design
+    * fix: added non-blocking reentrant locks to fix concurrency errors that caused chaotic terminal glitches (such as switching to a Chinese character set)
+    * fix: now fully handles resizing (including vertical)
+    * fix: using new capabilities in TorCtl including cookie authentication and disabling logging
+    * fix: bandwidth graph bug when paused
+    * fix: occasionally refreshes static content in case of graphical hiccups
+    * fix: added workaround for obscure curses caching bug that prevented portions of the screen from being redrawn
+    * fix: bug preventing initialization if too small
+
+5/25/09 - r19567
+Few small tweaks including:
+
+    * added: tiny shell script to alias starting
+    * added: more informative error message if TorCtl isn't available
+    * change: defaultly logged events
+    * change: make inclusion of 'unknown' events toggleable
+
+5/24/09 - r19548, r19549, r19550, r19551
+Initial version of arm (terminal relay status monitor). Repository set up by arma.
+
+    * fix: bug concerning undefined exit policy
+    * fix: resolved issue that prevented monitor from functioning in terminals without curs_set support
+
+
