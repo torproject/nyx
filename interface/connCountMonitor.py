@@ -2,55 +2,42 @@
 # connCountMonitor.py -- Tracks the number of connections made by Tor.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import os
-import time
 from TorCtl import TorCtl
 
-import connPanel
 import graphPanel
 
 class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
-  Tracks number of connections, using cached values in connPanel if recent
-  enough (otherwise retrieved independently). Client connections are counted
-  as outbound.
+  Tracks number of connections, counting client and directory connections as 
+  outbound.
   """
   
-  def __init__(self, connectionPanel):
+  def __init__(self, conn, connResolver):
     graphPanel.GraphStats.__init__(self)
     TorCtl.PostEventListener.__init__(self)
     graphPanel.GraphStats.initialize(self, "green", "cyan", 10)
-    self.connectionPanel = connectionPanel  # connection panel, used to limit netstat calls
+    self.connResolver = connResolver    # thread performing netstat queries
+    self.orPort = conn.get_option("ORPort")[0][1]
+    self.dirPort = conn.get_option("DirPort")[0][1]
+    self.controlPort = conn.get_option("ControlPort")[0][1]
   
   def bandwidth_event(self, event):
     # doesn't use events but this keeps it in sync with the bandwidth panel
     # (and so it stops if Tor stops - used to use a separate thread but this
     # is better)
-    if self.connectionPanel.lastUpdate + 1 >= time.time():
-      # reuses netstat results if recent enough
-      counts = self.connectionPanel.connectionCount
-      self._processEvent(counts[0], counts[1] + counts[2] + counts[3])
-    else:
-      # cached results stale - requery netstat
-      inbound, outbound, control = 0, 0, 0
-      netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.connectionPanel.pid)
-      try:
-        results = netstatCall.readlines()
-        
-        for line in results:
-          if not line.startswith("tcp"): continue
-          param = line.split()
-          localPort = param[3][param[3].find(":") + 1:]
-          
-          if localPort in (self.connectionPanel.orPort, self.connectionPanel.dirPort): inbound += 1
-          elif localPort == self.connectionPanel.controlPort: control += 1
-          else: outbound += 1
-      except IOError:
-        # netstat call failed
-        self.connectionPanel.monitor_event("WARN", "Unable to query netstat for connection counts")
+    inbound, outbound, control = 0, 0, 0
+    results = self.connResolver.getConnections()
+    
+    for line in results:
+      if not line.startswith("tcp"): continue
+      param = line.split()
+      localPort = param[3][param[3].find(":") + 1:]
       
-      netstatCall.close()
-      self._processEvent(inbound, outbound)
+      if localPort in (self.orPort, self.dirPort): inbound += 1
+      elif localPort == self.controlPort: control += 1
+      else: outbound += 1
+    
+    self._processEvent(inbound, outbound)
   
   def getTitle(self, width):
     return "Connection Count:"

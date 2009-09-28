@@ -99,7 +99,6 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   
   def getHeaderLabel(self, width, isPrimary):
     graphType = "Downloaded" if isPrimary else "Uploaded"
-    total = self.primaryTotal if isPrimary else self.secondaryTotal
     stats = [""]
     
     # conditional is to avoid flickering as stats change size for tty terminals

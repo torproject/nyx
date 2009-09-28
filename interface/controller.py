@@ -10,6 +10,7 @@ import re
 import os
 import time
 import curses
+import socket
 from threading import RLock
 from TorCtl import TorCtl
 
@@ -21,6 +22,7 @@ import confPanel
 import descriptorPopup
 
 import util
+import connResolver
 import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
@@ -262,13 +264,37 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     except IOError: pass # netstat call failed
     netstatCall.close()
   
+  if not torPid:
+    try:
+      # third try, use ps if there's only one possability
+      psCall = os.popen("ps -o pid -C tor 2> /dev/null")
+      results = psCall.readlines()
+      if len(results) == 2 and len(results[0].split()) == 1: torPid = results[1].strip()
+    except IOError: pass # ps call failed
+    psCall.close()
+  
+  confLocation = conn.get_info("config-file")["config-file"]
+  if confLocation[0] != "/":
+    # relative path - attempt to add process pwd
+    try:
+      pwdxCall = os.popen("pwdx %s 2> /dev/null" % torPid)
+      results = pwdxCall.readlines()
+      if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
+    except IOError: pass # pwdx call failed
+    pwdxCall.close()
+  
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
     "popup": util.Panel(cursesLock, 9),
     "graph": graphPanel.GraphPanel(cursesLock),
     "log": logPanel.LogMonitor(cursesLock, loggedEvents),
-    "torrc": confPanel.ConfPanel(cursesLock, conn.get_info("config-file")["config-file"])}
-  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, torPid, panels["log"])
+    "torrc": confPanel.ConfPanel(cursesLock, confLocation)}
+  
+  # starts thread for processing netstat queries
+  connResolutionThread = connResolver.ConnResolver(torPid, panels["log"])
+  connResolutionThread.start()
+  
+  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, connResolutionThread, panels["log"])
   panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
   
   # prevents netstat calls by connPanel if not being used
@@ -280,7 +306,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
   panels["graph"].addStats("cpu / memory", cpuMemMonitor.CpuMemMonitor(panels["header"]))
-  panels["graph"].addStats("connection count", connCountMonitor.ConnCountMonitor(panels["conn"]))
+  panels["graph"].addStats("connection count", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
   panels["graph"].setStats("bandwidth")
   
   # listeners that update bandwidth and log panels with Tor status
@@ -299,7 +325,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
   page = 0
-  netstatRefresh = time.time()  # time of last netstat refresh
   regexFilters = []             # previously used log regex filters
   
   while True:
@@ -309,8 +334,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     
     cursesLock.acquire()
     try:
-      y, x = stdscr.getmaxyx()
-      
       # if sighup received then reload related information
       if sighupTracker.isReset:
         panels["header"]._updateParams(True)
@@ -341,6 +364,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           panels[panelKey].recreate(stdscr, tmpStartY)
           tmpStartY += panels[panelKey].height
       
+      
       # if it's been at least ten seconds since the last BW event Tor's probably done
       if not isUnresponsive and panels["log"].getHeartbeat() >= 10:
         isUnresponsive = True
@@ -350,11 +374,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         isUnresponsive = False
         panels["log"].monitor_event("NOTICE", "Relay resumed")
       
-      # if it's been at least five seconds since the last refresh of connection listing, update
-      currentTime = time.time()
-      if not panels["conn"].isPaused and (currentTime - netstatRefresh >= 5):
-        panels["conn"].reset()
-        netstatRefresh = currentTime
+      if not panels["conn"].isPaused: panels["conn"].reset()
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
       for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()

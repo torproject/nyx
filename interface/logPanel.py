@@ -2,7 +2,6 @@
 # logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import re
 import time
 import curses
 from curses.ascii import isprint
@@ -166,7 +165,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   
   def monitor_event(self, level, msg):
     # events provided by the arm monitor - types use the same as runlevel
-    self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+    if level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
   def registerEvent(self, type, msg, color):
     """

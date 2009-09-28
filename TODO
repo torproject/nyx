@@ -1,11 +1,7 @@
 TODO
 
 - Bugs
-	* make netstat lookups a best-effort service (separate from draw thread)
-			Call appears to be heavier than expected and causing display to be
-			unusable on especially active relays (like directory servers).
-			caught by arma and StrangeCharm, notify coderman for testing
-	* Mac OSX and BSD may have issues with netstat options
+	* Mac OSX and BSD have issues with netstat options
 			Reported that they aren't cross platform. Possibly use lsof as a 
 			fallback if an issue's detected.
 			caught by Christopher Davis
@@ -13,14 +9,8 @@ TODO
 			Not sure how to address this - problem is that the calls to 'host' can 
 			take a while to time out. Might need another thread to kill the calls?
 			Or forcefully terminate thread if it's taking too long (might be noisy)?
-	* connection details covers right side
 	* version labels provided on Debian are longer than expected
 			caught by hexa
-	* unable to load torrc if it was loaded via a relative path
-			When tor's started via "tor -f <relative path>" we don't know what it's 
-			relative of - check to see if there's a way of finding the pwd of
-			another process.
-			caught by arma
 	* new connections don't have uptime tracked when not visible
 			Previous fix attempted to resolve, but evidently didn't work.
 

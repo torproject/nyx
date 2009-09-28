@@ -29,7 +29,6 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       self._processEvent(float(self.headerPanel.vals["%cpu"]), float(self.headerPanel.vals["rss"]) / 1024.0)
     else:
       # cached results stale - requery ps
-      inbound, outbound, control = 0, 0, 0
       psCall = os.popen('ps -p %s -o %s  2> /dev/null' % (self.headerPanel.vals["pid"], "%cpu,rss"))
       try:
         sampling = psCall.read().strip().split()[2:]

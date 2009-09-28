@@ -2,7 +2,6 @@
 # connPanel.py -- Lists network connections used by tor.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import os
 import time
 import socket
 import curses
@@ -98,19 +97,19 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
   Lists netstat provided network data of tor.
   """
   
-  def __init__(self, lock, conn, torPid, logger):
+  def __init__(self, lock, conn, connResolver, logger):
     TorCtl.PostEventListener.__init__(self)
     util.Panel.__init__(self, lock, -1)
     self.scroll = 0
-    self.conn = conn                # tor connection for querrying country codes
-    self.logger = logger            # notified in case of problems
-    self.pid = torPid               # tor process ID to make sure we've got the right instance
-    self.listingType = LIST_IP      # information used in listing entries
-    self.allowDNS = True            # permits hostname resolutions if true
-    self.showLabel = True           # shows top label if true, hides otherwise
-    self.showingDetails = False     # augments display to accomidate details window if true
-    self.lastUpdate = -1            # time last stats was retrived
-    self.localhostEntry = None      # special connection - tuple with (entry for this node, fingerprint)
+    self.conn = conn                  # tor connection for querrying country codes
+    self.connResolver = connResolver  # thread performing netstat queries
+    self.logger = logger              # notified in case of problems
+    self.listingType = LIST_IP        # information used in listing entries
+    self.allowDNS = True              # permits hostname resolutions if true
+    self.showLabel = True             # shows top label if true, hides otherwise
+    self.showingDetails = False       # augments display to accomidate details window if true
+    self.lastUpdate = -1              # time last stats was retrived
+    self.localhostEntry = None        # special connection - tuple with (entry for this node, fingerprint)
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.resolver = hostnameResolver.HostnameResolver()
     self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
@@ -123,6 +122,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.clientConnectionCache = None     # listing of nicknames for our client connections
     self.clientConnectionLock = RLock()   # lock for clientConnectionCache
     self.isDisabled = False               # prevent panel from updating entirely
+    self.lastNetstatResults = None        # used to check if raw netstat results have changed
     
     self.isCursorEnabled = True
     self.cursorSelection = None
@@ -206,7 +206,6 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     Reloads netstat results.
     """
     
-    if not self.pid or self.isDisabled: return
     self.connectionsLock.acquire()
     self.clientConnectionLock.acquire()
     
@@ -223,63 +222,55 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       for entry in (self.connections if not self.isPaused else self.connectionsBuffer):
         connTimes[(entry[CONN_F_IP], entry[CONN_F_PORT])] = entry[CONN_TIME]
       
-      # looks at netstat for tor with stderr redirected to /dev/null, options are:
-      # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
-      netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.pid)
+      results = self.connResolver.getConnections()
+      if results == self.lastNetstatResults: return # contents haven't changed
       
-      try:
-        results = netstatCall.readlines()
+      for line in results:
+        if not line.startswith("tcp"): continue
+        param = line.split()
+        local, foreign = param[3], param[4]
+        localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
+        localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
         
-        for line in results:
-          if not line.startswith("tcp"): continue
-          param = line.split()
-          local, foreign = param[3], param[4]
-          localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
-          localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
+        if localPort in (self.orPort, self.dirPort):
+          type = "inbound"
+          connectionCountTmp[0] += 1
+        elif localPort == self.controlPort:
+          type = "control"
+          connectionCountTmp[4] += 1
+        else:
+          fingerprint = self.getFingerprint(foreignIP, foreignPort)
+          nickname = self.getNickname(foreignIP, foreignPort)
           
-          if localPort in (self.orPort, self.dirPort):
-            type = "inbound"
-            connectionCountTmp[0] += 1
-          elif localPort == self.controlPort:
-            type = "control"
-            connectionCountTmp[4] += 1
+          isClient = False
+          for clientName in self.clientConnectionCache:
+            if nickname == clientName or (len(clientName) > 1 and clientName[0] == "$" and fingerprint == clientName[1:]):
+              isClient = True
+              break
+          
+          if isClient:
+            type = "client"
+            connectionCountTmp[2] += 1
+          elif (foreignIP, foreignPort) in DIR_SERVERS:
+            type = "directory"
+            connectionCountTmp[3] += 1
           else:
-            fingerprint = self.getFingerprint(foreignIP, foreignPort)
-            nickname = self.getNickname(foreignIP, foreignPort)
-            
-            isClient = False
-            for clientName in self.clientConnectionCache:
-              if nickname == clientName or (len(clientName) > 1 and clientName[0] == "$" and fingerprint == clientName[1:]):
-                isClient = True
-                break
-            
-            if isClient:
-              type = "client"
-              connectionCountTmp[2] += 1
-            elif (foreignIP, foreignPort) in DIR_SERVERS:
-              type = "directory"
-              connectionCountTmp[3] += 1
-            else:
-              type = "outbound"
-              connectionCountTmp[1] += 1
-          
-          try:
-            countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
-            countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-          except (socket.error, TorCtl.ErrorReply):
-            countryCode = "??"
-            if not self.providedGeoipWarning:
-              self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
-              self.providedGeoipWarning = True
-          
-          if (foreignIP, foreignPort) in connTimes: connTime = connTimes[(foreignIP, foreignPort)]
-          else: connTime = time.time()
-          
-          connectionsTmp.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime))
-      except IOError:
-        # netstat call failed
-        self.logger.monitor_event("WARN", "Unable to query netstat for new connections")
-        return
+            type = "outbound"
+            connectionCountTmp[1] += 1
+        
+        try:
+          countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
+          countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+        except (socket.error, TorCtl.ErrorReply):
+          countryCode = "??"
+          if not self.providedGeoipWarning:
+            self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
+            self.providedGeoipWarning = True
+        
+        if (foreignIP, foreignPort) in connTimes: connTime = connTimes[(foreignIP, foreignPort)]
+        else: connTime = time.time()
+        
+        connectionsTmp.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime))
       
       # appends localhost connection to allow user to look up their own consensus entry
       selfAddress, selfPort, selfFingerprint = None, None, None
@@ -304,7 +295,6 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       else:
         self.localhostEntry = None
       
-      netstatCall.close()
       self.lastUpdate = time.time()
       
       # assigns results
@@ -316,6 +306,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         
         # hostnames are sorted at redraw - otherwise now's a good time
         if self.listingType != LIST_HOSTNAME: self.sortConnections()
+      self.lastNetstatResults = results
     finally:
       self.connectionsLock.release()
       self.clientConnectionLock.release()
