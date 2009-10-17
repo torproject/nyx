@@ -4,6 +4,7 @@ TODO
 	* Mac OSX and BSD have issues with netstat options
 			Reported that they aren't cross platform. Possibly use lsof as a 
 			fallback if an issue's detected.
+			notify John Case <case@sdf.lonestar.org>
 			caught by Christopher Davis
 	* quitting can hang several seconds when there's hostnames left to resolve
 			Not sure how to address this - problem is that the calls to 'host' can 
@@ -11,10 +12,17 @@ TODO
 			Or forcefully terminate thread if it's taking too long (might be noisy)?
 	* version labels provided on Debian are longer than expected
 			caught by hexa
-	* new connections don't have uptime tracked when not visible
-			Previous fix attempted to resolve, but evidently didn't work.
 
 - Features / Site
+	* add page that allows raw control port access
+			Piggyback on the arm connection, providing something like an interactive
+			prompt. In addition, provide:
+				- irc like help (ex "/help GETINFO" could provide a summary of getinfo
+				commands, partly using the results from "GETINFO info/names")
+				- tab completion and up/down populates previous entries
+				- warn and get confirmation if command would disrupt arm (for instance
+				'SETEVENTS')
+				- 'guard' option that restricts to GETINFO only	(start with this)
 	* provide observed bandwidth
 			Newer relays have a 'w' entry that states the bandwidth and old versions
 			have client side measurements (third argument in 'Bandwidth' of
@@ -29,8 +37,15 @@ TODO
 	* add arm to listings of support programs
 			https://wiki.torproject.org/noreply/TheOnionRouter/SupportPrograms
 			https://www.torproject.org/projects/
+	* add svn / tarball fingerprint to site
 
 - Ideas (low priority)
+	* bundle script that dumps relay stats to stdout
+			Django has a small terminal coloring module that could be nice for
+			formatting. Could possibly include:
+				- desc / ns information for our relay
+				- ps / netstat stats like load, uptime, and connection counts, etc
+			derived from an idea by StrangeCharm
 	* provide performance ARM-DEBUG events
 			Might help with debugging bottlenecks. This requires that there's more
 			refined controls for selecting logged arm runlevel.

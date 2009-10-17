@@ -9,7 +9,8 @@ from TorCtl import TorCtl
 
 import util
 
-MAX_LOG_ENTRIES = 1000               # size of log buffer (max number of entries)
+PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
+MAX_LOG_ENTRIES = 1000                # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 
 EVENT_TYPES = {
@@ -71,7 +72,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   Tor event listener, noting messages, the time, and their type in a panel.
   """
   
-  def __init__(self, lock, loggedEvents):
+  def __init__(self, lock, conn, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
     util.Panel.__init__(self, lock, -1)
     self.scroll = 0
@@ -81,6 +82,41 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     self.loggedEvents = loggedEvents      # events we're listening to
     self.lastHeartbeat = time.time()      # time of last event
     self.regexFilter = None               # filter for presented log events (no filtering if None)
+    self.eventTimeOverwrite = None        # replaces time for further events with this (uses time it occures if None)
+    
+    # attempts to process events from log file
+    if PRE_POPULATE_LOG:
+      previousPauseState = self.isPaused
+      logFile = None
+      
+      try:
+        logFileLoc = None
+        loggingLocations = conn.get_option("Log")
+        
+        for entry in loggingLocations:
+          entryComp = entry[1].split()
+          if entryComp[1] == "file":
+            logFileLoc = entryComp[2]
+            break
+        
+        if logFileLoc:
+          # prevents attempts to redraw while processing batch of events
+          self.setPaused(True)
+          
+          logFile = open(logFileLoc, "r")
+          for line in logFile:
+            lineComp = line.split()
+            eventType = lineComp[3][1:-1].upper()
+            
+            if eventType in loggedEvents:
+              timeComp = lineComp[2][:lineComp[2].find(".")].split(":")
+              self.eventTimeOverwrite = (0, 0, 0, int(timeComp[0]), int(timeComp[1]), int(timeComp[2]))
+              self.listen(TorCtl.LogEvent(eventType, " ".join(lineComp[4:])))
+      except Exception: pass # disreguard any issues that might arise in parsing
+      finally:
+        self.setPaused(previousPauseState)
+        self.eventTimeOverwrite = None
+        if logFile: logFile.close()
   
   def handleKey(self, key):
     # scroll movement
@@ -169,22 +205,32 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   
   def registerEvent(self, type, msg, color):
     """
-    Notes event and redraws log. If paused it's held in a temporary buffer.
+    Notes event and redraws log. If paused it's held in a temporary buffer. If 
+    msg is a list then this is expanded to multiple lines.
     """
     
     if not type.startswith("ARM"): self.lastHeartbeat = time.time()
+    eventTime = self.eventTimeOverwrite if self.eventTimeOverwrite else time.localtime()
+    toAdd = []
     
-    # strips control characters to avoid screwing up the terminal
-    msg = "".join([char for char in msg if isprint(char)])
+    # wraps if a single line message
+    if isinstance(msg, str): msg = [msg]
     
-    eventTime = time.localtime()
-    msgLine = "%02i:%02i:%02i [%s] %s" % (eventTime[3], eventTime[4], eventTime[5], type, msg)
+    firstLine = True
+    for msgLine in msg:
+      # strips control characters to avoid screwing up the terminal
+      msgLine = "".join([char for char in msgLine if isprint(char)])
+      
+      header = "%02i:%02i:%02i %s" % (eventTime[3], eventTime[4], eventTime[5], "[%s]" % type) if firstLine else ""
+      toAdd.append("%s %s" % (header, msgLine))
+      firstLine = False
     
+    toAdd.reverse()
     if self.isPaused:
-      self.pauseBuffer.insert(0, (msgLine, color))
+      for msgLine in toAdd: self.pauseBuffer.insert(0, (msgLine, color))
       if len(self.pauseBuffer) > MAX_LOG_ENTRIES: del self.pauseBuffer[MAX_LOG_ENTRIES:]
     else:
-      self.msgLog.insert(0, (msgLine, color))
+      for msgLine in toAdd: self.msgLog.insert(0, (msgLine, color))
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
       self.redraw()
   

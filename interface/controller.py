@@ -27,6 +27,7 @@ import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
 
+CONFIRM_QUIT = True
 DISABLE_CONNECTIONS_PAGE = False
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
@@ -287,7 +288,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
     "popup": util.Panel(cursesLock, 9),
     "graph": graphPanel.GraphPanel(cursesLock),
-    "log": logPanel.LogMonitor(cursesLock, loggedEvents),
+    "log": logPanel.LogMonitor(cursesLock, conn, loggedEvents),
     "torrc": confPanel.ConfPanel(cursesLock, confLocation)}
   
   # starts thread for processing netstat queries
@@ -321,6 +322,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # tells Tor to listen to the events we're interested
   loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
+  
+  # warns if tor isn't updating descriptors
+  try:
+    if conn.get_option("FetchUselessDescriptors")[0][1] == "0" and conn.get_option("DirPort")[0][1] == "0":
+      warning = ["Descriptors won't be updated (causing some connection information to be stale) unless:", \
+                "  a. 'FetchUselessDescriptors 1' is set in your torrc", \
+                "  b. the directory service is provided ('DirPort' defined)", \
+                "  c. tor is used as a client"]
+      panels["log"].monitor_event("WARN", warning)
+  except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
   
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
@@ -374,7 +385,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         isUnresponsive = False
         panels["log"].monitor_event("NOTICE", "Relay resumed")
       
-      if not panels["conn"].isPaused: panels["conn"].reset()
+      panels["conn"].reset()
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
       for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()
@@ -384,18 +395,41 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     
     key = stdscr.getch()
     if key == ord('q') or key == ord('Q'):
-      # quits arm
-      # very occasionally stderr gets "close failed: [Errno 11] Resource temporarily unavailable"
-      # this appears to be a python bug: http://bugs.python.org/issue3014
-      daemonThreads = panels["conn"].resolver.threadPool
+      quitConfirmed = not CONFIRM_QUIT
       
-      # sets halt flags for all worker daemon threads
-      for worker in daemonThreads: worker.halt = True
+      # provides prompt to confirm that arm should exit
+      if CONFIRM_QUIT:
+        cursesLock.acquire()
+        try:
+          setPauseState(panels, isPaused, page, True)
+          
+          # provides prompt
+          panels["control"].setMsg("Are you sure (q again to confirm)?", curses.A_BOLD)
+          panels["control"].redraw()
+          
+          curses.cbreak()
+          confirmationKey = stdscr.getch()
+          quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
+          curses.halfdelay(REFRESH_RATE * 10)
+          
+          panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+          setPauseState(panels, isPaused, page)
+        finally:
+          cursesLock.release()
       
-      # joins on workers (prevents noisy termination)
-      for worker in daemonThreads: worker.join()
-      
-      break
+      if quitConfirmed:
+        # quits arm
+        # very occasionally stderr gets "close failed: [Errno 11] Resource temporarily unavailable"
+        # this appears to be a python bug: http://bugs.python.org/issue3014
+        daemonThreads = panels["conn"].resolver.threadPool
+        
+        # sets halt flags for all worker daemon threads
+        for worker in daemonThreads: worker.halt = True
+        
+        # joins on workers (prevents noisy termination)
+        for worker in daemonThreads: worker.join()
+        
+        break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
       if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
@@ -731,7 +765,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
               popup.addstr(3, 2, "No consensus data found", format)
             else:
               # couldn't resolve due to multiple matches - list them all
-              popup.addstr(3, 2, "Muliple matching IPs, possible fingerprints are:", format)
+              popup.addstr(3, 2, "Muliple matches, possible fingerprints are:", format)
               matchings = panels["conn"].fingerprintMappings[selectedIp]
               
               line = 4

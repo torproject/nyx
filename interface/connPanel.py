@@ -214,7 +214,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     connectionCountTmp = [0] * 5
     
     try:
-      if self.clientConnectionCache == None and not self.isPaused:
+      if self.clientConnectionCache == None:
         # client connection cache was invalidated
         self.clientConnectionCache = _getClientConnections(self.conn)
       
@@ -374,6 +374,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           if self.showingDetails:
             listingHeight -= 8
             isScrollBarVisible = len(self.connections) > self.maxY - 9
+            if self.maxX > 80: self.win.hline(8, 80, curses.ACS_HLINE, self.maxX - 81)
           else:
             isScrollBarVisible = len(self.connections) > self.maxY - 1
           xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
