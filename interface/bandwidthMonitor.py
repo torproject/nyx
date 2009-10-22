@@ -3,6 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import time
+import socket
 from TorCtl import TorCtl
 
 import graphPanel
@@ -30,9 +31,9 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     # dummy values for static data
     self.isAccounting = False
     self.bwRate, self.bwBurst = -1, -1
-    self.resetStaticData()
+    self.resetOptions()
   
-  def resetStaticData(self):
+  def resetOptions(self):
     """
     Checks with tor for static bandwidth parameters (rates, accounting
     information, etc).
@@ -48,7 +49,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       
       self.bwRate = util.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
       self.bwBurst = util.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
-    except (ValueError, TorCtl.TorCtlClosed):
+    except (ValueError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       pass # keep old values
     
     # this doesn't track accounting stats when paused so doesn't need a custom pauseBuffer
@@ -159,6 +160,6 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       self.accountingInfo["written"] = util.getSizeLabel(written)
       self.accountingInfo["readLimit"] = util.getSizeLabel(read + readLeft)
       self.accountingInfo["writtenLimit"] = util.getSizeLabel(written + writtenLeft)
-    except TorCtl.TorCtlClosed:
+    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.accountingInfo = None
 

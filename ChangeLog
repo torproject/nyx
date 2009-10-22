@@ -1,6 +1,25 @@
 CHANGE LOG
 
-10/16/09 - version 1.2.0
+10/21/09 - version 1.2.1
+Substantial bundle of changes including torrc validation, improved arm event logging, and numerous bug fixes.
+
+    * added: verifies loaded torrc consistency against tor's actual state (gives warning and providing corrections)
+    * added: checks for torrc entries that are irrelevant due to duplication (gives notices and highlights)
+    * added: log provides TorCtl events (hack... so ugly...)
+    * added: option for logging runlevel events of arm, tor, or both
+    * added: ARM-DEBUG event for netstat query time
+    * added: providing progress bar when resolving a batch of hostnames
+    * change: providing prompt notice when tor's control port is closed
+    * fix: limiting pre-loaded events to this tor instance
+    * fix: limits log entries used to pre-load events (big logs caused issue with startup time)
+    * fix: properly closing TorCtl when quitting (was occasionally screwing up terminal)
+    * fix: at several points TorCtlClosed exceptions were uncaught, causing crashes when tor was closed
+    * fix: netstat and geoip failures were being noisy when tor quits
+    * fix: bug in tracking connection counts if tor quits when paused
+    * fix: sighup wasn't resetting all relevant internal variables
+    * fix: pausing bypassed connection sorting
+
+10/16/09 - version 1.2.0 (r20798)
 Resolving a few small issues that bugged me.
 
     * change: using log file to pre-populate events if available

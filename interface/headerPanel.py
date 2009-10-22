@@ -159,7 +159,7 @@ class HeaderPanel(util.Panel):
     
     infoFields = ["address", "fingerprint"] # keys for which get_info will be called
     if len(self.vals) <= 1 or forceReload:
-      isConnClosed = False
+      lookupFailed = False
       
       # first call (only contasns 'pid' mapping) - retrieve static params
       infoFields += ["version", "status/version/current"]
@@ -170,20 +170,19 @@ class HeaderPanel(util.Panel):
       self.vals["sys-os"] = unameVals[0]
       self.vals["sys-version"] = unameVals[2]
       
-      # parameters from the user's torrc
-      configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
-      try: self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
-      except TorCtl.TorCtlClosed: isConnClosed = True
-      
-      # simply keeps booleans for if authentication info is set
       try:
+        # parameters from the user's torrc
+        configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
+        self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
+        
+        # simply keeps booleans for if authentication info is set
         self.vals["IsPasswordAuthSet"] = not self.conn.get_option("HashedControlPassword")[0][1] == None
         self.vals["IsCookieAuthSet"] = self.conn.get_option("CookieAuthentication")[0][1] == "1"
         self.vals["IsAccountingEnabled"] = self.conn.get_info('accounting/enabled')['accounting/enabled'] == "1"
-      except TorCtl.TorCtlClosed: isConnClosed = True
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupFailed = True
       
-      if isConnClosed:
-        # tor connection closed - keep old values if available, otherwise set to empty string / false
+      if lookupFailed:
+        # tor connection closed or gave error - keep old values if available, otherwise set to empty string / false
         for field in configFields:
           if field not in self.vals: self.vals[field] = ""
         
@@ -202,7 +201,7 @@ class HeaderPanel(util.Panel):
     self.vals["flags"] = []
     if self.vals["fingerprint"] != "Unknown":
       try: self.vals["flags"] = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])[0].flags
-      except (TorCtl.TorCtlClosed, TorCtl.ErrorReply, socket.error): pass
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
     
     psParams = ["%cpu", "rss", "%mem", "etime"]
     if self.vals["pid"]:

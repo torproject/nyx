@@ -2,6 +2,7 @@
 # logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
+import os
 import time
 import curses
 from curses.ascii import isprint
@@ -10,8 +11,13 @@ from TorCtl import TorCtl
 import util
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
+
+# truncates to the last X log lines (needed to start in a decent time if the log's big)
+PRE_POPULATE_MIN_LIMIT = 1000             # limit in case of verbose logging
+PRE_POPULATE_MAX_LIMIT = 5000             # limit for NOTICE - ERR (since most lines are skipped)
 MAX_LOG_ENTRIES = 1000                # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
+RUNLEVEL_TOR_ONLY, RUNLEVEL_ARM_ONLY, RUNLEVEL_BOTH = range(3)
 
 EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",       "l": "NEWDESC",     "v": "AUTHDIR_NEWDESCS",
@@ -29,6 +35,8 @@ EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUT
                     k NEWCONSENSUS    u CLIENTS_SEEN
         Aliases:    A All Events      X No Events       U Unknown Events
                     DINWE Runlevel and higher severity"""
+
+TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 
 def expandEvents(eventAbbr):
   """
@@ -83,11 +91,13 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     self.lastHeartbeat = time.time()      # time of last event
     self.regexFilter = None               # filter for presented log events (no filtering if None)
     self.eventTimeOverwrite = None        # replaces time for further events with this (uses time it occures if None)
+    self.runlevelTypes = RUNLEVEL_BOTH    # types of runlevels to show (arm, tor, or both)
+    self.controlPortClosed = False        # flag set if TorCtl provided notice that control port is closed
     
     # attempts to process events from log file
     if PRE_POPULATE_LOG:
       previousPauseState = self.isPaused
-      logFile = None
+      tailCall = None
       
       try:
         logFileLoc = None
@@ -103,20 +113,32 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
           # prevents attempts to redraw while processing batch of events
           self.setPaused(True)
           
-          logFile = open(logFileLoc, "r")
-          for line in logFile:
+          # trims log to last entries to deal with logs when they're in the GB or TB range
+          # throws IOError if tail fails (falls to the catch-all later)
+          limit = PRE_POPULATE_MIN_LIMIT if ("DEBUG" in self.loggedEvents or "INFO" in self.loggedEvents) else PRE_POPULATE_MAX_LIMIT
+          tailCall = os.popen("tail -n %i %s 2> /dev/null" % (limit, logFileLoc))
+          
+          # truncates to entries for this tor instance
+          lines = tailCall.readlines()
+          instanceStart = 0
+          for i in range(len(lines) - 1, -1, -1):
+            if "opening log file" in lines[i]:
+              instanceStart = i
+              break
+          
+          for line in lines[instanceStart:]:
             lineComp = line.split()
             eventType = lineComp[3][1:-1].upper()
             
-            if eventType in loggedEvents:
+            if eventType in self.loggedEvents:
               timeComp = lineComp[2][:lineComp[2].find(".")].split(":")
               self.eventTimeOverwrite = (0, 0, 0, int(timeComp[0]), int(timeComp[1]), int(timeComp[2]))
               self.listen(TorCtl.LogEvent(eventType, " ".join(lineComp[4:])))
-      except Exception: pass # disreguard any issues that might arise in parsing
+      except Exception: pass # disreguard any issues that might arise
       finally:
         self.setPaused(previousPauseState)
         self.eventTimeOverwrite = None
-        if logFile: logFile.close()
+        if tailCall: tailCall.close()
   
   def handleKey(self, key):
     # scroll movement
@@ -171,6 +193,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     if "BW" in self.loggedEvents: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
+    if not self.runlevelTypes in (RUNLEVEL_TOR_ONLY, RUNLEVEL_BOTH): return
     self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
   
   def new_desc_event(self, event):
@@ -201,7 +224,28 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
   
   def monitor_event(self, level, msg):
     # events provided by the arm monitor - types use the same as runlevel
+    if not self.runlevelTypes in (RUNLEVEL_ARM_ONLY, RUNLEVEL_BOTH): return
     if level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+  
+  def write(self, msg):
+    """
+    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a file.
+    """
+    
+    timestampStart = msg.find("[")
+    timestampEnd = msg.find("]")
+    
+    level = msg[:timestampStart]
+    msg = msg[timestampEnd + 2:].strip()
+    
+    if TOR_CTL_CLOSE_MSG in msg:
+      # TorCtl providing notice that control port is closed
+      self.controlPortClosed = True
+      self.monitor_event("NOTICE", "Tor control port closed")
+    else:
+      self.monitor_event(level, "TorCtl: " + msg)
+  
+  def flush(self): pass
   
   def registerEvent(self, type, msg, color):
     """

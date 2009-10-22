@@ -23,8 +23,9 @@ class ConnResolver(Thread):
   isn't available).
   """
   
-  def __init__(self, pid, logPanel):
+  def __init__(self, conn, pid, logPanel):
     Thread.__init__(self)
+    self.conn = conn                  # used to stop querring netstat if tor's closed
     self.pid = pid                    # tor process ID to make sure we've got the right instance
     self.logger = logPanel            # used to notify of lookup failures
     
@@ -38,9 +39,10 @@ class ConnResolver(Thread):
   
   def getConnections(self):
     """
-    Provides the last querried connection results.
+    Provides the last querried connection results, empty list if tor's closed.
     """
     
+    if self.conn._closed == 1: return []
     connectionsTmp = None
     
     self.connectionsLock.acquire()
@@ -53,12 +55,16 @@ class ConnResolver(Thread):
     if not self.pid: return
     
     while not self.halt:
-      if self.isPaused or time.time() - MIN_LOOKUP_WAIT < self.lastLookup: time.sleep(SLEEP_INTERVAL)
+      if self.isPaused or time.time() - MIN_LOOKUP_WAIT < self.lastLookup or self.conn._closed == 1: time.sleep(SLEEP_INTERVAL)
       else:
         try:
+          netstatStart = time.time()
+          
           # looks at netstat for tor with stderr redirected to /dev/null, options are:
           # n = prevents dns lookups, p = include process (say if it's tor), t = tcp only
           netstatCall = os.popen("netstat -npt 2> /dev/null | grep %s/tor 2> /dev/null" % self.pid)
+          
+          self.logger.monitor_event("DEBUG", "netstat queried in %.4f seconds" % (time.time() - netstatStart))
           results = netstatCall.readlines()
           if not results: raise IOError
           

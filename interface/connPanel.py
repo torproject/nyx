@@ -115,7 +115,6 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
     self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, fingerprint, nickname), ...]
-    self.nickname = self.conn.get_option("Nickname")[0][1]
     self.providedGeoipWarning = False
     self.orconnStatusCache = []           # cache for 'orconn-status' calls
     self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
@@ -132,11 +131,13 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.isPaused = False
     self.pauseTime = 0              # time when paused
     self.connectionsBuffer = []     # location where connections are stored while paused
+    self.connectionCountBuffer = []
     
-    # uses ports to identify type of connections
-    self.orPort = self.conn.get_option("ORPort")[0][1]
-    self.dirPort = self.conn.get_option("DirPort")[0][1]
-    self.controlPort = self.conn.get_option("ControlPort")[0][1]
+    self.nickname = ""
+    self.orPort = "0"
+    self.dirPort = "0"
+    self.controlPort = "0"
+    self.resetOptions()
     
     # netstat results are tuples of the form:
     # (type, local IP, local port, foreign IP, foreign port, country code)
@@ -147,6 +148,20 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.connectionCount = [0] * 5
     
     self.reset()
+  
+  def resetOptions(self):
+    try:
+      self.nickname = self.conn.get_option("Nickname")[0][1]
+      
+      # uses ports to identify type of connections
+      self.orPort = self.conn.get_option("ORPort")[0][1]
+      self.dirPort = self.conn.get_option("DirPort")[0][1]
+      self.controlPort = self.conn.get_option("ControlPort")[0][1]
+    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+      self.nickname = ""
+      self.orPort = "0"
+      self.dirPort = "0"
+      self.controlPort = "0"
   
   # change in client circuits
   def circ_status_event(self, event):
@@ -176,7 +191,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       
       # gets consensus data for the new description
       try: nsData = self.conn.get_network_status("id/%s" % fingerprint)
-      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed): return
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): return
       
       if len(nsData) > 1:
         # multiple records for fingerprint (shouldn't happen)
@@ -261,7 +276,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         try:
           countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
           countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-        except (socket.error, TorCtl.ErrorReply):
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
           countryCode = "??"
           if not self.providedGeoipWarning:
             self.logger.monitor_event("WARN", "Tor geoip database is unavailable.")
@@ -273,24 +288,23 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         connectionsTmp.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime))
       
       # appends localhost connection to allow user to look up their own consensus entry
-      selfAddress, selfPort, selfFingerprint = None, None, None
+      selfAddress, selfFingerprint = None, None
       try:
         selfAddress = self.conn.get_info("address")["address"]
-        selfPort = self.conn.get_option("ORPort")[0][1]
         selfFingerprint = self.conn.get_info("fingerprint")["fingerprint"]
-      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
       
-      if selfAddress and selfPort and selfFingerprint:
+      if selfAddress and selfFingerprint:
         try:
           countryCodeQuery = "ip-to-country/%s" % selfAddress
           selfCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-        except (socket.error, TorCtl.ErrorReply):
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
           selfCountryCode = "??"
         
-        if (selfAddress, selfPort) in connTimes: connTime = connTimes[(selfAddress, selfPort)]
+        if (selfAddress, self.orPort) in connTimes: connTime = connTimes[(selfAddress, self.orPort)]
         else: connTime = time.time()
         
-        self.localhostEntry = (("localhost", selfAddress, selfPort, selfAddress, selfPort, selfCountryCode, connTime), selfFingerprint)
+        self.localhostEntry = (("localhost", selfAddress, self.orPort, selfAddress, self.orPort, selfCountryCode, connTime), selfFingerprint)
         connectionsTmp.append(self.localhostEntry[0])
       else:
         self.localhostEntry = None
@@ -300,6 +314,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       # assigns results
       if self.isPaused:
         self.connectionsBuffer = connectionsTmp
+        self.connectionCountBuffer = connectionCountTmp
       else:
         self.connections = connectionsTmp
         self.connectionCount = connectionCountTmp
@@ -540,7 +555,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           for entry in self.conn.get_info("orconn-status")["orconn-status"].split():
             if isOdd: self.orconnStatusCache.append(entry)
             isOdd = not isOdd
-        except (TorCtl.TorCtlClosed, TorCtl.ErrorReply): self.orconnStatusCache = None
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): self.orconnStatusCache = None
       
       if ipAddr in self.fingerprintMappings.keys():
         potentialMatches = self.fingerprintMappings[ipAddr]
@@ -571,7 +586,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
               descLookupCmd = "desc/id/%s" % entryFingerprint
               descEntry = TorCtl.Router.build_from_desc(self.conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
               toRemove = descEntry.down
-            except TorCtl.ErrorReply: pass # ns or desc lookup fails... also weird
+            except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass # ns or desc lookup fails... also weird
             
             # eliminates connections not reported by orconn-status -
             # this has *very* little impact since few ips have multiple relays
@@ -599,7 +614,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       
       try:
         if match != "UNKNOWN": match = self.conn.get_network_status("id/%s" % match)[0].nickname
-      except TorCtl.ErrorReply: return "UNKNOWN" # don't cache result
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): return "UNKNOWN" # don't cache result
       
       self.nicknameLookupCache[(ipAddr, port)] = match
       return match
@@ -615,7 +630,13 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     if isPause:
       self.pauseTime = time.time()
       self.connectionsBuffer = list(self.connections)
-    else: self.connections = list(self.connectionsBuffer)
+      self.connectionCountBuffer = list(self.connectionCount)
+    else:
+      self.connections = list(self.connectionsBuffer)
+      self.connectionCount = list(self.connectionCountBuffer)
+      
+      # pause buffer connections may be unsorted
+      if self.listingType != LIST_HOSTNAME: self.sortConnections()
   
   def sortConnections(self):
     """
@@ -675,7 +696,7 @@ def _getFingerprintMappings(conn, nsList = None):
   
   if not nsList:
     try: nsList = conn.get_network_status()
-    except (TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
+    except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
     except TypeError: nsList = [] # TODO: temporary workaround for a TorCtl bug, remove when fixed
   
   for entry in nsList:
@@ -693,7 +714,7 @@ def _getClientConnections(conn):
     for line in conn.get_info("circuit-status")["circuit-status"].split("\n"):
       components = line.split()
       if len(components) > 3: clients += [components[2].split(",")[0]]
-  except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
+  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
   return clients
 

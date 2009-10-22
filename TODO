@@ -14,6 +14,10 @@ TODO
 			caught by hexa
 
 - Features / Site
+	* abstract away netstat calls
+			In preparation for drop in replacement of lsof or calls to tor's
+			GETINFO.
+	* file descriptor stats
 	* add page that allows raw control port access
 			Piggyback on the arm connection, providing something like an interactive
 			prompt. In addition, provide:
@@ -23,6 +27,7 @@ TODO
 				- warn and get confirmation if command would disrupt arm (for instance
 				'SETEVENTS')
 				- 'guard' option that restricts to GETINFO only	(start with this)
+				- issue sighup reset
 	* provide observed bandwidth
 			Newer relays have a 'w' entry that states the bandwidth and old versions
 			have client side measurements (third argument in 'Bandwidth' of
@@ -34,12 +39,10 @@ TODO
 	* when help popup is showing options let them be directly opened
 			requested by arma
 	* update site's screenshots (pretty out of date...)
-	* add arm to listings of support programs
-			https://wiki.torproject.org/noreply/TheOnionRouter/SupportPrograms
-			https://www.torproject.org/projects/
-	* add svn / tarball fingerprint to site
 
 - Ideas (low priority)
+	* write up a proposal for the control protocol wishlist
+	* look into providing UPnP support
 	* bundle script that dumps relay stats to stdout
 			Django has a small terminal coloring module that could be nice for
 			formatting. Could possibly include:
@@ -124,4 +127,5 @@ TODO
 				BandwidthRate/Burst)
 			list of directory authorities recognized by that instance of tor
 			total data relayed by tor - this is already kinda tracked for accounting
+			file descriptor limit (return value of the getrlimit() function)
 

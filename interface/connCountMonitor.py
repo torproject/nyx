@@ -2,6 +2,7 @@
 # connCountMonitor.py -- Tracks the number of connections made by Tor.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
+import socket
 from TorCtl import TorCtl
 
 import graphPanel
@@ -17,9 +18,21 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     TorCtl.PostEventListener.__init__(self)
     graphPanel.GraphStats.initialize(self, "green", "cyan", 10)
     self.connResolver = connResolver    # thread performing netstat queries
-    self.orPort = conn.get_option("ORPort")[0][1]
-    self.dirPort = conn.get_option("DirPort")[0][1]
-    self.controlPort = conn.get_option("ControlPort")[0][1]
+    
+    self.orPort = "0"
+    self.dirPort = "0"
+    self.controlPort = "0"
+    self.resetOptions(conn)
+  
+  def resetOptions(self, conn):
+    try:
+      self.orPort = conn.get_option("ORPort")[0][1]
+      self.dirPort = conn.get_option("DirPort")[0][1]
+      self.controlPort = conn.get_option("ControlPort")[0][1]
+    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+      self.orPort = "0"
+      self.dirPort = "0"
+      self.controlPort = "0"
   
   def bandwidth_event(self, event):
     # doesn't use events but this keeps it in sync with the bandwidth panel

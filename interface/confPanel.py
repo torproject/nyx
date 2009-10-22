@@ -7,18 +7,33 @@ import curses
 
 import util
 
+# torrc parameters that can be defined multiple times without overwriting
+# from src/or/config.c (entries with LINELIST or LINELIST_S)
+# last updated for tor version 0.2.1.19
+MULTI_LINE_PARAM = ["AlternateBridgeAuthority", "AlternateDirAuthority", "AlternateHSAuthority", "AuthDirBadDir", "AuthDirBadExit", "AuthDirInvalid", "AuthDirReject", "Bridge", "ControlListenAddress", "ControlSocket", "DirListenAddress", "DirPolicy", "DirServer", "DNSListenAddress", "ExitPolicy", "HashedControlPassword", "HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient", "HidServAuth", "Log", "MapAddress", "NatdListenAddress", "NodeFamily", "ORListenAddress", "ReachableAddresses", "ReachableDirAddresses", "ReachableORAddresses", "RecommendedVersions", "RecommendedClientVersions", "RecommendedServerVersions", "SocksListenAddress", "SocksPolicy", "TransListenAddress", "__HashedControlSessionPassword"]
+
 class ConfPanel(util.Panel):
   """
   Presents torrc with syntax highlighting in a scroll-able area.
   """
   
-  def __init__(self, lock, confLocation):
+  def __init__(self, lock, confLocation, conn, logPanel):
     util.Panel.__init__(self, lock, -1)
     self.confLocation = confLocation
     self.showLineNum = True
     self.stripComments = False
     self.confContents = []
     self.scroll = 0
+    
+    # lines that don't matter due to duplicates
+    self.irrelevantLines = []
+    
+    # used to check consistency with tor's actual values - corrections mapping
+    # is of line numbers (one-indexed) to tor's actual values
+    self.corrections = {}
+    self.conn = conn
+    self.logger = logPanel
+    
     self.reset()
   
   def reset(self):
@@ -29,6 +44,49 @@ class ConfPanel(util.Panel):
       confFile = open(self.confLocation, "r")
       self.confContents = confFile.readlines()
       confFile.close()
+      
+      # checks if torrc differs from get_option data
+      self.irrelevantLines = []
+      self.corrections = {}
+      correctedCmd = {}       # mapping of corrected commands to line numbers
+      
+      for lineNumber in range(len(self.confContents)):
+        lineText = self.confContents[lineNumber].strip()
+        
+        if lineText and lineText[0] != "#":
+          # relevant to tor (not blank nor comment)
+          ctlEnd = lineText.find(" ")   # end of command
+          argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
+          if argEnd == -1: argEnd = len(lineText)
+          command, argument = lineText[:ctlEnd], lineText[ctlEnd:argEnd].strip()
+          
+          # most parameters are overwritten if defined multiple times, if so
+          # it's erased from corrections and noted as duplicate instead
+          if not command in MULTI_LINE_PARAM and command in correctedCmd.keys():
+            self.irrelevantLines.append(correctedCmd[command])
+            del self.corrections[correctedCmd[command]]
+          
+          # check validity against tor's actual state
+          try:
+            actualValues = []
+            for key, val in self.conn.get_option(command):
+              actualValues.append(val)
+            
+            if not argument in actualValues:
+              self.corrections[lineNumber + 1] = ", ".join(actualValues)
+              correctedCmd[command] = lineNumber + 1
+          except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+            pass # unable to load tor parameter to validate... weird
+      
+      # logs issues that arose
+      if self.irrelevantLines:
+        if len(self.irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
+        else: first, second, third = "Entry", "is", " on line"
+        baseMsg = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
+        
+        self.logger.monitor_event("NOTICE", "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
+      if self.corrections:
+        self.logger.monitor_event("WARN", "Tor's state differs from loaded torrc")
     except IOError:
       self.confContents = ["### Unable to load torrc ###"]
     self.scroll = 0
@@ -53,33 +111,24 @@ class ConfPanel(util.Panel):
         self.clear()
         self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, util.LABEL_ATTR)
         
-        if self.stripComments:
-          displayText = []
-          
-          for line in self.confContents:
-            commentStart = line.find("#")
-            if commentStart != -1: line = line[:commentStart]
-            
-            line = line.strip()
-            if line: displayText.append(line)
-        else: displayText = self.confContents
-        
         pageHeight = self.maxY - 1
-        numFieldWidth = int(math.log10(len(displayText))) + 1
-        lineNum = 1
-        for i in range(self.scroll, min(len(displayText), self.scroll + pageHeight)):
-          lineText = displayText[i].strip()
+        numFieldWidth = int(math.log10(len(self.confContents))) + 1
+        lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
+        
+        for i in range(self.scroll, min(len(self.confContents), self.scroll + pageHeight)):
+          lineText = self.confContents[i].strip()
+          skipLine = False # true if we're not presenting line due to stripping
           
-          numOffset = 0     # offset for line numbering
-          if self.showLineNum:
-            self.addstr(lineNum, 0, ("%%%ii" % numFieldWidth) % (i + 1), curses.A_BOLD | util.getColor("yellow"))
-            numOffset = numFieldWidth + 1
+          command, argument, correction, comment = "", "", "", ""
+          commandColor, argumentColor, correctionColor, commentColor = "green", "cyan", "cyan", "white"
           
-          command, argument, comment = "", "", ""
-          if not lineText: pass # no text
+          if not lineText:
+            # no text
+            if self.stripComments: skipLine = True
           elif lineText[0] == "#":
             # whole line is commented out
             comment = lineText
+            if self.stripComments: skipLine = True
           else:
             # parse out command, argument, and possible comment
             ctlEnd = lineText.find(" ")   # end of command
@@ -87,11 +136,29 @@ class ConfPanel(util.Panel):
             if argEnd == -1: argEnd = len(lineText)
             
             command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
+            
+            # changes presentation if value's incorrect or irrelevant
+            if lineNum in self.corrections.keys():
+              argumentColor = "red"
+              correction = " (%s)" % self.corrections[lineNum]
+            elif lineNum in self.irrelevantLines:
+              commandColor = "blue"
+              argumentColor = "blue"
           
-          xLoc = 0
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, command, curses.A_BOLD | util.getColor("green"), numOffset)
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, argument, curses.A_BOLD | util.getColor("cyan"), numOffset)
-          lineNum, xLoc = self.addstr_wrap(lineNum, xLoc, comment, util.getColor("white"), numOffset)
+          if not skipLine:
+            numOffset = 0     # offset for line numbering
+            if self.showLineNum:
+              self.addstr(displayLineNum, 0, ("%%%ii" % numFieldWidth) % lineNum, curses.A_BOLD | util.getColor("yellow"))
+              numOffset = numFieldWidth + 1
+            
+            xLoc = 0
+            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, command, curses.A_BOLD | util.getColor(commandColor), numOffset)
+            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, argument, curses.A_BOLD | util.getColor(argumentColor), numOffset)
+            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, correction, curses.A_BOLD | util.getColor(correctionColor), numOffset)
+            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, comment, util.getColor(commentColor), numOffset)
+            
+            displayLineNum += 1
+          
           lineNum += 1
           
         self.refresh()

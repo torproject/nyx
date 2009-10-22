@@ -8,11 +8,13 @@ Curses (terminal) interface for the arm relay status monitor.
 
 import re
 import os
+import math
 import time
 import curses
 import socket
 from threading import RLock
 from TorCtl import TorCtl
+from TorCtl import TorUtil
 
 import headerPanel
 import graphPanel
@@ -74,6 +76,10 @@ class ControlPanel(util.Panel):
       
       msgText = self.msgText
       msgAttr = self.msgAttr
+      barTab = 2                # space between msgText and progress bar
+      barWidthMax = 40          # max width to progress bar
+      barWidth = -1             # space between "[ ]" in progress bar (not visible if -1)
+      barProgress = 0           # cells to fill
       
       if msgText == CTL_HELP:
         msgAttr = curses.A_NORMAL
@@ -89,8 +95,14 @@ class ControlPanel(util.Panel):
             if batchSize > 0: progress = 100 * entryCount / batchSize
             else: progress = 0
             
-            additive = "(or l) " if self.page == 2 else ""
-            msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
+            additive = "or l " if self.page == 2 else ""
+            batchSizeDigits = int(math.log10(batchSize)) + 1
+            entryCountLabel = ("%%%ii" % batchSizeDigits) % entryCount
+            #msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
+            msgText = "Resolving hostnames (press esc %sto cancel) - %s / %i, %2i%%" % (additive, entryCountLabel, batchSize, progress)
+            
+            barWidth = min(barWidthMax, self.maxX - len(msgText) - 3 - barTab)
+            barProgress = barWidth * entryCount / batchSize
         
         if self.resolvingCounter == -1:
           currentPage = self.page
@@ -106,6 +118,12 @@ class ControlPanel(util.Panel):
         msgAttr = curses.A_STANDOUT
       
       self.addstr(0, 0, msgText, msgAttr)
+      if barWidth > -1:
+        xLoc = len(msgText) + barTab
+        self.addstr(0, xLoc, "[", curses.A_BOLD)
+        self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | util.getColor("red"))
+        self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
+      
       self.refresh()
 
 class sighupListener(TorCtl.PostEventListener):
@@ -262,7 +280,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       if len(results) == 1:
         results = results[0].split()[6] # process field (ex. "7184/tor")
         torPid = results[:results.find("/")]
-    except IOError: pass # netstat call failed
+    except (IOError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass # netstat or control port calls failed
     netstatCall.close()
   
   if not torPid:
@@ -274,29 +292,32 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     except IOError: pass # ps call failed
     psCall.close()
   
-  confLocation = conn.get_info("config-file")["config-file"]
-  if confLocation[0] != "/":
-    # relative path - attempt to add process pwd
-    try:
-      pwdxCall = os.popen("pwdx %s 2> /dev/null" % torPid)
-      results = pwdxCall.readlines()
-      if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
-    except IOError: pass # pwdx call failed
-    pwdxCall.close()
+  try:
+    confLocation = conn.get_info("config-file")["config-file"]
+    if confLocation[0] != "/":
+      # relative path - attempt to add process pwd
+      try:
+        pwdxCall = os.popen("pwdx %s 2> /dev/null" % torPid)
+        results = pwdxCall.readlines()
+        if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
+      except IOError: pass # pwdx call failed
+      pwdxCall.close()
+  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+    confLocation = ""
   
   panels = {
     "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
     "popup": util.Panel(cursesLock, 9),
     "graph": graphPanel.GraphPanel(cursesLock),
-    "log": logPanel.LogMonitor(cursesLock, conn, loggedEvents),
-    "torrc": confPanel.ConfPanel(cursesLock, confLocation)}
+    "log": logPanel.LogMonitor(cursesLock, conn, loggedEvents)}
   
   # starts thread for processing netstat queries
-  connResolutionThread = connResolver.ConnResolver(torPid, panels["log"])
+  connResolutionThread = connResolver.ConnResolver(conn, torPid, panels["log"])
   connResolutionThread.start()
   
   panels["conn"] = connPanel.ConnPanel(cursesLock, conn, connResolutionThread, panels["log"])
   panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
+  panels["torrc"] = confPanel.ConfPanel(cursesLock, confLocation, conn, panels["log"])
   
   # prevents netstat calls by connPanel if not being used
   if DISABLE_CONNECTIONS_PAGE: panels["conn"].isDisabled = True
@@ -306,16 +327,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
-  panels["graph"].addStats("cpu / memory", cpuMemMonitor.CpuMemMonitor(panels["header"]))
-  panels["graph"].addStats("connection count", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
+  panels["graph"].addStats("system resources", cpuMemMonitor.CpuMemMonitor(panels["header"]))
+  panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
   panels["graph"].setStats("bandwidth")
   
   # listeners that update bandwidth and log panels with Tor status
   sighupTracker = sighupListener()
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
-  conn.add_event_listener(panels["graph"].stats["cpu / memory"])
-  conn.add_event_listener(panels["graph"].stats["connection count"])
+  conn.add_event_listener(panels["graph"].stats["system resources"])
+  conn.add_event_listener(panels["graph"].stats["connections"])
   conn.add_event_listener(panels["conn"])
   conn.add_event_listener(sighupTracker)
   
@@ -323,15 +344,19 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
+  # directs logged TorCtl events to log panel
+  TorUtil.loglevel = "DEBUG"
+  TorUtil.logfile = panels["log"]
+  
   # warns if tor isn't updating descriptors
   try:
     if conn.get_option("FetchUselessDescriptors")[0][1] == "0" and conn.get_option("DirPort")[0][1] == "0":
       warning = ["Descriptors won't be updated (causing some connection information to be stale) unless:", \
                 "  a. 'FetchUselessDescriptors 1' is set in your torrc", \
                 "  b. the directory service is provided ('DirPort' defined)", \
-                "  c. tor is used as a client"]
+                "  c. or tor is used as a client"]
       panels["log"].monitor_event("WARN", warning)
-  except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
+  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
@@ -348,11 +373,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # if sighup received then reload related information
       if sighupTracker.isReset:
         panels["header"]._updateParams(True)
-        panels["graph"].stats["bandwidth"].resetStaticData()
         
         # if bandwidth graph is being shown then height might have changed
         if panels["graph"].currentDisplay == "bandwidth":
           panels["graph"].height = panels["graph"].stats["bandwidth"].height
+        
+        # other panels that use torrc data
+        panels["conn"].resetOptions()
+        panels["graph"].stats["connections"].resetOptions(conn)
+        panels["graph"].stats["bandwidth"].resetOptions()
         
         panels["torrc"].reset()
         sighupTracker.isReset = False
@@ -375,12 +404,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           panels[panelKey].recreate(stdscr, tmpStartY)
           tmpStartY += panels[panelKey].height
       
-      
       # if it's been at least ten seconds since the last BW event Tor's probably done
-      if not isUnresponsive and panels["log"].getHeartbeat() >= 10:
+      if not isUnresponsive and not panels["log"].controlPortClosed and panels["log"].getHeartbeat() >= 10:
         isUnresponsive = True
         panels["log"].monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
-      elif isUnresponsive and panels["log"].getHeartbeat() < 10:
+      elif not panels["log"].controlPortClosed and (isUnresponsive and panels["log"].getHeartbeat() < 10):
         # shouldn't happen unless Tor freezes for a bit - BW events happen every second...
         isUnresponsive = False
         panels["log"].monitor_event("NOTICE", "Relay resumed")
@@ -429,6 +457,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         # joins on workers (prevents noisy termination)
         for worker in daemonThreads: worker.join()
         
+        conn.close() # joins on TorCtl event thread
+        
         break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
@@ -476,7 +506,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addstr(2, 41, "e: change logged events")
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(3, 2, "r: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addfstr(3, 2, "f: log regex filter (<b>%s</b>)" % regexLabel)
+          
+          runlevelEventsLabel = "arm and tor"
+          if panels["log"].runlevelTypes == logPanel.RUNLEVEL_TOR_ONLY: runlevelEventsLabel = "tor only"
+          elif panels["log"].runlevelTypes == logPanel.RUNLEVEL_ARM_ONLY: runlevelEventsLabel = "arm only"
+          popup.addfstr(3, 41, "r: logged runlevels (<b>%s</b>)" % runlevelEventsLabel)
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -524,7 +559,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # appends stats labels with first letters of each word capitalized
       initialSelection, i = -1, 1
       if not panels["graph"].currentDisplay: initialSelection = 0
-      for label in panels["graph"].stats.keys():
+      graphLabels = panels["graph"].stats.keys()
+      graphLabels.sort()
+      for label in graphLabels:
         if label == panels["graph"].currentDisplay: initialSelection = i
         words = label.split()
         options.append(" ".join(word[0].upper() + word[1:] for word in words))
@@ -630,7 +667,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         setPauseState(panels, isPaused, page)
       finally:
         cursesLock.release()
-    elif page == 0 and (key == ord('r') or key == ord('R')):
+    elif page == 0 and (key == ord('f') or key == ord('F')):
       # provides menu to pick previous regular expression filters or to add a new one
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
       options = ["None"] + regexFilters + ["New..."]
@@ -698,6 +735,25 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # reverts changes made for popup
       panels["graph"].showLabel = True
       setPauseState(panels, isPaused, page)
+    elif page == 0 and (key == ord('r') or key == ord('R')):
+      # provides menu to pick the type of runlevel events to log
+      options = ["tor only", "arm only", "arm and tor"]
+      initialSelection = panels["log"].runlevelTypes
+      
+      # hides top label of the graph panel and pauses panels
+      if panels["graph"].currentDisplay:
+        panels["graph"].showLabel = False
+        panels["graph"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Logged Runlevels:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["graph"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1: panels["log"].runlevelTypes = selection
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP
@@ -783,7 +839,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
             else:
               # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
               try: nsData = conn.get_network_status("id/%s" % fingerprint)
-              except (TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
+              except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
               
               if not lookupErrored:
                 if len(nsData) > 1:
@@ -796,7 +852,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
                   descLookupCmd = "desc/id/%s" % fingerprint
                   descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
                   relayLookupCache[selection] = (nsEntry, descEntry)
-                except TorCtl.ErrorReply: lookupErrored = True # desc lookup failed
+                except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True # desc lookup failed
             
             if lookupErrored:
               popup.addstr(3, 2, "Unable to retrieve consensus data", format)
@@ -962,7 +1018,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       clientCircuits = None
       try:
         clientCircuits = conn.get_info("circuit-status")["circuit-status"].split("\n")
-      except (TorCtl.ErrorReply, TorCtl.TorCtlClosed, socket.error): pass
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
       
       maxEntryLength = 0
       if clientCircuits:
