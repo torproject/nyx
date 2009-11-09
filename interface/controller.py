@@ -22,6 +22,7 @@ import logPanel
 import connPanel
 import confPanel
 import descriptorPopup
+import fileDescriptorPopup
 
 import util
 import connResolver
@@ -503,15 +504,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(1, 2, "s: graphed stats (<b>%s</b>)" % graphedStats)
           popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
           popup.addfstr(2, 2, "b: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
-          popup.addstr(2, 41, "e: change logged events")
-          
-          regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(3, 2, "f: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addstr(2, 41, "d: file descriptors")
+          popup.addstr(3, 2, "e: change logged events")
           
           runlevelEventsLabel = "arm and tor"
           if panels["log"].runlevelTypes == logPanel.RUNLEVEL_TOR_ONLY: runlevelEventsLabel = "tor only"
           elif panels["log"].runlevelTypes == logPanel.RUNLEVEL_ARM_ONLY: runlevelEventsLabel = "arm only"
           popup.addfstr(3, 41, "r: logged runlevels (<b>%s</b>)" % runlevelEventsLabel)
+          
+          regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
+          popup.addfstr(4, 2, "f: log regex filter (<b>%s</b>)" % regexLabel)
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -608,6 +610,19 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     elif page == 0 and (key == ord('b') or key == ord('B')):
       # uses the next boundary type for graph
       panels["graph"].bounds = (panels["graph"].bounds + 1) % 2
+    elif page == 0 and key in (ord('d'), ord('D')):
+      # provides popup with file descriptors
+      cursesLock.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        curses.cbreak() # wait indefinitely for key presses (no timeout)
+        
+        fileDescriptorPopup.showFileDescriptorPopup(panels["popup"], stdscr, torPid)
+        
+        setPauseState(panels, isPaused, page)
+        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+      finally:
+        cursesLock.release()
     elif page == 0 and (key == ord('e') or key == ord('E')):
       # allow user to enter new types of events to log - unchanged if left blank
       cursesLock.acquire()
@@ -791,7 +806,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           
           selectedIp = selection[connPanel.CONN_F_IP]
           selectedPort = selection[connPanel.CONN_F_PORT]
+          
           addrLabel = "address: %s:%s" % (selectedIp, selectedPort)
+          
+          if selection[connPanel.CONN_TYPE] == "family" and int(selection[connPanel.CONN_L_PORT]) > 65535:
+            # unresolved family entry - unknown ip/port
+            addrLabel = "address: unknown"
           
           hostname = resolver.resolve(selectedIp)
           if hostname == None:

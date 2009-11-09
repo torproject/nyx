@@ -19,8 +19,8 @@ from TorCtl import TorUtil
 from interface import controller
 from interface import logPanel
 
-VERSION = "1.2.1"
-LAST_MODIFIED = "Oct 21, 2009"
+VERSION = "1.2.2"
+LAST_MODIFIED = "Nov 8, 2009"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051

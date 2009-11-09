@@ -25,8 +25,8 @@ LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
 LIST_LABEL = {LIST_IP: "IP Address", LIST_HOSTNAME: "Hostname", LIST_FINGERPRINT: "Fingerprint", LIST_NICKNAME: "Nickname"}
 
 # attributes for connection types
-TYPE_COLORS = {"inbound": "green", "outbound": "blue", "client": "cyan", "directory": "magenta", "control": "red", "localhost": "yellow"}
-TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "client": 2, "directory": 3, "control": 4, "localhost": 5} # defines ordering
+TYPE_COLORS = {"inbound": "green", "outbound": "blue", "client": "cyan", "directory": "magenta", "control": "red", "family": "magenta", "localhost": "yellow"}
+TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "client": 2, "directory": 3, "control": 4, "family": 5, "localhost": 6} # defines ordering
 
 # enums for indexes of ConnPanel 'connections' fields
 CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY, CONN_TIME = range(7)
@@ -112,8 +112,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.localhostEntry = None        # special connection - tuple with (entry for this node, fingerprint)
     self.sortOrdering = [ORD_TYPE, ORD_FOREIGN_LISTING, ORD_FOREIGN_PORT]
     self.resolver = hostnameResolver.HostnameResolver()
-    self.fingerprintLookupCache = {}                              # chache of (ip, port) -> fingerprint
-    self.nicknameLookupCache = {}                                 # chache of (ip, port) -> nickname
+    self.fingerprintLookupCache = {}                              # cache of (ip, port) -> fingerprint
+    self.nicknameLookupCache = {}                                 # cache of (ip, port) -> nickname
     self.fingerprintMappings = _getFingerprintMappings(self.conn) # mappings of ip -> [(port, fingerprint, nickname), ...]
     self.providedGeoipWarning = False
     self.orconnStatusCache = []           # cache for 'orconn-status' calls
@@ -132,11 +132,17 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.pauseTime = 0              # time when paused
     self.connectionsBuffer = []     # location where connections are stored while paused
     self.connectionCountBuffer = []
+    self.familyResolutionsBuffer = {}
+    
+    # mapping of ip/port to fingerprint of family entries, used in hack to short circuit (ip / port) -> fingerprint lookups
+    self.familyResolutions = {}
     
     self.nickname = ""
     self.orPort = "0"
     self.dirPort = "0"
     self.controlPort = "0"
+    self.family = []                # fingerpints of family entries
+    
     self.resetOptions()
     
     # netstat results are tuples of the form:
@@ -150,6 +156,8 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.reset()
   
   def resetOptions(self):
+    self.familyResolutions = {}
+    
     try:
       self.nickname = self.conn.get_option("Nickname")[0][1]
       
@@ -157,11 +165,17 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       self.orPort = self.conn.get_option("ORPort")[0][1]
       self.dirPort = self.conn.get_option("DirPort")[0][1]
       self.controlPort = self.conn.get_option("ControlPort")[0][1]
+      
+      # entry is None if not set, otherwise of the format "$<fingerprint>,$<fingerprint>"
+      familyEntry = self.conn.get_option("MyFamily")[0][1]
+      if familyEntry: self.family = [entry[1:] for entry in familyEntry.split(",")]
+      else: self.family = []
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.nickname = ""
       self.orPort = "0"
       self.dirPort = "0"
       self.controlPort = "0"
+      self.family = []
   
   # change in client circuits
   def circ_status_event(self, event):
@@ -227,6 +241,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     # temporary variables for connections and count
     connectionsTmp = []
     connectionCountTmp = [0] * 5
+    familyResolutionsTmp = {}
     
     try:
       if self.clientConnectionCache == None:
@@ -309,15 +324,40 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       else:
         self.localhostEntry = None
       
+      # appends family connections
+      tmpCounter = 0 # used for unique port of unresolved family entries (funky hack)
+      for fingerprint in self.family:
+        try:
+          nsCommand = "ns/id/%s" % fingerprint
+          familyInfo = self.conn.get_info(nsCommand)[nsCommand].split()
+          familyAddress, familyPort = familyInfo[6], familyInfo[7]
+          
+          countryCodeQuery = "ip-to-country/%s" % familyAddress
+          familyCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+          
+          if (familyAddress, familyPort) in connTimes: connTime = connTimes[(familyAddress, familyPort)]
+          else: connTime = time.time()
+          
+          familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
+          connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime))
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+          # use dummy entry for sorting - the redraw function notes that entries are unknown
+          portIdentifier = str(65536 + tmpCounter)
+          familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
+          connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time()))
+          tmpCounter += 1
+      
       self.lastUpdate = time.time()
       
       # assigns results
       if self.isPaused:
         self.connectionsBuffer = connectionsTmp
         self.connectionCountBuffer = connectionCountTmp
+        self.familyResolutionsBuffer = familyResolutionsTmp
       else:
         self.connections = connectionsTmp
         self.connectionCount = connectionCountTmp
+        self.familyResolutions = familyResolutionsTmp
         
         # hostnames are sorted at redraw - otherwise now's a good time
         if self.listingType != LIST_HOSTNAME: self.sortConnections()
@@ -510,8 +550,27 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                   etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
                 
                 dst = ("%%-%is" % foreignNicknameSpace) % dst
+              
+              timeLabel = util.getTimeLabel(currentTime - entry[CONN_TIME], 1)
               if type == "inbound": src, dst = dst, src
-              lineEntry = "<%s>%s  -->  %s  %s%5s (<b>%s</b>)%s</%s>" % (color, src, dst, etc, util.getTimeLabel(currentTime - entry[CONN_TIME], 1), type.upper(), " " * (9 - len(type)), color)
+              elif type == "family" and int(entry[CONN_L_PORT]) > 65535:
+                # this belongs to an unresolved family entry - replaces invalid data with "UNKNOWN"
+                timeLabel = "---"
+                
+                if self.listingType == LIST_IP:
+                  src = "%-21s" % "UNKNOWN"
+                  dst = "%-26s" % "UNKNOWN"
+                elif self.listingType == LIST_HOSTNAME:
+                  src = "%-15s" % "UNKNOWN"
+                  dst = ("%%-%is" % len(dst)) % "UNKNOWN"
+                  if len(etc) > 0: etc = etc.replace("256.255.255.255 (??)", "UNKNOWN" + " " * 13)
+                else:
+                  ipStart = etc.find("256")
+                  if ipStart > -1: etc = etc[:ipStart] + ("%%-%is" % len(etc[ipStart:])) % "UNKNOWN"
+              
+              padding = self.maxX - (len(src) + len(dst) + len(etc) + 27) # padding needed to fill full line
+              lineEntry = "<%s>%s  -->  %s  %s%s%5s (<b>%s</b>)%s</%s>" % (color, src, dst, etc, " " * padding, timeLabel, type.upper(), " " * (9 - len(type)), color)
+              
               if self.isCursorEnabled and entry == self.cursorSelection:
                 lineEntry = "<h>%s</h>" % lineEntry
               
@@ -539,6 +598,10 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     # checks to see if this matches the localhost entry
     if self.localhostEntry and ipAddr == self.localhostEntry[0][CONN_L_IP] and port == self.localhostEntry[0][CONN_L_PORT]:
       return self.localhostEntry[1]
+    
+    # checks if this belongs to a family entry
+    if (ipAddr, port) in self.familyResolutions.keys():
+      return self.familyResolutions[(ipAddr, port)]
     
     port = int(port)
     if (ipAddr, port) in self.fingerprintLookupCache:
@@ -631,9 +694,11 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       self.pauseTime = time.time()
       self.connectionsBuffer = list(self.connections)
       self.connectionCountBuffer = list(self.connectionCount)
+      self.familyResolutionsBuffer = dict(self.familyResolutions)
     else:
       self.connections = list(self.connectionsBuffer)
       self.connectionCount = list(self.connectionCountBuffer)
+      self.familyResolutions = dict(self.familyResolutionsBuffer)
       
       # pause buffer connections may be unsorted
       if self.listingType != LIST_HOSTNAME: self.sortConnections()

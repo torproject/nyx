@@ -12,6 +12,18 @@ import util
 # last updated for tor version 0.2.1.19
 MULTI_LINE_PARAM = ["AlternateBridgeAuthority", "AlternateDirAuthority", "AlternateHSAuthority", "AuthDirBadDir", "AuthDirBadExit", "AuthDirInvalid", "AuthDirReject", "Bridge", "ControlListenAddress", "ControlSocket", "DirListenAddress", "DirPolicy", "DirServer", "DNSListenAddress", "ExitPolicy", "HashedControlPassword", "HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient", "HidServAuth", "Log", "MapAddress", "NatdListenAddress", "NodeFamily", "ORListenAddress", "ReachableAddresses", "ReachableDirAddresses", "ReachableORAddresses", "RecommendedVersions", "RecommendedClientVersions", "RecommendedServerVersions", "SocksListenAddress", "SocksPolicy", "TransListenAddress", "__HashedControlSessionPassword"]
 
+# size modifiers allowed by config.c
+LABEL_KB = ["kb", "kbyte", "kbytes", "kilobyte", "kilobytes"]
+LABEL_MB = ["m", "mb", "mbyte", "mbytes", "megabyte", "megabytes"]
+LABEL_GB = ["gb", "gbyte", "gbytes", "gigabyte", "gigabytes"]
+LABEL_TB = ["tb", "terabyte", "terabytes"]
+
+# time modifiers allowed by config.c
+LABEL_MIN = ["minute", "minutes"]
+LABEL_HOUR = ["hour", "hours"]
+LABEL_DAY = ["day", "days"]
+LABEL_WEEK = ["week", "weeks"]
+
 class ConfPanel(util.Panel):
   """
   Presents torrc with syntax highlighting in a scroll-able area.
@@ -48,7 +60,7 @@ class ConfPanel(util.Panel):
       # checks if torrc differs from get_option data
       self.irrelevantLines = []
       self.corrections = {}
-      correctedCmd = {}       # mapping of corrected commands to line numbers
+      parsedCommands = {}       # mapping of parsed commands to line numbers
       
       for lineNumber in range(len(self.confContents)):
         lineText = self.confContents[lineNumber].strip()
@@ -60,11 +72,28 @@ class ConfPanel(util.Panel):
           if argEnd == -1: argEnd = len(lineText)
           command, argument = lineText[:ctlEnd], lineText[ctlEnd:argEnd].strip()
           
+          # expands value if it's a size or time
+          comp = argument.strip().lower().split(" ")
+          if len(comp) > 1:
+            size = 0
+            if comp[1] in LABEL_KB: size = int(comp[0]) * 1024
+            elif comp[1] in LABEL_MB: size = int(comp[0]) * 1048576
+            elif comp[1] in LABEL_GB: size = int(comp[0]) * 1073741824
+            elif comp[1] in LABEL_TB: size = int(comp[0]) * 1099511627776
+            elif comp[1] in LABEL_MIN: size = int(comp[0]) * 60
+            elif comp[1] in LABEL_HOUR: size = int(comp[0]) * 3600
+            elif comp[1] in LABEL_DAY: size = int(comp[0]) * 86400
+            elif comp[1] in LABEL_WEEK: size = int(comp[0]) * 604800
+            if size != 0: argument = str(size)
+              
           # most parameters are overwritten if defined multiple times, if so
           # it's erased from corrections and noted as duplicate instead
-          if not command in MULTI_LINE_PARAM and command in correctedCmd.keys():
-            self.irrelevantLines.append(correctedCmd[command])
-            del self.corrections[correctedCmd[command]]
+          if not command in MULTI_LINE_PARAM and command in parsedCommands.keys():
+            previousLineNum = parsedCommands[command]
+            self.irrelevantLines.append(previousLineNum)
+            if previousLineNum in self.corrections.keys(): del self.corrections[previousLineNum]
+          
+          parsedCommands[command] = lineNumber + 1
           
           # check validity against tor's actual state
           try:
@@ -73,8 +102,7 @@ class ConfPanel(util.Panel):
               actualValues.append(val)
             
             if not argument in actualValues:
-              self.corrections[lineNumber + 1] = ", ".join(actualValues)
-              correctedCmd[command] = lineNumber + 1
+              self.corrections[lineNumber + 1] = argument + " - " + ", ".join(actualValues)
           except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
             pass # unable to load tor parameter to validate... weird
       
@@ -87,8 +115,9 @@ class ConfPanel(util.Panel):
         self.logger.monitor_event("NOTICE", "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
       if self.corrections:
         self.logger.monitor_event("WARN", "Tor's state differs from loaded torrc")
-    except IOError:
+    except IOError, exc:
       self.confContents = ["### Unable to load torrc ###"]
+      self.logger.monitor_event("WARN", "Unable to load torrc (%s)" % str(exc))
     self.scroll = 0
   
   def handleKey(self, key):

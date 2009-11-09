@@ -21,10 +21,11 @@ An interview by Brenno Winter discussing the project is available at:
 Requirements:
 Python 2.5
 TorCtl (retrieved in svn checkout)
-Common *nix commands including: ps, pidof, tail, host, and netstat
 Tor is running with an available control port. This means either...
   ... starting Tor with '--controlport <PORT>'
   ... or including 'ControlPort <PORT>' in your torrc
+For full functionality this requires common *nix commands including: ps, pidof,
+  tail, pwdx, host, netstat, lsof, and ulimit
 
 This is started via 'arm' (use the '--help' argument for usage).
 

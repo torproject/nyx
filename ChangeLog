@@ -1,6 +1,17 @@
 CHANGE LOG
 
-10/21/09 - version 1.2.1
+11/8/09 - version 1.2.2
+This will be the last update for a while since I'm about to start a new job.
+
+    * added: including family relays on connections listing
+    * added: file descriptors dialog (stats and scrollable listing)
+    * change: logs warning if torrc fails to load
+    * fix: size and time labels used in torrc are expanded for validation
+    * fix: duplicate torrc entries weren't being detected if not erroneous
+    * fix: crashing issue when cleaning up hostname cache
+    * fix: stretching connection lines to fill full screen
+
+10/21/09 - version 1.2.1 (r20814)
 Substantial bundle of changes including torrc validation, improved arm event logging, and numerous bug fixes.
 
     * added: verifies loaded torrc consistency against tor's actual state (gives warning and providing corrections)

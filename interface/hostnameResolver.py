@@ -69,8 +69,9 @@ class HostnameResolver():
         threshold = currentCount - (RESOLVER_MAX_CACHE_SIZE - RESOLVER_CACHE_TRIM_SIZE) # max count of entries being removed
         toDelete = []
         
-        for (entryAddr, (entryHostname, entryAge)) in self.resolvedCache:
-          if entryAge < threshold: toDelete.append(entryAddr)
+        # checks age of each entry, adding to toDelete if too old
+        for ipAddr in self.resolvedCache.keys():
+          if self.resolvedCache[ipAddr][1] < threshold: toDelete.append(ipAddr)
         
         for entryAddr in toDelete: del self.resolvedCache[entryAddr]
       
