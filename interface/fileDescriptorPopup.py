@@ -27,14 +27,32 @@ class PopupProperties:
       
       # retrieves list of open files, options are:
       # n = no dns lookups, p = by pid, -F = show fields (L = login name, n = opened files)
-      lsofCall = os.popen("lsof -np %s -F Ln 2> /dev/null" % torPid)
-      results = lsofCall.readlines()
-      if len(results) == 0: raise Exception("lsof is unavailable")
+      lsofCall = os.popen3("lsof -np %s -F Ln" % torPid)
+      results = lsofCall[1].readlines()
+      errResults = lsofCall[2].readlines()
+      
+      # checks if lsof was unavailable
+      if "not found" in "".join(errResults):
+        raise Exception("error: lsof is unavailable")
+      
+      # if we didn't get any results then tor's probably closed (keep defaults)
+      if len(results) == 0: return
+      
       torUser = results[1][1:]
       results = results[2:] # skip first couple lines (pid listing and user)
       
       # splits descriptors into buckets according to their type
       descriptors = [entry[1:].strip() for entry in results] # strips off first character (always an 'n')
+      
+      # checks if read failed due to permission issues
+      isPermissionDenied = True
+      for desc in descriptors:
+        if "Permission denied" not in desc:
+          isPermissionDenied = False
+          break
+      
+      if isPermissionDenied:
+        raise Exception("lsof error: Permission denied")
       
       for desc in descriptors:
         if os.path.exists(desc): self.fdFile.append(desc)
@@ -57,13 +75,15 @@ class PopupProperties:
         # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
         ulimitCall = os.popen("ulimit -Hn 2> /dev/null")
         results = ulimitCall.readlines()
-        if len(results) == 0: raise Exception("ulimit is unavailable")
+        if len(results) == 0: raise Exception("error: ulimit is unavailable")
         self.fdLimit = int(results[0])
     except Exception, exc:
       # problem arose in calling or parsing lsof or ulimit calls
-      self.errorMsg = "error: " + str(exc)
+      self.errorMsg = str(exc)
     finally:
-      lsofCall.close()
+      lsofCall[0].close()
+      lsofCall[1].close()
+      lsofCall[2].close()
       if ulimitCall: ulimitCall.close()
   
   def handleKey(self, key, height):
@@ -94,7 +114,7 @@ def showFileDescriptorPopup(popup, stdscr, torPid):
       for entry in properties.fdFile + properties.fdConn + properties.fdMisc:
         popupWidth = max(popupWidth, len(entry) + 4)
       
-      popupHeight = len(properties.fdFile) + len(properties.fdConn) + len(properties.fdMisc)
+      popupHeight = len(properties.fdFile) + len(properties.fdConn) + len(properties.fdMisc) + 4
     
     popup._resetBounds()
     popup.height = popupHeight
@@ -128,7 +148,7 @@ def draw(popup, properties):
   else:
     # text with file descriptor count and limit
     fdCount = len(properties.fdFile) + len(properties.fdConn) + len(properties.fdMisc)
-    fdCountPer = 100 * fdCount / properties.fdLimit
+    fdCountPer = 100 * fdCount / max(properties.fdLimit, 1)
     
     statsColor = "green"
     if fdCountPer >= 90: statsColor = "red"
@@ -139,7 +159,8 @@ def draw(popup, properties):
     
     # provides a progress bar reflecting the stats
     barWidth = popup.maxX - len(countMsg) - 6 # space between "[ ]" in progress bar
-    barProgress = max(1, barWidth * fdCountPer / 100) # filled cells
+    barProgress = barWidth * fdCountPer / 100 # filled cells
+    if fdCount > 0: barProgress = max(1, barProgress) # ensures one cell is filled unless really zero
     popup.addstr(1, len(countMsg) + 3, "[", curses.A_BOLD)
     popup.addstr(1, len(countMsg) + 4, " " * barProgress, curses.A_STANDOUT | util.getColor(statsColor))
     popup.addstr(1, len(countMsg) + 4 + barWidth, "]", curses.A_BOLD)

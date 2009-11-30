@@ -19,8 +19,8 @@ from TorCtl import TorUtil
 from interface import controller
 from interface import logPanel
 
-VERSION = "1.2.2"
-LAST_MODIFIED = "Nov 8, 2009"
+VERSION = "1.3.0"
+LAST_MODIFIED = "Nov 29, 2009"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -185,6 +185,9 @@ if __name__ == '__main__':
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
     sys.exit()
+  
+  # temporarily disables TorCtl logging to prevent issues from going to stdout when starting
+  TorUtil.loglevel = "NONE"
   
   # attempts to open a socket to the tor server
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

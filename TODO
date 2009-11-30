@@ -10,14 +10,11 @@ TODO
 			Not sure how to address this - problem is that the calls to 'host' can 
 			take a while to time out. Might need another thread to kill the calls?
 			Or forcefully terminate thread if it's taking too long (might be noisy)?
-	* version labels provided on Debian are longer than expected
-			caught by hexa
 
 - Features / Site
 	* abstract away netstat calls
 			In preparation for drop in replacement of lsof or calls to tor's
 			GETINFO.
-	* file descriptor stats
 	* add page that allows raw control port access
 			Piggyback on the arm connection, providing something like an interactive
 			prompt. In addition, provide:
@@ -36,8 +33,6 @@ TODO
 			requested by arma
 	* show advertised bandwidth
 			if set and there's extra room available show 'MaxAdvertisedBandwidth'
-	* when help popup is showing options let them be directly opened
-			requested by arma
 	* check family connections to see if they're alive (VERSION cell handshake?)
 	* update site's screenshots (pretty out of date...)
 

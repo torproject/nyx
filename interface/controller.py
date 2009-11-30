@@ -361,6 +361,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
+  overrideKey = None        # immediately runs with this input rather than waiting for the user if set
   page = 0
   regexFilters = []             # previously used log regex filters
   
@@ -422,7 +423,13 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     finally:
       cursesLock.release()
     
-    key = stdscr.getch()
+    # wait for user keyboard input until timeout (unless an override was set)
+    if overrideKey:
+      key = overrideKey
+      overrideKey = None
+    else:
+      key = stdscr.getch()
+    
     if key == ord('q') or key == ord('Q'):
       quitConfirmed = not CONFIRM_QUIT
       
@@ -498,39 +505,45 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         popup.win.box()
         popup.addstr(0, 0, "Page %i Commands:" % (page + 1), util.LABEL_ATTR)
         
+        pageOverrideKeys = ()
+        
         if page == 0:
           graphedStats = panels["graph"].currentDisplay
           if not graphedStats: graphedStats = "none"
-          popup.addfstr(1, 2, "s: graphed stats (<b>%s</b>)" % graphedStats)
-          popup.addfstr(1, 41, "i: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
+          popup.addfstr(1, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
+          popup.addfstr(1, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
           popup.addfstr(2, 2, "b: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
-          popup.addstr(2, 41, "d: file descriptors")
-          popup.addstr(3, 2, "e: change logged events")
+          popup.addfstr(2, 41, "<b>d</b>: file descriptors")
+          popup.addfstr(3, 2, "<b>e</b>: change logged events")
           
           runlevelEventsLabel = "arm and tor"
           if panels["log"].runlevelTypes == logPanel.RUNLEVEL_TOR_ONLY: runlevelEventsLabel = "tor only"
           elif panels["log"].runlevelTypes == logPanel.RUNLEVEL_ARM_ONLY: runlevelEventsLabel = "arm only"
-          popup.addfstr(3, 41, "r: logged runlevels (<b>%s</b>)" % runlevelEventsLabel)
+          popup.addfstr(3, 41, "<b>r</b>: logged runlevels (<b>%s</b>)" % runlevelEventsLabel)
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(4, 2, "f: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addfstr(4, 2, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
+          
+          pageOverrideKeys = (ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
         if page == 1:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
           popup.addstr(2, 2, "page up: scroll up a page")
           popup.addstr(2, 41, "page down: scroll down a page")
           popup.addstr(3, 2, "enter: connection details")
-          popup.addstr(3, 41, "d: raw consensus descriptor")
+          popup.addfstr(3, 41, "<b>d</b>: raw consensus descriptor")
           
           listingType = connPanel.LIST_LABEL[panels["conn"].listingType].lower()
-          popup.addfstr(4, 2, "l: listed identity (<b>%s</b>)" % listingType)
+          popup.addfstr(4, 2, "<b>l</b>: listed identity (<b>%s</b>)" % listingType)
           
           allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
           popup.addfstr(4, 41, "r: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
           
-          popup.addstr(5, 2, "s: sort ordering")
-          popup.addstr(5, 41, "c: client circuits")
+          popup.addfstr(5, 2, "<b>s</b>: sort ordering")
+          popup.addfstr(5, 41, "<b>c</b>: client circuits")
           #popup.addfstr(5, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
+          
+          pageOverrideKeys = (ord('d'), ord('l'), ord('s'), ord('c'))
         elif page == 2:
           popup.addstr(1, 2, "up arrow: scroll up a line")
           popup.addstr(1, 41, "down arrow: scroll down a line")
@@ -546,8 +559,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
         
+        # waits for user to hit a key, if it belongs to a command then executes it
         curses.cbreak()
-        stdscr.getch()
+        helpExitKey = stdscr.getch()
+        if helpExitKey in pageOverrideKeys: overrideKey = helpExitKey
         curses.halfdelay(REFRESH_RATE * 10)
         
         setPauseState(panels, isPaused, page)

@@ -43,6 +43,7 @@ class HeaderPanel(util.Panel):
     self.conn = conn                # Tor control port connection
     self.isPaused = False
     self.isWide = False             # doubles up parameters to shorten section if room's available
+    self.rightParamX = 0            # offset used for doubled up parameters
     self.lastUpdate = -1            # time last stats was retrived
     self._updateParams()
   
@@ -52,6 +53,7 @@ class HeaderPanel(util.Panel):
     
     self._resetBounds()
     self.isWide = self.maxX >= MIN_DUAL_ROW_WIDTH
+    self.rightParamX = max(self.maxX / 2, 75) if self.isWide else 0
     self.height = 4 if self.isWide else 6
     
     util.Panel.recreate(self, stdscr, startY, maxX)
@@ -70,12 +72,35 @@ class HeaderPanel(util.Panel):
         
         self.clear()
         
-        # Line 1
-        self.addstr(0, 0, "arm - %s (%s %s)" % (self.vals["sys-name"], self.vals["sys-os"], self.vals["sys-version"]))
+        # Line 1 (system and tor version information)
+        systemNameLabel = "arm - %s " % self.vals["sys-name"]
+        systemVersionLabel = "%s %s" % (self.vals["sys-os"], self.vals["sys-version"])
+        
+        # wraps systemVersionLabel in parentheses and truncates if too long
+        versionLabelMaxWidth = 40 - len(systemNameLabel)
+        if len(systemNameLabel) > 40:
+          # we only have room for the system name label
+          systemNameLabel = systemNameLabel[:39] + "..."
+          systemVersionLabel = ""
+        elif len(systemVersionLabel) > versionLabelMaxWidth:
+          # not enough room to show full version
+          systemVersionLabel = "(%s...)" % systemVersionLabel[:versionLabelMaxWidth - 3].strip()
+        else:
+          # enough room for everything
+          systemVersionLabel = "(%s)" % systemVersionLabel
+        
+        self.addstr(0, 0, "%s%s" % (systemNameLabel, systemVersionLabel))
         
         versionStatus = self.vals["status/version/current"]
         versionColor = VERSION_STATUS_COLORS[versionStatus] if versionStatus in VERSION_STATUS_COLORS else "white"
-        self.addfstr(0, 43, "Tor %s (<%s>%s</%s>)" % (self.vals["version"], versionColor, versionStatus, versionColor))
+        
+        # truncates torVersionLabel if too long
+        torVersionLabel = self.vals["version"]
+        versionLabelMaxWidth =  (self.rightParamX if self.isWide else self.maxX) - 51 - len(versionStatus)
+        if len(torVersionLabel) > versionLabelMaxWidth:
+          torVersionLabel = torVersionLabel[:versionLabelMaxWidth - 1].strip() + "-"
+        
+        self.addfstr(0, 43, "Tor %s (<%s>%s</%s>)" % (torVersionLabel, versionColor, versionStatus, versionColor))
         
         # Line 2 (authentication label red if open, green if credentials required)
         dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if self.vals["DirPort"] != "0" else ""
@@ -89,14 +114,14 @@ class HeaderPanel(util.Panel):
         self.addfstr(1, 0, "%s<%s>%s</%s>): %s" % (labelStart, controlPortAuthColor, controlPortAuthLabel, controlPortAuthColor, self.vals["ControlPort"]))
         
         # Line 3 (system usage info) - line 1 right if wide
-        y, x = 0 if self.isWide else 2, 75 if self.isWide else 0
+        y, x = (0, self.rightParamX) if self.isWide else (2, 0)
         self.addstr(y, x, "cpu: %s%%" % self.vals["%cpu"])
         self.addstr(y, x + 13, "mem: %s (%s%%)" % (util.getSizeLabel(int(self.vals["rss"]) * 1024), self.vals["%mem"]))
         self.addstr(y, x + 34, "pid: %s" % (self.vals["pid"] if self.vals["etime"] else ""))
         self.addstr(y, x + 47, "uptime: %s" % self.vals["etime"])
         
         # Line 4 (fingerprint) - line 2 right if wide
-        y, x = 1 if self.isWide else 3, 75 if self.isWide else 0
+        y, x = (1, self.rightParamX) if self.isWide else (3, 0)
         self.addstr(y, x, "fingerprint: %s" % self.vals["fingerprint"])
         
         # Line 5 (flags) - line 3 left if wide
@@ -108,7 +133,7 @@ class HeaderPanel(util.Panel):
         if len(self.vals["flags"]) > 0: flagLine = flagLine[:-2]
         self.addfstr(2 if self.isWide else 4, 0, flagLine)
         
-        # Line 3 right (exit policy) - not present if not wide
+        # Line 3 right (exit policy) - only present if wide
         if self.isWide:
           exitPolicy = self.vals["ExitPolicy"]
           
@@ -130,7 +155,7 @@ class HeaderPanel(util.Panel):
             policies[i] = policy
           exitPolicy = ", ".join(policies)
           
-          self.addfstr(2, 75, "exit policy: %s" % exitPolicy)
+          self.addfstr(2, self.rightParamX, "exit policy: %s" % exitPolicy)
         
         self.refresh()
       finally:

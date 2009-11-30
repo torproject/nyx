@@ -340,12 +340,14 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           
           familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
           connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime))
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+        except (socket.error, TorCtl.ErrorReply):
           # use dummy entry for sorting - the redraw function notes that entries are unknown
           portIdentifier = str(65536 + tmpCounter)
           familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
           connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time()))
           tmpCounter += 1
+        except TorCtl.TorCtlClosed:
+          pass # connections aren't shown when control port is unavailable
       
       self.lastUpdate = time.time()
       
@@ -568,7 +570,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
                   ipStart = etc.find("256")
                   if ipStart > -1: etc = etc[:ipStart] + ("%%-%is" % len(etc[ipStart:])) % "UNKNOWN"
               
-              padding = self.maxX - (len(src) + len(dst) + len(etc) + 27) # padding needed to fill full line
+              padding = self.maxX - (len(src) + len(dst) + len(etc) + 27) - xOffset # padding needed to fill full line
               lineEntry = "<%s>%s  -->  %s  %s%s%5s (<b>%s</b>)%s</%s>" % (color, src, dst, etc, " " * padding, timeLabel, type.upper(), " " * (9 - len(type)), color)
               
               if self.isCursorEnabled and entry == self.cursorSelection:
