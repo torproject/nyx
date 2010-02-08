@@ -9,8 +9,8 @@ command line parameters.
 """
 
 import sys
-import os
 import socket
+import getopt
 import getpass
 
 from TorCtl import TorCtl
@@ -19,119 +19,30 @@ from TorCtl import TorUtil
 from interface import controller
 from interface import logPanel
 
-VERSION = "1.3.0"
-LAST_MODIFIED = "Nov 29, 2009"
+VERSION = "1.3.1"
+LAST_MODIFIED = "Feb 7, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
-DEFAULT_AUTH_COOKIE = os.path.expanduser("~/.tor/control_auth_cookie") # TODO: Check if this is valid for macs
-DEFAULT_LOGGED_EVENTS = "nwe" # NOTICE, WARN, ERR
+DEFAULT_LOGGED_EVENTS = "N3" # tor and arm NOTICE, WARN, and ERR events
 
-NO_AUTH, COOKIE_AUTH, PASSWORD_AUTH = range(3) # enums for authentication type
-
+OPT = "i:p:be:vh"
+OPT_EXPANDED = ["interface=", "password=", "blind", "event=", "version", "help"]
 HELP_TEXT = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
-  -c, --cookie[=PATH]             authenticates using cookie, PATH defaults to
-                                    '%s'
-  -p, --password[=PASSWORD]       authenticates using password, prompting
-                                    without terminal echo if not provided
-  -e, --event=[EVENT FLAGS]       event types in message log  (default: %s)
+  -p, --password PASSWORD         authenticate using password (skip prompt)
+  -b, --blind                     disable connection lookups
+  -e, --event EVENT_FLAGS         event types in message log  (default: %s)
 %s
   -v, --version                   provides version information
   -h, --help                      presents this help
 
 Example:
-arm -c                  authenticate using the default cookie
-arm -i 1643 -p          prompt for password using control port 1643
+arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
-""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_AUTH_COOKIE, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
-
-class Input:
-  "Collection of the user's command line input"
-  
-  def __init__(self, args):
-    self.controlAddr = DEFAULT_CONTROL_ADDR     # controller interface IP address
-    self.controlPort = DEFAULT_CONTROL_PORT     # controller interface port
-    self.authType = NO_AUTH                     # type of authentication used
-    self.authCookieLoc = DEFAULT_AUTH_COOKIE    # location of authentication cookie
-    self.authPassword = ""                      # authentication password
-    self.loggedEvents = DEFAULT_LOGGED_EVENTS   # flags for event types in message log
-    self.isValid = True                         # determines if the program should run
-    self.printVersion = False                   # prints version then quits
-    self.printHelp = False                      # prints help then quits
-    self._parseArgs(args)
-  
-  def _parseArgs(self, args):
-    """
-    Recursively parses arguments, populating parameters and checking input 
-    validity. This does not check if options are defined multiple times.
-    """
-    
-    if len(args) == 0: return
-    elif args[0] == "-i" or args[0] == "--interface":
-      # defines control interface address/port
-      if len(args) >= 2:
-        interfaceArg = args[1]
-        
-        try:
-          divIndex = interfaceArg.find(":")
-          
-          if divIndex == -1:
-            self.controlAddr = DEFAULT_CONTROL_ADDR
-            self.controlPort = int(interfaceArg)
-          else:
-            self.controlAddr = interfaceArg[0:divIndex]
-            if not isValidIpAddr(self.controlAddr): raise AssertionError()
-            self.controlPort = int(interfaceArg[divIndex + 1:])
-          self._parseArgs(args[2:])
-        except ValueError:
-          print "'%s' isn't a valid interface" % interfaceArg
-          self.isValid = False
-        except AssertionError:
-          print "'%s' isn't a valid IP address" % self.controlAddr
-          self.isValid = False
-      else:
-        print "%s argument provided without defining an interface" % args[0]
-        self.isValid = False
-        
-    elif args[0] == "-c" or args[0].startswith("-c=") or args[0] == "--cookie" or args[0].startswith("--cookie="):
-      # set to use cookie authentication (and possibly define location)
-      self.authType = COOKIE_AUTH
-      
-      # sets authentication path if provided
-      if args[0].startswith("-c="):
-        self.authCookieLoc = args[0][3:]
-      elif args[0].startswith("--cookie="):
-        self.authCookieLoc = args[0][9:]
-      
-      self._parseArgs(args[1:])
-    elif args[0] == "-p" or args[0].startswith("-p=") or args[0] == "--password" or args[0].startswith("--password="):
-      # set to use password authentication
-      self.authType = PASSWORD_AUTH
-      
-      # sets authentication password if provided
-      if args[0].startswith("-p="):
-        self.authPassword = args[0][3:]
-      elif args[0].startswith("--password="):
-        self.authPassword = args[0][11:]
-      
-      self._parseArgs(args[1:])
-    elif args[0].startswith("-e=") or args[0].startswith("--event="):
-      # set event flags
-      if args[0].startswith("-e="): self.loggedEvents = args[0][3:]
-      else: self.loggedEvents = args[0][8:]
-      self._parseArgs(args[1:])
-    elif args[0] == "-v" or args[0] == "--version":
-      self.printVersion = True
-      self._parseArgs(args[1:])
-    elif args[0] == "-h" or args[0] == "--help":
-      self.printHelp = True
-      self._parseArgs(args[1:])
-    else:
-      print "Unrecognized command: " + args[0]
-      self.isValid = False
+""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
 
 def isValidIpAddr(ipStr):
   """
@@ -157,61 +68,127 @@ def isValidIpAddr(ipStr):
   return True
 
 if __name__ == '__main__':
-  # parses user input, quitting if there's a problem
-  input = Input(sys.argv[1:])
-  if not input.isValid: sys.exit()
+  controlAddr = DEFAULT_CONTROL_ADDR     # controller interface IP address
+  controlPort = DEFAULT_CONTROL_PORT     # controller interface port
+  authPassword = ""                      # authentication password (prompts if unset and needed)
+  isBlindMode = False                    # allows connection lookups to be disabled
+  loggedEvents = DEFAULT_LOGGED_EVENTS   # flags for event types in message log
   
-  # if help or version flags are set then prints and quits
-  if input.printHelp:
-    print HELP_TEXT
-    sys.exit()
-  elif input.printVersion:
-    print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
-    sys.exit()
-  
-  # validates that cookie authentication path exists
-  if input.authType == COOKIE_AUTH and not os.path.exists(input.authCookieLoc):
-    print "Authentication cookie doesn't exist: %s" % input.authCookieLoc
-    sys.exit()
-  
-  # promts for password if not provided
-  if input.authType == PASSWORD_AUTH and input.authPassword == "":
-    input.authPassword = getpass.getpass()
-  
-  # validates and expands logged event flags
+  # parses user input, noting any issues
   try:
-    expandedEvents = logPanel.expandEvents(input.loggedEvents)
+    opts, args = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
+  except getopt.GetoptError, exc:
+    print str(exc) + " (for usage provide --help)"
+    sys.exit()
+  
+  for opt, arg in opts:
+    if opt in ("-i", "--interface"):
+      # defines control interface address/port
+      try:
+        divIndex = arg.find(":")
+        
+        if divIndex == -1:
+          controlPort = int(arg)
+        else:
+          controlAddr = arg[0:divIndex]
+          controlPort = int(arg[divIndex + 1:])
+        
+        # validates that input is a valid ip address and port
+        if divIndex != -1 and not isValidIpAddr(controlAddr):
+          raise AssertionError("'%s' isn't a valid IP address" % controlAddr)
+        elif controlPort < 0 or controlPort > 65535:
+          raise AssertionError("'%s' isn't a valid port number (ports range 0-65535)" % controlPort)
+      except ValueError:
+        print "'%s' isn't a valid port number" % arg
+        sys.exit()
+      except AssertionError, exc:
+        print exc
+        sys.exit()
+    elif opt in ("-p", "--password"): authPassword = arg    # sets authentication password
+    elif opt in ("-b", "--blind"): isBlindMode = True       # prevents connection lookups
+    elif opt in ("-e", "--event"): loggedEvents = arg       # set event flags
+    elif opt in ("-v", "--version"):
+      print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
+      sys.exit()
+    elif opt in ("-h", "--help"):
+      print HELP_TEXT
+      sys.exit()
+  
+  # validates and expands log event flags
+  try:
+    expandedEvents = logPanel.expandEvents(loggedEvents)
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
     sys.exit()
   
-  # temporarily disables TorCtl logging to prevent issues from going to stdout when starting
+  # temporarily disables TorCtl logging to prevent issues from going to stdout while starting
   TorUtil.loglevel = "NONE"
   
   # attempts to open a socket to the tor server
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   try:
-    s.connect((input.controlAddr, input.controlPort))
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
     conn = TorCtl.Connection(s)
-    
-    # provides authentication credentials to the control port
-    if input.authType == NO_AUTH:
-      conn.authenticate("")
-    elif input.authType == COOKIE_AUTH:
-      authCookie = open(input.authCookieLoc)
-      conn.authenticate_cookie(authCookie)
-      authCookie.close()
-    else:
-      assert input.authType == PASSWORD_AUTH, "Invalid value in input.authType enum: " + str(input.authType)
-      conn.authenticate(input.authPassword)
   except socket.error, exc:
-    print "Is the ControlPort enabled? Connection failed: %s" % exc
-    sys.exit()
-  except TorCtl.ErrorReply, exc:
-    print "Connection failed: %s" % exc
+    if str(exc) == "[Errno 111] Connection refused":
+      # most common case - tor control port isn't available
+      print "Connection refused. Is the ControlPort enabled?"
+    else:
+      # less common issue - provide exc message
+      print "Failed to establish socket: %s" % exc
+    
     sys.exit()
   
-  controller.startTorMonitor(conn, expandedEvents)
+  # check PROTOCOLINFO for authentication type
+  try:
+    authInfo = conn.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
+  except TorCtl.ErrorReply, exc:
+    print "Unable to query PROTOCOLINFO for authentication type: %s" % exc
+    sys.exit()
+  
+  try:
+    if authInfo.startswith("AUTH METHODS=NULL"):
+      # no authentication required
+      conn.authenticate("")
+    elif authInfo.startswith("AUTH METHODS=HASHEDPASSWORD"):
+      # password authentication, promts for password if it wasn't provided
+      if not authPassword: authPassword = getpass.getpass()
+      conn.authenticate(authPassword)
+    elif authInfo.startswith("AUTH METHODS=COOKIE"):
+      # cookie authtication, parses path to authentication cookie
+      start = authInfo.find("COOKIEFILE=\"") + 12
+      end = authInfo[start:].find("\"")
+      authCookiePath = authInfo[start:start + end]
+      
+      try:
+        authCookie = open(authCookiePath, "r")
+        conn.authenticate_cookie(authCookie)
+        authCookie.close()
+      except IOError, exc:
+        # cleaner message for common errors
+        issue = None
+        if str(exc).startswith("[Errno 13] Permission denied"): issue = "permission denied"
+        elif str(exc).startswith("[Errno 2] No such file or directory"): issue = "file doesn't exist"
+        
+        # if problem's recognized give concise message, otherwise print exception string
+        if issue: print "Failed to read authentication cookie (%s): %s" % (issue, authCookiePath)
+        else: print "Failed to read authentication cookie: %s" % exc
+        
+        sys.exit()
+    else:
+      # authentication type unrecognized (probably a new addition to the controlSpec)
+      print "Unrecognized authentication type: %s" % authInfo
+      sys.exit()
+  except TorCtl.ErrorReply, exc:
+    # authentication failed
+    issue = str(exc)
+    if str(exc).startswith("515 Authentication failed: Password did not match"): issue = "password incorrect"
+    if str(exc) == "515 Authentication failed: Wrong length on authentication cookie.": issue = "cookie value incorrect"
+    
+    print "Unable to authenticate: %s" % issue
+    sys.exit()
+  
+  controller.startTorMonitor(conn, expandedEvents, isBlindMode)
   conn.close()
 

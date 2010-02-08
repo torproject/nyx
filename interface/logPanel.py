@@ -17,13 +17,12 @@ PRE_POPULATE_MIN_LIMIT = 1000             # limit in case of verbose logging
 PRE_POPULATE_MAX_LIMIT = 5000             # limit for NOTICE - ERR (since most lines are skipped)
 MAX_LOG_ENTRIES = 1000                # size of log buffer (max number of entries)
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
-RUNLEVEL_TOR_ONLY, RUNLEVEL_ARM_ONLY, RUNLEVEL_BOTH = range(3)
 
-EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",       "l": "NEWDESC",     "v": "AUTHDIR_NEWDESCS",
-  "i": "INFO",    "b": "BW",            "m": "NS",          "x": "STATUS_GENERAL",
-  "n": "NOTICE",  "c": "CIRC",          "o": "ORCONN",      "y": "STATUS_CLIENT",
-  "w": "WARN",    "f": "DESCCHANGED",   "s": "STREAM",      "z": "STATUS_SERVER",
+TOR_EVENT_TYPES = {
+  "d": "DEBUG",   "a": "ADDRMAP",       "l": "NEWDESC",       "v": "AUTHDIR_NEWDESCS",
+  "i": "INFO",    "b": "BW",            "m": "NS",            "x": "STATUS_GENERAL",
+  "n": "NOTICE",  "c": "CIRC",          "o": "ORCONN",        "y": "STATUS_CLIENT",
+  "w": "WARN",    "f": "DESCCHANGED",   "s": "STREAM",        "z": "STATUS_SERVER",
   "e": "ERR",     "g": "GUARD",         "t": "STREAM_BW",
                   "k": "NEWCONSENSUS",  "u": "CLIENTS_SEEN"}
 
@@ -31,44 +30,54 @@ EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUT
         i INFO      b BW              m NS              x STATUS_GENERAL
         n NOTICE    c CIRC            o ORCONN          y STATUS_CLIENT
         w WARN      f DESCCHANGED     s STREAM          z STATUS_SERVER
-        e ERR       g GUARD           t STREAM_BW
-                    k NEWCONSENSUS    u CLIENTS_SEEN
-        Aliases:    A All Events      X No Events       U Unknown Events
-                    DINWE Runlevel and higher severity"""
+        e ERR       g GUARD           t STREAM_BW       A All Events
+                    k NEWCONSENSUS    u CLIENTS_SEEN    X No Events
+          DINWE Runlevel and higher severity            C TorCtl Events
+          12345 ARM runlevel and higher severity        U Unknown Events"""
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 
 def expandEvents(eventAbbr):
   """
   Expands event abbreviations to their full names. Beside mappings privided in
-  EVENT_TYPES this recognizes:
-  A - alias for all events
-  U - "UNKNOWN" events
-  R - alias for runtime events (DEBUG, INFO, NOTICE, WARN, ERR)
+  TOR_EVENT_TYPES this recognizes the following special events and aliases:
+  C - TORCTL runlevel events
+  U - UKNOWN events
+  A - all events
+  X - no events
+  DINWE - runlevel and higher
+  12345 - arm runlevel and higher (ARM_DEBUG - ARM_ERR)
   Raises ValueError with invalid input if any part isn't recognized.
   
-  Example:
+  Examples:
   "inUt" -> ["INFO", "NOTICE", "UNKNOWN", "STREAM_BW"]
+  "N4" -> ["NOTICE", "WARN", "ERR", "ARM_WARN", "ARM_ERR"]
+  "cfX" -> []
   """
   
   expandedEvents = set()
   invalidFlags = ""
   for flag in eventAbbr:
     if flag == "A":
-      expandedEvents = set(EVENT_TYPES.values())
-      expandedEvents.add("UNKNOWN")
+      expandedEvents = set(TOR_EVENT_TYPES.values() + ["ARM_DEBUG", "ARM_INFO", "ARM_NOTICE", "ARM_WARN", "ARM_ERR"])
       break
     elif flag == "X":
       expandedEvents = set()
       break
+    elif flag == "C": expandedEvents.add("TORCTL")
     elif flag == "U": expandedEvents.add("UNKNOWN")
     elif flag == "D": expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
     elif flag == "I": expandedEvents = expandedEvents.union(set(["INFO", "NOTICE", "WARN", "ERR"]))
     elif flag == "N": expandedEvents = expandedEvents.union(set(["NOTICE", "WARN", "ERR"]))
     elif flag == "W": expandedEvents = expandedEvents.union(set(["WARN", "ERR"]))
     elif flag == "E": expandedEvents.add("ERR")
-    elif flag in EVENT_TYPES:
-      expandedEvents.add(EVENT_TYPES[flag])
+    elif flag == "1": expandedEvents = expandedEvents.union(set(["ARM_DEBUG", "ARM_INFO", "ARM_NOTICE", "ARM_WARN", "ARM_ERR"]))
+    elif flag == "2": expandedEvents = expandedEvents.union(set(["ARM_INFO", "ARM_NOTICE", "ARM_WARN", "ARM_ERR"]))
+    elif flag == "3": expandedEvents = expandedEvents.union(set(["ARM_NOTICE", "ARM_WARN", "ARM_ERR"]))
+    elif flag == "4": expandedEvents = expandedEvents.union(set(["ARM_WARN", "ARM_ERR"]))
+    elif flag == "5": expandedEvents.add("ARM_ERR")
+    elif flag in TOR_EVENT_TYPES:
+      expandedEvents.add(TOR_EVENT_TYPES[flag])
     else:
       invalidFlags += flag
   
@@ -91,7 +100,6 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     self.lastHeartbeat = time.time()      # time of last event
     self.regexFilter = None               # filter for presented log events (no filtering if None)
     self.eventTimeOverwrite = None        # replaces time for further events with this (uses time it occures if None)
-    self.runlevelTypes = RUNLEVEL_BOTH    # types of runlevels to show (arm, tor, or both)
     self.controlPortClosed = False        # flag set if TorCtl provided notice that control port is closed
     
     # attempts to process events from log file
@@ -193,7 +201,6 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     if "BW" in self.loggedEvents: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
-    if not self.runlevelTypes in (RUNLEVEL_TOR_ONLY, RUNLEVEL_BOTH): return
     self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
   
   def new_desc_event(self, event):
@@ -223,9 +230,12 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     if "UNKNOWN" in self.loggedEvents: self.registerEvent("UNKNOWN", event.event_string, "red")
   
   def monitor_event(self, level, msg):
-    # events provided by the arm monitor - types use the same as runlevel
-    if not self.runlevelTypes in (RUNLEVEL_ARM_ONLY, RUNLEVEL_BOTH): return
-    if level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+    # events provided by the arm monitor
+    if "ARM_" + level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+  
+  def tor_ctl_event(self, level, msg):
+    # events provided by TorCtl
+    if "TORCTL" in self.loggedEvents: self.registerEvent("TORCTL-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
   def write(self, msg):
     """
@@ -242,8 +252,7 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
       # TorCtl providing notice that control port is closed
       self.controlPortClosed = True
       self.monitor_event("NOTICE", "Tor control port closed")
-    else:
-      self.monitor_event(level, "TorCtl: " + msg)
+    self.tor_ctl_event(level, msg)
   
   def flush(self): pass
   
@@ -295,7 +304,16 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
         # draws label - uses ellipsis if too long, for instance:
         # Events (DEBUG, INFO, NOTICE, WARN...):
         eventsLabel = "Events"
-        eventsListing = ", ".join(self.loggedEvents)
+        
+        # separates tor and arm runlevels (might be able to show as range)
+        eventsList = list(self.loggedEvents)
+        torRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, ""))
+        armRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, "ARM_"))
+        
+        if armRunlevelLabel: eventsList = ["ARM " + armRunlevelLabel] + eventsList
+        if torRunlevelLabel: eventsList = [torRunlevelLabel] + eventsList
+        
+        eventsListing = ", ".join(eventsList)
         filterLabel = "" if not self.regexFilter else " - filter: %s" % self.regexFilter.pattern
         
         firstLabelLen = eventsListing.find(", ")
@@ -378,6 +396,48 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
     """
     
     return time.time() - self.lastHeartbeat
+
+def parseRunlevelRanges(eventsList, searchPrefix):
+  """
+  This parses a list of events to provide an ordered list of runlevels, 
+  condensed if three or more are in a contiguous range. This removes parsed 
+  runlevels from the eventsList. For instance:
+  
+  eventsList = ["BW", "ARM_WARN", "ERR", "ARM_ERR", "ARM_DEBUG", "ARM_NOTICE"]
+  searchPrefix = "ARM_"
+  
+  results in:
+  eventsList = ["BW", "ERR"]
+  return value is ["DEBUG", "NOTICE - ERR"]
+  
+  """
+  
+  # blank ending runlevel forces the break condition to be reached at the end
+  runlevels = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR", ""]
+  runlevelLabels = []
+  start, end = "", ""
+  rangeLength = 0
+  
+  for level in runlevels:
+    if searchPrefix + level in eventsList:
+      eventsList.remove(searchPrefix + level)
+      
+      if start:
+        end = level
+        rangeLength += 1
+      else:
+        start = level
+        rangeLength = 1
+    elif rangeLength > 0:
+      # reached a break in the runlevels
+      if rangeLength == 1: runlevelLabels += [start]
+      elif rangeLength == 2: runlevelLabels += [start, end]
+      else: runlevelLabels += ["%s - %s" % (start, end)]
+      
+      start, end = "", ""
+      rangeLength = 0
+  
+  return runlevelLabels
 
 def splitLine(message, x):
   """

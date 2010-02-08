@@ -31,7 +31,6 @@ import cpuMemMonitor
 import connCountMonitor
 
 CONFIRM_QUIT = True
-DISABLE_CONNECTIONS_PAGE = False
 REFRESH_RATE = 5        # seconds between redrawing screen
 cursesLock = RLock()    # global curses lock (curses isn't thread safe and
                         # concurrency bugs produce especially sinister glitches)
@@ -54,13 +53,14 @@ REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS", "CIRC"]
 class ControlPanel(util.Panel):
   """ Draws single line label for interface controls. """
   
-  def __init__(self, lock, resolver):
+  def __init__(self, lock, resolver, isBlindMode):
     util.Panel.__init__(self, lock, 1)
     self.msgText = CTL_HELP           # message text to be displyed
     self.msgAttr = curses.A_NORMAL    # formatting attributes
     self.page = 1                     # page number currently being displayed
     self.resolver = resolver          # dns resolution thread
-    self.resolvingCounter = -1         # count of resolver when starting (-1 if we aren't working on a batch)
+    self.resolvingCounter = -1        # count of resolver when starting (-1 if we aren't working on a batch)
+    self.isBlindMode = isBlindMode
   
   def setMsg(self, msgText, msgAttr=curses.A_NORMAL):
     """
@@ -109,7 +109,7 @@ class ControlPanel(util.Panel):
           currentPage = self.page
           pageCount = len(PAGES)
           
-          if DISABLE_CONNECTIONS_PAGE:
+          if self.isBlindMode:
             if currentPage >= 2: currentPage -= 1
             pageCount -= 1
           
@@ -210,8 +210,12 @@ def setEventListening(loggedEvents, conn, logListener):
   # adds events used for panels to function if not already included
   connEvents = loggedEvents.union(set(REQ_EVENTS))
   
-  # removes UNKNOWN since not an actual event type
-  connEvents.discard("UNKNOWN")
+  # removes special types only used in arm (UNKNOWN, TORCTL, ARM_DEBUG, etc)
+  toDiscard = []
+  for event in connEvents:
+    if event not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [event]
+  
+  for event in toDiscard: connEvents.discard(event)
   
   while not eventsSet:
     try:
@@ -231,7 +235,7 @@ def setEventListening(loggedEvents, conn, logListener):
         
         if eventType in REQ_EVENTS:
           if eventType == "BW": msg = "(bandwidth graph won't function)"
-          elif eventType in ("NEWDESC", "NEWCONSENSUS"): msg = "(connections listing can't register consensus changes)"
+          elif eventType in ("NEWDESC", "NEWCONSENSUS") and not isBlindMode: msg = "(connections listing can't register consensus changes)"
           else: msg = ""
           logListener.monitor_event("ERR", "Unsupported event type: %s %s" % (eventType, msg))
         else: logListener.monitor_event("WARN", "Unsupported event type: %s" % eventType)
@@ -242,7 +246,7 @@ def setEventListening(loggedEvents, conn, logListener):
   loggedEvents.sort() # alphabetizes
   return loggedEvents
 
-def drawTorMonitor(stdscr, conn, loggedEvents):
+def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   """
   Starts arm interface reflecting information on provided control port.
   
@@ -314,14 +318,14 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   
   # starts thread for processing netstat queries
   connResolutionThread = connResolver.ConnResolver(conn, torPid, panels["log"])
-  connResolutionThread.start()
+  if not isBlindMode: connResolutionThread.start()
   
   panels["conn"] = connPanel.ConnPanel(cursesLock, conn, connResolutionThread, panels["log"])
-  panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver)
+  panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver, isBlindMode)
   panels["torrc"] = confPanel.ConfPanel(cursesLock, confLocation, conn, panels["log"])
   
   # prevents netstat calls by connPanel if not being used
-  if DISABLE_CONNECTIONS_PAGE: panels["conn"].isDisabled = True
+  if isBlindMode: panels["conn"].isDisabled = True
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: panels["log"].monitor_event("WARN", "Unable to resolve tor pid, abandoning connection listing")
@@ -329,7 +333,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
   panels["graph"].addStats("system resources", cpuMemMonitor.CpuMemMonitor(panels["header"]))
-  panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
+  if not isBlindMode: panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
   panels["graph"].setStats("bandwidth")
   
   # listeners that update bandwidth and log panels with Tor status
@@ -337,7 +341,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
   conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["graph"].stats["system resources"])
-  conn.add_event_listener(panels["graph"].stats["connections"])
+  if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
   conn.add_event_listener(panels["conn"])
   conn.add_event_listener(sighupTracker)
   
@@ -382,7 +386,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
         
         # other panels that use torrc data
         panels["conn"].resetOptions()
-        panels["graph"].stats["connections"].resetOptions(conn)
+        if not isBlindMode: panels["graph"].stats["connections"].resetOptions(conn)
         panels["graph"].stats["bandwidth"].resetOptions()
         
         panels["torrc"].reset()
@@ -474,7 +478,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       else: page = (page + 1) % len(PAGES)
       
       # skip connections listing if it's disabled
-      if page == 1 and DISABLE_CONNECTIONS_PAGE:
+      if page == 1 and isBlindMode:
         if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
         else: page = (page + 1) % len(PAGES)
       
@@ -516,13 +520,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
           popup.addfstr(2, 41, "<b>d</b>: file descriptors")
           popup.addfstr(3, 2, "<b>e</b>: change logged events")
           
-          runlevelEventsLabel = "arm and tor"
-          if panels["log"].runlevelTypes == logPanel.RUNLEVEL_TOR_ONLY: runlevelEventsLabel = "tor only"
-          elif panels["log"].runlevelTypes == logPanel.RUNLEVEL_ARM_ONLY: runlevelEventsLabel = "arm only"
-          popup.addfstr(3, 41, "<b>r</b>: logged runlevels (<b>%s</b>)" % runlevelEventsLabel)
-          
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(4, 2, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addfstr(3, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
           
           pageOverrideKeys = (ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
         if page == 1:
@@ -765,25 +764,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
       # reverts changes made for popup
       panels["graph"].showLabel = True
       setPauseState(panels, isPaused, page)
-    elif page == 0 and (key == ord('r') or key == ord('R')):
-      # provides menu to pick the type of runlevel events to log
-      options = ["tor only", "arm only", "arm and tor"]
-      initialSelection = panels["log"].runlevelTypes
-      
-      # hides top label of the graph panel and pauses panels
-      if panels["graph"].currentDisplay:
-        panels["graph"].showLabel = False
-        panels["graph"].redraw()
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Logged Runlevels:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["graph"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1: panels["log"].runlevelTypes = selection
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP
@@ -1106,6 +1086,6 @@ def drawTorMonitor(stdscr, conn, loggedEvents):
     elif page == 2:
       panels["torrc"].handleKey(key)
 
-def startTorMonitor(conn, loggedEvents):
-  curses.wrapper(drawTorMonitor, conn, loggedEvents)
+def startTorMonitor(conn, loggedEvents, isBlindMode):
+  curses.wrapper(drawTorMonitor, conn, loggedEvents, isBlindMode)
 
