@@ -5,7 +5,7 @@
 import math
 import curses
 
-import util
+from util import panel, uiTools
 
 # torrc parameters that can be defined multiple times without overwriting
 # from src/or/config.c (entries with LINELIST or LINELIST_S)
@@ -24,13 +24,13 @@ LABEL_HOUR = ["hour", "hours"]
 LABEL_DAY = ["day", "days"]
 LABEL_WEEK = ["week", "weeks"]
 
-class ConfPanel(util.Panel):
+class ConfPanel(panel.Panel):
   """
   Presents torrc with syntax highlighting in a scroll-able area.
   """
   
-  def __init__(self, lock, confLocation, conn, logPanel):
-    util.Panel.__init__(self, lock, -1)
+  def __init__(self, confLocation, conn, logPanel):
+    panel.Panel.__init__(self, -1)
     self.confLocation = confLocation
     self.showLineNum = True
     self.stripComments = False
@@ -133,64 +133,56 @@ class ConfPanel(util.Panel):
       self.scroll = 0
     self.redraw()
   
-  def redraw(self):
-    if self.win:
-      if not self.lock.acquire(False): return
-      try:
-        self.clear()
-        self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, util.LABEL_ATTR)
+  def draw(self):
+    self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, uiTools.LABEL_ATTR)
+    
+    pageHeight = self.maxY - 1
+    numFieldWidth = int(math.log10(len(self.confContents))) + 1
+    lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
+    
+    for i in range(self.scroll, min(len(self.confContents), self.scroll + pageHeight)):
+      lineText = self.confContents[i].strip()
+      skipLine = False # true if we're not presenting line due to stripping
+      
+      command, argument, correction, comment = "", "", "", ""
+      commandColor, argumentColor, correctionColor, commentColor = "green", "cyan", "cyan", "white"
+      
+      if not lineText:
+        # no text
+        if self.stripComments: skipLine = True
+      elif lineText[0] == "#":
+        # whole line is commented out
+        comment = lineText
+        if self.stripComments: skipLine = True
+      else:
+        # parse out command, argument, and possible comment
+        ctlEnd = lineText.find(" ")   # end of command
+        argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
+        if argEnd == -1: argEnd = len(lineText)
         
-        pageHeight = self.maxY - 1
-        numFieldWidth = int(math.log10(len(self.confContents))) + 1
-        lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
+        command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
         
-        for i in range(self.scroll, min(len(self.confContents), self.scroll + pageHeight)):
-          lineText = self.confContents[i].strip()
-          skipLine = False # true if we're not presenting line due to stripping
-          
-          command, argument, correction, comment = "", "", "", ""
-          commandColor, argumentColor, correctionColor, commentColor = "green", "cyan", "cyan", "white"
-          
-          if not lineText:
-            # no text
-            if self.stripComments: skipLine = True
-          elif lineText[0] == "#":
-            # whole line is commented out
-            comment = lineText
-            if self.stripComments: skipLine = True
-          else:
-            # parse out command, argument, and possible comment
-            ctlEnd = lineText.find(" ")   # end of command
-            argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
-            if argEnd == -1: argEnd = len(lineText)
-            
-            command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
-            
-            # changes presentation if value's incorrect or irrelevant
-            if lineNum in self.corrections.keys():
-              argumentColor = "red"
-              correction = " (%s)" % self.corrections[lineNum]
-            elif lineNum in self.irrelevantLines:
-              commandColor = "blue"
-              argumentColor = "blue"
-          
-          if not skipLine:
-            numOffset = 0     # offset for line numbering
-            if self.showLineNum:
-              self.addstr(displayLineNum, 0, ("%%%ii" % numFieldWidth) % lineNum, curses.A_BOLD | util.getColor("yellow"))
-              numOffset = numFieldWidth + 1
-            
-            xLoc = 0
-            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, command, curses.A_BOLD | util.getColor(commandColor), numOffset)
-            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, argument, curses.A_BOLD | util.getColor(argumentColor), numOffset)
-            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, correction, curses.A_BOLD | util.getColor(correctionColor), numOffset)
-            displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, comment, util.getColor(commentColor), numOffset)
-            
-            displayLineNum += 1
-          
-          lineNum += 1
-          
-        self.refresh()
-      finally:
-        self.lock.release()
+        # changes presentation if value's incorrect or irrelevant
+        if lineNum in self.corrections.keys():
+          argumentColor = "red"
+          correction = " (%s)" % self.corrections[lineNum]
+        elif lineNum in self.irrelevantLines:
+          commandColor = "blue"
+          argumentColor = "blue"
+      
+      if not skipLine:
+        numOffset = 0     # offset for line numbering
+        if self.showLineNum:
+          self.addstr(displayLineNum, 0, ("%%%ii" % numFieldWidth) % lineNum, curses.A_BOLD | uiTools.getColor("yellow"))
+          numOffset = numFieldWidth + 1
+        
+        xLoc = 0
+        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, command, curses.A_BOLD | uiTools.getColor(commandColor), numOffset)
+        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, argument, curses.A_BOLD | uiTools.getColor(argumentColor), numOffset)
+        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, correction, curses.A_BOLD | uiTools.getColor(correctionColor), numOffset)
+        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, comment, uiTools.getColor(commentColor), numOffset)
+        
+        displayLineNum += 1
+      
+      lineNum += 1
 

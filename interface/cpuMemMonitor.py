@@ -6,7 +6,7 @@ import os
 import time
 from TorCtl import TorCtl
 
-import util
+from util import uiTools
 import graphPanel
 
 class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
@@ -29,7 +29,7 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       self._processEvent(float(self.headerPanel.vals["%cpu"]), float(self.headerPanel.vals["rss"]) / 1024.0)
     else:
       # cached results stale - requery ps
-      psCall = os.popen('ps -p %s -o %s  2> /dev/null' % (self.headerPanel.vals["pid"], "%cpu,rss"))
+      psCall = os.popen('ps -p %s -o %s 2> /dev/null' % (self.headerPanel.vals["pid"], "%cpu,rss"))
       try:
         sampling = psCall.read().strip().split()[2:]
         psCall.close()
@@ -50,5 +50,5 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   def getHeaderLabel(self, width, isPrimary):
     avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
     if isPrimary: return "CPU (%s%%, avg: %0.1f%%):" % (self.lastPrimary, avg)
-    else: return "Memory (%s, avg: %s):" % (util.getSizeLabel(self.lastSecondary * 1048576, 1), util.getSizeLabel(avg * 1048576, 1))
+    else: return "Memory (%s, avg: %s):" % (uiTools.getSizeLabel(self.lastSecondary * 1048576, 1), uiTools.getSizeLabel(avg * 1048576, 1))
 

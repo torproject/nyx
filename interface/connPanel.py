@@ -9,7 +9,7 @@ from threading import RLock
 from TorCtl import TorCtl
 
 import hostnameResolver
-import util
+from util import panel, uiTools
 
 # directory servers (IP, port) for tor version 0.2.2.1-alpha-dev
 DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
@@ -92,14 +92,14 @@ def getSortType(sortLabel):
     if sortLabel == label: return type
   raise ValueError(sortLabel)
 
-class ConnPanel(TorCtl.PostEventListener, util.Panel):
+class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   """
   Lists netstat provided network data of tor.
   """
   
-  def __init__(self, lock, conn, connResolver, logger):
+  def __init__(self, conn, connResolver, logger):
     TorCtl.PostEventListener.__init__(self)
-    util.Panel.__init__(self, lock, -1)
+    panel.Panel.__init__(self, -1)
     self.scroll = 0
     self.conn = conn                  # tor connection for querrying country codes
     self.connResolver = connResolver  # thread performing netstat queries
@@ -138,6 +138,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     self.familyResolutions = {}
     
     self.nickname = ""
+    self.listenPort = "0"           # port used to identify inbound/outbound connections (from ORListenAddress if defined, otherwise ORPort)
     self.orPort = "0"
     self.dirPort = "0"
     self.controlPort = "0"
@@ -161,10 +162,15 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     try:
       self.nickname = self.conn.get_option("Nickname")[0][1]
       
-      # uses ports to identify type of connections
       self.orPort = self.conn.get_option("ORPort")[0][1]
       self.dirPort = self.conn.get_option("DirPort")[0][1]
       self.controlPort = self.conn.get_option("ControlPort")[0][1]
+      
+      # uses ports to identify type of connections (ORListenAddress port overwrites ORPort if set)
+      listenAddr = self.conn.get_option("ORListenAddress")[0][1]
+      if listenAddr and ":" in listenAddr:
+        self.listenPort = listenAddr[listenAddr.find(":") + 1:]
+      else: self.listenPort = self.orPort
       
       # entry is None if not set, otherwise of the format "$<fingerprint>,$<fingerprint>"
       familyEntry = self.conn.get_option("MyFamily")[0][1]
@@ -172,6 +178,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
       else: self.family = []
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.nickname = ""
+      self.listenPort = None
       self.orPort = "0"
       self.dirPort = "0"
       self.controlPort = "0"
@@ -262,7 +269,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
         localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
         
-        if localPort in (self.orPort, self.dirPort):
+        if localPort in (self.listenPort, self.dirPort):
           type = "inbound"
           connectionCountTmp[0] += 1
         elif localPort == self.controlPort:
@@ -341,7 +348,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
           familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
           connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime))
         except (socket.error, TorCtl.ErrorReply):
-          # use dummy entry for sorting - the redraw function notes that entries are unknown
+          # use dummy entry for sorting - the draw function notes that entries are unknown
           portIdentifier = str(65536 + tmpCounter)
           familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
           connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time()))
@@ -361,7 +368,7 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
         self.connectionCount = connectionCountTmp
         self.familyResolutions = familyResolutionsTmp
         
-        # hostnames are sorted at redraw - otherwise now's a good time
+        # hostnames are sorted at draw - otherwise now's a good time
         if self.listingType != LIST_HOSTNAME: self.sortConnections()
       self.lastNetstatResults = results
     finally:
@@ -407,188 +414,182 @@ class ConnPanel(TorCtl.PostEventListener, util.Panel):
     else: return # skip following redraw
     self.redraw()
   
-  def redraw(self):
-    if self.win:
-      if not self.lock.acquire(False): return
-      self.connectionsLock.acquire()
-      try:
-        # hostnames frequently get updated so frequent sorting needed
-        if self.listingType == LIST_HOSTNAME: self.sortConnections()
+  def draw(self):
+    self.connectionsLock.acquire()
+    try:
+      # hostnames frequently get updated so frequent sorting needed
+      if self.listingType == LIST_HOSTNAME: self.sortConnections()
+      
+      if self.showLabel:
+        # notes the number of connections for each type if above zero
+        countLabel = ""
+        for i in range(len(self.connectionCount)):
+          if self.connectionCount[i] > 0: countLabel += "%i %s, " % (self.connectionCount[i], CONN_COUNT_LABELS[i])
+        if countLabel: countLabel = " (%s)" % countLabel[:-2] # strips ending ", " and encases in parentheses
+        self.addstr(0, 0, "Connections%s:" % countLabel, uiTools.LABEL_ATTR)
+      
+      if self.connections:
+        listingHeight = self.maxY - 1
+        currentTime = time.time() if not self.isPaused else self.pauseTime
         
-        self.clear()
-        if self.showLabel:
-          # notes the number of connections for each type if above zero
-          countLabel = ""
-          for i in range(len(self.connectionCount)):
-            if self.connectionCount[i] > 0: countLabel += "%i %s, " % (self.connectionCount[i], CONN_COUNT_LABELS[i])
-          if countLabel: countLabel = " (%s)" % countLabel[:-2] # strips ending ", " and encases in parentheses
-          self.addstr(0, 0, "Connections%s:" % countLabel, util.LABEL_ATTR)
+        if self.showingDetails:
+          listingHeight -= 8
+          isScrollBarVisible = len(self.connections) > self.maxY - 9
+          if self.maxX > 80: self.win.hline(8, 80, curses.ACS_HLINE, self.maxX - 81)
+        else:
+          isScrollBarVisible = len(self.connections) > self.maxY - 1
+        xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
         
-        if self.connections:
-          listingHeight = self.maxY - 1
-          currentTime = time.time() if not self.isPaused else self.pauseTime
+        # ensure cursor location and scroll top are within bounds
+        self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
+        self.scroll = max(min(self.scroll, len(self.connections) - listingHeight), 0)
+        
+        if self.isCursorEnabled:
+          # update cursorLoc with selection (or vice versa if selection not found)
+          if self.cursorSelection not in self.connections:
+            self.cursorSelection = self.connections[self.cursorLoc]
+          else: self.cursorLoc = self.connections.index(self.cursorSelection)
           
-          if self.showingDetails:
-            listingHeight -= 8
-            isScrollBarVisible = len(self.connections) > self.maxY - 9
-            if self.maxX > 80: self.win.hline(8, 80, curses.ACS_HLINE, self.maxX - 81)
-          else:
-            isScrollBarVisible = len(self.connections) > self.maxY - 1
-          xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
-          
-          # ensure cursor location and scroll top are within bounds
-          self.cursorLoc = max(min(self.cursorLoc, len(self.connections) - 1), 0)
-          self.scroll = max(min(self.scroll, len(self.connections) - listingHeight), 0)
-          
-          if self.isCursorEnabled:
-            # update cursorLoc with selection (or vice versa if selection not found)
-            if self.cursorSelection not in self.connections:
-              self.cursorSelection = self.connections[self.cursorLoc]
-            else: self.cursorLoc = self.connections.index(self.cursorSelection)
+          # shift scroll if necessary for cursor to be visible
+          if self.cursorLoc < self.scroll: self.scroll = self.cursorLoc
+          elif self.cursorLoc - listingHeight + 1 > self.scroll: self.scroll = self.cursorLoc - listingHeight + 1
+        
+        lineNum = (-1 * self.scroll) + 1
+        for entry in self.connections:
+          if lineNum >= 1:
+            type = entry[CONN_TYPE]
+            color = TYPE_COLORS[type]
             
-            # shift scroll if necessary for cursor to be visible
-            if self.cursorLoc < self.scroll: self.scroll = self.cursorLoc
-            elif self.cursorLoc - listingHeight + 1 > self.scroll: self.scroll = self.cursorLoc - listingHeight + 1
-          
-          lineNum = (-1 * self.scroll) + 1
-          for entry in self.connections:
-            if lineNum >= 1:
-              type = entry[CONN_TYPE]
-              color = TYPE_COLORS[type]
+            # adjustments to measurements for 'xOffset' are to account for scroll bar
+            if self.listingType == LIST_IP:
+              # base data requires 73 characters
+              src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
+              dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+              src, dst = "%-21s" % src, "%-26s" % dst
               
-              # adjustments to measurements for 'xOffset' are to account for scroll bar
+              etc = ""
+              if self.maxX > 115 + xOffset:
+                # show fingerprint (column width: 42 characters)
+                etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+                
+              if self.maxX > 127 + xOffset:
+                # show nickname (column width: remainder)
+                nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
+                nicknameSpace = self.maxX - 118 - xOffset
+                
+                # truncates if too long
+                if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
+                
+                etc += ("%%-%is  " % nicknameSpace) % nickname
+            elif self.listingType == LIST_HOSTNAME:
+              # base data requires 80 characters
+              src = "localhost:%-5s" % entry[CONN_L_PORT]
+              
+              # space available for foreign hostname (stretched to claim any free space)
+              foreignHostnameSpace = self.maxX - 42 - xOffset
+              
+              etc = ""
+              if self.maxX > 102 + xOffset:
+                # shows ip/locale (column width: 22 characters)
+                foreignHostnameSpace -= 22
+                etc += "%-20s  " % ("%s %s" % (entry[CONN_F_IP], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+              
+              if self.maxX > 134 + xOffset:
+                # show fingerprint (column width: 42 characters)
+                foreignHostnameSpace -= 42
+                etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+              
+              if self.maxX > 151 + xOffset:
+                # show nickname (column width: min 17 characters, uses half of the remainder)
+                nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
+                nicknameSpace = 15 + (self.maxX - xOffset - 151) / 2
+                foreignHostnameSpace -= (nicknameSpace + 2)
+                
+                if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
+                etc += ("%%-%is  " % nicknameSpace) % nickname
+              
+              hostname = self.resolver.resolve(entry[CONN_F_IP])
+              
+              # truncates long hostnames
+              portDigits = len(str(entry[CONN_F_PORT]))
+              if hostname and (len(hostname) + portDigits) > foreignHostnameSpace - 1:
+                hostname = hostname[:(foreignHostnameSpace - portDigits - 4)] + "..."
+              
+              dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
+              dst = ("%%-%is" % foreignHostnameSpace) % dst
+            elif self.listingType == LIST_FINGERPRINT:
+              # base data requires 75 characters
+              src = "localhost"
+              if entry[CONN_TYPE] == "control": dst = "localhost"
+              else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+              dst = "%-40s" % dst
+              
+              etc = ""
+              if self.maxX > 92 + xOffset:
+                # show nickname (column width: min 17 characters, uses remainder if extra room's available)
+                nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
+                nicknameSpace = self.maxX - 78 - xOffset if self.maxX < 126 else self.maxX - 106 - xOffset
+                if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
+                etc += ("%%-%is  " % nicknameSpace) % nickname
+              
+              if self.maxX > 125 + xOffset:
+                # shows ip/port/locale (column width: 28 characters)
+                etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+            else:
+              # base data uses whatever extra room's available (using minimun of 50 characters)
+              src = self.nickname
+              if entry[CONN_TYPE] == "control": dst = self.nickname
+              else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
+              
+              # space available for foreign nickname
+              foreignNicknameSpace = self.maxX - len(self.nickname) - 27 - xOffset
+              
+              etc = ""
+              if self.maxX > 92 + xOffset:
+                # show fingerprint (column width: 42 characters)
+                foreignNicknameSpace -= 42
+                etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
+              
+              if self.maxX > 120 + xOffset:
+                # shows ip/port/locale (column width: 28 characters)
+                foreignNicknameSpace -= 28
+                etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+              
+              dst = ("%%-%is" % foreignNicknameSpace) % dst
+            
+            timeLabel = uiTools.getTimeLabel(currentTime - entry[CONN_TIME], 1)
+            if type == "inbound": src, dst = dst, src
+            elif type == "family" and int(entry[CONN_L_PORT]) > 65535:
+              # this belongs to an unresolved family entry - replaces invalid data with "UNKNOWN"
+              timeLabel = "---"
+              
               if self.listingType == LIST_IP:
-                # base data requires 73 characters
-                src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
-                dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
-                src, dst = "%-21s" % src, "%-26s" % dst
-                
-                etc = ""
-                if self.maxX > 115 + xOffset:
-                  # show fingerprint (column width: 42 characters)
-                  etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
-                  
-                if self.maxX > 127 + xOffset:
-                  # show nickname (column width: remainder)
-                  nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                  nicknameSpace = self.maxX - 118 - xOffset
-                  
-                  # truncates if too long
-                  if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
-                  
-                  etc += ("%%-%is  " % nicknameSpace) % nickname
+                src = "%-21s" % "UNKNOWN"
+                dst = "%-26s" % "UNKNOWN"
               elif self.listingType == LIST_HOSTNAME:
-                # base data requires 80 characters
-                src = "localhost:%-5s" % entry[CONN_L_PORT]
-                
-                # space available for foreign hostname (stretched to claim any free space)
-                foreignHostnameSpace = self.maxX - 42 - xOffset
-                
-                etc = ""
-                if self.maxX > 102 + xOffset:
-                  # shows ip/locale (column width: 22 characters)
-                  foreignHostnameSpace -= 22
-                  etc += "%-20s  " % ("%s %s" % (entry[CONN_F_IP], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
-                
-                if self.maxX > 134 + xOffset:
-                  # show fingerprint (column width: 42 characters)
-                  foreignHostnameSpace -= 42
-                  etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
-                
-                if self.maxX > 151 + xOffset:
-                  # show nickname (column width: min 17 characters, uses half of the remainder)
-                  nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                  nicknameSpace = 15 + (self.maxX - xOffset - 151) / 2
-                  foreignHostnameSpace -= (nicknameSpace + 2)
-                  
-                  if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
-                  etc += ("%%-%is  " % nicknameSpace) % nickname
-                
-                hostname = self.resolver.resolve(entry[CONN_F_IP])
-                
-                # truncates long hostnames
-                portDigits = len(str(entry[CONN_F_PORT]))
-                if hostname and (len(hostname) + portDigits) > foreignHostnameSpace - 1:
-                  hostname = hostname[:(foreignHostnameSpace - portDigits - 4)] + "..."
-                
-                dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
-                dst = ("%%-%is" % foreignHostnameSpace) % dst
-              elif self.listingType == LIST_FINGERPRINT:
-                # base data requires 75 characters
-                src = "localhost"
-                if entry[CONN_TYPE] == "control": dst = "localhost"
-                else: dst = self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
-                dst = "%-40s" % dst
-                
-                etc = ""
-                if self.maxX > 92 + xOffset:
-                  # show nickname (column width: min 17 characters, uses remainder if extra room's available)
-                  nickname = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                  nicknameSpace = self.maxX - 78 - xOffset if self.maxX < 126 else self.maxX - 106 - xOffset
-                  if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
-                  etc += ("%%-%is  " % nicknameSpace) % nickname
-                
-                if self.maxX > 125 + xOffset:
-                  # shows ip/port/locale (column width: 28 characters)
-                  etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+                src = "%-15s" % "UNKNOWN"
+                dst = ("%%-%is" % len(dst)) % "UNKNOWN"
+                if len(etc) > 0: etc = etc.replace("256.255.255.255 (??)", "UNKNOWN" + " " * 13)
               else:
-                # base data uses whatever extra room's available (using minimun of 50 characters)
-                src = self.nickname
-                if entry[CONN_TYPE] == "control": dst = self.nickname
-                else: dst = self.getNickname(entry[CONN_F_IP], entry[CONN_F_PORT])
-                
-                # space available for foreign nickname
-                foreignNicknameSpace = self.maxX - len(self.nickname) - 27 - xOffset
-                
-                etc = ""
-                if self.maxX > 92 + xOffset:
-                  # show fingerprint (column width: 42 characters)
-                  foreignNicknameSpace -= 42
-                  etc += "%-40s  " % self.getFingerprint(entry[CONN_F_IP], entry[CONN_F_PORT])
-                
-                if self.maxX > 120 + xOffset:
-                  # shows ip/port/locale (column width: 28 characters)
-                  foreignNicknameSpace -= 28
-                  etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
-                
-                dst = ("%%-%is" % foreignNicknameSpace) % dst
-              
-              timeLabel = util.getTimeLabel(currentTime - entry[CONN_TIME], 1)
-              if type == "inbound": src, dst = dst, src
-              elif type == "family" and int(entry[CONN_L_PORT]) > 65535:
-                # this belongs to an unresolved family entry - replaces invalid data with "UNKNOWN"
-                timeLabel = "---"
-                
-                if self.listingType == LIST_IP:
-                  src = "%-21s" % "UNKNOWN"
-                  dst = "%-26s" % "UNKNOWN"
-                elif self.listingType == LIST_HOSTNAME:
-                  src = "%-15s" % "UNKNOWN"
-                  dst = ("%%-%is" % len(dst)) % "UNKNOWN"
-                  if len(etc) > 0: etc = etc.replace("256.255.255.255 (??)", "UNKNOWN" + " " * 13)
-                else:
-                  ipStart = etc.find("256")
-                  if ipStart > -1: etc = etc[:ipStart] + ("%%-%is" % len(etc[ipStart:])) % "UNKNOWN"
-              
-              padding = self.maxX - (len(src) + len(dst) + len(etc) + 27) - xOffset # padding needed to fill full line
-              lineEntry = "<%s>%s  -->  %s  %s%s%5s (<b>%s</b>)%s</%s>" % (color, src, dst, etc, " " * padding, timeLabel, type.upper(), " " * (9 - len(type)), color)
-              
-              if self.isCursorEnabled and entry == self.cursorSelection:
-                lineEntry = "<h>%s</h>" % lineEntry
-              
-              yOffset = 0 if not self.showingDetails else 8
-              self.addfstr(lineNum + yOffset, xOffset, lineEntry)
-            lineNum += 1
-          
-          if isScrollBarVisible:
-            topY = 9 if self.showingDetails else 1
-            bottomEntry = self.scroll + self.maxY - 9 if self.showingDetails else self.scroll + self.maxY - 1
-            util.drawScrollBar(self, topY, self.maxY - 1, self.scroll, bottomEntry, len(self.connections))
+                ipStart = etc.find("256")
+                if ipStart > -1: etc = etc[:ipStart] + ("%%-%is" % len(etc[ipStart:])) % "UNKNOWN"
+            
+            padding = self.maxX - (len(src) + len(dst) + len(etc) + 27) - xOffset # padding needed to fill full line
+            lineEntry = "<%s>%s  -->  %s  %s%s%5s (<b>%s</b>)%s</%s>" % (color, src, dst, etc, " " * padding, timeLabel, type.upper(), " " * (9 - len(type)), color)
+            
+            if self.isCursorEnabled and entry == self.cursorSelection:
+              lineEntry = "<h>%s</h>" % lineEntry
+            
+            yOffset = 0 if not self.showingDetails else 8
+            self.addfstr(lineNum + yOffset, xOffset, lineEntry)
+          lineNum += 1
         
-        self.refresh()
-      finally:
-        self.lock.release()
-        self.connectionsLock.release()
+        if isScrollBarVisible:
+          topY = 9 if self.showingDetails else 1
+          bottomEntry = self.scroll + self.maxY - 9 if self.showingDetails else self.scroll + self.maxY - 1
+          uiTools.drawScrollBar(self, topY, self.maxY - 1, self.scroll, bottomEntry, len(self.connections))
+    finally:
+      self.connectionsLock.release()
   
   def getFingerprint(self, ipAddr, port):
     """

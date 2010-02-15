@@ -1,6 +1,6 @@
-#!/usr/bin/env python
-# versionCheck.py -- Provides a warning and error code if python version isn't compatible.
-# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+"""
+Provides a warning and error code if python version isn't compatible.
+"""
 
 import sys
 

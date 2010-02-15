@@ -5,7 +5,7 @@
 import os
 import curses
 
-import util
+from util import panel, uiTools
 
 class PopupProperties:
   """
@@ -27,7 +27,7 @@ class PopupProperties:
       
       # retrieves list of open files, options are:
       # n = no dns lookups, p = by pid, -F = show fields (L = login name, n = opened files)
-      lsofCall = os.popen3("lsof -np %s -F Ln" % torPid)
+      lsofCall = os.popen3("lsof -np %s -F Ln 2> /dev/null" % torPid)
       results = lsofCall[1].readlines()
       errResults = lsofCall[2].readlines()
       
@@ -103,7 +103,7 @@ def showFileDescriptorPopup(popup, stdscr, torPid):
   
   properties = PopupProperties(torPid)
   
-  if not popup.lock.acquire(False): return
+  if not panel.CURSES_LOCK.acquire(False): return
   try:
     if properties.errorMsg:
       popupWidth = len(properties.errorMsg) + 4
@@ -118,7 +118,7 @@ def showFileDescriptorPopup(popup, stdscr, torPid):
     
     popup._resetBounds()
     popup.height = popupHeight
-    popup.recreate(stdscr, popup.startY, popupWidth)
+    popup.recreate(stdscr, popupWidth)
     
     while True:
       draw(popup, properties)
@@ -132,9 +132,9 @@ def showFileDescriptorPopup(popup, stdscr, torPid):
         break
     
     popup.height = 9
-    popup.recreate(stdscr, popup.startY, 80)
+    popup.recreate(stdscr, 80)
   finally:
-    popup.lock.release()
+    panel.CURSES_LOCK.release()
 
 def draw(popup, properties):
   popup.clear()
@@ -144,7 +144,7 @@ def draw(popup, properties):
   popup.addstr(0, 0, "Open File Descriptors:", curses.A_STANDOUT)
   
   if properties.errorMsg:
-    popup.addstr(1, 2, properties.errorMsg, curses.A_BOLD | util.getColor("red"))
+    popup.addstr(1, 2, properties.errorMsg, curses.A_BOLD | uiTools.getColor("red"))
   else:
     # text with file descriptor count and limit
     fdCount = len(properties.fdFile) + len(properties.fdConn) + len(properties.fdMisc)
@@ -155,14 +155,14 @@ def draw(popup, properties):
     elif fdCountPer >= 50: statsColor = "yellow"
     
     countMsg = "%i / %i (%i%%)" % (fdCount, properties.fdLimit, fdCountPer)
-    popup.addstr(1, 2, countMsg, curses.A_BOLD | util.getColor(statsColor))
+    popup.addstr(1, 2, countMsg, curses.A_BOLD | uiTools.getColor(statsColor))
     
     # provides a progress bar reflecting the stats
     barWidth = popup.maxX - len(countMsg) - 6 # space between "[ ]" in progress bar
     barProgress = barWidth * fdCountPer / 100 # filled cells
     if fdCount > 0: barProgress = max(1, barProgress) # ensures one cell is filled unless really zero
     popup.addstr(1, len(countMsg) + 3, "[", curses.A_BOLD)
-    popup.addstr(1, len(countMsg) + 4, " " * barProgress, curses.A_STANDOUT | util.getColor(statsColor))
+    popup.addstr(1, len(countMsg) + 4, " " * barProgress, curses.A_STANDOUT | uiTools.getColor(statsColor))
     popup.addstr(1, len(countMsg) + 4 + barWidth, "]", curses.A_BOLD)
     
     popup.win.hline(2, 1, curses.ACS_HLINE, popup.maxX - 2)
@@ -181,7 +181,7 @@ def draw(popup, properties):
         line = properties.fdConn[entryNum - len(properties.fdFile) - len(properties.fdMisc)]
         color = "blue"
       
-      popup.addstr(lineNum, 2, line, curses.A_BOLD | util.getColor(color))
+      popup.addstr(lineNum, 2, line, curses.A_BOLD | uiTools.getColor(color))
       lineNum += 1
       entryNum += 1
   

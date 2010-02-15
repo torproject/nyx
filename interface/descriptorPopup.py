@@ -8,7 +8,7 @@ import curses
 from TorCtl import TorCtl
 
 import connPanel
-import util
+from util import panel, uiTools
 
 # field keywords used to identify areas for coloring
 LINE_NUM_COLOR = "yellow"
@@ -78,7 +78,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
   properties = PopupProperties(conn)
   isVisible = True
   
-  if not popup.lock.acquire(False): return
+  if not panel.CURSES_LOCK.acquire(False): return
   try:
     while isVisible:
       selection = connectionPanel.cursorSelection
@@ -100,7 +100,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
       
       popup._resetBounds()
       popup.height = min(len(properties.text) + height + 2, connectionPanel.maxY)
-      popup.recreate(stdscr, popup.startY, width)
+      popup.recreate(stdscr, width)
       
       while isVisible:
         draw(popup, properties)
@@ -116,9 +116,9 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
         else: properties.handleKey(key, popup.height - 2)
     
     popup.height = 9
-    popup.recreate(stdscr, popup.startY, 80)
+    popup.recreate(stdscr, 80)
   finally:
-    popup.lock.release()
+    panel.CURSES_LOCK.release()
 
 def draw(popup, properties):
   popup.clear()
@@ -126,8 +126,8 @@ def draw(popup, properties):
   xOffset = 2
   
   if properties.text:
-    if properties.fingerprint: popup.addstr(0, 0, "Consensus Descriptor (%s):" % properties.fingerprint, util.LABEL_ATTR)
-    else: popup.addstr(0, 0, "Consensus Descriptor:", util.LABEL_ATTR)
+    if properties.fingerprint: popup.addstr(0, 0, "Consensus Descriptor (%s):" % properties.fingerprint, uiTools.LABEL_ATTR)
+    else: popup.addstr(0, 0, "Consensus Descriptor:", uiTools.LABEL_ATTR)
     
     isEncryption = False          # true if line is part of an encryption block
     
@@ -145,31 +145,31 @@ def draw(popup, properties):
       
       numOffset = 0     # offset for line numbering
       if properties.showLineNum:
-        popup.addstr(lineNum, xOffset, ("%%%ii" % numFieldWidth) % (i + 1), curses.A_BOLD | util.getColor(LINE_NUM_COLOR))
+        popup.addstr(lineNum, xOffset, ("%%%ii" % numFieldWidth) % (i + 1), curses.A_BOLD | uiTools.getColor(LINE_NUM_COLOR))
         numOffset = numFieldWidth + 1
       
       if lineText:
         keyword = lineText.split()[0]   # first word of line
         remainder = lineText[len(keyword):]
-        keywordFormat = curses.A_BOLD | util.getColor(properties.entryColor)
-        remainderFormat = util.getColor(properties.entryColor)
+        keywordFormat = curses.A_BOLD | uiTools.getColor(properties.entryColor)
+        remainderFormat = uiTools.getColor(properties.entryColor)
         
         if lineText.startswith(HEADER_PREFIX[0]) or lineText.startswith(HEADER_PREFIX[1]):
           keyword, remainder = lineText, ""
-          keywordFormat = curses.A_BOLD | util.getColor(HEADER_COLOR)
+          keywordFormat = curses.A_BOLD | uiTools.getColor(HEADER_COLOR)
         if lineText == UNRESOLVED_MSG or lineText == ERROR_MSG:
           keyword, remainder = lineText, ""
         if lineText in SIG_START_KEYS:
           keyword, remainder = lineText, ""
           isEncryption = True
-          keywordFormat = curses.A_BOLD | util.getColor(SIG_COLOR)
+          keywordFormat = curses.A_BOLD | uiTools.getColor(SIG_COLOR)
         elif lineText in SIG_END_KEYS:
           keyword, remainder = lineText, ""
           isEncryption = False
-          keywordFormat = curses.A_BOLD | util.getColor(SIG_COLOR)
+          keywordFormat = curses.A_BOLD | uiTools.getColor(SIG_COLOR)
         elif isEncryption:
           keyword, remainder = lineText, ""
-          keywordFormat = util.getColor(SIG_COLOR)
+          keywordFormat = uiTools.getColor(SIG_COLOR)
         
         lineNum, xLoc = popup.addstr_wrap(lineNum, 0, keyword, keywordFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
         lineNum, xLoc = popup.addstr_wrap(lineNum, xLoc, remainder, remainderFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)

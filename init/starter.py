@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-# arm.py -- Terminal status monitor for Tor relays.
-# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 """
 Command line application for monitoring Tor relays, providing real time status
@@ -13,14 +11,14 @@ import socket
 import getopt
 import getpass
 
-from TorCtl import TorCtl
-from TorCtl import TorUtil
+# includes parent directory rather than init in path (so sibling modules are included)
+sys.path[0] = sys.path[0][:-5]
 
-from interface import controller
-from interface import logPanel
+from TorCtl import TorCtl, TorUtil
+from interface import controller, logPanel
 
-VERSION = "1.3.1"
-LAST_MODIFIED = "Feb 7, 2010"
+VERSION = "1.3.2"
+LAST_MODIFIED = "Feb 14, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -28,7 +26,7 @@ DEFAULT_LOGGED_EVENTS = "N3" # tor and arm NOTICE, WARN, and ERR events
 
 OPT = "i:p:be:vh"
 OPT_EXPANDED = ["interface=", "password=", "blind", "event=", "version", "help"]
-HELP_TEXT = """Usage arm [OPTION]
+HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
@@ -111,7 +109,7 @@ if __name__ == '__main__':
       print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
       sys.exit()
     elif opt in ("-h", "--help"):
-      print HELP_TEXT
+      print HELP_MSG
       sys.exit()
   
   # validates and expands log event flags

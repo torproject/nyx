@@ -7,7 +7,7 @@ import socket
 from TorCtl import TorCtl
 
 import graphPanel
-import util
+from util import uiTools
 
 DL_COLOR = "green"  # download section color
 UL_COLOR = "cyan"   # upload section color
@@ -47,8 +47,8 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       bwStats = self.conn.get_option(['BandwidthRate', 'BandwidthBurst'])
       relayStats = self.conn.get_option(['RelayBandwidthRate', 'RelayBandwidthBurst'])
       
-      self.bwRate = util.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
-      self.bwBurst = util.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
+      self.bwRate = uiTools.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
+      self.bwBurst = uiTools.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
     except (ValueError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       pass # keep old values
     
@@ -59,7 +59,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   def bandwidth_event(self, event):
     self._processEvent(event.read / 1024.0, event.written / 1024.0)
   
-  def redraw(self, panel):
+  def draw(self, panel):
     # if display is narrow, overwrites x-axis labels with avg / total stats
     if panel.maxX <= COLLAPSE_WIDTH:
       # clears line
@@ -69,8 +69,8 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       primaryFooter = "%s, %s" % (self._getAvgLabel(True), self._getTotalLabel(True))
       secondaryFooter = "%s, %s" % (self._getAvgLabel(False), self._getTotalLabel(False))
       
-      panel.addstr(8, 1, primaryFooter, util.getColor(self.primaryColor))
-      panel.addstr(8, graphCol + 6, secondaryFooter, util.getColor(self.secondaryColor))
+      panel.addstr(8, 1, primaryFooter, uiTools.getColor(self.primaryColor))
+      panel.addstr(8, graphCol + 6, secondaryFooter, uiTools.getColor(self.secondaryColor))
     
     # provides accounting stats if enabled
     if self.isAccounting:
@@ -84,8 +84,8 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
         
         panel.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)" % (hibernateColor, status, hibernateColor))
         panel.addstr(10, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
-        panel.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), util.getColor(self.primaryColor))
-        panel.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), util.getColor(self.secondaryColor))
+        panel.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), uiTools.getColor(self.primaryColor))
+        panel.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), uiTools.getColor(self.secondaryColor))
       else:
         panel.addfstr(10, 0, "<b>Accounting:</b> Shutting Down...")
   
@@ -108,7 +108,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       stats[1] = "- %s" % self._getAvgLabel(isPrimary)
       stats[2] = ", %s" % self._getTotalLabel(isPrimary)
     
-    stats[0] = "%-14s" % ("%s/sec" % util.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1))
+    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1))
     
     labeling = graphType + " (" + "".join(stats).strip() + "):"
     while (len(labeling) >= width):
@@ -123,11 +123,11 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    return "avg: %s/sec" % util.getSizeLabel((total / max(1, self.tick)) * 1024, 1)
+    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick)) * 1024, 1)
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    return "total: %s" % util.getSizeLabel(total * 1024, 1)
+    return "total: %s" % uiTools.getSizeLabel(total * 1024, 1)
   
   def _updateAccountingInfo(self):
     """
@@ -143,8 +143,11 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       accountingParams = self.conn.get_info(["accounting/hibernating", "accounting/bytes", "accounting/bytes-left", "accounting/interval-end"])
       self.accountingInfo["status"] = accountingParams["accounting/hibernating"]
       
-      # altzone subtraction converts from gmt to local with respect to DST
-      sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - time.altzone
+      # converts from gmt to local with respect to DST
+      if time.localtime()[8]: tz_offset = time.altzone
+      else: tz_offset = time.timezone
+      
+      sec = time.mktime(time.strptime(accountingParams["accounting/interval-end"], "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
       resetHours = sec / 3600
       sec %= 3600
       resetMin = sec / 60
@@ -156,10 +159,10 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       readLeft = int(accountingParams["accounting/bytes-left"].split(" ")[0])
       writtenLeft = int(accountingParams["accounting/bytes-left"].split(" ")[1])
       
-      self.accountingInfo["read"] = util.getSizeLabel(read)
-      self.accountingInfo["written"] = util.getSizeLabel(written)
-      self.accountingInfo["readLimit"] = util.getSizeLabel(read + readLeft)
-      self.accountingInfo["writtenLimit"] = util.getSizeLabel(written + writtenLeft)
+      self.accountingInfo["read"] = uiTools.getSizeLabel(read)
+      self.accountingInfo["written"] = uiTools.getSizeLabel(written)
+      self.accountingInfo["readLimit"] = uiTools.getSizeLabel(read + readLeft)
+      self.accountingInfo["writtenLimit"] = uiTools.getSizeLabel(written + writtenLeft)
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.accountingInfo = None
 

@@ -1,6 +1,16 @@
 CHANGE LOG
 
-2/7/10 - version 1.3.1
+2/14/10 - version 1.3.2
+Refactoring goodness and bug fixes.
+
+    * change: revised curses utilities to further simplify interfaces
+    * change: substantial layout changes (separating into util and init packages) and including a copy of the gpl
+    * fix: bug with handing of DST for accounting's 'Time to reset' (patch provided by waltman)
+    * fix: header and connection panels weren't accounting for having ORListenAddress set (caught by waltman)
+    * fix: crashing bug when shrank too much for scrollbars to be drawn
+    * fix: couple system commands weren't redirecting their stderr to /dev/null
+
+2/7/10 - version 1.3.1 (r21580)
 Had enough of a siesta - getting back into development beginning with a rewrite if the starter.
 
     * added: made authentication a little smarter, using PROTOCOLINFO to autodetect authentication type and cookie location

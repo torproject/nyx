@@ -8,7 +8,7 @@ import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
-import util
+from util import panel, uiTools
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
 
@@ -84,14 +84,14 @@ def expandEvents(eventAbbr):
   if invalidFlags: raise ValueError(invalidFlags)
   else: return expandedEvents
 
-class LogMonitor(TorCtl.PostEventListener, util.Panel):
+class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   """
   Tor event listener, noting messages, the time, and their type in a panel.
   """
   
-  def __init__(self, lock, conn, loggedEvents):
+  def __init__(self, conn, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
-    util.Panel.__init__(self, lock, -1)
+    panel.Panel.__init__(self, -1)
     self.scroll = 0
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
@@ -287,78 +287,70 @@ class LogMonitor(TorCtl.PostEventListener, util.Panel):
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
       self.redraw()
   
-  def redraw(self):
+  def draw(self):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
     """
     
-    if self.win:
-      if not self.lock.acquire(False): return
-      try:
-        self.clear()
-        
-        isScrollBarVisible = self.getLogDisplayLength() > self.maxY - 1
-        xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
-        
-        # draws label - uses ellipsis if too long, for instance:
-        # Events (DEBUG, INFO, NOTICE, WARN...):
-        eventsLabel = "Events"
-        
-        # separates tor and arm runlevels (might be able to show as range)
-        eventsList = list(self.loggedEvents)
-        torRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, ""))
-        armRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, "ARM_"))
-        
-        if armRunlevelLabel: eventsList = ["ARM " + armRunlevelLabel] + eventsList
-        if torRunlevelLabel: eventsList = [torRunlevelLabel] + eventsList
-        
-        eventsListing = ", ".join(eventsList)
-        filterLabel = "" if not self.regexFilter else " - filter: %s" % self.regexFilter.pattern
-        
-        firstLabelLen = eventsListing.find(", ")
-        if firstLabelLen == -1: firstLabelLen = len(eventsListing)
-        else: firstLabelLen += 3
-        
-        if self.maxX > 10 + firstLabelLen:
-          eventsLabel += " ("
-          
-          if len(eventsListing) > self.maxX - 11:
-            labelBreak = eventsListing[:self.maxX - 12].rfind(", ")
-            eventsLabel += "%s..." % eventsListing[:labelBreak]
-          elif len(eventsListing) + len(filterLabel) > self.maxX - 11:
-            eventsLabel += eventsListing
-          else: eventsLabel += eventsListing + filterLabel
-          eventsLabel += ")"
-        eventsLabel += ":"
-        
-        self.addstr(0, 0, eventsLabel, util.LABEL_ATTR)
-        
-        # log entries
-        maxLoc = self.getLogDisplayLength() - self.maxY + 1
-        self.scroll = max(0, min(self.scroll, maxLoc))
-        lineCount = 1 - self.scroll
-        
-        for (line, color) in self.msgLog:
-          if self.regexFilter and not self.regexFilter.search(line):
-            continue  # filter doesn't match log message - skip
-          
-          # splits over too lines if too long
-          if len(line) < self.maxX:
-            if lineCount >= 1: self.addstr(lineCount, xOffset, line, util.getColor(color))
-            lineCount += 1
-          else:
-            (line1, line2) = splitLine(line, self.maxX - xOffset)
-            if lineCount >= 1: self.addstr(lineCount, xOffset, line1, util.getColor(color))
-            if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, util.getColor(color))
-            lineCount += 2
-          
-          if lineCount >= self.maxY: break # further log messages wouldn't fit
-        
-        if isScrollBarVisible: util.drawScrollBar(self, 1, self.maxY - 1, self.scroll, self.scroll + self.maxY - 1, self.getLogDisplayLength())
-        self.refresh()
-      finally:
-        self.lock.release()
+    isScrollBarVisible = self.getLogDisplayLength() > self.maxY - 1
+    xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
+    
+    # draws label - uses ellipsis if too long, for instance:
+    # Events (DEBUG, INFO, NOTICE, WARN...):
+    eventsLabel = "Events"
+    
+    # separates tor and arm runlevels (might be able to show as range)
+    eventsList = list(self.loggedEvents)
+    torRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, ""))
+    armRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, "ARM_"))
+    
+    if armRunlevelLabel: eventsList = ["ARM " + armRunlevelLabel] + eventsList
+    if torRunlevelLabel: eventsList = [torRunlevelLabel] + eventsList
+    
+    eventsListing = ", ".join(eventsList)
+    filterLabel = "" if not self.regexFilter else " - filter: %s" % self.regexFilter.pattern
+    
+    firstLabelLen = eventsListing.find(", ")
+    if firstLabelLen == -1: firstLabelLen = len(eventsListing)
+    else: firstLabelLen += 3
+    
+    if self.maxX > 10 + firstLabelLen:
+      eventsLabel += " ("
+      
+      if len(eventsListing) > self.maxX - 11:
+        labelBreak = eventsListing[:self.maxX - 12].rfind(", ")
+        eventsLabel += "%s..." % eventsListing[:labelBreak]
+      elif len(eventsListing) + len(filterLabel) > self.maxX - 11:
+        eventsLabel += eventsListing
+      else: eventsLabel += eventsListing + filterLabel
+      eventsLabel += ")"
+    eventsLabel += ":"
+    
+    self.addstr(0, 0, eventsLabel, uiTools.LABEL_ATTR)
+    
+    # log entries
+    maxLoc = self.getLogDisplayLength() - self.maxY + 1
+    self.scroll = max(0, min(self.scroll, maxLoc))
+    lineCount = 1 - self.scroll
+    
+    for (line, color) in self.msgLog:
+      if self.regexFilter and not self.regexFilter.search(line):
+        continue  # filter doesn't match log message - skip
+      
+      # splits over too lines if too long
+      if len(line) < self.maxX:
+        if lineCount >= 1: self.addstr(lineCount, xOffset, line, uiTools.getColor(color))
+        lineCount += 1
+      else:
+        (line1, line2) = splitLine(line, self.maxX - xOffset)
+        if lineCount >= 1: self.addstr(lineCount, xOffset, line1, uiTools.getColor(color))
+        if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(color))
+        lineCount += 2
+      
+      if lineCount >= self.maxY: break # further log messages wouldn't fit
+    
+    if isScrollBarVisible: uiTools.drawScrollBar(self, 1, self.maxY - 1, self.scroll, self.scroll + self.maxY - 1, self.getLogDisplayLength())
   
   def getLogDisplayLength(self):
     """

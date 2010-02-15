@@ -5,7 +5,7 @@
 import copy
 import curses
 
-import util
+from util import panel, uiTools
 
 MAX_GRAPH_COL = 150  # max columns of data in graph
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
@@ -90,9 +90,9 @@ class GraphStats:
     
     return ""
   
-  def redraw(self, panel):
+  def draw(self, panel):
     """
-    Allows for any custom redrawing monitor wishes to append.
+    Allows for any custom drawing monitor wishes to append.
     """
     
     pass
@@ -157,14 +157,14 @@ class GraphStats:
       
       if self.graphPanel: self.graphPanel.redraw()
 
-class GraphPanel(util.Panel):
+class GraphPanel(panel.Panel):
   """
   Panel displaying a graph, drawing statistics from custom GraphStats
   implementations.
   """
   
-  def __init__(self, lock):
-    util.Panel.__init__(self, lock, 0) # height is overwritten with current module
+  def __init__(self):
+    panel.Panel.__init__(self, 0) # height is overwritten with current module
     self.updateInterval = DEFAULT_UPDATE_INTERVAL
     self.isPaused = False
     self.showLabel = True         # shows top label if true, hides otherwise
@@ -172,81 +172,74 @@ class GraphPanel(util.Panel):
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
   
-  def redraw(self):
+  def draw(self):
     """ Redraws graph panel """
-    if self.win:
-      if not self.lock.acquire(False): return
-      try:
-        self.clear()
-        graphCol = min((self.maxX - 10) / 2, MAX_GRAPH_COL)
+    
+    graphCol = min((self.maxX - 10) / 2, MAX_GRAPH_COL)
+    
+    if self.currentDisplay:
+      param = self.stats[self.currentDisplay]
+      primaryColor = uiTools.getColor(param.primaryColor)
+      secondaryColor = uiTools.getColor(param.secondaryColor)
+      
+      if self.showLabel: self.addstr(0, 0, param.getTitle(self.maxX), uiTools.LABEL_ATTR)
+      
+      # top labels
+      left, right = param.getHeaderLabel(self.maxX / 2, True), param.getHeaderLabel(self.maxX / 2, False)
+      if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
+      if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
+      
+      # determines max value on the graph
+      primaryBound, secondaryBound = -1, -1
+      
+      if self.bounds == BOUNDS_MAX:
+        primaryBound = param.maxPrimary[self.updateInterval]
+        secondaryBound = param.maxSecondary[self.updateInterval]
+      elif self.bounds == BOUNDS_TIGHT:
+        for value in param.primaryCounts[self.updateInterval][1:graphCol + 1]: primaryBound = max(value, primaryBound)
+        for value in param.secondaryCounts[self.updateInterval][1:graphCol + 1]: secondaryBound = max(value, secondaryBound)
+      
+      # displays bound
+      self.addstr(2, 0, "%4s" % str(int(primaryBound)), primaryColor)
+      self.addstr(7, 0, "   0", primaryColor)
+      
+      self.addstr(2, graphCol + 5, "%4s" % str(int(secondaryBound)), secondaryColor)
+      self.addstr(7, graphCol + 5, "   0", secondaryColor)
+      
+      # creates bar graph of bandwidth usage over time
+      for col in range(graphCol):
+        colHeight = min(5, 5 * param.primaryCounts[self.updateInterval][col + 1] / max(1, primaryBound))
+        for row in range(colHeight): self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
+      
+      for col in range(graphCol):
+        colHeight = min(5, 5 * param.secondaryCounts[self.updateInterval][col + 1] / max(1, secondaryBound))
+        for row in range(colHeight): self.addstr(7 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
+      
+      # bottom labeling of x-axis
+      intervalSec = 1
+      for (label, timescale) in UPDATE_INTERVALS:
+        if label == self.updateInterval: intervalSec = timescale
+      
+      intervalSpacing = 10 if graphCol >= WIDE_LABELING_GRAPH_COL else 5
+      unitsLabel, decimalPrecision = None, 0
+      for i in range(1, (graphCol + intervalSpacing - 4) / intervalSpacing):
+        loc = i * intervalSpacing
+        timeLabel = uiTools.getTimeLabel(loc * intervalSec, decimalPrecision)
         
-        if self.currentDisplay:
-          param = self.stats[self.currentDisplay]
-          primaryColor = util.getColor(param.primaryColor)
-          secondaryColor = util.getColor(param.secondaryColor)
-          
-          if self.showLabel: self.addstr(0, 0, param.getTitle(self.maxX), util.LABEL_ATTR)
-          
-          # top labels
-          left, right = param.getHeaderLabel(self.maxX / 2, True), param.getHeaderLabel(self.maxX / 2, False)
-          if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
-          if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
-          
-          # determines max value on the graph
-          primaryBound, secondaryBound = -1, -1
-          
-          if self.bounds == BOUNDS_MAX:
-            primaryBound = param.maxPrimary[self.updateInterval]
-            secondaryBound = param.maxSecondary[self.updateInterval]
-          elif self.bounds == BOUNDS_TIGHT:
-            for value in param.primaryCounts[self.updateInterval][1:graphCol + 1]: primaryBound = max(value, primaryBound)
-            for value in param.secondaryCounts[self.updateInterval][1:graphCol + 1]: secondaryBound = max(value, secondaryBound)
-          
-          # displays bound
-          self.addstr(2, 0, "%4s" % str(int(primaryBound)), primaryColor)
-          self.addstr(7, 0, "   0", primaryColor)
-          
-          self.addstr(2, graphCol + 5, "%4s" % str(int(secondaryBound)), secondaryColor)
-          self.addstr(7, graphCol + 5, "   0", secondaryColor)
-          
-          # creates bar graph of bandwidth usage over time
-          for col in range(graphCol):
-            colHeight = min(5, 5 * param.primaryCounts[self.updateInterval][col + 1] / max(1, primaryBound))
-            for row in range(colHeight): self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
-          
-          for col in range(graphCol):
-            colHeight = min(5, 5 * param.secondaryCounts[self.updateInterval][col + 1] / max(1, secondaryBound))
-            for row in range(colHeight): self.addstr(7 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
-          
-          # bottom labeling of x-axis
-          intervalSec = 1
-          for (label, timescale) in UPDATE_INTERVALS:
-            if label == self.updateInterval: intervalSec = timescale
-          
-          intervalSpacing = 10 if graphCol >= WIDE_LABELING_GRAPH_COL else 5
-          unitsLabel, decimalPrecision = None, 0
-          for i in range(1, (graphCol + intervalSpacing - 4) / intervalSpacing):
-            loc = i * intervalSpacing
-            timeLabel = util.getTimeLabel(loc * intervalSec, decimalPrecision)
-            
-            if not unitsLabel: unitsLabel = timeLabel[-1]
-            elif unitsLabel != timeLabel[-1]:
-              # upped scale so also up precision of future measurements
-              unitsLabel = timeLabel[-1]
-              decimalPrecision += 1
-            else:
-              # if constrained on space then strips labeling since already provided
-              timeLabel = timeLabel[:-1]
-            
-            self.addstr(8, 4 + loc, timeLabel, primaryColor)
-            self.addstr(8, graphCol + 10 + loc, timeLabel, secondaryColor)
-            
-          # allows for finishing touches by monitor
-          param.redraw(self)
-          
-        self.refresh()
-      finally:
-        self.lock.release()
+        if not unitsLabel: unitsLabel = timeLabel[-1]
+        elif unitsLabel != timeLabel[-1]:
+          # upped scale so also up precision of future measurements
+          unitsLabel = timeLabel[-1]
+          decimalPrecision += 1
+        else:
+          # if constrained on space then strips labeling since already provided
+          timeLabel = timeLabel[:-1]
+        
+        self.addstr(8, 4 + loc, timeLabel, primaryColor)
+        self.addstr(8, graphCol + 10 + loc, timeLabel, secondaryColor)
+        
+      # allows for finishing touches by monitor
+      param.draw(self)
   
   def addStats(self, label, stats):
     """

@@ -12,7 +12,6 @@ import math
 import time
 import curses
 import socket
-from threading import RLock
 from TorCtl import TorCtl
 from TorCtl import TorUtil
 
@@ -24,7 +23,7 @@ import confPanel
 import descriptorPopup
 import fileDescriptorPopup
 
-import util
+from util import panel, uiTools
 import connResolver
 import bandwidthMonitor
 import cpuMemMonitor
@@ -32,8 +31,6 @@ import connCountMonitor
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
-cursesLock = RLock()    # global curses lock (curses isn't thread safe and
-                        # concurrency bugs produce especially sinister glitches)
 MAX_REGEX_FILTERS = 5   # maximum number of previous regex filters that'll be remembered
 
 # enums for message in control label
@@ -50,11 +47,11 @@ PAUSEABLE = ["header", "graph", "log", "conn"]
 # events needed for panels other than the event log
 REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS", "CIRC"]
 
-class ControlPanel(util.Panel):
+class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
   
-  def __init__(self, lock, resolver, isBlindMode):
-    util.Panel.__init__(self, lock, 1)
+  def __init__(self, resolver, isBlindMode):
+    panel.Panel.__init__(self, 1)
     self.msgText = CTL_HELP           # message text to be displyed
     self.msgAttr = curses.A_NORMAL    # formatting attributes
     self.page = 1                     # page number currently being displayed
@@ -71,61 +68,56 @@ class ControlPanel(util.Panel):
     self.msgText = msgText
     self.msgAttr = msgAttr
   
-  def redraw(self):
-    if self.win:
-      self.clear()
+  def draw(self):
+    msgText = self.msgText
+    msgAttr = self.msgAttr
+    barTab = 2                # space between msgText and progress bar
+    barWidthMax = 40          # max width to progress bar
+    barWidth = -1             # space between "[ ]" in progress bar (not visible if -1)
+    barProgress = 0           # cells to fill
+    
+    if msgText == CTL_HELP:
+      msgAttr = curses.A_NORMAL
       
-      msgText = self.msgText
-      msgAttr = self.msgAttr
-      barTab = 2                # space between msgText and progress bar
-      barWidthMax = 40          # max width to progress bar
-      barWidth = -1             # space between "[ ]" in progress bar (not visible if -1)
-      barProgress = 0           # cells to fill
-      
-      if msgText == CTL_HELP:
-        msgAttr = curses.A_NORMAL
-        
-        if self.resolvingCounter != -1:
-          if self.resolver.unresolvedQueue.empty() or self.resolver.isPaused:
-            # done resolving dns batch
-            self.resolvingCounter = -1
-            curses.halfdelay(REFRESH_RATE * 10) # revert to normal refresh rate
-          else:
-            batchSize = self.resolver.totalResolves - self.resolvingCounter
-            entryCount = batchSize - self.resolver.unresolvedQueue.qsize()
-            if batchSize > 0: progress = 100 * entryCount / batchSize
-            else: progress = 0
-            
-            additive = "or l " if self.page == 2 else ""
-            batchSizeDigits = int(math.log10(batchSize)) + 1
-            entryCountLabel = ("%%%ii" % batchSizeDigits) % entryCount
-            #msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
-            msgText = "Resolving hostnames (press esc %sto cancel) - %s / %i, %2i%%" % (additive, entryCountLabel, batchSize, progress)
-            
-            barWidth = min(barWidthMax, self.maxX - len(msgText) - 3 - barTab)
-            barProgress = barWidth * entryCount / batchSize
-        
-        if self.resolvingCounter == -1:
-          currentPage = self.page
-          pageCount = len(PAGES)
+      if self.resolvingCounter != -1:
+        if self.resolver.unresolvedQueue.empty() or self.resolver.isPaused:
+          # done resolving dns batch
+          self.resolvingCounter = -1
+          curses.halfdelay(REFRESH_RATE * 10) # revert to normal refresh rate
+        else:
+          batchSize = self.resolver.totalResolves - self.resolvingCounter
+          entryCount = batchSize - self.resolver.unresolvedQueue.qsize()
+          if batchSize > 0: progress = 100 * entryCount / batchSize
+          else: progress = 0
           
-          if self.isBlindMode:
-            if currentPage >= 2: currentPage -= 1
-            pageCount -= 1
+          additive = "or l " if self.page == 2 else ""
+          batchSizeDigits = int(math.log10(batchSize)) + 1
+          entryCountLabel = ("%%%ii" % batchSizeDigits) % entryCount
+          #msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
+          msgText = "Resolving hostnames (press esc %sto cancel) - %s / %i, %2i%%" % (additive, entryCountLabel, batchSize, progress)
           
-          msgText = "page %i / %i - q: quit, p: pause, h: page help" % (currentPage, pageCount)
-      elif msgText == CTL_PAUSED:
-        msgText = "Paused"
-        msgAttr = curses.A_STANDOUT
+          barWidth = min(barWidthMax, self.maxX - len(msgText) - 3 - barTab)
+          barProgress = barWidth * entryCount / batchSize
       
-      self.addstr(0, 0, msgText, msgAttr)
-      if barWidth > -1:
-        xLoc = len(msgText) + barTab
-        self.addstr(0, xLoc, "[", curses.A_BOLD)
-        self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | util.getColor("red"))
-        self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
-      
-      self.refresh()
+      if self.resolvingCounter == -1:
+        currentPage = self.page
+        pageCount = len(PAGES)
+        
+        if self.isBlindMode:
+          if currentPage >= 2: currentPage -= 1
+          pageCount -= 1
+        
+        msgText = "page %i / %i - q: quit, p: pause, h: page help" % (currentPage, pageCount)
+    elif msgText == CTL_PAUSED:
+      msgText = "Paused"
+      msgAttr = curses.A_STANDOUT
+    
+    self.addstr(0, 0, msgText, msgAttr)
+    if barWidth > -1:
+      xLoc = len(msgText) + barTab
+      self.addstr(0, xLoc, "[", curses.A_BOLD)
+      self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | uiTools.getColor("red"))
+      self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
 
 class sighupListener(TorCtl.PostEventListener):
   """
@@ -160,7 +152,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   selection = initialSelection if initialSelection != -1 else 0
   
   if popup.win:
-    if not popup.lock.acquire(False): return -1
+    if not panel.CURSES_LOCK.acquire(False): return -1
     try:
       curses.cbreak() # wait indefinitely for key presses (no timeout)
       
@@ -168,13 +160,13 @@ def showMenu(stdscr, popup, title, options, initialSelection):
       popup.height = len(options) + 2
       
       newWidth = max([len(label) for label in options]) + 9
-      popup.recreate(stdscr, popup.startY, newWidth)
+      popup.recreate(stdscr, newWidth)
       
       key = 0
       while key not in (curses.KEY_ENTER, 10, ord(' ')):
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, title, util.LABEL_ATTR)
+        popup.addstr(0, 0, title, uiTools.LABEL_ATTR)
         
         for i in range(len(options)):
           label = options[i]
@@ -191,11 +183,11 @@ def showMenu(stdscr, popup, title, options, initialSelection):
       
       # reverts popup dimensions and conn panel label
       popup.height = 9
-      popup.recreate(stdscr, popup.startY, 80)
+      popup.recreate(stdscr, 80)
       
       curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
     finally:
-      cursesLock.release()
+      panel.CURSES_LOCK.release()
   
   return selection
 
@@ -257,7 +249,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   """
   
   curses.use_default_colors()           # allows things like semi-transparent backgrounds
-  util.initColors()                     # initalizes color pairs for colored text
+  uiTools.initColors()                  # initalizes color pairs for colored text
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
   
   # attempts to make the cursor invisible (not supported in all terminals)
@@ -279,7 +271,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
     try:
       # uses netstat to identify process with open control port (might not
       # work if tor's being run as a different user due to permissions)
-      netstatCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
+      netstatCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s 2> /dev/null" % conn.get_option("ControlPort")[0][1])
       results = netstatCall.readlines()
       
       if len(results) == 1:
@@ -311,18 +303,18 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
     confLocation = ""
   
   panels = {
-    "header": headerPanel.HeaderPanel(cursesLock, conn, torPid),
-    "popup": util.Panel(cursesLock, 9),
-    "graph": graphPanel.GraphPanel(cursesLock),
-    "log": logPanel.LogMonitor(cursesLock, conn, loggedEvents)}
+    "header": headerPanel.HeaderPanel(conn, torPid),
+    "popup": panel.Panel(9),
+    "graph": graphPanel.GraphPanel(),
+    "log": logPanel.LogMonitor(conn, loggedEvents)}
   
   # starts thread for processing netstat queries
   connResolutionThread = connResolver.ConnResolver(conn, torPid, panels["log"])
   if not isBlindMode: connResolutionThread.start()
   
-  panels["conn"] = connPanel.ConnPanel(cursesLock, conn, connResolutionThread, panels["log"])
-  panels["control"] = ControlPanel(cursesLock, panels["conn"].resolver, isBlindMode)
-  panels["torrc"] = confPanel.ConfPanel(cursesLock, confLocation, conn, panels["log"])
+  panels["conn"] = connPanel.ConnPanel(conn, connResolutionThread, panels["log"])
+  panels["control"] = ControlPanel(panels["conn"].resolver, isBlindMode)
+  panels["torrc"] = confPanel.ConfPanel(confLocation, conn, panels["log"])
   
   # prevents netstat calls by connPanel if not being used
   if isBlindMode: panels["conn"].isDisabled = True
@@ -374,7 +366,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
     # noticeable lag when resizing and didn't have an appreciable effect
     # on system usage
     
-    cursesLock.acquire()
+    panel.CURSES_LOCK.acquire()
     try:
       # if sighup received then reload related information
       if sighupTracker.isReset:
@@ -398,16 +390,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       # resilient in case of funky changes (such as resizing during popups)
       startY = 0
       for panelKey in PAGE_S[:2]:
-        panels[panelKey].recreate(stdscr, startY)
+        panels[panelKey].recreate(stdscr, -1, startY)
         startY += panels[panelKey].height
       
-      panels["popup"].recreate(stdscr, startY, 80)
+      panels["popup"].recreate(stdscr, 80, startY)
       
       for panelSet in PAGES:
         tmpStartY = startY
         
         for panelKey in panelSet:
-          panels[panelKey].recreate(stdscr, tmpStartY)
+          panels[panelKey].recreate(stdscr, -1, tmpStartY)
           tmpStartY += panels[panelKey].height
       
       # if it's been at least ten seconds since the last BW event Tor's probably done
@@ -422,10 +414,18 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       panels["conn"].reset()
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
+      
+      # TODO: temporary hack to prevent popup redraw until a valid replacement is implemented (ick!)
+      tmpSubwin = panels["popup"].win
+      panels["popup"].win = None
+      
       for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()
+      
+      panels["popup"].win = tmpSubwin
+      
       stdscr.refresh()
     finally:
-      cursesLock.release()
+      panel.CURSES_LOCK.release()
     
     # wait for user keyboard input until timeout (unless an override was set)
     if overrideKey:
@@ -439,7 +439,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       
       # provides prompt to confirm that arm should exit
       if CONFIRM_QUIT:
-        cursesLock.acquire()
+        panel.CURSES_LOCK.acquire()
         try:
           setPauseState(panels, isPaused, page, True)
           
@@ -455,7 +455,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
           setPauseState(panels, isPaused, page)
         finally:
-          cursesLock.release()
+          panel.CURSES_LOCK.release()
       
       if quitConfirmed:
         # quits arm
@@ -490,16 +490,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       panels["control"].refresh()
     elif key == ord('p') or key == ord('P'):
       # toggles update freezing
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         isPaused = not isPaused
         setPauseState(panels, isPaused, page)
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif key == ord('h') or key == ord('H'):
       # displays popup for current page's controls
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         
@@ -507,7 +507,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         popup = panels["popup"]
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), util.LABEL_ATTR)
+        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), uiTools.LABEL_ATTR)
         
         pageOverrideKeys = ()
         
@@ -566,7 +566,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         setPauseState(panels, isPaused, page)
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 0 and (key == ord('s') or key == ord('S')):
       # provides menu to pick stats to be graphed
       #options = ["None"] + [label for label in panels["graph"].stats.keys()]
@@ -626,7 +626,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       panels["graph"].bounds = (panels["graph"].bounds + 1) % 2
     elif page == 0 and key in (ord('d'), ord('D')):
       # provides popup with file descriptors
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         curses.cbreak() # wait indefinitely for key presses (no timeout)
@@ -636,10 +636,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 0 and (key == ord('e') or key == ord('E')):
       # allow user to enter new types of events to log - unchanged if left blank
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         
@@ -655,11 +655,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         # lists event types
         popup = panels["popup"]
         popup.height = 10
-        popup.recreate(stdscr, popup.startY, 80)
+        popup.recreate(stdscr, 80)
         
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Event Types:", util.LABEL_ATTR)
+        popup.addstr(0, 0, "Event Types:", uiTools.LABEL_ATTR)
         lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
           line = line[6:]
@@ -690,12 +690,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         # reverts popup dimensions
         popup.height = 9
-        popup.recreate(stdscr, popup.startY, 80)
+        popup.recreate(stdscr, 80)
         
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
         setPauseState(panels, isPaused, page)
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 0 and (key == ord('f') or key == ord('F')):
       # provides menu to pick previous regular expression filters or to add a new one
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
@@ -715,7 +715,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         panels["log"].regexFilter = None
       elif selection == len(options) - 1:
         # selected 'New...' option - prompt user to input regular expression
-        cursesLock.acquire()
+        panel.CURSES_LOCK.acquire()
         try:
           # provides prompt
           panels["control"].setMsg("Regular expression: ")
@@ -746,7 +746,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
               time.sleep(2)
           panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
         finally:
-          cursesLock.release()
+          panel.CURSES_LOCK.release()
       elif selection != -1:
         try:
           panels["log"].regexFilter = re.compile(regexFilters[selection - 1])
@@ -772,7 +772,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       panels["conn"].sortConnections()
     elif page == 1 and panels["conn"].isCursorEnabled and key in (curses.KEY_ENTER, 10, ord(' ')):
       # provides details on selected connection
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         popup = panels["popup"]
@@ -792,12 +792,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         while key not in (curses.KEY_ENTER, 10, ord(' ')):
           popup.clear()
           popup.win.box()
-          popup.addstr(0, 0, "Connection Details:", util.LABEL_ATTR)
+          popup.addstr(0, 0, "Connection Details:", uiTools.LABEL_ATTR)
           
           selection = panels["conn"].cursorSelection
           if not selection or not panels["conn"].connections: break
           selectionColor = connPanel.TYPE_COLORS[selection[connPanel.CONN_TYPE]]
-          format = util.getColor(selectionColor) | curses.A_BOLD
+          format = uiTools.getColor(selectionColor) | curses.A_BOLD
           
           selectedIp = selection[connPanel.CONN_F_IP]
           selectedPort = selection[connPanel.CONN_F_PORT]
@@ -911,10 +911,10 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 1 and panels["conn"].isCursorEnabled and key in (ord('d'), ord('D')):
       # presents popup for raw consensus data
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         curses.cbreak() # wait indefinitely for key presses (no timeout)
@@ -927,7 +927,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
         panels["conn"].showLabel = True
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 1 and (key == ord('l') or key == ord('L')):
       # provides menu to pick identification info listed for connections
       optionTypes = [connPanel.LIST_IP, connPanel.LIST_HOSTNAME, connPanel.LIST_FINGERPRINT, connPanel.LIST_NICKNAME]
@@ -963,7 +963,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         panels["conn"].sortConnections()
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection listing
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         curses.cbreak() # wait indefinitely for key presses (no timeout)
@@ -986,7 +986,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         while len(selections) < 3:
           popup.clear()
           popup.win.box()
-          popup.addstr(0, 0, "Connection Ordering:", util.LABEL_ATTR)
+          popup.addstr(0, 0, "Connection Ordering:", uiTools.LABEL_ATTR)
           popup.addfstr(1, 2, prevOrdering)
           
           # provides new ordering
@@ -1027,7 +1027,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 1 and (key == ord('c') or key == ord('C')):
       # displays popup with client circuits
       clientCircuits = None
@@ -1039,7 +1039,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       if clientCircuits:
         for clientEntry in clientCircuits: maxEntryLength = max(len(clientEntry), maxEntryLength)
       
-      cursesLock.acquire()
+      panel.CURSES_LOCK.acquire()
       try:
         setPauseState(panels, isPaused, page, True)
         
@@ -1048,12 +1048,12 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         popup._resetBounds()
         if clientCircuits and maxEntryLength + 4 > popup.maxX:
           popup.height = max(popup.height, len(clientCircuits) + 3)
-          popup.recreate(stdscr, popup.startY, maxEntryLength + 4)
+          popup.recreate(stdscr, maxEntryLength + 4)
         
         # lists commands
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Client Circuits:", util.LABEL_ATTR)
+        popup.addstr(0, 0, "Client Circuits:", uiTools.LABEL_ATTR)
         
         if clientCircuits == None:
           popup.addstr(1, 2, "Unable to retireve current circuits")
@@ -1074,11 +1074,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         # reverts popup dimensions
         popup.height = 9
-        popup.recreate(stdscr, popup.startY, 80)
+        popup.recreate(stdscr, 80)
         
         setPauseState(panels, isPaused, page)
       finally:
-        cursesLock.release()
+        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:

@@ -1,8 +1,8 @@
 #!/bin/sh
-python versionCheck.py
+python init/versionCheck.py
 
 if [ $? = 0 ]
 then
-  python -W ignore::DeprecationWarning arm.py $*
+  python -W ignore::DeprecationWarning init/starter.py $*
 fi
 
