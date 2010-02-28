@@ -6,12 +6,64 @@ TODO
 			fallback if an issue's detected.
 			notify John Case <case@sdf.lonestar.org>
 			caught by Christopher Davis
+	* torrc validation bug reported (appears to be os specific)
+			Reported instances were with Gentoo, OpenSuse, and OpenBSD. Change should be in:
+			interface/confPanel.py lines 104-130
+			setting up a Gentoo vm proved to be an absurd pain in the ass so gonna
+			try repro in OpenSuse instead.
+	* torrc validation doesn't catch if parameters are missing
+	* revise multikey sort of connections
+			Currently using a pretty ugly hack. Look at:
+			http://www.velocityreviews.com/forums/
+				t356461-sorting-a-list-of-objects-by-multiple-attributes.html
+			and check for performance difference.
+	* header panel isn't properly detecting catch-all exit policies
+			Missing edge cases
+	* avoid hostname lookups of private connections
+			Stripped most of them but suspect there might be others (have assertions
+			check for this in a debug mode?)
+	* exit policy checks aren't handling all inputs
+			Still need to handle masks, private keyword, and prepended policy,
+			currently erroring on the side of caution.
+	* not catching events unexpected by arm
+			Future tor and TorCtl revisions could provide new events - these should
+			be given the "UNKNOWN" type.
+	* regex fails for multiline log entries
+	* when logging no events still showing brackets
 	* quitting can hang several seconds when there's hostnames left to resolve
 			Not sure how to address this - problem is that the calls to 'host' can 
 			take a while to time out. Might need another thread to kill the calls?
 			Or forcefully terminate thread if it's taking too long (might be noisy)?
 
 - Features / Site
+	* rewrite codebase
+			Currently the interface is a bit of a rat's nest (especially the
+			controller). The goal is to use better modularization to both simplify
+			the codebase and make it possible to use smarter caching to improve
+			performance (far too much is done in the ui logic). This work is in
+			progress, having started with the initialization (/init) and now
+			concerning the utilities (/util). Migrating the following to util:
+				- os calls (to provide transparent platform independence)
+				- torrc validation
+				- arm logging (static interface with listener design)
+				- wrapper for tor connection, state, and data parsing (abstracting
+					TorCtl connection should allow for arm to be resumed if tor restarts)
+	* provide performance ARM-DEBUG events
+			Help with diagnosing performance bottlenecks. This is pending the
+			codebase revisions to figure out the low hanging fruit for caching.
+	* condense tor/arm log listing types if they're the same
+			Ie, make default "TOR/ARM NOTICE - ERR"
+	* graph for arm cpu/mem usage
+			Trivial to implement but not sure if this would be helpful.
+	* startup option to restrict resource usage or set refresh rate
+	* audit tor connections
+			Provide warnings if tor misbehaves, checks possibly including:
+				- ensuring ExitPolicyRejectPrivate is being obeyed
+				- check that ExitPolicy violations don't occure (not possible yet since
+					not all relays aren't identified)
+				- check that all connections are properly related to a circuit, for
+					instance no outbound connections without a corresponding inbound (not
+					possible yet due to being unable to correlate connections to circuts)
 	* abstract away netstat calls
 			In preparation for drop in replacement of lsof or calls to tor's
 			GETINFO.
@@ -35,28 +87,21 @@ TODO
 			if set and there's extra room available show 'MaxAdvertisedBandwidth'
 	* check family connections to see if they're alive (VERSION cell handshake?)
 	* update site's screenshots (pretty out of date...)
+	* look into providing UPnP support
+			This might be provided by tor itself so wait and see...
 
 - Ideas (low priority)
-	* write up a proposal for the control protocol wishlist
-	* look into providing UPnP support
+	* python 3 compatability
+			Currently blocked on TorCtl support.
 	* bundle script that dumps relay stats to stdout
 			Django has a small terminal coloring module that could be nice for
 			formatting. Could possibly include:
 				- desc / ns information for our relay
 				- ps / netstat stats like load, uptime, and connection counts, etc
 			derived from an idea by StrangeCharm
-	* provide performance ARM-DEBUG events
-			Might help with debugging bottlenecks. This requires that there's more
-			refined controls for selecting logged arm runlevel.
 	* show qos stats
 			Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
 			available and interesting.
-	* get a test environment for Mac OSX or BSD
-			Set up a vm for FreeBSD but found working in it to be... painful (wasted
-			five hours and gave up when even asking for a working copy of vim was 
-			too much to ask). As for OSX seems that getting a test environment would
-			cost quite a bit. Hence mothballing this - someone that actually uses
-			these platforms will need to resolve portability issues if they arise.
 	* localization
 			Abstract strings from code and provide on translation portal. Thus far
 			there hasn't been any requests for this.
@@ -69,59 +114,10 @@ TODO
 			submit@bugs.debian.org with subject "RFP: arm" and starting with a line
 			"Package: wnpp".
 			requested by helmut
-
-- Control Protocol Wishlist (low priority)
-	* listing of tor's current connections (netstat / lsof replacement)
-			Keeping the netstat available would be good for auditing (external view
-			of tor and more likely monitored by host based IDS) but tor's listing
-			would probably be more effecient, accurate, and could contain additional
-			details making it a preferable default.
-	* bandwidth usage per connection
-			This would need to be rounded and averaged over time to avoid 
-			correlation problems. Probably the most interesting stat arm currently
-			doesn't have since for most purposes (like security threats) especially
-			active connections are of most interest.
-	* identification of hop type
-			Identification if the first, middle or last hop. When this is available
-			I'll hide exit connections by default. Another interesting distinction
-			would be when we're serving directory data verses acting as a relay.
-	* associate connections to circuits
-			Currently listing is connection based rather than circuit, ie it lists:
-			previous hop -> localhost
-			previous hop -> localhost
-			localhost -> next hop
+	* follow up on control-spec proposal
+			Proposal and related information is available at:
+			http://www.atagar.com/arm/controlSpecProposal.txt
 			
-			rather than:
-			previous hop -> localhost -> next hop
-			previous hop -> localhost -> *unestablished*
-			
-			From a debugging and secuirty standpoint this could highlight potential
-			issues, for instance relays really shouldn't have any non-client
-			connections like:
-			*unestablished* -> localhost -> next hop
-			
-			and entries like:
-			previous hop -> localhost -> *extension failed (error X)*
-			
-			might indicate a firewall blocking tor outbound connections. This would
-			be especially helpful if paired with server related circuit status
-			events (which would note attempted extensions, failures, etc). We could
-			also note other circuit based stats like the amount of buffered data.
-	* mapping of ip/port to fingerprint
-			Currently inferring the mappings but this only has around a 90% success
-			rate (not sure why it fails...). Tor has an internal connection
-			identifier so what would probably be best is bidirectional translation
-			functions with that, ie getting fingerprint would be done via:
-			ip/port -> connection id -> fingerprint
-			
-			In theory this should be able to tell us if the connection is the first
-			or last hop (since in those cases the foreign address doesn't have a
-			fingerprint).
-	* additional get_info data
-			effective relay bandwidth / burst - currently internally mimicing the
-				logic of tor (which is RelayBandwidthRate/Burst if set, otherwise 
-				BandwidthRate/Burst)
-			list of directory authorities recognized by that instance of tor
-			total data relayed by tor - this is already kinda tracked for accounting
-			file descriptor limit (return value of the getrlimit() function)
+			Unfortunatley this doesn't seem to be going anywhere so mothballed for
+			now.
 

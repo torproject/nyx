@@ -17,8 +17,8 @@ sys.path[0] = sys.path[0][:-5]
 from TorCtl import TorCtl, TorUtil
 from interface import controller, logPanel
 
-VERSION = "1.3.2"
-LAST_MODIFIED = "Feb 14, 2010"
+VERSION = "1.3.3"
+LAST_MODIFIED = "Feb 27, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051

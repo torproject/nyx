@@ -135,8 +135,9 @@ class HeaderPanel(panel.Panel):
       exitPolicy = self.vals["ExitPolicy"]
       
       # adds note when default exit policy is appended
+      # TODO: the following catch-all policies arne't quite exhaustive
       if exitPolicy == None: exitPolicy = "<default>"
-      elif not exitPolicy.endswith("accept *:*") and not exitPolicy.endswith("reject *:*"):
+      elif not (exitPolicy.endswith("accept *:*") or exitPolicy.endswith("accept *")) and not (exitPolicy.endswith("reject *:*") or exitPolicy.endswith("reject *")):
         exitPolicy += ", <default>"
       
       policies = exitPolicy.split(", ")

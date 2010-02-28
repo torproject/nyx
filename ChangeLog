@@ -1,10 +1,25 @@
 CHANGE LOG
 
-2/14/10 - version 1.3.2
+2/27/10 - version 1.3.3
+Hiding client/exit information to address privacy concerns and fixes for numerous issues brought up in irc.
+
+    * added: scrubbing connection details of possible client and exit connections
+    * change: providing file descriptions in README, updated known issues and future plans in TODO
+    * change: added precision for bandwidth cap and burst if uneven values (requested by mete1989)
+    * fix: HiddenService* parameters fetched via a special option (caught by dun, karsten, and grumpy3)
+    * fix: workaround for os specific torrc validation bug - unfortunately haven't managed to repro yet so no fix (caught by grumpy3, Tas, and dun)
+    * fix: checking for python curses bindings at startup (caught by dun)
+    * fix: import error - TorCtl and socket missing from confPanel.py (caught by grumpy3)
+    * fix: showing external ip in connection panel rather than local nat address (caught by mete1989)
+    * fix: raised minimum width at which graph stats are displayed beside label (caught by dun)
+    * fix: wasn't treating "accept *" and "reject *" as catch-all policies
+    * fix: wasn't resizing graph panel properly in case of a sighup
+
+2/14/10 - version 1.3.2 (r21646)
 Refactoring goodness and bug fixes.
 
-    * change: revised curses utilities to further simplify interfaces
-    * change: substantial layout changes (separating into util and init packages) and including a copy of the gpl
+    * change: revised curses utilities to further simplify interface implementations
+    * change: substantial layout changes (adding util and init packages) and including a copy of the gpl
     * fix: bug with handing of DST for accounting's 'Time to reset' (patch provided by waltman)
     * fix: header and connection panels weren't accounting for having ORListenAddress set (caught by waltman)
     * fix: crashing bug when shrank too much for scrollbars to be drawn

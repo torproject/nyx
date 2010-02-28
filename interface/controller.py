@@ -372,14 +372,14 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       if sighupTracker.isReset:
         panels["header"]._updateParams(True)
         
-        # if bandwidth graph is being shown then height might have changed
-        if panels["graph"].currentDisplay == "bandwidth":
-          panels["graph"].height = panels["graph"].stats["bandwidth"].height
-        
         # other panels that use torrc data
         panels["conn"].resetOptions()
         if not isBlindMode: panels["graph"].stats["connections"].resetOptions(conn)
         panels["graph"].stats["bandwidth"].resetOptions()
+        
+        # if bandwidth graph is being shown then height might have changed
+        if panels["graph"].currentDisplay == "bandwidth":
+          panels["graph"].height = panels["graph"].stats["bandwidth"].height
         
         panels["torrc"].reset()
         sighupTracker.isReset = False
@@ -801,6 +801,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           
           selectedIp = selection[connPanel.CONN_F_IP]
           selectedPort = selection[connPanel.CONN_F_PORT]
+          selectedIsPrivate = selection[connPanel.CONN_PRIVATE]
           
           addrLabel = "address: %s:%s" % (selectedIp, selectedPort)
           
@@ -808,9 +809,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
             # unresolved family entry - unknown ip/port
             addrLabel = "address: unknown"
           
-          hostname = resolver.resolve(selectedIp)
+          if selectedIsPrivate: hostname = None
+          else: hostname = resolver.resolve(selectedIp)
+          
           if hostname == None:
-            if resolver.isPaused: hostname = "DNS resolution disallowed"
+            if resolver.isPaused or selectedIsPrivate: hostname = "DNS resolution disallowed"
             elif selectedIp not in resolver.resolvedCache.keys():
               # if hostname is still being resolved refresh panel every half-second until it's completed
               curses.halfdelay(5)
@@ -822,77 +825,82 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
             # hostname too long - truncate
             hostname = "%s..." % hostname[:70 - len(addrLabel)]
           
-          popup.addstr(1, 2, "%s (%s)" % (addrLabel, hostname), format)
-          
-          locale = selection[connPanel.CONN_COUNTRY]
-          popup.addstr(2, 2, "locale: %s" % locale, format)
-          
-          # provides consensus data for selection (needs fingerprint to get anywhere...)
-          fingerprint = panels["conn"].getFingerprint(selectedIp, selectedPort)
-          
-          if fingerprint == "UNKNOWN":
-            if selectedIp not in panels["conn"].fingerprintMappings.keys():
-              # no consensus entry for this ip address
-              popup.addstr(3, 2, "No consensus data found", format)
-            else:
-              # couldn't resolve due to multiple matches - list them all
-              popup.addstr(3, 2, "Muliple matches, possible fingerprints are:", format)
-              matchings = panels["conn"].fingerprintMappings[selectedIp]
-              
-              line = 4
-              for (matchPort, matchFingerprint, matchNickname) in matchings:
-                popup.addstr(line, 2, "%i. or port: %-5s fingerprint: %s" % (line - 3, matchPort, matchFingerprint), format)
-                line += 1
-                
-                if line == 7 and len(matchings) > 4:
-                  popup.addstr(8, 2, "... %i more" % len(matchings) - 3, format)
-                  break
+          if selectedIsPrivate:
+            popup.addstr(1, 2, "address: <scrubbed> (unknown)", format)
+            popup.addstr(2, 2, "locale: ??", format)
+            popup.addstr(3, 2, "No consensus data found", format)
           else:
-            # fingerprint found - retrieve related data
-            lookupErrored = False
-            if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
-            else:
-              # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
-              try: nsData = conn.get_network_status("id/%s" % fingerprint)
-              except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
-              
-              if not lookupErrored:
-                if len(nsData) > 1:
-                  # multiple records for fingerprint (shouldn't happen)
-                  panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
-                
-                nsEntry = nsData[0]
-                
-                try:
-                  descLookupCmd = "desc/id/%s" % fingerprint
-                  descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
-                  relayLookupCache[selection] = (nsEntry, descEntry)
-                except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True # desc lookup failed
+            popup.addstr(1, 2, "%s (%s)" % (addrLabel, hostname), format)
             
-            if lookupErrored:
-              popup.addstr(3, 2, "Unable to retrieve consensus data", format)
+            locale = selection[connPanel.CONN_COUNTRY]
+            popup.addstr(2, 2, "locale: %s" % locale, format)
+            
+            # provides consensus data for selection (needs fingerprint to get anywhere...)
+            fingerprint = panels["conn"].getFingerprint(selectedIp, selectedPort)
+            
+            if fingerprint == "UNKNOWN":
+              if selectedIp not in panels["conn"].fingerprintMappings.keys():
+                # no consensus entry for this ip address
+                popup.addstr(3, 2, "No consensus data found", format)
+              else:
+                # couldn't resolve due to multiple matches - list them all
+                popup.addstr(3, 2, "Muliple matches, possible fingerprints are:", format)
+                matchings = panels["conn"].fingerprintMappings[selectedIp]
+                
+                line = 4
+                for (matchPort, matchFingerprint, matchNickname) in matchings:
+                  popup.addstr(line, 2, "%i. or port: %-5s fingerprint: %s" % (line - 3, matchPort, matchFingerprint), format)
+                  line += 1
+                  
+                  if line == 7 and len(matchings) > 4:
+                    popup.addstr(8, 2, "... %i more" % len(matchings) - 3, format)
+                    break
             else:
-              popup.addstr(2, 15, "fingerprint: %s" % fingerprint, format)
+              # fingerprint found - retrieve related data
+              lookupErrored = False
+              if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
+              else:
+                # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
+                try: nsData = conn.get_network_status("id/%s" % fingerprint)
+                except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
+                
+                if not lookupErrored:
+                  if len(nsData) > 1:
+                    # multiple records for fingerprint (shouldn't happen)
+                    panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
+                  
+                  nsEntry = nsData[0]
+                  
+                  try:
+                    descLookupCmd = "desc/id/%s" % fingerprint
+                    descEntry = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+                    relayLookupCache[selection] = (nsEntry, descEntry)
+                  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True # desc lookup failed
               
-              nickname = panels["conn"].getNickname(selectedIp, selectedPort)
-              dirPortLabel = "dirport: %i" % nsEntry.dirport if nsEntry.dirport else ""
-              popup.addstr(3, 2, "nickname: %-25s orport: %-10i %s" % (nickname, nsEntry.orport, dirPortLabel), format)
-              
-              popup.addstr(4, 2, "published: %-24s os: %-14s version: %s" % (descEntry.published, descEntry.os, descEntry.version), format)
-              popup.addstr(5, 2, "flags: %s" % ", ".join(nsEntry.flags), format)
-              
-              exitLine = ", ".join([str(k) for k in descEntry.exitpolicy])
-              if len(exitLine) > 63: exitLine = "%s..." % exitLine[:60]
-              popup.addstr(6, 2, "exit policy: %s" % exitLine, format)
-              
-              if descEntry.contact:
-                # clears up some common obscuring
-                contactAddr = descEntry.contact
-                obscuring = [(" at ", "@"), (" AT ", "@"), ("AT", "@"), (" dot ", "."), (" DOT ", ".")]
-                for match, replace in obscuring: contactAddr = contactAddr.replace(match, replace)
-                if len(contactAddr) > 67: contactAddr = "%s..." % contactAddr[:64]
-                popup.addstr(7, 2, "contact: %s" % contactAddr, format)
-          
+              if lookupErrored:
+                popup.addstr(3, 2, "Unable to retrieve consensus data", format)
+              else:
+                popup.addstr(2, 15, "fingerprint: %s" % fingerprint, format)
+                
+                nickname = panels["conn"].getNickname(selectedIp, selectedPort)
+                dirPortLabel = "dirport: %i" % nsEntry.dirport if nsEntry.dirport else ""
+                popup.addstr(3, 2, "nickname: %-25s orport: %-10i %s" % (nickname, nsEntry.orport, dirPortLabel), format)
+                
+                popup.addstr(4, 2, "published: %-24s os: %-14s version: %s" % (descEntry.published, descEntry.os, descEntry.version), format)
+                popup.addstr(5, 2, "flags: %s" % ", ".join(nsEntry.flags), format)
+                
+                exitLine = ", ".join([str(k) for k in descEntry.exitpolicy])
+                if len(exitLine) > 63: exitLine = "%s..." % exitLine[:60]
+                popup.addstr(6, 2, "exit policy: %s" % exitLine, format)
+                
+                if descEntry.contact:
+                  # clears up some common obscuring
+                  contactAddr = descEntry.contact
+                  obscuring = [(" at ", "@"), (" AT ", "@"), ("AT", "@"), (" dot ", "."), (" DOT ", ".")]
+                  for match, replace in obscuring: contactAddr = contactAddr.replace(match, replace)
+                  if len(contactAddr) > 67: contactAddr = "%s..." % contactAddr[:64]
+                  popup.addstr(7, 2, "contact: %s" % contactAddr, format)
+            
           popup.refresh()
           key = stdscr.getch()
           

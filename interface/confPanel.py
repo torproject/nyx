@@ -4,13 +4,19 @@
 
 import math
 import curses
+import socket
 
+from TorCtl import TorCtl
 from util import panel, uiTools
 
 # torrc parameters that can be defined multiple times without overwriting
 # from src/or/config.c (entries with LINELIST or LINELIST_S)
 # last updated for tor version 0.2.1.19
 MULTI_LINE_PARAM = ["AlternateBridgeAuthority", "AlternateDirAuthority", "AlternateHSAuthority", "AuthDirBadDir", "AuthDirBadExit", "AuthDirInvalid", "AuthDirReject", "Bridge", "ControlListenAddress", "ControlSocket", "DirListenAddress", "DirPolicy", "DirServer", "DNSListenAddress", "ExitPolicy", "HashedControlPassword", "HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient", "HidServAuth", "Log", "MapAddress", "NatdListenAddress", "NodeFamily", "ORListenAddress", "ReachableAddresses", "ReachableDirAddresses", "ReachableORAddresses", "RecommendedVersions", "RecommendedClientVersions", "RecommendedServerVersions", "SocksListenAddress", "SocksPolicy", "TransListenAddress", "__HashedControlSessionPassword"]
+
+# hidden service options need to be fetched with HiddenServiceOptions
+HIDDEN_SERVICE_PARAM = ["HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient"]
+HIDDEN_SERVICE_FETCH_PARAM = "HiddenServiceOptions"
 
 # size modifiers allowed by config.c
 LABEL_KB = ["kb", "kbyte", "kbytes", "kilobyte", "kilobytes"]
@@ -98,13 +104,30 @@ class ConfPanel(panel.Panel):
           # check validity against tor's actual state
           try:
             actualValues = []
-            for key, val in self.conn.get_option(command):
-              actualValues.append(val)
+            if command in HIDDEN_SERVICE_PARAM:
+              # hidden services are fetched via a special command
+              hsInfo = self.conn.get_option(HIDDEN_SERVICE_FETCH_PARAM)
+              for entry in hsInfo:
+                if entry[0] == command:
+                  actualValues.append(entry[1])
+                  break
+            else:
+              # general case - fetch all valid values
+              for key, val in self.conn.get_option(command):
+                actualValues.append(val)
             
             if not argument in actualValues:
-              self.corrections[lineNumber + 1] = argument + " - " + ", ".join(actualValues)
-          except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-            pass # unable to load tor parameter to validate... weird
+              self.corrections[lineNumber + 1] = ", ".join(actualValues)
+          except (TypeError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+            # TODO: for some reason the above provided:
+            # TypeError: sequence item 0: expected string, NoneType found
+            # 
+            # for the corrections setting. This issue seems to be specific to
+            # Gentoo, OpenSuse, and OpenBSD but haven't yet managed to
+            # reproduce. Catching the TypeError to just drop the torrc
+            # validation for those systems
+            
+            self.logger.monitor_event("WARN", "Unable to validate torrc")
       
       # logs issues that arose
       if self.irrelevantLines:

@@ -14,4 +14,10 @@ if __name__ == '__main__':
   elif majorVersion < 2 or minorVersion < 5:
     print("arm requires python version 2.5 or greater\n")
     sys.exit(1)
+  
+  try:
+    import curses
+  except ImportError:
+    print("arm requires curses - try installing the python-curses package\n")
+    sys.exit(1)
 

@@ -33,6 +33,8 @@ To be ran with the same user as tor to avoid permission issues with netstat,
 
 This is started via 'arm' (use the '--help' argument for usage).
 
+-------------------------------------------------------------------------------
+
 FAQ:
 > Why is it called 'arm'?
 
@@ -86,4 +88,49 @@ If you're running multiple instances of tor then arm needs to figure out which
 pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
 Arm still runs, just no connection listing or ps stats.
+
+-------------------------------------------------------------------------------
+
+Layout:
+
+./
+  arm       - startup script
+  
+  ChangeLog - revision history
+  LICENSE   - copy of the gpl v3
+  README    - um... guess you figured this one out
+  TODO      - known issues, future plans, etc
+  
+  screenshot_page1.png
+  screenshot_page2.png
+  
+  init/
+    __init__.py
+    arm.py    - parses and validates commandline parameters
+    prereq.py - checks python version and for required packages
+  
+  interface/
+    __init__.py
+    controller.py          - main display loop, handling input and layout
+    headerPanel.py         - top of all pages, providing general information
+    connResolver.py        - (daemon thread) periodic netstat lookups
+    hostnameResolver.py    - (daemon thread) nonblocking reverse dns lookups
+    
+    
+    graphPanel.py          - (page 1) presents graphs for data instances
+    bandwidthMonitor.py    - (graph data) tracks tor bandwidth usage
+    cpuMemMonitor.py       - (graph data) tracks tor cpu and memory usage
+    connCountMonitor.py    - (graph data) tracks number of tor connections
+    logPanel.py            - displays tor, arm, and torctl events
+    fileDescriptorPopup.py - (popup) displays file descriptors used by tor
+    
+    connPanel.py           - (page 2) displays information on tor connections
+    descriptorPopup.py     - (popup) displays connection descriptor data
+    
+    confPanel.py           - (page 3) displays torrc and performs validation
+  
+  util/
+    __init__.py
+    panel.py   - wrapper for safely working with curses subwindows
+    uiTools.py - helper functions for interface
 

@@ -11,6 +11,17 @@ from TorCtl import TorCtl
 import hostnameResolver
 from util import panel, uiTools
 
+# Scrubs private data from any connection that might belong to client or exit
+# traffic. This is a little overly conservative, hiding anything that isn't
+# identified as a relay and meets the following criteria:
+# - Connection is inbound and relay's either a bridge (BridgeRelay is set) or 
+#   guard (making it a probable client connection)
+# - Outbound connection permitted by the exit policy (probable exit connection)
+# 
+# Note that relay etiquette says these are bad things to look at (ie, DON'T 
+# CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!)
+SCRUB_PRIVATE_DATA = True
+
 # directory servers (IP, port) for tor version 0.2.2.1-alpha-dev
 DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
                ("128.31.0.34", "9031"),       # moria1
@@ -29,7 +40,7 @@ TYPE_COLORS = {"inbound": "green", "outbound": "blue", "client": "cyan", "direct
 TYPE_WEIGHTS = {"inbound": 0, "outbound": 1, "client": 2, "directory": 3, "control": 4, "family": 5, "localhost": 6} # defines ordering
 
 # enums for indexes of ConnPanel 'connections' fields
-CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY, CONN_TIME = range(7)
+CONN_TYPE, CONN_L_IP, CONN_L_PORT, CONN_F_IP, CONN_F_PORT, CONN_COUNTRY, CONN_TIME, CONN_PRIVATE = range(8)
 
 # labels associated to 'connectionCount' 
 CONN_COUNT_LABELS = ["inbound", "outbound", "client", "directory", "control"]
@@ -137,12 +148,16 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     # mapping of ip/port to fingerprint of family entries, used in hack to short circuit (ip / port) -> fingerprint lookups
     self.familyResolutions = {}
     
+    self.address = ""
     self.nickname = ""
     self.listenPort = "0"           # port used to identify inbound/outbound connections (from ORListenAddress if defined, otherwise ORPort)
     self.orPort = "0"
     self.dirPort = "0"
     self.controlPort = "0"
     self.family = []                # fingerpints of family entries
+    self.isBridge = False           # true if BridgeRelay is set
+    self.exitPolicy = ""
+    self.exitRejectPrivate = True   # true if ExitPolicyRejectPrivate is 0
     
     self.resetOptions()
     
@@ -160,6 +175,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.familyResolutions = {}
     
     try:
+      self.address = ""
       self.nickname = self.conn.get_option("Nickname")[0][1]
       
       self.orPort = self.conn.get_option("ORPort")[0][1]
@@ -176,6 +192,14 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       familyEntry = self.conn.get_option("MyFamily")[0][1]
       if familyEntry: self.family = [entry[1:] for entry in familyEntry.split(",")]
       else: self.family = []
+      
+      self.isBridge = self.conn.get_option("BridgeRelay")[0][1] == "1"
+      self.exitPolicy = self.conn.get_option("ExitPolicy")[0][1]
+      
+      if self.exitPolicy: self.exitPolicy += "," + self.conn.get_info("exit-policy/default")["exit-policy/default"]
+      else: self.exitPolicy = self.conn.get_info("exit-policy/default")["exit-policy/default"]
+      
+      self.exitRejectPrivate = self.conn.get_option("ExitPolicyRejectPrivate")[0][1] == "1"
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.nickname = ""
       self.listenPort = None
@@ -183,6 +207,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       self.dirPort = "0"
       self.controlPort = "0"
       self.family = []
+      self.isBridge = False
+      self.exitPolicy = ""
+      self.exitRejectPrivate = True
   
   # change in client circuits
   def circ_status_event(self, event):
@@ -242,6 +269,11 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     Reloads netstat results.
     """
     
+    # inaccessable during startup so might need to be refetched
+    try:
+      if not self.address: self.address = self.conn.get_info("address")["address"]
+    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+    
     self.connectionsLock.acquire()
     self.clientConnectionLock.acquire()
     
@@ -249,6 +281,13 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     connectionsTmp = []
     connectionCountTmp = [0] * 5
     familyResolutionsTmp = {}
+    
+    # used (with isBridge) to determine if inbound connections should be scrubbed
+    isGuard = False
+    try:
+      myFingerprint = self.conn.get_info("fingerprint")
+      isGuard = "Guard" in self.conn.get_network_status("id/%s" % myFingerprint)[0].flags
+    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
     
     try:
       if self.clientConnectionCache == None:
@@ -268,15 +307,17 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         local, foreign = param[3], param[4]
         localIP, foreignIP = local[:local.find(":")], foreign[:foreign.find(":")]
         localPort, foreignPort = local[len(localIP) + 1:], foreign[len(foreignIP) + 1:]
+        fingerprint = self.getFingerprint(foreignIP, foreignPort)
         
+        isPrivate = False
         if localPort in (self.listenPort, self.dirPort):
           type = "inbound"
           connectionCountTmp[0] += 1
+          if SCRUB_PRIVATE_DATA and foreignIP not in self.fingerprintMappings.keys(): isPrivate = isGuard or self.isBridge
         elif localPort == self.controlPort:
           type = "control"
           connectionCountTmp[4] += 1
         else:
-          fingerprint = self.getFingerprint(foreignIP, foreignPort)
           nickname = self.getNickname(foreignIP, foreignPort)
           
           isClient = False
@@ -294,6 +335,10 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
           else:
             type = "outbound"
             connectionCountTmp[1] += 1
+            if SCRUB_PRIVATE_DATA and foreignIP not in self.fingerprintMappings.keys(): isPrivate = isExitAllowed(foreignIP, foreignPort, self.exitPolicy, self.exitRejectPrivate, self.logger)
+        
+        # replace nat address with external version if available
+        if self.address and type != "control": localIP = self.address
         
         try:
           countryCodeQuery = "ip-to-country/%s" % foreign[:foreign.find(":")]
@@ -307,26 +352,25 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         if (foreignIP, foreignPort) in connTimes: connTime = connTimes[(foreignIP, foreignPort)]
         else: connTime = time.time()
         
-        connectionsTmp.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime))
+        connectionsTmp.append((type, localIP, localPort, foreignIP, foreignPort, countryCode, connTime, isPrivate))
       
       # appends localhost connection to allow user to look up their own consensus entry
-      selfAddress, selfFingerprint = None, None
+      selfFingerprint = None
       try:
-        selfAddress = self.conn.get_info("address")["address"]
         selfFingerprint = self.conn.get_info("fingerprint")["fingerprint"]
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
       
-      if selfAddress and selfFingerprint:
+      if self.address and selfFingerprint:
         try:
-          countryCodeQuery = "ip-to-country/%s" % selfAddress
+          countryCodeQuery = "ip-to-country/%s" % self.address
           selfCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
           selfCountryCode = "??"
         
-        if (selfAddress, self.orPort) in connTimes: connTime = connTimes[(selfAddress, self.orPort)]
+        if (self.address, self.orPort) in connTimes: connTime = connTimes[(self.address, self.orPort)]
         else: connTime = time.time()
         
-        self.localhostEntry = (("localhost", selfAddress, self.orPort, selfAddress, self.orPort, selfCountryCode, connTime), selfFingerprint)
+        self.localhostEntry = (("localhost", self.address, self.orPort, self.address, self.orPort, selfCountryCode, connTime, False), selfFingerprint)
         connectionsTmp.append(self.localhostEntry[0])
       else:
         self.localhostEntry = None
@@ -346,12 +390,12 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
           else: connTime = time.time()
           
           familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
-          connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime))
+          connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime, False))
         except (socket.error, TorCtl.ErrorReply):
           # use dummy entry for sorting - the draw function notes that entries are unknown
           portIdentifier = str(65536 + tmpCounter)
           familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
-          connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time()))
+          connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time(), False))
           tmpCounter += 1
         except TorCtl.TorCtlClosed:
           pass # connections aren't shown when control port is unavailable
@@ -458,6 +502,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         for entry in self.connections:
           if lineNum >= 1:
             type = entry[CONN_TYPE]
+            isPrivate = entry[CONN_PRIVATE]
             color = TYPE_COLORS[type]
             
             # adjustments to measurements for 'xOffset' are to account for scroll bar
@@ -465,6 +510,11 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               # base data requires 73 characters
               src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
               dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+              
+              if isPrivate:
+                if type == "inbound": src = "<scrubbed>"
+                elif type == "outbound": dst = "<scrubbed>"
+              
               src, dst = "%-21s" % src, "%-26s" % dst
               
               etc = ""
@@ -492,7 +542,10 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               if self.maxX > 102 + xOffset:
                 # shows ip/locale (column width: 22 characters)
                 foreignHostnameSpace -= 22
-                etc += "%-20s  " % ("%s %s" % (entry[CONN_F_IP], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+                
+                if isPrivate: ipEntry = "<scrubbed>"
+                else: ipEntry = "%s %s" % (entry[CONN_F_IP], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                etc += "%-20s  " % ipEntry
               
               if self.maxX > 134 + xOffset:
                 # show fingerprint (column width: 42 characters)
@@ -508,14 +561,17 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
                 if len(nickname) > nicknameSpace: nickname = "%s..." % nickname[:nicknameSpace - 3]
                 etc += ("%%-%is  " % nicknameSpace) % nickname
               
-              hostname = self.resolver.resolve(entry[CONN_F_IP])
+              if isPrivate: dst = "<scrubbed>"
+              else:
+                hostname = self.resolver.resolve(entry[CONN_F_IP])
+                
+                # truncates long hostnames
+                portDigits = len(str(entry[CONN_F_PORT]))
+                if hostname and (len(hostname) + portDigits) > foreignHostnameSpace - 1:
+                  hostname = hostname[:(foreignHostnameSpace - portDigits - 4)] + "..."
+                
+                dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
               
-              # truncates long hostnames
-              portDigits = len(str(entry[CONN_F_PORT]))
-              if hostname and (len(hostname) + portDigits) > foreignHostnameSpace - 1:
-                hostname = hostname[:(foreignHostnameSpace - portDigits - 4)] + "..."
-              
-              dst = "%s:%s" % (hostname if hostname else entry[CONN_F_IP], entry[CONN_F_PORT])
               dst = ("%%-%is" % foreignHostnameSpace) % dst
             elif self.listingType == LIST_FINGERPRINT:
               # base data requires 75 characters
@@ -534,7 +590,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               
               if self.maxX > 125 + xOffset:
                 # shows ip/port/locale (column width: 28 characters)
-                etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+                if isPrivate: ipEntry = "<scrubbed>"
+                else: ipEntry = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                etc += "%-26s  " % ipEntry
             else:
               # base data uses whatever extra room's available (using minimun of 50 characters)
               src = self.nickname
@@ -553,7 +611,10 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               if self.maxX > 120 + xOffset:
                 # shows ip/port/locale (column width: 28 characters)
                 foreignNicknameSpace -= 28
-                etc += "%-26s  " % ("%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY]))
+                
+                if isPrivate: ipEntry = "<scrubbed>"
+                else: ipEntry = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                etc += "%-26s  " % ipEntry
               
               dst = ("%%-%is" % foreignNicknameSpace) % dst
             
@@ -785,4 +846,59 @@ def _getClientConnections(conn):
   except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
   return clients
+
+def isExitAllowed(ip, port, exitPolicy, isPrivateRejected, logger):
+  """
+  Determines if a given connection is a permissable exit with the given 
+  policy or not (True if it's allowed to be an exit connection, False 
+  otherwise).
+  
+  NOTE: this is a little tricky and liable to need some tweaks
+  """
+  
+  # might not be set when first starting up
+  if not exitPolicy: return True
+  
+  # TODO: move into a utility and craft some unit tests (this is very error 
+  # prone...)
+  
+  # TODO: currently doesn't consider ExitPolicyRejectPrivate (which prevents 
+  # connections to private networks and local ip)
+  for entry in exitPolicy.split(","):
+    entry = entry.strip()
+    
+    isAccept = entry.startswith("accept")
+    entry = entry[7:] # strips off "accept " or "reject "
+    
+    # parses ip address (with mask if provided) and port
+    if ":" in entry:
+      entryIP = entry[:entry.find(":")]
+      entryPort = entry[entry.find(":") + 1:]
+    else:
+      entryIP = entry
+      entryPort = "*"
+    
+    #raise AssertionError(str(exitPolicy) + " - " + entryIP + ":" + entryPort)
+    isIPMatch = entryIP == ip or entryIP[0] == "*"
+    
+    if not "-" in entryPort:
+      # single port
+      isPortMatch = entryPort == str(port) or entryPort[0] == "*"
+    else:
+      # port range
+      minPort = int(entryPort[:entryPort.find("-")])
+      maxPort = int(entryPort[entryPort.find("-") + 1:])
+      isPortMatch = port >= minPort and port <= maxPort
+    
+    # TODO: Currently being lazy and considering subnet masks or 'private' 
+    # keyword to be equivilant to wildcard if it would reject, and none 
+    # if it would accept (ie, being conservative with acceptance). Would be 
+    # nice to fix at some point.
+    if not isAccept: isIPMatch |= "/" in entryIP or entryIP == "private"
+    
+    if isIPMatch and isPortMatch: return isAccept
+  
+  # we shouldn't ever fall through due to default exit policy
+  logger.monitor_event("WARN", "Exit policy left connection uncategorized: %s:%i" % (ip, port))
+  return False
 

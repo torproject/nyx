@@ -14,7 +14,7 @@ UL_COLOR = "cyan"   # upload section color
 
 # width at which panel abandons placing optional stats (avg and total) with
 # header in favor of replacing the x-axis label
-COLLAPSE_WIDTH = 120
+COLLAPSE_WIDTH = 135
 
 class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
@@ -47,8 +47,14 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
       bwStats = self.conn.get_option(['BandwidthRate', 'BandwidthBurst'])
       relayStats = self.conn.get_option(['RelayBandwidthRate', 'RelayBandwidthBurst'])
       
-      self.bwRate = uiTools.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]))
-      self.bwBurst = uiTools.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]))
+      self.bwRate = uiTools.getSizeLabel(int(bwStats[0][1] if relayStats[0][1] == "0" else relayStats[0][1]), 1)
+      self.bwBurst = uiTools.getSizeLabel(int(bwStats[1][1] if relayStats[1][1] == "0" else relayStats[1][1]), 1)
+      
+      # if both are using rounded values then strip off the ".0" decimal
+      if ".0" in self.bwRate and ".0" in self.bwBurst:
+        self.bwRate = self.bwRate.replace(".0", "")
+        self.bwBurst = self.bwBurst.replace(".0", "")
+      
     except (ValueError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       pass # keep old values
     
@@ -87,7 +93,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
         panel.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), uiTools.getColor(self.primaryColor))
         panel.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), uiTools.getColor(self.secondaryColor))
       else:
-        panel.addfstr(10, 0, "<b>Accounting:</b> Shutting Down...")
+        panel.addfstr(10, 0, "<b>Accounting:</b> Connection Closed...")
   
   def getTitle(self, width):
     # provides label, dropping stats if there's not enough room

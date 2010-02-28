@@ -1,5 +1,5 @@
 #!/bin/sh
-python init/versionCheck.py
+python init/prereq.py
 
 if [ $? = 0 ]
 then
