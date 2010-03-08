@@ -1,6 +1,19 @@
 CHANGE LOG
 
-2/27/10 - version 1.3.3
+3/7/10 - version 1.3.4
+Weekend bugfix bundle.
+
+    * added: returned option to reload torrc and added option to issue a sighup
+    * fix: header panel wasn't interpreting multi-line exit policies (caught by dun)
+    * fix: substantial display bug when stripping comments and torrc is bigger than the panel (caught by Paul Menzel)
+    * fix: deb specific hack for estimating the file descriptor limit was broken (caught by Paul Menzel)
+    * fix: skip printing stack trace in case of keyboard interrupt
+    * fix: updated listing of directory authorities (for tor version 0.2.1.24)
+    * fix: several uncaught exceptions when the network consensus couldn't be fetched
+    * fix: torrc comment stripping wasn't removing comments on the same lines as commands
+    * fix: torrc validation was failing under some conditions for CSV values (like ExitPolicy)
+
+2/27/10 - version 1.3.3 (r21772)
 Hiding client/exit information to address privacy concerns and fixes for numerous issues brought up in irc.
 
     * added: scrubbing connection details of possible client and exit connections

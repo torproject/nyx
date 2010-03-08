@@ -68,7 +68,7 @@ class PopupProperties:
       # get the file descriptor limit for an arbitrary process. What we need is
       # for the tor process to provide the return value of the "getrlimit"
       # function via a GET_INFO call.
-      if torUser == "debian-tor":
+      if torUser.strip() == "debian-tor":
         # probably loaded via /etc/init.d/tor which changes descriptor limit
         self.fdLimit = 8192
       else:

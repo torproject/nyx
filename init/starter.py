@@ -17,8 +17,8 @@ sys.path[0] = sys.path[0][:-5]
 from TorCtl import TorCtl, TorUtil
 from interface import controller, logPanel
 
-VERSION = "1.3.3"
-LAST_MODIFIED = "Feb 27, 2010"
+VERSION = "1.3.4"
+LAST_MODIFIED = "Mar 7, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -151,7 +151,11 @@ if __name__ == '__main__':
       conn.authenticate("")
     elif authInfo.startswith("AUTH METHODS=HASHEDPASSWORD"):
       # password authentication, promts for password if it wasn't provided
-      if not authPassword: authPassword = getpass.getpass()
+      try:
+        if not authPassword: authPassword = getpass.getpass()
+      except KeyboardInterrupt:
+        sys.exit()
+      
       conn.authenticate(authPassword)
     elif authInfo.startswith("AUTH METHODS=COOKIE"):
       # cookie authtication, parses path to authentication cookie

@@ -554,6 +554,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           
           lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
           popup.addfstr(3, 41, "n: line numbering (<b>%s</b>)" % lineNumLabel)
+          
+          popup.addstr(4, 2, "r: reload torrc")
+          popup.addstr(4, 41, "x: reset tor (issue sighup)")
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -861,15 +864,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
               if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
               else:
                 # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
-                try: nsData = conn.get_network_status("id/%s" % fingerprint)
+                # and this will be empty if network consensus couldn't be fetched
+                try: nsCall = conn.get_network_status("id/%s" % fingerprint)
                 except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
                 
-                if not lookupErrored:
-                  if len(nsData) > 1:
+                if not lookupErrored and nsCall:
+                  if len(nsCall) > 1:
                     # multiple records for fingerprint (shouldn't happen)
                     panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
                   
-                  nsEntry = nsData[0]
+                  nsEntry = nsCall[0]
                   
                   try:
                     descLookupCmd = "desc/id/%s" % fingerprint
@@ -1087,6 +1091,74 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
+    elif page == 2 and key == ord('r') or key == ord('R'):
+      # reloads torrc, providing a notice if successful or not
+      isSuccessful = panels["torrc"].reset(False)
+      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
+      if isSuccessful: panels["torrc"].redraw()
+      
+      panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
+      panels["control"].redraw()
+      time.sleep(1)
+      
+      panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+    elif page == 2 and (key == ord('x') or key == ord('X')):
+      # provides prompt to confirm that arm should issue a sighup
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
+        panels["control"].redraw()
+        
+        curses.cbreak()
+        confirmationKey = stdscr.getch()
+        if confirmationKey in (ord('x'), ord('X')):
+          try:
+            # Redirects stderr to stdout so we can check error status (output
+            # should be empty if successful). Example error:
+            # pkill: 5592 - Operation not permitted
+            #
+            # note that this may provide multiple errors, even if successful,
+            # hence this:
+            #   - only provide an error if Tor fails to log a sighup
+            #   - provide the error message associated with the tor pid (others
+            #     would be a red herring)
+            pkillCall = os.popen("pkill -sighup tor 2> /dev/stdout")
+            pkillOutput = pkillCall.readlines()
+            pkillCall.close()
+            
+            # Give the sighupTracker a moment to detect the sighup signal. This
+            # is, of course, a possible concurrency bug. However I'm not sure
+            # of a better method for blocking on this...
+            waitStart = time.time()
+            while time.time() - waitStart < 1:
+              time.sleep(0.1)
+              if sighupTracker.isReset: break
+            
+            if not sighupTracker.isReset:
+              errorLine = ""
+              if torPid:
+                for line in pkillOutput:
+                  if line.startswith("pkill: %s - " % torPid):
+                    errorLine = line
+                    break
+              
+              if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
+              else: raise IOError()
+          except IOError, err:
+            errorMsg = " (%s)" % str(err) if str(err) else ""
+            panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
+            panels["control"].redraw()
+            time.sleep(2)
+        
+        # reverts display settings
+        curses.halfdelay(REFRESH_RATE * 10)
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
+      finally:
+        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:
@@ -1095,5 +1167,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       panels["torrc"].handleKey(key)
 
 def startTorMonitor(conn, loggedEvents, isBlindMode):
-  curses.wrapper(drawTorMonitor, conn, loggedEvents, isBlindMode)
+  try:
+    curses.wrapper(drawTorMonitor, conn, loggedEvents, isBlindMode)
+  except KeyboardInterrupt:
+    pass # skip printing stack trace in case of keyboard interrupt
 

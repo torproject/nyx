@@ -22,14 +22,16 @@ from util import panel, uiTools
 # CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!)
 SCRUB_PRIVATE_DATA = True
 
-# directory servers (IP, port) for tor version 0.2.2.1-alpha-dev
+# directory servers (IP, port) for tor version 0.2.1.24
+# this comes from the dirservers array in src/or/config.c
 DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
-               ("128.31.0.34", "9031"),       # moria1
+               ("128.31.0.39", "9031"),       # moria1
                ("216.224.124.114", "9030"),   # ides
-               ("80.190.246.100", "80"),      # gabelmoo
+               ("80.190.246.100", "8180"),    # gabelmoo
                ("194.109.206.212", "80"),     # dizum
-               ("213.73.91.31", "80"),        # dannenberg
-               ("208.83.223.34", "443")]      # urras
+               ("193.23.244.244", "80"),      # dannenberg
+               ("208.83.223.34", "443"),      # urras
+               ("82.94.251.203", "80")]       # Tonga
 
 # enums for listing types
 LIST_IP, LIST_HOSTNAME, LIST_FINGERPRINT, LIST_NICKNAME = range(4)
@@ -286,7 +288,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     isGuard = False
     try:
       myFingerprint = self.conn.get_info("fingerprint")
-      isGuard = "Guard" in self.conn.get_network_status("id/%s" % myFingerprint)[0].flags
+      nsCall = self.conn.get_network_status("id/%s" % myFingerprint)
+      if nsCall: isGuard = "Guard" in nsCall[0].flags
+      else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
     
     try:
@@ -379,9 +383,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       tmpCounter = 0 # used for unique port of unresolved family entries (funky hack)
       for fingerprint in self.family:
         try:
-          nsCommand = "ns/id/%s" % fingerprint
-          familyInfo = self.conn.get_info(nsCommand)[nsCommand].split()
-          familyAddress, familyPort = familyInfo[6], familyInfo[7]
+          nsCall = self.conn.get_network_status("id/%s" % fingerprint)
+          if nsCall: familyAddress, familyPort = nsCall[0][6], nsCall[0][7]
+          else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
           
           countryCodeQuery = "ip-to-country/%s" % familyAddress
           familyCountryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
@@ -706,9 +710,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
             # gets router description to see if 'down' is set
             toRemove = False
             try:
-              nsData = self.conn.get_network_status("id/%s" % entryFingerprint)
-              if len(nsData) != 1: raise TorCtl.ErrorReply() # ns lookup failed... weird
-              else: nsEntry = nsData[0]
+              nsCall = self.conn.get_network_status("id/%s" % entryFingerprint)
+              if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
+              else: nsEntry = nsCall[0]
               
               descLookupCmd = "desc/id/%s" % entryFingerprint
               descEntry = TorCtl.Router.build_from_desc(self.conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
@@ -740,7 +744,10 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       match = self.getFingerprint(ipAddr, port)
       
       try:
-        if match != "UNKNOWN": match = self.conn.get_network_status("id/%s" % match)[0].nickname
+        if match != "UNKNOWN":
+          nsCall = self.conn.get_network_status("id/%s" % match)
+          if nsCall: match = nsCall[0].nickname
+          else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): return "UNKNOWN" # don't cache result
       
       self.nicknameLookupCache[(ipAddr, port)] = match

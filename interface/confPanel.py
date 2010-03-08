@@ -54,11 +54,15 @@ class ConfPanel(panel.Panel):
     
     self.reset()
   
-  def reset(self):
+  def reset(self, logErrors=True):
     """
-    Reloads torrc contents and resets scroll height.
+    Reloads torrc contents and resets scroll height. Returns True if
+    successful, else false.
     """
+    
     try:
+      resetSuccessful = True
+      
       confFile = open(self.confLocation, "r")
       self.confContents = confFile.readlines()
       confFile.close()
@@ -114,10 +118,27 @@ class ConfPanel(panel.Panel):
             else:
               # general case - fetch all valid values
               for key, val in self.conn.get_option(command):
-                actualValues.append(val)
+                # TODO: check for a better way of figuring out CSV parameters
+                # (kinda doubt this is right... in config.c its listed as being
+                # a 'LINELIST') - still, good enough for common cases
+                if command in MULTI_LINE_PARAM: toAdd = val.split(",")
+                else: toAdd = [val]
+                
+                for newVal in toAdd:
+                  newVal = newVal.strip()
+                  if newVal not in actualValues: actualValues.append(newVal)
             
-            if not argument in actualValues:
-              self.corrections[lineNumber + 1] = ", ".join(actualValues)
+            # there might be multiple values on a single line - if so, check each
+            if command in MULTI_LINE_PARAM and "," in argument:
+              arguments = []
+              for entry in argument.split(","):
+                arguments.append(entry.strip())
+            else:
+              arguments = [argument]
+            
+            for entry in arguments:
+              if not entry in actualValues:
+                self.corrections[lineNumber + 1] = ", ".join(actualValues)
           except (TypeError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
             # TODO: for some reason the above provided:
             # TypeError: sequence item 0: expected string, NoneType found
@@ -127,21 +148,25 @@ class ConfPanel(panel.Panel):
             # reproduce. Catching the TypeError to just drop the torrc
             # validation for those systems
             
-            self.logger.monitor_event("WARN", "Unable to validate torrc")
+            if logErrors: self.logger.monitor_event("WARN", "Unable to validate torrc")
       
       # logs issues that arose
-      if self.irrelevantLines:
+      if self.irrelevantLines and logErrors:
         if len(self.irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
         else: first, second, third = "Entry", "is", " on line"
         baseMsg = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
         
         self.logger.monitor_event("NOTICE", "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
-      if self.corrections:
+      
+      if self.corrections and logErrors:
         self.logger.monitor_event("WARN", "Tor's state differs from loaded torrc")
     except IOError, exc:
+      resetSuccessful = False
       self.confContents = ["### Unable to load torrc ###"]
-      self.logger.monitor_event("WARN", "Unable to load torrc (%s)" % str(exc))
+      if logErrors: self.logger.monitor_event("WARN", "Unable to load torrc (%s)" % str(exc))
+    
     self.scroll = 0
+    return resetSuccessful
   
   def handleKey(self, key):
     self._resetBounds()
@@ -163,7 +188,24 @@ class ConfPanel(panel.Panel):
     numFieldWidth = int(math.log10(len(self.confContents))) + 1
     lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
     
-    for i in range(self.scroll, min(len(self.confContents), self.scroll + pageHeight)):
+    # determine the ending line in the display (prevents us from going to the 
+    # effort of displaying lines that aren't visible - isn't really a 
+    # noticeable improvement unless the torrc is bazaarly long) 
+    if not self.stripComments:
+      endingLine = min(len(self.confContents), self.scroll + pageHeight)
+    else:
+      # checks for the last line of displayable content (ie, non-comment)
+      endingLine = self.scroll
+      displayedLines = 0        # number of lines of content
+      for i in range(self.scroll, len(self.confContents)):
+        endingLine += 1
+        lineText = self.confContents[i].strip()
+        
+        if lineText and lineText[0] != "#":
+          displayedLines += 1
+          if displayedLines == pageHeight: break
+    
+    for i in range(self.scroll, endingLine):
       lineText = self.confContents[i].strip()
       skipLine = False # true if we're not presenting line due to stripping
       
@@ -184,6 +226,7 @@ class ConfPanel(panel.Panel):
         if argEnd == -1: argEnd = len(lineText)
         
         command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
+        if self.stripComments: comment = ""
         
         # changes presentation if value's incorrect or irrelevant
         if lineNum in self.corrections.keys():

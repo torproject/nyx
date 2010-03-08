@@ -30,6 +30,9 @@ TODO
 			be given the "UNKNOWN" type.
 	* regex fails for multiline log entries
 	* when logging no events still showing brackets
+	* scrolling in the torrc isn't working properly when comments are stripped
+			Current method of displaying torrc is pretty stupid (lots of repeated
+			work in display loop). When rewritten fixing this bug should be trivial.
 	* quitting can hang several seconds when there's hostnames left to resolve
 			Not sure how to address this - problem is that the calls to 'host' can 
 			take a while to time out. Might need another thread to kill the calls?

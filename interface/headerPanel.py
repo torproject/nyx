@@ -18,8 +18,8 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
                "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
                "V2Dir": "cyan",       "V3Dir": "white"}
 
-VERSION_STATUS_COLORS = {"new": "blue",     "new in series": "blue",    "recommended": "green",
-                         "old": "red",      "obsolete": "red",          "unrecommended": "red"}
+VERSION_STATUS_COLORS = {"new": "blue",      "new in series": "blue",  "recommended": "green",  "old": "red",
+                         "obsolete": "red",  "unrecommended": "red",   "unknown": "cyan"}
 
 class HeaderPanel(panel.Panel):
   """
@@ -191,8 +191,15 @@ class HeaderPanel(panel.Panel):
       
       try:
         # parameters from the user's torrc
-        configFields = ["Nickname", "ORPort", "DirPort", "ControlPort", "ExitPolicy"]
+        configFields = ["Nickname", "ORPort", "DirPort", "ControlPort"]
         self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
+        
+        # fetch exit policy (might span over multiple lines)
+        exitPolicyEntries = []
+        for (key, value) in self.conn.get_option("ExitPolicy"):
+          exitPolicyEntries.append(value)
+        
+        self.vals["ExitPolicy"] = ", ".join(exitPolicyEntries)
         
         # simply keeps booleans for if authentication info is set
         self.vals["IsPasswordAuthSet"] = not self.conn.get_option("HashedControlPassword")[0][1] == None
@@ -231,7 +238,10 @@ class HeaderPanel(panel.Panel):
     # flags held by relay
     self.vals["flags"] = []
     if self.vals["fingerprint"] != "Unknown":
-      try: self.vals["flags"] = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])[0].flags
+      try:
+        nsCall = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])
+        if nsCall: self.vals["flags"] = nsCall[0].flags
+        else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
     
     psParams = ["%cpu", "rss", "%mem", "etime"]
