@@ -384,7 +384,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       for fingerprint in self.family:
         try:
           nsCall = self.conn.get_network_status("id/%s" % fingerprint)
-          if nsCall: familyAddress, familyPort = nsCall[0][6], nsCall[0][7]
+          if nsCall: familyAddress, familyPort = nsCall[0].ip, nsCall[0].orport
           else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
           
           countryCodeQuery = "ip-to-country/%s" % familyAddress

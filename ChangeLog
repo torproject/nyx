@@ -1,6 +1,6 @@
 CHANGE LOG
 
-3/7/10 - version 1.3.4
+3/7/10 - version 1.3.4 (r21852)
 Weekend bugfix bundle.
 
     * added: returned option to reload torrc and added option to issue a sighup
