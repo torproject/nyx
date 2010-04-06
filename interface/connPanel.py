@@ -515,9 +515,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
               dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
               
-              if isPrivate:
-                if type == "inbound": src = "<scrubbed>"
-                elif type == "outbound": dst = "<scrubbed>"
+              if isPrivate: dst = "<scrubbed>"
               
               src, dst = "%-21s" % src, "%-26s" % dst
               
