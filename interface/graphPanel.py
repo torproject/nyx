@@ -163,8 +163,8 @@ class GraphPanel(panel.Panel):
   implementations.
   """
   
-  def __init__(self):
-    panel.Panel.__init__(self, 0) # height is overwritten with current module
+  def __init__(self, stdscr):
+    panel.Panel.__init__(self, stdscr, 0, 0) # height is overwritten with current module
     self.updateInterval = DEFAULT_UPDATE_INTERVAL
     self.isPaused = False
     self.showLabel = True         # shows top label if true, hides otherwise
@@ -172,20 +172,20 @@ class GraphPanel(panel.Panel):
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
   
-  def draw(self):
+  def draw(self, subwindow, width, height):
     """ Redraws graph panel """
     
-    graphCol = min((self.maxX - 10) / 2, MAX_GRAPH_COL)
+    graphCol = min((width - 10) / 2, MAX_GRAPH_COL)
     
     if self.currentDisplay:
       param = self.stats[self.currentDisplay]
       primaryColor = uiTools.getColor(param.primaryColor)
       secondaryColor = uiTools.getColor(param.secondaryColor)
       
-      if self.showLabel: self.addstr(0, 0, param.getTitle(self.maxX), uiTools.LABEL_ATTR)
+      if self.showLabel: self.addstr(0, 0, param.getTitle(width), curses.A_STANDOUT)
       
       # top labels
-      left, right = param.getHeaderLabel(self.maxX / 2, True), param.getHeaderLabel(self.maxX / 2, False)
+      left, right = param.getHeaderLabel(width / 2, True), param.getHeaderLabel(width / 2, False)
       if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
       if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
       

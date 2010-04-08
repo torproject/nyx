@@ -6,11 +6,6 @@ TODO
 			fallback if an issue's detected.
 			notify John Case <case@sdf.lonestar.org>
 			caught by Christopher Davis
-	* torrc validation bug reported (appears to be os specific)
-			Reported instances were with Gentoo, OpenSuse, and OpenBSD. Change should be in:
-			interface/confPanel.py lines 104-130
-			setting up a Gentoo vm proved to be an absurd pain in the ass so gonna
-			try repro in OpenSuse instead.
 	* torrc validation doesn't catch if parameters are missing
 	* revise multikey sort of connections
 			Currently using a pretty ugly hack. Look at:
@@ -30,6 +25,9 @@ TODO
 			be given the "UNKNOWN" type.
 	* regex fails for multiline log entries
 	* when logging no events still showing brackets
+			The current code for dynamically sizing the events label is kinda
+			tricky. Putting this off until I've made a utility to handle this
+			uglyness.
 	* scrolling in the torrc isn't working properly when comments are stripped
 			Current method of displaying torrc is pretty stupid (lots of repeated
 			work in display loop). When rewritten fixing this bug should be trivial.
@@ -48,9 +46,11 @@ TODO
 			concerning the utilities (/util). Migrating the following to util:
 				- os calls (to provide transparent platform independence)
 				- torrc validation
-				- arm logging (static interface with listener design)
 				- wrapper for tor connection, state, and data parsing (abstracting
 					TorCtl connection should allow for arm to be resumed if tor restarts)
+	* provide bridge statistics
+			Include bridge related data via GETINFO option (feature request by
+			waltman).
 	* provide performance ARM-DEBUG events
 			Help with diagnosing performance bottlenecks. This is pending the
 			codebase revisions to figure out the low hanging fruit for caching.
@@ -67,9 +67,6 @@ TODO
 				- check that all connections are properly related to a circuit, for
 					instance no outbound connections without a corresponding inbound (not
 					possible yet due to being unable to correlate connections to circuts)
-	* abstract away netstat calls
-			In preparation for drop in replacement of lsof or calls to tor's
-			GETINFO.
 	* add page that allows raw control port access
 			Piggyback on the arm connection, providing something like an interactive
 			prompt. In addition, provide:
@@ -89,9 +86,10 @@ TODO
 	* show advertised bandwidth
 			if set and there's extra room available show 'MaxAdvertisedBandwidth'
 	* check family connections to see if they're alive (VERSION cell handshake?)
-	* update site's screenshots (pretty out of date...)
 	* look into providing UPnP support
 			This might be provided by tor itself so wait and see...
+	* unit tests
+			Primarily for util, for instance 'addfstr' woudl be a good candidate.
 
 - Ideas (low priority)
 	* python 3 compatability

@@ -6,6 +6,7 @@ import socket
 from TorCtl import TorCtl
 
 import graphPanel
+from util import connections
 
 class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
@@ -13,11 +14,10 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   outbound.
   """
   
-  def __init__(self, conn, connResolver):
+  def __init__(self, conn):
     graphPanel.GraphStats.__init__(self)
     TorCtl.PostEventListener.__init__(self)
     graphPanel.GraphStats.initialize(self, "green", "cyan", 10)
-    self.connResolver = connResolver    # thread performing netstat queries
     
     self.orPort = "0"
     self.dirPort = "0"
@@ -39,15 +39,10 @@ class ConnCountMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     # (and so it stops if Tor stops - used to use a separate thread but this
     # is better)
     inbound, outbound, control = 0, 0, 0
-    results = self.connResolver.getConnections()
     
-    for line in results:
-      if not line.startswith("tcp"): continue
-      param = line.split()
-      localPort = param[3][param[3].find(":") + 1:]
-      
-      if localPort in (self.orPort, self.dirPort): inbound += 1
-      elif localPort == self.controlPort: control += 1
+    for lIp, lPort, fIp, fPort in connections.getResolver("tor").getConnections():
+      if lPort in (self.orPort, self.dirPort): inbound += 1
+      elif lPort == self.controlPort: control += 1
       else: outbound += 1
     
     self._processEvent(inbound, outbound)

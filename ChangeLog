@@ -1,5 +1,27 @@
 CHANGE LOG
 
+4/8/10 - version 1.3.5
+Utility and service rewrite (refactored roughly a third of the codebase, including revised APIs and much better documentation).
+
+    * added: centralized logging utility for handling arm events, simplifying several parts of the interface
+    * added: rewrote connection resolver, including:
+          o fallback support for 'ss' and 'lsof' (requested by dun, John Case, and Christopher Davis)
+          o readjusts resolution rate if calls prove burdensome
+          o ui option for selecting mode of resolution
+    * added: rewrote hostname resolver, including:
+          o optional resolution via socket module (seems worse so disabled by default... pity)
+          o non-blocking thread safety
+          o extra error info
+    * change: revised curses wrapper utilities (plus some hacks of the interface to accommodate it)
+    * fix: issuing resets via RELOAD signal rather than sighup (thanks to Sebastian for pointing this out)
+    * fix: taking into account potential None values when running get_option on arbitrary values (caught by pipe and enki)
+    * fix: crashing problem if use_default_colors() calls failed (caught by sid77)
+    * fix: removed workaround for mysterious torrc validation bug (was accidentally already fixed - thanks to dun for lending a test environment)
+    * fix: size and time labels weren't doing integer truncation (rounding was unintended and frustratingly difficult to get rid of)
+    * fix: hack to prevent log panel from drawing before being positioned
+    * fix: arm crashed if torrc was an empty file
+    * fix: wasn't consistently bolding help keys
+
 3/7/10 - version 1.3.4 (r21852)
 Weekend bugfix bundle.
 
@@ -12,6 +34,8 @@ Weekend bugfix bundle.
     * fix: several uncaught exceptions when the network consensus couldn't be fetched
     * fix: torrc comment stripping wasn't removing comments on the same lines as commands
     * fix: torrc validation was failing under some conditions for CSV values (like ExitPolicy)
+    * fix (3/9/10, r21888): initializing error when processing family connections (caught by dun)
+    * fix (4/7/10, r22134): scrubbing wrong data for inbound connections (caught by waltman)
 
 2/27/10 - version 1.3.3 (r21772)
 Hiding client/exit information to address privacy concerns and fixes for numerous issues brought up in irc.

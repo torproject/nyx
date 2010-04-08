@@ -116,8 +116,7 @@ def showFileDescriptorPopup(popup, stdscr, torPid):
       
       popupHeight = len(properties.fdFile) + len(properties.fdConn) + len(properties.fdMisc) + 4
     
-    popup._resetBounds()
-    popup.height = popupHeight
+    popup.setHeight(popupHeight)
     popup.recreate(stdscr, popupWidth)
     
     while True:

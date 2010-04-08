@@ -6,8 +6,9 @@ import math
 import curses
 import socket
 
+import controller
 from TorCtl import TorCtl
-from util import panel, uiTools
+from util import log, panel, uiTools
 
 # torrc parameters that can be defined multiple times without overwriting
 # from src/or/config.c (entries with LINELIST or LINELIST_S)
@@ -35,8 +36,8 @@ class ConfPanel(panel.Panel):
   Presents torrc with syntax highlighting in a scroll-able area.
   """
   
-  def __init__(self, confLocation, conn, logPanel):
-    panel.Panel.__init__(self, -1)
+  def __init__(self, stdscr, confLocation, conn):
+    panel.Panel.__init__(self, stdscr, 0)
     self.confLocation = confLocation
     self.showLineNum = True
     self.stripComments = False
@@ -50,7 +51,6 @@ class ConfPanel(panel.Panel):
     # is of line numbers (one-indexed) to tor's actual values
     self.corrections = {}
     self.conn = conn
-    self.logger = logPanel
     
     self.reset()
   
@@ -118,6 +118,12 @@ class ConfPanel(panel.Panel):
             else:
               # general case - fetch all valid values
               for key, val in self.conn.get_option(command):
+                if val == None:
+                  # TODO: investigate situations where this might occure
+                  # (happens if trying to parse HIDDEN_SERVICE_PARAM)
+                  if logErrors: log.log(log.WARN, "BUG: Failed to find torrc value for %s" % key)
+                  continue
+                
                 # TODO: check for a better way of figuring out CSV parameters
                 # (kinda doubt this is right... in config.c its listed as being
                 # a 'LINELIST') - still, good enough for common cases
@@ -139,16 +145,8 @@ class ConfPanel(panel.Panel):
             for entry in arguments:
               if not entry in actualValues:
                 self.corrections[lineNumber + 1] = ", ".join(actualValues)
-          except (TypeError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-            # TODO: for some reason the above provided:
-            # TypeError: sequence item 0: expected string, NoneType found
-            # 
-            # for the corrections setting. This issue seems to be specific to
-            # Gentoo, OpenSuse, and OpenBSD but haven't yet managed to
-            # reproduce. Catching the TypeError to just drop the torrc
-            # validation for those systems
-            
-            if logErrors: self.logger.monitor_event("WARN", "Unable to validate torrc")
+          except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+            if logErrors: log.log(log.WARN, "Unable to validate torrc")
       
       # logs issues that arose
       if self.irrelevantLines and logErrors:
@@ -156,21 +154,20 @@ class ConfPanel(panel.Panel):
         else: first, second, third = "Entry", "is", " on line"
         baseMsg = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
         
-        self.logger.monitor_event("NOTICE", "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
+        log.log(log.NOTICE, "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
       
       if self.corrections and logErrors:
-        self.logger.monitor_event("WARN", "Tor's state differs from loaded torrc")
+        log.log(log.WARN, "Tor's state differs from loaded torrc")
     except IOError, exc:
       resetSuccessful = False
       self.confContents = ["### Unable to load torrc ###"]
-      if logErrors: self.logger.monitor_event("WARN", "Unable to load torrc (%s)" % str(exc))
+      if logErrors: log.log(log.WARN, "Unable to load torrc (%s)" % str(exc))
     
     self.scroll = 0
     return resetSuccessful
   
   def handleKey(self, key):
-    self._resetBounds()
-    pageHeight = self.maxY - 1
+    pageHeight = self.getPreferredSize()[0] - 1
     if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
     elif key == curses.KEY_DOWN: self.scroll = max(0, min(self.scroll + 1, len(self.confContents) - pageHeight))
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - pageHeight, 0)
@@ -181,11 +178,12 @@ class ConfPanel(panel.Panel):
       self.scroll = 0
     self.redraw()
   
-  def draw(self):
-    self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, uiTools.LABEL_ATTR)
+  def draw(self, subwindow, width, height):
+    self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, curses.A_STANDOUT)
     
-    pageHeight = self.maxY - 1
-    numFieldWidth = int(math.log10(len(self.confContents))) + 1
+    pageHeight = height - 1
+    if self.confContents: numFieldWidth = int(math.log10(len(self.confContents))) + 1
+    else: numFieldWidth = 0 # torrc is blank
     lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
     
     # determine the ending line in the display (prevents us from going to the 
@@ -243,10 +241,10 @@ class ConfPanel(panel.Panel):
           numOffset = numFieldWidth + 1
         
         xLoc = 0
-        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, command, curses.A_BOLD | uiTools.getColor(commandColor), numOffset)
-        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, argument, curses.A_BOLD | uiTools.getColor(argumentColor), numOffset)
-        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, correction, curses.A_BOLD | uiTools.getColor(correctionColor), numOffset)
-        displayLineNum, xLoc = self.addstr_wrap(displayLineNum, xLoc, comment, uiTools.getColor(commentColor), numOffset)
+        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, command, curses.A_BOLD | uiTools.getColor(commandColor), numOffset)
+        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, argument, curses.A_BOLD | uiTools.getColor(argumentColor), numOffset)
+        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, correction, curses.A_BOLD | uiTools.getColor(correctionColor), numOffset)
+        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, comment, uiTools.getColor(commentColor), numOffset)
         
         displayLineNum += 1
       

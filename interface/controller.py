@@ -23,8 +23,7 @@ import confPanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import panel, uiTools
-import connResolver
+from util import log, connections, hostnames, panel, uiTools
 import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
@@ -50,12 +49,11 @@ REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS", "CIRC"]
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
   
-  def __init__(self, resolver, isBlindMode):
-    panel.Panel.__init__(self, 1)
+  def __init__(self, stdscr, isBlindMode):
+    panel.Panel.__init__(self, stdscr, 0, 1)
     self.msgText = CTL_HELP           # message text to be displyed
     self.msgAttr = curses.A_NORMAL    # formatting attributes
     self.page = 1                     # page number currently being displayed
-    self.resolver = resolver          # dns resolution thread
     self.resolvingCounter = -1        # count of resolver when starting (-1 if we aren't working on a batch)
     self.isBlindMode = isBlindMode
   
@@ -68,7 +66,7 @@ class ControlPanel(panel.Panel):
     self.msgText = msgText
     self.msgAttr = msgAttr
   
-  def draw(self):
+  def draw(self, subwindow, width, height):
     msgText = self.msgText
     msgAttr = self.msgAttr
     barTab = 2                # space between msgText and progress bar
@@ -80,13 +78,13 @@ class ControlPanel(panel.Panel):
       msgAttr = curses.A_NORMAL
       
       if self.resolvingCounter != -1:
-        if self.resolver.unresolvedQueue.empty() or self.resolver.isPaused:
+        if hostnames.isPaused() or not hostnames.isResolving():
           # done resolving dns batch
           self.resolvingCounter = -1
           curses.halfdelay(REFRESH_RATE * 10) # revert to normal refresh rate
         else:
-          batchSize = self.resolver.totalResolves - self.resolvingCounter
-          entryCount = batchSize - self.resolver.unresolvedQueue.qsize()
+          batchSize = hostnames.getRequestCount() - self.resolvingCounter
+          entryCount = batchSize - hostnames.getPendingCount()
           if batchSize > 0: progress = 100 * entryCount / batchSize
           else: progress = 0
           
@@ -96,7 +94,7 @@ class ControlPanel(panel.Panel):
           #msgText = "Resolving hostnames (%i / %i, %i%%) - press esc %sto cancel" % (entryCount, batchSize, progress, additive)
           msgText = "Resolving hostnames (press esc %sto cancel) - %s / %i, %2i%%" % (additive, entryCountLabel, batchSize, progress)
           
-          barWidth = min(barWidthMax, self.maxX - len(msgText) - 3 - barTab)
+          barWidth = min(barWidthMax, width - len(msgText) - 3 - barTab)
           barProgress = barWidth * entryCount / batchSize
       
       if self.resolvingCounter == -1:
@@ -118,6 +116,72 @@ class ControlPanel(panel.Panel):
       self.addstr(0, xLoc, "[", curses.A_BOLD)
       self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | uiTools.getColor("red"))
       self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
+
+class Popup(panel.Panel):
+  """
+  Temporarily providing old panel methods until permanent workaround for popup
+  can be derrived (this passive drawing method is horrible - I'll need to
+  provide a version using the more active repaint design later in the
+  revision).
+  """
+  
+  def __init__(self, stdscr, height):
+    panel.Panel.__init__(self, stdscr, 0, height)
+  
+  # The following methods are to emulate old panel functionality (this was the
+  # only implementations to use these methods and will require a complete
+  # rewrite when refactoring gets here)
+  def clear(self):
+    if self.win:
+      self.isDisplaced = self.top > self.win.getparyx()[0]
+      if not self.isDisplaced: self.win.erase()
+  
+  def refresh(self):
+    if self.win and not self.isDisplaced: self.win.refresh()
+  
+  def recreate(self, stdscr, newWidth=-1, newTop=None):
+    self.setParent(stdscr)
+    self.setWidth(newWidth)
+    if newTop != None: self.setTop(newTop)
+    
+    newHeight, newWidth = self.getPreferredSize()
+    if newHeight > 0:
+      self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+    elif self.win == None:
+      # don't want to leave the window as none (in very edge cases could cause
+      # problems) - rather, create a displaced instance
+      self.win = self.parent.subwin(1, newWidth, 0, 0)
+    
+    self.maxY, self.maxX = self.win.getmaxyx()
+
+def addstr_wrap(panel, y, x, text, formatting, startX = 0, endX = -1, maxY = -1):
+  """
+  Writes text with word wrapping, returning the ending y/x coordinate.
+  y: starting write line
+  x: column offset from startX
+  text / formatting: content to be written
+  startX / endX: column bounds in which text may be written
+  """
+  
+  # moved out of panel (trying not to polute new code!)
+  # TODO: unpleaseantly complex usage - replace with something else when
+  # rewriting confPanel and descriptorPopup (the only places this is used)
+  if not text: return (y, x)          # nothing to write
+  if endX == -1: endX = panel.maxX     # defaults to writing to end of panel
+  if maxY == -1: maxY = panel.maxY + 1 # defaults to writing to bottom of panel
+  lineWidth = endX - startX           # room for text
+  while True:
+    if len(text) > lineWidth - x - 1:
+      chunkSize = text.rfind(" ", 0, lineWidth - x)
+      writeText = text[:chunkSize]
+      text = text[chunkSize:].strip()
+      
+      panel.addstr(y, x + startX, writeText, formatting)
+      y, x = y + 1, 0
+      if y >= maxY: return (y, x)
+    else:
+      panel.addstr(y, x + startX, text, formatting)
+      return (y, x + len(text))
 
 class sighupListener(TorCtl.PostEventListener):
   """
@@ -154,6 +218,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   if popup.win:
     if not panel.CURSES_LOCK.acquire(False): return -1
     try:
+      # TODO: should pause interface (to avoid event accumilation)
       curses.cbreak() # wait indefinitely for key presses (no timeout)
       
       # uses smaller dimentions more fitting for small content
@@ -166,7 +231,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
       while key not in (curses.KEY_ENTER, 10, ord(' ')):
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, title, uiTools.LABEL_ATTR)
+        popup.addstr(0, 0, title, curses.A_STANDOUT)
         
         for i in range(len(options)):
           label = options[i]
@@ -191,7 +256,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   
   return selection
 
-def setEventListening(loggedEvents, conn, logListener):
+def setEventListening(loggedEvents, conn):
   """
   Tries to set events being listened for, displaying error for any event
   types that aren't supported (possibly due to version issues). This returns 
@@ -229,8 +294,8 @@ def setEventListening(loggedEvents, conn, logListener):
           if eventType == "BW": msg = "(bandwidth graph won't function)"
           elif eventType in ("NEWDESC", "NEWCONSENSUS") and not isBlindMode: msg = "(connections listing can't register consensus changes)"
           else: msg = ""
-          logListener.monitor_event("ERR", "Unsupported event type: %s %s" % (eventType, msg))
-        else: logListener.monitor_event("WARN", "Unsupported event type: %s" % eventType)
+          log.log(log.ERR, "Unsupported event type: %s %s" % (eventType, msg))
+        else: log.log(log.WARN, "Unsupported event type: %s" % eventType)
     except TorCtl.TorCtlClosed:
       return []
   
@@ -248,9 +313,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
     otherwise unrecognized events)
   """
   
-  curses.use_default_colors()           # allows things like semi-transparent backgrounds
-  uiTools.initColors()                  # initalizes color pairs for colored text
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
+  try: curses.use_default_colors()      # allows things like semi-transparent backgrounds (call can fail with ERR)
+  except curses.error: pass
   
   # attempts to make the cursor invisible (not supported in all terminals)
   try: curses.curs_set(0)
@@ -302,30 +367,40 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
     confLocation = ""
   
+  # minor refinements for connection resolver
+  resolver = connections.getResolver("tor")
+  if torPid: resolver.processPid = torPid # helps narrow connection results
+  
+  # hack to display a better (arm specific) notice if all resolvers fail
+  connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
+  
   panels = {
-    "header": headerPanel.HeaderPanel(conn, torPid),
-    "popup": panel.Panel(9),
-    "graph": graphPanel.GraphPanel(),
-    "log": logPanel.LogMonitor(conn, loggedEvents)}
+    "header": headerPanel.HeaderPanel(stdscr, conn, torPid),
+    "popup": Popup(stdscr, 9),
+    "graph": graphPanel.GraphPanel(stdscr),
+    "log": logPanel.LogMonitor(stdscr, conn, loggedEvents)}
   
-  # starts thread for processing netstat queries
-  connResolutionThread = connResolver.ConnResolver(conn, torPid, panels["log"])
-  if not isBlindMode: connResolutionThread.start()
+  # TODO: later it would be good to set the right 'top' values during initialization, 
+  # but for now this is just necessary for the log panel (and a hack in the log...)
   
-  panels["conn"] = connPanel.ConnPanel(conn, connResolutionThread, panels["log"])
-  panels["control"] = ControlPanel(panels["conn"].resolver, isBlindMode)
-  panels["torrc"] = confPanel.ConfPanel(confLocation, conn, panels["log"])
+  # TODO: bug from not setting top is that the log panel might attempt to draw
+  # before being positioned - the following is a quick hack til rewritten
+  panels["log"].setPaused(True)
   
-  # prevents netstat calls by connPanel if not being used
+  panels["conn"] = connPanel.ConnPanel(stdscr, conn)
+  panels["control"] = ControlPanel(stdscr, isBlindMode)
+  panels["torrc"] = confPanel.ConfPanel(stdscr, confLocation, conn)
+  
+  # prevents connection resolution via the connPanel if not being used
   if isBlindMode: panels["conn"].isDisabled = True
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
-  if not torPid: panels["log"].monitor_event("WARN", "Unable to resolve tor pid, abandoning connection listing")
+  if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
   panels["graph"].addStats("system resources", cpuMemMonitor.CpuMemMonitor(panels["header"]))
-  if not isBlindMode: panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn, connResolutionThread))
+  if not isBlindMode: panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn))
   panels["graph"].setStats("bandwidth")
   
   # listeners that update bandwidth and log panels with Tor status
@@ -338,7 +413,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   conn.add_event_listener(sighupTracker)
   
   # tells Tor to listen to the events we're interested
-  loggedEvents = setEventListening(loggedEvents, conn, panels["log"])
+  loggedEvents = setEventListening(loggedEvents, conn)
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
   # directs logged TorCtl events to log panel
@@ -352,7 +427,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
                 "  a. 'FetchUselessDescriptors 1' is set in your torrc", \
                 "  b. the directory service is provided ('DirPort' defined)", \
                 "  c. or tor is used as a client"]
-      panels["log"].monitor_event("WARN", warning)
+      log.log(log.WARN, warning)
   except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
@@ -360,6 +435,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   overrideKey = None        # immediately runs with this input rather than waiting for the user if set
   page = 0
   regexFilters = []             # previously used log regex filters
+  panels["popup"].redraw()      # hack to make sure popup has a window instance (not entirely sure why...)
   
   while True:
     # tried only refreshing when the screen was resized but it caused a
@@ -388,9 +464,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       # originally this checked in the bounds changed but 'recreate' is a no-op
       # if panel properties are unchanged and checking every redraw is more
       # resilient in case of funky changes (such as resizing during popups)
+      
+      # hack to make sure header picks layout before using the dimensions below
+      panels["header"].getPreferredSize()
+      
       startY = 0
       for panelKey in PAGE_S[:2]:
-        panels[panelKey].recreate(stdscr, -1, startY)
+        #panels[panelKey].recreate(stdscr, -1, startY)
+        panels[panelKey].setParent(stdscr)
+        panels[panelKey].setWidth(-1)
+        panels[panelKey].setTop(startY)
         startY += panels[panelKey].height
       
       panels["popup"].recreate(stdscr, 80, startY)
@@ -399,29 +482,30 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         tmpStartY = startY
         
         for panelKey in panelSet:
-          panels[panelKey].recreate(stdscr, -1, tmpStartY)
+          #panels[panelKey].recreate(stdscr, -1, tmpStartY)
+          panels[panelKey].setParent(stdscr)
+          panels[panelKey].setWidth(-1)
+          panels[panelKey].setTop(tmpStartY)
           tmpStartY += panels[panelKey].height
       
       # if it's been at least ten seconds since the last BW event Tor's probably done
       if not isUnresponsive and not panels["log"].controlPortClosed and panels["log"].getHeartbeat() >= 10:
         isUnresponsive = True
-        panels["log"].monitor_event("NOTICE", "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
+        log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
       elif not panels["log"].controlPortClosed and (isUnresponsive and panels["log"].getHeartbeat() < 10):
         # shouldn't happen unless Tor freezes for a bit - BW events happen every second...
         isUnresponsive = False
-        panels["log"].monitor_event("NOTICE", "Relay resumed")
+        log.log(log.NOTICE, "Relay resumed")
       
       panels["conn"].reset()
       
+      # TODO: part two of hack to prevent premature drawing by log panel
+      if page == 0 and not isPaused: panels["log"].setPaused(False)
+      
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
-      
-      # TODO: temporary hack to prevent popup redraw until a valid replacement is implemented (ick!)
-      tmpSubwin = panels["popup"].win
-      panels["popup"].win = None
-      
-      for panelKey in (PAGE_S + PAGES[page]): panels[panelKey].redraw()
-      
-      panels["popup"].win = tmpSubwin
+      for panelKey in (PAGE_S + PAGES[page]):
+        # redrawing popup can result in display flicker when it should be hidden
+        if panelKey != "popup": panels[panelKey].redraw()
       
       stdscr.refresh()
     finally:
@@ -461,16 +545,8 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         # quits arm
         # very occasionally stderr gets "close failed: [Errno 11] Resource temporarily unavailable"
         # this appears to be a python bug: http://bugs.python.org/issue3014
-        daemonThreads = panels["conn"].resolver.threadPool
-        
-        # sets halt flags for all worker daemon threads
-        for worker in daemonThreads: worker.halt = True
-        
-        # joins on workers (prevents noisy termination)
-        for worker in daemonThreads: worker.join()
-        
+        hostnames.stop()
         conn.close() # joins on TorCtl event thread
-        
         break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
@@ -487,7 +563,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       setPauseState(panels, isPaused, page)
       
       panels["control"].page = page + 1
-      panels["control"].refresh()
+      
+      # TODO: this redraw doesn't seem necessary (redraws anyway after this
+      # loop) - look into this when refactoring
+      panels["control"].redraw()
+      
     elif key == ord('p') or key == ord('P'):
       # toggles update freezing
       panel.CURSES_LOCK.acquire()
@@ -507,7 +587,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         popup = panels["popup"]
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), uiTools.LABEL_ATTR)
+        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), curses.A_STANDOUT)
         
         pageOverrideKeys = ()
         
@@ -516,7 +596,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           if not graphedStats: graphedStats = "none"
           popup.addfstr(1, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
           popup.addfstr(1, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % panels["graph"].updateInterval)
-          popup.addfstr(2, 2, "b: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
+          popup.addfstr(2, 2, "<b>b</b>: graph bounds (<b>%s</b>)" % graphPanel.BOUND_LABELS[panels["graph"].bounds])
           popup.addfstr(2, 41, "<b>d</b>: file descriptors")
           popup.addfstr(3, 2, "<b>e</b>: change logged events")
           
@@ -525,38 +605,44 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           
           pageOverrideKeys = (ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
         if page == 1:
-          popup.addstr(1, 2, "up arrow: scroll up a line")
-          popup.addstr(1, 41, "down arrow: scroll down a line")
-          popup.addstr(2, 2, "page up: scroll up a page")
-          popup.addstr(2, 41, "page down: scroll down a page")
-          popup.addstr(3, 2, "enter: connection details")
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
+          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
+          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
+          popup.addfstr(3, 2, "<b>enter</b>: connection details")
           popup.addfstr(3, 41, "<b>d</b>: raw consensus descriptor")
           
           listingType = connPanel.LIST_LABEL[panels["conn"].listingType].lower()
           popup.addfstr(4, 2, "<b>l</b>: listed identity (<b>%s</b>)" % listingType)
           
-          allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
-          popup.addfstr(4, 41, "r: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
+          resolverUtil = connections.getResolver("tor").overwriteResolver
+          if resolverUtil == None: resolverUtil = "auto"
+          else: resolverUtil = connections.CMD_STR[resolverUtil]
+          popup.addfstr(4, 41, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
           
-          popup.addfstr(5, 2, "<b>s</b>: sort ordering")
-          popup.addfstr(5, 41, "<b>c</b>: client circuits")
+          allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
+          popup.addfstr(5, 2, "<b>r</b>: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
+          
+          popup.addfstr(5, 41, "<b>s</b>: sort ordering")
+          popup.addfstr(6, 2, "<b>c</b>: client circuits")
+          
           #popup.addfstr(5, 41, "c: toggle cursor (<b>%s</b>)" % ("on" if panels["conn"].isCursorEnabled else "off"))
           
           pageOverrideKeys = (ord('d'), ord('l'), ord('s'), ord('c'))
         elif page == 2:
-          popup.addstr(1, 2, "up arrow: scroll up a line")
-          popup.addstr(1, 41, "down arrow: scroll down a line")
-          popup.addstr(2, 2, "page up: scroll up a page")
-          popup.addstr(2, 41, "page down: scroll down a page")
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
+          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
+          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
           strippingLabel = "on" if panels["torrc"].stripComments else "off"
-          popup.addfstr(3, 2, "s: comment stripping (<b>%s</b>)" % strippingLabel)
+          popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
           
           lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
-          popup.addfstr(3, 41, "n: line numbering (<b>%s</b>)" % lineNumLabel)
+          popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
           
-          popup.addstr(4, 2, "r: reload torrc")
-          popup.addstr(4, 41, "x: reset tor (issue sighup)")
+          popup.addfstr(4, 2, "<b>r</b>: reload torrc")
+          popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -662,7 +748,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Event Types:", uiTools.LABEL_ATTR)
+        popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
         lineNum = 1
         for line in logPanel.EVENT_LISTING.split("\n"):
           line = line[6:]
@@ -684,7 +770,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         if eventsInput != "":
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
-            loggedEvents = setEventListening(expandedEvents, conn, panels["log"])
+            loggedEvents = setEventListening(expandedEvents, conn)
             panels["log"].loggedEvents = loggedEvents
           except ValueError, exc:
             panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
@@ -759,7 +845,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
           del regexFilters[selection]
         except re.error, exc:
           # shouldn't happen since we've already checked validity
-          panels["log"].monitor_event("WARN", "Invalid regular expression ('%s': %s) - removing from listing" % (regexFilters[selection - 1], str(exc)))
+          log.log(log.WARN, "Invalid regular expression ('%s': %s) - removing from listing" % (regexFilters[selection - 1], str(exc)))
           del regexFilters[selection - 1]
       
       if len(regexFilters) > MAX_REGEX_FILTERS: del regexFilters[MAX_REGEX_FILTERS:]
@@ -771,7 +857,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP
       panels["control"].resolvingCounter = -1
-      panels["conn"].resolver.setPaused(True)
+      hostnames.setPaused(True)
       panels["conn"].sortConnections()
     elif page == 1 and panels["conn"].isCursorEnabled and key in (curses.KEY_ENTER, 10, ord(' ')):
       # provides details on selected connection
@@ -785,8 +871,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         panels["conn"].showingDetails = True
         panels["conn"].redraw()
         
-        resolver = panels["conn"].resolver
-        resolver.setPaused(not panels["conn"].allowDNS)
+        hostnames.setPaused(not panels["conn"].allowDNS)
         relayLookupCache = {} # temporary cache of entry -> (ns data, desc data)
         
         curses.cbreak() # wait indefinitely for key presses (no timeout)
@@ -795,7 +880,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         while key not in (curses.KEY_ENTER, 10, ord(' ')):
           popup.clear()
           popup.win.box()
-          popup.addstr(0, 0, "Connection Details:", uiTools.LABEL_ATTR)
+          popup.addstr(0, 0, "Connection Details:", curses.A_STANDOUT)
           
           selection = panels["conn"].cursorSelection
           if not selection or not panels["conn"].connections: break
@@ -813,17 +898,16 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
             addrLabel = "address: unknown"
           
           if selectedIsPrivate: hostname = None
-          else: hostname = resolver.resolve(selectedIp)
+          else:
+            try: hostname = hostnames.resolve(selectedIp)
+            except ValueError: hostname = "unknown" # hostname couldn't be resolved
           
           if hostname == None:
-            if resolver.isPaused or selectedIsPrivate: hostname = "DNS resolution disallowed"
-            elif selectedIp not in resolver.resolvedCache.keys():
+            if hostnames.isPaused() or selectedIsPrivate: hostname = "DNS resolution disallowed"
+            else:
               # if hostname is still being resolved refresh panel every half-second until it's completed
               curses.halfdelay(5)
               hostname = "resolving..."
-            else:
-              # hostname couldn't be resolved
-              hostname = "unknown"
           elif len(hostname) > 73 - len(addrLabel):
             # hostname too long - truncate
             hostname = "%s..." % hostname[:70 - len(addrLabel)]
@@ -871,7 +955,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
                 if not lookupErrored and nsCall:
                   if len(nsCall) > 1:
                     # multiple records for fingerprint (shouldn't happen)
-                    panels["log"].monitor_event("WARN", "Multiple consensus entries for fingerprint: %s" % fingerprint)
+                    log.log(log.WARN, "Multiple consensus entries for fingerprint: %s" % fingerprint)
                   
                   nsEntry = nsCall[0]
                   
@@ -919,7 +1003,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         panels["conn"].showLabel = True
         panels["conn"].showingDetails = False
-        resolver.setPaused(not panels["conn"].allowDNS and panels["conn"].listingType == connPanel.LIST_HOSTNAME)
+        hostnames.setPaused(not panels["conn"].allowDNS and panels["conn"].listingType == connPanel.LIST_HOSTNAME)
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
@@ -963,16 +1047,39 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         if panels["conn"].listingType == connPanel.LIST_HOSTNAME:
           curses.halfdelay(10) # refreshes display every second until done resolving
-          panels["control"].resolvingCounter = panels["conn"].resolver.totalResolves - panels["conn"].resolver.unresolvedQueue.qsize()
+          panels["control"].resolvingCounter = hostnames.getRequestCount() - hostnames.getPendingCount()
           
-          resolver = panels["conn"].resolver
-          resolver.setPaused(not panels["conn"].allowDNS)
-          for connEntry in panels["conn"].connections: resolver.resolve(connEntry[connPanel.CONN_F_IP])
+          hostnames.setPaused(not panels["conn"].allowDNS)
+          for connEntry in panels["conn"].connections:
+            try: hostnames.resolve(connEntry[connPanel.CONN_F_IP])
+            except ValueError: pass
         else:
           panels["control"].resolvingCounter = -1
-          panels["conn"].resolver.setPaused(True)
+          hostnames.setPaused(True)
         
         panels["conn"].sortConnections()
+    elif page == 1 and (key == ord('u') or key == ord('U')):
+      # provides menu to pick identification resolving utility
+      optionTypes = [None, connections.CMD_NETSTAT, connections.CMD_SS, connections.CMD_LSOF]
+      options = ["auto"] + [connections.CMD_STR[util] for util in optionTypes[1:]]
+      
+      initialSelection = connections.getResolver("tor").overwriteResolver # enums correspond to indices
+      if initialSelection == None: initialSelection = 0
+      
+      # hides top label of conn panel and pauses panels
+      panels["conn"].showLabel = False
+      panels["conn"].redraw()
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Resolver Util:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["conn"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1 and optionTypes[selection] != connections.getResolver("tor").overwriteResolver:
+        connections.getResolver("tor").overwriteResolver = optionTypes[selection]
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection listing
       panel.CURSES_LOCK.acquire()
@@ -998,7 +1105,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         while len(selections) < 3:
           popup.clear()
           popup.win.box()
-          popup.addstr(0, 0, "Connection Ordering:", uiTools.LABEL_ATTR)
+          popup.addstr(0, 0, "Connection Ordering:", curses.A_STANDOUT)
           popup.addfstr(1, 2, prevOrdering)
           
           # provides new ordering
@@ -1057,15 +1164,14 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         
         # makes sure there's room for the longest entry
         popup = panels["popup"]
-        popup._resetBounds()
-        if clientCircuits and maxEntryLength + 4 > popup.maxX:
+        if clientCircuits and maxEntryLength + 4 > popup.getPreferredSize()[1]:
           popup.height = max(popup.height, len(clientCircuits) + 3)
           popup.recreate(stdscr, maxEntryLength + 4)
         
         # lists commands
         popup.clear()
         popup.win.box()
-        popup.addstr(0, 0, "Client Circuits:", uiTools.LABEL_ATTR)
+        popup.addstr(0, 0, "Client Circuits:", curses.A_STANDOUT)
         
         if clientCircuits == None:
           popup.addstr(1, 2, "Unable to retireve current circuits")
@@ -1116,6 +1222,20 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         confirmationKey = stdscr.getch()
         if confirmationKey in (ord('x'), ord('X')):
           try:
+            conn.send_signal("RELOAD")
+          except Exception, err:
+            # new torrc parameters caused an error (tor's likely shut down)
+            # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
+            # http://bugs.noreply.org/flyspray/index.php?do=details&id=1329
+            log.log(log.ERR, "Error detected when reloading tor: %s" % str(err))
+            pass
+          
+          # The following issues a sighup via a system command (Sebastian
+          # mentioned later that sending a RELOAD signal is equivilant, which
+          # is of course far preferable).
+          
+          """
+          try:
             # Redirects stderr to stdout so we can check error status (output
             # should be empty if successful). Example error:
             # pkill: 5592 - Operation not permitted
@@ -1152,6 +1272,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
             panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
             panels["control"].redraw()
             time.sleep(2)
+          """
         
         # reverts display settings
         curses.halfdelay(REFRESH_RATE * 10)

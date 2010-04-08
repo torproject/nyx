@@ -8,7 +8,7 @@ import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
-from util import panel, uiTools
+from util import log, panel, uiTools
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
 
@@ -89,9 +89,9 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   Tor event listener, noting messages, the time, and their type in a panel.
   """
   
-  def __init__(self, conn, loggedEvents):
+  def __init__(self, stdscr, conn, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
-    panel.Panel.__init__(self, -1)
+    panel.Panel.__init__(self, stdscr, 0)
     self.scroll = 0
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
@@ -101,6 +101,12 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     self.regexFilter = None               # filter for presented log events (no filtering if None)
     self.eventTimeOverwrite = None        # replaces time for further events with this (uses time it occures if None)
     self.controlPortClosed = False        # flag set if TorCtl provided notice that control port is closed
+    
+    # prevents attempts to redraw while processing batch of events
+    previousPauseState = self.isPaused
+    self.setPaused(True)
+    log.addListeners([log.DEBUG, log.INFO, log.NOTICE, log.WARN, log.ERR], self.arm_event_wrapper, True)
+    self.setPaused(previousPauseState)
     
     # attempts to process events from log file
     if PRE_POPULATE_LOG:
@@ -151,8 +157,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   def handleKey(self, key):
     # scroll movement
     if key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
-      self._resetBounds()
-      pageHeight, shift = self.maxY - 1, 0
+      pageHeight, shift = self.getPreferredSize()[0] - 1, 0
       
       # location offset
       if key == curses.KEY_UP: shift = -1
@@ -229,6 +234,12 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   def unknown_event(self, event):
     if "UNKNOWN" in self.loggedEvents: self.registerEvent("UNKNOWN", event.event_string, "red")
   
+  def arm_event_wrapper(self, level, msg, eventTime):
+    # temporary adaptor hack to use the new logging functions until I'm sure they'll work
+    # TODO: insert into log according to the event's timestamp (harder part
+    # here will be interpreting tor's event timestamps...)
+    self.monitor_event(level, msg)
+  
   def monitor_event(self, level, msg):
     # events provided by the arm monitor
     if "ARM_" + level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
@@ -251,7 +262,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if TOR_CTL_CLOSE_MSG in msg:
       # TorCtl providing notice that control port is closed
       self.controlPortClosed = True
-      self.monitor_event("NOTICE", "Tor control port closed")
+      log.log(log.NOTICE, "Tor control port closed")
     self.tor_ctl_event(level, msg)
   
   def flush(self): pass
@@ -287,13 +298,13 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
       self.redraw()
   
-  def draw(self):
+  def draw(self, subwindow, width, height):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
     """
     
-    isScrollBarVisible = self.getLogDisplayLength() > self.maxY - 1
+    isScrollBarVisible = self.getLogDisplayLength() > height - 1
     xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
     
     # draws label - uses ellipsis if too long, for instance:
@@ -315,22 +326,22 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if firstLabelLen == -1: firstLabelLen = len(eventsListing)
     else: firstLabelLen += 3
     
-    if self.maxX > 10 + firstLabelLen:
+    if width > 10 + firstLabelLen:
       eventsLabel += " ("
       
-      if len(eventsListing) > self.maxX - 11:
-        labelBreak = eventsListing[:self.maxX - 12].rfind(", ")
+      if len(eventsListing) > width - 11:
+        labelBreak = eventsListing[:width - 12].rfind(", ")
         eventsLabel += "%s..." % eventsListing[:labelBreak]
-      elif len(eventsListing) + len(filterLabel) > self.maxX - 11:
+      elif len(eventsListing) + len(filterLabel) > width - 11:
         eventsLabel += eventsListing
       else: eventsLabel += eventsListing + filterLabel
       eventsLabel += ")"
     eventsLabel += ":"
     
-    self.addstr(0, 0, eventsLabel, uiTools.LABEL_ATTR)
+    self.addstr(0, 0, eventsLabel, curses.A_STANDOUT)
     
     # log entries
-    maxLoc = self.getLogDisplayLength() - self.maxY + 1
+    maxLoc = self.getLogDisplayLength() - height + 1
     self.scroll = max(0, min(self.scroll, maxLoc))
     lineCount = 1 - self.scroll
     
@@ -339,18 +350,18 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
         continue  # filter doesn't match log message - skip
       
       # splits over too lines if too long
-      if len(line) < self.maxX:
+      if len(line) < width:
         if lineCount >= 1: self.addstr(lineCount, xOffset, line, uiTools.getColor(color))
         lineCount += 1
       else:
-        (line1, line2) = splitLine(line, self.maxX - xOffset)
+        (line1, line2) = splitLine(line, width - xOffset)
         if lineCount >= 1: self.addstr(lineCount, xOffset, line1, uiTools.getColor(color))
         if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(color))
         lineCount += 2
       
-      if lineCount >= self.maxY: break # further log messages wouldn't fit
+      if lineCount >= height: break # further log messages wouldn't fit
     
-    if isScrollBarVisible: uiTools.drawScrollBar(self, 1, self.maxY - 1, self.scroll, self.scroll + self.maxY - 1, self.getLogDisplayLength())
+    if isScrollBarVisible: self.addScrollBar(self.scroll, self.scroll + height - 1, self.getLogDisplayLength(), 1)
   
   def getLogDisplayLength(self):
     """
@@ -360,10 +371,9 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     logLength = len(self.msgLog)
     
     # takes into account filtered and wrapped messages
-    self._resetBounds()
     for (line, color) in self.msgLog:
       if self.regexFilter and not self.regexFilter.search(line): logLength -= 1
-      elif len(line) >= self.maxX: logLength += 1
+      elif len(line) >= self.getPreferredSize()[1]: logLength += 1
     
     return logLength
   
@@ -378,7 +388,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if self.isPaused: self.pauseBuffer = []
     else:
       self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
-      self.redraw()
+      if self.win: self.redraw() # hack to avoid redrawing during init
   
   def getHeartbeat(self):
     """

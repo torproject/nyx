@@ -30,7 +30,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     
     # dummy values for static data
     self.isAccounting = False
-    self.bwRate, self.bwBurst = -1, -1
+    self.bwRate, self.bwBurst = None, None
     self.resetOptions()
   
   def resetOptions(self):
@@ -97,7 +97,18 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   
   def getTitle(self, width):
     # provides label, dropping stats if there's not enough room
-    labelContents = "Bandwidth (cap: %s, burst: %s):" % (self.bwRate, self.bwBurst)
+    capLabel = "cap: %s" % self.bwRate if self.bwRate else ""
+    burstLabel = "burst: %s" % self.bwBurst if self.bwBurst else ""
+    
+    if capLabel and burstLabel:
+      bwLabel = " (%s, %s)" % (capLabel, burstLabel)
+    elif capLabel or burstLabel:
+      # only one is set - use whatever's avaialble
+      bwLabel = " (%s%s)" % (capLabel, burstLabel)
+    else:
+      bwLabel = ""
+    
+    labelContents = "Bandwidth%s:" % bwLabel
     if width < len(labelContents):
       labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
       if width < len(labelContents): labelContents = "Bandwidth:"       # removes both

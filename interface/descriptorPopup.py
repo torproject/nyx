@@ -7,6 +7,7 @@ import socket
 import curses
 from TorCtl import TorCtl
 
+import controller
 import connPanel
 from util import panel, uiTools
 
@@ -98,8 +99,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
         # tracks number of extra lines that will be taken due to text wrap
         height += (lineWidth - 2) / connectionPanel.maxX
       
-      popup._resetBounds()
-      popup.height = min(len(properties.text) + height + 2, connectionPanel.maxY)
+      popup.setHeight(min(len(properties.text) + height + 2, connectionPanel.maxY))
       popup.recreate(stdscr, width)
       
       while isVisible:
@@ -115,7 +115,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
           break
         else: properties.handleKey(key, popup.height - 2)
     
-    popup.height = 9
+    popup.setHeight(9)
     popup.recreate(stdscr, 80)
   finally:
     panel.CURSES_LOCK.release()
@@ -126,8 +126,8 @@ def draw(popup, properties):
   xOffset = 2
   
   if properties.text:
-    if properties.fingerprint: popup.addstr(0, 0, "Consensus Descriptor (%s):" % properties.fingerprint, uiTools.LABEL_ATTR)
-    else: popup.addstr(0, 0, "Consensus Descriptor:", uiTools.LABEL_ATTR)
+    if properties.fingerprint: popup.addstr(0, 0, "Consensus Descriptor (%s):" % properties.fingerprint, curses.A_STANDOUT)
+    else: popup.addstr(0, 0, "Consensus Descriptor:", curses.A_STANDOUT)
     
     isEncryption = False          # true if line is part of an encryption block
     
@@ -171,8 +171,8 @@ def draw(popup, properties):
           keyword, remainder = lineText, ""
           keywordFormat = uiTools.getColor(SIG_COLOR)
         
-        lineNum, xLoc = popup.addstr_wrap(lineNum, 0, keyword, keywordFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
-        lineNum, xLoc = popup.addstr_wrap(lineNum, xLoc, remainder, remainderFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
+        lineNum, xLoc = controller.addstr_wrap(popup, lineNum, 0, keyword, keywordFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
+        lineNum, xLoc = controller.addstr_wrap(popup, lineNum, xLoc, remainder, remainderFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
       
       lineNum += 1
       if lineNum > pageHeight: break

@@ -17,8 +17,8 @@ sys.path[0] = sys.path[0][:-5]
 from TorCtl import TorCtl, TorUtil
 from interface import controller, logPanel
 
-VERSION = "1.3.4"
-LAST_MODIFIED = "Mar 7, 2010"
+VERSION = "1.3.5"
+LAST_MODIFIED = "Apr 8, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
 DEFAULT_CONTROL_PORT = 9051
@@ -39,7 +39,7 @@ Terminal status monitor for Tor relays.
 
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
-arm -e=we -p=nemesis    use password 'nemesis' with 'WARN'/'ERR' events
+arm -e we -p nemesis    use password 'nemesis' with 'WARN'/'ERR' events
 """ % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
 
 def isValidIpAddr(ipStr):

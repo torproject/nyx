@@ -26,10 +26,10 @@ Tor is running with an available control port. This means either...
   ... or including 'ControlPort <PORT>' in your torrc
 
 For full functionality this also needs:
-Common *nix commands including: ps, pidof, tail, pwdx, host, netstat, lsof, and
-  ulimit
-To be ran with the same user as tor to avoid permission issues with netstat,
-  lsof, and reading the torrc
+Common *nix commands including: ps, pidof, tail, pwdx, host, ulimit, and a
+  method of connection resolution (netstat, ss, or lsof)
+To be ran with the same user as tor to avoid permission issues with connection
+  resolution and reading the torrc
 
 This is started via 'arm' (use the '--help' argument for usage).
 
@@ -46,17 +46,9 @@ meaning of the acronym ('anonymizing relay monitor') afterward.
 > If you're listing connections then what about exit nodes? Won't this include 
 people's traffic?
 
-While arm isn't intended to be a sniffer it does provide real time connection
-data which, for exit nodes, includes the endpoints being visited through you.
-Unfortunately this is pretty unavoidable. The control port doesn't provide a
-means of distinguishing those connections and trying to figure it out by
-correlating against consensus data has proved pretty inaccurate.
-
-That said, this really isn't much of a concern. For Tor users the real threats
-come from things like Wireshark and MITM attacks on their unencrypted traffic.
-Simply seeing an unknown individual's endpoints is no great feat in itself.
-Just attach netstat to a cron job and voilà! You've got a sniffer that's just
-as mighty as arm.
+No. Potential client and exit connections are specifically scrubbed of
+identifying information. Be aware that it's highly discouraged for relay
+operators to fetch this data, so please don't.
 
 > Is it harmful to share the information provided by arm?
 
@@ -106,15 +98,13 @@ Layout:
   
   init/
     __init__.py
-    arm.py    - parses and validates commandline parameters
-    prereq.py - checks python version and for required packages
+    starter.py - parses and validates commandline parameters
+    prereq.py  - checks python version and for required packages
   
   interface/
     __init__.py
     controller.py          - main display loop, handling input and layout
     headerPanel.py         - top of all pages, providing general information
-    connResolver.py        - (daemon thread) periodic netstat lookups
-    hostnameResolver.py    - (daemon thread) nonblocking reverse dns lookups
     
     
     graphPanel.py          - (page 1) presents graphs for data instances
@@ -131,6 +121,9 @@ Layout:
   
   util/
     __init__.py
-    panel.py   - wrapper for safely working with curses subwindows
-    uiTools.py - helper functions for interface
+    connections.py - service providing periodic connection lookups
+    hostnames.py   - service providing nonblocking reverse dns lookups
+    log.py         - aggregator for application events
+    panel.py       - wrapper for safely working with curses subwindows
+    uiTools.py     - helper functions for interface
 

@@ -1,115 +1,174 @@
-#!/usr/bin/env python
-# util.py -- support functions common for arm user interface.
-# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+"""
+Toolkit for common ui tasks when working with curses. This provides a quick and
+easy method of providing the following interface components:
+- preinitialized curses color attributes
+- unit conversion for labels
+"""
 
 import curses
 
-LABEL_ATTR = curses.A_STANDOUT          # default formatting constant
-
 # colors curses can handle
-COLOR_LIST = (("red", curses.COLOR_RED),
-             ("green", curses.COLOR_GREEN),
-             ("yellow", curses.COLOR_YELLOW),
-             ("blue", curses.COLOR_BLUE),
-             ("cyan", curses.COLOR_CYAN),
-             ("magenta", curses.COLOR_MAGENTA),
-             ("black", curses.COLOR_BLACK),
-             ("white", curses.COLOR_WHITE))
+COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
+              "yellow": curses.COLOR_YELLOW,  "blue": curses.COLOR_BLUE,
+              "cyan": curses.COLOR_CYAN,      "magenta": curses.COLOR_MAGENTA,
+              "black": curses.COLOR_BLACK,    "white": curses.COLOR_WHITE}
 
-FORMAT_TAGS = {"<b>": curses.A_BOLD,
-               "<u>": curses.A_UNDERLINE,
-               "<h>": curses.A_STANDOUT}
-for (colorLabel, cursesAttr) in COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = curses.A_NORMAL
-
-# foreground color mappings (starts uninitialized - all colors associated with default white fg / black bg)
+# mappings for getColor() - this uses the default terminal color scheme if
+# color support is unavailable
 COLOR_ATTR_INITIALIZED = False
-COLOR_ATTR = dict([(color[0], 0) for color in COLOR_LIST])
+COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST.keys()])
 
-def initColors():
-  """
-  Initializes color mappings for the current curses. This needs to be called
-  after curses.initscr().
-  """
-  
-  global COLOR_ATTR_INITIALIZED
-  if not COLOR_ATTR_INITIALIZED:
-    COLOR_ATTR_INITIALIZED = True
-    
-    # if color support is available initializes color mappings
-    if curses.has_colors():
-      colorpair = 0
-      
-      for name, fgColor in COLOR_LIST:
-        colorpair += 1
-        curses.init_pair(colorpair, fgColor, -1) # -1 allows for default (possibly transparent) background
-        COLOR_ATTR[name] = curses.color_pair(colorpair)
-      
-      # maps color tags to initialized attributes
-      for colorLabel in COLOR_ATTR.keys(): FORMAT_TAGS["<%s>" % colorLabel] = COLOR_ATTR[colorLabel]
+# value tuples for label conversions (bytes / seconds, short label, long label)
+SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
+              (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
+              (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
+TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
+              (60.0, "m", " minute"),                   (1.0, "s", " second")]
 
 def getColor(color):
   """
   Provides attribute corresponding to a given text color. Supported colors
   include:
-  red, green, yellow, blue, cyan, magenta, black, and white
+  red       green     yellow    blue
+  cyan      magenta   black     white
   
-  If color support isn't available then this uses the default terminal coloring
-  scheme.
+  If color support isn't available or colors can't be initialized then this uses the 
+  terminal's default coloring scheme.
+  
+  Arguments:
+    color - name of the foreground color to be returned
   """
   
+  if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
 
-def getSizeLabel(bytes, decimal = 0):
+def getSizeLabel(bytes, decimal = 0, isLong = False):
   """
   Converts byte count into label in its most significant units, for instance
-  7500 bytes would return "7 KB".
+  7500 bytes would return "7 KB". If the isLong option is used this expands
+  unit labels to be the properly pluralised full word (for instance 'Kilobytes'
+  rather than 'KB'). Units go up through PB.
+  
+  Example Usage:
+    getSizeLabel(2000000) = '1 MB'
+    getSizeLabel(1050, 2) = '1.02 KB'
+    getSizeLabel(1050, 3, True) = '1.025 Kilobytes'
+  
+  Arguments:
+    bytes   - source number of bytes for conversion
+    decimal - number of decimal digits to be included
+    isLong  - expands units label
   """
   
-  format = "%%.%if" % decimal
-  if bytes >= 1073741824: return (format + " GB") % (bytes / 1073741824.0)
-  elif bytes >= 1048576: return (format + " MB") % (bytes / 1048576.0)
-  elif bytes >= 1024: return (format + " KB") % (bytes / 1024.0)
-  else: return "%i bytes" % bytes
+  return _getLabel(SIZE_UNITS, bytes, decimal, isLong)
 
-def getTimeLabel(seconds, decimal = 0):
+def getTimeLabel(seconds, decimal = 0, isLong = False):
   """
-  Concerts seconds into a time label truncated to its most significant units,
+  Converts seconds into a time label truncated to its most significant units,
   for instance 7500 seconds would return "2h". Units go up through days.
+  
+  This defaults to presenting single character labels, but if the isLong option
+  is used this expands labels to be the full word (space included and properly
+  pluralised). For instance, "4h" would be "4 hours" and "1m" would become
+  "1 minute".
+  
+  Example Usage:
+    getTimeLabel(10000) = '2h'
+    getTimeLabel(61, 1, True) = '1.0 minute'
+    getTimeLabel(61, 2, True) = '1.01 minutes'
+  
+  Arguments:
+    seconds - source number of seconds for conversion
+    decimal - number of decimal digits to be included
+    isLong  - expands units label
+  """
+  
+  return _getLabel(TIME_UNITS, seconds, decimal, isLong)
+
+def getTimeLabels(seconds, isLong = False):
+  """
+  Provides a list containing label conversions for each time unit, starting
+  with its most significant units on down. Any counts that evaluate to zero are
+  omitted.
+  
+  Example Usage:
+    getTimeLabels(400) = ['6m', '40s']
+    getTimeLabels(3640, True) = ['1 hour', '40 seconds']
+  
+  Arguments:
+    seconds - source number of seconds for conversion
+    isLong  - expands units label
+  """
+  
+  timeLabels = []
+  
+  for countPerUnit, shortLabel, longLabel in TIME_UNITS:
+    if seconds >= countPerUnit:
+      timeLabels.append(_getLabel(TIME_UNITS, seconds, 0, isLong))
+      seconds %= countPerUnit
+  
+  return timeLabels
+
+def _getLabel(units, count, decimal, isLong):
+  """
+  Provides label corresponding to units of the highest significance in the
+  provided set. This rounds down (ie, integer truncation after visible units).
+  
+  Arguments:
+    units   - type of units to be used for conversion, a tuple containing
+              (countPerUnit, shortLabel, longLabel)
+    count   - number of base units being converted
+    decimal - decimal precision of label
+    isLong  - uses the long label if true, short label otherwise
   """
   
   format = "%%.%if" % decimal
-  if seconds >= 86400: return (format + "d") % (seconds / 86400.0)
-  elif seconds >= 3600: return (format + "h") % (seconds / 3600.0)
-  elif seconds >= 60: return (format + "m") % (seconds / 60.0)
-  else: return "%is" % seconds
+  if count < 1:
+    unitsLabel = units[-1][2] + "s" if isLong else units[-1][1]
+    return "%s%s" % (format % count, unitsLabel)
+  
+  for countPerUnit, shortLabel, longLabel in units:
+    if count >= countPerUnit:
+      if count * 10 ** decimal % countPerUnit * 10 ** decimal == 0:
+        # even division, keep it simple
+        countLabel = format % (count / countPerUnit)
+      else:
+        # unfortunately the %f formatting has no method of rounding down, so
+        # reducing value to only concern the digits that are visible - note
+        # that this doesn't work with miniscule values (starts breaking down at
+        # around eight decimal places) or edge cases when working with powers
+        # of two
+        croppedCount = count - (count % (countPerUnit / (10 ** decimal)))
+        countLabel = format % (croppedCount / countPerUnit)
+      
+      if isLong:
+        # plural if any of the visible units make it greater than one (for
+        # instance 1.0003 is plural but 1.000 isn't)
+        if decimal > 0: isPlural = count >= (countPerUnit + countPerUnit / (10 ** decimal))
+        else: isPlural = count >= countPerUnit * 2
+        return countLabel + longLabel + ("s" if isPlural else "")
+      else: return countLabel + shortLabel
 
-def drawScrollBar(panel, drawTop, drawBottom, top, bottom, size):
+def _initColors():
   """
-  Draws scroll bar reflecting position within a vertical listing. This is
-  squared off at the bottom, having a layout like:
-   | 
-  *|
-  *|
-  *|
-   |
-  -+
+  Initializes color mappings usable by curses. This can only be done after
+  calling curses.initscr().
   """
   
-  if panel.maxY < 2: return # not enough room
-  
-  barTop = (drawBottom - drawTop) * top / size
-  barSize = (drawBottom - drawTop) * (bottom - top) / size
-  
-  # makes sure bar isn't at top or bottom unless really at those extreme bounds
-  if top > 0: barTop = max(barTop, 1)
-  if bottom != size: barTop = min(barTop, drawBottom - drawTop - barSize - 2)
-  
-  for i in range(drawBottom - drawTop):
-    if i >= barTop and i <= barTop + barSize:
-      panel.addstr(i + drawTop, 0, " ", curses.A_STANDOUT)
-  
-  # draws box around scroll bar
-  panel.win.vline(drawTop, 1, curses.ACS_VLINE, panel.maxY - 2)
-  panel.win.vline(drawBottom, 1, curses.ACS_LRCORNER, 1)
-  panel.win.hline(drawBottom, 0, curses.ACS_HLINE, 1)
+  global COLOR_ATTR_INITIALIZED
+  if not COLOR_ATTR_INITIALIZED:
+    try: hasColorSupport = curses.has_colors()
+    except curses.error: return # initscr hasn't been called yet
+    
+    # initializes color mappings if color support is available
+    COLOR_ATTR_INITIALIZED = True
+    if hasColorSupport:
+      colorpair = 0
+      
+      for colorName in COLOR_LIST.keys():
+        fgColor = COLOR_LIST[colorName]
+        bgColor = -1 # allows for default (possibly transparent) background
+        colorpair += 1
+        curses.init_pair(colorpair, fgColor, bgColor)
+        COLOR_ATTR[colorName] = curses.color_pair(colorpair)
 

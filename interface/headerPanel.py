@@ -37,8 +37,8 @@ class HeaderPanel(panel.Panel):
   fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
   """
   
-  def __init__(self, conn, torPid):
-    panel.Panel.__init__(self, 6)
+  def __init__(self, stdscr, conn, torPid):
+    panel.Panel.__init__(self, stdscr, 0, 6)
     self.vals = {"pid": torPid}     # mapping of information to be presented
     self.conn = conn                # Tor control port connection
     self.isPaused = False
@@ -46,28 +46,29 @@ class HeaderPanel(panel.Panel):
     self.rightParamX = 0            # offset used for doubled up parameters
     self.lastUpdate = -1            # time last stats was retrived
     self._updateParams()
+    self.getPreferredSize() # hack to force properly initialize size (when using wide version)
   
-  def recreate(self, stdscr, maxX=-1, newTop=None):
-    # might need to recreate twice so we have a window to get width
-    if not self.win: panel.Panel.recreate(self, stdscr, maxX, newTop)
-    
-    self._resetBounds()
-    self.isWide = self.maxX >= MIN_DUAL_ROW_WIDTH
-    self.rightParamX = max(self.maxX / 2, 75) if self.isWide else 0
-    self.height = 4 if self.isWide else 6
-    
-    panel.Panel.recreate(self, stdscr, maxX, newTop)
+  def getPreferredSize(self):
+    # width partially determines height (panel has two layouts)
+    panelHeight, panelWidth = panel.Panel.getPreferredSize(self)
+    self.isWide = panelWidth >= MIN_DUAL_ROW_WIDTH
+    self.rightParamX = max(panelWidth / 2, 75) if self.isWide else 0
+    self.setHeight(4 if self.isWide else 6)
+    return panel.Panel.getPreferredSize(self)
   
-  def draw(self):
+  def draw(self, subwindow, width, height):
     if not self.isPaused: self._updateParams()
+    
+    # TODO: remove after a few revisions if this issue can't be reproduced
+    #   (seemed to be a freak ui problem...)
     
     # extra erase/refresh is needed to avoid internal caching screwing up and
     # refusing to redisplay content in the case of graphical glitches - probably
     # an obscure curses bug...
-    self.win.erase()
-    self.win.refresh()
+    #self.win.erase()
+    #self.win.refresh()
     
-    self.clear()
+    #self.clear()
     
     # Line 1 (system and tor version information)
     systemNameLabel = "arm - %s " % self.vals["sys-name"]
@@ -93,7 +94,7 @@ class HeaderPanel(panel.Panel):
     
     # truncates torVersionLabel if too long
     torVersionLabel = self.vals["version"]
-    versionLabelMaxWidth =  (self.rightParamX if self.isWide else self.maxX) - 51 - len(versionStatus)
+    versionLabelMaxWidth =  (self.rightParamX if self.isWide else width) - 51 - len(versionStatus)
     if len(torVersionLabel) > versionLabelMaxWidth:
       torVersionLabel = torVersionLabel[:versionLabelMaxWidth - 1].strip() + "-"
     
@@ -143,6 +144,7 @@ class HeaderPanel(panel.Panel):
       policies = exitPolicy.split(", ")
       
       # color codes accepts to be green, rejects to be red, and default marker to be cyan
+      # TODO: instead base this on if there's space available for the full verbose version
       isSimple = len(policies) <= 2 # if policy is short then it's kept verbose, otherwise 'accept' and 'reject' keywords removed
       for i in range(len(policies)):
         policy = policies[i].strip()
@@ -197,7 +199,7 @@ class HeaderPanel(panel.Panel):
         # fetch exit policy (might span over multiple lines)
         exitPolicyEntries = []
         for (key, value) in self.conn.get_option("ExitPolicy"):
-          exitPolicyEntries.append(value)
+          if value: exitPolicyEntries.append(value)
         
         self.vals["ExitPolicy"] = ", ".join(exitPolicyEntries)
         
