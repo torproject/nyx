@@ -1,6 +1,6 @@
 CHANGE LOG
 
-4/8/10 - version 1.3.5
+4/8/10 - version 1.3.5 (r22148)
 Utility and service rewrite (refactored roughly a third of the codebase, including revised APIs and much better documentation).
 
     * added: centralized logging utility for handling arm events, simplifying several parts of the interface

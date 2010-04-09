@@ -88,7 +88,7 @@ class BandwidthMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
         if status == "soft": hibernateColor = "yellow"
         elif status == "hard": hibernateColor = "red"
         
-        panel.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)" % (hibernateColor, status, hibernateColor))
+        panel.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)</b>" % (hibernateColor, status, hibernateColor))
         panel.addstr(10, 35, "Time to reset: %s" % self.accountingInfo["resetTime"])
         panel.addstr(11, 2, "%s / %s" % (self.accountingInfo["read"], self.accountingInfo["readLimit"]), uiTools.getColor(self.primaryColor))
         panel.addstr(11, 37, "%s / %s" % (self.accountingInfo["written"], self.accountingInfo["writtenLimit"]), uiTools.getColor(self.secondaryColor))
