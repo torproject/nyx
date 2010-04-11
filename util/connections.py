@@ -6,7 +6,9 @@ utilities:
 - ss        ss -p | grep "\"<process>\",<pid>"
 - lsof      lsof -nPi | grep "<process>\s*<pid>.*(ESTABLISHED)"
 
-all queries dump its stderr (directing it to /dev/null).
+all queries dump its stderr (directing it to /dev/null). Unfortunately FreeBSD
+lacks support for the needed netstat flags, and has a completely different
+program for 'ss', so this is quite likely to fail there.
 """
 
 import os
@@ -25,11 +27,14 @@ CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
 # n = prevents dns lookups, p = include process, t = tcp only
 # output:
 # tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
+# *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
+#   equivilant -p doesn't exist so this can't function)
 RUN_NETSTAT = "netstat -npt 2> /dev/null | grep %s/%s 2> /dev/null"
 
 # p = include process
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
+# *note: under freebsd this command belongs to a spreadsheet program
 RUN_SS = "ss -p 2> /dev/null | grep \"\\\"%s\\\",%s\" 2> /dev/null"
 
 # n = prevent dns lookups, P = show port numbers (not names), i = ip only

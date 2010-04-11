@@ -256,7 +256,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   
   return selection
 
-def setEventListening(loggedEvents, conn):
+def setEventListening(loggedEvents, conn, isBlindMode):
   """
   Tries to set events being listened for, displaying error for any event
   types that aren't supported (possibly due to version issues). This returns 
@@ -413,7 +413,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   conn.add_event_listener(sighupTracker)
   
   # tells Tor to listen to the events we're interested
-  loggedEvents = setEventListening(loggedEvents, conn)
+  loggedEvents = setEventListening(loggedEvents, conn, isBlindMode)
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
   # directs logged TorCtl events to log panel
@@ -770,7 +770,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         if eventsInput != "":
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
-            loggedEvents = setEventListening(expandedEvents, conn)
+            loggedEvents = setEventListening(expandedEvents, conn, isBlindMode)
             panels["log"].loggedEvents = loggedEvents
           except ValueError, exc:
             panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
