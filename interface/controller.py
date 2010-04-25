@@ -387,12 +387,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   # before being positioned - the following is a quick hack til rewritten
   panels["log"].setPaused(True)
   
-  panels["conn"] = connPanel.ConnPanel(stdscr, conn)
+  panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
   panels["torrc"] = confPanel.ConfPanel(stdscr, confLocation, conn)
-  
-  # prevents connection resolution via the connPanel if not being used
-  if isBlindMode: panels["conn"].isDisabled = True
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -545,7 +542,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         # quits arm
         # very occasionally stderr gets "close failed: [Errno 11] Resource temporarily unavailable"
         # this appears to be a python bug: http://bugs.python.org/issue3014
-        hostnames.stop()
+        # (haven't seen this is quite some time... mysteriously resolved?)
+        
+        # joins on utility daemon threads - this might take a moment since
+        # the internal threadpools being joined might be sleeping
+        resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
+        if resolver: resolver.stop()  # sets halt flag (returning immediately)
+        hostnames.stop()              # halts and joins on hostname worker thread pool
+        if resolver: resolver.join()  # joins on halted resolver
+        
         conn.close() # joins on TorCtl event thread
         break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
@@ -947,10 +952,15 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
               lookupErrored = False
               if selection in relayLookupCache.keys(): nsEntry, descEntry = relayLookupCache[selection]
               else:
-                # ns lookup fails, can happen with localhost lookups if relay's having problems (orport not reachable)
-                # and this will be empty if network consensus couldn't be fetched
-                try: nsCall = conn.get_network_status("id/%s" % fingerprint)
-                except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupErrored = True
+                try:
+                  nsCall = conn.get_network_status("id/%s" % fingerprint)
+                  if len(nsCall) == 0: raise TorCtl.ErrorReply() # no results provided
+                except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+                  # ns lookup fails or provides empty results - can happen with
+                  # localhost lookups if relay's having problems (orport not
+                  # reachable) and this will be empty if network consensus
+                  # couldn't be fetched
+                  lookupErrored = True
                 
                 if not lookupErrored and nsCall:
                   if len(nsCall) > 1:

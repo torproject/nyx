@@ -31,11 +31,11 @@ CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
 #   equivilant -p doesn't exist so this can't function)
 RUN_NETSTAT = "netstat -npt 2> /dev/null | grep %s/%s 2> /dev/null"
 
-# p = include process
+# n = numeric ports, p = include process
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
 # *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -p 2> /dev/null | grep \"\\\"%s\\\",%s\" 2> /dev/null"
+RUN_SS = "ss -np 2> /dev/null | grep \"\\\"%s\\\",%s\" 2> /dev/null"
 
 # n = prevent dns lookups, P = show port numbers (not names), i = ip only
 # output:
@@ -48,6 +48,9 @@ RESOLVER_SLEEP_INTERVAL = 1         # period to sleep when not resolving
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
+
+# mapping of commands to if they're available or not
+CMD_AVAILABLE_CACHE = {}
 
 def getConnections(resolutionCmd, processName, processPid = ""):
   """
@@ -65,6 +68,10 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     processName   - name of the process for which connections are fetched
     processPid    - process ID (this helps improve accuracy)
   """
+  
+  # first check if the command's available to avoid sending error to stdout
+  if not _isAvailable(CMD_STR[resolutionCmd]):
+    raise IOError("'%s' is unavailable" % CMD_STR[resolutionCmd])
   
   if resolutionCmd == CMD_NETSTAT: cmd = RUN_NETSTAT % (processPid, processName)
   elif resolutionCmd == CMD_SS: cmd = RUN_SS % (processName, processPid)
@@ -93,7 +100,24 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   
   return conn
 
-def getResolver(processName, processPid = "", newInit = True):
+def isResolverAlive(processName, processPid = ""):
+  """
+  This provides true if a singleton resolver instance exists for the given
+  process/pid combination, false otherwise.
+  
+  Arguments:
+    processName - name of the process being checked
+    processPid  - pid of the process being checked, if undefined this matches
+                  against any resolver with the process name
+  """
+  
+  for resolver in RESOLVERS:
+    if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
+      return True
+  
+  return False
+
+def getResolver(processName, processPid = ""):
   """
   Singleton constructor for resolver instances. If a resolver already exists
   for the process then it's returned. Otherwise one is created and started.
@@ -102,8 +126,6 @@ def getResolver(processName, processPid = "", newInit = True):
     processName - name of the process being resolved
     processPid  - pid of the process being resolved, if undefined this matches
                   against any resolver with the process name
-    newInit     - if a resolver isn't available then one's created if true,
-                  otherwise this returns None
   """
   
   # check if one's already been created
@@ -112,28 +134,36 @@ def getResolver(processName, processPid = "", newInit = True):
       return resolver
   
   # make a new resolver
-  if newInit:
-    r = ConnectionResolver(processName, processPid)
-    r.start()
-    RESOLVERS.append(r)
-    return r
-  else: return None
+  r = ConnectionResolver(processName, processPid)
+  r.start()
+  RESOLVERS.append(r)
+  return r
 
-def _isAvailable(command):
+def _isAvailable(command, cached=True):
   """
   Checks the current PATH to see if a command is available or not. This returns
   True if an accessible executable by the name is found and False otherwise.
   
   Arguments:
     command - name of the command for which to search
+    cached  - this makes use of available cached results if true, otherwise
+              they're overwritten
   """
   
-  for path in os.environ["PATH"].split(os.pathsep):
-    cmdPath = os.path.join(path, command)
-    if os.path.exists(cmdPath) and os.access(cmdPath, os.X_OK): return True
-  
-  return False
-  
+  if cached and command in CMD_AVAILABLE_CACHE.keys():
+    return CMD_AVAILABLE_CACHE[command]
+  else:
+    cmdExists = False
+    for path in os.environ["PATH"].split(os.pathsep):
+      cmdPath = os.path.join(path, command)
+      
+      if os.path.exists(cmdPath) and os.access(cmdPath, os.X_OK):
+        cmdExists = True
+        break
+    
+    CMD_AVAILABLE_CACHE[command] = cmdExists
+    return cmdExists
+
 if __name__ == '__main__':
   # quick method for testing connection resolution
   userInput = raw_input("Enter query (RESOLVER PROCESS_NAME [PID]: ").split()

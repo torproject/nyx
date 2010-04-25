@@ -109,7 +109,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   Lists tor related connection data.
   """
   
-  def __init__(self, stdscr, conn):
+  def __init__(self, stdscr, conn, isDisabled):
     TorCtl.PostEventListener.__init__(self)
     panel.Panel.__init__(self, stdscr, 0)
     self.scroll = 0
@@ -129,7 +129,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
     self.clientConnectionCache = None     # listing of nicknames for our client connections
     self.clientConnectionLock = RLock()   # lock for clientConnectionCache
-    self.isDisabled = False               # prevent panel from updating entirely
+    self.isDisabled = isDisabled          # prevent panel from updating entirely
     self.lastConnResults = None           # used to check if connection results have changed
     
     self.isCursorEnabled = True
@@ -266,6 +266,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     """
     Reloads connection results.
     """
+    
+    if self.isDisabled: return
     
     # inaccessable during startup so might need to be refetched
     try:
