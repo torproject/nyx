@@ -223,7 +223,7 @@ class HeaderPanel(panel.Panel):
       except TorCtl.ErrorReply: self.vals[param] = "Unknown"
       except (TorCtl.TorCtlClosed, socket.error):
         # Tor shut down or crashed - keep last known values
-        if not self.vals[param]: self.vals[param] = "Unknown"
+        if not param in self.vals.keys() or not self.vals[param]: self.vals[param] = "Unknown"
     
     # if ORListenAddress is set overwrites 'address' (and possibly ORPort)
     try:
