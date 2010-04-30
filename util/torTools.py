@@ -8,6 +8,8 @@ import getpass
 
 from TorCtl import TorCtl
 
+INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
+
 def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
   """
   Opens a socket to the tor controller and queries its authentication type,
@@ -113,8 +115,8 @@ def getConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
   """
   Convenience method for quickly getting a TorCtl connection. This is very
   handy for debugging or CLI setup, handling setup and prompting for a password
-  if necessary. If any issues arise this prints a description of the problem
-  and returns None.
+  if necessary (if either none is provided as input or it fails). If any issues
+  arise this prints a description of the problem and returns None.
   
   Arguments:
     controlAddr - ip address belonging to the controller
@@ -139,6 +141,12 @@ def getConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     initCtlConn(conn, authType, authValue)
     return conn
   except Exception, exc:
-    print exc
-    return None
+    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
+      # provide a warining that the provided password didn't work, then try
+      # again prompting for the user to enter it
+      print INCORRECT_PASSWORD_MSG
+      return getConn(controlAddr, controlPort)
+    else:
+      print exc
+      return None
 
