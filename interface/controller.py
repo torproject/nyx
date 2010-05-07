@@ -7,7 +7,6 @@ Curses (terminal) interface for the arm relay status monitor.
 """
 
 import re
-import os
 import math
 import time
 import curses
@@ -23,7 +22,7 @@ import confPanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import log, connections, hostnames, panel, uiTools
+from util import log, connections, hostnames, panel, sysTools, uiTools
 import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
@@ -324,52 +323,45 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   # gets pid of tor instance with control port open
   torPid = None       # None if couldn't be resolved (provides error later)
   
-  pidOfCall = os.popen("pidof tor 2> /dev/null")
   try:
     # gets pid if there's only one possability
-    results = pidOfCall.readlines()
+    results = sysTools.call("pidof tor")
     if len(results) == 1 and len(results[0].split()) == 1: torPid = results[0].strip()
   except IOError: pass # pid call failed
-  pidOfCall.close()
   
   if not torPid:
     try:
       # uses netstat to identify process with open control port (might not
       # work if tor's being run as a different user due to permissions)
-      netstatCall = os.popen("netstat -npl 2> /dev/null | grep 127.0.0.1:%s 2> /dev/null" % conn.get_option("ControlPort")[0][1])
-      results = netstatCall.readlines()
+      results = sysTools.call("netstat -npl | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
       
       if len(results) == 1:
         results = results[0].split()[6] # process field (ex. "7184/tor")
         torPid = results[:results.find("/")]
     except (IOError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass # netstat or control port calls failed
-    netstatCall.close()
   
   if not torPid:
     try:
       # third try, use ps if there's only one possability
-      psCall = os.popen("ps -o pid -C tor 2> /dev/null")
-      results = psCall.readlines()
+      results = sysTools.call("ps -o pid -C tor")
       if len(results) == 2 and len(results[0].split()) == 1: torPid = results[1].strip()
     except IOError: pass # ps call failed
-    psCall.close()
   
   try:
     confLocation = conn.get_info("config-file")["config-file"]
     if confLocation[0] != "/":
       # relative path - attempt to add process pwd
       try:
-        pwdxCall = os.popen("pwdx %s 2> /dev/null" % torPid)
-        results = pwdxCall.readlines()
+        results = sysTools.call("pwdx %s" % torPid)
         if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
       except IOError: pass # pwdx call failed
-      pwdxCall.close()
   except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
     confLocation = ""
   
   # minor refinements for connection resolver
-  resolver = connections.getResolver("tor")
-  if torPid: resolver.processPid = torPid # helps narrow connection results
+  if not isBlindMode:
+    resolver = connections.getResolver("tor")
+    if torPid: resolver.processPid = torPid # helps narrow connection results
   
   # hack to display a better (arm specific) notice if all resolvers fail
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"

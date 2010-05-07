@@ -16,7 +16,7 @@ COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
 # mappings for getColor() - this uses the default terminal color scheme if
 # color support is unavailable
 COLOR_ATTR_INITIALIZED = False
-COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST.keys()])
+COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 
 # value tuples for label conversions (bytes / seconds, short label, long label)
 SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
@@ -165,7 +165,7 @@ def _initColors():
     if hasColorSupport:
       colorpair = 0
       
-      for colorName in COLOR_LIST.keys():
+      for colorName in COLOR_LIST:
         fgColor = COLOR_LIST[colorName]
         bgColor = -1 # allows for default (possibly transparent) background
         colorpair += 1

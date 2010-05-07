@@ -25,13 +25,14 @@ leaking the requested addresses to third parties.
 #     - When adding/removing from the cache (prevents workers from updating
 #       an outdated cache reference).
 
-import os
 import time
 import socket
 import threading
 import itertools
 import Queue
 import distutils.sysconfig
+
+import sysTools
 
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
@@ -157,7 +158,7 @@ def resolve(ipAddr, timeout = 0, suppressIOExc = True):
     # get cache entry, raising if an exception and returning if a hostname
     cacheRef = resolverRef.resolvedCache
     
-    if ipAddr in cacheRef.keys():
+    if ipAddr in cacheRef:
       entry = cacheRef[ipAddr][0]
       if suppressIOExc and type(entry) == IOError: return None
       elif isinstance(entry, Exception): raise entry
@@ -167,7 +168,7 @@ def resolve(ipAddr, timeout = 0, suppressIOExc = True):
     # if resolver has cached an IOError then flush the entry (this defaults to
     # suppression since these error may be transient)
     cacheRef = resolverRef.resolvedCache
-    flush = ipAddr in cacheRef.keys() and type(cacheRef[ipAddr]) == IOError
+    flush = ipAddr in cacheRef and type(cacheRef[ipAddr]) == IOError
     
     try: return resolverRef.getHostname(ipAddr, timeout, flush)
     except IOError: return None
@@ -220,12 +221,7 @@ def _resolveViaHost(ipAddr):
     ipAddr - ip address to be resolved
   """
   
-  hostCall = os.popen("host %s 2> /dev/null" % ipAddr)
-  hostname = hostCall.read()
-  hostCall.close()
-  
-  if hostname: hostname = hostname.split()[-1:][0]
-  else: raise IOError("lookup failed - is the host command available?")
+  hostname = sysTools.call("host %s" % ipAddr)[0].split()[-1:][0]
   
   if hostname == "reached":
     # got message: ";; connection timed out; no servers could be reached"
@@ -291,7 +287,7 @@ class _Resolver():
     # during this call)
     cacheRef = self.resolvedCache
     
-    if not flushCache and ipAddr in cacheRef.keys():
+    if not flushCache and ipAddr in cacheRef:
       # cached response is available - raise if an error, return if a hostname
       response = cacheRef[ipAddr][0]
       if isinstance(response, Exception): raise response
@@ -307,7 +303,7 @@ class _Resolver():
       startTime = time.time()
       
       while timeout == None or time.time() - startTime < timeout:
-        if ipAddr in cacheRef.keys():
+        if ipAddr in cacheRef:
           # address was resolved - raise if an error, return if a hostname
           response = cacheRef[ipAddr][0]
           if isinstance(response, Exception): raise response

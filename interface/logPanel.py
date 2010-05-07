@@ -2,13 +2,12 @@
 # logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import os
 import time
 import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
-from util import log, panel, uiTools
+from util import log, panel, sysTools, uiTools
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
 
@@ -111,7 +110,6 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     # attempts to process events from log file
     if PRE_POPULATE_LOG:
       previousPauseState = self.isPaused
-      tailCall = None
       
       try:
         logFileLoc = None
@@ -129,11 +127,11 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
           
           # trims log to last entries to deal with logs when they're in the GB or TB range
           # throws IOError if tail fails (falls to the catch-all later)
+          # TODO: now that this is using sysTools figure out if we can do away with the catch-all...
           limit = PRE_POPULATE_MIN_LIMIT if ("DEBUG" in self.loggedEvents or "INFO" in self.loggedEvents) else PRE_POPULATE_MAX_LIMIT
-          tailCall = os.popen("tail -n %i %s 2> /dev/null" % (limit, logFileLoc))
           
           # truncates to entries for this tor instance
-          lines = tailCall.readlines()
+          lines = sysTools.call("tail -n %i %s" % (limit, logFileLoc))
           instanceStart = 0
           for i in range(len(lines) - 1, -1, -1):
             if "opening log file" in lines[i]:
@@ -152,7 +150,6 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
       finally:
         self.setPaused(previousPauseState)
         self.eventTimeOverwrite = None
-        if tailCall: tailCall.close()
   
   def handleKey(self, key):
     # scroll movement

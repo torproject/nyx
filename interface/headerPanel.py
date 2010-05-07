@@ -7,7 +7,7 @@ import time
 import socket
 from TorCtl import TorCtl
 
-from util import panel, uiTools
+from util import panel, sysTools, uiTools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -247,18 +247,18 @@ class HeaderPanel(panel.Panel):
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
     
     psParams = ["%cpu", "rss", "%mem", "etime"]
+    sampling = []
     if self.vals["pid"]:
       # ps call provides header followed by params for tor
-      psCall = os.popen('ps -p %s -o %s  2> /dev/null' % (self.vals["pid"], ",".join(psParams)))
-      
-      try: sampling = psCall.read().strip().split()[len(psParams):]
-      except IOError: sampling = [] # ps call failed
-      psCall.close()
-    else:
-      sampling = [] # no pid known - blank fields
+      # this caches the results for five seconds and suppress any exceptions
+      # results are expected to look something like:
+      # %CPU   RSS %MEM     ELAPSED
+      # 0.3 14096  1.3       29:51
+      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["pid"], ",".join(psParams)), 5, True)
+      if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
     
-    if len(sampling) < 4:
-      # either ps failed or returned no tor instance, blank information except runtime
+    if len(sampling) < len(psParams):
+      # pid is unknown, ps call failed, or returned no tor instance - blank information except runtime
       if "etime" in self.vals: sampling = [""] * (len(psParams) - 1) + [self.vals["etime"]]
       else: sampling = [""] * len(psParams)
       

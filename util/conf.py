@@ -29,7 +29,7 @@ def getConfig(handle):
     handle - unique identifier used to access this config instance
   """
   
-  if not handle in CONFS.keys(): CONFS[handle] = Config()
+  if not handle in CONFS: CONFS[handle] = Config()
   return CONFS[handle]
 
 class Config():
@@ -64,7 +64,7 @@ class Config():
     """
     
     self.contentsLock.acquire()
-    if key in self.contents.keys(): val = self.contents[key]
+    if key in self.contents: val = self.contents[key]
     else: val = default
     self.contentsLock.release()
     

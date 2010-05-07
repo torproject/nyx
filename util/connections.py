@@ -11,12 +11,12 @@ lacks support for the needed netstat flags, and has a completely different
 program for 'ss', so this is quite likely to fail there.
 """
 
-import os
 import sys
 import time
 import threading
 
 import log
+import sysTools
 
 # enums for connection resolution utilities
 CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)
@@ -29,18 +29,18 @@ CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
 # tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
 # *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
 #   equivilant -p doesn't exist so this can't function)
-RUN_NETSTAT = "netstat -npt 2> /dev/null | grep %s/%s 2> /dev/null"
+RUN_NETSTAT = "netstat -npt | grep %s/%s"
 
 # n = numeric ports, p = include process
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
 # *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -np 2> /dev/null | grep \"\\\"%s\\\",%s\" 2> /dev/null"
+RUN_SS = "ss -np | grep \"\\\"%s\\\",%s\""
 
 # n = prevent dns lookups, P = show port numbers (not names), i = ip only
 # output:
 # tor  9912  atagar  20u  IPv4  33453  TCP 127.0.0.1:9051->127.0.0.1:53308
-RUN_LSOF = "lsof -nPi 2> /dev/null | grep \"%s\s*%s.*(ESTABLISHED)\" 2> /dev/null"
+RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_MIN_DEFAULT_LOOKUP = 5     # minimum seconds between lookups (unless overwritten)
@@ -48,9 +48,6 @@ RESOLVER_SLEEP_INTERVAL = 1         # period to sleep when not resolving
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
-
-# mapping of commands to if they're available or not
-CMD_AVAILABLE_CACHE = {}
 
 def getConnections(resolutionCmd, processName, processPid = ""):
   """
@@ -69,19 +66,14 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     processPid    - process ID (this helps improve accuracy)
   """
   
-  # first check if the command's available to avoid sending error to stdout
-  if not _isAvailable(CMD_STR[resolutionCmd]):
-    raise IOError("'%s' is unavailable" % CMD_STR[resolutionCmd])
-  
   if resolutionCmd == CMD_NETSTAT: cmd = RUN_NETSTAT % (processPid, processName)
   elif resolutionCmd == CMD_SS: cmd = RUN_SS % (processName, processPid)
   else: cmd = RUN_LSOF % (processName, processPid)
   
-  resolutionCall = os.popen(cmd)
-  results = resolutionCall.readlines()
-  resolutionCall.close()
+  # raises an IOError if the command fails or isn't available
+  results = sysTools.call(cmd)
   
-  if not results: raise IOError("Unable to resolve connections using: %s" % cmd)
+  if not results: raise IOError("No results found using: %s" % cmd)
   
   # parses results for the resolution command
   conn = []
@@ -138,31 +130,6 @@ def getResolver(processName, processPid = ""):
   r.start()
   RESOLVERS.append(r)
   return r
-
-def _isAvailable(command, cached=True):
-  """
-  Checks the current PATH to see if a command is available or not. This returns
-  True if an accessible executable by the name is found and False otherwise.
-  
-  Arguments:
-    command - name of the command for which to search
-    cached  - this makes use of available cached results if true, otherwise
-              they're overwritten
-  """
-  
-  if cached and command in CMD_AVAILABLE_CACHE.keys():
-    return CMD_AVAILABLE_CACHE[command]
-  else:
-    cmdExists = False
-    for path in os.environ["PATH"].split(os.pathsep):
-      cmdPath = os.path.join(path, command)
-      
-      if os.path.exists(cmdPath) and os.access(cmdPath, os.X_OK):
-        cmdExists = True
-        break
-    
-    CMD_AVAILABLE_CACHE[command] = cmdExists
-    return cmdExists
 
 if __name__ == '__main__':
   # quick method for testing connection resolution
@@ -263,8 +230,8 @@ class ConnectionResolver(threading.Thread):
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
     for resolver in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
-      if _isAvailable(CMD_STR[resolver]):
-        self.defaultResolve = resolver
+      if sysTools.isAvailable(CMD_STR[resolver]):
+        self.defaultResolver = resolver
         break
     
     self._connections = []        # connection cache (latest results)
@@ -294,13 +261,16 @@ class ConnectionResolver(threading.Thread):
         connResults = getConnections(resolver, self.processName, self.processPid)
         lookupTime = time.time() - resolveStart
         
-        log.log(log.DEBUG, "%s queried in %.4f seconds (%i results)" % (CMD_STR[resolver], lookupTime, len(connResults)))
-        
         self._connections = connResults
         self.defaultRate = max(5, 10 % lookupTime)
         if isDefault: self._subsiquentFailures = 0
       except IOError, exc:
-        log.log(log.INFO, str(exc)) # notice that a single resolution has failed
+        # this logs in a couple of cases:
+        # - special failures noted by getConnections (most cases are already
+        # logged via sysTools)
+        # - note failovers for default resolution methods
+        if str(exc).startswith("No results found using:"):
+          log.log(log.INFO, str(exc))
         
         if isDefault:
           self._subsiquentFailures += 1

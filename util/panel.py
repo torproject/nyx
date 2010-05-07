@@ -17,7 +17,7 @@ def _noOp(arg): return arg
 FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<u>": (_noOp, curses.A_UNDERLINE),
                "<h>": (_noOp, curses.A_STANDOUT)}
-for colorLabel in uiTools.COLOR_LIST.keys(): FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
+for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
 
 class Panel():
   """

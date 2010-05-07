@@ -2,11 +2,10 @@
 # cpuMemMonitor.py -- Tracks cpu and memory usage of Tor.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import os
 import time
 from TorCtl import TorCtl
 
-from util import uiTools
+from util import sysTools, uiTools
 import graphPanel
 
 class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
@@ -24,25 +23,29 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   def bandwidth_event(self, event):
     # doesn't use events but this keeps it in sync with the bandwidth panel
     # (and so it stops if Tor stops
-    if self.headerPanel.lastUpdate + 1 >= time.time():
+    # TODO: ok, screw it - the number of ps calls this makes is ridicuous
+    # compared to how frequently it changes - now caching for five seconds
+    # (note this during the rewrite that its fidelity isn't at the second
+    # level)
+    if self.headerPanel.lastUpdate + 5 >= time.time():
       # reuses ps results if recent enough
       self._processEvent(float(self.headerPanel.vals["%cpu"]), float(self.headerPanel.vals["rss"]) / 1024.0)
     else:
       # cached results stale - requery ps
-      psCall = os.popen('ps -p %s -o %s 2> /dev/null' % (self.headerPanel.vals["pid"], "%cpu,rss"))
-      try:
-        sampling = psCall.read().strip().split()[2:]
-        psCall.close()
-        
-        if len(sampling) < 2:
-          # either ps failed or returned no tor instance, register error
-          raise IOError()
-        else:
-          self._processEvent(float(sampling[0]), float(sampling[1]) / 1024.0)
-      except IOError:
-        # ps call failed - we need to register something (otherwise timescale
-        # would be thrown off) so keep old results
+      sampling = []
+      psCall = None
+      if self.headerPanel.vals["pid"]:
+        psCall = sysTools.call("ps -p %s -o %s" % (self.headerPanel.vals["pid"], "%cpu,rss"), 5, True)
+      if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
+      
+      if len(sampling) < 2:
+        # either ps failed or returned no tor instance, register error
+        # ps call failed (returned no tor instance or registered an  error) -
+        # we need to register something (otherwise timescale would be thrown
+        # off) so keep old results
         self._processEvent(self.lastPrimary, self.lastSecondary)
+      else:
+        self._processEvent(float(sampling[0]), float(sampling[1]) / 1024.0)
   
   def getTitle(self, width):
     return "System Resources:"

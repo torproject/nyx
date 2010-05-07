@@ -5,7 +5,7 @@
 import os
 import curses
 
-from util import panel, uiTools
+from util import panel, sysTools, uiTools
 
 class PopupProperties:
   """
@@ -27,13 +27,10 @@ class PopupProperties:
       
       # retrieves list of open files, options are:
       # n = no dns lookups, p = by pid, -F = show fields (L = login name, n = opened files)
-      lsofCall = os.popen3("lsof -np %s -F Ln 2> /dev/null" % torPid)
-      results = lsofCall[1].readlines()
-      errResults = lsofCall[2].readlines()
+      # TODO: better rewrite to take advantage of sysTools
       
-      # checks if lsof was unavailable
-      if "not found" in "".join(errResults):
-        raise Exception("error: lsof is unavailable")
+      if not sysTools.isAvailable("lsof"): raise Exception("error: lsof is unavailable")
+      results = sysTools.call("lsof -np %s -F Ln" % torPid)
       
       # if we didn't get any results then tor's probably closed (keep defaults)
       if len(results) == 0: return
@@ -77,13 +74,17 @@ class PopupProperties:
         results = ulimitCall.readlines()
         if len(results) == 0: raise Exception("error: ulimit is unavailable")
         self.fdLimit = int(results[0])
+        
+        # can't use sysTools for this call because ulimit isn't in the path...
+        # so how the **** am I to detect if it's available!
+        #if not sysTools.isAvailable("ulimit"): raise Exception("error: ulimit is unavailable")
+        #results = sysTools.call("ulimit -Hn")
+        #if len(results) == 0: raise Exception("error: ulimit call failed")
+        #self.fdLimit = int(results[0])
     except Exception, exc:
       # problem arose in calling or parsing lsof or ulimit calls
       self.errorMsg = str(exc)
     finally:
-      lsofCall[0].close()
-      lsofCall[1].close()
-      lsofCall[2].close()
       if ulimitCall: ulimitCall.close()
   
   def handleKey(self, key, height):
