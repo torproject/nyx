@@ -104,7 +104,7 @@ def isResolverAlive(processName, processPid = ""):
   """
   
   for resolver in RESOLVERS:
-    if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
+    if not resolver._halt and resolver.processName == processName and (not processPid or resolver.processPid == processPid):
       return True
   
   return False
@@ -121,14 +121,20 @@ def getResolver(processName, processPid = ""):
   """
   
   # check if one's already been created
-  for resolver in RESOLVERS:
+  haltedIndex = -1 # old instance of this resolver with the _halt flag set
+  for i in range(len(RESOLVERS)):
+    resolver = RESOLVERS[i]
     if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
-      return resolver
+      if resolver._halt: haltedIndex = i
+      else: return resolver
   
   # make a new resolver
   r = ConnectionResolver(processName, processPid)
   r.start()
-  RESOLVERS.append(r)
+  
+  # overwrites halted instance of this resolver if it exists, otherwise append
+  if haltedIndex == -1: RESOLVERS.append(r)
+  else: RESOLVERS[haltedIndex] = r
   return r
 
 if __name__ == '__main__':
@@ -326,7 +332,4 @@ class ConnectionResolver(threading.Thread):
     """
     
     self._halt = True
-    
-    # removes this from consideration among active singleton instances
-    if self in RESOLVERS: RESOLVERS.remove(self)
 

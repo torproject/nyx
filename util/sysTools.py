@@ -112,11 +112,11 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
         log.log(log.DEBUG, "system call (cached): %s (age: %0.1f seconds)" % (command, cacheAge))
         return cachedResults
   
-  # preprocessing for the commands to prevent anything going to stdout
   startTime = time.time()
   commandComp = command.split("|")
   commandCall, results, errorExc = None, None, None
   
+  # preprocessing for the commands to prevent anything going to stdout
   for i in range(len(commandComp)):
     subcommand = commandComp[i].strip()
     
