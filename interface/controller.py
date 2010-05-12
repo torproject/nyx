@@ -22,7 +22,7 @@ import confPanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import log, connections, hostnames, panel, sysTools, uiTools
+from util import log, connections, hostnames, panel, sysTools, torTools, uiTools
 import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
@@ -320,32 +320,11 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   try: curses.curs_set(0)
   except curses.error: pass
   
-  # gets pid of tor instance with control port open
-  torPid = None       # None if couldn't be resolved (provides error later)
-  
-  try:
-    # gets pid if there's only one possability
-    results = sysTools.call("pidof tor")
-    if len(results) == 1 and len(results[0].split()) == 1: torPid = results[0].strip()
-  except IOError: pass # pid call failed
-  
-  if not torPid:
-    try:
-      # uses netstat to identify process with open control port (might not
-      # work if tor's being run as a different user due to permissions)
-      results = sysTools.call("netstat -npl | grep 127.0.0.1:%s" % conn.get_option("ControlPort")[0][1])
-      
-      if len(results) == 1:
-        results = results[0].split()[6] # process field (ex. "7184/tor")
-        torPid = results[:results.find("/")]
-    except (IOError, socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass # netstat or control port calls failed
-  
-  if not torPid:
-    try:
-      # third try, use ps if there's only one possability
-      results = sysTools.call("ps -o pid -C tor")
-      if len(results) == 2 and len(results[0].split()) == 1: torPid = results[1].strip()
-    except IOError: pass # ps call failed
+  # attempts to determine tor's current pid (left as None if unresolveable, logging an error later)
+  controlPort = None
+  try: controlPort = int(conn.get_option("ControlPort")[0][1])
+  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+  torPid = torTools.getPid(controlPort)
   
   try:
     confLocation = conn.get_info("config-file")["config-file"]

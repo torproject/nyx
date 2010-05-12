@@ -136,7 +136,7 @@ if __name__ == '__main__':
   TorCtl.TorUtil.loglevel = "NONE"
   
   # sets up TorCtl connection, prompting for the passphrase if necessary and
-  # printing a notice if they arise
+  # sending problems to stdout if they arise
   util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get(AUTH_CFG, None)
   conn = util.torTools.getConn(controlAddr, controlPort, authPassword)

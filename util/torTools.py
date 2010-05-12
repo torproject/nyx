@@ -8,6 +8,8 @@ import getpass
 
 from TorCtl import TorCtl
 
+import sysTools
+
 INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
 
 def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
@@ -149,4 +151,54 @@ def getConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     else:
       print exc
       return None
+
+def getPid(controlPort=9051):
+  """
+  Attempts to determine the process id for a running tor process, using the
+  following:
+  1. "pidof tor"
+  2. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
+  3. "ps -o pid -C tor"
+  
+  If pidof or ps promide multiple tor instances then their results are discared
+  (since only netstat differentiates using the control port). This provdes None
+  if either no running process exists or it can't be determined.
+  
+  Arguments:
+    controlPort - control port of the tor process if multiple exist
+  """
+  
+  # attempts to resolve using pidof, failing if:
+  # - tor's running under a different name
+  # - there's multiple instances of tor
+  try:
+    results = sysTools.call("pidof tor")
+    if len(results) == 1 and len(results[0].split()) == 1:
+      pid = results[0].strip()
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  # attempts to resolve using netstat (identifying process via the open control
+  # port), failing if:
+  # - tor's being run as a different user due to permissions
+  try:
+    results = sysTools.call("netstat -npl | grep 127.0.0.1:%i" % controlPort)
+    
+    if len(results) == 1:
+      results = results[0].split()[6] # process field (ex. "7184/tor")
+      pid = results[:results.find("/")]
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  # attempts to resolve using ps, failing if:
+  # - tor's running under a different name
+  # - there's multiple instances of tor
+  try:
+    results = sysTools.call("ps -o pid -C tor")
+    if len(results) == 2:
+      pid = results[1].strip()
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  return None
 
