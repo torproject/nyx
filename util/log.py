@@ -69,7 +69,7 @@ def log(level, msg, eventTime = None):
 
 def addListener(level, callback):
   """
-  Directs future events to the given fallback function. The runlevels passed on
+  Directs future events to the given callback function. The runlevels passed on
   to listeners are provided as the corresponding strings ("DEBUG", "INFO",
   "NOTICE", etc), and times in POSIX (unix) time.
   

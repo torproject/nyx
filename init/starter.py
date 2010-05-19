@@ -139,9 +139,12 @@ if __name__ == '__main__':
   # sending problems to stdout if they arise
   util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get(AUTH_CFG, None)
-  conn = util.torTools.getConn(controlAddr, controlPort, authPassword)
+  conn = util.torTools.makeConn(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
-  interface.controller.startTorMonitor(conn, expandedEvents, isBlindMode)
+  controller = util.torTools.getConn()
+  controller.init(conn)
+  
+  interface.controller.startTorMonitor(expandedEvents, isBlindMode)
   conn.close()
 

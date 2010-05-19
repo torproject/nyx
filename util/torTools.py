@@ -1,15 +1,42 @@
 """
 Helper for working with an active tor process. This both provides a wrapper for
-accessing TorCtl and notifications of state changes to subscribers.
+accessing TorCtl and notifications of state changes to subscribers. To quickly
+fetch a TorCtl instance to experiment with use the following:
+
+>>> import util.torTools
+>>> conn = util.torTools.makeConn()
+>>> conn.get_info("version")["version"]
+'0.2.1.24'
 """
 
 import socket
 import getpass
+import thread
+import threading
 
 from TorCtl import TorCtl
 
+import log
 import sysTools
 
+# enums for tor's controller state:
+# TOR_INIT - attached to a new controller
+# TOR_RESTART - restart or sighup signal received by tor (resetting internal state)
+# TOR_CLOSED - control port closed
+TOR_INIT, TOR_RESTART, TOR_CLOSED = range(1, 4)
+
+# Message logged by default when a controller event type can't be set (message
+# has the event type inserted into it). This skips logging entirely if None.
+DEFAULT_FAILED_EVENT_ENTRY = (log.WARN, "Unsupported event type: %s")
+
+# Skips attempting to set events we've failed to set before. This avoids
+# logging duplicate warnings but can be problematic if controllers belonging
+# to multiple versions of tor are attached, making this unreflective of the
+# controller's capabilites. However, this is a pretty bizarre edge case.
+DROP_FAILED_EVENTS = True
+FAILED_EVENTS = set()
+
+CONTROLLER = None # singleton Controller instance
 INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
 
 def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
@@ -110,10 +137,10 @@ def initCtlConn(conn, authType="NONE", authVal=None):
     elif str(exc).startswith("[Errno 2] No such file or directory"): issue = "file doesn't exist"
     
     # if problem's recognized give concise message, otherwise print exception string
-    if issue: raise IOError("Failed to read authentication cookie (%s): %s" % (issue, authCookiePath))
+    if issue: raise IOError("Failed to read authentication cookie (%s): %s" % (issue, authVal))
     else: raise IOError("Failed to read authentication cookie: %s" % exc)
 
-def getConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
+def makeConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
   """
   Convenience method for quickly getting a TorCtl connection. This is very
   handy for debugging or CLI setup, handling setup and prompting for a password
@@ -147,7 +174,7 @@ def getConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
       # provide a warining that the provided password didn't work, then try
       # again prompting for the user to enter it
       print INCORRECT_PASSWORD_MSG
-      return getConn(controlAddr, controlPort)
+      return makeConn(controlAddr, controlPort)
     else:
       print exc
       return None
@@ -161,8 +188,8 @@ def getPid(controlPort=9051):
   3. "ps -o pid -C tor"
   
   If pidof or ps promide multiple tor instances then their results are discared
-  (since only netstat differentiates using the control port). This provdes None
-  if either no running process exists or it can't be determined.
+  (since only netstat can differentiate using the control port). This provdes
+  None if either no running process exists or it can't be determined.
   
   Arguments:
     controlPort - control port of the tor process if multiple exist
@@ -178,8 +205,7 @@ def getPid(controlPort=9051):
       if pid.isdigit(): return pid
   except IOError: pass
   
-  # attempts to resolve using netstat (identifying process via the open control
-  # port), failing if:
+  # attempts to resolve using netstat, failing if:
   # - tor's being run as a different user due to permissions
   try:
     results = sysTools.call("netstat -npl | grep 127.0.0.1:%i" % controlPort)
@@ -201,4 +227,266 @@ def getPid(controlPort=9051):
   except IOError: pass
   
   return None
+
+def getConn():
+  """
+  Singleton constructor for a Controller. Be aware that this start
+  uninitialized, needing a TorCtl instance before it's fully functional.
+  """
+  
+  global CONTROLLER
+  if CONTROLLER == None: CONTROLLER = Controller()
+  return CONTROLLER
+
+# TODO: sighup notification (and replacement in controller!)
+class Controller:
+  """
+  TorCtl wrapper providing convenience functions, listener functionality for
+  tor's state, and the capability for controller connections to be restarted
+  if closed.
+  """
+  
+  def __init__(self):
+    self.conn = None                    # None if uninitialized or controller's been closed
+    self.connLock = threading.RLock()
+    self.listeners = []                 # callback functions for tor's state changes
+    self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
+  
+  def init(self, conn):
+    """
+    Uses the given TorCtl instance for future operations, notifying listeners
+    about the change.
+    
+    Arguments:
+      conn - TorCtl instance to be used
+    """
+    
+    if conn.is_live():
+      self.connLock.acquire()
+      self.conn = conn
+      self.connLock.release()
+      
+      # notifies listeners that a new controller is available
+      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+  
+  def close(self):
+    """
+    Closes the current TorCtl instance and notifies listeners.
+    """
+    
+    self.connLock.acquire()
+    if self.conn:
+      self.conn.close()
+      self.conn = None
+      self.connLock.release()
+      
+      # notifies listeners that the controller's been shut down
+      thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
+    else: self.connLock.release()
+  
+  def isAlive(self):
+    """
+    Returns True if this has been initialized with a working TorCtl instance,
+    False otherwise.
+    """
+    
+    self.connLock.acquire()
+    
+    result = False
+    if self.conn:
+      if self.conn.is_live(): result = True
+      else: self.close()
+    
+    self.connLock.release()
+    return result
+  
+  def getTorCtl(self):
+    """
+    Provides the current TorCtl connection. If unset or closed then this
+    returns None.
+    """
+    
+    self.connLock.acquire()
+    result = None
+    if self.isAlive(): result = self.conn
+    self.connLock.release()
+    
+    return result
+  
+  def getInfo(self, param, default = None, suppressExc = True):
+    """
+    Queries the control port for the given GETINFO option, providing the
+    default if the response fails for any reason (error response, control port
+    closed, ininitiated, etc).
+    
+    Arguments:
+      param       - GETINFO option to be queried
+      default     - result if the query fails and exception's suppressed
+      suppressExc - suppresses lookup errors (returning the default) if true,
+                    otherwises this raises the original exception
+    """
+    
+    self.connLock.acquire()
+    
+    result, raisedExc = default, None
+    if self.isAlive():
+      try:
+        result = self.conn.get_info(param)[param]
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+        if type(exc) == TorCtl.TorCtlClosed: self.close()
+        raisedExc = exc
+    
+    self.connLock.release()
+    
+    if not suppressExc and raisedExc: raise raisedExc
+    else: return result
+  
+  def getOption(self, param, default = None, multiple = False, suppressExc = True):
+    """
+    Queries the control port for the given configuration option, providing the
+    default if the response fails for any reason. If multiple values exist then
+    this arbitrarily returns the first unless the multiple flag is set.
+    
+    Arguments:
+      param       - configuration option to be queried
+      default     - result if the query fails and exception's suppressed
+      multiple    - provides a list of results if true, otherwise this just
+                    returns the first value
+      suppressExc - suppresses lookup errors (returning the default) if true,
+                    otherwises this raises the original exception
+    """
+    
+    self.connLock.acquire()
+    
+    result, raisedExc = default, None
+    if self.isAlive():
+      try:
+        if multiple: result = self.conn.get_option(param)
+        else: result = self.conn.get_option(param)[0][1]
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+        if type(exc) == TorCtl.TorCtlClosed: self.close()
+        raisedExc = exc
+    
+    self.connLock.release()
+    
+    if not suppressExc and raisedExc: raise raisedExc
+    else: return result
+  
+  def addStatusListener(self, callback):
+    """
+    Directs further events related to tor's controller status to the callback
+    function.
+    
+    Arguments:
+      callback - functor that'll accept the events, expected to be of the form:
+                 myFunction(controller, eventType)
+    """
+    
+    self.listeners.append(callback)
+  
+  def removeStatusListener(self, callback):
+    """
+    Stops listener from being notified of further events. This returns true if a
+    listener's removed, false otherwise.
+    
+    Arguments:
+      callback - functor to be removed
+    """
+    
+    if callback in self.listeners:
+      self.listeners.remove(callback)
+      return True
+    else: return False
+  
+  def setControllerEvents(self, eventsToMsg):
+    """
+    Sets the events being provided via any associated tor controller, logging
+    messages for event types that aren't supported (possibly due to version
+    issues). This remembers the successfully set events and tries to apply them
+    to any controllers attached later too (again logging and dropping
+    unsuccessful event types). This returns the listing of event types that
+    were successfully set. If no controller is available or events can't be set
+    then this is a no-op.
+    
+    Arguments:
+      eventsToMsg - mapping of event types to a tuple of the (runlevel, msg) it
+                    should log in case of failure (uses DEFAULT_FAILED_EVENT_ENTRY
+                    if mapped to None)
+    """
+    
+    self.connLock.acquire()
+    
+    returnVal = []
+    if self.isAlive():
+      unavailableEvents = set()
+      
+      # removes anything we've already failed to set
+      events = set(eventsToMsg.keys())
+      if DROP_FAILED_EVENTS:
+        unavailableEvents.update(events.intersection(FAILED_EVENTS))
+        events.difference_update(FAILED_EVENTS)
+      
+      # inital check for event availability
+      validEvents = self.getInfo("events/names")
+      
+      if validEvents:
+        validEvents = set(validEvents.split())
+        unavailableEvents.update(events.difference(validEvents))
+        events.intersection_update(validEvents)
+      
+      # attempt to set events
+      isEventsSet, isAbandoned = False, False
+      
+      while not isEventsSet and not isAbandoned:
+        try:
+          self.conn.set_events(list(events))
+          isEventsSet = True
+        except TorCtl.ErrorReply, exc:
+          msg = str(exc)
+          
+          if "Unrecognized event" in msg:
+            # figure out type of event we failed to listen for
+            start = msg.find("event \"") + 7
+            end = msg.rfind("\"")
+            failedType = msg[start:end]
+            
+            unavailableEvents.add(failedType)
+            events.discard(failedType)
+          else:
+            # unexpected error, abandon attempt
+            isAbandoned = True
+        except TorCtl.TorCtlClosed:
+          self.close()
+          isAbandoned = True
+      
+      FAILED_EVENTS.update(unavailableEvents)
+      if not isAbandoned:
+        # removes failed events and logs warnings
+        for eventType in unavailableEvents:
+          if eventsToMsg[eventType]:
+            lvl, msg = eventsToMsg[eventType]
+            log.log(lvl, msg)
+          elif DEFAULT_FAILED_EVENT_ENTRY:
+            lvl, msg = DEFAULT_FAILED_EVENT_ENTRY
+            log.log(lvl, msg % eventType)
+          
+          del eventsToMsg[eventType]
+        
+        self.controllerEvents = eventsToMsg
+        returnVal = eventsToMsg.keys()
+    
+    self.connLock.release()
+    return returnVal
+  
+  def _notifyStatusListeners(self, eventType):
+    """
+    Sends a notice to all current listeners that a given change in tor's
+    controller status has occured.
+    
+    Arguments:
+      eventType - enum representing tor's new status
+    """
+    
+    for callback in self.listeners:
+      callback(self, eventType)
 

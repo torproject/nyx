@@ -42,9 +42,6 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-# events needed for panels other than the event log
-REQ_EVENTS = ["BW", "NEWDESC", "NEWCONSENSUS", "CIRC"]
-
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
   
@@ -255,54 +252,43 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   
   return selection
 
-def setEventListening(loggedEvents, conn, isBlindMode):
-  """
-  Tries to set events being listened for, displaying error for any event
-  types that aren't supported (possibly due to version issues). This returns 
-  a list of event types that were successfully set.
-  """
-  eventsSet = False
-  
-  # adds events used for panels to function if not already included
-  connEvents = loggedEvents.union(set(REQ_EVENTS))
+def setEventListening(selectedEvents, isBlindMode):
+  # creates a local copy, note that a suspected python bug causes *very*
+  # puzzling results otherwise when trying to discard entries (silently
+  # returning out of this function!)
+  events = set(selectedEvents)
   
   # removes special types only used in arm (UNKNOWN, TORCTL, ARM_DEBUG, etc)
   toDiscard = []
-  for event in connEvents:
-    if event not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [event]
+  for eventType in events:
+    if eventType not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [eventType]
   
-  for event in toDiscard: connEvents.discard(event)
+  for eventType in list(toDiscard):
+    events.discard(eventType)
   
-  while not eventsSet:
-    try:
-      conn.set_events(connEvents)
-      eventsSet = True
-    except TorCtl.ErrorReply, exc:
-      msg = str(exc)
-      if "Unrecognized event" in msg:
-        # figure out type of event we failed to listen for
-        start = msg.find("event \"") + 7
-        end = msg.rfind("\"")
-        eventType = msg[start:end]
-        
-        # removes and notes problem
-        connEvents.discard(eventType)
-        if eventType in loggedEvents: loggedEvents.remove(eventType)
-        
-        if eventType in REQ_EVENTS:
-          if eventType == "BW": msg = "(bandwidth graph won't function)"
-          elif eventType in ("NEWDESC", "NEWCONSENSUS") and not isBlindMode: msg = "(connections listing can't register consensus changes)"
-          else: msg = ""
-          log.log(log.ERR, "Unsupported event type: %s %s" % (eventType, msg))
-        else: log.log(log.WARN, "Unsupported event type: %s" % eventType)
-    except TorCtl.TorCtlClosed:
-      return []
+  # makes a mapping instead
+  events = dict([(eventType, None) for eventType in events])
   
-  loggedEvents = list(loggedEvents)
-  loggedEvents.sort() # alphabetizes
-  return loggedEvents
+  # add mandatory events (those needed for arm functionaity)
+  reqEvents = {"BW": "(bandwidth graph won't function)"}
+  
+  if not isBlindMode:
+    reqEvents["NEWDESC"] = "(connections listing can't register consensus changes)"
+    reqEvents["NEWCONSENSUS"] = "(connections listing can't register consensus changes)"
+    reqEvents["CIRC"] = "(may cause issues in identifying client connections)"
+  
+  for eventType, msg in reqEvents.items():
+    events[eventType] = (log.ERR, "Unsupported event type: %s %s" % (eventType, msg))
+  
+  setEvents = torTools.getConn().setControllerEvents(events)
+  
+  # temporary hack for providing user selected events minus those that failed
+  # (wouldn't be a problem if I wasn't storing tor and non-tor events together...)
+  returnVal = list(selectedEvents.difference(torTools.FAILED_EVENTS))
+  returnVal.sort() # alphabetizes
+  return returnVal
 
-def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
+def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   """
   Starts arm interface reflecting information on provided control port.
   
@@ -311,6 +297,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   loggedEvents - types of events to be logged (plus an optional "UNKNOWN" for
     otherwise unrecognized events)
   """
+  
+  # TODO: incrementally drop this requirement until everything's using the singleton
+  conn = torTools.getConn().getTorCtl()
   
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
   try: curses.use_default_colors()      # allows things like semi-transparent backgrounds (call can fail with ERR)
@@ -381,7 +370,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
   conn.add_event_listener(sighupTracker)
   
   # tells Tor to listen to the events we're interested
-  loggedEvents = setEventListening(loggedEvents, conn, isBlindMode)
+  loggedEvents = setEventListening(loggedEvents, isBlindMode)
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
   # directs logged TorCtl events to log panel
@@ -746,7 +735,7 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
         if eventsInput != "":
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
-            loggedEvents = setEventListening(expandedEvents, conn, isBlindMode)
+            loggedEvents = setEventListening(expandedEvents, isBlindMode)
             panels["log"].loggedEvents = loggedEvents
           except ValueError, exc:
             panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
@@ -1268,9 +1257,9 @@ def drawTorMonitor(stdscr, conn, loggedEvents, isBlindMode):
     elif page == 2:
       panels["torrc"].handleKey(key)
 
-def startTorMonitor(conn, loggedEvents, isBlindMode):
+def startTorMonitor(loggedEvents, isBlindMode):
   try:
-    curses.wrapper(drawTorMonitor, conn, loggedEvents, isBlindMode)
+    curses.wrapper(drawTorMonitor, loggedEvents, isBlindMode)
   except KeyboardInterrupt:
     pass # skip printing stack trace in case of keyboard interrupt
 
