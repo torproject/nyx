@@ -9,6 +9,8 @@ fetch a TorCtl instance to experiment with use the following:
 '0.2.1.24'
 """
 
+import os
+import time
 import socket
 import getpass
 import thread
@@ -21,14 +23,15 @@ import sysTools
 
 # enums for tor's controller state:
 # TOR_INIT - attached to a new controller
-# TOR_RESTART - restart or sighup signal received by tor (resetting internal state)
+# TOR_RESET - restart or sighup signal received by tor (resetting internal state)
 # TOR_CLOSED - control port closed
-TOR_INIT, TOR_RESTART, TOR_CLOSED = range(1, 4)
+TOR_INIT, TOR_RESET, TOR_CLOSED = range(1, 4)
 
 # Message logged by default when a controller event type can't be set (message
 # has the event type inserted into it). This skips logging entirely if None.
 DEFAULT_FAILED_EVENT_ENTRY = (log.WARN, "Unsupported event type: %s")
 
+# TODO: check version when reattaching to controller and if version changes, flush?
 # Skips attempting to set events we've failed to set before. This avoids
 # logging duplicate warnings but can be problematic if controllers belonging
 # to multiple versions of tor are attached, making this unreflective of the
@@ -239,7 +242,7 @@ def getConn():
   return CONTROLLER
 
 # TODO: sighup notification (and replacement in controller!)
-class Controller:
+class Controller (TorCtl.PostEventListener):
   """
   TorCtl wrapper providing convenience functions, listener functionality for
   tor's state, and the capability for controller connections to be restarted
@@ -247,10 +250,16 @@ class Controller:
   """
   
   def __init__(self):
+    TorCtl.PostEventListener.__init__(self)
     self.conn = None                    # None if uninitialized or controller's been closed
     self.connLock = threading.RLock()
     self.listeners = []                 # callback functions for tor's state changes
     self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
+    self._isReset = False               # internal flag for tracking resets
+    
+    # cached information static for a connection (None if unset, "UNKNOWN" if
+    # unable to be determined)
+    self.pid = None
   
   def init(self, conn):
     """
@@ -261,9 +270,17 @@ class Controller:
       conn - TorCtl instance to be used
     """
     
-    if conn.is_live():
+    if conn.is_live() and conn != self.conn:
+      if self.conn: self.close() # shut down current connection
+      
       self.connLock.acquire()
       self.conn = conn
+      self.conn.add_event_listener(self)
+      
+      # sets the events listened for by the new controller (incompatable events
+      # are dropped with a logged warning)
+      self.setControllerEvents(self.controllerEvents)
+      
       self.connLock.release()
       
       # notifies listeners that a new controller is available
@@ -278,6 +295,7 @@ class Controller:
     if self.conn:
       self.conn.close()
       self.conn = None
+      self.pid = None
       self.connLock.release()
       
       # notifies listeners that the controller's been shut down
@@ -372,6 +390,25 @@ class Controller:
     if not suppressExc and raisedExc: raise raisedExc
     else: return result
   
+  def getPid(self):
+    """
+    Provides the pid of the attached tor process (None if no controller exists
+    or this can't be determined).
+    """
+    
+    self.connLock.acquire()
+    
+    if self.pid == "UNKNOWN" or not self.isAlive(): result = None
+    elif self.pid: result = self.pid
+    else:
+      result = getPid(int(self.getOption("ControlPort", 9051)))
+      if result: self.pid = result
+      else: self.pid = "UNKNOWN"
+    
+    self.connLock.release()
+    
+    return result
+  
   def addStatusListener(self, callback):
     """
     Directs further events related to tor's controller status to the callback
@@ -418,10 +455,10 @@ class Controller:
     
     returnVal = []
     if self.isAlive():
+      events = set(eventsToMsg.keys())
       unavailableEvents = set()
       
       # removes anything we've already failed to set
-      events = set(eventsToMsg.keys())
       if DROP_FAILED_EVENTS:
         unavailableEvents.update(events.intersection(FAILED_EVENTS))
         events.difference_update(FAILED_EVENTS)
@@ -477,6 +514,89 @@ class Controller:
     
     self.connLock.release()
     return returnVal
+  
+  def reload(self, issueSighup = False):
+    """
+    This resets tor (sending a RELOAD signal to the control port) causing tor's
+    internal state to be reset and the torrc reloaded. This can either be done
+    by...
+      - the controller via a RELOAD signal (default and suggested)
+          conn.send_signal("RELOAD")
+      - system reload signal (hup)
+          pkill -sighup tor
+    
+    The later isn't really useful unless there's some reason the RELOAD signal
+    won't do the trick. Both methods raise an IOError in case of failure.
+    
+    Arguments:
+      issueSighup - issues a sighup rather than a controller RELOAD signal
+    """
+    
+    self.connLock.acquire()
+    
+    raisedException = None
+    if self.isAlive():
+      if not issueSighup:
+        try:
+          self.conn.send_signal("RELOAD")
+        except Exception, exc:
+          # new torrc parameters caused an error (tor's likely shut down)
+          # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
+          # http://bugs.noreply.org/flyspray/index.php?do=details&id=1329
+          raisedException = IOError(str(exc))
+      else:
+        try:
+          # Redirects stderr to stdout so we can check error status (output
+          # should be empty if successful). Example error:
+          # pkill: 5592 - Operation not permitted
+          #
+          # note that this may provide multiple errors, even if successful,
+          # hence this:
+          #   - only provide an error if Tor fails to log a sighup
+          #   - provide the error message associated with the tor pid (others
+          #     would be a red herring)
+          if not sysTools.isAvailable("pkill"):
+            raise IOError("pkill command is unavailable")
+          
+          self._isReset = False
+          pkillCall = os.popen("pkill -sighup ^tor$ 2> /dev/stdout")
+          pkillOutput = pkillCall.readlines()
+          pkillCall.close()
+          
+          # Give the sighupTracker a moment to detect the sighup signal. This
+          # is, of course, a possible concurrency bug. However I'm not sure
+          # of a better method for blocking on this...
+          waitStart = time.time()
+          while time.time() - waitStart < 1:
+            time.sleep(0.1)
+            if self._isReset: break
+          
+          if not self._isReset:
+            errorLine, torPid = "", self.getPid()
+            if torPid:
+              for line in pkillOutput:
+                if line.startswith("pkill: %s - " % torPid):
+                  errorLine = line
+                  break
+            
+            if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
+            else: raise IOError("failed silently")
+        except IOError, exc:
+          raisedException = exc
+    
+    self.connLock.release()
+    
+    if raisedException: raise raisedException
+  
+  def msg_event(self, event):
+    """
+    Listens for reload signal (hup), which is either produced by:
+    causing the torrc and internal state to be reset.
+    """
+    
+    if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
+      self._isReset = True
+      thread.start_new_thread(self._notifyStatusListeners, (TOR_RESET,))
   
   def _notifyStatusListeners(self, eventType):
     """

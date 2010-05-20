@@ -310,10 +310,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   except curses.error: pass
   
   # attempts to determine tor's current pid (left as None if unresolveable, logging an error later)
-  controlPort = None
-  try: controlPort = int(conn.get_option("ControlPort")[0][1])
-  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
-  torPid = torTools.getPid(controlPort)
+  torPid = torTools.getConn().getPid()
   
   try:
     confLocation = conn.get_info("config-file")["config-file"]
@@ -1192,57 +1189,14 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         confirmationKey = stdscr.getch()
         if confirmationKey in (ord('x'), ord('X')):
           try:
-            conn.send_signal("RELOAD")
-          except Exception, err:
-            # new torrc parameters caused an error (tor's likely shut down)
-            # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
-            # http://bugs.noreply.org/flyspray/index.php?do=details&id=1329
-            log.log(log.ERR, "Error detected when reloading tor: %s" % str(err))
-            pass
-          
-          # The following issues a sighup via a system command (Sebastian
-          # mentioned later that sending a RELOAD signal is equivilant, which
-          # is of course far preferable).
-          
-          """
-          try:
-            # Redirects stderr to stdout so we can check error status (output
-            # should be empty if successful). Example error:
-            # pkill: 5592 - Operation not permitted
-            #
-            # note that this may provide multiple errors, even if successful,
-            # hence this:
-            #   - only provide an error if Tor fails to log a sighup
-            #   - provide the error message associated with the tor pid (others
-            #     would be a red herring)
-            pkillCall = os.popen("pkill -sighup tor 2> /dev/stdout")
-            pkillOutput = pkillCall.readlines()
-            pkillCall.close()
+            torTools.getConn().reload()
+          except IOError, exc:
+            log.log(log.ERR, "Error detected when reloading tor: %s" % str(exc))
             
-            # Give the sighupTracker a moment to detect the sighup signal. This
-            # is, of course, a possible concurrency bug. However I'm not sure
-            # of a better method for blocking on this...
-            waitStart = time.time()
-            while time.time() - waitStart < 1:
-              time.sleep(0.1)
-              if sighupTracker.isReset: break
-            
-            if not sighupTracker.isReset:
-              errorLine = ""
-              if torPid:
-                for line in pkillOutput:
-                  if line.startswith("pkill: %s - " % torPid):
-                    errorLine = line
-                    break
-              
-              if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
-              else: raise IOError()
-          except IOError, err:
-            errorMsg = " (%s)" % str(err) if str(err) else ""
-            panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
-            panels["control"].redraw()
-            time.sleep(2)
-          """
+            #errorMsg = " (%s)" % str(err) if str(err) else ""
+            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
+            #panels["control"].redraw()
+            #time.sleep(2)
         
         # reverts display settings
         curses.halfdelay(REFRESH_RATE * 10)
