@@ -19,7 +19,7 @@ import util.conf
 import util.torTools
 import TorCtl.TorUtil
 
-VERSION = "1.3.5"
+VERSION = "1.3.5_dev"
 LAST_MODIFIED = "Apr 8, 2010"
 
 DEFAULT_CONTROL_ADDR = "127.0.0.1"
@@ -139,7 +139,7 @@ if __name__ == '__main__':
   # sending problems to stdout if they arise
   util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get(AUTH_CFG, None)
-  conn = util.torTools.makeConn(controlAddr, controlPort, authPassword)
+  conn = util.torTools.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
   controller = util.torTools.getConn()

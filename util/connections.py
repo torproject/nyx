@@ -7,7 +7,7 @@ utilities:
 - lsof      lsof -nPi | grep "<process>\s*<pid>.*(ESTABLISHED)"
 
 all queries dump its stderr (directing it to /dev/null). Unfortunately FreeBSD
-lacks support for the needed netstat flags, and has a completely different
+lacks support for the needed netstat flags and has a completely different
 program for 'ss', so this is quite likely to fail there.
 """
 
@@ -139,7 +139,7 @@ def getResolver(processName, processPid = ""):
 
 if __name__ == '__main__':
   # quick method for testing connection resolution
-  userInput = raw_input("Enter query (RESOLVER PROCESS_NAME [PID]: ").split()
+  userInput = raw_input("Enter query (<ss, netstat, lsof> PROCESS_NAME [PID]): ").split()
   
   # checks if there's enough arguments
   if len(userInput) == 0: sys.exit(0)
@@ -243,15 +243,22 @@ class ConnectionResolver(threading.Thread):
     self._connections = []        # connection cache (latest results)
     self._isPaused = False
     self._halt = False            # terminates thread if true
+    self._cond = threading.Condition()  # used for pausing the thread
     self._subsiquentFailures = 0  # number of failed resolutions with the default in a row
     self._resolverBlacklist = []  # resolvers that have failed to resolve
   
   def run(self):
     while not self._halt:
       minWait = self.resolveRate if self.resolveRate else self.defaultRate
+      timeSinceReset = time.time() - self.lastLookup
       
-      if self._isPaused or time.time() - self.lastLookup < minWait:
-        time.sleep(RESOLVER_SLEEP_INTERVAL)
+      if self._isPaused or timeSinceReset < minWait:
+        sleepTime = max(0.2, minWait - timeSinceReset)
+        
+        self._cond.acquire()
+        if not self._halt: self._cond.wait(sleepTime)
+        self._cond.release()
+        
         continue # done waiting, try again
       
       isDefault = self.overwriteResolver == None
@@ -331,5 +338,8 @@ class ConnectionResolver(threading.Thread):
     Halts further resolutions and terminates the thread.
     """
     
+    self._cond.acquire()
     self._halt = True
+    self._cond.notifyAll()
+    self._cond.release()
 

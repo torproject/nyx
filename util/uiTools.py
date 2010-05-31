@@ -5,6 +5,7 @@ easy method of providing the following interface components:
 - unit conversion for labels
 """
 
+import sys
 import curses
 
 # colors curses can handle
@@ -41,6 +42,59 @@ def getColor(color):
   
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
+
+def cropStr(msg, size, minWordLen = 4, addEllipse = True):
+  """
+  Provides the msg constrained to the given length, truncating on word breaks.
+  If the last words is long this truncates mid-word with an ellipse. If there
+  isn't room for even a truncated single word (or one word plus the ellipse if
+  inlcuding those) then this provides an empty string. Examples:
+  
+  cropStr("This is a looooong message", 17)
+  "This is a looo..."
+  
+  cropStr("This is a looooong message", 12)
+  "This is a..."
+  
+  cropStr("This is a looooong message", 3)
+  ""
+  
+  Arguments:
+    msg        - source text
+    size       - room available for text
+    minWordLen - minimum characters before which a word is dropped, requires
+                 whole word if -1
+    addEllipse - includes an ellipse when truncating if true (dropped if size
+                 size is 
+  """
+  
+  if minWordLen < 0: minWordLen = sys.maxint
+  
+  if len(msg) <= size: return msg
+  else:
+    msgWords = msg.split(" ")
+    msgWords.reverse()
+    
+    returnWords = []
+    sizeLeft = size - 3 if addEllipse else size
+    
+    # checks that there's room for at least one word
+    if min(minWordLen, len(msgWords[-1])) > sizeLeft: return ""
+    
+    while sizeLeft > 0:
+      nextWord = msgWords.pop()
+      
+      if len(nextWord) <= sizeLeft:
+        returnWords.append(nextWord)
+        sizeLeft -= (len(nextWord) + 1)
+      elif minWordLen <= sizeLeft:
+        returnWords.append(nextWord[:sizeLeft])
+        sizeLeft = 0
+      else: sizeLeft = 0
+    
+    returnMsg = " ".join(returnWords)
+    if addEllipse: returnMsg += "..."
+    return returnMsg
 
 def getSizeLabel(bytes, decimal = 0, isLong = False):
   """

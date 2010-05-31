@@ -4,7 +4,7 @@ accessing TorCtl and notifications of state changes to subscribers. To quickly
 fetch a TorCtl instance to experiment with use the following:
 
 >>> import util.torTools
->>> conn = util.torTools.makeConn()
+>>> conn = util.torTools.connect()
 >>> conn.get_info("version")["version"]
 '0.2.1.24'
 """
@@ -143,7 +143,7 @@ def initCtlConn(conn, authType="NONE", authVal=None):
     if issue: raise IOError("Failed to read authentication cookie (%s): %s" % (issue, authVal))
     else: raise IOError("Failed to read authentication cookie: %s" % exc)
 
-def makeConn(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
+def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
   """
   Convenience method for quickly getting a TorCtl connection. This is very
   handy for debugging or CLI setup, handling setup and prompting for a password
@@ -271,9 +271,9 @@ class Controller (TorCtl.PostEventListener):
     """
     
     if conn.is_live() and conn != self.conn:
-      if self.conn: self.close() # shut down current connection
-      
       self.connLock.acquire()
+      
+      if self.conn: self.close() # shut down current connection
       self.conn = conn
       self.conn.add_event_listener(self)
       

@@ -148,15 +148,18 @@ class Panel():
     """
     
     newHeight, newWidth = self.parent.getmaxyx()
+    setHeight, setWidth = self.getHeight(), self.getWidth()
     newHeight = max(0, newHeight - self.top)
-    if self.height != -1: newHeight = min(self.height, newHeight)
-    if self.width != -1: newWidth = min(self.width, newWidth)
+    if setHeight != -1: newHeight = min(newHeight, setHeight)
+    if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
   
   def draw(self, subwindow, width, height):
     """
     Draws display's content. This is meant to be overwritten by 
-    implementations and not called directly (use redraw() instead).
+    implementations and not called directly (use redraw() instead). The
+    dimensions provided are the drawable dimensions, which in terms of width is
+    a column less than the actual space.
     
     Arguments:
       sudwindow - panel's current subwindow instance, providing raw access to
@@ -167,15 +170,16 @@ class Panel():
     
     pass
   
-  def redraw(self, refresh=False, block=False):
+  def redraw(self, forceRedraw=True, block=False):
     """
-    Clears display and redraws its content.
+    Clears display and redraws its content. This can skip redrawing content if
+    able (ie, the subwindow's unchanged), instead just refreshing the display.
     
     Arguments:
-      refresh - skips redrawing content if able (ie, the subwindow's 
-                unchanged), instead just refreshing the display
-      block   - if drawing concurrently with other panels this determines if
-                the request is willing to wait its turn or should be abandoned
+      forceRedraw - forces the content to be cleared and redrawn if true
+      block       - if drawing concurrently with other panels this determines
+                    if the request is willing to wait its turn or should be
+                    abandoned
     """
     
     # if the panel's completely outside its parent then this is a no-op
@@ -195,13 +199,14 @@ class Panel():
     
     subwinMaxY, subwinMaxX = self.win.getmaxyx()
     if isNewWindow or subwinMaxY != self.maxY or subwinMaxX != self.maxX:
-      refresh = False
+      forceRedraw = True
     
     self.maxY, self.maxX = subwinMaxY, subwinMaxX
     if not CURSES_LOCK.acquire(block): return
     try:
-      self.win.erase() # clears any old contents
-      if not refresh: self.draw(self.win, self.maxX, self.maxY)
+      if forceRedraw:
+        self.win.erase() # clears any old contents
+        self.draw(self.win, self.maxX - 1, self.maxY)
       self.win.refresh()
     finally:
       CURSES_LOCK.release()

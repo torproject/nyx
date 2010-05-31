@@ -75,7 +75,7 @@ def stop():
     resolverRef, RESOLVER = RESOLVER, None
     
     # joins on its worker thread pool
-    resolverRef.halt = True
+    resolverRef.stop()
     for t in resolverRef.threadPool: t.join()
   RESOLVER_LOCK.release()
 
@@ -251,6 +251,7 @@ class _Resolver():
     self.totalResolves = 0                # counter for the total number of addresses queried to be resolved
     self.isPaused = False                 # prevents further resolutions if true
     self.halt = False                     # if true, tells workers to stop
+    self.cond = threading.Condition()     # used for pausing threads
     
     # Determines if resolutions are made using os 'host' calls or python's
     # 'socket.gethostbyaddr'. The following checks if the system has the
@@ -312,6 +313,16 @@ class _Resolver():
     
     return None # timeout reached without resolution
   
+  def stop(self):
+    """
+    Halts further resolutions and terminates the thread.
+    """
+    
+    self.cond.acquire()
+    self.halt = True
+    self.cond.notifyAll()
+    self.cond.release()
+  
   def _workerLoop(self):
     """
     Simple producer-consumer loop followed by worker threads. This takes
@@ -322,13 +333,21 @@ class _Resolver():
     
     while not self.halt:
       # if resolver is paused then put a hold on further resolutions
-      while self.isPaused and not self.halt: time.sleep(0.25)
-      if self.halt: break
+      if self.isPaused:
+        self.cond.acquire()
+        if not self.halt: self.cond.wait(1)
+        self.cond.release()
+        continue
       
       # snags next available ip, timeout is because queue can't be woken up
       # when 'halt' is set
-      try: ipAddr = self.unresolvedQueue.get(True, 0.25)
-      except Queue.Empty: continue
+      try: ipAddr = self.unresolvedQueue.get_nowait()
+      except Queue.Empty:
+        # no elements ready, wait a little while and try again
+        self.cond.acquire()
+        if not self.halt: self.cond.wait(1)
+        self.cond.release()
+        continue
       if self.halt: break
       
       try:

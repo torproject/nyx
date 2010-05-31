@@ -5,7 +5,7 @@
 import time
 from TorCtl import TorCtl
 
-from util import sysTools, uiTools
+from util import sysTools, torTools, uiTools
 import graphPanel
 
 class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
@@ -14,11 +14,10 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
   headerPanel if recent enough (otherwise retrieved independently).
   """
   
-  def __init__(self, headerPanel):
+  def __init__(self):
     graphPanel.GraphStats.__init__(self)
     TorCtl.PostEventListener.__init__(self)
     graphPanel.GraphStats.initialize(self, "green", "cyan", 10)
-    self.headerPanel = headerPanel  # header panel, used to limit ps calls
   
   def bandwidth_event(self, event):
     # doesn't use events but this keeps it in sync with the bandwidth panel
@@ -27,25 +26,28 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     # compared to how frequently it changes - now caching for five seconds
     # (note this during the rewrite that its fidelity isn't at the second
     # level)
-    if self.headerPanel.lastUpdate + 5 >= time.time():
-      # reuses ps results if recent enough
-      self._processEvent(float(self.headerPanel.vals["%cpu"]), float(self.headerPanel.vals["rss"]) / 1024.0)
+    # TODO: when rewritten raise fidelity to second level if being actively
+    # looked at (or has been recently)
+    # TODO: dropped header requirement so any documentation will, of course,
+    # need to be revised
+    torPid = torTools.getConn().getPid()
+    
+    # cached results stale - requery ps
+    # TODO: issue the same request as header panel to take advantage of cached results
+    sampling = []
+    psCall = None
+    if torPid:
+      psCall = sysTools.call("ps -p %s -o %s" % (torPid, "%cpu,rss"), 5, True)
+    if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
+    
+    if len(sampling) < 2:
+      # either ps failed or returned no tor instance, register error
+      # ps call failed (returned no tor instance or registered an  error) -
+      # we need to register something (otherwise timescale would be thrown
+      # off) so keep old results
+      self._processEvent(self.lastPrimary, self.lastSecondary)
     else:
-      # cached results stale - requery ps
-      sampling = []
-      psCall = None
-      if self.headerPanel.vals["pid"]:
-        psCall = sysTools.call("ps -p %s -o %s" % (self.headerPanel.vals["pid"], "%cpu,rss"), 5, True)
-      if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
-      
-      if len(sampling) < 2:
-        # either ps failed or returned no tor instance, register error
-        # ps call failed (returned no tor instance or registered an  error) -
-        # we need to register something (otherwise timescale would be thrown
-        # off) so keep old results
-        self._processEvent(self.lastPrimary, self.lastSecondary)
-      else:
-        self._processEvent(float(sampling[0]), float(sampling[1]) / 1024.0)
+      self._processEvent(float(sampling[0]), float(sampling[1]) / 1024.0)
   
   def getTitle(self, width):
     return "System Resources:"

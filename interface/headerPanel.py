@@ -1,272 +1,340 @@
-#!/usr/bin/env python
-# summaryPanel.py -- Static system and Tor related information.
-# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+"""
+Top panel for every page, containing basic system and tor related information.
+If there's room available then this expands to present its information in two
+columns, otherwise it's laid out as follows:
+  arm - <hostname> (<os> <sys/version>)         Tor <tor/version> (<new, old, recommended, etc>)
+  <nickname> - <address>:<orPort>, [Dir Port: <dirPort>, ]Control Port (<open, password, cookie>): <controlPort>
+  cpu: <cpu%> mem: <mem> (<mem%>) uid: <uid> uptime: <upmin>:<upsec>
+  fingerprint: <fingerprint>
+
+Example:
+  arm - odin (Linux 2.6.24-24-generic)         Tor 0.2.1.19 (recommended)
+  odin - 76.104.132.98:9001, Dir Port: 9030, Control Port (cookie): 9051
+  cpu: 14.6%    mem: 42 MB (4.2%)    pid: 20060   uptime: 48:27
+  fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
+"""
 
 import os
 import time
-import socket
-from TorCtl import TorCtl
+import threading
 
-from util import panel, sysTools, uiTools
+from util import conf, log, panel, sysTools, torTools, uiTools
+
+# seconds between querying information
+DEFAULT_UPDATE_RATE = 5
+UPDATE_RATE_CFG = "updateRate.header"
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
-MIN_DUAL_ROW_WIDTH = 140
+MIN_DUAL_COL_WIDTH = 141
 
 FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red",    "Exit": "cyan",
                "Fast": "yellow",      "Guard": "green",     "HSDir": "magenta",       "Named": "blue",
                "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
                "V2Dir": "cyan",       "V3Dir": "white"}
 
-VERSION_STATUS_COLORS = {"new": "blue",      "new in series": "blue",  "recommended": "green",  "old": "red",
-                         "obsolete": "red",  "unrecommended": "red",   "unknown": "cyan"}
+VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
+                         "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
-class HeaderPanel(panel.Panel):
+class HeaderPanel(panel.Panel, threading.Thread):
   """
-  Draws top area containing static information.
+  Top area contenting tor settings and system information. Stats are stored in
+  the vals mapping, keys including:
+    tor/ version, versionStatus, nickname, orPort, dirPort, controlPort,
+         exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
+         *address, *fingerprint, *flags
+    sys/ hostname, os, version
+    ps/  *%cpu, *rss, *%mem, pid, *etime
   
-  arm - <System Name> (<OS> <Version>)         Tor <Tor Version>
-  <Relay Nickname> - <IP Addr>:<ORPort>, [Dir Port: <DirPort>, ]Control Port (<open, password, cookie>): <ControlPort>
-  cpu: <cpu%> mem: <mem> (<mem%>) uid: <uid> uptime: <upmin>:<upsec>
-  fingerprint: <Fingerprint>
-  
-  Example:
-  arm - odin (Linux 2.6.24-24-generic)         Tor 0.2.1.15-rc
-  odin - 76.104.132.98:9001, Dir Port: 9030, Control Port (cookie): 9051
-  cpu: 14.6%    mem: 42 MB (4.2%)    pid: 20060   uptime: 48:27
-  fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
+  * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr, conn, torPid):
-    panel.Panel.__init__(self, stdscr, 0, 6)
-    self.vals = {"pid": torPid}     # mapping of information to be presented
-    self.conn = conn                # Tor control port connection
-    self.isPaused = False
-    self.isWide = False             # doubles up parameters to shorten section if room's available
-    self.rightParamX = 0            # offset used for doubled up parameters
-    self.lastUpdate = -1            # time last stats was retrived
-    self._updateParams()
-    self.getPreferredSize() # hack to force properly initialize size (when using wide version)
+  def __init__(self, stdscr):
+    panel.Panel.__init__(self, stdscr, 0)
+    threading.Thread.__init__(self)
+    self.setDaemon(True)
+    
+    # seconds between querying updates
+    try:
+      self._updateRate = int(conf.getConfig("arm").get(UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE))
+    except ValueError:
+      # value wasn't an integer
+      log.log(log.WARN, "Config: %s is expected to be an integer (defaulting to %i)" % (UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE))
+      self._updateRate = DEFAULT_UPDATE_RATE
+    
+    self._lastUpdate = -1       # time the content was last revised
+    self._isLastDrawWide = False
+    self._isChanged = False     # new stats to be drawn if true
+    self._isPaused = False      # prevents updates if true
+    self._halt = False          # terminates thread if true
+    self._cond = threading.Condition()  # used for pausing the thread
+    
+    self.vals = {}
+    self.valsLock = threading.RLock()
+    self._update(True)
+    
+    # listens for tor reload (sighup) events
+    torTools.getConn().addStatusListener(self.resetListener)
   
-  def getPreferredSize(self):
-    # width partially determines height (panel has two layouts)
-    panelHeight, panelWidth = panel.Panel.getPreferredSize(self)
-    self.isWide = panelWidth >= MIN_DUAL_ROW_WIDTH
-    self.rightParamX = max(panelWidth / 2, 75) if self.isWide else 0
-    self.setHeight(4 if self.isWide else 6)
-    return panel.Panel.getPreferredSize(self)
+  def getHeight(self):
+    """
+    Provides the height of the content, which is dynamically determined by the
+    panel's maximum width.
+    """
+    
+    isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
+    return 4 if isWide else 6
   
   def draw(self, subwindow, width, height):
-    if not self.isPaused: self._updateParams()
+    self.valsLock.acquire()
+    isWide = width + 1 >= MIN_DUAL_COL_WIDTH
     
-    # TODO: remove after a few revisions if this issue can't be reproduced
-    #   (seemed to be a freak ui problem...)
+    # space available for content
+    if isWide:
+      leftWidth = max(width / 2, 77)
+      rightWidth = width - leftWidth
+    else: leftWidth = rightWidth = width
     
-    # extra erase/refresh is needed to avoid internal caching screwing up and
-    # refusing to redisplay content in the case of graphical glitches - probably
-    # an obscure curses bug...
-    #self.win.erase()
-    #self.win.refresh()
+    # Line 1 / Line 1 Left (system and tor version information)
+    sysNameLabel = "arm - %s" % self.vals["sys/hostname"]
+    contentSpace = min(leftWidth, 40)
     
-    #self.clear()
-    
-    # Line 1 (system and tor version information)
-    systemNameLabel = "arm - %s " % self.vals["sys-name"]
-    systemVersionLabel = "%s %s" % (self.vals["sys-os"], self.vals["sys-version"])
-    
-    # wraps systemVersionLabel in parentheses and truncates if too long
-    versionLabelMaxWidth = 40 - len(systemNameLabel)
-    if len(systemNameLabel) > 40:
-      # we only have room for the system name label
-      systemNameLabel = systemNameLabel[:39] + "..."
-      systemVersionLabel = ""
-    elif len(systemVersionLabel) > versionLabelMaxWidth:
-      # not enough room to show full version
-      systemVersionLabel = "(%s...)" % systemVersionLabel[:versionLabelMaxWidth - 3].strip()
+    if len(sysNameLabel) + 10 <= contentSpace:
+      sysTypeLabel = "%s %s" % (self.vals["sys/os"], self.vals["sys/version"])
+      sysTypeLabel = uiTools.cropStr(sysTypeLabel, contentSpace - len(sysNameLabel) - 3, 4)
+      self.addstr(0, 0, "%s (%s)" % (sysNameLabel, sysTypeLabel))
     else:
-      # enough room for everything
-      systemVersionLabel = "(%s)" % systemVersionLabel
+      self.addstr(0, 0, uiTools.cropStr(sysNameLabel, contentSpace))
     
-    self.addstr(0, 0, "%s%s" % (systemNameLabel, systemVersionLabel))
+    contentSpace = leftWidth - 43
+    if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= contentSpace:
+      versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
+          self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
+      versionStatusMsg = "<%s>%s</%s>" % (versionColor, self.vals["tor/versionStatus"], versionColor)
+      self.addfstr(0, 43, "Tor %s (%s)" % (self.vals["tor/version"], versionStatusMsg))
+    elif 11 <= contentSpace:
+      self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
-    versionStatus = self.vals["status/version/current"]
-    versionColor = VERSION_STATUS_COLORS[versionStatus] if versionStatus in VERSION_STATUS_COLORS else "white"
+    # Line 2 / Line 2 Left (tor ip/port information)
+    entry = ""
+    dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
+    for label in (self.vals["tor/nickname"], " - " + self.vals["tor/address"], ":" + self.vals["tor/orPort"], dirPortLabel):
+      if len(entry) + len(label) <= leftWidth: entry += label
+      else: break
     
-    # truncates torVersionLabel if too long
-    torVersionLabel = self.vals["version"]
-    versionLabelMaxWidth =  (self.rightParamX if self.isWide else width) - 51 - len(versionStatus)
-    if len(torVersionLabel) > versionLabelMaxWidth:
-      torVersionLabel = torVersionLabel[:versionLabelMaxWidth - 1].strip() + "-"
+    if self.vals["tor/isAuthPassword"]: authType = "password"
+    elif self.vals["tor/isAuthCookie"]: authType = "cookie"
+    else: authType = "open"
     
-    self.addfstr(0, 43, "Tor %s (<%s>%s</%s>)" % (torVersionLabel, versionColor, versionStatus, versionColor))
+    if len(entry) + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
+      authColor = "red" if authType == "open" else "green"
+      authLabel = "<%s>%s</%s>" % (authColor, authType, authColor)
+      self.addfstr(1, 0, "%s, Control Port (%s): %s" % (entry, authLabel, self.vals["tor/controlPort"]))
+    elif len(entry) + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
+      self.addstr(1, 0, "%s, Control Port: %s" % (entry, self.vals["tor/controlPort"]))
+    else: self.addstr(1, 0, entry)
     
-    # Line 2 (authentication label red if open, green if credentials required)
-    dirPortLabel = "Dir Port: %s, " % self.vals["DirPort"] if self.vals["DirPort"] != "0" else ""
+    # Line 3 / Line 1 Right (system usage info)
+    y, x = (0, leftWidth) if isWide else (2, 0)
+    if self.vals["ps/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["ps/rss"]) * 1024)
+    else: memoryLabel = "0"
     
-    if self.vals["IsPasswordAuthSet"]: controlPortAuthLabel = "password"
-    elif self.vals["IsCookieAuthSet"]: controlPortAuthLabel = "cookie"
-    else: controlPortAuthLabel = "open"
-    controlPortAuthColor = "red" if controlPortAuthLabel == "open" else "green"
+    sysFields = ((0, "cpu: %s%%" % self.vals["ps/%cpu"]),
+                 (13, "mem: %s (%s%%)" % (memoryLabel, self.vals["ps/%mem"])),
+                 (34, "pid: %s" % (self.vals["ps/pid"] if self.vals["ps/etime"] else "")),
+                 (47, "uptime: %s" % self.vals["ps/etime"]))
     
-    labelStart = "%s - %s:%s, %sControl Port (" % (self.vals["Nickname"], self.vals["address"], self.vals["ORPort"], dirPortLabel)
-    self.addfstr(1, 0, "%s<%s>%s</%s>): %s" % (labelStart, controlPortAuthColor, controlPortAuthLabel, controlPortAuthColor, self.vals["ControlPort"]))
+    for (start, label) in sysFields:
+      if start + len(label) <= rightWidth: self.addstr(y, x + start, label)
+      else: break
     
-    # Line 3 (system usage info) - line 1 right if wide
-    y, x = (0, self.rightParamX) if self.isWide else (2, 0)
-    self.addstr(y, x, "cpu: %s%%" % self.vals["%cpu"])
-    self.addstr(y, x + 13, "mem: %s (%s%%)" % (uiTools.getSizeLabel(int(self.vals["rss"]) * 1024), self.vals["%mem"]))
-    self.addstr(y, x + 34, "pid: %s" % (self.vals["pid"] if self.vals["etime"] else ""))
-    self.addstr(y, x + 47, "uptime: %s" % self.vals["etime"])
+    # Line 4 / Line 2 Right (fingerprint)
+    y, x = (1, leftWidth) if isWide else (3, 0)
+    self.addstr(y, x, "fingerprint: %s" % self.vals["tor/fingerprint"])
     
-    # Line 4 (fingerprint) - line 2 right if wide
-    y, x = (1, self.rightParamX) if self.isWide else (3, 0)
-    self.addstr(y, x, "fingerprint: %s" % self.vals["fingerprint"])
-    
-    # Line 5 (flags) - line 3 left if wide
+    # Line 5 / Line 3 Left (flags)
     flagLine = "flags: "
-    for flag in self.vals["flags"]:
+    for flag in self.vals["tor/flags"]:
       flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
       flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
     
-    if len(self.vals["flags"]) > 0: flagLine = flagLine[:-2]
-    self.addfstr(2 if self.isWide else 4, 0, flagLine)
+    if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
+    self.addfstr(2 if isWide else 4, 0, flagLine)
     
-    # Line 3 right (exit policy) - only present if wide
-    if self.isWide:
-      exitPolicy = self.vals["ExitPolicy"]
+    # Undisplayed / Line 3 Right (exit policy)
+    if isWide:
+      exitPolicy = self.vals["tor/exitPolicy"]
       
       # adds note when default exit policy is appended
-      # TODO: the following catch-all policies arne't quite exhaustive
       if exitPolicy == None: exitPolicy = "<default>"
-      elif not (exitPolicy.endswith("accept *:*") or exitPolicy.endswith("accept *")) and not (exitPolicy.endswith("reject *:*") or exitPolicy.endswith("reject *")):
-        exitPolicy += ", <default>"
-      
-      policies = exitPolicy.split(", ")
+      elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
       
       # color codes accepts to be green, rejects to be red, and default marker to be cyan
-      # TODO: instead base this on if there's space available for the full verbose version
-      isSimple = len(policies) <= 2 # if policy is short then it's kept verbose, otherwise 'accept' and 'reject' keywords removed
+      isSimple = len(exitPolicy) > rightWidth - 13
+      policies = exitPolicy.split(", ")
       for i in range(len(policies)):
         policy = policies[i].strip()
-        displayedPolicy = policy if isSimple else policy.replace("accept", "").replace("reject", "").strip()
+        displayedPolicy = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
         if policy.startswith("accept"): policy = "<green><b>%s</b></green>" % displayedPolicy
         elif policy.startswith("reject"): policy = "<red><b>%s</b></red>" % displayedPolicy
         elif policy.startswith("<default>"): policy = "<cyan><b>%s</b></cyan>" % displayedPolicy
         policies[i] = policy
-      exitPolicy = ", ".join(policies)
       
-      self.addfstr(2, self.rightParamX, "exit policy: %s" % exitPolicy)
+      self.addfstr(2, leftWidth, "exit policy: %s" % ", ".join(policies))
+    
+    self._isLastDrawWide = isWide
+    self._isChanged = False
+    self.valsLock.release()
+  
+  def redraw(self, forceRedraw=False, block=False):
+    # determines if the content needs to be redrawn or not
+    isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
+    panel.Panel.redraw(self, forceRedraw or self._isChanged or isWide != self._isLastDrawWide, block)
   
   def setPaused(self, isPause):
     """
     If true, prevents updates from being presented.
     """
     
-    self.isPaused = isPause
+    self._isPaused = isPause
   
-  def _updateParams(self, forceReload = False):
+  def run(self):
     """
-    Updates mapping of static Tor settings and system information to their
-    corresponding string values. Keys include:
-    info - version, *address, *fingerprint, *flags, status/version/current
-    sys - sys-name, sys-os, sys-version
-    ps - *%cpu, *rss, *%mem, *pid, *etime
-    config - Nickname, ORPort, DirPort, ControlPort, ExitPolicy
-    config booleans - IsPasswordAuthSet, IsCookieAuthSet, IsAccountingEnabled
-    
-    * volatile parameter that'll be reset (otherwise won't be checked if
-    already set)
+    Keeps stats updated, querying new information at a set rate.
     """
     
-    infoFields = ["address", "fingerprint"] # keys for which get_info will be called
-    if len(self.vals) <= 1 or forceReload:
-      lookupFailed = False
+    while not self._halt:
+      timeSinceReset = time.time() - self._lastUpdate
       
-      # first call (only contasns 'pid' mapping) - retrieve static params
-      infoFields += ["version", "status/version/current"]
+      if self._isPaused or timeSinceReset < self._updateRate:
+        sleepTime = max(0.5, self._updateRate - timeSinceReset)
+        self._cond.acquire()
+        if not self._halt: self._cond.wait(sleepTime)
+        self._cond.release()
+      else:
+        self._update()
+        self.redraw()
+  
+  def stop(self):
+    """
+    Halts further resolutions and terminates the thread.
+    """
+    
+    self._cond.acquire()
+    self._halt = True
+    self._cond.notifyAll()
+    self._cond.release()
+  
+  def resetListener(self, conn, eventType):
+    """
+    Updates static parameters on tor reload (sighup) events.
+    
+    Arguments:
+      conn      - tor controller
+      eventType - type of event detected
+    """
+    
+    if eventType == torTools.TOR_RESET:
+      self._update(True)
+  
+  def _update(self, setStatic=False):
+    """
+    Updates stats in the vals mapping. By default this just revises volatile
+    attributes.
+    
+    Arguments:
+      setStatic - resets all parameters, including relatively static values
+    """
+    
+    self.valsLock.acquire()
+    conn = torTools.getConn()
+    
+    if setStatic:
+      # version is truncated to first part, for instance:
+      # 0.2.2.13-alpha (git-feb8c1b5f67f2c6f) -> 0.2.2.13-alpha
+      self.vals["tor/version"] = conn.getInfo("version", "Unknown").split()[0]
+      self.vals["tor/versionStatus"] = conn.getInfo("status/version/current", "Unknown")
+      self.vals["tor/nickname"] = conn.getOption("Nickname", "")
+      self.vals["tor/orPort"] = conn.getOption("ORPort", "")
+      self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
+      self.vals["tor/controlPort"] = conn.getOption("ControlPort", "")
+      self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
+      self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
       
-      # populates with some basic system information
+      # fetch exit policy (might span over multiple lines)
+      policyEntries = []
+      for exitPolicy in conn.getOption("ExitPolicy", [], True):
+        policyEntries += [policy.strip() for policy in exitPolicy[1].split(",")]
+      self.vals["tor/exitPolicy"] = ", ".join(policyEntries)
+      
+      # system information
       unameVals = os.uname()
-      self.vals["sys-name"] = unameVals[1]
-      self.vals["sys-os"] = unameVals[0]
-      self.vals["sys-version"] = unameVals[2]
+      self.vals["sys/hostname"] = unameVals[1]
+      self.vals["sys/os"] = unameVals[0]
+      self.vals["sys/version"] = unameVals[2]
       
-      try:
-        # parameters from the user's torrc
-        configFields = ["Nickname", "ORPort", "DirPort", "ControlPort"]
-        self.vals.update(dict([(key, self.conn.get_option(key)[0][1]) for key in configFields]))
-        
-        # fetch exit policy (might span over multiple lines)
-        exitPolicyEntries = []
-        for (key, value) in self.conn.get_option("ExitPolicy"):
-          if value: exitPolicyEntries.append(value)
-        
-        self.vals["ExitPolicy"] = ", ".join(exitPolicyEntries)
-        
-        # simply keeps booleans for if authentication info is set
-        self.vals["IsPasswordAuthSet"] = not self.conn.get_option("HashedControlPassword")[0][1] == None
-        self.vals["IsCookieAuthSet"] = self.conn.get_option("CookieAuthentication")[0][1] == "1"
-        self.vals["IsAccountingEnabled"] = self.conn.get_info('accounting/enabled')['accounting/enabled'] == "1"
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): lookupFailed = True
+      pid = conn.getPid()
+      self.vals["ps/pid"] = pid if pid else ""
       
-      if lookupFailed:
-        # tor connection closed or gave error - keep old values if available, otherwise set to empty string / false
-        for field in configFields:
-          if field not in self.vals: self.vals[field] = ""
-        
-        for field in ["IsPasswordAuthSet", "IsCookieAuthSet", "IsAccountingEnabled"]:
-          if field not in self.vals: self.vals[field] = False
-      
-    # gets parameters that throw errors if unavailable
-    for param in infoFields:
-      try: self.vals.update(self.conn.get_info(param))
-      except TorCtl.ErrorReply: self.vals[param] = "Unknown"
-      except (TorCtl.TorCtlClosed, socket.error):
-        # Tor shut down or crashed - keep last known values
-        if not param in self.vals.keys() or not self.vals[param]: self.vals[param] = "Unknown"
+      # reverts volatile parameters to defaults
+      self.vals["tor/address"] = "Unknown"
+      self.vals["tor/fingerprint"] = "Unknown"
+      self.vals["tor/flags"] = []
+      self.vals["ps/%cpu"] = "0"
+      self.vals["ps/rss"] = "0"
+      self.vals["ps/%mem"] = "0"
+      self.vals["ps/etime"] = ""
     
-    # if ORListenAddress is set overwrites 'address' (and possibly ORPort)
-    try:
-      listenAddr = self.conn.get_option("ORListenAddress")[0][1]
-      if listenAddr:
-        if ":" in listenAddr:
-          # both ip and port overwritten
-          self.vals["address"] = listenAddr[:listenAddr.find(":")]
-          self.vals["ORPort"] = listenAddr[listenAddr.find(":") + 1:]
-        else:
-          self.vals["address"] = listenAddr
-    except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+    # sets volatile parameters
+    volatile = {}
+    volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
+    volatile["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     
-    # flags held by relay
-    self.vals["flags"] = []
-    if self.vals["fingerprint"] != "Unknown":
-      try:
-        nsCall = self.conn.get_network_status("id/%s" % self.vals["fingerprint"])
-        if nsCall: self.vals["flags"] = nsCall[0].flags
-        else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+    # overwrite address if ORListenAddress is set (and possibly orPort too)
+    listenAddr = conn.getOption("ORListenAddress")
+    if listenAddr:
+      if ":" in listenAddr:
+        # both ip and port overwritten
+        volatile["address"] = listenAddr[:listenAddr.find(":")]
+        volatile["orPort"] = listenAddr[listenAddr.find(":") + 1:]
+      else:
+        volatile["address"] = listenAddr
     
+    # sets flags
+    if self.vals["tor/fingerprint"] != "Unknown":
+      # network status contains a couple of lines, looking like:
+      # r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
+      # s Fast HSDir Named Running Stable Valid
+      nsResults = conn.getInfo("ns/id/%s" % self.vals["tor/fingerprint"], "").split("\n")
+      if len(nsResults) >= 2: volatile["tor/flags"] = nsResults[1][2:].split()
+    
+    # ps derived stats
     psParams = ["%cpu", "rss", "%mem", "etime"]
-    sampling = []
-    if self.vals["pid"]:
-      # ps call provides header followed by params for tor
-      # this caches the results for five seconds and suppress any exceptions
-      # results are expected to look something like:
+    if self.vals["ps/pid"]:
+      # if call fails then everything except etime are zeroed out (most likely
+      # tor's no longer running)
+      volatile["ps/%cpu"] = "0"
+      volatile["ps/rss"] = "0"
+      volatile["ps/%mem"] = "0"
+      
+      # the ps call formats results as:
       # %CPU   RSS %MEM     ELAPSED
       # 0.3 14096  1.3       29:51
-      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["pid"], ",".join(psParams)), 5, True)
-      if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
-    
-    if len(sampling) < len(psParams):
-      # pid is unknown, ps call failed, or returned no tor instance - blank information except runtime
-      if "etime" in self.vals: sampling = [""] * (len(psParams) - 1) + [self.vals["etime"]]
-      else: sampling = [""] * len(psParams)
+      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["ps/pid"], ",".join(psParams)), self._updateRate, True)
       
-      # %cpu, rss, and %mem are better zeroed out
-      for i in range(3): sampling[i] = "0"
+      if psCall and len(psCall) >= 2:
+        stats = psCall[1].strip().split()
+        
+        if len(stats) == len(psParams):
+          for i in range(len(psParams)):
+            volatile["ps/" + psParams[i]] = stats[i]
     
-    for i in range(len(psParams)):
-      self.vals[psParams[i]] = sampling[i]
+    # checks if any changes have been made and merges volatile into vals
+    self._isChanged |= setStatic
+    for key, val in volatile.items():
+      self._isChanged |= self.vals[key] != val
+      self.vals[key] = val
     
-    self.lastUpdate = time.time()
+    self._lastUpdate = time.time()
+    self.valsLock.release()
 

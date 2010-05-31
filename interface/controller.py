@@ -332,7 +332,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr, conn, torPid),
+    "header": headerPanel.HeaderPanel(stdscr),
     "popup": Popup(stdscr, 9),
     "graph": graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogMonitor(stdscr, conn, loggedEvents)}
@@ -353,7 +353,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", bandwidthMonitor.BandwidthMonitor(conn))
-  panels["graph"].addStats("system resources", cpuMemMonitor.CpuMemMonitor(panels["header"]))
+  panels["graph"].addStats("system resources", cpuMemMonitor.CpuMemMonitor())
   if not isBlindMode: panels["graph"].addStats("connections", connCountMonitor.ConnCountMonitor(conn))
   panels["graph"].setStats("bandwidth")
   
@@ -373,6 +373,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   # directs logged TorCtl events to log panel
   TorUtil.loglevel = "DEBUG"
   TorUtil.logfile = panels["log"]
+  
+  # tells revised panels to run as daemons
+  panels["header"].start()
   
   # warns if tor isn't updating descriptors
   try:
@@ -400,7 +403,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
     try:
       # if sighup received then reload related information
       if sighupTracker.isReset:
-        panels["header"]._updateParams(True)
+        #panels["header"]._updateParams(True)
         
         # other panels that use torrc data
         panels["conn"].resetOptions()
@@ -409,7 +412,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         # if bandwidth graph is being shown then height might have changed
         if panels["graph"].currentDisplay == "bandwidth":
-          panels["graph"].height = panels["graph"].stats["bandwidth"].height
+          panels["graph"].setHeight(panels["graph"].stats["bandwidth"].height)
         
         panels["torrc"].reset()
         sighupTracker.isReset = False
@@ -420,7 +423,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       # resilient in case of funky changes (such as resizing during popups)
       
       # hack to make sure header picks layout before using the dimensions below
-      panels["header"].getPreferredSize()
+      #panels["header"].getPreferredSize()
       
       startY = 0
       for panelKey in PAGE_S[:2]:
@@ -428,7 +431,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         panels[panelKey].setParent(stdscr)
         panels[panelKey].setWidth(-1)
         panels[panelKey].setTop(startY)
-        startY += panels[panelKey].height
+        startY += panels[panelKey].getHeight()
       
       panels["popup"].recreate(stdscr, 80, startY)
       
@@ -440,7 +443,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           panels[panelKey].setParent(stdscr)
           panels[panelKey].setWidth(-1)
           panels[panelKey].setTop(tmpStartY)
-          tmpStartY += panels[panelKey].height
+          tmpStartY += panels[panelKey].getHeight()
       
       # if it's been at least ten seconds since the last BW event Tor's probably done
       if not isUnresponsive and not panels["log"].controlPortClosed and panels["log"].getHeartbeat() >= 10:
@@ -507,6 +510,10 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         if resolver: resolver.stop()  # sets halt flag (returning immediately)
         hostnames.stop()              # halts and joins on hostname worker thread pool
         if resolver: resolver.join()  # joins on halted resolver
+        
+        # stops panel daemons
+        panels["header"].stop()
+        panels["header"].join()
         
         conn.close() # joins on TorCtl event thread
         break
