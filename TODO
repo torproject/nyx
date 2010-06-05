@@ -1,6 +1,6 @@
 TODO
 
-- Tasks for next release (1.3.6)
+- Roadmap for next release (1.3.6)
   * refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -16,6 +16,11 @@ TODO
         * graph panel
           - graph for arm cpu/mem usage
               Trivial to implement but not sure if this would be useful.
+          - prepopulate bandwidth graph with contents of state file
+              Open questions:
+                - How frequently are the bandwidth values in the state file
+                updated?
+                - Is it every second, matching the last BW events?
         * log panel
           - option to clear log
           - allow home/end keys to jump to start/end
@@ -119,7 +124,7 @@ TODO
       - Country data for client connections (requested by ioerror)
   * make update rates configurable via the ui
       Also provide option for saving these settings to the config
-  * config option to restrict resource usage
+  * config option to cap resource usage
   * dialog with flag descriptions and other help
   * switch check of ip address validity to regex?
       match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
@@ -134,7 +139,11 @@ TODO
           possible yet due to being unable to correlate connections to circuts)
   * check file descriptors being accessed by tor to see if they're outside the
       known pattern
+  * allow killing of circuits? Probably not useful...
   * add page that allows raw control port access
+      Start with -t (or -c?) option for commandline-only access with help,
+      syntax highlighting, and other spiffy extras
+      
       Piggyback on the arm connection, providing something like an interactive
       prompt. In addition, provide:
         - irc like help (ex "/help GETINFO" could provide a summary of getinfo
