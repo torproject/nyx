@@ -9,11 +9,14 @@ TODO
       progress - /init and /util are done and /interface is in progress. Known
       bugs are being fixed while refactoring.
         * <done> header panel
-          - show advertised bandwidth
-              If there's extra room available show 'MaxAdvertisedBandwidth'?
           - check if tor's been shut down or merely control port disconnect
               (overwrite flags with tor status)?
         * graph panel
+          - revise effective bandwidth
+              Take into account 'MaxAdvertisedBandwidth', as per:
+              http://paste.debian.net/76254/
+          - include observed bandwidth
+              http://torstatus.blutmagie.de/router_detail.php?FP=a7569a83b5706ab1b1a9cb52eff7d2d32e4553eb
           - graph for arm cpu/mem usage
               Trivial to implement but not sure if this would be useful.
           - prepopulate bandwidth graph with contents of state file
@@ -31,6 +34,8 @@ TODO
           - move torrc validation into util
           - condense tor/arm log listing types if they're the same
               Ie, make default "TOR/ARM NOTICE - ERR"
+          - fetch text via getinfo rather than reading directly?
+              conn.get_info("config-text")
         * conn panel (for version 1.3.7)
           - check family connections to see if they're alive (VERSION cell
               handshake?)
