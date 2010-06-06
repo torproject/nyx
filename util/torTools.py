@@ -22,10 +22,9 @@ import log
 import sysTools
 
 # enums for tor's controller state:
-# TOR_INIT - attached to a new controller
-# TOR_RESET - restart or sighup signal received by tor (resetting internal state)
+# TOR_INIT - attached to a new controller or restart/sighup signal received
 # TOR_CLOSED - control port closed
-TOR_INIT, TOR_RESET, TOR_CLOSED = range(1, 4)
+TOR_INIT, TOR_CLOSED = range(1, 3)
 
 # Message logged by default when a controller event type can't be set (message
 # has the event type inserted into it). This skips logging entirely if None.
@@ -256,6 +255,8 @@ class Controller (TorCtl.PostEventListener):
     self.listeners = []                 # callback functions for tor's state changes
     self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
     self._isReset = False               # internal flag for tracking resets
+    self._status = TOR_CLOSED           # current status of the attached control port
+    self._statusTime = 0                # unix timestamp for the duration of the status
     
     # cached information static for a connection (None if unset, "UNKNOWN" if
     # unable to be determined)
@@ -283,6 +284,9 @@ class Controller (TorCtl.PostEventListener):
       
       self.connLock.release()
       
+      self._status = TOR_INIT
+      self._statusTime = time.time()
+      
       # notifies listeners that a new controller is available
       thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
@@ -297,6 +301,9 @@ class Controller (TorCtl.PostEventListener):
       self.conn = None
       self.pid = None
       self.connLock.release()
+      
+      self._status = TOR_CLOSED
+      self._statusTime = time.time()
       
       # notifies listeners that the controller's been shut down
       thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
@@ -408,6 +415,15 @@ class Controller (TorCtl.PostEventListener):
     self.connLock.release()
     
     return result
+  
+  def getStatus(self):
+    """
+    Provides a tuple consisting of the control port's current status and unix
+    timestamp for when it became this way (zero if no status has yet to be
+    set).
+    """
+    
+    return (self._status, self._statusTime)
   
   def addStatusListener(self, callback):
     """
@@ -596,7 +612,11 @@ class Controller (TorCtl.PostEventListener):
     
     if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
       self._isReset = True
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_RESET,))
+      
+      self._status = TOR_INIT
+      self._statusTime = time.time()
+      
+      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
   def _notifyStatusListeners(self, eventType):
     """

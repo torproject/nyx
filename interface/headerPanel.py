@@ -62,6 +62,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       log.log(log.WARN, "Config: %s is expected to be an integer (defaulting to %i)" % (UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE))
       self._updateRate = DEFAULT_UPDATE_RATE
     
+    self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
     self._isLastDrawWide = False
     self._isChanged = False     # new stats to be drawn if true
@@ -141,7 +142,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     sysFields = ((0, "cpu: %s%%" % self.vals["ps/%cpu"]),
                  (13, "mem: %s (%s%%)" % (memoryLabel, self.vals["ps/%mem"])),
-                 (34, "pid: %s" % (self.vals["ps/pid"] if self.vals["ps/etime"] else "")),
+                 (34, "pid: %s" % (self.vals["ps/pid"] if self._isTorConnected else "")),
                  (47, "uptime: %s" % self.vals["ps/etime"]))
     
     for (start, label) in sysFields:
@@ -153,13 +154,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self.addstr(y, x, "fingerprint: %s" % self.vals["tor/fingerprint"])
     
     # Line 5 / Line 3 Left (flags)
-    flagLine = "flags: "
-    for flag in self.vals["tor/flags"]:
-      flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
-      flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
-    
-    if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
-    self.addfstr(2 if isWide else 4, 0, flagLine)
+    if self._isTorConnected:
+      flagLine = "flags: "
+      for flag in self.vals["tor/flags"]:
+        flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
+        flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
+      
+      if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
+      else: flagLine += "<b><cyan>none</cyan></b>"
+      
+      self.addfstr(2 if isWide else 4, 0, flagLine)
+    else:
+      statusTime = torTools.getConn().getStatus()[1]
+      statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
+      self.addfstr(2 if isWide else 4, 0, "<b><red>Tor Disconnected</red></b> (%s)" % statusTimeLabel)
     
     # Undisplayed / Line 3 Right (exit policy)
     if isWide:
@@ -206,7 +214,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     while not self._halt:
       timeSinceReset = time.time() - self._lastUpdate
       
-      if self._isPaused or timeSinceReset < self._updateRate:
+      if self._isPaused or timeSinceReset < self._updateRate or not self._isTorConnected:
         sleepTime = max(0.5, self._updateRate - timeSinceReset)
         self._cond.acquire()
         if not self._halt: self._cond.wait(sleepTime)
@@ -234,8 +242,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    if eventType == torTools.TOR_RESET:
+    if eventType == torTools.TOR_INIT:
+      self._isTorConnected = True
       self._update(True)
+      self.redraw()
+    elif eventType == torTools.TOR_CLOSED:
+      self._isTorConnected = False
+      self._update()
+      self.redraw(True)
   
   def _update(self, setStatic=False):
     """

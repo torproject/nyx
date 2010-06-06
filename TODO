@@ -9,8 +9,6 @@ TODO
       progress - /init and /util are done and /interface is in progress. Known
       bugs are being fixed while refactoring.
         * <done> header panel
-          - check if tor's been shut down or merely control port disconnect
-              (overwrite flags with tor status)?
         * graph panel
           - revise effective bandwidth
               Take into account 'MaxAdvertisedBandwidth', as per:
