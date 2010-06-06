@@ -31,8 +31,8 @@ EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUT
         w WARN      f DESCCHANGED     s STREAM          z STATUS_SERVER
         e ERR       g GUARD           t STREAM_BW       A All Events
                     k NEWCONSENSUS    u CLIENTS_SEEN    X No Events
-          DINWE Runlevel and higher severity            C TorCtl Events
-          12345 ARM runlevel and higher severity        U Unknown Events"""
+          DINWE runlevel and higher severity            C TorCtl Events
+          12345 arm runlevel and higher severity        U Unknown Events"""
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 

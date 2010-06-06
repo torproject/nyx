@@ -288,6 +288,16 @@ def setEventListening(selectedEvents, isBlindMode):
   returnVal.sort() # alphabetizes
   return returnVal
 
+def connResetListener(conn, eventType):
+  """
+  Pauses connection resolution when tor's shut down, and resumes if started
+  again.
+  """
+  
+  if connections.isResolverAlive("tor"):
+    resolver = connections.getResolver("tor")
+    resolver.setPaused(eventType == torTools.TOR_CLOSED)
+
 def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   """
   Starts arm interface reflecting information on provided control port.
@@ -297,6 +307,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   loggedEvents - types of events to be logged (plus an optional "UNKNOWN" for
     otherwise unrecognized events)
   """
+  
+  # pauses/unpauses connection resolution according to if tor's connected or not
+  torTools.getConn().addStatusListener(connResetListener)
   
   # TODO: incrementally drop this requirement until everything's using the singleton
   conn = torTools.getConn().getTorCtl()
