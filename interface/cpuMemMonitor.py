@@ -37,7 +37,7 @@ class CpuMemMonitor(graphPanel.GraphStats, TorCtl.PostEventListener):
     sampling = []
     psCall = None
     if torPid:
-      psCall = sysTools.call("ps -p %s -o %s" % (torPid, "%cpu,rss"), 5, True)
+      psCall = sysTools.call("ps -p %s -o %s" % (torPid, "%cpu,rss,%mem,etime"), 5, True)
     if psCall and len(psCall) >= 2: sampling = psCall[1].strip().split()
     
     if len(sampling) < 2:

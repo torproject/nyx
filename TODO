@@ -108,8 +108,6 @@ TODO
         My version still isn't handling all inputs anyway (still need to handle
         masks, private keyword, and prepended policy). Parse it from the rest
         of the router if too heavy ("TorCtl.Router.will_exit_to instead").
-    * prevent connection lookups when tor is shut down (currently presents
-        failover messages)
     * avoid hostname lookups of private connections
         Stripped most of them but suspect there might be others (have assertions
         check for this in a debug mode?)
