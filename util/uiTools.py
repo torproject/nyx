@@ -8,6 +8,8 @@ easy method of providing the following interface components:
 import sys
 import curses
 
+import log
+
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
               "yellow": curses.COLOR_YELLOW,  "blue": curses.COLOR_BLUE,
@@ -25,6 +27,12 @@ SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB",
               (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
 TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
               (60.0, "m", " minute"),                   (1.0, "s", " second")]
+
+# user customizable parameters
+CONFIG = {"features.colorInterface": True, "log.cursesColorSupport": log.INFO}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def getColor(color):
   """
@@ -211,13 +219,16 @@ def _initColors():
   
   global COLOR_ATTR_INITIALIZED
   if not COLOR_ATTR_INITIALIZED:
+    COLOR_ATTR_INITIALIZED = True
+    if not CONFIG["features.colorInterface"]: return
+    
     try: hasColorSupport = curses.has_colors()
     except curses.error: return # initscr hasn't been called yet
     
     # initializes color mappings if color support is available
-    COLOR_ATTR_INITIALIZED = True
     if hasColorSupport:
       colorpair = 0
+      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support detected and enabled")
       
       for colorName in COLOR_LIST:
         fgColor = COLOR_LIST[colorName]
@@ -225,4 +236,6 @@ def _initColors():
         colorpair += 1
         curses.init_pair(colorpair, fgColor, bgColor)
         COLOR_ATTR[colorName] = curses.color_pair(colorpair)
+    else:
+      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support unavailable")
 

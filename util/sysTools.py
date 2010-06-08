@@ -14,8 +14,13 @@ CMD_AVAILABLE_CACHE = {}
 # cached system call results, mapping the command issued to the (time, results) tuple
 CALL_CACHE = {}
 IS_FAILURES_CACHED = True           # caches both successful and failed results if true
-CALL_CACHE_TRIM_SIZE = 600          # number of entries at which old results are trimmed
 CALL_CACHE_LOCK = threading.RLock() # governs concurrent modifications of CALL_CACHE
+
+# user customizable parameters
+CONFIG = {"cache.sysCalls.size": 600, "log.sysCallMade": log.DEBUG, "log.sysCallCached": None, "log.sysCallFailed": log.INFO, "log.sysCallCacheGrowing": log.INFO}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def isAvailable(command, cached=True):
   """
@@ -67,18 +72,19 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   
   # caching functionality (fetching and trimming)
   if cacheAge > 0:
-    global CALL_CACHE, CALL_CACHE_TRIM_SIZE
+    global CALL_CACHE, CONFIG
     
     # keeps consistancy that we never use entries over a minute old (these
     # results are 'dirty' and might be trimmed at any time)
     cacheAge = min(cacheAge, 60)
+    cacheSize = CONFIG["cache.sysCalls.size"]
     
     # if the cache is especially large then trim old entries
-    if len(CALL_CACHE) > CALL_CACHE_TRIM_SIZE:
+    if len(CALL_CACHE) > cacheSize:
       CALL_CACHE_LOCK.acquire()
       
       # checks that we haven't trimmed while waiting
-      if len(CALL_CACHE) > CALL_CACHE_TRIM_SIZE:
+      if len(CALL_CACHE) > cacheSize:
         # constructs a new cache with only entries less than a minute old
         newCache, currentTime = {}, time.time()
         
@@ -88,9 +94,12 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
         
         # if the cache is almost as big as the trim size then we risk doing this
         # frequently, so grow it and log
-        if len(newCache) > (0.75 * CALL_CACHE_TRIM_SIZE):
-          CALL_CACHE_TRIM_SIZE = len(newCache) * 2
-          log.log(log.INFO, "growing system call cache to %i entries" % CALL_CACHE_TRIM_SIZE)
+        if len(newCache) > (0.75 * cacheSize):
+          cacheSize = len(newCache) * 2
+          CONFIG["cache.sysCalls.size"] = cacheSize
+          
+          msg = "growing system call cache to %i entries" % cacheSize
+          log.log(CONFIG["log.sysCallCacheGrowing"], msg)
         
         CALL_CACHE = newCache
       CALL_CACHE_LOCK.release()
@@ -102,14 +111,18 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
       
       if isinstance(cachedResults, IOError):
         if IS_FAILURES_CACHED:
-          log.log(log.DEBUG, "system call (cached failure): %s (age: %0.1f seconds, error: %s)" % (command, cacheAge, str(cachedResults)))
+          msg = "system call (cached failure): %s (age: %0.1f seconds, error: %s)" % (command, cacheAge, str(cachedResults))
+          log.log(CONFIG["log.sysCallCached"], msg)
+          
           if suppressExc: return None
           else: raise cachedResults
         else:
           # flag was toggled after a failure was cached - reissue call, ignoring the cache
           return call(command, 0, suppressExc, quiet)
       else:
-        log.log(log.DEBUG, "system call (cached): %s (age: %0.1f seconds)" % (command, cacheAge))
+        msg = "system call (cached): %s (age: %0.1f seconds)" % (command, cacheAge)
+        log.log(CONFIG["log.sysCallCached"], msg)
+        
         return cachedResults
   
   startTime = time.time()
@@ -136,7 +149,9 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   
   if errorExc:
     # log failure and either provide None or re-raise exception
-    log.log(log.INFO, "system call (failed): %s (error: %s)" % (command, str(errorExc)))
+    msg = "system call (failed): %s (error: %s)" % (command, str(errorExc))
+    log.log(CONFIG["log.sysCallFailed"], msg)
+    
     if cacheAge > 0 and IS_FAILURES_CACHED:
       CALL_CACHE_LOCK.acquire()
       CALL_CACHE[command] = (time.time(), errorExc)
@@ -146,7 +161,9 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
     else: raise errorExc
   else:
     # log call information and if we're caching then save the results
-    log.log(log.DEBUG, "system call: %s (runtime: %0.2f seconds)" % (command, time.time() - startTime))
+    msg = "system call: %s (runtime: %0.2f seconds)" % (command, time.time() - startTime)
+    log.log(CONFIG["log.sysCallMade"], msg)
+    
     if cacheAge > 0:
       CALL_CACHE_LOCK.acquire()
       CALL_CACHE[command] = (time.time(), results)

@@ -17,7 +17,15 @@ If a key's defined multiple times then the last instance of it is used.
 import os
 import threading
 
+import log
+
 CONFS = {}  # mapping of identifier to singleton instances of configs
+
+# user customizable parameters
+CONFIG = {"log.configEntryNotFound": None, "log.configEntryTypeError": log.INFO}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def getConfig(handle):
   """
@@ -53,7 +61,7 @@ class Config():
     self.contentsLock = threading.RLock()
     self.rawContents = []   # raw contents read from configuration file
   
-  def get(self, key, default=None):
+  def getSimple(self, key, default=None):
     """
     This provides the currently value associated with a given key. If no such
     key exists then this provides the default.
@@ -64,11 +72,79 @@ class Config():
     """
     
     self.contentsLock.acquire()
+    
     if key in self.contents: val = self.contents[key]
-    else: val = default
+    else:
+      msg = "config entry '%s' not found, defaulting to '%s'" % (key, str(default))
+      log.log(CONFIG["log.configEntryNotFound"], msg)
+      val = default
+    
     self.contentsLock.release()
     
     return val
+  
+  def get(self, key, default=None, minValue=0, maxValue=None):
+    """
+    Fetches the given configuration, using the key and default value to hint
+    the type it should be. Recognized types are:
+    - boolean if default is a boolean (valid values are 'true' and 'false',
+      anything else provides the default)
+    - integer or float if default is a number (provides default if fails to
+      cast)
+    - logging runlevel if key starts with "log."
+    
+    Arguments:
+      key      - config setting to be fetched
+      default  - value provided if no such key exists
+      minValue - if set and default value is numeric then uses this constraint
+      maxValue - if set and default value is numeric then uses this constraint
+    """
+    
+    callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
+    val = self.getSimple(key, callDefault)
+    if val == default: return val
+    
+    if key.startswith("log."):
+      val = log.strToRunlevel(val)
+    elif isinstance(default, bool):
+      if val.lower() == "true": val = True
+      elif val.lower() == "false": val = False
+      else:
+        msg = "config entry '%s' is expected to be a boolean, defaulting to '%s'" % (key, str(default))
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        val = default
+    elif isinstance(default, int):
+      try:
+        val = int(val)
+        if minValue: val = max(val, minValue)
+        if maxValue: val = min(val, maxValue)
+      except ValueError:
+        msg = "config entry '%s' is expected to be an integer, defaulting to '%i'" % (key, default)
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        val = default
+    elif isinstance(default, float):
+      try:
+        val = float(val)
+        if minValue: val = max(val, minValue)
+        if maxValue: val = min(val, maxValue)
+      except ValueError:
+        msg = "config entry '%s' is expected to be a float, defaulting to '%f'" % (key, default)
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        val = default
+    
+    return val
+  
+  def update(self, confMappings):
+    """
+    Revises a set of key/value mappings to reflect the current configuration.
+    Undefined values are left with their current values.
+    
+    Arguments:
+      confMappings - configuration key/value mappints to be revised
+    """
+    
+    for entry in confMappings.keys():
+      confMappings[entry] = self.get(entry, confMappings[entry])
   
   def set(self, key, value):
     """

@@ -1,0 +1,45 @@
+# default startup options
+startup.controlPassword
+startup.interface.ipAddress 127.0.0.1
+startup.interface.port 9051
+startup.blindModeEnabled false
+startup.events N3
+
+features.colorInterface true
+
+# seconds between querying information
+queries.ps.rate 5
+queries.connections.minRate 5
+
+# Thread pool size for hostname resolutions (determining the maximum number of
+# concurrent requests). Upping this to around thirty or so seems to be
+# problematic, causing intermittently seizing.
+queries.hostnames.poolSize 5
+
+# Uses python's internal "socket.gethostbyaddr" to resolve addresses rather
+# than the host command. This is ignored if the system's unable to make
+# parallel requests. Resolving this way seems to be much slower than host calls
+# in practice.
+queries.hostnames.useSocketModule false
+
+# caching parameters
+cache.sysCalls.size 600
+cache.hostnames.size 700000
+cache.hostnames.trimSize 200000
+cache.armLog.size 1000
+cache.armLog.trimSize 200
+
+# runlevels at which to log arm related events
+log.configEntryNotFound NONE
+log.configEntryTypeError NOTICE
+log.sysCallMade DEBUG
+log.sysCallCached NONE
+log.sysCallFailed INFO
+log.sysCallCacheGrowing INFO
+log.connLookupFailed INFO
+log.connLookupFailover NOTICE
+log.connLookupAbandon WARN
+log.connLookupRateGrowing NONE
+log.hostnameCacheTrimmed INFO
+log.cursesColorSupport INFO
+

@@ -262,14 +262,20 @@ class Controller (TorCtl.PostEventListener):
     # unable to be determined)
     self.pid = None
   
-  def init(self, conn):
+  def init(self, conn=None):
     """
     Uses the given TorCtl instance for future operations, notifying listeners
     about the change.
     
     Arguments:
-      conn - TorCtl instance to be used
+      conn - TorCtl instance to be used, if None then a new instance is fetched
+             via the connect function
     """
+    
+    if conn == None:
+      conn = connect()
+      
+      if conn == None: raise ValueError("Unable to initialize TorCtl instance.")
     
     if conn.is_live() and conn != self.conn:
       self.connLock.acquire()
@@ -383,14 +389,16 @@ class Controller (TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
-    result, raisedExc = default, None
+    result, raisedExc = [], None
     if self.isAlive():
       try:
-        if multiple: result = self.conn.get_option(param)
+        if multiple:
+          for key, value in self.conn.get_option(param):
+            if value != None: result.append(value)
         else: result = self.conn.get_option(param)[0][1]
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
-        raisedExc = exc
+        result, raisedExc = default, exc
     
     self.connLock.release()
     

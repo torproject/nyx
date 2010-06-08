@@ -18,11 +18,11 @@ import os
 import time
 import threading
 
-from util import conf, log, panel, sysTools, torTools, uiTools
+from util import conf, panel, sysTools, torTools, uiTools
 
 # seconds between querying information
 DEFAULT_UPDATE_RATE = 5
-UPDATE_RATE_CFG = "updateRate.header"
+UPDATE_RATE_CFG = "queries.ps.rate"
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -54,14 +54,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
-    # seconds between querying updates
-    try:
-      self._updateRate = int(conf.getConfig("arm").get(UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE))
-    except ValueError:
-      # value wasn't an integer
-      log.log(log.WARN, "Config: %s is expected to be an integer (defaulting to %i)" % (UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE))
-      self._updateRate = DEFAULT_UPDATE_RATE
-    
+    self._updateRate = conf.getConfig("arm").get(UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE, 1)
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
     self._isLastDrawWide = False
@@ -278,7 +271,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # fetch exit policy (might span over multiple lines)
       policyEntries = []
       for exitPolicy in conn.getOption("ExitPolicy", [], True):
-        policyEntries += [policy.strip() for policy in exitPolicy[1].split(",")]
+        policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
       self.vals["tor/exitPolicy"] = ", ".join(policyEntries)
       
       # system information

@@ -32,20 +32,25 @@ import itertools
 import Queue
 import distutils.sysconfig
 
+import log
 import sysTools
 
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
-RESOLVER_CACHE_SIZE = 700000          # threshold for when cached results are discarded
-RESOLVER_CACHE_TRIM_SIZE = 200000     # number of entries discarded when the limit's reached
-RESOLVER_THREAD_POOL_SIZE = 5         # upping to around 30 causes the program to intermittently seize
 RESOLVER_COUNTER = itertools.count()  # atomic counter, providing the age for new entries (for trimming)
 DNS_ERROR_CODES = ("1(FORMERR)", "2(SERVFAIL)", "3(NXDOMAIN)", "4(NOTIMP)", "5(REFUSED)", "6(YXDOMAIN)",
                    "7(YXRRSET)", "8(NXRRSET)", "9(NOTAUTH)", "10(NOTZONE)", "16(BADVERS)")
 
-# If true this allows for the use of socket.gethostbyaddr to resolve addresses
-# (this seems to be far slower, but would seem preferable if I'm wrong...).
-ALLOW_SOCKET_RESOLUTION = False
+# user customizable parameters
+CONFIG = {"queries.hostnames.poolSize": 5, "queries.hostnames.useSocketModule": False, "cache.hostnames.size": 700000, "cache.hostnames.trimSize": 200000, "log.hostnameCacheTrimmed": log.INFO}
+
+def loadConfig(config):
+  config.update(CONFIG)
+  
+  # ensures sane config values
+  CONFIG["queries.hostnames.poolSize"] = max(1, CONFIG["queries.hostnames.poolSize"])
+  CONFIG["cache.hostnames.size"] = max(100, CONFIG["cache.hostnames.size"])
+  CONFIG["cache.hostnames.trimSize"] = max(10, min(CONFIG["cache.hostnames.trimSize"], CONFIG["cache.hostnames.size"] / 2))
 
 def start():
   """
@@ -258,9 +263,9 @@ class _Resolver():
     # gethostbyname_r function, which determines if python resolutions can be
     # done in parallel or not. If so, this is preferable.
     isSocketResolutionParallel = distutils.sysconfig.get_config_var("HAVE_GETHOSTBYNAME_R")
-    self.useSocketResolution = ALLOW_SOCKET_RESOLUTION and isSocketResolutionParallel
+    self.useSocketResolution = CONFIG["queries.hostnames.useSocketModule"] and isSocketResolutionParallel
     
-    for _ in range(RESOLVER_THREAD_POOL_SIZE):
+    for _ in range(CONFIG["queries.hostnames.poolSize"]):
       t = threading.Thread(target = self._workerLoop)
       t.setDaemon(True)
       t.start()
@@ -360,15 +365,19 @@ class _Resolver():
       self.resolvedCache[ipAddr] = (result, RESOLVER_COUNTER.next())
       
       # trim cache if excessively large (clearing out oldest entries)
-      if len(self.resolvedCache) > RESOLVER_CACHE_SIZE:
+      if len(self.resolvedCache) > CONFIG["cache.hostnames.size"]:
         # Providing for concurrent, non-blocking calls require that entries are
         # never removed from the cache, so this creates a new, trimmed version
         # instead.
         
         # determines minimum age of entries to be kept
         currentCount = RESOLVER_COUNTER.next()
-        threshold = currentCount - (RESOLVER_CACHE_SIZE - RESOLVER_CACHE_TRIM_SIZE)
+        newCacheSize = CONFIG["cache.hostnames.size"] - CONFIG["cache.hostnames.trimSize"]
+        threshold = currentCount - newCacheSize
         newCache = {}
+        
+        msg = "trimming hostname cache from %i entries to %i" % (len(self.resolvedCache), newCacheSize)
+        log.log(CONFIG["log.hostnameCacheTrimmed"], msg)
         
         # checks age of each entry, adding to toDelete if too old
         for ipAddr, entry in self.resolvedCache.iteritems():

@@ -43,11 +43,15 @@ RUN_SS = "ss -np | grep \"\\\"%s\\\",%s\""
 RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
-RESOLVER_MIN_DEFAULT_LOOKUP = 5     # minimum seconds between lookups (unless overwritten)
-RESOLVER_SLEEP_INTERVAL = 1         # period to sleep when not resolving
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
+
+# user customizable parameters
+CONFIG = {"queries.connections.minRate": 5, "log.connLookupFailed": log.INFO, "log.connLookupFailover": log.NOTICE, "log.connLookupAbandon": log.WARN, "log.connLookupRateGrowing": None}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def getConnections(resolutionCmd, processName, processPid = ""):
   """
@@ -228,7 +232,7 @@ class ConnectionResolver(threading.Thread):
     self.processName = processName
     self.processPid = processPid
     self.resolveRate = resolveRate
-    self.defaultRate = RESOLVER_MIN_DEFAULT_LOOKUP
+    self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
     self.defaultResolver = CMD_NETSTAT
@@ -275,7 +279,15 @@ class ConnectionResolver(threading.Thread):
         lookupTime = time.time() - resolveStart
         
         self._connections = connResults
-        self.defaultRate = max(5, 10 % lookupTime)
+        
+        newMinDefaultRate = 100 * lookupTime
+        if self.defaultRate < newMinDefaultRate:
+          # adding extra to keep the rate from frequently changing
+          self.defaultRate = newMinDefaultRate + 0.5
+          
+          msg = "connection lookup time increasing to %0.1f seconds per call" % self.defaultRate
+          log.log(CONFIG["log.connLookupRateGrowing"], msg)
+        
         if isDefault: self._subsiquentFailures = 0
       except IOError, exc:
         # this logs in a couple of cases:
@@ -283,7 +295,7 @@ class ConnectionResolver(threading.Thread):
         # logged via sysTools)
         # - note failovers for default resolution methods
         if str(exc).startswith("No results found using:"):
-          log.log(log.INFO, str(exc))
+          log.log(CONFIG["log.connLookupFailed"], str(exc))
         
         if isDefault:
           self._subsiquentFailures += 1
@@ -302,10 +314,11 @@ class ConnectionResolver(threading.Thread):
             
             if newResolver:
               # provide notice that failures have occured and resolver is changing
-              log.log(log.NOTICE, RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver]))
+              msg = RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver])
+              log.log(CONFIG["log.connLookupFailover"], msg)
             else:
               # exhausted all resolvers, give warning
-              log.log(log.WARN, RESOLVER_FINAL_FAILURE_MSG)
+              log.log(CONFIG["log.connLookupAbandon"], RESOLVER_FINAL_FAILURE_MSG)
             
             self.defaultResolver = newResolver
       finally:
