@@ -311,6 +311,10 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
     otherwise unrecognized events)
   """
   
+  # loads config for various interface components
+  config = conf.getConfig("arm")
+  config.update(CONFIG)
+  
   # pauses/unpauses connection resolution according to if tor's connected or not
   torTools.getConn().addStatusListener(connResetListener)
   
@@ -348,7 +352,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr),
+    "header": headerPanel.HeaderPanel(stdscr, config),
     "popup": Popup(stdscr, 9),
     "graph": graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogMonitor(stdscr, conn, loggedEvents)}
@@ -411,9 +415,6 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   panels["popup"].redraw()      # hack to make sure popup has a window instance (not entirely sure why...)
   
   # provides notice about any unused config keys
-  config = conf.getConfig("arm")
-  config.update(CONFIG)
-  
   for key in config.getUnusedKeys():
     log.log(CONFIG["log.configEntryUndefined"], "config entry '%s' is unrecognized" % key)
   

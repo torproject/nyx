@@ -18,10 +18,7 @@ import os
 import time
 import threading
 
-from util import conf, panel, sysTools, torTools, uiTools
-
-# seconds between querying information
-UPDATE_RATE_CFG = ("queries.ps.rate", 5)
+from util import panel, sysTools, torTools, uiTools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -34,6 +31,9 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
+
+# user customizable parameters
+DEFAULT_CONFIG = {"queries.ps.rate": 5}
 
 class HeaderPanel(panel.Panel, threading.Thread):
   """
@@ -48,12 +48,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
   * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr):
+  def __init__(self, stdscr, config=None):
     panel.Panel.__init__(self, stdscr, 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
-    self._updateRate = conf.getConfig("arm").get(UPDATE_RATE_CFG[0], UPDATE_RATE_CFG[1], 1)
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
     self._isLastDrawWide = False
@@ -61,6 +60,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._isPaused = False      # prevents updates if true
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
+    self._config = dict(DEFAULT_CONFIG)
+    
+    if config:
+      config.update(self._config)
+      self._config["queries.ps.rate"] = max(self._config["queries.ps.rate"], 1)
     
     self.vals = {}
     self.valsLock = threading.RLock()
@@ -205,9 +209,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     while not self._halt:
       timeSinceReset = time.time() - self._lastUpdate
+      psRate = self._config["queries.ps.rate"]
       
-      if self._isPaused or timeSinceReset < self._updateRate or not self._isTorConnected:
-        sleepTime = max(0.5, self._updateRate - timeSinceReset)
+      if self._isPaused or timeSinceReset < psRate or not self._isTorConnected:
+        sleepTime = max(0.5, psRate - timeSinceReset)
         self._cond.acquire()
         if not self._halt: self._cond.wait(sleepTime)
         self._cond.release()
@@ -326,7 +331,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # the ps call formats results as:
       # %CPU   RSS %MEM     ELAPSED
       # 0.3 14096  1.3       29:51
-      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["ps/pid"], ",".join(psParams)), self._updateRate, True)
+      psRate = self._config["queries.ps.rate"]
+      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["ps/pid"], ",".join(psParams)), psRate, True)
       
       if psCall and len(psCall) >= 2:
         stats = psCall[1].strip().split()
