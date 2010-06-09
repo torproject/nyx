@@ -21,8 +21,7 @@ import threading
 from util import conf, panel, sysTools, torTools, uiTools
 
 # seconds between querying information
-DEFAULT_UPDATE_RATE = 5
-UPDATE_RATE_CFG = "queries.ps.rate"
+UPDATE_RATE_CFG = ("queries.ps.rate", 5)
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -54,7 +53,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
-    self._updateRate = conf.getConfig("arm").get(UPDATE_RATE_CFG, DEFAULT_UPDATE_RATE, 1)
+    self._updateRate = conf.getConfig("arm").get(UPDATE_RATE_CFG[0], UPDATE_RATE_CFG[1], 1)
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
     self._isLastDrawWide = False

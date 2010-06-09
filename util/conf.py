@@ -59,9 +59,10 @@ class Config():
     self.path = None        # path to the associated configuation file
     self.contents = {}      # configuration key/value pairs
     self.contentsLock = threading.RLock()
+    self.requestedKeys = set()
     self.rawContents = []   # raw contents read from configuration file
   
-  def getSimple(self, key, default=None):
+  def getStr(self, key, default=None):
     """
     This provides the currently value associated with a given key. If no such
     key exists then this provides the default.
@@ -73,7 +74,9 @@ class Config():
     
     self.contentsLock.acquire()
     
-    if key in self.contents: val = self.contents[key]
+    if key in self.contents:
+      val = self.contents[key]
+      self.requestedKeys.add(key)
     else:
       msg = "config entry '%s' not found, defaulting to '%s'" % (key, str(default))
       log.log(CONFIG["log.configEntryNotFound"], msg)
@@ -101,11 +104,16 @@ class Config():
     """
     
     callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
-    val = self.getSimple(key, callDefault)
+    val = self.getStr(key, callDefault)
     if val == default: return val
     
     if key.startswith("log."):
-      val = log.strToRunlevel(val)
+      if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
+        val = log.strToRunlevel(val)
+      else:
+        msg = "config entry '%s' is expected to be a runlevel, defaulting to '%s'" % (key, callDefault)
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        val = default
     elif isinstance(default, bool):
       if val.lower() == "true": val = True
       elif val.lower() == "false": val = False
@@ -145,6 +153,20 @@ class Config():
     
     for entry in confMappings.keys():
       confMappings[entry] = self.get(entry, confMappings[entry])
+  
+  def getKeys(self):
+    """
+    Provides all keys in the currently loaded configuration.
+    """
+    
+    return self.contents.keys()
+  
+  def getUnusedKeys(self):
+    """
+    Provides the set of keys that have never been requested.
+    """
+    
+    return set(self.getKeys()).difference(self.requestedKeys)
   
   def set(self, key, value):
     """

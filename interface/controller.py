@@ -22,7 +22,7 @@ import confPanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import log, connections, hostnames, panel, sysTools, torTools, uiTools
+from util import conf, log, connections, hostnames, panel, sysTools, torTools, uiTools
 import bandwidthMonitor
 import cpuMemMonitor
 import connCountMonitor
@@ -41,6 +41,9 @@ PAGES = [
   ["conn"],
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
+
+# user customizable parameters
+CONFIG = {"log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -406,6 +409,13 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   page = 0
   regexFilters = []             # previously used log regex filters
   panels["popup"].redraw()      # hack to make sure popup has a window instance (not entirely sure why...)
+  
+  # provides notice about any unused config keys
+  config = conf.getConfig("arm")
+  config.update(CONFIG)
+  
+  for key in config.getUnusedKeys():
+    log.log(CONFIG["log.configEntryUndefined"], "config entry '%s' is unrecognized" % key)
   
   while True:
     # tried only refreshing when the screen was resized but it caused a

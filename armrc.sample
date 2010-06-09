@@ -1,4 +1,4 @@
-# default startup options
+# startup options
 startup.controlPassword
 startup.interface.ipAddress 127.0.0.1
 startup.interface.port 9051
@@ -31,6 +31,7 @@ cache.armLog.trimSize 200
 
 # runlevels at which to log arm related events
 log.configEntryNotFound NONE
+log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
 log.sysCallMade DEBUG
 log.sysCallCached NONE

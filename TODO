@@ -48,11 +48,7 @@ TODO
   * provide performance ARM-DEBUG events
       Help with diagnosing performance bottlenecks. This is pending the
       codebase revisions to figure out the low hanging fruit for caching.
-  * wrapper for user config settings
-    * <done> user customizable armrc
-    * make various interface update rates setable via the config
-    * log messages about loading armrc (info level indicating if armrc was
-        found, etc)
+  * <done> user customizable armrc
   * tor util
     * <done> wrapper for accessing torctl
     * allow arm to resume after restarting tor (attaching to a new torctl
@@ -115,6 +111,8 @@ TODO
     * connections aren't cleared when control port closes
 
 - Features / Site
+  * page with details on client circuits, attempting to detect details like
+      country, ISP, latency, exit policy for the circuit, traffic, etc
   * attempt to clear controller password from memory
       http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
   * try/catch check when starting for curses support?
