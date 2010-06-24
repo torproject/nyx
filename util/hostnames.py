@@ -41,7 +41,6 @@ RESOLVER_COUNTER = itertools.count()  # atomic counter, providing the age for ne
 DNS_ERROR_CODES = ("1(FORMERR)", "2(SERVFAIL)", "3(NXDOMAIN)", "4(NOTIMP)", "5(REFUSED)", "6(YXDOMAIN)",
                    "7(YXRRSET)", "8(NXRRSET)", "9(NOTAUTH)", "10(NOTZONE)", "16(BADVERS)")
 
-# user customizable parameters
 CONFIG = {"queries.hostnames.poolSize": 5, "queries.hostnames.useSocketModule": False, "cache.hostnames.size": 700000, "cache.hostnames.trimSize": 200000, "log.hostnameCacheTrimmed": log.INFO}
 
 def loadConfig(config):

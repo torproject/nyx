@@ -32,7 +32,6 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
-# user customizable parameters
 DEFAULT_CONFIG = {"queries.ps.rate": 5}
 
 class HeaderPanel(panel.Panel, threading.Thread):
@@ -49,7 +48,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   """
   
   def __init__(self, stdscr, config=None):
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
     

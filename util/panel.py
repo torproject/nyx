@@ -5,7 +5,7 @@ Wrapper for safely working with curses subwindows.
 import curses
 from threading import RLock
 
-import uiTools
+import log, uiTools
 
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
@@ -18,6 +18,11 @@ FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<u>": (_noOp, curses.A_UNDERLINE),
                "<h>": (_noOp, curses.A_STANDOUT)}
 for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
+
+CONFIG = {"log.panelRecreated": log.DEBUG}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 class Panel():
   """
@@ -33,12 +38,13 @@ class Panel():
   redraw().
   """
   
-  def __init__(self, parent, top, height=-1, width=-1):
+  def __init__(self, parent, name, top, height=-1, width=-1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
     
     Arguments:
       parent - parent curses window
+      name   - identifier for the panel
       top    - positioning of top within parent
       height - maximum height of panel (uses all available space if -1)
       width  - maximum width of panel (uses all available space if -1)
@@ -49,6 +55,7 @@ class Panel():
     # might chose their height based on its parent's current width).
     
     self.parent = parent
+    self.panelName = name
     self.top = top
     self.height = height
     self.width = width
@@ -63,6 +70,13 @@ class Panel():
     self.win = None
     
     self.maxY, self.maxX = -1, -1 # subwindow dimensions when last redrawn
+  
+  def getName(self):
+    """
+    Provides panel's identifier.
+    """
+    
+    return self.name
   
   def getParent(self):
     """
@@ -170,7 +184,7 @@ class Panel():
     
     pass
   
-  def redraw(self, forceRedraw=True, block=False):
+  def redraw(self, forceRedraw=False, block=False):
     """
     Clears display and redraws its content. This can skip redrawing content if
     able (ie, the subwindow's unchanged), instead just refreshing the display.
@@ -371,6 +385,7 @@ class Panel():
       manifests if the terminal's shrank then re-expanded. Displaced
       subwindows are never restored to their proper position, resulting in
       graphical glitches if we draw to them.
+    - The preferred size is smaller than the actual size (should shrink).
     
     This returns True if a new subwindow instance was created, False otherwise.
     """
@@ -384,6 +399,7 @@ class Panel():
       subwinMaxY, subwinMaxX = self.win.getmaxyx()
       recreate |= subwinMaxY < newHeight              # check for vertical growth
       recreate |= self.top > self.win.getparyx()[0]   # check for displacement
+      recreate |= subwinMaxX > newWidth or subwinMaxY > newHeight # shrinking
     
     # I'm not sure if recreating subwindows is some sort of memory leak but the
     # Python curses bindings seem to lack all of the following:
@@ -392,6 +408,11 @@ class Panel():
     # so this is the only option (besides removing subwindows entirely which 
     # would mean far more complicated code and no more selective refreshing)
     
-    if recreate: self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+    if recreate:
+      self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+      
+      # note: doing this log before setting win produces an infinite loop
+      msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.panelName, newHeight, newWidth)
+      log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
   

@@ -28,7 +28,6 @@ SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB",
 TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
               (60.0, "m", " minute"),                   (1.0, "s", " second")]
 
-# user customizable parameters
 CONFIG = {"features.colorInterface": True, "log.cursesColorSupport": log.INFO}
 
 def loadConfig(config):

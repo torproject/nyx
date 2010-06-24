@@ -111,7 +111,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   
   def __init__(self, stdscr, conn, isDisabled):
     TorCtl.PostEventListener.__init__(self)
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "conn", 0)
     self.scroll = 0
     self.conn = conn                  # tor connection for querrying country codes
     self.listingType = LIST_IP        # information used in listing entries
@@ -452,7 +452,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       if not self.allowDNS: hostnames.setPaused(True)
       elif self.listingType == LIST_HOSTNAME: hostnames.setPaused(False)
     else: return # skip following redraw
-    self.redraw()
+    self.redraw(True)
   
   def draw(self, subwindow, width, height):
     self.connectionsLock.acquire()

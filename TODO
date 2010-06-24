@@ -10,13 +10,8 @@ TODO
       bugs are being fixed while refactoring.
         [X] header panel
         [ ] graph panel
-          - revise effective bandwidth
-              Take into account 'MaxAdvertisedBandwidth', as per:
-              http://paste.debian.net/76254/
           - include observed bandwidth
               http://torstatus.blutmagie.de/router_detail.php?FP=a7569a83b5706ab1b1a9cb52eff7d2d32e4553eb
-          - graph for arm cpu/mem usage
-              Trivial to implement but not sure if this would be useful.
           - prepopulate bandwidth graph with contents of state file
               Open questions:
                 - How frequently are the bandwidth values in the state file
@@ -65,6 +60,9 @@ TODO
             submit@bugs.debian.org with subject "RFP: arm" and starting with a
             line "Package: wnpp". Also add to 'deb.torprojec.org'. (requested
             by helmut)
+              * http://www.debian.org/doc/maint-guide/
+              * http://www.debian.org/doc/packaging-manuals/python-policy/
+              * http://showmedo.com/videotutorials/video?name=linuxJensMakingDeb
   * release prep
     * check performance of this version vs last version (general screen refresh
         times)
@@ -72,6 +70,10 @@ TODO
     * double check __init__.py and README for changes
 
 - Bugs
+  * util are assuming that tor is running under the default command name
+      attempt to determine the command name at runtime (if the pid is available
+      then ps can do the mapping)
+  
   * log panel:
     * not catching events unexpected by arm
         Future tor and TorCtl revisions could provide new events - these should
@@ -112,6 +114,9 @@ TODO
     * connections aren't cleared when control port closes
 
 - Features / Site
+  * check if batch getInfo/getOption calls provide much performance benefit
+  * layout (css) bugs with site
+      Revise to use 'em' for measurements and somehow stretch image's y-margin?
   * page with details on client circuits, attempting to detect details like
       country, ISP, latency, exit policy for the circuit, traffic, etc
   * attempt to clear controller password from memory

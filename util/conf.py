@@ -20,8 +20,6 @@ import threading
 import log
 
 CONFS = {}  # mapping of identifier to singleton instances of configs
-
-# user customizable parameters
 CONFIG = {"log.configEntryNotFound": None, "log.configEntryTypeError": log.INFO}
 
 def loadConfig(config):

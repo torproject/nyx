@@ -240,8 +240,7 @@ def getConn():
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
 
-# TODO: sighup notification (and replacement in controller!)
-class Controller (TorCtl.PostEventListener):
+class Controller(TorCtl.PostEventListener):
   """
   TorCtl wrapper providing convenience functions, listener functionality for
   tor's state, and the capability for controller connections to be restarted

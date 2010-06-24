@@ -7,6 +7,29 @@ startup.events N3
 
 features.colorInterface true
 
+# general graph parameters
+# interval: 0 -> each second,  1 -> 5 seconds,  2 -> 30 seconds,
+#           3 -> minutely,     4 -> half hour,  5 -> hourly,      6 -> daily
+# bound:    0 -> global maxima,        1 -> local maxima, 2 -> tight
+# type:     0 -> None, 1 -> Bandwidth, 2 -> Connections,  3 -> System Resources
+
+features.graph.interval 0
+features.graph.bound 1
+features.graph.type 1
+features.graph.maxSize 150
+
+# ps graph parameters
+# primary/secondaryStat: any numeric field provided by the ps command
+# cachedOnly: determines if the graph should query ps or rely on cached results
+#             (this lowers the call volume but limits the graph's granularity)
+
+features.graph.ps.primaryStat %cpu
+features.graph.ps.secondaryStat rss
+features.graph.ps.cachedOnly true
+
+features.graph.bw.showAccounting true
+features.graph.bw.isAccountingTimeLong false
+
 # seconds between querying information
 queries.ps.rate 5
 queries.connections.minRate 5
@@ -14,12 +37,14 @@ queries.connections.minRate 5
 # Thread pool size for hostname resolutions (determining the maximum number of
 # concurrent requests). Upping this to around thirty or so seems to be
 # problematic, causing intermittently seizing.
+
 queries.hostnames.poolSize 5
 
 # Uses python's internal "socket.gethostbyaddr" to resolve addresses rather
 # than the host command. This is ignored if the system's unable to make
 # parallel requests. Resolving this way seems to be much slower than host calls
 # in practice.
+
 queries.hostnames.useSocketModule false
 
 # caching parameters
@@ -37,6 +62,9 @@ log.sysCallMade DEBUG
 log.sysCallCached NONE
 log.sysCallFailed INFO
 log.sysCallCacheGrowing INFO
+log.panelRecreated DEBUG
+log.graph.ps.invalidStat WARN
+log.graph.ps.abandon WARN
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN

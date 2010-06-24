@@ -22,6 +22,11 @@ import sysTools
 CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)
 CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
 
+# If true this provides new instantiations for resolvers if the old one has
+# been stopped. This can make it difficult ensure all threads are terminated
+# when accessed concurrently.
+RECREATE_HALTED_RESOLVERS = False
+
 # formatted strings for the commands to be executed with the various resolvers
 # options are:
 # n = prevents dns lookups, p = include process, t = tcp only
@@ -46,8 +51,6 @@ RESOLVERS = []                      # connection resolvers available via the sin
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
-
-# user customizable parameters
 CONFIG = {"queries.connections.minRate": 5, "log.connLookupFailed": log.INFO, "log.connLookupFailover": log.NOTICE, "log.connLookupAbandon": log.WARN, "log.connLookupRateGrowing": None}
 
 def loadConfig(config):
@@ -129,7 +132,7 @@ def getResolver(processName, processPid = ""):
   for i in range(len(RESOLVERS)):
     resolver = RESOLVERS[i]
     if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
-      if resolver._halt: haltedIndex = i
+      if resolver._halt and RECREATE_HALTED_RESOLVERS: haltedIndex = i
       else: return resolver
   
   # make a new resolver

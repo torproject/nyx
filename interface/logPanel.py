@@ -90,7 +90,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def __init__(self, stdscr, conn, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "log", 0)
     self.scroll = 0
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
@@ -293,7 +293,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     else:
       for msgLine in toAdd: self.msgLog.insert(0, (msgLine, color))
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
-      self.redraw()
+      self.redraw(True)
   
   def draw(self, subwindow, width, height):
     """
@@ -385,7 +385,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if self.isPaused: self.pauseBuffer = []
     else:
       self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
-      if self.win: self.redraw() # hack to avoid redrawing during init
+      if self.win: self.redraw(True) # hack to avoid redrawing during init
   
   def getHeartbeat(self):
     """

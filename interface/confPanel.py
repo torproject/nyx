@@ -37,7 +37,7 @@ class ConfPanel(panel.Panel):
   """
   
   def __init__(self, stdscr, confLocation, conn):
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "conf", 0)
     self.confLocation = confLocation
     self.showLineNum = True
     self.stripComments = False
@@ -176,7 +176,7 @@ class ConfPanel(panel.Panel):
     elif key == ord('s') or key == ord('S'):
       self.stripComments = not self.stripComments
       self.scroll = 0
-    self.redraw()
+    self.redraw(True)
   
   def draw(self, subwindow, width, height):
     self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, curses.A_STANDOUT)

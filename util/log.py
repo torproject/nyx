@@ -17,15 +17,14 @@ RUNLEVEL_STR = {DEBUG: "DEBUG", INFO: "INFO", NOTICE: "NOTICE", WARN: "WARN", ER
 # provides thread safety for logging operations
 LOG_LOCK = RLock()
 
-# user customizable parameters (caching limits are per-runlevel)
-CONFIG = {"cache.armLog.size": 1000, "cache.armLog.trimSize": 200}
-
 # chronologically ordered records of events for each runlevel, stored as tuples
 # consisting of: (time, message)
 _backlog = dict([(level, []) for level in range(1, 6)])
 
 # mapping of runlevels to the listeners interested in receiving events from it
 _listeners = dict([(level, []) for level in range(1, 6)])
+
+CONFIG = {"cache.armLog.size": 1000, "cache.armLog.trimSize": 200}
 
 def loadConfig(config):
   config.update(CONFIG)
