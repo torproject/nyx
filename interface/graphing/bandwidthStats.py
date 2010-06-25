@@ -73,7 +73,8 @@ class BandwidthStats(graphPanel.GraphStats):
         self.bwBurst = self.bwBurst.replace(".0", "")
   
   def bandwidth_event(self, event):
-    if self.isNextTickRedraw(): self._updateAccountingInfo()
+    if self.isAccounting and self.isNextTickRedraw():
+      self._updateAccountingInfo()
     
     # scales units from B to KB for graphing
     self._processEvent(event.read / 1024.0, event.written / 1024.0)

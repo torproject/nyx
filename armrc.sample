@@ -58,6 +58,8 @@ cache.armLog.trimSize 200
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
+log.torGetInfo DEBUG
+log.torGetConf DEBUG
 log.sysCallMade DEBUG
 log.sysCallCached NONE
 log.sysCallFailed INFO

@@ -41,6 +41,11 @@ FAILED_EVENTS = set()
 CONTROLLER = None # singleton Controller instance
 INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
 
+CONFIG = {"log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
+
+def loadConfig(config):
+  config.update(CONFIG)
+
 def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
   """
   Opens a socket to the tor controller and queries its authentication type,
@@ -358,6 +363,7 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    startTime = time.time()
     result, raisedExc = default, None
     if self.isAlive():
       try:
@@ -365,6 +371,9 @@ class Controller(TorCtl.PostEventListener):
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         raisedExc = exc
+    
+    msg = "tor control call: GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+    log.log(CONFIG["log.torGetInfo"], msg)
     
     self.connLock.release()
     
@@ -388,6 +397,7 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    startTime = time.time()
     result, raisedExc = [], None
     if self.isAlive():
       try:
@@ -398,6 +408,9 @@ class Controller(TorCtl.PostEventListener):
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         result, raisedExc = default, exc
+    
+    msg = "tor control call: GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
+    log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
     

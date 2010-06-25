@@ -103,7 +103,7 @@ class GraphStats(TorCtl.PostEventListener):
     being redrawn.
     """
     
-    if self._graphPanel and not self.isPaused:
+    if self._graphPanel and not self.isPauseBuffer and not self.isPaused:
       updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
       if (self.tick + 1) % updateRate == 0: return True
     
