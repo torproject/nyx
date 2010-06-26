@@ -256,7 +256,8 @@ class Controller(TorCtl.PostEventListener):
     TorCtl.PostEventListener.__init__(self)
     self.conn = None                    # None if uninitialized or controller's been closed
     self.connLock = threading.RLock()
-    self.listeners = []                 # callback functions for tor's state changes
+    self.eventListeners = []            # instances listening for tor controller events
+    self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
@@ -445,6 +446,21 @@ class Controller(TorCtl.PostEventListener):
     
     return (self._status, self._statusTime)
   
+  def addEventListener(self, listener):
+    """
+    Directs further tor controller events to callback functions of the
+    listener. If a new control connection is initialized then this listener is
+    reattached.
+    
+    Arguments:
+      listener - TorCtl.PostEventListener instance listening for events
+    """
+    
+    self.connLock.acquire()
+    self.eventListeners.append(listener)
+    if self.isAlive(): self.conn.add_event_listener(listener)
+    self.connLock.release()
+  
   def addStatusListener(self, callback):
     """
     Directs further events related to tor's controller status to the callback
@@ -455,7 +471,7 @@ class Controller(TorCtl.PostEventListener):
                  myFunction(controller, eventType)
     """
     
-    self.listeners.append(callback)
+    self.statusListeners.append(callback)
   
   def removeStatusListener(self, callback):
     """
@@ -466,8 +482,8 @@ class Controller(TorCtl.PostEventListener):
       callback - functor to be removed
     """
     
-    if callback in self.listeners:
-      self.listeners.remove(callback)
+    if callback in self.statusListeners:
+      self.statusListeners.remove(callback)
       return True
     else: return False
   
@@ -647,6 +663,6 @@ class Controller(TorCtl.PostEventListener):
       eventType - enum representing tor's new status
     """
     
-    for callback in self.listeners:
+    for callback in self.statusListeners:
       callback(self, eventType)
 

@@ -4,6 +4,7 @@ stats if they're set.
 """
 
 import time
+from TorCtl import TorCtl
 
 import graphPanel
 from util import torTools, uiTools
@@ -19,6 +20,59 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 
 DEFAULT_CONFIG = {"features.graph.bw.showAccounting": True, "features.graph.bw.isAccountingTimeLong": False}
 
+class ObservedBandwidthTracker(TorCtl.PostEventListener):
+  """
+  This keeps track of the relay's current observed bandwidth (the throughput
+  noted by the directory authorities and used by clients for relay selection).
+  This is a parameter of the descriptors and hence is likely to get stale.
+  """
+  
+  def __init__(self):
+    TorCtl.PostEventListener.__init__(self)
+    self.observedBandwidth = None
+    
+    conn = torTools.getConn()
+    conn.addEventListener(self) # listenes for NEWDESC events
+    conn.addStatusListener(self.resetListener) # listens for new controllers
+    
+    self._parseDescriptors()
+  
+  def getObservedBandwidth(self):
+    """
+    Reports the observed bandwidth noted in the cached descriptors. This
+    provides None if descriptors are unavailable or otherwise unable to be
+    parsed.
+    """
+    
+    return self.observedBandwidth
+  
+  def new_desc_event(self, event):
+    self._parseDescriptors()
+  
+  def _parseDescriptors(self):
+    conn = torTools.getConn()
+    myFingerprint = conn.getInfo("fingerprint")
+    myDescLines = []
+    
+    if myFingerprint:
+      myDesc = conn.getInfo("desc/id/%s" % myFingerprint)
+      if myDesc: myDescLines = myDesc.split("\n")
+    
+    for line in myDescLines:
+      if line.startswith("bandwidth"):
+        # line should look something like:
+        # bandwidth 40960 102400 47284
+        comp = line.split()
+        
+        if len(comp) == 4 and comp[-1].isdigit():
+          self.observedBandwidth = uiTools.getSizeLabel(int(comp[-1]), 1)
+          return
+    
+    self.observedBandwidth = None # no bandwidth desc entry found
+  
+  def resetListener(self, conn, eventType):
+    if eventType == torTools.TOR_INIT: self._parseDescriptors()
+
 class BandwidthStats(graphPanel.GraphStats):
   """
   Uses tor BW events to generate bandwidth usage graph.
@@ -29,6 +83,8 @@ class BandwidthStats(graphPanel.GraphStats):
     
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config)
+    
+    self.observedBwTracker = ObservedBandwidthTracker()
     
     # accounting data (set by _updateAccountingInfo method)
     self.accountingInfo = dict([(arg, "") for arg in ACCOUNTING_ARGS])
@@ -121,24 +177,18 @@ class BandwidthStats(graphPanel.GraphStats):
         panel.addfstr(10, 0, "<b>Accounting:</b> Connection Closed...")
   
   def getTitle(self, width):
-    # provides label, dropping stats if there's not enough room
-    capLabel = "cap: %s" % self.bwRate if self.bwRate else ""
-    burstLabel = "burst: %s" % self.bwBurst if self.bwBurst else ""
+    stats, observedBw = [], self.observedBwTracker.getObservedBandwidth()
+    if self.bwRate: stats.append("limit: %s" % self.bwRate)
+    if self.bwBurst: stats.append("burst: %s" % self.bwBurst)
+    if observedBw: stats.append("observed: %s" % observedBw)
     
-    if capLabel and burstLabel:
-      bwLabel = " (%s, %s)" % (capLabel, burstLabel)
-    elif capLabel or burstLabel:
-      # only one is set - use whatever's avaialble
-      bwLabel = " (%s%s)" % (capLabel, burstLabel)
-    else:
-      bwLabel = ""
-    
-    labelContents = "Bandwidth%s:" % bwLabel
-    if width < len(labelContents):
-      labelContents = "%s):" % labelContents[:labelContents.find(",")]  # removes burst measure
-      if width < len(labelContents): labelContents = "Bandwidth:"       # removes both
-    
-    return labelContents
+    while True:
+      if not stats: return "Bandwidth:"
+      else:
+        label = "Bandwidth (%s):" % ", ".join(stats)
+        
+        if len(label) > width: del stats[-1]
+        else: return label
   
   def getHeaderLabel(self, width, isPrimary):
     graphType = "Downloaded" if isPrimary else "Uploaded"

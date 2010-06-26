@@ -266,8 +266,12 @@ class GraphPanel(panel.Panel):
         secondaryMaxBound = param.maxSecondary[self.updateInterval]
       else:
         # both BOUNDS_LOCAL_MAX and BOUNDS_TIGHT use local maxima
-        primaryMaxBound = max(param.primaryCounts[self.updateInterval][1:graphCol + 1])
-        secondaryMaxBound = max(param.secondaryCounts[self.updateInterval][1:graphCol + 1])
+        if graphCol < 2:
+          # nothing being displayed
+          primaryMaxBound, secondaryMaxBound = 0, 0
+        else:
+          primaryMaxBound = max(param.primaryCounts[self.updateInterval][1:graphCol + 1])
+          secondaryMaxBound = max(param.secondaryCounts[self.updateInterval][1:graphCol + 1])
       
       primaryMinBound = secondaryMinBound = 0
       if self.bounds == BOUNDS_TIGHT:
