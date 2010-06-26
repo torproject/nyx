@@ -168,7 +168,7 @@ if __name__ == '__main__':
   # sets up TorCtl connection, prompting for the passphrase if necessary and
   # sending problems to stdout if they arise
   util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
-  authPassword = config.get(DEFAULTS["startup.controlPassword"], None)
+  authPassword = config.get("startup.controlPassword", DEFAULTS["startup.controlPassword"])
   conn = util.torTools.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
