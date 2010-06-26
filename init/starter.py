@@ -136,7 +136,7 @@ if __name__ == '__main__':
       msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
       util.log.log(util.log.WARN, msg)
   else:
-    msg = "No configuration found, using defaults: %s" % configPath
+    msg = "No configuration found at '%s', using defaults" % configPath
     util.log.log(util.log.NOTICE, msg)
   
   # overwrites undefined parameters with defaults

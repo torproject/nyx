@@ -39,7 +39,7 @@ BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxSize": 150}
+CONFIG = {"features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxSize": 150, "features.graph.frequentRefresh": True}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -104,8 +104,10 @@ class GraphStats(TorCtl.PostEventListener):
     """
     
     if self._graphPanel and not self.isPauseBuffer and not self.isPaused:
-      updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
-      if (self.tick + 1) % updateRate == 0: return True
+      if CONFIG["features.graph.frequentRefresh"]: return True
+      else:
+        updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
+        if (self.tick + 1) % updateRate == 0: return True
     
     return False
   

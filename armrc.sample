@@ -12,11 +12,13 @@ features.colorInterface true
 #           3 -> minutely,     4 -> half hour,  5 -> hourly,      6 -> daily
 # bound:    0 -> global maxima,        1 -> local maxima, 2 -> tight
 # type:     0 -> None, 1 -> Bandwidth, 2 -> Connections,  3 -> System Resources
+# frequentRefrsh: updates stats each second if true, otherwise matches interval
 
 features.graph.interval 0
 features.graph.bound 1
 features.graph.type 1
 features.graph.maxSize 150
+features.graph.frequentRefresh true
 
 # ps graph parameters
 # primary/secondaryStat: any numeric field provided by the ps command
