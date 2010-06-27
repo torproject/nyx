@@ -18,7 +18,7 @@ COLLAPSE_WIDTH = 135
 # valid keys for the accountingInfo mapping
 ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writtenLimit")
 
-DEFAULT_CONFIG = {"features.graph.bw.showAccounting": True, "features.graph.bw.isAccountingTimeLong": False}
+DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False}
 
 class ObservedBandwidthTracker(TorCtl.PostEventListener):
   """
@@ -84,11 +84,14 @@ class BandwidthStats(graphPanel.GraphStats):
     graphPanel.GraphStats.__init__(self)
     
     self._config = dict(DEFAULT_CONFIG)
-    if config: config.update(self._config)
+    if config:
+      config.update(self._config)
+      self._config["features.graph.bw.accounting.rate"] = max(1, self._config["features.graph.bw.accounting.rate"])
     
     self.observedBwTracker = ObservedBandwidthTracker()
     
     # accounting data (set by _updateAccountingInfo method)
+    self.accountingLastUpdated = 0
     self.accountingInfo = dict([(arg, "") for arg in ACCOUNTING_ARGS])
     
     # listens for tor reload (sighup) events which can reset the bandwidth
@@ -101,7 +104,7 @@ class BandwidthStats(graphPanel.GraphStats):
   def resetListener(self, conn, eventType):
     # queries for rate, burst, and accounting status if it might have changed
     if eventType == torTools.TOR_INIT:
-      if self._config["features.graph.bw.showAccounting"]:
+      if self._config["features.graph.bw.accounting.show"]:
         self.isAccounting = conn.getInfo('accounting/enabled') == '1'
       
       # effective relayed bandwidth is the minimum of BandwidthRate,
@@ -132,7 +135,8 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def bandwidth_event(self, event):
     if self.isAccounting and self.isNextTickRedraw():
-      self._updateAccountingInfo()
+      if time.time() - self.accountingLastUpdated >= self._config["features.graph.bw.accounting.rate"]:
+        self._updateAccountingInfo()
     
     # scales units from B to KB for graphing
     self._processEvent(event.read / 1024.0, event.written / 1024.0)
@@ -251,7 +255,7 @@ class BandwidthStats(graphPanel.GraphStats):
       else: tz_offset = time.timezone
       
       sec = time.mktime(time.strptime(endInterval, "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
-      if self._config["features.graph.bw.isAccountingTimeLong"]:
+      if self._config["features.graph.bw.accounting.isTimeLong"]:
         queried["resetTime"] = ", ".join(uiTools.getTimeLabels(sec, True))
       else:
         days = sec / 86400
@@ -277,4 +281,5 @@ class BandwidthStats(graphPanel.GraphStats):
       queried["writtenLimit"] = uiTools.getSizeLabel(written + writtenLeft)
     
     self.accountingInfo = queried
+    self.accountingLastUpdated = time.time()
 

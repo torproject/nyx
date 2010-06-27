@@ -29,8 +29,9 @@ features.graph.ps.primaryStat %cpu
 features.graph.ps.secondaryStat rss
 features.graph.ps.cachedOnly true
 
-features.graph.bw.showAccounting true
-features.graph.bw.isAccountingTimeLong false
+features.graph.bw.accounting.show true
+features.graph.bw.accounting.rate 10
+features.graph.bw.accounting.isTimeLong false
 
 # seconds between querying information
 queries.ps.rate 5
