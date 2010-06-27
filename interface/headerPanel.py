@@ -271,6 +271,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
       self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
       
+      # overwrite address if ORListenAddress is set (and possibly orPort too)
+      self.vals["tor/address"] = "Unknown"
+      listenAddr = conn.getOption("ORListenAddress")
+      if listenAddr:
+        if ":" in listenAddr:
+          # both ip and port overwritten
+          self.vals["tor/address"] = listenAddr[:listenAddr.find(":")]
+          self.vals["tor/orPort"] = listenAddr[listenAddr.find(":") + 1:]
+        else:
+          self.vals["tor/address"] = listenAddr
+      
       # fetch exit policy (might span over multiple lines)
       policyEntries = []
       for exitPolicy in conn.getOption("ExitPolicy", [], True):
@@ -287,7 +298,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["ps/pid"] = pid if pid else ""
       
       # reverts volatile parameters to defaults
-      self.vals["tor/address"] = "Unknown"
       self.vals["tor/fingerprint"] = "Unknown"
       self.vals["tor/flags"] = []
       self.vals["ps/%cpu"] = "0"
@@ -297,26 +307,21 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # sets volatile parameters
     volatile = {}
-    volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
-    volatile["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     
-    # overwrite address if ORListenAddress is set (and possibly orPort too)
-    listenAddr = conn.getOption("ORListenAddress")
-    if listenAddr:
-      if ":" in listenAddr:
-        # both ip and port overwritten
-        volatile["address"] = listenAddr[:listenAddr.find(":")]
-        volatile["orPort"] = listenAddr[listenAddr.find(":") + 1:]
-      else:
-        volatile["address"] = listenAddr
+    # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
+    # events. Introduce caching via torTools?
+    if self.vals["tor/address"] == "Unknown":
+      volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
+    
+    volatile["tor/fingerprint"] = conn.getFingerprint(self.vals["tor/fingerprint"])
     
     # sets flags
-    if self.vals["tor/fingerprint"] != "Unknown":
+    nsEntry = conn.getNetworkStatus()
+    if nsEntry:
       # network status contains a couple of lines, looking like:
       # r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
       # s Fast HSDir Named Running Stable Valid
-      nsResults = conn.getInfo("ns/id/%s" % self.vals["tor/fingerprint"], "").split("\n")
-      if len(nsResults) >= 2: volatile["tor/flags"] = nsResults[1][2:].split()
+      if len(nsEntry) >= 2: volatile["tor/flags"] = nsEntry[1][2:].split()
     
     # ps derived stats
     psParams = ["%cpu", "rss", "%mem", "etime"]

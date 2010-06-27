@@ -262,6 +262,7 @@ class Controller(TorCtl.PostEventListener):
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix timestamp for the duration of the status
+    self._myNsEntry = None              # network status entry for this relay (none if unset or possibly changed)
     
     # cached information static for a connection (None if unset, "UNKNOWN" if
     # unable to be determined)
@@ -417,6 +418,39 @@ class Controller(TorCtl.PostEventListener):
     
     if not suppressExc and raisedExc: raise raisedExc
     else: return result
+  
+  def getFingerprint(self, default = None):
+    """
+    Provides the fingerprint for this relay.
+    
+    Arguments:
+      default - result if the query fails
+    """
+    
+    # TODO: figure out what can cause the fingerprint to change so this can be cached
+    myFingerprint = self.getInfo("fingerprint")
+    
+    if myFingerprint: return myFingerprint
+    else: return default
+  
+  def getNetworkStatus(self):
+    """
+    Provides the network status entry for this relay if available (otherwise
+    provides None).
+    """
+    
+    if self._myNsEntry: return self._myNsEntry
+    
+    self.connLock.acquire()
+    
+    myFingerprint = self.getFingerprint()
+    if myFingerprint:
+      nsResults = self.getInfo("ns/id/%s" % myFingerprint)
+      if nsResults: self._myNsEntry = nsResults.split("\n")
+    
+    self.connLock.release()
+    
+    return self._myNsEntry
   
   def getPid(self):
     """
@@ -653,6 +687,20 @@ class Controller(TorCtl.PostEventListener):
       self._statusTime = time.time()
       
       thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+  
+  def ns_event(self, event):
+    # TODO: Not sure if idhash or orhash is the relay's fingerprint
+    #myFingerprint = self.getFingerprint()
+    #if myFingerprint:
+    #  for ns in event.nslist:
+    #    if ns.idhash == myFingerprint:
+    #      self._myNsEntry = None
+    #      return
+    
+    self._myNsEntry = None
+  
+  def new_consensus_event(self, event):
+    self._myNsEntry = None
   
   def _notifyStatusListeners(self, eventType):
     """

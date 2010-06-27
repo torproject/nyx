@@ -47,7 +47,9 @@ class ObservedBandwidthTracker(TorCtl.PostEventListener):
     return self.observedBandwidth
   
   def new_desc_event(self, event):
-    self._parseDescriptors()
+    myFingerprint = torTools.getConn().getFingerprint()
+    if not myFingerprint or myFingerprint in event.idlist:
+      self._parseDescriptors()
   
   def _parseDescriptors(self):
     conn = torTools.getConn()

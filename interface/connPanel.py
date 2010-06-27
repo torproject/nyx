@@ -216,6 +216,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.clientConnectionLock.release()
   
   # when consensus changes update fingerprint mappings
+  # TODO: should also be taking NS events into account
   def new_consensus_event(self, event):
     self.orconnStatusCacheValid = False
     self.fingerprintLookupCache.clear()

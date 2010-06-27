@@ -10,8 +10,6 @@ TODO
       bugs are being fixed while refactoring.
         [X] header panel
         [ ] graph panel
-          - include observed bandwidth
-              http://torstatus.blutmagie.de/router_detail.php?FP=a7569a83b5706ab1b1a9cb52eff7d2d32e4553eb
           - prepopulate bandwidth graph with contents of state file
               Open questions:
                 - How frequently are the bandwidth values in the state file

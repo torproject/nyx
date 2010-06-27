@@ -272,11 +272,12 @@ def setEventListening(selectedEvents, isBlindMode):
   events = dict([(eventType, None) for eventType in events])
   
   # add mandatory events (those needed for arm functionaity)
-  reqEvents = {"BW": "(bandwidth graph won't function)"}
+  reqEvents = {"BW": "(bandwidth graph won't function)",
+               "NEWDESC": "(information related to descriptors will grow stale)",
+               "NS": "(information related to the consensus will grow stale)",
+               "NEWCONSENSUS": "(information related to the consensus will grow stale)"}
   
   if not isBlindMode:
-    reqEvents["NEWDESC"] = "(connections listing can't register consensus changes)"
-    reqEvents["NEWCONSENSUS"] = "(connections listing can't register consensus changes)"
     reqEvents["CIRC"] = "(may cause issues in identifying client connections)"
   
   for eventType, msg in reqEvents.items():
