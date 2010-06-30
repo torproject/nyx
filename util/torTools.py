@@ -569,7 +569,7 @@ class Controller(TorCtl.PostEventListener):
       default - result if the query fails
     """
     
-    if self._myFlags: return self.myFlags
+    if self._myFlags: return self._myFlags
     
     self.connLock.acquire()
     
