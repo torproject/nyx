@@ -294,7 +294,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["sys/os"] = unameVals[0]
       self.vals["sys/version"] = unameVals[2]
       
-      pid = conn.getPid()
+      pid = conn.getMyPid()
       self.vals["ps/pid"] = pid if pid else ""
       
       # reverts volatile parameters to defaults
@@ -313,15 +313,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/address"] == "Unknown":
       volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
     
-    volatile["tor/fingerprint"] = conn.getFingerprint(self.vals["tor/fingerprint"])
-    
-    # sets flags
-    nsEntry = conn.getNetworkStatus()
-    if nsEntry:
-      # network status contains a couple of lines, looking like:
-      # r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
-      # s Fast HSDir Named Running Stable Valid
-      if len(nsEntry) >= 2: volatile["tor/flags"] = nsEntry[1][2:].split()
+    volatile["tor/fingerprint"] = conn.getMyFingerprint(self.vals["tor/fingerprint"])
+    volatile["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
     
     # ps derived stats
     psParams = ["%cpu", "rss", "%mem", "etime"]

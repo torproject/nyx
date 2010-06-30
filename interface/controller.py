@@ -340,7 +340,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   except curses.error: pass
   
   # attempts to determine tor's current pid (left as None if unresolveable, logging an error later)
-  torPid = torTools.getConn().getPid()
+  torPid = torTools.getConn().getMyPid()
   
   try:
     confLocation = conn.get_info("config-file")["config-file"]
@@ -450,7 +450,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         # other panels that use torrc data
         panels["conn"].resetOptions()
         #if not isBlindMode: panels["graph"].stats["connections"].resetOptions(conn)
-        panels["graph"].stats["bandwidth"].resetOptions()
+        #panels["graph"].stats["bandwidth"].resetOptions()
         
         # if bandwidth graph is being shown then height might have changed
         if panels["graph"].currentDisplay == "bandwidth":

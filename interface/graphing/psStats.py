@@ -26,7 +26,7 @@ class PsStats(graphPanel.GraphStats):
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config)
     
-    self.queryPid = torTools.getConn().getPid()
+    self.queryPid = torTools.getConn().getMyPid()
     self.queryParam = [self._config["features.graph.ps.primaryStat"], self._config["features.graph.ps.secondaryStat"]]
     
     # If we're getting the same stats as the header panel then issues identical

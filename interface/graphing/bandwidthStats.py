@@ -20,75 +20,19 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 
 DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False}
 
-class ObservedBandwidthTracker(TorCtl.PostEventListener):
-  """
-  This keeps track of the relay's current observed bandwidth (the throughput
-  noted by the directory authorities and used by clients for relay selection).
-  This is a parameter of the descriptors and hence is likely to get stale.
-  """
-  
-  def __init__(self):
-    TorCtl.PostEventListener.__init__(self)
-    self.observedBandwidth = None
-    
-    conn = torTools.getConn()
-    conn.addEventListener(self) # listenes for NEWDESC events
-    conn.addStatusListener(self.resetListener) # listens for new controllers
-    
-    self._parseDescriptors()
-  
-  def getObservedBandwidth(self):
-    """
-    Reports the observed bandwidth noted in the cached descriptors. This
-    provides None if descriptors are unavailable or otherwise unable to be
-    parsed.
-    """
-    
-    return self.observedBandwidth
-  
-  def new_desc_event(self, event):
-    myFingerprint = torTools.getConn().getFingerprint()
-    if not myFingerprint or myFingerprint in event.idlist:
-      self._parseDescriptors()
-  
-  def _parseDescriptors(self):
-    conn = torTools.getConn()
-    myFingerprint = conn.getInfo("fingerprint")
-    myDescLines = []
-    
-    if myFingerprint:
-      myDesc = conn.getInfo("desc/id/%s" % myFingerprint)
-      if myDesc: myDescLines = myDesc.split("\n")
-    
-    for line in myDescLines:
-      if line.startswith("bandwidth"):
-        # line should look something like:
-        # bandwidth 40960 102400 47284
-        comp = line.split()
-        
-        if len(comp) == 4 and comp[-1].isdigit():
-          self.observedBandwidth = uiTools.getSizeLabel(int(comp[-1]), 1)
-          return
-    
-    self.observedBandwidth = None # no bandwidth desc entry found
-  
-  def resetListener(self, conn, eventType):
-    if eventType == torTools.TOR_INIT: self._parseDescriptors()
-
-class BandwidthStats(graphPanel.GraphStats):
+class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
   
   def __init__(self, config=None):
     graphPanel.GraphStats.__init__(self)
+    TorCtl.PostEventListener.__init__(self)
     
     self._config = dict(DEFAULT_CONFIG)
     if config:
       config.update(self._config)
       self._config["features.graph.bw.accounting.rate"] = max(1, self._config["features.graph.bw.accounting.rate"])
-    
-    self.observedBwTracker = ObservedBandwidthTracker()
     
     # accounting data (set by _updateAccountingInfo method)
     self.accountingLastUpdated = 0
@@ -97,41 +41,16 @@ class BandwidthStats(graphPanel.GraphStats):
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
     conn = torTools.getConn()
-    self.isAccounting, self.bwRate, self.bwBurst = False, None, None
+    self._titleStats, self.isAccounting = [], False
     self.resetListener(conn, torTools.TOR_INIT) # initializes values
     conn.addStatusListener(self.resetListener)
   
   def resetListener(self, conn, eventType):
-    # queries for rate, burst, and accounting status if it might have changed
-    if eventType == torTools.TOR_INIT:
-      if self._config["features.graph.bw.accounting.show"]:
-        self.isAccounting = conn.getInfo('accounting/enabled') == '1'
-      
-      # effective relayed bandwidth is the minimum of BandwidthRate,
-      # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-      effectiveRate = int(conn.getOption("BandwidthRate"))
-      
-      relayRate = conn.getOption("RelayBandwidthRate")
-      if relayRate and relayRate != "0":
-        effectiveRate = min(effectiveRate, int(relayRate))
-      
-      maxAdvertised = conn.getOption("MaxAdvertisedBandwidth")
-      if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
-      
-      # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-      effectiveBurst = int(conn.getOption("BandwidthBurst"))
-      
-      relayBurst = conn.getOption("RelayBandwidthBurst")
-      if relayBurst and relayBurst != "0":
-        effectiveBurst = min(effectiveBurst, int(relayBurst))
-      
-      self.bwRate = uiTools.getSizeLabel(effectiveRate, 1)
-      self.bwBurst = uiTools.getSizeLabel(effectiveBurst, 1)
-      
-      # if both are using rounded values then strip off the ".0" decimal
-      if ".0" in self.bwRate and ".0" in self.bwBurst:
-        self.bwRate = self.bwRate.replace(".0", "")
-        self.bwBurst = self.bwBurst.replace(".0", "")
+    # updates title parameters and accounting status if they changed
+    self.new_desc_event(None) # updates title params
+    
+    if self._config["features.graph.bw.accounting.show"]:
+      self.isAccounting = conn.getInfo('accounting/enabled') == '1'
   
   def bandwidth_event(self, event):
     if self.isAccounting and self.isNextTickRedraw():
@@ -183,10 +102,7 @@ class BandwidthStats(graphPanel.GraphStats):
         panel.addfstr(10, 0, "<b>Accounting:</b> Connection Closed...")
   
   def getTitle(self, width):
-    stats, observedBw = [], self.observedBwTracker.getObservedBandwidth()
-    if self.bwRate: stats.append("limit: %s" % self.bwRate)
-    if self.bwBurst: stats.append("burst: %s" % self.bwBurst)
-    if observedBw: stats.append("observed: %s" % observedBw)
+    stats = list(self._titleStats)
     
     while True:
       if not stats: return "Bandwidth:"
@@ -226,6 +142,28 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def getPreferredHeight(self):
     return 13 if self.isAccounting else 10
+  
+  def new_desc_event(self, event):
+    # updates self._titleStats with updated values
+    conn = torTools.getConn()
+    myFingerprint = conn.getMyFingerprint()
+    
+    if not self._titleStats or not myFingerprint or (event and myFingerprint in event.idlist):
+      bwRate = uiTools.getSizeLabel(conn.getMyBandwidthRate(), 1)
+      bwBurst = uiTools.getSizeLabel(conn.getMyBandwidthBurst(), 1)
+      bwObserved = conn.getMyBandwidthObserved()
+      
+      # if both are using rounded values then strip off the ".0" decimal
+      if ".0" in bwRate and ".0" in bwBurst:
+        bwRate = bwRate.replace(".0", "")
+        bwBurst = bwBurst.replace(".0", "")
+      
+      stats = []
+      stats.append("limit: %s" % bwRate)
+      stats.append("burst: %s" % bwBurst)
+      if bwObserved: stats.append("observed: %s" % uiTools.getSizeLabel(bwObserved, 1))
+      
+      self._titleStats = stats
   
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal

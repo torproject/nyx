@@ -215,11 +215,12 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def ns_event(self, event):
     # NetworkStatus params: nickname, idhash, orhash, ip, orport (int), dirport (int), flags, idhex, bandwidth, updated (datetime)
-    msg = ""
-    for ns in event.nslist:
-      msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
-    if len(msg) > 1: msg = msg[2:]
-    self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
+    if "NS" in self.loggedEvents:
+      msg = ""
+      for ns in event.nslist:
+        msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
+      if len(msg) > 1: msg = msg[2:]
+      self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
   
   def new_consensus_event(self, event):
     if "NEWCONSENSUS" in self.loggedEvents:
