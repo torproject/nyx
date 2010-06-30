@@ -146,21 +146,27 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
   def new_desc_event(self, event):
     # updates self._titleStats with updated values
     conn = torTools.getConn()
-    myFingerprint = conn.getMyFingerprint()
+    if not conn.isAlive(): return # keep old values
     
+    myFingerprint = conn.getMyFingerprint()
     if not self._titleStats or not myFingerprint or (event and myFingerprint in event.idlist):
-      bwRate = uiTools.getSizeLabel(conn.getMyBandwidthRate(), 1)
-      bwBurst = uiTools.getSizeLabel(conn.getMyBandwidthBurst(), 1)
+      stats = []
+      bwRate = conn.getMyBandwidthRate()
+      bwBurst = conn.getMyBandwidthBurst()
       bwObserved = conn.getMyBandwidthObserved()
       
-      # if both are using rounded values then strip off the ".0" decimal
-      if ".0" in bwRate and ".0" in bwBurst:
-        bwRate = bwRate.replace(".0", "")
-        bwBurst = bwBurst.replace(".0", "")
+      if bwRate and bwBurst:
+        bwRate = uiTools.getSizeLabel(bwRate, 1)
+        bwBurst = uiTools.getSizeLabel(bwBurst, 1)
+        
+        # if both are using rounded values then strip off the ".0" decimal
+        if ".0" in bwRate and ".0" in bwBurst:
+          bwRate = bwRate.replace(".0", "")
+          bwBurst = bwBurst.replace(".0", "")
+        
+        stats.append("limit: %s" % bwRate)
+        stats.append("burst: %s" % bwBurst)
       
-      stats = []
-      stats.append("limit: %s" % bwRate)
-      stats.append("burst: %s" % bwBurst)
       if bwObserved: stats.append("observed: %s" % uiTools.getSizeLabel(bwObserved, 1))
       
       self._titleStats = stats

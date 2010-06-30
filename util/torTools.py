@@ -266,11 +266,9 @@ class Controller(TorCtl.PostEventListener):
     # cached getInfo parameters (None if unset or possibly changed)
     self._myNsEntry, self._myDescEntry = None, None
     self._myBwRate, self._myBwBurst, self._myBwObserved = None, None, None
-    self._myFlags = None
+    self._myFlags = None                # None if unset, "NONE" if not set by the consensus yet
     self._myFingerprint = None
-    
-    # None if unset, "UNKNOWN" if unable to be determined
-    self._myPid = None
+    self._myPid = None                  # None if unset, "UNKNOWN" if unable to be determined
   
   def init(self, conn=None):
     """
@@ -461,9 +459,12 @@ class Controller(TorCtl.PostEventListener):
     
     return self._myDescEntry
   
-  def getMyBandwidthRate(self):
+  def getMyBandwidthRate(self, default = None):
     """
     Provides the effective relaying bandwidth rate of this relay.
+    
+    Arguments:
+      default - result if the query fails
     """
     
     if self._myBwRate: return self._myBwRate
@@ -472,7 +473,7 @@ class Controller(TorCtl.PostEventListener):
     # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
     self.connLock.acquire()
     
-    if not self._myBwRate:
+    if not self._myBwRate and self.isAlive():
       effectiveRate = int(self.getOption("BandwidthRate"))
       
       relayRate = self.getOption("RelayBandwidthRate")
@@ -486,11 +487,15 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    return self._myBwRate
+    if self._myBwRate: return self._myBwRate
+    else: return default
   
-  def getMyBandwidthBurst(self):
+  def getMyBandwidthBurst(self, default = None):
     """
     Provides the effective bandwidth burst rate of this relay.
+    
+    Arguments:
+      default - result if the query fails
     """
     
     if self._myBwBurst: return self._myBwBurst
@@ -498,7 +503,7 @@ class Controller(TorCtl.PostEventListener):
     # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
     self.connLock.acquire()
     
-    if not self._myBwBurst:
+    if not self._myBwBurst and self.isAlive():
       effectiveBurst = int(self.getOption("BandwidthBurst"))
       
       relayBurst = self.getOption("RelayBandwidthBurst")
@@ -509,25 +514,34 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    return self._myBwBurst
+    if self._myBwBurst: return self._myBwBurst
+    else: return default
   
-  def getMyBandwidthObserved(self):
+  def getMyBandwidthObserved(self, default = None):
     """
     Provides the relay's current observed bandwidth (the throughput as noted by
     the directory authorities and used by clients for relay selection). This is
     fetched from the descriptors and hence will get stale if descriptors aren't
     periodically updated.
     
-    This provides None if descriptors are unavailable or otherwise unable to be
-    parsed.
+    Arguments:
+      default - result if the query fails
     """
+    
+    # TODO: The network status also has an entry that's either the observed or
+    # or type of measured bandwidth as described in:
+    # https://trac.torproject.org/projects/tor/ticket/1566
+    # 
+    # currently there's no client side indication of what type of measurement
+    # this is, but future versions of the consensus may include a character
+    # flag allowing an alternative source for this stat.
     
     if self._myBwObserved: return self._myBwObserved
     
     self.connLock.acquire()
     
     myDescriptor = self.getMyDescriptor()
-    if not self._myBwObserved and myDescriptor:
+    if not self._myBwObserved and myDescriptor and self.isAlive():
       for line in myDescriptor:
         if line.startswith("bandwidth"):
           # line should look something like:
@@ -540,7 +554,8 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    return self._myBwObserved
+    if self._myBwObserved: return self._myBwObserved
+    else: return default
   
   def getMyFingerprint(self, default = None):
     """
@@ -555,7 +570,8 @@ class Controller(TorCtl.PostEventListener):
     if self._myFingerprint: return self._myFingerprint
     
     self.connLock.acquire()
-    if not self._myFingerprint: self._myFingerprint = self.getInfo("fingerprint")
+    if not self._myFingerprint and self.isAlive():
+      self._myFingerprint = self.getInfo("fingerprint")
     self.connLock.release()
     
     if self._myFingerprint: return self._myFingerprint
@@ -566,23 +582,32 @@ class Controller(TorCtl.PostEventListener):
     Provides the flags held by this relay.
     
     Arguments:
-      default - result if the query fails
+      default - result if the query fails or this relay isn't a part of the consensus yet
     """
     
-    if self._myFlags: return self._myFlags
+    if self._myFlags:
+      if self._myFlags == "NONE": return default
+      else: return self._myFlags
     
     self.connLock.acquire()
     
-    myNetworkStatus = self.getMyNetworkStatus()
-    if not self._myFlags and myNetworkStatus:
-      # network status contains a couple of lines, looking like:
-      # r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
-      # s Fast HSDir Named Running Stable Valid
-      if len(myNetworkStatus) >= 2: self._myFlags = myNetworkStatus[1][2:].split()
+    if self._myFlags == "NONE" or not self.isAlive(): result = None
+    elif self._myFlags: result = self._myFlags
+    else:
+      result, myNetworkStatus = None, self.getMyNetworkStatus()
+      
+      if myNetworkStatus:
+        # network status contains a couple of lines, looking like:
+        # r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
+        # s Fast HSDir Named Running Stable Valid
+        if len(myNetworkStatus) >= 2: result = myNetworkStatus[1][2:].split()
+      
+      if result: self._myFlags = result
+      else: self._myFlags = "NONE"
     
     self.connLock.release()
     
-    if self._myFlags: return self._myFlags
+    if result: return result
     else: return default
   
   def getMyPid(self):
@@ -592,7 +617,7 @@ class Controller(TorCtl.PostEventListener):
     """
     
     if self._myPid:
-      if self._myPid != "UNKNOWN" or not self.isAlive(): return None
+      if self._myPid == "UNKNOWN" or not self.isAlive(): return None
       else: return self._myPid
     
     self.connLock.acquire()
