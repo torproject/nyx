@@ -52,6 +52,31 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
     if self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
   
+  # TODO: Currently this function is unused and pending responses on #tor-dev
+  # to figure out if the feature's even viable. If not, scrape.
+  def prepopulateFromState(self):
+    """
+    Attempts to use tor's state file to prepopulate values for the 15 minute
+    interval via the BWHistoryReadValues/BWHistoryWriteValues values. This
+    returns True if successful and False otherwise.
+    """
+    
+    
+    # get the user's data directory (usually '~/.tor')
+    dataDir = conn.getOption("DataDirectory")
+    if not dataDir: return False
+    
+    # attempt to open the state file
+    try: stateFile = open("%s/state" % dataDir, "r")
+    except IOError: return False
+    
+    # find the BWHistory lines (might not exist yet for new relays)
+    bwReadLine, bwWriteLine = None, None
+    
+    for line in stateFile:
+      if line.startswith("BWHistoryReadValues"): bwReadLine = line
+      elif line.startswith("BWHistoryWriteValues"): bwWriteLine = line
+  
   def bandwidth_event(self, event):
     if self.isAccounting and self.isNextTickRedraw():
       if time.time() - self.accountingLastUpdated >= self._config["features.graph.bw.accounting.rate"]:

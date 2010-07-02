@@ -23,8 +23,9 @@ from TorCtl import TorCtl
 from util import panel, uiTools
 
 # time intervals at which graphs can be updated
-UPDATE_INTERVALS = [("each second", 1),     ("5 seconds", 5),   ("30 seconds", 30),   ("minutely", 60),
-                    ("half hour", 1800),    ("hourly", 3600),   ("daily", 86400)]
+UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
+                    ("minutely", 60),   ("15 minute", 900), ("30 minute", 1800),
+                    ("hourly", 3600),   ("daily", 86400)]
 
 DEFAULT_HEIGHT = 10 # space needed for graph and content
 DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = "green", "cyan"
