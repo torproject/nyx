@@ -179,6 +179,7 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
       bwRate = conn.getMyBandwidthRate()
       bwBurst = conn.getMyBandwidthBurst()
       bwObserved = conn.getMyBandwidthObserved()
+      bwMeasured = conn.getMyBandwidthMeasured()
       
       if bwRate and bwBurst:
         bwRate = uiTools.getSizeLabel(bwRate, 1)
@@ -192,7 +193,13 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
         stats.append("limit: %s" % bwRate)
         stats.append("burst: %s" % bwBurst)
       
-      if bwObserved: stats.append("observed: %s" % uiTools.getSizeLabel(bwObserved, 1))
+      # Provide the observed bandwidth either if the measured bandwidth isn't
+      # available or if the measured bandwidth is the observed (this happens
+      # if there isn't yet enough bandwidth measurements).
+      if bwObserved and (not bwMeasured or bwMeasured == bwObserved):
+        stats.append("observed: %s" % uiTools.getSizeLabel(bwObserved, 1))
+      elif bwMeasured:
+        stats.append("measured: %s" % uiTools.getSizeLabel(bwMeasured, 1))
       
       self._titleStats = stats
   
