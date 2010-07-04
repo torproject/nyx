@@ -506,7 +506,7 @@ class Controller(TorCtl.PostEventListener):
       default - result if the query fails
     """
     
-    return self._getRelayAttr("fingerprint", default)
+    return self._getRelayAttr("fingerprint", default, False)
   
   def getMyFlags(self, default = None):
     """
@@ -768,14 +768,16 @@ class Controller(TorCtl.PostEventListener):
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
   
-  def _getRelayAttr(self, key, default):
+  def _getRelayAttr(self, key, default, cacheUndefined = True):
     """
     Provides information associated with this relay, using the cached value if
     available and otherwise looking it up.
     
     Arguments:
-      key     - parameter being queried (from CACHE_ARGS)
-      default - value to be returned if undefined
+      key            - parameter being queried (from CACHE_ARGS)
+      default        - value to be returned if undefined
+      cacheUndefined - caches when values are undefined, avoiding further
+                       lookups if true
     """
     
     currentVal = self._cachedParam[key]
@@ -850,7 +852,7 @@ class Controller(TorCtl.PostEventListener):
       
       # cache value
       if result: self._cachedParam[key] = result
-      else: self._cachedParam[key] = UNKNOWN
+      elif cacheUndefined: self._cachedParam[key] = UNKNOWN
     elif currentVal == UNKNOWN: result = currentVal
     
     self.connLock.release()
