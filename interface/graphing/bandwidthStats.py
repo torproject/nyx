@@ -7,7 +7,7 @@ import time
 from TorCtl import TorCtl
 
 import graphPanel
-from util import torTools, uiTools
+from util import log, sysTools, torTools, uiTools
 
 DL_COLOR, UL_COLOR = "green", "cyan"
 
@@ -18,7 +18,9 @@ COLLAPSE_WIDTH = 135
 # valid keys for the accountingInfo mapping
 ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writtenLimit")
 
-DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False}
+PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
+
+DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateFailure": log.NOTICE}
 
 class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
   """
@@ -52,8 +54,6 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
     if self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
   
-  # TODO: Currently this function is unused and pending responses on #tor-dev
-  # to figure out if the feature's even viable. If not, scrape.
   def prepopulateFromState(self):
     """
     Attempts to use tor's state file to prepopulate values for the 15 minute
@@ -61,21 +61,104 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
     returns True if successful and False otherwise.
     """
     
+    # gets the uptime (using the same parameters as the header panel to take
+    # advantage of caching
+    conn, uptime = torTools.getConn(), None
+    queryPid = conn.getMyPid()
+    if queryPid:
+      queryParam = ["%cpu", "rss", "%mem", "etime"]
+      queryCmd = "ps -p %s -o %s" % (queryPid, ",".join(queryParam))
+      psCall = sysTools.call(queryCmd, 3600, True)
+      
+      if psCall and len(psCall) == 2:
+        stats = psCall[1].strip().split()
+        if len(stats) == 4: uptime = stats[3]
+    
+    # checks if tor has been running for at least a day, the reason being that
+    # the state tracks a day's worth of data and this should only prepopulate
+    # results associated with this tor instance
+    if not uptime or not "-" in uptime:
+      msg = PREPOPULATE_FAILURE_MSG % "insufficient uptime"
+      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      return False
     
     # get the user's data directory (usually '~/.tor')
     dataDir = conn.getOption("DataDirectory")
-    if not dataDir: return False
+    if not dataDir:
+      msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
+      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      return False
     
     # attempt to open the state file
     try: stateFile = open("%s/state" % dataDir, "r")
-    except IOError: return False
+    except IOError:
+      msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
+      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      return False
     
-    # find the BWHistory lines (might not exist yet for new relays)
-    bwReadLine, bwWriteLine = None, None
+    # get the BWHistory entries (ordered oldest to newest) and number of
+    # intervals since last recorded
+    bwReadEntries, bwWriteEntries = None, None
+    missingReadEntries, missingWriteEntries = None, None
+    
+    # converts from gmt to local with respect to DST
+    if time.localtime()[8]: tz_offset = time.altzone
+    else: tz_offset = time.timezone
     
     for line in stateFile:
-      if line.startswith("BWHistoryReadValues"): bwReadLine = line
-      elif line.startswith("BWHistoryWriteValues"): bwWriteLine = line
+      line = line.strip()
+      
+      if line.startswith("BWHistoryReadValues"):
+        bwReadEntries = line[20:].split(",")
+        bwReadEntries = [int(entry) / 1024.0 / 900 for entry in bwReadEntries]
+      elif line.startswith("BWHistoryWriteValues"):
+        bwWriteEntries = line[21:].split(",")
+        bwWriteEntries = [int(entry) / 1024.0 / 900 for entry in bwWriteEntries]
+      elif line.startswith("BWHistoryReadEnds"):
+        lastReadTime = time.mktime(time.strptime(line[18:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+        missingReadEntries = int((time.time() - lastReadTime) / 900)
+      elif line.startswith("BWHistoryWriteEnds"):
+        lastWriteTime = time.mktime(time.strptime(line[19:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+        missingWriteEntries = int((time.time() - lastWriteTime) / 900)
+    
+    if not bwReadEntries or not bwWriteEntries or not lastReadTime or not lastWriteTime:
+      msg = PREPOPULATE_FAILURE_MSG % "bandwidth stats missing from state file"
+      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      return False
+    
+    # fills missing entries with the last value
+    bwReadEntries += [bwReadEntries[-1]] * missingReadEntries
+    bwWriteEntries += [bwWriteEntries[-1]] * missingWriteEntries
+    
+    # crops starting entries so they're the same size
+    entryCount = min(len(bwReadEntries), len(bwWriteEntries), self.maxCol)
+    bwReadEntries = bwReadEntries[len(bwReadEntries) - entryCount:]
+    bwWriteEntries = bwWriteEntries[len(bwWriteEntries) - entryCount:]
+    
+    # gets index for 15-minute interval
+    intervalIndex = 0
+    for indexEntry in graphPanel.UPDATE_INTERVALS:
+      if indexEntry[1] == 900: break
+      else: intervalIndex += 1
+    
+    # fills the graphing parameters with state information
+    for i in range(entryCount):
+      readVal, writeVal = bwReadEntries[i], bwWriteEntries[i]
+      
+      self.lastPrimary, self.lastSecondary = readVal, writeVal
+      self.primaryTotal += readVal * 900
+      self.secondaryTotal += writeVal * 900
+      self.tick += 900
+      
+      self.primaryCounts[intervalIndex].insert(0, readVal)
+      self.secondaryCounts[intervalIndex].insert(0, writeVal)
+    
+    self.maxPrimary[intervalIndex] = max(self.primaryCounts)
+    self.maxSecondary[intervalIndex] = max(self.secondaryCounts)
+    del self.primaryCounts[intervalIndex][self.maxCol + 1:]
+    del self.secondaryCounts[intervalIndex][self.maxCol + 1:]
+    
+    return True
   
   def bandwidth_event(self, event):
     if self.isAccounting and self.isNextTickRedraw():

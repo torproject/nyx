@@ -42,7 +42,7 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"features.graph.type": 1, "log.configEntryUndefined": log.NOTICE}
+CONFIG = {"features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -401,6 +401,11 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
   conn.add_event_listener(panels["conn"])
   conn.add_event_listener(sighupTracker)
+  
+  # prepopulates bandwidth values from state file
+  if CONFIG["features.graph.bw.prepopulate"]:
+    isSuccessful = panels["graph"].stats["bandwidth"].prepopulateFromState()
+    if isSuccessful: panels["graph"].updateInterval = 4
   
   # tells Tor to listen to the events we're interested
   loggedEvents = setEventListening(loggedEvents, isBlindMode)

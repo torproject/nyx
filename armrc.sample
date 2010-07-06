@@ -29,6 +29,7 @@ features.graph.ps.primaryStat %cpu
 features.graph.ps.secondaryStat rss
 features.graph.ps.cachedOnly true
 
+features.graph.bw.prepopulate true
 features.graph.bw.accounting.show true
 features.graph.bw.accounting.rate 10
 features.graph.bw.accounting.isTimeLong false
@@ -70,6 +71,7 @@ log.sysCallCacheGrowing INFO
 log.panelRecreated DEBUG
 log.graph.ps.invalidStat WARN
 log.graph.ps.abandon WARN
+log.graph.bw.prepopulateFailure NOTICE
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN
