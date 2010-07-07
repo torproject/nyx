@@ -160,8 +160,8 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
     del self.secondaryCounts[intervalIndex][self.maxCol + 1:]
     
     msg = PREPOPULATE_SUCCESS_MSG
-    missingSec = 900 * max(missingReadEntries, missingWriteEntries)
-    if missingSec: msg += "(last %s is missing)" % uiTools.getTimeLabel(missingSec)
+    missingSec = time.time() - min(lastReadTime, lastWriteTime)
+    if missingSec: msg += " (last %s is missing)" % uiTools.getTimeLabel(missingSec)
     log.log(self._config["log.graph.bw.prepopulateSuccess"], msg)
     
     return True
