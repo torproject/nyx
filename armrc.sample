@@ -71,6 +71,7 @@ log.sysCallCacheGrowing INFO
 log.panelRecreated DEBUG
 log.graph.ps.invalidStat WARN
 log.graph.ps.abandon WARN
+log.graph.bw.prepopulateSuccess NOTICE
 log.graph.bw.prepopulateFailure NOTICE
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE

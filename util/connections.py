@@ -253,6 +253,10 @@ class ConnectionResolver(threading.Thread):
     self._cond = threading.Condition()  # used for pausing the thread
     self._subsiquentFailures = 0  # number of failed resolutions with the default in a row
     self._resolverBlacklist = []  # resolvers that have failed to resolve
+    
+    # Number of sequential times the threshold rate's been too low. This is to
+    # avoid having stray spikes up the rate.
+    self._rateThresholdBroken = 0
   
   def run(self):
     while not self._halt:
@@ -285,11 +289,14 @@ class ConnectionResolver(threading.Thread):
         
         newMinDefaultRate = 100 * lookupTime
         if self.defaultRate < newMinDefaultRate:
-          # adding extra to keep the rate from frequently changing
-          self.defaultRate = newMinDefaultRate + 0.5
-          
-          msg = "connection lookup time increasing to %0.1f seconds per call" % self.defaultRate
-          log.log(CONFIG["log.connLookupRateGrowing"], msg)
+          if self._rateThresholdBroken >= 3:
+            # adding extra to keep the rate from frequently changing
+            self.defaultRate = newMinDefaultRate + 0.5
+            
+            msg = "connection lookup time increasing to %0.1f seconds per call" % self.defaultRate
+            log.log(CONFIG["log.connLookupRateGrowing"], msg)
+          else: self._rateThresholdBroken += 1
+        else: self._rateThresholdBroken = 0
         
         if isDefault: self._subsiquentFailures = 0
       except IOError, exc:

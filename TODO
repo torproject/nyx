@@ -9,12 +9,7 @@ TODO
       progress - /init and /util are done and /interface is in progress. Known
       bugs are being fixed while refactoring.
         [X] header panel
-        [ ] graph panel
-          - prepopulate bandwidth graph with contents of state file
-              Open questions:
-                - How frequently are the bandwidth values in the state file
-                updated?
-                - Is it every second, matching the last BW events?
+        [X] graph panel
         [ ] log panel
           - option to clear log
           - allow home/end keys to jump to start/end
@@ -157,12 +152,6 @@ TODO
         'SETEVENTS')
         - 'guard' option that restricts to GETINFO only  (start with this)
         - issue sighup reset
-  * provide observed bandwidth
-      Newer relays have a 'w' entry that states the bandwidth and old versions
-      have client side measurements (third argument in 'Bandwidth' of
-      descriptor, note that it's in KB/s). Label the former (server side) as 
-      'Measured' and later (client side) as 'Observed' to differentiate.
-      requested by arma
   * menu with all torrc options (making them editable/toggleable)
   * Setup wizard for new relays
       Setting the password and such for torrc generation (idea by ioerror)
