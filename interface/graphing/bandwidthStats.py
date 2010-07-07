@@ -18,7 +18,7 @@ COLLAPSE_WIDTH = 135
 # valid keys for the accountingInfo mapping
 ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writtenLimit")
 
-PREPOPULATE_SUCCESS_MSG = "Read a day of bandwidth history from the state file"
+PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
 DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateSuccess": log.NOTICE, "log.graph.bw.prepopulateFailure": log.NOTICE}
@@ -161,7 +161,7 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
     
     msg = PREPOPULATE_SUCCESS_MSG
     missingSec = time.time() - min(lastReadTime, lastWriteTime)
-    if missingSec: msg += " (last %s is missing)" % uiTools.getTimeLabel(missingSec, 0, True)
+    if missingSec: msg += " (%s is missing)" % uiTools.getTimeLabel(missingSec, 0, True)
     log.log(self._config["log.graph.bw.prepopulateSuccess"], msg)
     
     return True
