@@ -54,7 +54,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   """
   Convenience function for performing system calls, providing:
   - suppression of any writing to stdout, both directing stderr to /dev/null
-    and checking for the existance of commands before executing them
+    and checking for the existence of commands before executing them
   - logging of results (command issued, runtime, success/failure, etc)
   - optional exception suppression and caching (the max age for cached results
     is a minute)
@@ -73,7 +73,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   if cacheAge > 0:
     global CALL_CACHE, CONFIG
     
-    # keeps consistancy that we never use entries over a minute old (these
+    # keeps consistency that we never use entries over a minute old (these
     # results are 'dirty' and might be trimmed at any time)
     cacheAge = min(cacheAge, 60)
     cacheSize = CONFIG["cache.sysCalls.size"]

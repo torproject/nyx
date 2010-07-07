@@ -40,7 +40,7 @@ def getConfig(handle):
 
 class Config():
   """
-  Handler for easily working with custom configurations, providing persistance
+  Handler for easily working with custom configurations, providing persistence
   to and from files. All operations are thread safe.
   
   Parameters:
@@ -54,7 +54,7 @@ class Config():
     Creates a new configuration instance.
     """
     
-    self.path = None        # path to the associated configuation file
+    self.path = None        # path to the associated configuration file
     self.contents = {}      # configuration key/value pairs
     self.contentsLock = threading.RLock()
     self.requestedKeys = set()
@@ -146,7 +146,7 @@ class Config():
     Undefined values are left with their current values.
     
     Arguments:
-      confMappings - configuration key/value mappints to be revised
+      confMappings - configuration key/value mappings to be revised
     """
     
     for entry in confMappings.keys():
@@ -229,12 +229,12 @@ class Config():
     already exists then merges as follows:
     - comments and file contents not in this config are left unchanged
     - lines with duplicate keys are stripped (first instance is kept)
-    - existing enries are overwritten with their new values, preserving the
-      positioning of inline comments if able
+    - existing entries are overwritten with their new values, preserving the
+      positioning of in-line comments if able
     - config entries not in the file are appended to the end in alphabetical
       order
     
-    If problems arise in writting (such as an unset path or insufficient
+    If problems arise in writing (such as an unset path or insufficient
     permissions) result in an IOError.
     
     Arguments:

@@ -4,7 +4,6 @@ stats if they're set.
 """
 
 import time
-from TorCtl import TorCtl
 
 import graphPanel
 from util import log, sysTools, torTools, uiTools
@@ -23,14 +22,13 @@ PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
 DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateSuccess": log.NOTICE, "log.graph.bw.prepopulateFailure": log.NOTICE}
 
-class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
+class BandwidthStats(graphPanel.GraphStats):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
   
   def __init__(self, config=None):
     graphPanel.GraphStats.__init__(self)
-    TorCtl.PostEventListener.__init__(self)
     
     self._config = dict(DEFAULT_CONFIG)
     if config:
@@ -271,16 +269,16 @@ class BandwidthStats(graphPanel.GraphStats, TorCtl.PostEventListener):
       bwMeasured = conn.getMyBandwidthMeasured()
       
       if bwRate and bwBurst:
-        bwRate = uiTools.getSizeLabel(bwRate, 1)
-        bwBurst = uiTools.getSizeLabel(bwBurst, 1)
+        bwRateLabel = uiTools.getSizeLabel(bwRate, 1)
+        bwBurstLabel = uiTools.getSizeLabel(bwBurst, 1)
         
         # if both are using rounded values then strip off the ".0" decimal
-        if ".0" in bwRate and ".0" in bwBurst:
-          bwRate = bwRate.replace(".0", "")
-          bwBurst = bwBurst.replace(".0", "")
+        if ".0" in bwRateLabel and ".0" in bwBurstLabel:
+          bwRateLabel = bwRateLabel.replace(".0", "")
+          bwBurstLabel = bwBurstLabel.replace(".0", "")
         
-        stats.append("limit: %s" % bwRate)
-        stats.append("burst: %s" % bwBurst)
+        stats.append("limit: %s" % bwRateLabel)
+        stats.append("burst: %s" % bwBurstLabel)
       
       # Provide the observed bandwidth either if the measured bandwidth isn't
       # available or if the measured bandwidth is the observed (this happens

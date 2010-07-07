@@ -6,7 +6,7 @@ graph. By default this provides the cpu and memory usage of the tor process.
 import graphPanel
 from util import log, sysTools, torTools, uiTools
 
-# number of subsiquent failed queries before giving up
+# number of subsequent failed queries before giving up
 FAILURE_THRESHOLD = 5
 
 # attempts to use cached results from the header panel's ps calls
@@ -21,7 +21,7 @@ class PsStats(graphPanel.GraphStats):
   
   def __init__(self, config=None):
     graphPanel.GraphStats.__init__(self)
-    self.failedCount = 0      # number of subsiquent failed queries
+    self.failedCount = 0      # number of subsequent failed queries
     
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config)
@@ -113,7 +113,7 @@ class PsStats(graphPanel.GraphStats):
           result = float(psResults[statName])
           
           # The 'rss' and 'size' parameters provide memory usage in KB. This is
-          # scaled up to MB so the graph's y-high is a resonable value.
+          # scaled up to MB so the graph's y-high is a reasonable value.
           if statName in ("rss", "size"): result /= 1024.0
           
           if isPrimary: primary = result

@@ -12,7 +12,7 @@ import log, uiTools
 CURSES_LOCK = RLock()
 
 # tags used by addfstr - this maps to functor/argument combinations since the
-# actual values (color attributes - grr...) might not yet be initialized
+# actual values (in the case of color attributes) might not yet be initialized
 def _noOp(arg): return arg
 FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<u>": (_noOp, curses.A_UNDERLINE),
@@ -31,7 +31,7 @@ class Panel():
     - locking when concurrently drawing to multiple windows
     - gracefully handle terminal resizing
     - clip text that falls outside the panel
-    - convenience methods for word wrap, inline formatting, etc
+    - convenience methods for word wrap, in-line formatting, etc
   
   This uses a design akin to Swing where panel instances provide their display
   implementation by overwriting the draw() method, and are redrawn with

@@ -55,7 +55,7 @@ def cropStr(msg, size, minWordLen = 4, addEllipse = True):
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
   isn't room for even a truncated single word (or one word plus the ellipse if
-  inlcuding those) then this provides an empty string. Examples:
+  including those) then this provides an empty string. Examples:
   
   cropStr("This is a looooong message", 17)
   "This is a looo..."
@@ -107,7 +107,7 @@ def getSizeLabel(bytes, decimal = 0, isLong = False):
   """
   Converts byte count into label in its most significant units, for instance
   7500 bytes would return "7 KB". If the isLong option is used this expands
-  unit labels to be the properly pluralised full word (for instance 'Kilobytes'
+  unit labels to be the properly pluralized full word (for instance 'Kilobytes'
   rather than 'KB'). Units go up through PB.
   
   Example Usage:
@@ -130,7 +130,7 @@ def getTimeLabel(seconds, decimal = 0, isLong = False):
   
   This defaults to presenting single character labels, but if the isLong option
   is used this expands labels to be the full word (space included and properly
-  pluralised). For instance, "4h" would be "4 hours" and "1m" would become
+  pluralized). For instance, "4h" would be "4 hours" and "1m" would become
   "1 minute".
   
   Example Usage:
@@ -196,7 +196,7 @@ def _getLabel(units, count, decimal, isLong):
       else:
         # unfortunately the %f formatting has no method of rounding down, so
         # reducing value to only concern the digits that are visible - note
-        # that this doesn't work with miniscule values (starts breaking down at
+        # that this doesn't work with minuscule values (starts breaking down at
         # around eight decimal places) or edge cases when working with powers
         # of two
         croppedCount = count - (count % (countPerUnit / (10 ** decimal)))

@@ -1,5 +1,37 @@
 CHANGE LOG
 
+6/7/10 - version 1.3.6
+Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features.
+
+    * added: settings are fetched from an optional armrc (update rates, controller password, caching, runlevels, etc)
+    * added: system tools util providing simplified usage, suppression of leaks to stdout, logging, and optional caching
+    * added: wrapper for accessing TorCtl providing:
+          o client side caching for commonly fetched relay information (fingerprint, descriptor, etc)
+          o singleton accessor and convenience functions, simplifying interface code
+          o wrapper allowing reattachment to new controllers (ie, arm still works if tor's stopped then restarted - still in the works)
+    * change: full rewrite of the header panel, providing:
+          o notice for when tor's disconnected (with time-stamp)
+          o lightweight redrawing (smarter caching and moved updating into a daemon thread)
+          o more graceful handling of tiny displays
+    * change: rewrite of graph panel and related stats, providing:
+          o prepopulation of bandwidth information from the state file if possible
+          o observed and measured bandwidth stats (requested by arma)
+          o graph can be configured to display any numeric ps stat
+          o third option for graphing bounds (restricting to both local minima and maxima)
+          o substantially reduced redraw rate and making use of cached ps parameters (reducing call volume)
+    * fix: preventing 'command unavailable' error messages from going to stdout, which disrupts the display (caught by sid77)
+    * fix: removed -p option due to being a gaping security problem (caught by ioerror and nickm)
+    * fix: crashing issue if TorCtl reports TorCtlClosed before the first refresh (caught by Tas)
+    * fix: preventing the connection panel from initiating or resetting while in blind mode (caught by micah)
+    * fix: ss resolution wasn't specifying the use of numeric ports (caught by data)
+    * fix: parsing error when ExitPolicy is undefined (caught by Paul Menzel)
+    * fix: revised sleep pattern used for threads, greatly reducing the time it takes to quit
+    * fix: bug in defaulting the connection resolver to something predetermined to be available
+    * fix: stopping connection resolution (and related failover message) when tor's stopped
+    * fix: crashing issue when trying to resolve addresses without network connectivity
+    * fix: forgot to join on connection resolver when quitting
+    * fix: revised calculation for effective bandwidth rate to take MaxAdvertisedBandwidth into account
+
 4/8/10 - version 1.3.5 (r22148)
 Utility and service rewrite (refactored roughly a third of the codebase, including revised APIs and much better documentation).
 

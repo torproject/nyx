@@ -1,15 +1,13 @@
 TODO
 
-- Roadmap for next release (1.3.6)
+- Roadmap for next release (1.3.7)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
       the codebase and make it possible to use smarter caching to improve
       performance (far too much is done in the ui logic). This work is in
-      progress - /init and /util are done and /interface is in progress. Known
+      progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
-        [X] header panel
-        [X] graph panel
         [ ] log panel
           - option to clear log
           - allow home/end keys to jump to start/end
@@ -22,7 +20,7 @@ TODO
               Ie, make default "TOR/ARM NOTICE - ERR"
           - fetch text via getinfo rather than reading directly?
               conn.get_info("config-text")
-        [-] conn panel (for version 1.3.7)
+        [-] conn panel (for version 1.3.8)
           - check family connections to see if they're alive (VERSION cell
               handshake?)
           - fallback when pid or connection querying via pid is unavailable
@@ -32,11 +30,10 @@ TODO
           - connection uptime to associate inbound/outbound connections?
           - Identify controller connections (if it's arm, vidalia, etc) with
               special detail page for them
-        [-] controller (for version 1.3.7)
+        [-] controller (for version 1.3.8)
   [ ] provide performance ARM-DEBUG events
       Help with diagnosing performance bottlenecks. This is pending the
       codebase revisions to figure out the low hanging fruit for caching.
-  [X] user customizable armrc
   [ ] tor util
         [X] wrapper for accessing torctl
         [ ] allow arm to resume after restarting tor (attaching to a new torctl
@@ -114,8 +111,7 @@ TODO
       country, ISP, latency, exit policy for the circuit, traffic, etc
   * attempt to clear controller password from memory
       http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
-  * try/catch check when starting for curses support?
-  * excaping function for uiTools' formatted strings
+  * escaping function for uiTools' formatted strings
   * tor-weather like functionality (email notices)
   * provide bridge / client country statistics
       - Include bridge related data via GETINFO option (feature request by
@@ -131,11 +127,11 @@ TODO
   * audit tor connections
       Provide warnings if tor misbehaves, checks possibly including:
         - ensuring ExitPolicyRejectPrivate is being obeyed
-        - check that ExitPolicy violations don't occure (not possible yet since
+        - check that ExitPolicy violations don't occur (not possible yet since
           not all relays aren't identified)
         - check that all connections are properly related to a circuit, for
           instance no outbound connections without a corresponding inbound (not
-          possible yet due to being unable to correlate connections to circuts)
+          possible yet due to being unable to correlate connections to circuits)
   * check file descriptors being accessed by tor to see if they're outside the
       known pattern
   * allow killing of circuits? Probably not useful...
@@ -173,7 +169,7 @@ TODO
     * vnstat, nload, mrtg, and traceroute
 
 - Ideas (low priority)
-  * python 3 compatability
+  * python 3 compatibility
       Currently blocked on TorCtl support.
   * bundle script that dumps relay stats to stdout
       Django has a small terminal coloring module that could be nice for

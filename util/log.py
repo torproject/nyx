@@ -69,9 +69,9 @@ def log(level, msg, eventTime = None):
   the backlog. If the level is None then this is a no-op.
   
   Arguments:
-    level     - runlevel coresponding to the message severity
+    level     - runlevel corresponding to the message severity
     msg       - string associated with the message
-    eventTime - unix time at which the event occured, current time if undefined
+    eventTime - unix time at which the event occurred, current time if undefined
   """
   
   if not level: return
@@ -96,7 +96,7 @@ def log(level, msg, eventTime = None):
           eventBacklog.insert(i + 1, newEvent)
           break
     
-    # turncates backlog if too long
+    # truncates backlog if too long
     toDelete = len(eventBacklog) - CONFIG["cache.armLog.size"]
     if toDelete >= 0: del eventBacklog[: toDelete + CONFIG["cache.armLog.trimSize"]]
     

@@ -25,8 +25,8 @@ import util.torTools
 import util.uiTools
 import TorCtl.TorUtil
 
-VERSION = "1.3.5_dev"
-LAST_MODIFIED = "Apr 8, 2010"
+VERSION = "1.3.6_dev"
+LAST_MODIFIED = "July 7, 2010"
 
 DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
 DEFAULTS = {"startup.controlPassword": None,

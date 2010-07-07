@@ -303,7 +303,7 @@ class ConnectionResolver(threading.Thread):
         # this logs in a couple of cases:
         # - special failures noted by getConnections (most cases are already
         # logged via sysTools)
-        # - note failovers for default resolution methods
+        # - note fail-overs for default resolution methods
         if str(exc).startswith("No results found using:"):
           log.log(CONFIG["log.connLookupFailed"], str(exc))
         
@@ -323,7 +323,7 @@ class ConnectionResolver(threading.Thread):
                 break
             
             if newResolver:
-              # provide notice that failures have occured and resolver is changing
+              # provide notice that failures have occurred and resolver is changing
               msg = RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver])
               log.log(CONFIG["log.connLookupFailover"], msg)
             else:

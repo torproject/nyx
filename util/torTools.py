@@ -54,7 +54,7 @@ def loadConfig(config):
 def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
   """
   Opens a socket to the tor controller and queries its authentication type,
-  raising an IOError if problems occure. The result of this function is a tuple
+  raising an IOError if problems occur. The result of this function is a tuple
   of the TorCtl connection and the authentication type, where the later is one
   of the following:
   "NONE"          - no authentication required
@@ -89,7 +89,7 @@ def makeCtlConn(controlAddr="127.0.0.1", controlPort=9051):
     # password authentication
     return (conn, "PASSWORD")
   elif authInfo.startswith("AUTH METHODS=COOKIE"):
-    # cookie authtication, parses authentication cookie path
+    # cookie authentication, parses authentication cookie path
     start = authInfo.find("COOKIEFILE=\"") + 12
     end = authInfo.find("\"", start)
     return (conn, "COOKIE=%s" % authInfo[start:end])
@@ -183,10 +183,10 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     return conn
   except Exception, exc:
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
-      # provide a warining that the provided password didn't work, then try
+      # provide a warning that the provided password didn't work, then try
       # again prompting for the user to enter it
       print INCORRECT_PASSWORD_MSG
-      return makeConn(controlAddr, controlPort)
+      return connect(controlAddr, controlPort)
     else:
       print exc
       return None
@@ -199,9 +199,9 @@ def getPid(controlPort=9051):
   2. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
   3. "ps -o pid -C tor"
   
-  If pidof or ps promide multiple tor instances then their results are discared
-  (since only netstat can differentiate using the control port). This provdes
-  None if either no running process exists or it can't be determined.
+  If pidof or ps provide multiple tor instances then their results are
+  discarded (since only netstat can differentiate using the control port). This
+  provides None if either no running process exists or it can't be determined.
   
   Arguments:
     controlPort - control port of the tor process if multiple exist
@@ -266,7 +266,7 @@ class Controller(TorCtl.PostEventListener):
     self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
-    self._statusTime = 0                # unix timestamp for the duration of the status
+    self._statusTime = 0                # unix time-stamp for the duration of the status
     
     # cached getInfo parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
@@ -294,7 +294,7 @@ class Controller(TorCtl.PostEventListener):
       self.conn.add_event_listener(self)
       for listener in self.eventListeners: self.conn.add_event_listener(listener)
       
-      # sets the events listened for by the new controller (incompatable events
+      # sets the events listened for by the new controller (incompatible events
       # are dropped with a logged warning)
       self.setControllerEvents(self.controllerEvents)
       
@@ -357,13 +357,13 @@ class Controller(TorCtl.PostEventListener):
     """
     Queries the control port for the given GETINFO option, providing the
     default if the response fails for any reason (error response, control port
-    closed, ininitiated, etc).
+    closed, initiated, etc).
     
     Arguments:
       param       - GETINFO option to be queried
       default     - result if the query fails and exception's suppressed
       suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwises this raises the original exception
+                    otherwise this raises the original exception
     """
     
     self.connLock.acquire()
@@ -397,7 +397,7 @@ class Controller(TorCtl.PostEventListener):
       multiple    - provides a list of results if true, otherwise this just
                     returns the first value
       suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwises this raises the original exception
+                    otherwise this raises the original exception
     """
     
     self.connLock.acquire()
@@ -441,7 +441,7 @@ class Controller(TorCtl.PostEventListener):
   
   def getMyDescriptor(self, default = None):
     """
-    Provides the descrptor entry for this relay if available.
+    Provides the descriptor entry for this relay if available.
     
     Arguments:
       default - result if the query fails
@@ -529,7 +529,7 @@ class Controller(TorCtl.PostEventListener):
   def getStatus(self):
     """
     Provides a tuple consisting of the control port's current status and unix
-    timestamp for when it became this way (zero if no status has yet to be
+    time-stamp for when it became this way (zero if no status has yet to be
     set).
     """
     
@@ -604,7 +604,7 @@ class Controller(TorCtl.PostEventListener):
         unavailableEvents.update(events.intersection(FAILED_EVENTS))
         events.difference_update(FAILED_EVENTS)
       
-      # inital check for event availability
+      # initial check for event availability
       validEvents = self.getInfo("events/names")
       
       if validEvents:
@@ -863,7 +863,7 @@ class Controller(TorCtl.PostEventListener):
   def _notifyStatusListeners(self, eventType):
     """
     Sends a notice to all current listeners that a given change in tor's
-    controller status has occured.
+    controller status has occurred.
     
     Arguments:
       eventType - enum representing tor's new status
