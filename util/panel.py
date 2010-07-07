@@ -5,19 +5,24 @@ Wrapper for safely working with curses subwindows.
 import curses
 from threading import RLock
 
-import uiTools
+import log, uiTools
 
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
 CURSES_LOCK = RLock()
 
 # tags used by addfstr - this maps to functor/argument combinations since the
-# actual values (color attributes - grr...) might not yet be initialized
+# actual values (in the case of color attributes) might not yet be initialized
 def _noOp(arg): return arg
 FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<u>": (_noOp, curses.A_UNDERLINE),
                "<h>": (_noOp, curses.A_STANDOUT)}
-for colorLabel in uiTools.COLOR_LIST.keys(): FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
+for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
+
+CONFIG = {"log.panelRecreated": log.DEBUG}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 class Panel():
   """
@@ -26,19 +31,20 @@ class Panel():
     - locking when concurrently drawing to multiple windows
     - gracefully handle terminal resizing
     - clip text that falls outside the panel
-    - convenience methods for word wrap, inline formatting, etc
+    - convenience methods for word wrap, in-line formatting, etc
   
   This uses a design akin to Swing where panel instances provide their display
   implementation by overwriting the draw() method, and are redrawn with
   redraw().
   """
   
-  def __init__(self, parent, top, height=-1, width=-1):
+  def __init__(self, parent, name, top, height=-1, width=-1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
     
     Arguments:
       parent - parent curses window
+      name   - identifier for the panel
       top    - positioning of top within parent
       height - maximum height of panel (uses all available space if -1)
       width  - maximum width of panel (uses all available space if -1)
@@ -49,6 +55,7 @@ class Panel():
     # might chose their height based on its parent's current width).
     
     self.parent = parent
+    self.panelName = name
     self.top = top
     self.height = height
     self.width = width
@@ -63,6 +70,13 @@ class Panel():
     self.win = None
     
     self.maxY, self.maxX = -1, -1 # subwindow dimensions when last redrawn
+  
+  def getName(self):
+    """
+    Provides panel's identifier.
+    """
+    
+    return self.name
   
   def getParent(self):
     """
@@ -148,15 +162,18 @@ class Panel():
     """
     
     newHeight, newWidth = self.parent.getmaxyx()
+    setHeight, setWidth = self.getHeight(), self.getWidth()
     newHeight = max(0, newHeight - self.top)
-    if self.height != -1: newHeight = min(self.height, newHeight)
-    if self.width != -1: newWidth = min(self.width, newWidth)
+    if setHeight != -1: newHeight = min(newHeight, setHeight)
+    if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
   
   def draw(self, subwindow, width, height):
     """
     Draws display's content. This is meant to be overwritten by 
-    implementations and not called directly (use redraw() instead).
+    implementations and not called directly (use redraw() instead). The
+    dimensions provided are the drawable dimensions, which in terms of width is
+    a column less than the actual space.
     
     Arguments:
       sudwindow - panel's current subwindow instance, providing raw access to
@@ -167,15 +184,16 @@ class Panel():
     
     pass
   
-  def redraw(self, refresh=False, block=False):
+  def redraw(self, forceRedraw=False, block=False):
     """
-    Clears display and redraws its content.
+    Clears display and redraws its content. This can skip redrawing content if
+    able (ie, the subwindow's unchanged), instead just refreshing the display.
     
     Arguments:
-      refresh - skips redrawing content if able (ie, the subwindow's 
-                unchanged), instead just refreshing the display
-      block   - if drawing concurrently with other panels this determines if
-                the request is willing to wait its turn or should be abandoned
+      forceRedraw - forces the content to be cleared and redrawn if true
+      block       - if drawing concurrently with other panels this determines
+                    if the request is willing to wait its turn or should be
+                    abandoned
     """
     
     # if the panel's completely outside its parent then this is a no-op
@@ -195,13 +213,14 @@ class Panel():
     
     subwinMaxY, subwinMaxX = self.win.getmaxyx()
     if isNewWindow or subwinMaxY != self.maxY or subwinMaxX != self.maxX:
-      refresh = False
+      forceRedraw = True
     
     self.maxY, self.maxX = subwinMaxY, subwinMaxX
     if not CURSES_LOCK.acquire(block): return
     try:
-      self.win.erase() # clears any old contents
-      if not refresh: self.draw(self.win, self.maxX, self.maxY)
+      if forceRedraw:
+        self.win.erase() # clears any old contents
+        self.draw(self.win, self.maxX - 1, self.maxY)
       self.win.refresh()
     finally:
       CURSES_LOCK.release()
@@ -366,6 +385,7 @@ class Panel():
       manifests if the terminal's shrank then re-expanded. Displaced
       subwindows are never restored to their proper position, resulting in
       graphical glitches if we draw to them.
+    - The preferred size is smaller than the actual size (should shrink).
     
     This returns True if a new subwindow instance was created, False otherwise.
     """
@@ -379,6 +399,7 @@ class Panel():
       subwinMaxY, subwinMaxX = self.win.getmaxyx()
       recreate |= subwinMaxY < newHeight              # check for vertical growth
       recreate |= self.top > self.win.getparyx()[0]   # check for displacement
+      recreate |= subwinMaxX > newWidth or subwinMaxY > newHeight # shrinking
     
     # I'm not sure if recreating subwindows is some sort of memory leak but the
     # Python curses bindings seem to lack all of the following:
@@ -387,6 +408,11 @@ class Panel():
     # so this is the only option (besides removing subwindows entirely which 
     # would mean far more complicated code and no more selective refreshing)
     
-    if recreate: self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+    if recreate:
+      self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+      
+      # note: doing this log before setting win produces an infinite loop
+      msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.panelName, newHeight, newWidth)
+      log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
   

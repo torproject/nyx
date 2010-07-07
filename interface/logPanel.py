@@ -2,13 +2,12 @@
 # logPanel.py -- Resources related to Tor event monitoring.
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
-import os
 import time
 import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
-from util import log, panel, uiTools
+from util import log, panel, sysTools, uiTools
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
 
@@ -32,8 +31,8 @@ EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUT
         w WARN      f DESCCHANGED     s STREAM          z STATUS_SERVER
         e ERR       g GUARD           t STREAM_BW       A All Events
                     k NEWCONSENSUS    u CLIENTS_SEEN    X No Events
-          DINWE Runlevel and higher severity            C TorCtl Events
-          12345 ARM runlevel and higher severity        U Unknown Events"""
+          DINWE runlevel and higher severity            C TorCtl Events
+          12345 arm runlevel and higher severity        U Unknown Events"""
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 
@@ -91,7 +90,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def __init__(self, stdscr, conn, loggedEvents):
     TorCtl.PostEventListener.__init__(self)
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "log", 0)
     self.scroll = 0
     self.msgLog = []                      # tuples of (logText, color)
     self.isPaused = False
@@ -111,7 +110,6 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     # attempts to process events from log file
     if PRE_POPULATE_LOG:
       previousPauseState = self.isPaused
-      tailCall = None
       
       try:
         logFileLoc = None
@@ -129,11 +127,11 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
           
           # trims log to last entries to deal with logs when they're in the GB or TB range
           # throws IOError if tail fails (falls to the catch-all later)
+          # TODO: now that this is using sysTools figure out if we can do away with the catch-all...
           limit = PRE_POPULATE_MIN_LIMIT if ("DEBUG" in self.loggedEvents or "INFO" in self.loggedEvents) else PRE_POPULATE_MAX_LIMIT
-          tailCall = os.popen("tail -n %i %s 2> /dev/null" % (limit, logFileLoc))
           
           # truncates to entries for this tor instance
-          lines = tailCall.readlines()
+          lines = sysTools.call("tail -n %i %s" % (limit, logFileLoc))
           instanceStart = 0
           for i in range(len(lines) - 1, -1, -1):
             if "opening log file" in lines[i]:
@@ -152,7 +150,6 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
       finally:
         self.setPaused(previousPauseState)
         self.eventTimeOverwrite = None
-        if tailCall: tailCall.close()
   
   def handleKey(self, key):
     # scroll movement
@@ -218,11 +215,12 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def ns_event(self, event):
     # NetworkStatus params: nickname, idhash, orhash, ip, orport (int), dirport (int), flags, idhex, bandwidth, updated (datetime)
-    msg = ""
-    for ns in event.nslist:
-      msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
-    if len(msg) > 1: msg = msg[2:]
-    self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
+    if "NS" in self.loggedEvents:
+      msg = ""
+      for ns in event.nslist:
+        msg += ", %s (%s:%i)" % (ns.nickname, ns.ip, ns.orport)
+      if len(msg) > 1: msg = msg[2:]
+      self.registerEvent("NS", "Listed (%i): %s" % (len(event.nslist), msg), "blue")
   
   def new_consensus_event(self, event):
     if "NEWCONSENSUS" in self.loggedEvents:
@@ -296,7 +294,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     else:
       for msgLine in toAdd: self.msgLog.insert(0, (msgLine, color))
       if len(self.msgLog) > MAX_LOG_ENTRIES: del self.msgLog[MAX_LOG_ENTRIES:]
-      self.redraw()
+      self.redraw(True)
   
   def draw(self, subwindow, width, height):
     """
@@ -388,7 +386,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if self.isPaused: self.pauseBuffer = []
     else:
       self.msgLog = (self.pauseBuffer + self.msgLog)[:MAX_LOG_ENTRIES]
-      if self.win: self.redraw() # hack to avoid redrawing during init
+      if self.win: self.redraw(True) # hack to avoid redrawing during init
   
   def getHeartbeat(self):
     """

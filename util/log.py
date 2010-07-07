@@ -14,9 +14,8 @@ from threading import RLock
 DEBUG, INFO, NOTICE, WARN, ERR = range(1, 6)
 RUNLEVEL_STR = {DEBUG: "DEBUG", INFO: "INFO", NOTICE: "NOTICE", WARN: "WARN", ERR: "ERR"}
 
-LOG_LIMIT = 1000            # threshold (per runlevel) at which entries are discarded
-LOG_TRIM_SIZE = 200         # number of entries discarded when the limit's reached
-LOG_LOCK = RLock()          # provides thread safety for logging operations
+# provides thread safety for logging operations
+LOG_LOCK = RLock()
 
 # chronologically ordered records of events for each runlevel, stored as tuples
 # consisting of: (time, message)
@@ -25,17 +24,57 @@ _backlog = dict([(level, []) for level in range(1, 6)])
 # mapping of runlevels to the listeners interested in receiving events from it
 _listeners = dict([(level, []) for level in range(1, 6)])
 
+CONFIG = {"cache.armLog.size": 1000, "cache.armLog.trimSize": 200}
+
+def loadConfig(config):
+  config.update(CONFIG)
+  
+  # ensures sane config values
+  CONFIG["cache.armLog.size"] = max(10, CONFIG["cache.armLog.size"])
+  CONFIG["cache.armLog.trimSize"] = max(5, min(CONFIG["cache.armLog.trimSize"], CONFIG["cache.armLog.size"] / 2))
+
+def strToRunlevel(runlevelStr):
+  """
+  Converts runlevel strings ("DEBUG", "INFO", "NOTICE", etc) to their
+  corresponding enumeations. This isn't case sensitive and provides None if
+  unrecognized.
+  
+  Arguments:
+    runlevelStr - string to be converted to runlevel
+  """
+  
+  if not runlevelStr: return None
+  
+  runlevelStr = runlevelStr.upper()
+  for enum, level in RUNLEVEL_STR.items():
+    if level == runlevelStr: return enum
+  
+  return None
+
+def runlevelToStr(runlevelEnum):
+  """
+  Converts runlevel enumerations to corresponding string. If unrecognized then
+  this provides "NONE".
+  
+  Arguments:
+    runlevelEnum - enumeration to be converted to string
+  """
+  
+  if runlevelEnum in RUNLEVEL_STR: return RUNLEVEL_STR[runlevelEnum]
+  else: return "NONE"
+
 def log(level, msg, eventTime = None):
   """
   Registers an event, directing it to interested listeners and preserving it in
-  the backlog.
+  the backlog. If the level is None then this is a no-op.
   
   Arguments:
-    level     - runlevel coresponding to the message severity
+    level     - runlevel corresponding to the message severity
     msg       - string associated with the message
-    eventTime - unix time at which the event occured, current time if undefined
+    eventTime - unix time at which the event occurred, current time if undefined
   """
   
+  if not level: return
   if eventTime == None: eventTime = time.time()
   
   LOG_LOCK.acquire()
@@ -57,9 +96,9 @@ def log(level, msg, eventTime = None):
           eventBacklog.insert(i + 1, newEvent)
           break
     
-    # turncates backlog if too long
-    toDelete = len(eventBacklog) - LOG_LIMIT
-    if toDelete >= 0: del eventBacklog[: toDelete + LOG_TRIM_SIZE]
+    # truncates backlog if too long
+    toDelete = len(eventBacklog) - CONFIG["cache.armLog.size"]
+    if toDelete >= 0: del eventBacklog[: toDelete + CONFIG["cache.armLog.trimSize"]]
     
     # notifies listeners
     for callback in _listeners[level]:
@@ -69,7 +108,7 @@ def log(level, msg, eventTime = None):
 
 def addListener(level, callback):
   """
-  Directs future events to the given fallback function. The runlevels passed on
+  Directs future events to the given callback function. The runlevels passed on
   to listeners are provided as the corresponding strings ("DEBUG", "INFO",
   "NOTICE", etc), and times in POSIX (unix) time.
   

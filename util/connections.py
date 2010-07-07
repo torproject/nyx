@@ -7,20 +7,25 @@ utilities:
 - lsof      lsof -nPi | grep "<process>\s*<pid>.*(ESTABLISHED)"
 
 all queries dump its stderr (directing it to /dev/null). Unfortunately FreeBSD
-lacks support for the needed netstat flags, and has a completely different
+lacks support for the needed netstat flags and has a completely different
 program for 'ss', so this is quite likely to fail there.
 """
 
-import os
 import sys
 import time
 import threading
 
 import log
+import sysTools
 
 # enums for connection resolution utilities
 CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)
 CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
+
+# If true this provides new instantiations for resolvers if the old one has
+# been stopped. This can make it difficult ensure all threads are terminated
+# when accessed concurrently.
+RECREATE_HALTED_RESOLVERS = False
 
 # formatted strings for the commands to be executed with the various resolvers
 # options are:
@@ -29,25 +34,27 @@ CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
 # tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
 # *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
 #   equivilant -p doesn't exist so this can't function)
-RUN_NETSTAT = "netstat -npt 2> /dev/null | grep %s/%s 2> /dev/null"
+RUN_NETSTAT = "netstat -npt | grep %s/%s"
 
-# p = include process
+# n = numeric ports, p = include process
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
 # *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -p 2> /dev/null | grep \"\\\"%s\\\",%s\" 2> /dev/null"
+RUN_SS = "ss -np | grep \"\\\"%s\\\",%s\""
 
 # n = prevent dns lookups, P = show port numbers (not names), i = ip only
 # output:
 # tor  9912  atagar  20u  IPv4  33453  TCP 127.0.0.1:9051->127.0.0.1:53308
-RUN_LSOF = "lsof -nPi 2> /dev/null | grep \"%s\s*%s.*(ESTABLISHED)\" 2> /dev/null"
+RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
-RESOLVER_MIN_DEFAULT_LOOKUP = 5     # minimum seconds between lookups (unless overwritten)
-RESOLVER_SLEEP_INTERVAL = 1         # period to sleep when not resolving
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
+CONFIG = {"queries.connections.minRate": 5, "log.connLookupFailed": log.INFO, "log.connLookupFailover": log.NOTICE, "log.connLookupAbandon": log.WARN, "log.connLookupRateGrowing": None}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def getConnections(resolutionCmd, processName, processPid = ""):
   """
@@ -70,11 +77,10 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   elif resolutionCmd == CMD_SS: cmd = RUN_SS % (processName, processPid)
   else: cmd = RUN_LSOF % (processName, processPid)
   
-  resolutionCall = os.popen(cmd)
-  results = resolutionCall.readlines()
-  resolutionCall.close()
+  # raises an IOError if the command fails or isn't available
+  results = sysTools.call(cmd)
   
-  if not results: raise IOError("Unable to resolve connections using: %s" % cmd)
+  if not results: raise IOError("No results found using: %s" % cmd)
   
   # parses results for the resolution command
   conn = []
@@ -93,7 +99,24 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   
   return conn
 
-def getResolver(processName, processPid = "", newInit = True):
+def isResolverAlive(processName, processPid = ""):
+  """
+  This provides true if a singleton resolver instance exists for the given
+  process/pid combination, false otherwise.
+  
+  Arguments:
+    processName - name of the process being checked
+    processPid  - pid of the process being checked, if undefined this matches
+                  against any resolver with the process name
+  """
+  
+  for resolver in RESOLVERS:
+    if not resolver._halt and resolver.processName == processName and (not processPid or resolver.processPid == processPid):
+      return True
+  
+  return False
+
+def getResolver(processName, processPid = ""):
   """
   Singleton constructor for resolver instances. If a resolver already exists
   for the process then it's returned. Otherwise one is created and started.
@@ -102,41 +125,28 @@ def getResolver(processName, processPid = "", newInit = True):
     processName - name of the process being resolved
     processPid  - pid of the process being resolved, if undefined this matches
                   against any resolver with the process name
-    newInit     - if a resolver isn't available then one's created if true,
-                  otherwise this returns None
   """
   
   # check if one's already been created
-  for resolver in RESOLVERS:
+  haltedIndex = -1 # old instance of this resolver with the _halt flag set
+  for i in range(len(RESOLVERS)):
+    resolver = RESOLVERS[i]
     if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
-      return resolver
+      if resolver._halt and RECREATE_HALTED_RESOLVERS: haltedIndex = i
+      else: return resolver
   
   # make a new resolver
-  if newInit:
-    r = ConnectionResolver(processName, processPid)
-    r.start()
-    RESOLVERS.append(r)
-    return r
-  else: return None
+  r = ConnectionResolver(processName, processPid)
+  r.start()
+  
+  # overwrites halted instance of this resolver if it exists, otherwise append
+  if haltedIndex == -1: RESOLVERS.append(r)
+  else: RESOLVERS[haltedIndex] = r
+  return r
 
-def _isAvailable(command):
-  """
-  Checks the current PATH to see if a command is available or not. This returns
-  True if an accessible executable by the name is found and False otherwise.
-  
-  Arguments:
-    command - name of the command for which to search
-  """
-  
-  for path in os.environ["PATH"].split(os.pathsep):
-    cmdPath = os.path.join(path, command)
-    if os.path.exists(cmdPath) and os.access(cmdPath, os.X_OK): return True
-  
-  return False
-  
 if __name__ == '__main__':
   # quick method for testing connection resolution
-  userInput = raw_input("Enter query (RESOLVER PROCESS_NAME [PID]: ").split()
+  userInput = raw_input("Enter query (<ss, netstat, lsof> PROCESS_NAME [PID]): ").split()
   
   # checks if there's enough arguments
   if len(userInput) == 0: sys.exit(0)
@@ -225,7 +235,7 @@ class ConnectionResolver(threading.Thread):
     self.processName = processName
     self.processPid = processPid
     self.resolveRate = resolveRate
-    self.defaultRate = RESOLVER_MIN_DEFAULT_LOOKUP
+    self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
     self.defaultResolver = CMD_NETSTAT
@@ -233,22 +243,33 @@ class ConnectionResolver(threading.Thread):
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
     for resolver in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
-      if _isAvailable(CMD_STR[resolver]):
-        self.defaultResolve = resolver
+      if sysTools.isAvailable(CMD_STR[resolver]):
+        self.defaultResolver = resolver
         break
     
     self._connections = []        # connection cache (latest results)
     self._isPaused = False
     self._halt = False            # terminates thread if true
+    self._cond = threading.Condition()  # used for pausing the thread
     self._subsiquentFailures = 0  # number of failed resolutions with the default in a row
     self._resolverBlacklist = []  # resolvers that have failed to resolve
+    
+    # Number of sequential times the threshold rate's been too low. This is to
+    # avoid having stray spikes up the rate.
+    self._rateThresholdBroken = 0
   
   def run(self):
     while not self._halt:
       minWait = self.resolveRate if self.resolveRate else self.defaultRate
+      timeSinceReset = time.time() - self.lastLookup
       
-      if self._isPaused or time.time() - self.lastLookup < minWait:
-        time.sleep(RESOLVER_SLEEP_INTERVAL)
+      if self._isPaused or timeSinceReset < minWait:
+        sleepTime = max(0.2, minWait - timeSinceReset)
+        
+        self._cond.acquire()
+        if not self._halt: self._cond.wait(sleepTime)
+        self._cond.release()
+        
         continue # done waiting, try again
       
       isDefault = self.overwriteResolver == None
@@ -264,13 +285,27 @@ class ConnectionResolver(threading.Thread):
         connResults = getConnections(resolver, self.processName, self.processPid)
         lookupTime = time.time() - resolveStart
         
-        log.log(log.DEBUG, "%s queried in %.4f seconds (%i results)" % (CMD_STR[resolver], lookupTime, len(connResults)))
-        
         self._connections = connResults
-        self.defaultRate = max(5, 10 % lookupTime)
+        
+        newMinDefaultRate = 100 * lookupTime
+        if self.defaultRate < newMinDefaultRate:
+          if self._rateThresholdBroken >= 3:
+            # adding extra to keep the rate from frequently changing
+            self.defaultRate = newMinDefaultRate + 0.5
+            
+            msg = "connection lookup time increasing to %0.1f seconds per call" % self.defaultRate
+            log.log(CONFIG["log.connLookupRateGrowing"], msg)
+          else: self._rateThresholdBroken += 1
+        else: self._rateThresholdBroken = 0
+        
         if isDefault: self._subsiquentFailures = 0
       except IOError, exc:
-        log.log(log.INFO, str(exc)) # notice that a single resolution has failed
+        # this logs in a couple of cases:
+        # - special failures noted by getConnections (most cases are already
+        # logged via sysTools)
+        # - note fail-overs for default resolution methods
+        if str(exc).startswith("No results found using:"):
+          log.log(CONFIG["log.connLookupFailed"], str(exc))
         
         if isDefault:
           self._subsiquentFailures += 1
@@ -288,11 +323,12 @@ class ConnectionResolver(threading.Thread):
                 break
             
             if newResolver:
-              # provide notice that failures have occured and resolver is changing
-              log.log(log.NOTICE, RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver]))
+              # provide notice that failures have occurred and resolver is changing
+              msg = RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver])
+              log.log(CONFIG["log.connLookupFailover"], msg)
             else:
               # exhausted all resolvers, give warning
-              log.log(log.WARN, RESOLVER_FINAL_FAILURE_MSG)
+              log.log(CONFIG["log.connLookupAbandon"], RESOLVER_FINAL_FAILURE_MSG)
             
             self.defaultResolver = newResolver
       finally:
@@ -325,8 +361,8 @@ class ConnectionResolver(threading.Thread):
     Halts further resolutions and terminates the thread.
     """
     
+    self._cond.acquire()
     self._halt = True
-    
-    # removes this from consideration among active singleton instances
-    if self in RESOLVERS: RESOLVERS.remove(self)
+    self._cond.notifyAll()
+    self._cond.release()
 

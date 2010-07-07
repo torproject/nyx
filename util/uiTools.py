@@ -5,7 +5,10 @@ easy method of providing the following interface components:
 - unit conversion for labels
 """
 
+import sys
 import curses
+
+import log
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -16,7 +19,7 @@ COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
 # mappings for getColor() - this uses the default terminal color scheme if
 # color support is unavailable
 COLOR_ATTR_INITIALIZED = False
-COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST.keys()])
+COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 
 # value tuples for label conversions (bytes / seconds, short label, long label)
 SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
@@ -24,6 +27,11 @@ SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB",
               (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
 TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
               (60.0, "m", " minute"),                   (1.0, "s", " second")]
+
+CONFIG = {"features.colorInterface": True, "log.cursesColorSupport": log.INFO}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 def getColor(color):
   """
@@ -42,11 +50,64 @@ def getColor(color):
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
 
+def cropStr(msg, size, minWordLen = 4, addEllipse = True):
+  """
+  Provides the msg constrained to the given length, truncating on word breaks.
+  If the last words is long this truncates mid-word with an ellipse. If there
+  isn't room for even a truncated single word (or one word plus the ellipse if
+  including those) then this provides an empty string. Examples:
+  
+  cropStr("This is a looooong message", 17)
+  "This is a looo..."
+  
+  cropStr("This is a looooong message", 12)
+  "This is a..."
+  
+  cropStr("This is a looooong message", 3)
+  ""
+  
+  Arguments:
+    msg        - source text
+    size       - room available for text
+    minWordLen - minimum characters before which a word is dropped, requires
+                 whole word if -1
+    addEllipse - includes an ellipse when truncating if true (dropped if size
+                 size is 
+  """
+  
+  if minWordLen < 0: minWordLen = sys.maxint
+  
+  if len(msg) <= size: return msg
+  else:
+    msgWords = msg.split(" ")
+    msgWords.reverse()
+    
+    returnWords = []
+    sizeLeft = size - 3 if addEllipse else size
+    
+    # checks that there's room for at least one word
+    if min(minWordLen, len(msgWords[-1])) > sizeLeft: return ""
+    
+    while sizeLeft > 0:
+      nextWord = msgWords.pop()
+      
+      if len(nextWord) <= sizeLeft:
+        returnWords.append(nextWord)
+        sizeLeft -= (len(nextWord) + 1)
+      elif minWordLen <= sizeLeft:
+        returnWords.append(nextWord[:sizeLeft])
+        sizeLeft = 0
+      else: sizeLeft = 0
+    
+    returnMsg = " ".join(returnWords)
+    if addEllipse: returnMsg += "..."
+    return returnMsg
+
 def getSizeLabel(bytes, decimal = 0, isLong = False):
   """
   Converts byte count into label in its most significant units, for instance
   7500 bytes would return "7 KB". If the isLong option is used this expands
-  unit labels to be the properly pluralised full word (for instance 'Kilobytes'
+  unit labels to be the properly pluralized full word (for instance 'Kilobytes'
   rather than 'KB'). Units go up through PB.
   
   Example Usage:
@@ -69,7 +130,7 @@ def getTimeLabel(seconds, decimal = 0, isLong = False):
   
   This defaults to presenting single character labels, but if the isLong option
   is used this expands labels to be the full word (space included and properly
-  pluralised). For instance, "4h" would be "4 hours" and "1m" would become
+  pluralized). For instance, "4h" would be "4 hours" and "1m" would become
   "1 minute".
   
   Example Usage:
@@ -135,7 +196,7 @@ def _getLabel(units, count, decimal, isLong):
       else:
         # unfortunately the %f formatting has no method of rounding down, so
         # reducing value to only concern the digits that are visible - note
-        # that this doesn't work with miniscule values (starts breaking down at
+        # that this doesn't work with minuscule values (starts breaking down at
         # around eight decimal places) or edge cases when working with powers
         # of two
         croppedCount = count - (count % (countPerUnit / (10 ** decimal)))
@@ -157,18 +218,23 @@ def _initColors():
   
   global COLOR_ATTR_INITIALIZED
   if not COLOR_ATTR_INITIALIZED:
+    COLOR_ATTR_INITIALIZED = True
+    if not CONFIG["features.colorInterface"]: return
+    
     try: hasColorSupport = curses.has_colors()
     except curses.error: return # initscr hasn't been called yet
     
     # initializes color mappings if color support is available
-    COLOR_ATTR_INITIALIZED = True
     if hasColorSupport:
       colorpair = 0
+      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support detected and enabled")
       
-      for colorName in COLOR_LIST.keys():
+      for colorName in COLOR_LIST:
         fgColor = COLOR_LIST[colorName]
         bgColor = -1 # allows for default (possibly transparent) background
         colorpair += 1
         curses.init_pair(colorpair, fgColor, bgColor)
         COLOR_ATTR[colorName] = curses.color_pair(colorpair)
+    else:
+      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support unavailable")
 

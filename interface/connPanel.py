@@ -109,9 +109,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   Lists tor related connection data.
   """
   
-  def __init__(self, stdscr, conn):
+  def __init__(self, stdscr, conn, isDisabled):
     TorCtl.PostEventListener.__init__(self)
-    panel.Panel.__init__(self, stdscr, 0)
+    panel.Panel.__init__(self, stdscr, "conn", 0)
     self.scroll = 0
     self.conn = conn                  # tor connection for querrying country codes
     self.listingType = LIST_IP        # information used in listing entries
@@ -129,7 +129,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.orconnStatusCacheValid = False   # indicates if cache has been invalidated
     self.clientConnectionCache = None     # listing of nicknames for our client connections
     self.clientConnectionLock = RLock()   # lock for clientConnectionCache
-    self.isDisabled = False               # prevent panel from updating entirely
+    self.isDisabled = isDisabled          # prevent panel from updating entirely
     self.lastConnResults = None           # used to check if connection results have changed
     
     self.isCursorEnabled = True
@@ -216,6 +216,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.clientConnectionLock.release()
   
   # when consensus changes update fingerprint mappings
+  # TODO: should also be taking NS events into account
   def new_consensus_event(self, event):
     self.orconnStatusCacheValid = False
     self.fingerprintLookupCache.clear()
@@ -266,6 +267,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     """
     Reloads connection results.
     """
+    
+    if self.isDisabled: return
     
     # inaccessable during startup so might need to be refetched
     try:
@@ -450,7 +453,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       if not self.allowDNS: hostnames.setPaused(True)
       elif self.listingType == LIST_HOSTNAME: hostnames.setPaused(False)
     else: return # skip following redraw
-    self.redraw()
+    self.redraw(True)
   
   def draw(self, subwindow, width, height):
     self.connectionsLock.acquire()

@@ -1,124 +1,193 @@
 TODO
 
+- Roadmap for next release (1.3.7)
+  [ ] refactor panels
+      Currently the interface is a bit of a rat's nest (especially the
+      controller). The goal is to use better modularization to both simplify
+      the codebase and make it possible to use smarter caching to improve
+      performance (far too much is done in the ui logic). This work is in
+      progress - /init and /util are done and /interface is partly done. Known
+      bugs are being fixed while refactoring.
+        [ ] log panel
+          - option to clear log
+          - allow home/end keys to jump to start/end
+              also do this for the conn panel and conf panel (request by dun)
+          - make log parsing script stand alone, with syntax hilighting, regex,
+              sorting, etc
+        [ ] conf panel
+          - move torrc validation into util
+          - condense tor/arm log listing types if they're the same
+              Ie, make default "TOR/ARM NOTICE - ERR"
+          - fetch text via getinfo rather than reading directly?
+              conn.get_info("config-text")
+        [-] conn panel (for version 1.3.8)
+          - check family connections to see if they're alive (VERSION cell
+              handshake?)
+          - fallback when pid or connection querying via pid is unavailable
+              List all connections listed both by netstat and the consensus
+          - note when connection times are estimates (color?), ie connection
+              was established before arm
+          - connection uptime to associate inbound/outbound connections?
+          - Identify controller connections (if it's arm, vidalia, etc) with
+              special detail page for them
+        [-] controller (for version 1.3.8)
+  [ ] provide performance ARM-DEBUG events
+      Help with diagnosing performance bottlenecks. This is pending the
+      codebase revisions to figure out the low hanging fruit for caching.
+  [ ] tor util
+        [X] wrapper for accessing torctl
+        [ ] allow arm to resume after restarting tor (attaching to a new torctl
+            instance)
+  [ ] setup scripts for arm
+        [ ] setup scrpt to add to /usr/bin/arm (requested by ioerror)
+        [ ] look into CAPs to get around permission issues for connection
+            listing sudo wrapper for arm to help arm run as the same user as
+            tor? Irc suggestions:
+              - man capabilities
+              - http://www.linuxjournal.com/article/5737
+        [-] provide Debian repository (for version 1.4.0)
+            Look into debian packaging, note system call dependencies, and mail
+            submit@bugs.debian.org with subject "RFP: arm" and starting with a
+            line "Package: wnpp". Also add to 'deb.torprojec.org'. (requested
+            by helmut)
+              * http://www.debian.org/doc/maint-guide/
+              * http://www.debian.org/doc/packaging-manuals/python-policy/
+              * http://showmedo.com/videotutorials/video?name=linuxJensMakingDeb
+  * release prep
+    * check performance of this version vs last version (general screen refresh
+        times)
+    * pylint --indent-string="  " --disable-msg-cat=CR interface/foo.py | less
+    * double check __init__.py and README for changes
+
 - Bugs
-	* Mac OSX and BSD have issues with netstat options
-			Reported that they aren't cross platform. Possibly use lsof as a 
-			fallback if an issue's detected.
-			notify John Case <case@sdf.lonestar.org>
-			caught by Christopher Davis
-	* torrc validation doesn't catch if parameters are missing
-	* revise multikey sort of connections
-			Currently using a pretty ugly hack. Look at:
-			http://www.velocityreviews.com/forums/
-				t356461-sorting-a-list-of-objects-by-multiple-attributes.html
-			and check for performance difference.
-	* header panel isn't properly detecting catch-all exit policies
-			Missing edge cases
-	* avoid hostname lookups of private connections
-			Stripped most of them but suspect there might be others (have assertions
-			check for this in a debug mode?)
-	* exit policy checks aren't handling all inputs
-			Still need to handle masks, private keyword, and prepended policy,
-			currently erroring on the side of caution.
-	* not catching events unexpected by arm
-			Future tor and TorCtl revisions could provide new events - these should
-			be given the "UNKNOWN" type.
-	* regex fails for multiline log entries
-	* when logging no events still showing brackets
-			The current code for dynamically sizing the events label is kinda
-			tricky. Putting this off until I've made a utility to handle this
-			uglyness.
-	* scrolling in the torrc isn't working properly when comments are stripped
-			Current method of displaying torrc is pretty stupid (lots of repeated
-			work in display loop). When rewritten fixing this bug should be trivial.
-	* quitting can hang several seconds when there's hostnames left to resolve
-			Not sure how to address this - problem is that the calls to 'host' can 
-			take a while to time out. Might need another thread to kill the calls?
-			Or forcefully terminate thread if it's taking too long (might be noisy)?
+  * util are assuming that tor is running under the default command name
+      attempt to determine the command name at runtime (if the pid is available
+      then ps can do the mapping)
+  
+  * log panel:
+    * not catching events unexpected by arm
+        Future tor and TorCtl revisions could provide new events - these should
+        be given the "UNKNOWN" type.
+    * regex fails for multiline log entries (works for two lines, but not more)
+    * test that torctl events are being caught (not spotting them...)
+    * torctl events have their own configurable runlevels (provide options for
+        this)
+    * when logging no events still showing brackets
+        The current code for dynamically sizing the events label is kinda
+        tricky. Putting this off until revising this section.
+  
+  * conf panel:
+    * torrc validation doesn't catch if parameters are missing
+    * scrolling in the torrc isn't working properly when comments are stripped
+        Current method of displaying torrc is pretty stupid (lots of repeated
+        work in display loop). When rewritten fixing this bug should be
+        trivial.
+    * "ExitPolicy" entry in torrc (without path)
+        Produces "May 26 22:11:03.484 [warn] The abbreviation 'ExitPolic' is
+        deprecated. Please use 'ExitPolicy' instead". This is an error in the
+        torrc parsing when only the key is provided.
+  
+  * conn panel:
+    * revise multikey sort of connections
+        Currently using a pretty ugly hack. Look at:
+        http://www.velocityreviews.com/forums/
+          t356461-sorting-a-list-of-objects-by-multiple-attributes.html
+        and check for performance difference.
+    * replace checks against exit policy with Mike's torctl version
+        My version still isn't handling all inputs anyway (still need to handle
+        masks, private keyword, and prepended policy). Parse it from the rest
+        of the router if too heavy ("TorCtl.Router.will_exit_to instead").
+    * avoid hostname lookups of private connections
+        Stripped most of them but suspect there might be others (have assertions
+        check for this in a debug mode?)
+    * connection uptimes shouldn't show fractions of a second
+    * connections aren't cleared when control port closes
 
 - Features / Site
-	* rewrite codebase
-			Currently the interface is a bit of a rat's nest (especially the
-			controller). The goal is to use better modularization to both simplify
-			the codebase and make it possible to use smarter caching to improve
-			performance (far too much is done in the ui logic). This work is in
-			progress, having started with the initialization (/init) and now
-			concerning the utilities (/util). Migrating the following to util:
-				- os calls (to provide transparent platform independence)
-				- torrc validation
-				- wrapper for tor connection, state, and data parsing (abstracting
-					TorCtl connection should allow for arm to be resumed if tor restarts)
-	* provide bridge statistics
-			Include bridge related data via GETINFO option (feature request by
-			waltman).
-	* provide performance ARM-DEBUG events
-			Help with diagnosing performance bottlenecks. This is pending the
-			codebase revisions to figure out the low hanging fruit for caching.
-	* condense tor/arm log listing types if they're the same
-			Ie, make default "TOR/ARM NOTICE - ERR"
-	* graph for arm cpu/mem usage
-			Trivial to implement but not sure if this would be helpful.
-	* startup option to restrict resource usage or set refresh rate
-	* audit tor connections
-			Provide warnings if tor misbehaves, checks possibly including:
-				- ensuring ExitPolicyRejectPrivate is being obeyed
-				- check that ExitPolicy violations don't occure (not possible yet since
-					not all relays aren't identified)
-				- check that all connections are properly related to a circuit, for
-					instance no outbound connections without a corresponding inbound (not
-					possible yet due to being unable to correlate connections to circuts)
-	* add page that allows raw control port access
-			Piggyback on the arm connection, providing something like an interactive
-			prompt. In addition, provide:
-				- irc like help (ex "/help GETINFO" could provide a summary of getinfo
-				commands, partly using the results from "GETINFO info/names")
-				- tab completion and up/down populates previous entries
-				- warn and get confirmation if command would disrupt arm (for instance
-				'SETEVENTS')
-				- 'guard' option that restricts to GETINFO only	(start with this)
-				- issue sighup reset
-	* provide observed bandwidth
-			Newer relays have a 'w' entry that states the bandwidth and old versions
-			have client side measurements (third argument in 'Bandwidth' of
-			descriptor, note that it's in KB/s). Label the former (server side) as 
-			'Measured' and later (client side) as 'Observed' to differentiate.
-			requested by arma
-	* show advertised bandwidth
-			if set and there's extra room available show 'MaxAdvertisedBandwidth'
-	* check family connections to see if they're alive (VERSION cell handshake?)
-	* look into providing UPnP support
-			This might be provided by tor itself so wait and see...
-	* unit tests
-			Primarily for util, for instance 'addfstr' woudl be a good candidate.
+  * check if batch getInfo/getOption calls provide much performance benefit
+  * layout (css) bugs with site
+      Revise to use 'em' for measurements and somehow stretch image's y-margin?
+  * page with details on client circuits, attempting to detect details like
+      country, ISP, latency, exit policy for the circuit, traffic, etc
+  * attempt to clear controller password from memory
+      http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
+  * escaping function for uiTools' formatted strings
+  * tor-weather like functionality (email notices)
+  * provide bridge / client country statistics
+      - Include bridge related data via GETINFO option (feature request by
+      waltman).
+      - Country data for client connections (requested by ioerror)
+  * make update rates configurable via the ui
+      Also provide option for saving these settings to the config
+  * config option to cap resource usage
+  * dialog with flag descriptions and other help
+  * switch check of ip address validity to regex?
+      match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
+      http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
+  * audit tor connections
+      Provide warnings if tor misbehaves, checks possibly including:
+        - ensuring ExitPolicyRejectPrivate is being obeyed
+        - check that ExitPolicy violations don't occur (not possible yet since
+          not all relays aren't identified)
+        - check that all connections are properly related to a circuit, for
+          instance no outbound connections without a corresponding inbound (not
+          possible yet due to being unable to correlate connections to circuits)
+  * check file descriptors being accessed by tor to see if they're outside the
+      known pattern
+  * allow killing of circuits? Probably not useful...
+  * add page that allows raw control port access
+      Start with -t (or -c?) option for commandline-only access with help,
+      syntax highlighting, and other spiffy extras
+      
+      Piggyback on the arm connection, providing something like an interactive
+      prompt. In addition, provide:
+        - irc like help (ex "/help GETINFO" could provide a summary of getinfo
+        commands, partly using the results from "GETINFO info/names")
+        - tab completion and up/down populates previous entries
+        - warn and get confirmation if command would disrupt arm (for instance
+        'SETEVENTS')
+        - 'guard' option that restricts to GETINFO only  (start with this)
+        - issue sighup reset
+  * menu with all torrc options (making them editable/toggleable)
+  * Setup wizard for new relays
+      Setting the password and such for torrc generation (idea by ioerror)
+  * menus?
+      http://gnosis.cx/publish/programming/charming_python_6.html
+  * look into better supporting hidden services (what could be useful here?)
+  * look into providing UPnP support
+      This might be provided by tor itself so wait and see...
+  * unit tests
+      Primarily for util, for instance 'addfstr' woudl be a good candidate.
+  * Investigations of other possible tools:
+    * look into additions to the used apis
+        - curses (python 2.6 extended?): http://docs.python.org/library/curses.html
+        - new control options (like "desc-annotations/id/<OR identity>")?
+        - look deeper into TorCtl functions (has a resolve function? hu?)
+    * whois lookup for relays? ISP listing?
+    * look into what sort of information tcpdump and iptraf provides (probably
+        can't use for privacy reasons)
+    * vnstat, nload, mrtg, and traceroute
 
 - Ideas (low priority)
-	* python 3 compatability
-			Currently blocked on TorCtl support.
-	* bundle script that dumps relay stats to stdout
-			Django has a small terminal coloring module that could be nice for
-			formatting. Could possibly include:
-				- desc / ns information for our relay
-				- ps / netstat stats like load, uptime, and connection counts, etc
-			derived from an idea by StrangeCharm
-	* show qos stats
-			Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
-			available and interesting.
-	* localization
-			Abstract strings from code and provide on translation portal. Thus far
-			there hasn't been any requests for this.
-	* provide option for a consensus page
-			Shows full consensus with an interface similar to the connection panel.
-			For this Mike's ConsensusTracker would be helpful (though boost the
-			startup time by several seconds)
-	* provide Debian repository for arm
-			Look into debian packaging, note system call dependencies, and mail
-			submit@bugs.debian.org with subject "RFP: arm" and starting with a line
-			"Package: wnpp".
-			requested by helmut
-	* follow up on control-spec proposal
-			Proposal and related information is available at:
-			http://www.atagar.com/arm/controlSpecProposal.txt
-			
-			Unfortunatley this doesn't seem to be going anywhere so mothballed for
-			now.
+  * python 3 compatibility
+      Currently blocked on TorCtl support.
+  * bundle script that dumps relay stats to stdout
+      Django has a small terminal coloring module that could be nice for
+      formatting. Could possibly include:
+        - desc / ns information for our relay
+        - ps / netstat stats like load, uptime, and connection counts, etc
+      derived from an idea by StrangeCharm
+  * show qos stats
+      Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
+      available and interesting.
+  * localization
+      Abstract strings from code and provide on translation portal. Thus far
+      there hasn't been any requests for this.
+  * provide option for a consensus page
+      Shows full consensus with an interface similar to the connection panel.
+      For this Mike's ConsensusTracker would be helpful (though boost the
+      startup time by several seconds)
+  * follow up on control-spec proposals
+      Proposal and related information is available at:
+      http://archives.seul.org/or/dev/Jun-2010/msg00008.html
 

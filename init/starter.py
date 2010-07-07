@@ -6,31 +6,43 @@ information. This is the starter for the application, handling and validating
 command line parameters.
 """
 
+import os
 import sys
-import socket
 import getopt
-import getpass
 
 # includes parent directory rather than init in path (so sibling modules are included)
 sys.path[0] = sys.path[0][:-5]
 
-from TorCtl import TorCtl, TorUtil
-from interface import controller, logPanel
+import interface.controller
+import interface.logPanel
+import util.conf
+import util.connections
+import util.hostnames
+import util.log
+import util.panel
+import util.sysTools
+import util.torTools
+import util.uiTools
+import TorCtl.TorUtil
 
-VERSION = "1.3.5"
-LAST_MODIFIED = "Apr 8, 2010"
+VERSION = "1.3.6"
+LAST_MODIFIED = "July 7, 2010"
 
-DEFAULT_CONTROL_ADDR = "127.0.0.1"
-DEFAULT_CONTROL_PORT = 9051
-DEFAULT_LOGGED_EVENTS = "N3" # tor and arm NOTICE, WARN, and ERR events
+DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
+DEFAULTS = {"startup.controlPassword": None,
+            "startup.interface.ipAddress": "127.0.0.1",
+            "startup.interface.port": 9051,
+            "startup.blindModeEnabled": False,
+            "startup.events": "N3"}
 
-OPT = "i:p:be:vh"
-OPT_EXPANDED = ["interface=", "password=", "blind", "event=", "version", "help"]
+OPT = "i:c:be:vh"
+OPT_EXPANDED = ["interface=", "config=", "blind", "event=", "version", "help"]
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
-  -p, --password PASSWORD         authenticate using password (skip prompt)
+  -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
+                                    defaults to: %s
   -b, --blind                     disable connection lookups
   -e, --event EVENT_FLAGS         event types in message log  (default: %s)
 %s
@@ -39,8 +51,8 @@ Terminal status monitor for Tor relays.
 
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
-arm -e we -p nemesis    use password 'nemesis' with 'WARN'/'ERR' events
-""" % (DEFAULT_CONTROL_ADDR, DEFAULT_CONTROL_PORT, DEFAULT_LOGGED_EVENTS, logPanel.EVENT_LISTING)
+arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
+""" % (DEFAULTS["startup.interface.ipAddress"], DEFAULTS["startup.interface.port"], DEFAULT_CONFIG, DEFAULTS["startup.events"], interface.logPanel.EVENT_LISTING)
 
 def isValidIpAddr(ipStr):
   """
@@ -66,11 +78,8 @@ def isValidIpAddr(ipStr):
   return True
 
 if __name__ == '__main__':
-  controlAddr = DEFAULT_CONTROL_ADDR     # controller interface IP address
-  controlPort = DEFAULT_CONTROL_PORT     # controller interface port
-  authPassword = ""                      # authentication password (prompts if unset and needed)
-  isBlindMode = False                    # allows connection lookups to be disabled
-  loggedEvents = DEFAULT_LOGGED_EVENTS   # flags for event types in message log
+  param = dict([(key, None) for key in DEFAULTS.keys()])
+  configPath = DEFAULT_CONFIG            # path used for customized configuration
   
   # parses user input, noting any issues
   try:
@@ -82,29 +91,26 @@ if __name__ == '__main__':
   for opt, arg in opts:
     if opt in ("-i", "--interface"):
       # defines control interface address/port
+      controlAddr, controlPort = None, None
+      divIndex = arg.find(":")
+      
       try:
-        divIndex = arg.find(":")
-        
         if divIndex == -1:
           controlPort = int(arg)
         else:
           controlAddr = arg[0:divIndex]
           controlPort = int(arg[divIndex + 1:])
-        
-        # validates that input is a valid ip address and port
-        if divIndex != -1 and not isValidIpAddr(controlAddr):
-          raise AssertionError("'%s' isn't a valid IP address" % controlAddr)
-        elif controlPort < 0 or controlPort > 65535:
-          raise AssertionError("'%s' isn't a valid port number (ports range 0-65535)" % controlPort)
       except ValueError:
         print "'%s' isn't a valid port number" % arg
         sys.exit()
-      except AssertionError, exc:
-        print exc
-        sys.exit()
-    elif opt in ("-p", "--password"): authPassword = arg    # sets authentication password
-    elif opt in ("-b", "--blind"): isBlindMode = True       # prevents connection lookups
-    elif opt in ("-e", "--event"): loggedEvents = arg       # set event flags
+      
+      param["startup.interface.ipAddress"] = controlAddr
+      param["startup.interface.port"] = controlPort
+    elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
+    elif opt in ("-b", "--blind"):
+      param["startup.blindModeEnabled"] = True        # prevents connection lookups
+    elif opt in ("-e", "--event"):
+      param["startup.events"] = arg                   # set event flags
     elif opt in ("-v", "--version"):
       print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
       sys.exit()
@@ -112,85 +118,63 @@ if __name__ == '__main__':
       print HELP_MSG
       sys.exit()
   
+  # attempts to load user's custom configuration
+  config = util.conf.getConfig("arm")
+  config.path = configPath
+  
+  if os.path.exists(configPath):
+    try:
+      config.load()
+      
+      # revises defaults to match user's configuration
+      config.update(DEFAULTS)
+      
+      # loads user preferences for utilities
+      for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torTools, util.uiTools):
+        utilModule.loadConfig(config)
+    except IOError, exc:
+      msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
+      util.log.log(util.log.WARN, msg)
+  else:
+    msg = "No configuration found at '%s', using defaults" % configPath
+    util.log.log(util.log.NOTICE, msg)
+  
+  # overwrites undefined parameters with defaults
+  for key in param.keys():
+    if param[key] == None: param[key] = DEFAULTS[key]
+  
+  # validates that input has a valid ip address and port
+  controlAddr = param["startup.interface.ipAddress"]
+  controlPort = param["startup.interface.port"]
+  
+  if not isValidIpAddr(controlAddr):
+    print "'%s' isn't a valid IP address" % controlAddr
+    sys.exit()
+  elif controlPort < 0 or controlPort > 65535:
+    print "'%s' isn't a valid port number (ports range 0-65535)" % controlPort
+    sys.exit()
+  
   # validates and expands log event flags
   try:
-    expandedEvents = logPanel.expandEvents(loggedEvents)
+    expandedEvents = interface.logPanel.expandEvents(param["startup.events"])
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
     sys.exit()
   
   # temporarily disables TorCtl logging to prevent issues from going to stdout while starting
-  TorUtil.loglevel = "NONE"
+  TorCtl.TorUtil.loglevel = "NONE"
   
-  # attempts to open a socket to the tor server
-  try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = TorCtl.Connection(s)
-  except socket.error, exc:
-    if str(exc) == "[Errno 111] Connection refused":
-      # most common case - tor control port isn't available
-      print "Connection refused. Is the ControlPort enabled?"
-    else:
-      # less common issue - provide exc message
-      print "Failed to establish socket: %s" % exc
-    
-    sys.exit()
+  # sets up TorCtl connection, prompting for the passphrase if necessary and
+  # sending problems to stdout if they arise
+  util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
+  authPassword = config.get("startup.controlPassword", DEFAULTS["startup.controlPassword"])
+  conn = util.torTools.connect(controlAddr, controlPort, authPassword)
+  if conn == None: sys.exit(1)
   
-  # check PROTOCOLINFO for authentication type
-  try:
-    authInfo = conn.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
-  except TorCtl.ErrorReply, exc:
-    print "Unable to query PROTOCOLINFO for authentication type: %s" % exc
-    sys.exit()
+  controller = util.torTools.getConn()
+  controller.init(conn)
   
-  try:
-    if authInfo.startswith("AUTH METHODS=NULL"):
-      # no authentication required
-      conn.authenticate("")
-    elif authInfo.startswith("AUTH METHODS=HASHEDPASSWORD"):
-      # password authentication, promts for password if it wasn't provided
-      try:
-        if not authPassword: authPassword = getpass.getpass()
-      except KeyboardInterrupt:
-        sys.exit()
-      
-      conn.authenticate(authPassword)
-    elif authInfo.startswith("AUTH METHODS=COOKIE"):
-      # cookie authtication, parses path to authentication cookie
-      start = authInfo.find("COOKIEFILE=\"") + 12
-      end = authInfo[start:].find("\"")
-      authCookiePath = authInfo[start:start + end]
-      
-      try:
-        authCookie = open(authCookiePath, "r")
-        conn.authenticate_cookie(authCookie)
-        authCookie.close()
-      except IOError, exc:
-        # cleaner message for common errors
-        issue = None
-        if str(exc).startswith("[Errno 13] Permission denied"): issue = "permission denied"
-        elif str(exc).startswith("[Errno 2] No such file or directory"): issue = "file doesn't exist"
-        
-        # if problem's recognized give concise message, otherwise print exception string
-        if issue: print "Failed to read authentication cookie (%s): %s" % (issue, authCookiePath)
-        else: print "Failed to read authentication cookie: %s" % exc
-        
-        sys.exit()
-    else:
-      # authentication type unrecognized (probably a new addition to the controlSpec)
-      print "Unrecognized authentication type: %s" % authInfo
-      sys.exit()
-  except TorCtl.ErrorReply, exc:
-    # authentication failed
-    issue = str(exc)
-    if str(exc).startswith("515 Authentication failed: Password did not match"): issue = "password incorrect"
-    if str(exc) == "515 Authentication failed: Wrong length on authentication cookie.": issue = "cookie value incorrect"
-    
-    print "Unable to authenticate: %s" % issue
-    sys.exit()
-  
-  controller.startTorMonitor(conn, expandedEvents, isBlindMode)
+  interface.controller.startTorMonitor(expandedEvents, param["startup.blindModeEnabled"])
   conn.close()
 
