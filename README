@@ -107,7 +107,7 @@ Layout:
       __init__.py
       graphPanel.py     - (page 1) presents graphs for data instances
       bandwidthStats.py - tracks tor bandwidth usage
-      psStats.py        - tracks system information (by default cpu and memory usage)
+      psStats.py        - tracks system information (such as cpu/memory usage)
       connStats.py      - tracks number of tor connections
     
     __init__.py
@@ -130,6 +130,6 @@ Layout:
     log.py         - aggregator for application events
     panel.py       - wrapper for safely working with curses subwindows
     sysTools.py    - helper for system calls, providing client side caching
-    torTools.py    - wrapper for TorCtl, providing caching and derived information
+    torTools.py    - TorCtl wrapper, providing caching and derived information
     uiTools.py     - helper functions for presenting the user interface
 

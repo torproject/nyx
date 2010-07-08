@@ -18,21 +18,22 @@ MAX_LOG_ENTRIES = 1000                # size of log buffer (max number of entrie
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 
 TOR_EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",       "l": "NEWDESC",       "v": "AUTHDIR_NEWDESCS",
-  "i": "INFO",    "b": "BW",            "m": "NS",            "x": "STATUS_GENERAL",
-  "n": "NOTICE",  "c": "CIRC",          "o": "ORCONN",        "y": "STATUS_CLIENT",
-  "w": "WARN",    "f": "DESCCHANGED",   "s": "STREAM",        "z": "STATUS_SERVER",
-  "e": "ERR",     "g": "GUARD",         "t": "STREAM_BW",
-                  "k": "NEWCONSENSUS",  "u": "CLIENTS_SEEN"}
+  "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
+  "i": "INFO",    "f": "AUTHDIR_NEWDESCS", "g": "GUARD",        "r": "STREAM_BW",
+  "n": "NOTICE",  "h": "BUILDTIMEOUT_SET", "l": "NEWCONSENSUS", "t": "STATUS_CLIENT",
+  "w": "WARN",    "b": "BW",               "m": "NEWDESC",      "u": "STATUS_GENERAL",
+  "e": "ERR",     "c": "CIRC",             "p": "NS",           "v": "STATUS_SERVER",
+                  "j": "CLIENTS_SEEN",     "q": "ORCONN"}
 
-EVENT_LISTING = """        d DEBUG     a ADDRMAP         l NEWDESC         v AUTHDIR_NEWDESCS
-        i INFO      b BW              m NS              x STATUS_GENERAL
-        n NOTICE    c CIRC            o ORCONN          y STATUS_CLIENT
-        w WARN      f DESCCHANGED     s STREAM          z STATUS_SERVER
-        e ERR       g GUARD           t STREAM_BW       A All Events
-                    k NEWCONSENSUS    u CLIENTS_SEEN    X No Events
-          DINWE runlevel and higher severity            C TorCtl Events
-          12345 arm runlevel and higher severity        U Unknown Events"""
+EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s STREAM
+        i INFO       f AUTHDIR_NEWDESCS  g GUARD         r STREAM_BW
+        n NOTICE     h BUILDTIMEOUT_SET  l NEWCONSENSUS  t STATUS_CLIENT
+        w WARN       b BW                m NEWDESC       u STATUS_GENERAL
+        e ERR        c CIRC              p NS            v STATUS_SERVER
+                     j CLIENTS_SEEN      q ORCONN
+          DINWE tor runlevel+            A All Events
+          12345 arm runlevel+            X No Events
+          67890 torctl runlevel+         U Unknown Events"""
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 
@@ -40,12 +41,12 @@ def expandEvents(eventAbbr):
   """
   Expands event abbreviations to their full names. Beside mappings privided in
   TOR_EVENT_TYPES this recognizes the following special events and aliases:
-  C - TORCTL runlevel events
   U - UKNOWN events
   A - all events
   X - no events
   DINWE - runlevel and higher
   12345 - arm runlevel and higher (ARM_DEBUG - ARM_ERR)
+  67890 - torctl runlevel and higher (TORCTL_DEBUG - TORCTL_ERR)
   Raises ValueError with invalid input if any part isn't recognized.
   
   Examples:
@@ -63,7 +64,6 @@ def expandEvents(eventAbbr):
     elif flag == "X":
       expandedEvents = set()
       break
-    elif flag == "C": expandedEvents.add("TORCTL")
     elif flag == "U": expandedEvents.add("UNKNOWN")
     elif flag == "D": expandedEvents = expandedEvents.union(set(["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]))
     elif flag == "I": expandedEvents = expandedEvents.union(set(["INFO", "NOTICE", "WARN", "ERR"]))
@@ -75,6 +75,11 @@ def expandEvents(eventAbbr):
     elif flag == "3": expandedEvents = expandedEvents.union(set(["ARM_NOTICE", "ARM_WARN", "ARM_ERR"]))
     elif flag == "4": expandedEvents = expandedEvents.union(set(["ARM_WARN", "ARM_ERR"]))
     elif flag == "5": expandedEvents.add("ARM_ERR")
+    elif flag == "6": expandedEvents = expandedEvents.union(set(["TORCTL_DEBUG", "TORCTL_INFO", "TORCTL_NOTICE", "TORCTL_WARN", "TORCTL_ERR"]))
+    elif flag == "7": expandedEvents = expandedEvents.union(set(["TORCTL_INFO", "TORCTL_NOTICE", "TORCTL_WARN", "TORCTL_ERR"]))
+    elif flag == "8": expandedEvents = expandedEvents.union(set(["TORCTL_NOTICE", "TORCTL_WARN", "TORCTL_ERR"]))
+    elif flag == "9": expandedEvents = expandedEvents.union(set(["TORCTL_WARN", "TORCTL_ERR"]))
+    elif flag == "0": expandedEvents.add("TORCTL_ERR")
     elif flag in TOR_EVENT_TYPES:
       expandedEvents.add(TOR_EVENT_TYPES[flag])
     else:
@@ -175,6 +180,13 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
       if event.remote_reason: optionalParams += " REMOTE_REASON: %s" % event.remote_reason
       self.registerEvent("CIRC", "ID: %-3s STATUS: %-10s PATH: %s%s" % (event.circ_id, event.status, ", ".join(event.path), optionalParams), "yellow")
   
+  def buildtimeout_set_event(self, event):
+    # TODO: not sure how to stimulate event - needs sanity check
+    try:
+      self.registerEvent("BUILDTIMEOUT_SET", "SET_TYPE: %s, TOTAL_TIMES: %s, TIMEOUT_MS: %s, XM: %s, ALPHA: %s, CUTOFF_QUANTILE: %s" % (event.set_type, event.total_times, event.timeout_ms, event.xm, event.alpha, event.cutoff_quantile), "white")
+    except TypeError:
+      self.registerEvent("BUILDTIMEOUT_SET", "DEBUG -> SET_TYPE: %s, TOTAL_TIMES: %s, TIMEOUT_MS: %s, XM: %s, ALPHA: %s, CUTOFF_QUANTILE: %s" % (type(event.set_type), type(event.total_times), type(event.timeout_ms), type(event.xm), type(event.alpha), type(event.cutoff_quantile)), "white")
+  
   def stream_status_event(self, event):
     # TODO: not sure how to stimulate event - needs sanity check
     try:
@@ -244,7 +256,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def tor_ctl_event(self, level, msg):
     # events provided by TorCtl
-    if "TORCTL" in self.loggedEvents: self.registerEvent("TORCTL-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+    if "TORCTL_" + level in self.loggedEvents: self.registerEvent("TORCTL-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
   def write(self, msg):
     """
@@ -313,7 +325,9 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     eventsList = list(self.loggedEvents)
     torRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, ""))
     armRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, "ARM_"))
+    torctlRunlevelLabel = ", ".join(parseRunlevelRanges(eventsList, "TORCTL_"))
     
+    if torctlRunlevelLabel: eventsList = ["TORCTL " + torctlRunlevelLabel] + eventsList
     if armRunlevelLabel: eventsList = ["ARM " + armRunlevelLabel] + eventsList
     if torRunlevelLabel: eventsList = [torRunlevelLabel] + eventsList
     

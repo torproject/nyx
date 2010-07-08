@@ -14,6 +14,8 @@ TODO
               also do this for the conn panel and conf panel (request by dun)
           - make log parsing script stand alone, with syntax hilighting, regex,
               sorting, etc
+          - provide notice if tor supports events that arm doesn't
+              getInfo("events/names") provides the space-separated listing
         [ ] conf panel
           - move torrc validation into util
           - condense tor/arm log listing types if they're the same
@@ -69,9 +71,6 @@ TODO
         Future tor and TorCtl revisions could provide new events - these should
         be given the "UNKNOWN" type.
     * regex fails for multiline log entries (works for two lines, but not more)
-    * test that torctl events are being caught (not spotting them...)
-    * torctl events have their own configurable runlevels (provide options for
-        this)
     * when logging no events still showing brackets
         The current code for dynamically sizing the events label is kinda
         tricky. Putting this off until revising this section.

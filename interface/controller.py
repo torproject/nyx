@@ -776,7 +776,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         # lists event types
         popup = panels["popup"]
-        popup.height = 10
+        popup.height = 11
         popup.recreate(stdscr, 80)
         
         popup.clear()
