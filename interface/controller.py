@@ -42,7 +42,7 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.configEntryUndefined": log.NOTICE}
+CONFIG = {"features.logRefreshRate": 5, "features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -439,6 +439,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   for key in config.getUnusedKeys():
     log.log(CONFIG["log.configEntryUndefined"], "unrecognized configuration entry: %s" % key)
   
+  lastPerformanceLog = 0 # ensures we don't do performance logging too frequently
+  redrawStartTime = time.time()
+  
   # TODO: popups need to force the panels it covers to redraw (or better, have
   # a global refresh function for after changing pages, popups, etc)
   while True:
@@ -448,6 +451,8 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
     
     panel.CURSES_LOCK.acquire()
     try:
+      redrawStartTime = time.time()
+      
       # if sighup received then reload related information
       if sighupTracker.isReset:
         #panels["header"]._updateParams(True)
@@ -517,6 +522,11 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
             panels[panelKey].redraw(True)
       
       stdscr.refresh()
+      
+      currentTime = time.time()
+      if currentTime - lastPerformanceLog >= CONFIG["features.logRefreshRate"]:
+        log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds" % (currentTime - redrawStartTime))
+        lastPerformanceLog = currentTime
     finally:
       panel.CURSES_LOCK.release()
     

@@ -6,6 +6,7 @@ startup.blindModeEnabled false
 startup.events N3
 
 features.colorInterface true
+features.logRefreshRate 5
 
 # general graph parameters
 # interval: 0 -> each second,  1 -> 5 seconds,  2 -> 30 seconds,
@@ -59,6 +60,7 @@ cache.armLog.size 1000
 cache.armLog.trimSize 200
 
 # runlevels at which to log arm related events
+log.refreshRate DEBUG
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
