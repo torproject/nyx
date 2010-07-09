@@ -356,8 +356,8 @@ class Controller(TorCtl.PostEventListener):
   def getInfo(self, param, default = None, suppressExc = True):
     """
     Queries the control port for the given GETINFO option, providing the
-    default if the response fails for any reason (error response, control port
-    closed, initiated, etc).
+    default if the response is undefined or fails for any reason (error
+    response, control port closed, initiated, etc).
     
     Arguments:
       param       - GETINFO option to be queried
@@ -372,7 +372,8 @@ class Controller(TorCtl.PostEventListener):
     result, raisedExc = default, None
     if self.isAlive():
       try:
-        result = self.conn.get_info(param)[param]
+        getInfoVal = self.conn.get_info(param)[param]
+        if getInfoVal != None: result = getInfoVal
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         raisedExc = exc
@@ -388,8 +389,9 @@ class Controller(TorCtl.PostEventListener):
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
     Queries the control port for the given configuration option, providing the
-    default if the response fails for any reason. If multiple values exist then
-    this arbitrarily returns the first unless the multiple flag is set.
+    default if the response is undefined or fails for any reason. If multiple
+    values exist then this arbitrarily returns the first unless the multiple
+    flag is set.
     
     Arguments:
       param       - configuration option to be queried
@@ -409,7 +411,9 @@ class Controller(TorCtl.PostEventListener):
         if multiple:
           for key, value in self.conn.get_option(param):
             if value != None: result.append(value)
-        else: result = self.conn.get_option(param)[0][1]
+        else:
+          getConfVal = self.conn.get_option(param)[0][1]
+          if getConfVal != None: result = getConfVal
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         result, raisedExc = default, exc
@@ -420,6 +424,7 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.release()
     
     if not suppressExc and raisedExc: raise raisedExc
+    elif result == []: return default
     else: return result
   
   def getMyNetworkStatus(self, default = None):

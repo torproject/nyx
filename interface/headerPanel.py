@@ -118,6 +118,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if len(entry) + len(label) <= leftWidth: entry += label
       else: break
     
+    # strips off divider if nicknames undefined (happens if orport is unset)
+    if entry.startswith(" - "): entry = entry[3:]
+    
     if self.vals["tor/isAuthPassword"]: authType = "password"
     elif self.vals["tor/isAuthCookie"]: authType = "cookie"
     else: authType = "open"
