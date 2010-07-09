@@ -7,7 +7,7 @@ import curses
 from curses.ascii import isprint
 from TorCtl import TorCtl
 
-from util import log, panel, sysTools, uiTools
+from util import log, panel, sysTools, torTools, uiTools
 
 PRE_POPULATE_LOG = True               # attempts to retrieve events from log file if available
 
@@ -273,6 +273,11 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
       # TorCtl providing notice that control port is closed
       self.controlPortClosed = True
       log.log(log.NOTICE, "Tor control port closed")
+      
+      # Allows the Controller to notice that tor's shut down.
+      # TODO: should make the controller the torctl event listener rather than
+      # this log panel (it'll also make this less hacky)
+      torTools.getConn().isAlive()
     self.tor_ctl_event(level, msg)
   
   def flush(self): pass
