@@ -23,6 +23,7 @@ TODO
           - fetch text via getinfo rather than reading directly?
               conn.get_info("config-text")
         [-] conn panel (for version 1.3.8)
+          - drop page entirely if being run as a client
           - check family connections to see if they're alive (VERSION cell
               handshake?)
           - fallback when pid or connection querying via pid is unavailable
@@ -103,6 +104,12 @@ TODO
     * connections aren't cleared when control port closes
 
 - Features / Site
+  * client use cases
+    * not sure what sort of information would be useful in the header (to
+      replace the orport, fingerprint, flags, etc)
+    * special page for client related information, such as ips of our client
+      circuits at the exit
+    * need to solicit for ideas on what would be most helpful to clients
   * check if batch getInfo/getOption calls provide much performance benefit
   * layout (css) bugs with site
       Revise to use 'em' for measurements and somehow stretch image's y-margin?

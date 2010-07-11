@@ -60,9 +60,14 @@ class BandwidthStats(graphPanel.GraphStats):
     returns True if successful and False otherwise.
     """
     
+    # checks that this is a relay (if ORPort is unset, then skip)
+    conn = torTools.getConn()
+    orPort = conn.getOption("ORPort")
+    if orPort == "0": return
+    
     # gets the uptime (using the same parameters as the header panel to take
     # advantage of caching
-    conn, uptime = torTools.getConn(), None
+    uptime = None
     queryPid = conn.getMyPid()
     if queryPid:
       queryParam = ["%cpu", "rss", "%mem", "etime"]

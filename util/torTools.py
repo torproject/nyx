@@ -844,9 +844,12 @@ class Controller(TorCtl.PostEventListener):
             if bwValue.isdigit(): result = int(bwValue)
             break
       elif key == "fingerprint":
-        # fingerprints are kept until sighup if set (most likely not even a
-        # setconf can change it since it's in the data directory)
-        result = self.getInfo("fingerprint")
+        # Fingerprints are kept until sighup if set (most likely not even a
+        # setconf can change it since it's in the data directory). If orport is
+        # unset then no fingerprint will be set.
+        orPort = self.getOption("ORPort", "0")
+        if orPort == "0": result = UNKNOWN
+        else: result = self.getInfo("fingerprint")
       elif key == "flags":
         for line in self.getMyNetworkStatus([]):
           if line.startswith("s "):

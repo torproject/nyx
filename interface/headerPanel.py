@@ -79,7 +79,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
     
     isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-    return 4 if isWide else 6
+    if self.vals["tor/orPort"]: return 4 if isWide else 6
+    else: return 3 if isWide else 4
   
   def draw(self, subwindow, width, height):
     self.valsLock.acquire()
@@ -112,14 +113,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
     # Line 2 / Line 2 Left (tor ip/port information)
-    entry = ""
-    dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
-    for label in (self.vals["tor/nickname"], " - " + self.vals["tor/address"], ":" + self.vals["tor/orPort"], dirPortLabel):
-      if len(entry) + len(label) <= leftWidth: entry += label
-      else: break
-    
-    # strips off divider if nicknames undefined (happens if orport is unset)
-    if entry.startswith(" - "): entry = entry[3:]
+    if self.vals["tor/orPort"]:
+      # acting as a relay (we can assume certain parameters are set
+      entry = ""
+      dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
+      for label in (self.vals["tor/nickname"], " - " + self.vals["tor/address"], ":" + self.vals["tor/orPort"], dirPortLabel):
+        if len(entry) + len(label) <= leftWidth: entry += label
+        else: break
+    else:
+      # non-relay (client only)
+      # TODO: not sure what sort of stats to provide...
+      entry = "<red><b>Relaying Disabled</b></red>"
     
     if self.vals["tor/isAuthPassword"]: authType = "password"
     elif self.vals["tor/isAuthCookie"]: authType = "cookie"
@@ -147,46 +151,51 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if start + len(label) <= rightWidth: self.addstr(y, x + start, label)
       else: break
     
-    # Line 4 / Line 2 Right (fingerprint)
-    y, x = (1, leftWidth) if isWide else (3, 0)
-    self.addstr(y, x, "fingerprint: %s" % self.vals["tor/fingerprint"])
-    
-    # Line 5 / Line 3 Left (flags)
-    if self._isTorConnected:
-      flagLine = "flags: "
-      for flag in self.vals["tor/flags"]:
-        flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
-        flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
+    if self.vals["tor/orPort"]:
+      # Line 4 / Line 2 Right (fingerprint)
+      y, x = (1, leftWidth) if isWide else (3, 0)
+      self.addstr(y, x, "fingerprint: %s" % self.vals["tor/fingerprint"])
       
-      if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
-      else: flagLine += "<b><cyan>none</cyan></b>"
+      # Line 5 / Line 3 Left (flags)
+      if self._isTorConnected:
+        flagLine = "flags: "
+        for flag in self.vals["tor/flags"]:
+          flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
+          flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
+        
+        if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
+        else: flagLine += "<b><cyan>none</cyan></b>"
+        
+        self.addfstr(2 if isWide else 4, 0, flagLine)
+      else:
+        statusTime = torTools.getConn().getStatus()[1]
+        statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
+        self.addfstr(2 if isWide else 4, 0, "<b><red>Tor Disconnected</red></b> (%s)" % statusTimeLabel)
       
-      self.addfstr(2 if isWide else 4, 0, flagLine)
+      # Undisplayed / Line 3 Right (exit policy)
+      if isWide:
+        exitPolicy = self.vals["tor/exitPolicy"]
+        
+        # adds note when default exit policy is appended
+        if exitPolicy == None: exitPolicy = "<default>"
+        elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
+        
+        # color codes accepts to be green, rejects to be red, and default marker to be cyan
+        isSimple = len(exitPolicy) > rightWidth - 13
+        policies = exitPolicy.split(", ")
+        for i in range(len(policies)):
+          policy = policies[i].strip()
+          displayedPolicy = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
+          if policy.startswith("accept"): policy = "<green><b>%s</b></green>" % displayedPolicy
+          elif policy.startswith("reject"): policy = "<red><b>%s</b></red>" % displayedPolicy
+          elif policy.startswith("<default>"): policy = "<cyan><b>%s</b></cyan>" % displayedPolicy
+          policies[i] = policy
+        
+        self.addfstr(2, leftWidth, "exit policy: %s" % ", ".join(policies))
     else:
-      statusTime = torTools.getConn().getStatus()[1]
-      statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
-      self.addfstr(2 if isWide else 4, 0, "<b><red>Tor Disconnected</red></b> (%s)" % statusTimeLabel)
-    
-    # Undisplayed / Line 3 Right (exit policy)
-    if isWide:
-      exitPolicy = self.vals["tor/exitPolicy"]
-      
-      # adds note when default exit policy is appended
-      if exitPolicy == None: exitPolicy = "<default>"
-      elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
-      
-      # color codes accepts to be green, rejects to be red, and default marker to be cyan
-      isSimple = len(exitPolicy) > rightWidth - 13
-      policies = exitPolicy.split(", ")
-      for i in range(len(policies)):
-        policy = policies[i].strip()
-        displayedPolicy = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
-        if policy.startswith("accept"): policy = "<green><b>%s</b></green>" % displayedPolicy
-        elif policy.startswith("reject"): policy = "<red><b>%s</b></red>" % displayedPolicy
-        elif policy.startswith("<default>"): policy = "<cyan><b>%s</b></cyan>" % displayedPolicy
-        policies[i] = policy
-      
-      self.addfstr(2, leftWidth, "exit policy: %s" % ", ".join(policies))
+      # Client only
+      # TODO: not sure what information to provide here...
+      pass
     
     self._isLastDrawWide = isWide
     self._isChanged = False
@@ -268,11 +277,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/version"] = conn.getInfo("version", "Unknown").split()[0]
       self.vals["tor/versionStatus"] = conn.getInfo("status/version/current", "Unknown")
       self.vals["tor/nickname"] = conn.getOption("Nickname", "")
-      self.vals["tor/orPort"] = conn.getOption("ORPort", "")
+      self.vals["tor/orPort"] = conn.getOption("ORPort", "0")
       self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
       self.vals["tor/controlPort"] = conn.getOption("ControlPort", "")
       self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
       self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
+      
+      # orport is reported as zero if unset
+      if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
       
       # overwrite address if ORListenAddress is set (and possibly orPort too)
       self.vals["tor/address"] = "Unknown"
