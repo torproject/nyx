@@ -115,7 +115,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.scroll = 0
     self.conn = conn                  # tor connection for querrying country codes
     self.listingType = LIST_IP        # information used in listing entries
-    self.allowDNS = True              # permits hostname resolutions if true
+    self.allowDNS = False             # permits hostname resolutions if true
     self.showLabel = True             # shows top label if true, hides otherwise
     self.showingDetails = False       # augments display to accomidate details window if true
     self.lastUpdate = -1              # time last stats was retrived
