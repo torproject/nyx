@@ -524,7 +524,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       stdscr.refresh()
       
       currentTime = time.time()
-      if currentTime - lastPerformanceLog >= CONFIG["features.logRefreshRate"]:
+      if currentTime - lastPerformanceLog >= CONFIG["logging.rate.refreshRate"]:
         log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds" % (currentTime - redrawStartTime))
         lastPerformanceLog = currentTime
     finally:
