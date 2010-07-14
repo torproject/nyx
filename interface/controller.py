@@ -42,7 +42,7 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"features.logRefreshRate": 5, "features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
+CONFIG = {"logging.rate.refreshRate": 5, "features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """

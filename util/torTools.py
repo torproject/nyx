@@ -471,7 +471,8 @@ class Controller(TorCtl.PostEventListener):
   
   def getMyBandwidthRate(self, default = None):
     """
-    Provides the effective relaying bandwidth rate of this relay.
+    Provides the effective relaying bandwidth rate of this relay. Currently
+    this doesn't account for SETCONF events.
     
     Arguments:
       default - result if the query fails
@@ -481,7 +482,8 @@ class Controller(TorCtl.PostEventListener):
   
   def getMyBandwidthBurst(self, default = None):
     """
-    Provides the effective bandwidth burst rate of this relay.
+    Provides the effective bandwidth burst rate of this relay. Currently this
+    doesn't account for SETCONF events.
     
     Arguments:
       default - result if the query fails

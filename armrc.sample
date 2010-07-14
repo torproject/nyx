@@ -6,7 +6,6 @@ startup.blindModeEnabled false
 startup.events N3
 
 features.colorInterface true
-features.logRefreshRate 5
 
 # general graph parameters
 # interval: 0 -> each second,  1 -> 5 seconds,  2 -> 30 seconds,
@@ -81,4 +80,5 @@ log.connLookupAbandon WARN
 log.connLookupRateGrowing NONE
 log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO
+logging.rate.refreshRate 5
 

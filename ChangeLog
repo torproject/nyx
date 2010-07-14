@@ -1,7 +1,7 @@
 CHANGE LOG
 
 6/7/10 - version 1.3.6
-Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features.
+Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features. This improved the refresh rate (which is also related to system resource usage) from 30ms to 4ms (an 87% improvement).
 
     * added: settings are fetched from an optional armrc (update rates, controller password, caching, runlevels, etc)
     * added: system tools util providing simplified usage, suppression of leaks to stdout, logging, and optional caching

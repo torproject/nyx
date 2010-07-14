@@ -68,6 +68,9 @@ TODO
   * util are assuming that tor is running under the default command name
       attempt to determine the command name at runtime (if the pid is available
       then ps can do the mapping)
+  * util/torTools.py: effective bandwidth rate/burst measurements don't take
+      SETCONF into consideration, blocked on:
+      https://trac.torproject.org/projects/tor/ticket/1692
   
   * log panel:
     * not catching events unexpected by arm
@@ -136,6 +139,7 @@ TODO
   * check if batch getInfo/getOption calls provide much performance benefit
   * layout (css) bugs with site
       Revise to use 'em' for measurements and somehow stretch image's y-margin?
+      Maybe padding-bottom to match the content on the right?
   * page with details on client circuits, attempting to detect details like
       country, ISP, latency, exit policy for the circuit, traffic, etc
   * attempt to clear controller password from memory
