@@ -48,8 +48,8 @@ DEFAULT_FINGERPRINTS = "./fingerprints"
 DEFAULT_NS_OUTPUT = "./newRelays"
 
 # thresholds at which alerts are sent for relay counts
-HOURLY_COUNT_THRESHOLD = 20
-HOURLY_BW_THRESHOLD = 52428800 # trying 50 Mbit/s
+HOURLY_COUNT_THRESHOLD = 5
+HOURLY_BW_THRESHOLD = 6553600 # trying 50 Mbit/s
 
 OPT = "g:t:f:n:qh"
 OPT_EXPANDED = ["gmail=", "to=", "fingerprints=", "nsOutput=", "quiet", "help"]
@@ -235,12 +235,18 @@ class Sampling:
     return (guardCount, middleCount, exitCount)
   
   def getBandwidth(self, descInfo, relayType, newOnly=True):
+    # Tries to use the observed bandwidth rather than measured since the
+    # later is just a heuristic (has little bearing on what the relay
+    # actually provides.
     totalBandwidth = 0
     
     relaySet = self.newRelays[relayType] if newOnly else self.allRelays[relayType]
     for nsEntry in relaySet:
-      totalBandwidth += descInfo[nsEntry.idhex][0]
-      #if nsEntry.bandwidth: totalBandwidth += nsEntry.bandwidth
+      # we might not have a desc entry (or if FetchUselessDescriptors is
+      # unset), but when it first appears network status bandwidth is equal to
+      # the observed too
+      if nsEntry.idhex in descInfo: totalBandwidth += descInfo[nsEntry.idhex][0]
+      elif nsEntry.bandwidth: totalBandwidth += nsEntry.bandwidth
     
     return totalBandwidth
   
@@ -336,7 +342,7 @@ def monitorConsensus():
       router = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
       descInfo[router.idhex] = (router.desc_bw, router.exitpolicy)
     except TorCtl.ErrorReply:
-      descInfo[nsEntry.idhex] = (0, "")
+      pass
     except TorCtl.TorCtlClosed:
       print "Connection to tor is closed"
       sys.exit()
@@ -358,7 +364,7 @@ def monitorConsensus():
           router = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
           descInfo[router.idhex] = (router.desc_bw, router.exitpolicy)
         except TorCtl.ErrorReply:
-          descInfo[nsEntry.idhex] = (0, "")
+          pass
         except TorCtl.TorCtlClosed:
           print "Connection to tor is closed"
           sys.exit()
@@ -382,11 +388,15 @@ def monitorConsensus():
     bwAlert = newSampling.getBandwidth(descInfo, RELAY_EXIT, True) > HOURLY_BW_THRESHOLD
     
     samplings.insert(0, newSampling)
-    if len(samplings) > 168:
-      # only remove entries if we have a full day's worth of data to discard
+    if len(samplings) > 192:
+      # discards last day's worth of results
       lastDate = samplings[-1].getValidAfter().split(" ")[0]
-      earlierDate = samplings[-25].getValidAfter().split(" ")[0]
-      if lastDate == earlierDate: samplings = samplings[:-25]
+      
+      # usually we'll be removing 24 entries, but could possibly be less
+      cropStart = -25
+      while samplings[cropStart].getValidAfter().split(" ")[0] != lastDate:
+        cropStart += 1
+      samplings = samplings[:cropStart]
     
     # writes new ns entries
     if nsOutputPath:
@@ -400,13 +410,18 @@ def monitorConsensus():
         for nsEntry in newSampling.newRelays[relayType]:
           # TODO: the str call of the following produces a deprecation warning, as discussed on:
           # https://trac.torproject.org/projects/tor/ticket/1777
-          exitPolicy = [str(policyLine) for policyLine in descInfo[nsEntry.idhex][1]]
+          if nsEntry.idhex in descInfo:
+            bwLabel = getSizeLabel(descInfo[nsEntry.idhex][0], 2)
+            exitPolicyLabel = ", ".join([str(policyLine) for policyLine in descInfo[nsEntry.idhex][1]])
+          else:
+            bwLabel = getSizeLabel(nsEntry.bandwidth, 2)
+            exitPolicyLabel = "Unknown"
           
           nsContents += "%s (%s:%s)\n" % (nsEntry.idhex, nsEntry.ip, nsEntry.orport)
           nsContents += "    nickname: %s\n" % nsEntry.nickname
-          nsContents += "    bandwidth: %s\n" % getSizeLabel(descInfo[nsEntry.idhex][0], 2)
+          nsContents += "    bandwidth: %s\n" % bwLabel
           nsContents += "    flags: %s\n" % ", ".join(nsEntry.flags)
-          nsContents += "    exit policy: %s\n\n" % ", ".join(exitPolicy)
+          nsContents += "    exit policy: %s\n\n" % exitPolicyLabel
       
       try:
         # make ns entries directory if it doesn't already exist
@@ -427,7 +442,10 @@ def monitorConsensus():
       if countAlert: print "  *count threshold broken*"
       if bwAlert: print "  *bandwidth threshold broken*"
     
-    if countAlert or bwAlert or (tick % 24 == 0):
+    # checks if, with this entry, we have all the samplings for the day
+    isMidnightEntry = newSampling.getValidAfter().split(" ")[1] == "23:00:00"
+    
+    if countAlert or bwAlert or isMidnightEntry:
       currentTime = time.strftime("%H:%M", time.localtime(time.time()))
       currentDate = time.strftime("%m/%d/%Y", time.localtime(time.time()))
       
@@ -527,7 +545,10 @@ def monitorConsensus():
         for sampling in datesToSamplings[date]:
           samplingTotalBw = 0
           for nsEntry in sampling.getRelays(False):
-            samplingTotalBw += descInfo[nsEntry.idhex][0]
+            if nsEntry.idhex in descInfo:
+              samplingTotalBw += descInfo[nsEntry.idhex][0]
+            else:
+              samplingTotalBw += nsEntry.bandwidth
           totalBw.append(samplingTotalBw)
         
         hourlyEntries = ""
