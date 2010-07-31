@@ -351,11 +351,8 @@ def monitorConsensus():
     # determines which entries are new
     newEntries = []
     for nsEntry in nsEntries:
-      if not nsEntry.idhex in seenFingerprints:
-        newEntries.append(nsEntry)
-        seenFingerprints.add(nsEntry.idhex)
-        
-        # adds entry to descInfo hash
+      # adds entry to descInfo hash
+      if not nsEntry.idhex in descInfo:
         try:
           descLookupCmd = "desc/id/%s" % nsEntry.idhex
           router = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
@@ -365,6 +362,10 @@ def monitorConsensus():
         except TorCtl.TorCtlClosed:
           print "Connection to tor is closed"
           sys.exit()
+        
+      if not nsEntry.idhex in seenFingerprints:
+        newEntries.append(nsEntry)
+        seenFingerprints.add(nsEntry.idhex)
         
         # records the seen fingerprint
         if seenFingerprintsFile:
