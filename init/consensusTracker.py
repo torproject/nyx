@@ -48,7 +48,7 @@ DEFAULT_FINGERPRINTS = "./fingerprints"
 DEFAULT_NS_OUTPUT = "./newRelays"
 
 # thresholds at which alerts are sent for relay counts
-HOURLY_COUNT_THRESHOLD = 5
+HOURLY_COUNT_THRESHOLD = 20
 HOURLY_BW_THRESHOLD = 6553600 # trying 50 Mbit/s
 
 OPT = "g:t:f:n:qh"
