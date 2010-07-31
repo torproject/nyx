@@ -22,17 +22,21 @@ import getopt
 import getpass
 import smtplib
 from email.mime.text import MIMEText
-from email.MIMEBase import MIMEBase
 from email.mime.multipart import MIMEMultipart
+from email.MIMEBase import MIMEBase
 from email import Encoders
 
 sys.path[0] = sys.path[0][:-5]
 
 from TorCtl import TorCtl
+from TorCtl import TorUtil
 
 # TODO: remove arm dependency, pending:
 # https://trac.torproject.org/projects/tor/ticket/1737
 import util.torTools
+
+# prevents TorCtl logging from going to stdout
+TorUtil.loglevel = "NONE"
 
 # enums representing different poritons of the tor network
 RELAY_GUARD, RELAY_MIDDLE, RELAY_EXIT = range(1, 4)
@@ -45,7 +49,7 @@ DEFAULT_NS_OUTPUT = "./newRelays"
 
 # thresholds at which alerts are sent for relay counts
 HOURLY_COUNT_THRESHOLD = 20
-HOURLY_BW_THRESHOLD = 10485760 # TODO: not yet sure what to set this to... trying 10 Mbit/s
+HOURLY_BW_THRESHOLD = 52428800 # trying 50 Mbit/s
 
 OPT = "g:t:f:n:qh"
 OPT_EXPANDED = ["gmail=", "to=", "fingerprints=", "nsOutput=", "quiet", "help"]
@@ -164,17 +168,21 @@ def getNextConsensus(conn, oldValidAfterDate, sleepTime = 300):
       print "Connection to tor is closed"
       sys.exit()
 
-def getSizeLabel(bits, decimal = 0):
+def getSizeLabel(bytes, decimal = 0):
   """
   Converts byte count into label in its most significant units, for instance
   7500 bytes would return "56 KBits".
   """
   
+  bits = bytes * 8
+  sign = -1 if bits < 0 else 1
+  bits = abs(bits)
+  
   format = "%%.%if" % decimal
-  if bits >= 1073741824: return (format + " GBit/s") % (bits / 1073741824.0)
-  elif bits >= 1048576: return (format + " MBit/s") % (bits / 1048576.0)
-  elif bits >= 1024: return (format + " KBit/s") % (bits / 1024.0)
-  else: return "%i bits/s" % bits
+  if bits >= 1073741824: return (format + " GBit/s") % (sign * bits / 1073741824.0)
+  elif bits >= 1048576: return (format + " MBit/s") % (sign * bits / 1048576.0)
+  elif bits >= 1024: return (format + " KBit/s") % (sign * bits / 1024.0)
+  else: return "%i bits/s" % (sign * bits)
 
 class Sampling:
   """
@@ -210,6 +218,12 @@ class Sampling:
   def getValidAfter(self):
     return self.validAfter
   
+  def getRelays(self, newOnly=True):
+    if newOnly:
+      return self.newRelays[RELAY_GUARD] + self.newRelays[RELAY_MIDDLE] + self.newRelays[RELAY_EXIT]
+    else:
+      return self.allRelays[RELAY_GUARD] + self.allRelays[RELAY_MIDDLE] + self.allRelays[RELAY_EXIT]
+  
   def getCount(self, relayType, newOnly=True):
     if newOnly: return len(self.newRelays[relayType])
     else: return len(self.allRelays[relayType])
@@ -220,34 +234,29 @@ class Sampling:
     exitCount = self.getCount(RELAY_EXIT, newOnly)
     return (guardCount, middleCount, exitCount)
   
-  # TODO: Descriptor bandwidths (ie, the observed bandwidth) tend to be a 
-  # better metric since they aren't tampered by the bandwidth authorities.
-  def getBandwidth(self, relayType, newOnly=True):
+  def getBandwidth(self, descInfo, relayType, newOnly=True):
     totalBandwidth = 0
     
     relaySet = self.newRelays[relayType] if newOnly else self.allRelays[relayType]
     for nsEntry in relaySet:
-      if nsEntry.bandwidth: totalBandwidth += nsEntry.bandwidth
+      totalBandwidth += descInfo[nsEntry.idhex][0]
+      #if nsEntry.bandwidth: totalBandwidth += nsEntry.bandwidth
     
     return totalBandwidth
   
-  def getTotalBandwidth(self, newOnly=True):
-    totalBandwidth = 0
-    totalBandwidth = self.getBandwidth(RELAY_GUARD, newOnly)
-    totalBandwidth += self.getBandwidth(RELAY_MIDDLE, newOnly)
-    totalBandwidth += self.getBandwidth(RELAY_EXIT, newOnly)
-    return totalBandwidth
-  
-  def getSummary(self):
+  def getSummary(self, descInfo):
     """
     Provides a single line summary like:
     2010-07-18 10:00:00 - 941/1732/821 relays (8/12/4 are new, 153 MB added bandwidth)
     """
     
+    totalBandwidth = 0
+    for relayType in (RELAY_GUARD, RELAY_MIDDLE, RELAY_EXIT):
+      totalBandwidth += self.getBandwidth(descInfo, relayType)
+    
     relayCounts = "%i/%i/%i relays" % (self.getCounts(False))
     newRelayCounts = "%i/%i/%i are new" % (self.getCounts(True))
-    newBandwidth = getSizeLabel(self.getTotalBandwidth())
-    return "%s - %s (%s, %s added bandwidth)" % (self.getValidAfter(), relayCounts, newRelayCounts, newBandwidth)
+    return "%s - %s (%s, %s added bandwidth)" % (self.getValidAfter(), relayCounts, newRelayCounts, getSizeLabel(totalBandwidth))
 
 def monitorConsensus():
   gmailAccount, gmailPassword = DEFAULT_GMAIL_ACCOUNT, ""
@@ -287,6 +296,9 @@ def monitorConsensus():
   isEmailUsed = gmailAccount and toAddress
   if isEmailUsed: gmailPassword = getpass.getpass("GMail Password: ")
   
+  if not gmailAccount or not gmailPassword or not toAddress:
+    print "Email notifications disabled"
+  
   # get a control port connection
   conn = util.torTools.connect()
   if conn == None:
@@ -315,6 +327,20 @@ def monitorConsensus():
   samplings = []
   validAfterDate = None # the 'valid-after' time of the last consensus we've processed
   
+  # fingerprint => (observedBandwidth, exitPolicy) for all relays
+  descInfo = {}
+  
+  for nsEntry in conn.get_network_status():
+    try:
+      descLookupCmd = "desc/id/%s" % nsEntry.idhex
+      router = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+      descInfo[router.idhex] = (router.desc_bw, router.exitpolicy)
+    except TorCtl.ErrorReply:
+      descInfo[nsEntry.idhex] = (0, "")
+    except TorCtl.TorCtlClosed:
+      print "Connection to tor is closed"
+      sys.exit()
+  
   while True:
     tick += 1
     
@@ -322,13 +348,25 @@ def monitorConsensus():
     newConsensus, validAfterDate = getNextConsensus(conn, validAfterDate)
     nsEntries = TorCtl.parse_ns_body(newConsensus)
     
-    # determines which entries are new and records the seen fingerprints
+    # determines which entries are new
     newEntries = []
     for nsEntry in nsEntries:
       if not nsEntry.idhex in seenFingerprints:
         newEntries.append(nsEntry)
         seenFingerprints.add(nsEntry.idhex)
         
+        # adds entry to descInfo hash
+        try:
+          descLookupCmd = "desc/id/%s" % nsEntry.idhex
+          router = TorCtl.Router.build_from_desc(conn.get_info(descLookupCmd)[descLookupCmd].split("\n"), nsEntry)
+          descInfo[router.idhex] = (router.desc_bw, router.exitpolicy)
+        except TorCtl.ErrorReply:
+          descInfo[nsEntry.idhex] = (0, "")
+        except TorCtl.TorCtlClosed:
+          print "Connection to tor is closed"
+          sys.exit()
+        
+        # records the seen fingerprint
         if seenFingerprintsFile:
           try:
             seenFingerprintsFile.write(nsEntry.idhex + "\n")
@@ -340,10 +378,14 @@ def monitorConsensus():
     
     # check if we broke any thresholds (currently just checking hourly exit stats)
     countAlert = newSampling.getCount(RELAY_EXIT, True) > HOURLY_COUNT_THRESHOLD
-    bwAlert = newSampling.getBandwidth(RELAY_EXIT, True) > HOURLY_BW_THRESHOLD
+    bwAlert = newSampling.getBandwidth(descInfo, RELAY_EXIT, True) > HOURLY_BW_THRESHOLD
     
     samplings.insert(0, newSampling)
-    if len(samplings) > 168: samplings.pop()
+    if len(samplings) > 168:
+      # only remove entries if we have a full day's worth of data to discard
+      lastDate = samplings[-1].getValidAfter().split(" ")[0]
+      earlierDate = samplings[-25].getValidAfter().split(" ")[0]
+      if lastDate == earlierDate: samplings = samplings[:-25]
     
     # writes new ns entries
     if nsOutputPath:
@@ -355,8 +397,15 @@ def monitorConsensus():
         nsContents += label + "\n"
         nsContents += "-" * 40 + "\n"
         for nsEntry in newSampling.newRelays[relayType]:
+          # TODO: the str call of the following produces a deprecation warning, as discussed on:
+          # https://trac.torproject.org/projects/tor/ticket/1777
+          exitPolicy = [str(policyLine) for policyLine in descInfo[nsEntry.idhex][1]]
+          
           nsContents += "%s (%s:%s)\n" % (nsEntry.idhex, nsEntry.ip, nsEntry.orport)
-          nsContents += "    nickname: %s\n    flags: %s\n\n" % (nsEntry.nickname, ", ".join(nsEntry.flags))
+          nsContents += "    nickname: %s\n" % nsEntry.nickname
+          nsContents += "    bandwidth: %s\n" % getSizeLabel(descInfo[nsEntry.idhex][0], 2)
+          nsContents += "    flags: %s\n" % ", ".join(nsEntry.flags)
+          nsContents += "    exit policy: %s\n\n" % ", ".join(exitPolicy)
       
       try:
         # make ns entries directory if it doesn't already exist
@@ -373,7 +422,7 @@ def monitorConsensus():
     # prints results to terminal, ex:
     # 7. 2010-07-18 10:00:00 - 941/1732/821 relays (8/12/4 are new, 153 MB / 215 MB / 48 MB added bandwidth)
     if not isQuiet:
-      print "%i. %s" % (tick, newSampling.getSummary())
+      print "%i. %s" % (tick, newSampling.getSummary(descInfo))
       if countAlert: print "  *count threshold broken*"
       if bwAlert: print "  *bandwidth threshold broken*"
     
@@ -388,7 +437,7 @@ def monitorConsensus():
       elif bwAlert:
         subject = "Alert: Relay Bandwidth Threshold Broken"
         noticeBody = "The relay bandwidth threshold was broken today at %s (%s) with the addition of %s of new exit capacity (the current threshold is set at %i)."
-        noticeMsg = noticeBody % (currentTime, currentDate, getSizeLabel(newSampling.getBandwidth(RELAY_EXIT)), getSizeLabel(HOURLY_BW_THRESHOLD))
+        noticeMsg = noticeBody % (currentTime, currentDate, getSizeLabel(newSampling.getBandwidth(descInfo, RELAY_EXIT)), getSizeLabel(HOURLY_BW_THRESHOLD))
       else:
         subject = "Daily Consensus Report for %s" % currentDate
         noticeMsg = "At present there's no breaches to report. See below for a summary of consensus additions."
@@ -400,7 +449,7 @@ def monitorConsensus():
       msgText += "-" * 80 + "\n\n"
       
       for sampling in samplings:
-        msgText += sampling.getSummary() + "\n"
+        msgText += sampling.getSummary(descInfo) + "\n"
       
       # constructs the html message
       msgHtml = """<html>
@@ -408,41 +457,44 @@ def monitorConsensus():
   <body>
     <p>%s</p>
     <hr />
-    <table border="1">
+    <table style="border-collapse:collapse;">
       <tr>
         <td></td>
-        <td colspan="3" bgcolor="green"><b>Guards</b></td>
-        <td colspan="3" bgcolor="yellow"><b>Middle-Only</b></td>
-        <td colspan="3" bgcolor="red"><b>Exits</b></td>
+        <td colspan="3" bgcolor="green"><b>&nbsp;Guards</b></td>
+        <td colspan="3" bgcolor="yellow"><b>&nbsp;Middle-Only</b></td>
+        <td colspan="3" bgcolor="red"><b>&nbsp;Exits</b></td>
+        <td bgcolor="blue"><b>&nbsp;Total</b></td>
       </tr>
       
       <tr>
-        <td><b>Date:</b></td>
-        <td bgcolor="green"><b>Count:&nbsp;</b></td>
+        <td bgcolor="#444444"><b>&nbsp;Date:</b></td>
+        <td bgcolor="green"><b>&nbsp;Count:&nbsp;</b></td>
         <td bgcolor="green"><b>New:&nbsp;</b></td>
         <td bgcolor="green"><b>Bandwidth:&nbsp;</b></td>
-        <td bgcolor="yellow"><b>Count:&nbsp;</b></td>
+        <td bgcolor="yellow"><b>&nbsp;Count:&nbsp;</b></td>
         <td bgcolor="yellow"><b>New:&nbsp;</b></td>
         <td bgcolor="yellow"><b>Bandwidth:&nbsp;</b></td>
-        <td bgcolor="red"><b>Count:&nbsp;</b></td>
+        <td bgcolor="red"><b>&nbsp;Count:&nbsp;</b></td>
         <td bgcolor="red"><b>New:&nbsp;</b></td>
         <td bgcolor="red"><b>Bandwidth:&nbsp;</b></td>
+        <td bgcolor="blue"><b>&nbsp;Bandwidth:&nbsp;</b></td>
       </tr>
       
 """ % greetingMsg
       
       dailyCellEntry = """
       <tr>
-        <td>%s</td>
+        <td bgcolor="#444444"><b>&nbsp;%s</b></td>
+        <td bgcolor="#44FF44"><b>&nbsp;%s</b></td>
         <td bgcolor="#44FF44"><b>%s</b></td>
         <td bgcolor="#44FF44"><b>%s</b></td>
-        <td bgcolor="#44FF44"><b>%s</b></td>
+        <td bgcolor="#FFFF44"><b>&nbsp;%s</b></td>
         <td bgcolor="#FFFF44"><b>%s</b></td>
         <td bgcolor="#FFFF44"><b>%s</b></td>
-        <td bgcolor="#FFFF44"><b>%s</b></td>
+        <td bgcolor="#FF4444"><b>&nbsp;%s</b></td>
         <td bgcolor="#FF4444"><b>%s</b></td>
         <td bgcolor="#FF4444"><b>%s</b></td>
-        <td bgcolor="#FF4444"><b>%s</b></td>
+        <td bgcolor="#4444FF"><b>&nbsp;%s</b></td>
       </tr>
 """
       
@@ -468,26 +520,46 @@ def monitorConsensus():
         mCounts, mNew, mBw = [], [], []
         eCounts, eNew, eBw = [], [], []
         
-        hourlyEntries = ""
+        # prepopulates bandwidth data since we're using diffs
+        totalBw = []
+        
         for sampling in datesToSamplings[date]:
+          samplingTotalBw = 0
+          for nsEntry in sampling.getRelays(False):
+            samplingTotalBw += descInfo[nsEntry.idhex][0]
+          totalBw.append(samplingTotalBw)
+        
+        hourlyEntries = ""
+        for i in range(len(datesToSamplings[date])):
+          sampling = datesToSamplings[date][i]
+          
+          if i == len(datesToSamplings[date]) - 1:
+            bwLabel = "" # this is the last entry (no diff)
+          else:
+            bwLabel = getSizeLabel(totalBw[i] - totalBw[i + 1])
+            
+            # appends plus symbol if positive
+            if bwLabel[0] != "-": bwLabel = "+" + bwLabel
+          
           consensusTime = sampling.getValidAfter().split(" ")[1]
           
           gCounts.append(sampling.getCount(RELAY_GUARD, False))
           gNew.append(sampling.getCount(RELAY_GUARD))
-          gBw.append(sampling.getBandwidth(RELAY_GUARD))
+          gBw.append(sampling.getBandwidth(descInfo, RELAY_GUARD))
           
           mCounts.append(sampling.getCount(RELAY_MIDDLE, False))
           mNew.append(sampling.getCount(RELAY_MIDDLE))
-          mBw.append(sampling.getBandwidth(RELAY_MIDDLE))
+          mBw.append(sampling.getBandwidth(descInfo, RELAY_MIDDLE))
           
           eCounts.append(sampling.getCount(RELAY_EXIT, False))
           eNew.append(sampling.getCount(RELAY_EXIT))
-          eBw.append(sampling.getBandwidth(RELAY_EXIT))
+          eBw.append(sampling.getBandwidth(descInfo, RELAY_EXIT))
           
-          hourlyEntries += hourlyCellEntry % (consensusTime, gCounts[-1], gNew[-1], getSizeLabel(gBw[-1]), mCounts[-1], mNew[-1], getSizeLabel(mBw[-1]), eCounts[-1], eNew[-1], getSizeLabel(eBw[-1]))
+          hourlyEntries += hourlyCellEntry % (consensusTime, gCounts[-1], gNew[-1], getSizeLabel(gBw[-1]), mCounts[-1], mNew[-1], getSizeLabel(mBw[-1]), eCounts[-1], eNew[-1], getSizeLabel(eBw[-1]), bwLabel)
         
         # append daily summary then hourly entries
-        msgHtml += dailyCellEntry % (date, sum(gCounts), sum(gNew), getSizeLabel(sum(gBw)), sum(mCounts), sum(mNew), getSizeLabel(sum(mBw)), sum(eCounts), sum(eNew), getSizeLabel(sum(eBw)))
+        bwAvgLabel = getSizeLabel(sum(totalBw) / len(totalBw), 2)
+        msgHtml += dailyCellEntry % (date + "&nbsp;", max(gCounts), sum(gNew), getSizeLabel(sum(gBw)), max(mCounts), sum(mNew), getSizeLabel(sum(mBw)), max(eCounts), sum(eNew), getSizeLabel(sum(eBw)), bwAvgLabel)
         msgHtml += hourlyEntries
       
       msgHtml += """    </table>
@@ -505,7 +577,8 @@ def monitorConsensus():
         except IOError:
           print "Unable to email archive with new relays."
       
-      sendViaGmail(gmailAccount, gmailPassword, toAddress, subject, msgText, msgHtml, attachment)
+      if gmailAccount and gmailPassword and toAddress:
+        sendViaGmail(gmailAccount, gmailPassword, toAddress, subject, msgText, msgHtml, attachment)
 
 if __name__ == '__main__':
   monitorConsensus()
