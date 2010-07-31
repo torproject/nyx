@@ -461,7 +461,7 @@ def monitorConsensus():
       <tr>
         <td></td>
         <td colspan="3" bgcolor="green"><b>&nbsp;Guards</b></td>
-        <td colspan="3" bgcolor="yellow"><b>&nbsp;Middle-Only</b></td>
+        <td colspan="3" bgcolor="yellow"><b>&nbsp;Middle</b></td>
         <td colspan="3" bgcolor="red"><b>&nbsp;Exits</b></td>
         <td bgcolor="blue"><b>&nbsp;Total</b></td>
       </tr>
