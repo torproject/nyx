@@ -12,6 +12,10 @@ This determines if relays are new by checking if the fingerprint's ever been
 seen before, which can take quite some time to prepopulate from scratch (on the
 order of a month or so). Getting this information from karsten's metrics
 project can greatly bootstrap this.
+
+To fetch the consensus on an hourly basis you either need to have DirPort or
+FetchDirInfoEarly set in your torrc (the default, client schedule for fetching
+the consensus will miss some since each consensus is valid for two hours).
 """
 
 import os
@@ -532,6 +536,7 @@ def monitorConsensus():
       
       dates = list(datesToSamplings.keys())
       dates.sort()
+      dates.reverse()
       
       for date in dates:
         # stores to get the daily sums later
@@ -580,8 +585,12 @@ def monitorConsensus():
           hourlyEntries += hourlyCellEntry % (consensusTime, gCounts[-1], gNew[-1], getSizeLabel(gBw[-1]), mCounts[-1], mNew[-1], getSizeLabel(mBw[-1]), eCounts[-1], eNew[-1], getSizeLabel(eBw[-1]), bwLabel)
         
         # append daily summary then hourly entries
+        gCountAvg = sum(gCounts) / len(gCounts)
+        mCountAvg = sum(mCounts) / len(mCounts)
+        eCountAvg = sum(eCounts) / len(eCounts)
+        
         bwAvgLabel = getSizeLabel(sum(totalBw) / len(totalBw), 2)
-        msgHtml += dailyCellEntry % (date + "&nbsp;", max(gCounts), sum(gNew), getSizeLabel(sum(gBw)), max(mCounts), sum(mNew), getSizeLabel(sum(mBw)), max(eCounts), sum(eNew), getSizeLabel(sum(eBw)), bwAvgLabel)
+        msgHtml += dailyCellEntry % (date + "&nbsp;", gCountAvg, sum(gNew), getSizeLabel(sum(gBw)), mCountAvg, sum(mNew), getSizeLabel(sum(mBw)), eCountAvg, sum(eNew), getSizeLabel(sum(eBw)), bwAvgLabel)
         msgHtml += hourlyEntries
       
       msgHtml += """    </table>
