@@ -265,25 +265,9 @@ def setEventListening(selectedEvents, isBlindMode):
   for eventType in events:
     if eventType not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [eventType]
   
-  for eventType in list(toDiscard):
-    events.discard(eventType)
+  for eventType in list(toDiscard): events.discard(eventType)
   
-  # makes a mapping instead
-  events = dict([(eventType, None) for eventType in events])
-  
-  # add mandatory events (those needed for arm functionaity)
-  reqEvents = {"BW": "(bandwidth graph won't function)",
-               "NEWDESC": "(information related to descriptors will grow stale)",
-               "NS": "(information related to the consensus will grow stale)",
-               "NEWCONSENSUS": "(information related to the consensus will grow stale)"}
-  
-  if not isBlindMode:
-    reqEvents["CIRC"] = "(may cause issues in identifying client connections)"
-  
-  for eventType, msg in reqEvents.items():
-    events[eventType] = (log.ERR, "Unsupported event type: %s %s" % (eventType, msg))
-  
-  setEvents = torTools.getConn().setControllerEvents(events)
+  setEvents = torTools.getConn().setControllerEvents(list(events))
   
   # temporary hack for providing user selected events minus those that failed
   # (wouldn't be a problem if I wasn't storing tor and non-tor events together...)
@@ -324,6 +308,14 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   config = conf.getConfig("arm")
   config.update(CONFIG)
   config.update(graphing.graphPanel.CONFIG)
+  
+  # adds events needed for arm functionality to the torTools REQ_EVENTS mapping
+  # (they're then included with any setControllerEvents call, and log a more
+  # helpful error if unavailable)
+  torTools.REQ_EVENTS["BW"] = "bandwidth graph won't function"
+  
+  if not isBlindMode:
+    torTools.REQ_EVENTS["CIRC"] = "may cause issues in identifying client connections"
   
   # pauses/unpauses connection resolution according to if tor's connected or not
   torTools.getConn().addStatusListener(connResetListener)
@@ -497,14 +489,17 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           panels[panelKey].setTop(tmpStartY)
           tmpStartY += panels[panelKey].getHeight()
       
-      # if it's been at least ten seconds since the last BW event Tor's probably done
-      if not isUnresponsive and not panels["log"].controlPortClosed and panels["log"].getHeartbeat() >= 10:
-        isUnresponsive = True
-        log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(panels["log"].lastHeartbeat))
-      elif not panels["log"].controlPortClosed and (isUnresponsive and panels["log"].getHeartbeat() < 10):
-        # shouldn't happen unless Tor freezes for a bit - BW events happen every second...
-        isUnresponsive = False
-        log.log(log.NOTICE, "Relay resumed")
+      # provides a notice if there's been ten seconds since the last BW event
+      if torTools.getConn().isAlive():
+        lastHeartbeat = torTools.getConn().getHeartbeat()
+        
+        if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
+          isUnresponsive = True
+          log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))
+        elif isUnresponsive and (time.time() - lastHeartbeat) < 10:
+          # really shouldn't happen (meant Tor froze for a bit)
+          isUnresponsive = False
+          log.log(log.NOTICE, "Relay resumed")
       
       panels["conn"].reset()
       

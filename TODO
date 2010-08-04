@@ -16,6 +16,8 @@ TODO
               sorting, etc
           - provide notice if tor supports events that arm doesn't
               getInfo("events/names") provides the space-separated listing
+          - check what events TorCtl can provide us, and give notice if any are
+              missing
         [ ] conf panel
           - move torrc validation into util
           - condense tor/arm log listing types if they're the same
@@ -35,6 +37,10 @@ TODO
           - connection uptime to associate inbound/outbound connections?
           - Identify controller connections (if it's arm, vidalia, etc) with
               special detail page for them
+          - provide bridge / client country statistics
+              Include bridge related data via GETINFO option (feature request
+              by waltman and ioerror).
+      - Country data for client connections (requested by ioerror)
         [-] controller (for version 1.3.8)
   [ ] provide performance ARM-DEBUG events
       Help with diagnosing performance bottlenecks. This is pending the
@@ -124,7 +130,7 @@ TODO
       * rdns and whois lookups
         To avoid disclosing connection data to third parties this needs to be
         an all-or-nothing operation (ie, needs to fetch information on all
-        relays or none of them. Plan is something like:
+        relays or none of them). Plan is something like:
         * add resolving/caching capabilities to fetch information on all relays
           and distil whois entries to just what we care about (hosting provider
           or ISP), by default updating the cache on a daily basis
@@ -146,10 +152,6 @@ TODO
       http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
   * escaping function for uiTools' formatted strings
   * tor-weather like functionality (email notices)
-  * provide bridge / client country statistics
-      - Include bridge related data via GETINFO option (feature request by
-      waltman).
-      - Country data for client connections (requested by ioerror)
   * make update rates configurable via the ui
       Also provide option for saving these settings to the config
   * config option to cap resource usage

@@ -7,6 +7,20 @@ startup.events N3
 
 features.colorInterface true
 
+# log panel parameters
+# prepopulate: attempts to read past events from the log file if true
+# prepopulateAddLimit: maximum entries added from the log file
+# prepopulateReadLimit: maximum entries read from the log file
+# 
+# Limits are to prevent big log files from causing a slow startup time. For
+# instance, if arm's only listening for ERR entries but the log has all
+# runlevels then this will add the first <prepopulateAddLimit> ERR entries and
+# stop reading after <prepopulateReadLimit> lines
+
+features.log.prepopulate true
+features.log.prepopulateAddLimit 1000
+features.log.prepopulateReadLimit 5000
+
 # general graph parameters
 # interval: 0 -> each second,  1 -> 5 seconds,  2 -> 30 seconds,
 #           3 -> minutely,     4 -> half hour,  5 -> hourly,      6 -> daily
@@ -55,6 +69,7 @@ queries.hostnames.useSocketModule false
 cache.sysCalls.size 600
 cache.hostnames.size 700000
 cache.hostnames.trimSize 200000
+cache.logPanel.size 1000
 cache.armLog.size 1000
 cache.armLog.trimSize 200
 

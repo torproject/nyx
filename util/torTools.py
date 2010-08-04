@@ -16,7 +16,7 @@ import getpass
 import thread
 import threading
 
-from TorCtl import TorCtl
+from TorCtl import TorCtl, TorUtil
 
 import log
 import sysTools
@@ -26,9 +26,8 @@ import sysTools
 # TOR_CLOSED - control port closed
 TOR_INIT, TOR_CLOSED = range(1, 3)
 
-# Message logged by default when a controller event type can't be set (message
-# has the event type inserted into it). This skips logging entirely if None.
-DEFAULT_FAILED_EVENT_ENTRY = (log.WARN, "Unsupported event type: %s")
+# message logged by default when a controller can't set an event type
+DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
 
 # TODO: check version when reattaching to controller and if version changes, flush?
 # Skips attempting to set events we've failed to set before. This avoids
@@ -45,8 +44,19 @@ INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
 CACHE_ARGS = ("nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
               "bwMeasured", "flags", "fingerprint", "pid")
 
+TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
+
+# events used for controller functionality:
+# BW - used to check for a periodic heartbeat
+# NOTICE - used to detect when tor is shut down
+# NEWDESC, NS, and NEWCONSENSUS - used for cache invalidation
+REQ_EVENTS = {"BW": "unable to check for a periodic heartbeat",
+              "NOTICE": "this will be unable to detect when tor is shut down",
+              "NEWDESC": "information related to descriptors will grow stale",
+              "NS": "information related to the consensus will grow stale",
+              "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -277,14 +287,20 @@ class Controller(TorCtl.PostEventListener):
     self.conn = None                    # None if uninitialized or controller's been closed
     self.connLock = threading.RLock()
     self.eventListeners = []            # instances listening for tor controller events
+    self.torctlListeners = []           # callback functions for TorCtl events
     self.statusListeners = []           # callback functions for tor's state changes
-    self.controllerEvents = {}          # mapping of successfully set controller events to their failure level/msg
+    self.controllerEvents = []          # list of successfully set controller events
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
+    self.lastHeartbeat = 0              # time of the last bw event
     
     # cached getInfo parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    
+    # directs TorCtl to notify us of events
+    TorUtil.loglevel = "DEBUG"
+    TorUtil.logfile = self
   
   def init(self, conn=None):
     """
@@ -354,6 +370,15 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     return result
+  
+  def getHeartbeat(self):
+    """
+    Provides the time of the last registered BW event (this should occure every
+    second if relay's still responsive). This returns zero if there has never
+    been an attached tor instance.
+    """
+    
+    return self.lastHeartbeat
   
   def getTorCtl(self):
     """
@@ -572,6 +597,18 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive(): self.conn.add_event_listener(listener)
     self.connLock.release()
   
+  def addTorCtlListener(self, callback):
+    """
+    Directs further TorCtl events to the callback function. Events are composed
+    of a runlevel and message tuple.
+    
+    Arguments:
+      callback - functor that'll accept the events, expected to be of the form:
+                 myFunction(runlevel, msg)
+    """
+    
+    self.torctlListeners.append(callback)
+  
   def addStatusListener(self, callback):
     """
     Directs further events related to tor's controller status to the callback
@@ -598,27 +635,31 @@ class Controller(TorCtl.PostEventListener):
       return True
     else: return False
   
-  def setControllerEvents(self, eventsToMsg):
+  def setControllerEvents(self, events):
     """
-    Sets the events being provided via any associated tor controller, logging
-    messages for event types that aren't supported (possibly due to version
-    issues). This remembers the successfully set events and tries to apply them
-    to any controllers attached later too (again logging and dropping
-    unsuccessful event types). This returns the listing of event types that
-    were successfully set. If no controller is available or events can't be set
-    then this is a no-op.
+    Sets the events being requested from any attached tor instance, logging
+    warnings for event types that aren't supported (possibly due to version
+    issues). Events in REQ_EVENTS will also be included, logging at the error
+    level with an additional description in case of failure.
+    
+    This remembers the successfully set events and tries to request them from
+    any tor instance it attaches to in the future too (again logging and
+    dropping unsuccessful event types).
+    
+    This returns the listing of event types that were successfully set. If not
+    currently attached to a tor instance then all events are assumed to be ok,
+    then attempted when next attached to a control port.
     
     Arguments:
-      eventsToMsg - mapping of event types to a tuple of the (runlevel, msg) it
-                    should log in case of failure (uses DEFAULT_FAILED_EVENT_ENTRY
-                    if mapped to None)
+      events - listing of events to be set
     """
     
     self.connLock.acquire()
     
     returnVal = []
     if self.isAlive():
-      events = set(eventsToMsg.keys())
+      events = set(events)
+      events = events.union(set(REQ_EVENTS.keys()))
       unavailableEvents = set()
       
       # removes anything we've already failed to set
@@ -626,7 +667,8 @@ class Controller(TorCtl.PostEventListener):
         unavailableEvents.update(events.intersection(FAILED_EVENTS))
         events.difference_update(FAILED_EVENTS)
       
-      # initial check for event availability
+      # initial check for event availability, using the 'events/names' GETINFO
+      # option to detect invalid events
       validEvents = self.getInfo("events/names")
       
       if validEvents:
@@ -634,7 +676,7 @@ class Controller(TorCtl.PostEventListener):
         unavailableEvents.update(events.difference(validEvents))
         events.intersection_update(validEvents)
       
-      # attempt to set events
+      # attempt to set events via trial and error
       isEventsSet, isAbandoned = False, False
       
       while not isEventsSet and not isAbandoned:
@@ -661,19 +703,20 @@ class Controller(TorCtl.PostEventListener):
       
       FAILED_EVENTS.update(unavailableEvents)
       if not isAbandoned:
-        # removes failed events and logs warnings
+        # logs warnings or errors for failed events
         for eventType in unavailableEvents:
-          if eventsToMsg[eventType]:
-            lvl, msg = eventsToMsg[eventType]
-            log.log(lvl, msg)
-          elif DEFAULT_FAILED_EVENT_ENTRY:
-            lvl, msg = DEFAULT_FAILED_EVENT_ENTRY
-            log.log(lvl, msg % eventType)
-          
-          del eventsToMsg[eventType]
+          defaultMsg = DEFAULT_FAILED_EVENT_MSG % eventType
+          if eventType in REQ_EVENTS:
+            log.log(log.ERR, defaultMsg + " (%s)" % REQ_EVENTS[eventType])
+          else:
+            log.log(log.WARN, defaultMsg)
         
-        self.controllerEvents = eventsToMsg
-        returnVal = eventsToMsg.keys()
+        self.controllerEvents = list(events)
+        returnVal = list(events)
+    else:
+      # attempts to set the events when next attached to a control port
+      self.controllerEvents = list(events)
+      returnVal = list(events)
     
     self.connLock.release()
     return returnVal
@@ -765,6 +808,9 @@ class Controller(TorCtl.PostEventListener):
       
       thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
+  def bandwidth_event(self, event):
+    self.lastHeartbeat = time.time()
+  
   def ns_event(self, event):
     myFingerprint = self.getMyFingerprint()
     if myFingerprint:
@@ -789,6 +835,23 @@ class Controller(TorCtl.PostEventListener):
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
+  
+  def write(self, msg):
+    """
+    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a file.
+    """
+    
+    timestampStart, timestampEnd = msg.find("["), msg.find("]")
+    level = msg[:timestampStart]
+    msg = msg[timestampEnd + 2:].strip()
+    
+    # notifies listeners of TorCtl events
+    for callback in self.torctlListeners: callback(level, msg)
+    
+    # checks if TorCtl is providing a notice that control port is closed
+    if TOR_CTL_CLOSE_MSG in msg: self.close()
+  
+  def flush(self): pass
   
   def _getRelayAttr(self, key, default, cacheUndefined = True):
     """
