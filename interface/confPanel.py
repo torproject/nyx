@@ -25,6 +25,34 @@ LABEL_MB = ["m", "mb", "mbyte", "mbytes", "megabyte", "megabytes"]
 LABEL_GB = ["gb", "gbyte", "gbytes", "gigabyte", "gigabytes"]
 LABEL_TB = ["tb", "terabyte", "terabytes"]
 
+# GETCONF aliases (from the _option_abbrevs struct of src/or/config.c)
+# fix for: https://trac.torproject.org/projects/tor/ticket/1798
+# TODO: remove if/when fixed in tor
+CONF_ALIASES = {"l": "Log",
+                "AllowUnverifiedNodes": "AllowInvalidNodes",
+                "AutomapHostSuffixes": "AutomapHostsSuffixes",
+                "AutomapHostOnResolve": "AutomapHostsOnResolve",
+                "BandwidthRateBytes": "BandwidthRate",
+                "BandwidthBurstBytes": "BandwidthBurst",
+                "DirFetchPostPeriod": "StatusFetchPeriod",
+                "MaxConn": "ConnLimit",
+                "ORBindAddress": "ORListenAddress",
+                "DirBindAddress": "DirListenAddress",
+                "SocksBindAddress": "SocksListenAddress",
+                "UseHelperNodes": "UseEntryGuards",
+                "NumHelperNodes": "NumEntryGuards",
+                "UseEntryNodes": "UseEntryGuards",
+                "NumEntryNodes": "NumEntryGuards",
+                "ResolvConf": "ServerDNSResolvConfFile",
+                "SearchDomains": "ServerDNSSearchDomains",
+                "ServerDNSAllowBrokenResolvConf": "ServerDNSAllowBrokenConfig",
+                "PreferTunnelledDirConns": "PreferTunneledDirConns",
+                "BridgeAuthoritativeDirectory": "BridgeAuthoritativeDir",
+                "HashedControlPassword": "__HashedControlSessionPassword",
+                "StrictEntryNodes": "StrictNodes",
+                "StrictExitNodes": "StrictNodes"}
+
+
 # time modifiers allowed by config.c
 LABEL_MIN = ["minute", "minutes"]
 LABEL_HOUR = ["hour", "hours"]
@@ -81,6 +109,9 @@ class ConfPanel(panel.Panel):
           argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
           if argEnd == -1: argEnd = len(lineText)
           command, argument = lineText[:ctlEnd], lineText[ctlEnd:argEnd].strip()
+          
+          # replace aliases with the internal representation of the command
+          if command in CONF_ALIASES: command = CONF_ALIASES[command]
           
           # expands value if it's a size or time
           comp = argument.strip().lower().split(" ")
@@ -146,7 +177,7 @@ class ConfPanel(panel.Panel):
               if not entry in actualValues:
                 self.corrections[lineNumber + 1] = ", ".join(actualValues)
           except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-            if logErrors: log.log(log.WARN, "Unable to validate torrc")
+            if logErrors: log.log(log.WARN, "Unable to validate line %i of the torrc: %s" % (lineNumber + 1, lineText))
       
       # logs issues that arose
       if self.irrelevantLines and logErrors:
