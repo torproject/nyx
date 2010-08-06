@@ -8,7 +8,7 @@ import curses
 from threading import RLock
 from TorCtl import TorCtl
 
-from util import log, connections, hostnames, panel, uiTools
+from util import log, connections, hostnames, panel, torTools, uiTools
 
 # Scrubs private data from any connection that might belong to client or exit
 # traffic. This is a little overly conservative, hiding anything that isn't
@@ -192,7 +192,10 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       else: self.family = []
       
       self.isBridge = self.conn.get_option("BridgeRelay")[0][1] == "1"
-      self.exitPolicy = self.conn.get_option("ExitPolicy")[0][1]
+      
+      policyEntries = torTools.getConn().getOption("ExitPolicy", multiple=True)
+      self.exitPolicy = ",".join(policyEntries)
+      self.exitPolicy = self.exitPolicy.replace("\\t", " ").replace("\"", "")
       
       if self.exitPolicy: self.exitPolicy += "," + self.conn.get_info("exit-policy/default")["exit-policy/default"]
       else: self.exitPolicy = self.conn.get_info("exit-policy/default")["exit-policy/default"]

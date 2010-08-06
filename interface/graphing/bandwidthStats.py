@@ -48,6 +48,7 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def resetListener(self, conn, eventType):
     # updates title parameters and accounting status if they changed
+    self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
     if self._config["features.graph.bw.accounting.show"]:

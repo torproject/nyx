@@ -113,6 +113,10 @@ class ConfPanel(panel.Panel):
           # replace aliases with the internal representation of the command
           if command in CONF_ALIASES: command = CONF_ALIASES[command]
           
+          # tor appears to replace tabs with a space, for instance:
+          # "accept\t*:563" is read back as "accept *:563"
+          argument = argument.replace("\t", " ")
+          
           # expands value if it's a size or time
           comp = argument.strip().lower().split(" ")
           if len(comp) > 1:
@@ -256,6 +260,11 @@ class ConfPanel(panel.Panel):
         
         command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
         if self.stripComments: comment = ""
+        
+        # Tabs print as three spaces. Keeping them as tabs is problematic for
+        # the layout since it's counted as a single character, but occupies
+        # several cells.
+        argument = argument.replace("\t", "   ")
         
         # changes presentation if value's incorrect or irrelevant
         if lineNum in self.corrections.keys():
