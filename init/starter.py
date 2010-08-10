@@ -25,7 +25,7 @@ import util.torTools
 import util.uiTools
 import TorCtl.TorUtil
 
-VERSION = "1.3.6"
+VERSION = "1.3.6b"
 LAST_MODIFIED = "July 7, 2010"
 
 DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
