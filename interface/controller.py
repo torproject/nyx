@@ -491,7 +491,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       
       # provides a notice if there's been ten seconds since the last BW event
       lastHeartbeat = torTools.getConn().getHeartbeat()
-      if torTools.getConn().isAlive() and lastHeartbeat != 0:
+      if torTools.getConn().isAlive() and "BW" in torTools.getConn().getControllerEvents() and lastHeartbeat != 0:
         if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
           isUnresponsive = True
           log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))

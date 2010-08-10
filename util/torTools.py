@@ -49,11 +49,9 @@ UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
 
 # events used for controller functionality:
-# BW - used to check for a periodic heartbeat
 # NOTICE - used to detect when tor is shut down
 # NEWDESC, NS, and NEWCONSENSUS - used for cache invalidation
-REQ_EVENTS = {"BW": "unable to check for a periodic heartbeat",
-              "NOTICE": "this will be unable to detect when tor is shut down",
+REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
@@ -293,7 +291,7 @@ class Controller(TorCtl.PostEventListener):
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
-    self.lastHeartbeat = 0              # time of the last bw event
+    self.lastHeartbeat = 0              # time of the last tor event
     
     # cached getInfo parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
@@ -373,9 +371,9 @@ class Controller(TorCtl.PostEventListener):
   
   def getHeartbeat(self):
     """
-    Provides the time of the last registered BW event (this should occure every
-    second if relay's still responsive). This returns zero if there has never
-    been an attached tor instance.
+    Provides the time of the last registered tor event (if listening for BW
+    events then this should occure every second if relay's still responsive).
+    This returns zero if this has never received an event.
     """
     
     return self.lastHeartbeat
@@ -635,6 +633,13 @@ class Controller(TorCtl.PostEventListener):
       return True
     else: return False
   
+  def getControllerEvents(self):
+    """
+    Provides the events the controller's currently configured to listen for.
+    """
+    
+    return list(self.controllerEvents)
+  
   def setControllerEvents(self, events):
     """
     Sets the events being requested from any attached tor instance, logging
@@ -808,10 +813,9 @@ class Controller(TorCtl.PostEventListener):
       
       thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
-  def bandwidth_event(self, event):
-    self.lastHeartbeat = time.time()
-  
   def ns_event(self, event):
+    self._updateHeartbeat()
+    
     myFingerprint = self.getMyFingerprint()
     if myFingerprint:
       for ns in event.nslist:
@@ -826,15 +830,43 @@ class Controller(TorCtl.PostEventListener):
       self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
+    self._updateHeartbeat()
+    
     self._cachedParam["nsEntry"] = None
     self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
   
   def new_desc_event(self, event):
+    self._updateHeartbeat()
+    
     myFingerprint = self.getMyFingerprint()
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
+  
+  def circ_status_event(self, event):
+    self._updateHeartbeat()
+  
+  def buildtimeout_set_event(self, event):
+    self._updateHeartbeat()
+  
+  def stream_status_event(self, event):
+    self._updateHeartbeat()
+  
+  def or_conn_status_event(self, event):
+    self._updateHeartbeat()
+  
+  def stream_bw_event(self, event):
+    self._updateHeartbeat()
+  
+  def bandwidth_event(self, event):
+    self._updateHeartbeat()
+  
+  def address_mapped_event(self, event):
+    self._updateHeartbeat()
+  
+  def unknown_event(self, event):
+    self._updateHeartbeat()
   
   def write(self, msg):
     """
@@ -852,6 +884,13 @@ class Controller(TorCtl.PostEventListener):
     if TOR_CTL_CLOSE_MSG in msg: self.close()
   
   def flush(self): pass
+  
+  def _updateHeartbeat(self):
+    """
+    Called on any event occurance to note the time it occured.
+    """
+    
+    self.lastHeartbeat = time.time()
   
   def _getRelayAttr(self, key, default, cacheUndefined = True):
     """
