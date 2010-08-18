@@ -307,7 +307,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   # loads config for various interface components
   config = conf.getConfig("arm")
   config.update(CONFIG)
-  config.update(graphing.graphPanel.CONFIG)
+  graphing.graphPanel.loadConfig(config)
   
   # adds events needed for arm functionality to the torTools REQ_EVENTS mapping
   # (they're then included with any setControllerEvents call, and log a more

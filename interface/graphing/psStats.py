@@ -66,12 +66,14 @@ class PsStats(graphPanel.GraphStats):
       statLabel = statName[0].upper() + statName[1:]
       return "%s (%s, avg: %s):" % (statLabel, lastAmount, avg)
   
-  def getPreferredHeight(self):
-    # hides graph if there's nothing to display (provides default otherwise)
-    # provides default height unless there's nothing to 
+  def isVisible(self):
+    """
+    Hides graph if unable to fetch stats.
+    """
+    
     if self.queryPid and self.queryParam and self.failedCount < FAILURE_THRESHOLD:
-      return graphPanel.DEFAULT_HEIGHT
-    else: return 0
+      return graphPanel.GraphStats.isVisible(self)
+    else: return False
   
   def eventTick(self):
     """

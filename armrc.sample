@@ -22,16 +22,19 @@ features.log.prepopulateAddLimit 1000
 features.log.prepopulateReadLimit 5000
 
 # general graph parameters
+# height:   height of graphed stats
+# maxWidth: maximum number of graphed entries
 # interval: 0 -> each second,  1 -> 5 seconds,  2 -> 30 seconds,
 #           3 -> minutely,     4 -> half hour,  5 -> hourly,      6 -> daily
 # bound:    0 -> global maxima,        1 -> local maxima, 2 -> tight
 # type:     0 -> None, 1 -> Bandwidth, 2 -> Connections,  3 -> System Resources
 # frequentRefrsh: updates stats each second if true, otherwise matches interval
 
+features.graph.height 5
+features.graph.maxWidth 150
 features.graph.interval 0
 features.graph.bound 1
 features.graph.type 1
-features.graph.maxSize 150
 features.graph.frequentRefresh true
 
 # ps graph parameters

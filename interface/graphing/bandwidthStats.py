@@ -181,15 +181,18 @@ class BandwidthStats(graphPanel.GraphStats):
   def draw(self, panel, width, height):
     # if display is narrow, overwrites x-axis labels with avg / total stats
     if width <= COLLAPSE_WIDTH:
+      # line of the graph's x-axis labeling
+      labelingLine = self.getContentHeight() + panel.graphHeight - 5
+      
       # clears line
-      panel.addstr(8, 0, " " * width)
+      panel.addstr(labelingLine, 0, " " * width)
       graphCol = min((width - 10) / 2, self.maxCol)
       
       primaryFooter = "%s, %s" % (self._getAvgLabel(True), self._getTotalLabel(True))
       secondaryFooter = "%s, %s" % (self._getAvgLabel(False), self._getTotalLabel(False))
       
-      panel.addstr(8, 1, primaryFooter, uiTools.getColor(self.getColor(True)))
-      panel.addstr(8, graphCol + 6, secondaryFooter, uiTools.getColor(self.getColor(False)))
+      panel.addstr(labelingLine, 1, primaryFooter, uiTools.getColor(self.getColor(True)))
+      panel.addstr(labelingLine, graphCol + 6, secondaryFooter, uiTools.getColor(self.getColor(False)))
     
     # provides accounting stats if enabled
     if self.isAccounting:
@@ -203,21 +206,21 @@ class BandwidthStats(graphPanel.GraphStats):
           # failed to be queried
           status, hibernateColor = "unknown", "red"
         
-        panel.addfstr(10, 0, "<b>Accounting (<%s>%s</%s>)</b>" % (hibernateColor, status, hibernateColor))
+        panel.addfstr(labelingLine + 2, 0, "<b>Accounting (<%s>%s</%s>)</b>" % (hibernateColor, status, hibernateColor))
         
         resetTime = self.accountingInfo["resetTime"]
         if not resetTime: resetTime = "unknown"
-        panel.addstr(10, 35, "Time to reset: %s" % resetTime)
+        panel.addstr(labelingLine + 2, 35, "Time to reset: %s" % resetTime)
         
         used, total = self.accountingInfo["read"], self.accountingInfo["readLimit"]
         if used and total:
-          panel.addstr(11, 2, "%s / %s" % (used, total), uiTools.getColor(self.getColor(True)))
+          panel.addstr(labelingLine + 3, 2, "%s / %s" % (used, total), uiTools.getColor(self.getColor(True)))
         
         used, total = self.accountingInfo["written"], self.accountingInfo["writtenLimit"]
         if used and total:
-          panel.addstr(11, 37, "%s / %s" % (used, total), uiTools.getColor(self.getColor(False)))
+          panel.addstr(labelingLine + 3, 37, "%s / %s" % (used, total), uiTools.getColor(self.getColor(False)))
       else:
-        panel.addfstr(10, 0, "<b>Accounting:</b> Connection Closed...")
+        panel.addfstr(labelingLine + 2, 0, "<b>Accounting:</b> Connection Closed...")
   
   def getTitle(self, width):
     stats = list(self._titleStats)
@@ -258,8 +261,9 @@ class BandwidthStats(graphPanel.GraphStats):
   def getColor(self, isPrimary):
     return DL_COLOR if isPrimary else UL_COLOR
   
-  def getPreferredHeight(self):
-    return 13 if self.isAccounting else 10
+  def getContentHeight(self):
+    baseHeight = graphPanel.GraphStats.getContentHeight(self)
+    return baseHeight + 3 if self.isAccounting else baseHeight
   
   def new_desc_event(self, event):
     # updates self._titleStats with updated values

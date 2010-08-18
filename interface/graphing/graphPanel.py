@@ -27,7 +27,7 @@ UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
                     ("minutely", 60),   ("15 minute", 900), ("30 minute", 1800),
                     ("hourly", 3600),   ("daily", 86400)]
 
-DEFAULT_HEIGHT = 10 # space needed for graph and content
+DEFAULT_CONTENT_HEIGHT = 4 # space needed for labeling above and below the graph
 DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = "green", "cyan"
 
 # enums for graph bounds:
@@ -40,13 +40,14 @@ BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxSize": 150, "features.graph.frequentRefresh": True}
+CONFIG = {"features.graph.height": 5, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.frequentRefresh": True}
 
 def loadConfig(config):
   config.update(CONFIG)
-  CONFIG["features.graph.interval"] = max(len(UPDATE_INTERVALS) - 1, min(0, CONFIG["features.graph.interval"]))
-  CONFIG["features.graph.bound"] = max(2, min(0, CONFIG["features.graph.bound"]))
-  CONFIG["features.graph.maxSize"] = max(CONFIG["features.graph.maxSize"], 1)
+  CONFIG["features.graph.height"] = max(3, CONFIG["features.graph.height"])
+  CONFIG["features.graph.maxWidth"] = max(1, CONFIG["features.graph.maxWidth"])
+  CONFIG["features.graph.interval"] = min(len(UPDATE_INTERVALS) - 1, max(0, CONFIG["features.graph.interval"]))
+  CONFIG["features.graph.bound"] = min(2, max(0, CONFIG["features.graph.bound"]))
 
 class GraphStats(TorCtl.PostEventListener):
   """
@@ -76,7 +77,7 @@ class GraphStats(TorCtl.PostEventListener):
     self.primaryTotal, self.secondaryTotal = 0, 0 # sum of all stats seen
     
     # timescale dependent stats
-    self.maxCol = CONFIG["features.graph.maxSize"]
+    self.maxCol = CONFIG["features.graph.maxWidth"]
     self.maxPrimary, self.maxSecondary = {}, {}
     self.primaryCounts, self.secondaryCounts = {}, {}
     
@@ -133,13 +134,19 @@ class GraphStats(TorCtl.PostEventListener):
     
     return DEFAULT_COLOR_PRIMARY if isPrimary else DEFAULT_COLOR_SECONDARY
   
-  def getPreferredHeight(self):
+  def getContentHeight(self):
     """
-    Provides the height content should take up. By default this provides the
-    space needed for the default graph and content.
+    Provides the height content should take up (not including the graph).
     """
     
-    return DEFAULT_HEIGHT
+    return DEFAULT_CONTENT_HEIGHT
+  
+  def isVisible(self):
+    """
+    True if the stat has content to present, false if it should be hidden.
+    """
+    
+    return True
   
   def draw(self, panel, width, height):
     """
@@ -231,6 +238,7 @@ class GraphPanel(panel.Panel):
     panel.Panel.__init__(self, stdscr, "graph", 0)
     self.updateInterval = CONFIG["features.graph.interval"]
     self.bounds = CONFIG["features.graph.bound"]
+    self.graphHeight = CONFIG["features.graph.height"]
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
     self.showLabel = True         # shows top label if true, hides otherwise
@@ -242,8 +250,8 @@ class GraphPanel(panel.Panel):
     if hidden).
     """
     
-    if self.currentDisplay:
-      return self.stats[self.currentDisplay].getPreferredHeight()
+    if self.currentDisplay and self.stats[self.currentDisplay].isVisible():
+      return self.stats[self.currentDisplay].getContentHeight() + self.graphHeight
     else: return 0
   
   def draw(self, subwindow, width, height):
@@ -288,20 +296,20 @@ class GraphPanel(panel.Panel):
       
       # displays bound
       self.addstr(2, 0, "%4i" % primaryMaxBound, primaryColor)
-      self.addstr(7, 0, "%4i" % primaryMinBound, primaryColor)
+      self.addstr(self.graphHeight + 1, 0, "%4i" % primaryMinBound, primaryColor)
       
       self.addstr(2, graphCol + 5, "%4i" % secondaryMaxBound, secondaryColor)
-      self.addstr(7, graphCol + 5, "%4i" % secondaryMinBound, secondaryColor)
+      self.addstr(self.graphHeight + 1, graphCol + 5, "%4i" % secondaryMinBound, secondaryColor)
       
       # creates bar graph (both primary and secondary)
       for col in range(graphCol):
         colCount = param.primaryCounts[self.updateInterval][col + 1] - primaryMinBound
-        colHeight = min(5, 5 * colCount / (max(1, primaryMaxBound) - primaryMinBound))
-        for row in range(colHeight): self.addstr(7 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
+        colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, primaryMaxBound) - primaryMinBound))
+        for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
         
         colCount = param.secondaryCounts[self.updateInterval][col + 1] - secondaryMinBound
-        colHeight = min(5, 5 * colCount / (max(1, secondaryMaxBound) - secondaryMinBound))
-        for row in range(colHeight): self.addstr(7 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
+        colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, secondaryMaxBound) - secondaryMinBound))
+        for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
       
       # bottom labeling of x-axis
       intervalSec = 1 # seconds per labeling
@@ -323,8 +331,8 @@ class GraphPanel(panel.Panel):
           # if constrained on space then strips labeling since already provided
           timeLabel = timeLabel[:-1]
         
-        self.addstr(8, 4 + loc, timeLabel, primaryColor)
-        self.addstr(8, graphCol + 10 + loc, timeLabel, secondaryColor)
+        self.addstr(self.graphHeight + 2, 4 + loc, timeLabel, primaryColor)
+        self.addstr(self.graphHeight + 2, graphCol + 10 + loc, timeLabel, secondaryColor)
         
       param.draw(self, width, height) # allows current stats to modify the display
   
