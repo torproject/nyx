@@ -46,7 +46,7 @@ CACHE_ARGS = ("nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
+CONFIG = {"log.torCtlPortClosed": log.NOTICE, "log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -890,6 +890,7 @@ class Controller(TorCtl.PostEventListener):
     Called on any event occurance to note the time it occured.
     """
     
+    # alternative is to use the event's timestamp (via event.arrived_at)
     self.lastHeartbeat = time.time()
   
   def _getRelayAttr(self, key, default, cacheUndefined = True):
@@ -998,6 +999,10 @@ class Controller(TorCtl.PostEventListener):
     
     # resets cached getInfo parameters
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    
+    # gives a notice that the control port has closed
+    if eventType == TOR_CLOSED:
+      log.log(CONFIG["log.torCtlPortClosed"], "Tor control port closed")
     
     for callback in self.statusListeners:
       callback(self, eventType)

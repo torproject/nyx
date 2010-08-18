@@ -15,7 +15,7 @@ features.colorInterface true
 # Limits are to prevent big log files from causing a slow startup time. For
 # instance, if arm's only listening for ERR entries but the log has all
 # runlevels then this will add the first <prepopulateAddLimit> ERR entries and
-# stop reading after <prepopulateReadLimit> lines
+# stop reading after <prepopulateReadLimit> lines.
 
 features.log.prepopulate true
 features.log.prepopulateAddLimit 1000
@@ -78,6 +78,7 @@ log.refreshRate DEBUG
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
+log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetConf DEBUG
 log.sysCallMade DEBUG

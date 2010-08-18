@@ -272,7 +272,7 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if TOR_CTL_CLOSE_MSG in msg:
       # TorCtl providing notice that control port is closed
       self.controlPortClosed = True
-      log.log(log.NOTICE, "Tor control port closed")
+      #log.log(log.NOTICE, "Tor control port closed")
       
       # Allows the Controller to notice that tor's shut down.
       # TODO: should make the controller the torctl event listener rather than
