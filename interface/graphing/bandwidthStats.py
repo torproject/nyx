@@ -51,7 +51,7 @@ class BandwidthStats(graphPanel.GraphStats):
     self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
-    if self._config["features.graph.bw.accounting.show"]:
+    if eventType == torTools.TOR_INIT and self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
   
   def prepopulateFromState(self):
