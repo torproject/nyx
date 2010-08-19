@@ -113,17 +113,27 @@ class BandwidthStats(graphPanel.GraphStats):
     for line in stateFile:
       line = line.strip()
       
+      # According to the rep_hist_update_state() function the BWHistory*Ends
+      # correspond to the start of the following sampling period. Also, the
+      # most recent values of BWHistory*Values appear to be an incremental
+      # counter for the current sampling period. Hence, offsets are added to
+      # account for both.
+      
       if line.startswith("BWHistoryReadValues"):
         bwReadEntries = line[20:].split(",")
         bwReadEntries = [int(entry) / 1024.0 / 900 for entry in bwReadEntries]
+        bwReadEntries.pop()
       elif line.startswith("BWHistoryWriteValues"):
         bwWriteEntries = line[21:].split(",")
         bwWriteEntries = [int(entry) / 1024.0 / 900 for entry in bwWriteEntries]
+        bwWriteEntries.pop()
       elif line.startswith("BWHistoryReadEnds"):
         lastReadTime = time.mktime(time.strptime(line[18:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+        lastReadTime -= 900
         missingReadEntries = int((time.time() - lastReadTime) / 900)
       elif line.startswith("BWHistoryWriteEnds"):
         lastWriteTime = time.mktime(time.strptime(line[19:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+        lastWriteTime -= 900
         missingWriteEntries = int((time.time() - lastWriteTime) / 900)
     
     if not bwReadEntries or not bwWriteEntries or not lastReadTime or not lastWriteTime:
