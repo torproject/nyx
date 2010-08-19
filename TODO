@@ -144,7 +144,6 @@ TODO
       circuits at the exit
     * look at vidalia for ideas
     * need to solicit for ideas on what would be most helpful to clients
-  * interface option to change graph height
   * check if batch getInfo/getOption calls provide much performance benefit
   * layout (css) bugs with site
       Revise to use 'em' for measurements and somehow stretch image's y-margin?

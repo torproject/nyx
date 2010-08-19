@@ -622,16 +622,20 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         if page == 0:
           graphedStats = panels["graph"].currentDisplay
           if not graphedStats: graphedStats = "none"
-          popup.addfstr(1, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
-          popup.addfstr(1, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % graphing.graphPanel.UPDATE_INTERVALS[panels["graph"].updateInterval][0])
-          popup.addfstr(2, 2, "<b>b</b>: graph bounds (<b>%s</b>)" % graphing.graphPanel.BOUND_LABELS[panels["graph"].bounds])
-          popup.addfstr(2, 41, "<b>d</b>: file descriptors")
-          popup.addfstr(3, 2, "<b>e</b>: change logged events")
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll log up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll log down a line")
+          popup.addfstr(2, 2, "<b>m</b>: increase graph size")
+          popup.addfstr(2, 41, "<b>n</b>: decrease graph size")
+          popup.addfstr(3, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
+          popup.addfstr(3, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % graphing.graphPanel.UPDATE_INTERVALS[panels["graph"].updateInterval][0])
+          popup.addfstr(4, 2, "<b>b</b>: graph bounds (<b>%s</b>)" % graphing.graphPanel.BOUND_LABELS[panels["graph"].bounds])
+          popup.addfstr(4, 41, "<b>d</b>: file descriptors")
+          popup.addfstr(5, 2, "<b>e</b>: change logged events")
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(3, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addfstr(5, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
           
-          pageOverrideKeys = (ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
+          pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
         if page == 1:
           popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
@@ -890,6 +894,21 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       # reverts changes made for popup
       panels["graph"].showLabel = True
       setPauseState(panels, isPaused, page)
+    elif page == 0 and key in (ord('n'), ord('N'), ord('m'), ord('M')):
+      # Unfortunately modifier keys don't work with the up/down arrows (sending
+      # multiple keycodes. The only exception to this is shift + left/right,
+      # but for now just gonna use standard characters.
+      
+      if key in (ord('n'), ord('N')):
+        panels["graph"].setGraphHeight(panels["graph"].graphHeight - 1)
+      else:
+        # don't grow the graph if it's already consuming the whole display
+        # (plus an extra line for the graph/log gap)
+        maxHeight = panels["graph"].parent.getmaxyx()[0] - panels["graph"].top
+        currentHeight = panels["graph"].getHeight()
+        
+        if currentHeight < maxHeight + 1:
+          panels["graph"].setGraphHeight(panels["graph"].graphHeight + 1)
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP

@@ -29,6 +29,7 @@ UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
 
 DEFAULT_CONTENT_HEIGHT = 4 # space needed for labeling above and below the graph
 DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = "green", "cyan"
+MIN_GRAPH_HEIGHT = 1
 
 # enums for graph bounds:
 #   BOUNDS_GLOBAL_MAX - global maximum (highest value ever seen)
@@ -44,7 +45,7 @@ CONFIG = {"features.graph.height": 5, "features.graph.interval": 0, "features.gr
 
 def loadConfig(config):
   config.update(CONFIG)
-  CONFIG["features.graph.height"] = max(3, CONFIG["features.graph.height"])
+  CONFIG["features.graph.height"] = max(MIN_GRAPH_HEIGHT, CONFIG["features.graph.height"])
   CONFIG["features.graph.maxWidth"] = max(1, CONFIG["features.graph.maxWidth"])
   CONFIG["features.graph.interval"] = min(len(UPDATE_INTERVALS) - 1, max(0, CONFIG["features.graph.interval"]))
   CONFIG["features.graph.bound"] = min(2, max(0, CONFIG["features.graph.bound"]))
@@ -253,6 +254,17 @@ class GraphPanel(panel.Panel):
     if self.currentDisplay and self.stats[self.currentDisplay].isVisible():
       return self.stats[self.currentDisplay].getContentHeight() + self.graphHeight
     else: return 0
+  
+  def setGraphHeight(self, newGraphHeight):
+    """
+    Sets the preferred height used for the graph (restricted to the
+    MIN_GRAPH_HEIGHT minimum).
+    
+    Arguments:
+      newGraphHeight - new height for the graph
+    """
+    
+    self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
   
   def draw(self, subwindow, width, height):
     """ Redraws graph panel """
