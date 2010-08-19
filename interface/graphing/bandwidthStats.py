@@ -182,7 +182,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # if display is narrow, overwrites x-axis labels with avg / total stats
     if width <= COLLAPSE_WIDTH:
       # line of the graph's x-axis labeling
-      labelingLine = self.getContentHeight() + panel.graphHeight - 5
+      labelingLine = graphPanel.GraphStats.getContentHeight(self) + panel.graphHeight - 2
       
       # clears line
       panel.addstr(labelingLine, 0, " " * width)
