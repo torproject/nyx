@@ -28,6 +28,8 @@ LABEL_TB = ["tb", "terabyte", "terabytes"]
 # GETCONF aliases (from the _option_abbrevs struct of src/or/config.c)
 # fix for: https://trac.torproject.org/projects/tor/ticket/1798
 # TODO: remove if/when fixed in tor
+# TODO: the following alias entry doesn't work on Tor 0.2.1.19:
+# "HashedControlPassword": "__HashedControlSessionPassword"
 CONF_ALIASES = {"l": "Log",
                 "AllowUnverifiedNodes": "AllowInvalidNodes",
                 "AutomapHostSuffixes": "AutomapHostsSuffixes",
@@ -48,7 +50,6 @@ CONF_ALIASES = {"l": "Log",
                 "ServerDNSAllowBrokenResolvConf": "ServerDNSAllowBrokenConfig",
                 "PreferTunnelledDirConns": "PreferTunneledDirConns",
                 "BridgeAuthoritativeDirectory": "BridgeAuthoritativeDir",
-                "HashedControlPassword": "__HashedControlSessionPassword",
                 "StrictEntryNodes": "StrictNodes",
                 "StrictExitNodes": "StrictNodes"}
 
