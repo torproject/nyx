@@ -189,11 +189,11 @@ class BandwidthStats(graphPanel.GraphStats):
     self._processEvent(event.read / 1024.0, event.written / 1024.0)
   
   def draw(self, panel, width, height):
+    # line of the graph's x-axis labeling
+    labelingLine = graphPanel.GraphStats.getContentHeight(self) + panel.graphHeight - 2
+    
     # if display is narrow, overwrites x-axis labels with avg / total stats
     if width <= COLLAPSE_WIDTH:
-      # line of the graph's x-axis labeling
-      labelingLine = graphPanel.GraphStats.getContentHeight(self) + panel.graphHeight - 2
-      
       # clears line
       panel.addstr(labelingLine, 0, " " * width)
       graphCol = min((width - 10) / 2, self.maxCol)
