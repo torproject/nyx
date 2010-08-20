@@ -94,9 +94,6 @@ Layout:
   README       - um... guess you figured this one out
   TODO         - known issues, future plans, etc
   
-  screenshot_page1.png
-  screenshot_page2.png
-  
   init/
     __init__.py
     starter.py - parses and validates commandline parameters
