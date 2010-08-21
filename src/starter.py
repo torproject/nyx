@@ -10,9 +10,6 @@ import os
 import sys
 import getopt
 
-# includes parent directory rather than init in path (so sibling modules are included)
-sys.path[0] = sys.path[0][:-5]
-
 import interface.controller
 import interface.logPanel
 import util.conf

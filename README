@@ -94,39 +94,39 @@ Layout:
   README       - um... guess you figured this one out
   TODO         - known issues, future plans, etc
   
-  init/
+  src/arm/
     __init__.py
     starter.py - parses and validates commandline parameters
     prereq.py  - checks python version and for required packages
-  
-  interface/
-    graphing/
+    
+    interface/
+      graphing/
+        __init__.py
+        graphPanel.py     - (page 1) presents graphs for data instances
+        bandwidthStats.py - tracks tor bandwidth usage
+        psStats.py        - tracks system information (such as cpu/memory usage)
+        connStats.py      - tracks number of tor connections
+      
       __init__.py
-      graphPanel.py     - (page 1) presents graphs for data instances
-      bandwidthStats.py - tracks tor bandwidth usage
-      psStats.py        - tracks system information (such as cpu/memory usage)
-      connStats.py      - tracks number of tor connections
+      controller.py          - main display loop, handling input and layout
+      headerPanel.py         - top of all pages, providing general information
+      
+      logPanel.py            - (page 1) displays tor, arm, and torctl events
+      fileDescriptorPopup.py - (popup) displays file descriptors used by tor
+      
+      connPanel.py           - (page 2) displays information on tor connections
+      descriptorPopup.py     - (popup) displays connection descriptor data
+      
+      confPanel.py           - (page 3) displays torrc and performs validation
     
-    __init__.py
-    controller.py          - main display loop, handling input and layout
-    headerPanel.py         - top of all pages, providing general information
-    
-    logPanel.py            - (page 1) displays tor, arm, and torctl events
-    fileDescriptorPopup.py - (popup) displays file descriptors used by tor
-    
-    connPanel.py           - (page 2) displays information on tor connections
-    descriptorPopup.py     - (popup) displays connection descriptor data
-    
-    confPanel.py           - (page 3) displays torrc and performs validation
-  
-  util/
-    __init__.py
-    conf.py        - loading and persistence for user configuration
-    connections.py - service providing periodic connection lookups
-    hostnames.py   - service providing nonblocking reverse dns lookups
-    log.py         - aggregator for application events
-    panel.py       - wrapper for safely working with curses subwindows
-    sysTools.py    - helper for system calls, providing client side caching
-    torTools.py    - TorCtl wrapper, providing caching and derived information
-    uiTools.py     - helper functions for presenting the user interface
+    util/
+      __init__.py
+      conf.py        - loading and persistence for user configuration
+      connections.py - service providing periodic connection lookups
+      hostnames.py   - service providing nonblocking reverse dns lookups
+      log.py         - aggregator for application events
+      panel.py       - wrapper for safely working with curses subwindows
+      sysTools.py    - helper for system calls, providing client side caching
+      torTools.py    - TorCtl wrapper, providing caching and derived information
+      uiTools.py     - helper functions for presenting the user interface
 

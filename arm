@@ -1,8 +1,8 @@
 #!/bin/sh
-python init/prereq.py
+python src/arm/prereq.py
 
 if [ $? = 0 ]
 then
-  python -W ignore::DeprecationWarning init/starter.py $*
+  python -W ignore::DeprecationWarning src/arm/starter.py $*
 fi
 
