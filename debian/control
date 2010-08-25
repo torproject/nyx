@@ -1,4 +1,4 @@
-Source: arm
+Source: tor-arm
 Section: comm
 Priority: extra
 Maintainer: Damian Johnson <atagar@torproject.org>
@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), pyth
 Standards-Version: 3.8.4.0
 Homepage: http://www.atagar.com/arm
 
-Package: arm
+Package: tor-arm
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, python, lsb-base (>= 3.0-6)
 Suggests: tor
