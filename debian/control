@@ -1,0 +1,28 @@
+Source: arm
+Section: comm
+Priority: extra
+Maintainer: Damian Johnson <atagar@torproject.org>
+Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49)
+Standards-Version: 1.3.5.0
+Homepage: http://www.atagar.com/arm
+
+Package: arm
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, lsb-base (>= 3.0-6)
+Suggests: tor
+Description: Terminal tor status monitor
+ The anonymizing relay monitor (arm) is a terminal status monitor for Tor
+ relays, intended for command-line aficionados, ssh connections, and anyone
+ stuck with a tty terminal. This works much like top does for system usage,
+ providing real time statistics for:
+ .
+ * bandwidth, cpu, and memory usage
+ .
+ * relay's current configuration
+ .
+ * logged events
+ .
+ * connection details (ip, hostname, fingerprint, and consensus data)
+ .
+ * ... etc
+ .
