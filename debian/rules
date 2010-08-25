@@ -7,3 +7,17 @@ DEB_PYTHON_SYSTEM := pysupport
 	include /usr/share/cdbs/1/rules/debhelper.mk
 	include /usr/share/cdbs/1/class/python-distutils.mk
 
+build:
+	echo "nothing to build"
+
+binary-indep:
+	echo "nothing to binary-indep build"
+
+binary:
+	echo "nothing to binary build"
+
+binary-arch:
+	echo "nothing to binary-arch build"
+
+#clean:
+#	dh_clean $(call cdbs_add_dashx,$(DEB_CLEAN_EXCLUDE))
