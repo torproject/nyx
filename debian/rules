@@ -2,7 +2,7 @@
 # -*- makefile -*-
 export DH_VERBOSE=1
 
-	DEB_PYTHON_SYSTEM := pysupport
+DEB_PYTHON_SYSTEM := pysupport
 
 	include /usr/share/cdbs/1/rules/debhelper.mk
 	include /usr/share/cdbs/1/class/python-distutils.mk
