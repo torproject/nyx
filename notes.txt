@@ -2,5 +2,6 @@ TorCtl -
   Last Updated: 8/22/10 (c514a0a7105cebe7cc5fa199750b90369b820bfb):
   To update run the following:
     git clone git://git.torproject.org/pytorctl.git
+    cd pytorctl
     git archive master | tar -x -C /path/to/dependences/TorCtl/
 
