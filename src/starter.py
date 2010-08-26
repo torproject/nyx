@@ -20,6 +20,7 @@ import util.panel
 import util.sysTools
 import util.torTools
 import util.uiTools
+import TorCtl.TorCtl
 import TorCtl.TorUtil
 
 VERSION = "1.3.6_dev"
@@ -164,9 +165,9 @@ if __name__ == '__main__':
   
   # sets up TorCtl connection, prompting for the passphrase if necessary and
   # sending problems to stdout if they arise
-  util.torTools.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
+  TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get("startup.controlPassword", DEFAULTS["startup.controlPassword"])
-  conn = util.torTools.connect(controlAddr, controlPort, authPassword)
+  conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
   controller = util.torTools.getConn()
