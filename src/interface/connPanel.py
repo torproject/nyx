@@ -146,6 +146,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     # mapping of ip/port to fingerprint of family entries, used in hack to short circuit (ip / port) -> fingerprint lookups
     self.familyResolutions = {}
     
+    # mapping of family entries to fingerprints
+    self.familyFingerprints = {}
+    
     self.address = ""
     self.nickname = ""
     self.listenPort = "0"           # port used to identify inbound/outbound connections (from ORListenAddress if defined, otherwise ORPort)
@@ -171,6 +174,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   
   def resetOptions(self):
     self.familyResolutions = {}
+    self.familyFingerprints = {}
     
     try:
       self.address = "" # fetched when needed if unset
@@ -188,7 +192,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       
       # entry is None if not set, otherwise of the format "$<fingerprint>,$<fingerprint>"
       familyEntry = self.conn.get_option("MyFamily")[0][1]
-      if familyEntry: self.family = [entry[1:] for entry in familyEntry.split(",")]
+      if familyEntry: self.family = familyEntry.split(",")
       else: self.family = []
       
       self.isBridge = self.conn.get_option("BridgeRelay")[0][1] == "1"
@@ -201,6 +205,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       else: self.exitPolicy = self.conn.get_info("exit-policy/default")["exit-policy/default"]
       
       self.exitRejectPrivate = self.conn.get_option("ExitPolicyRejectPrivate")[0][1] == "1"
+      
+      self._resolveFamilyEntries()
     except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
       self.nickname = ""
       self.listenPort = None
@@ -229,6 +235,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   
   def new_desc_event(self, event):
     self.orconnStatusCacheValid = False
+    self._resolveFamilyEntries()
     
     for fingerprint in event.idlist:
       # clears entries with this fingerprint from the cache
@@ -378,9 +385,19 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       
       # appends family connections
       tmpCounter = 0 # used for unique port of unresolved family entries (funky hack)
-      for fingerprint in self.family:
+      for familyEntry in self.family:
+        # TODO: turns out that "ns/name/<OR nickname>" accpets fingerprint
+        # identifiers, so all this nickname -> fingerprint work is unnecessary,
+        # but used for fingerprint lookup performance in draw... this could be
+        # improved (might be completely unnecessary due to the fingerprint
+        # lookup cache)
+        fingerprint = None
+        if familyEntry in self.familyFingerprints:
+          fingerprint = self.familyFingerprints[familyEntry]
+        
         try:
-          nsCall = self.conn.get_network_status("id/%s" % fingerprint)
+          if fingerprint: nsCall = self.conn.get_network_status("id/%s" % fingerprint)
+          else: nsCall = self.conn.get_network_status("name/%s" % familyEntry)
           if nsCall: familyAddress, familyPort = nsCall[0].ip, nsCall[0].orport
           else: raise TorCtl.ErrorReply # network consensus couldn't be fetched
           
@@ -390,12 +407,12 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
           if (familyAddress, familyPort) in connTimes: connTime = connTimes[(familyAddress, familyPort)]
           else: connTime = time.time()
           
-          familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
+          if fingerprint: familyResolutionsTmp[(familyAddress, familyPort)] = fingerprint
           connectionsTmp.append(("family", familyAddress, familyPort, familyAddress, familyPort, familyCountryCode, connTime, False))
         except (socket.error, TorCtl.ErrorReply):
           # use dummy entry for sorting - the draw function notes that entries are unknown
           portIdentifier = str(65536 + tmpCounter)
-          familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
+          if fingerprint: familyResolutionsTmp[("256.255.255.255", portIdentifier)] = fingerprint
           connectionsTmp.append(("family", "256.255.255.255", portIdentifier, "256.255.255.255", portIdentifier, "??", time.time(), False))
           tmpCounter += 1
         except TorCtl.TorCtlClosed:
@@ -806,6 +823,28 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.connectionsLock.acquire()
     try: self.connections.sort(lambda x, y: _multisort(x, y, sorts))
     finally: self.connectionsLock.release()
+
+  def _resolveFamilyEntries(self):
+    """
+    Populates mappings of the torrc family entries to their fingerprints.
+    """
+    
+    self.familyFingerprints = {}
+    
+    for familyEntry in self.family:
+      if familyEntry[0] == "$":
+        # relay identified by fingerprint
+        self.familyFingerprints[familyEntry] = familyEntry[1:]
+      else:
+        # relay identified by nickname
+        descEntry = torTools.getConn().getInfo("desc/name/%s" % familyEntry)
+        
+        if descEntry:
+          fingerprintStart = descEntry.find("opt fingerprint") + 16
+          fingerprintEnd = descEntry.find("\n", fingerprintStart)
+          fingerprint = descEntry[fingerprintStart:fingerprintEnd].replace(" ", "")
+          
+          self.familyFingerprints[familyEntry] = fingerprint
 
 # recursively checks primary, secondary, and tertiary sorting parameter in ties
 def _multisort(conn1, conn2, sorts):
