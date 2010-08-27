@@ -55,6 +55,9 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
+# provides int -> str mappings for torctl event runlevels
+TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
+
 def loadConfig(config):
   config.update(CONFIG)
 
@@ -156,8 +159,7 @@ class Controller(TorCtl.PostEventListener):
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
     
     # directs TorCtl to notify us of events
-    TorUtil.loglevel = "DEBUG"
-    TorUtil.logfile = self
+    TorUtil.logger = self
   
   def init(self, conn=None):
     """
@@ -727,22 +729,17 @@ class Controller(TorCtl.PostEventListener):
   def unknown_event(self, event):
     self._updateHeartbeat()
   
-  def write(self, msg):
+  def log(self, level, msg, *args):
     """
-    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a file.
+    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a
+    logging.Logger instance.
     """
-    
-    timestampStart, timestampEnd = msg.find("["), msg.find("]")
-    level = msg[:timestampStart]
-    msg = msg[timestampEnd + 2:].strip()
     
     # notifies listeners of TorCtl events
-    for callback in self.torctlListeners: callback(level, msg)
+    for callback in self.torctlListeners: callback(TORCTL_RUNLEVELS[level], msg)
     
     # checks if TorCtl is providing a notice that control port is closed
     if TOR_CTL_CLOSE_MSG in msg: self.close()
-  
-  def flush(self): pass
   
   def _updateHeartbeat(self):
     """

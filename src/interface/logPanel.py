@@ -215,7 +215,8 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
     if "BW" in self.loggedEvents: self.registerEvent("BW", "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
   
   def msg_event(self, event):
-    self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
+    if event.level in self.loggedEvents:
+      self.registerEvent(event.level, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
   
   def new_desc_event(self, event):
     if "NEWDESC" in self.loggedEvents:
@@ -252,12 +253,15 @@ class LogMonitor(TorCtl.PostEventListener, panel.Panel):
   
   def monitor_event(self, level, msg):
     # events provided by the arm monitor
-    if "ARM_" + level in self.loggedEvents: self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+    if "ARM_" + level in self.loggedEvents:
+      self.registerEvent("ARM-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
   def tor_ctl_event(self, level, msg):
     # events provided by TorCtl
-    if "TORCTL_" + level in self.loggedEvents: self.registerEvent("TORCTL-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
+    if "TORCTL_" + level in self.loggedEvents:
+      self.registerEvent("TORCTL-%s" % level, msg, RUNLEVEL_EVENT_COLOR[level])
   
+  # TODO: deprecated (remove later)
   def write(self, msg):
     """
     Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a file.

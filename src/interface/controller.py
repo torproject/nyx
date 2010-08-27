@@ -404,8 +404,10 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   
   # directs logged TorCtl events to log panel
-  TorUtil.loglevel = "DEBUG"
-  TorUtil.logfile = panels["log"]
+  #TorUtil.loglevel = "DEBUG"
+  #TorUtil.logfile = panels["log"]
+  torTools.getConn().addTorCtlListener(panels["log"].tor_ctl_event)
+  
   
   # tells revised panels to run as daemons
   panels["header"].start()

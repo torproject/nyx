@@ -1,7 +1,7 @@
 #!/bin/sh
-if [ $0 = /usr/local/bin/arm ]
+if [ $0 = /usr/bin/arm ]
 then
-  arm_base=/usr/local/arm/
+  arm_base=/usr/arm/
 else
   arm_base=src/
 fi
