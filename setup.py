@@ -14,6 +14,7 @@ setup(name='arm',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
       scripts=["arm"],
+      data_files=[("/usr/share/man/man1", ["arm.1"])],
      )
 
 # Removes the egg_info file. Apparently it is not optional during setup
