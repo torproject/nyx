@@ -1,0 +1,16 @@
+#!/bin/sh
+files="/usr/bin/arm /usr/share/man/man1/arm.1 /usr/lib/arm"
+
+for i in $files 
+do
+  if [ -f $i -o -d $i ]; then
+    rm -rf $i
+    
+    if [ $? = 0 ]; then
+      echo "removed $i"
+    else
+      exit 1
+    fi
+  fi
+done
+

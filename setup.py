@@ -13,13 +13,16 @@ setup(name='arm',
       url='http://www.atagar.com/arm/',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
-      scripts=["arm"],
-      data_files=[("/usr/share/man/man1", ["arm.1"])],
+      data_files=[("/usr/share/man/man1", ["arm.1"]),
+                  ("/usr/bin", ["arm"])],
      )
 
 # Removes the egg_info file. Apparently it is not optional during setup
 # (hardcoded in distutils/command/install.py), nor are there any arguments to
 # bypass its creation.
-eggPath = '/usr/local/arm-%s.egg-info' % VERSION
-if os.path.isfile(eggPath): os.remove(eggPath)
+# TODO: not sure how to remove this from the deb build too...
+eggPath = '/usr/lib/arm-%s.egg-info' % VERSION
+if os.path.isfile(eggPath):
+  print "Removing %s" % eggPath
+  os.remove(eggPath)
 

@@ -19,5 +19,6 @@ binary:
 binary-arch:
 	echo "nothing to binary-arch build"
 
-#clean:
-#	dh_clean $(call cdbs_add_dashx,$(DEB_CLEAN_EXCLUDE))
+clean::
+	dh_clean
+

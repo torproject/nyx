@@ -3,12 +3,12 @@ Section: comm
 Priority: extra
 Maintainer: Damian Johnson <atagar@torproject.org>
 Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), python-dev
-Standards-Version: 3.8.4.0
+Standards-Version: 3.8.3
 Homepage: http://www.atagar.com/arm
 
 Package: tor-arm
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python, lsb-base (>= 3.0-6)
+Depends: ${misc:Depends}, ${python:Depends}
 Suggests: tor
 Description: Terminal tor status monitor
  The anonymizing relay monitor (arm) is a terminal status monitor for Tor

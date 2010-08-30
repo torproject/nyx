@@ -1,3 +1,8 @@
 #!/bin/sh
-python setup.py install
+python src/prereq.py
+
+if [ $? = 0 ]; then
+  python setup.py install --install-purelib /usr/lib
+  rm -rf ./build
+fi
 

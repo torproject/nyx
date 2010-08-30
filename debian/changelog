@@ -1,5 +1,5 @@
-tor-arm (0.1) unstable; urgency=low
+tor-arm (0.3.6) unstable; urgency=low
 
-  * Initial Release.
+  * Initial release.
 
- -- Damian Johnson <atagar@torproject.org>  Wed, 09 Jun 2010 00:41:55 +0200
+ -- Damian Johnson <atagar@torproject.org>  Mon, 30 Aug 2010 08:13:43 -0700
