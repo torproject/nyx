@@ -13,7 +13,7 @@ setup(name='arm',
       url='http://www.atagar.com/arm/',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
-      data_files=[("/usr/share/man/man1", ["arm.1"]),
+      data_files=[("/usr/share/man/man1", ["arm.1.gz"]),
                   ("/usr/bin", ["arm"])],
      )
 
