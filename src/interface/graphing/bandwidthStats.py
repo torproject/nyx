@@ -244,7 +244,7 @@ class BandwidthStats(graphPanel.GraphStats):
         else: return label
   
   def getHeaderLabel(self, width, isPrimary):
-    graphType = "Downloaded" if isPrimary else "Uploaded"
+    graphType = "Download" if isPrimary else "Upload"
     stats = [""]
     
     # if wide then avg and total are part of the header, otherwise they're on
