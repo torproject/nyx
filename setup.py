@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 from distutils.core import setup
 
 VERSION = '1.3.6_dev'
@@ -13,7 +14,7 @@ setup(name='arm',
       url='http://www.atagar.com/arm/',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
-      data_files=[("/usr/share/man/man1", ["arm.1.gz"]),
+      data_files=[("/usr/share/man/man1", ["debian/arm.1.gz"]),
                   ("/usr/bin", ["arm"])],
      )
 
@@ -23,6 +24,6 @@ setup(name='arm',
 # TODO: not sure how to remove this from the deb build too...
 eggPath = '/usr/lib/arm-%s.egg-info' % VERSION
 if os.path.isfile(eggPath):
-  print "Removing %s" % eggPath
+  if "-q" not in sys.argv: print "Removing %s" % eggPath
   os.remove(eggPath)
 

@@ -60,13 +60,12 @@ share and it should be fine.
 
 > Is there any chance that arm will leak data?
 
-Yes - arm is a passive listener with one exception. The second page
+Not by default, arm is a passive listener with one exception. The second page
 (connections) provides the hostnames of Tor relays you're connected to. This
 means reverse DNS lookups which, if monitored, could leak your current
-connections to an eavesdropper. However, lookups are only made upon request
-(when showing connection details or listing connections by hostname) and you
-can disable lookups entirely with 'r' - see the page's help for the current
-status.
+connections to an eavesdropper. However, this is disabled by default and
+lookups are only made upon request (when showing connection details or listing
+connections by hostname). See the page's help for how to enable lookups.
 
 That said, this is not a terribly big whoop. ISPs and anyone sniffing your
 connection already have this data - the only difference is that instead of

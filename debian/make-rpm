@@ -1,9 +1,10 @@
 #!/bin/sh
+cp debian/setup.cfg ./
 cp debian/MANIFEST ./
 python setup.py bdist_rpm
 
 # cleans up after rpm build
-files="build MANIFEST"
+files="build setup.cfg MANIFEST"
 
 for i in $files 
 do

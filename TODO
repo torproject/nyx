@@ -22,6 +22,8 @@ TODO
               events to be easily saved.
           - condense tor/arm log listing types if they're the same
               Ie, make default "TOR/ARM NOTICE - ERR"
+          - drop duplicate or overly verbose messages (feature request by asn)
+              check if asn wants to implement this when refactoring is done
         [ ] conf panel
           - move torrc validation into util
           - fetch text via getinfo rather than reading directly?
@@ -220,5 +222,6 @@ TODO
       startup time by several seconds)
   * follow up on control-spec proposals
       Proposal and related information is available at:
-      http://archives.seul.org/or/dev/Jun-2010/msg00008.html
+      https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
+      https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
 
