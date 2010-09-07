@@ -52,21 +52,15 @@ TODO
         [ ] allow arm to resume after restarting tor (attaching to a new torctl
             instance)
   [ ] setup scripts for arm
-        [ ] setup scrpt to add to /usr/bin/arm (requested by ioerror)
+        [X] setup scrpt to add to /usr/bin/arm (requested by ioerror)
+        [ ] updater (checks for a new tarball and installs it automatically)
         [ ] look into CAPs to get around permission issues for connection
             listing sudo wrapper for arm to help arm run as the same user as
             tor? Irc suggestions:
               - man capabilities
               - http://www.linuxjournal.com/article/5737
-        [-] provide Debian repository (for version 1.4.0)
-            Look into debian packaging, note system call dependencies, and mail
-            submit@bugs.debian.org with subject "RFP: arm" and starting with a
-            line "Package: wnpp". Also add to 'deb.torprojec.org'. (requested
-            by helmut)
-              * http://www.debian.org/doc/maint-guide/
-              * http://www.debian.org/doc/packaging-manuals/python-policy/
-              * http://showmedo.com/videotutorials/video?name=linuxJensMakingDeb
   * release prep
+    * ask helix about steps for getting a deb and rpm included in the tor repo
     * check performance of this version vs last version (general screen refresh
         times)
     * pylint --indent-string="  " --disable-msg-cat=CR interface/foo.py | less
@@ -145,9 +139,6 @@ TODO
     * look at vidalia for ideas
     * need to solicit for ideas on what would be most helpful to clients
   * check if batch getInfo/getOption calls provide much performance benefit
-  * layout (css) bugs with site
-      Revise to use 'em' for measurements and somehow stretch image's y-margin?
-      Maybe padding-bottom to match the content on the right?
   * page with details on client circuits, attempting to detect details like
       country, ISP, latency, exit policy for the circuit, traffic, etc
   * attempt to clear controller password from memory

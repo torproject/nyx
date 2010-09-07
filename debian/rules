@@ -17,7 +17,6 @@ binary:
 	echo "nothing to binary build"
 
 binary-arch:
-	echo "nothing to binary-arch build"
 
 clean::
 	dh_clean
