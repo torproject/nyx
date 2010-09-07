@@ -177,7 +177,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         exitPolicy = self.vals["tor/exitPolicy"]
         
         # adds note when default exit policy is appended
-        if exitPolicy == None: exitPolicy = "<default>"
+        if exitPolicy == "": exitPolicy = "<default>"
         elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
         
         # color codes accepts to be green, rejects to be red, and default marker to be cyan

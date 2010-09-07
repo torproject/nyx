@@ -198,6 +198,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       self.isBridge = self.conn.get_option("BridgeRelay")[0][1] == "1"
       
       policyEntries = torTools.getConn().getOption("ExitPolicy", multiple=True)
+      if not policyEntries: policyEntries = [] # if ExitPolicy is undefined, policyEntries is None
       self.exitPolicy = ",".join(policyEntries)
       self.exitPolicy = self.exitPolicy.replace("\\t", " ").replace("\"", "")
       
