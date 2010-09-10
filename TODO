@@ -55,6 +55,16 @@ TODO
             instance)
   [ ] setup scripts for arm
         [X] setup scrpt to add to /usr/bin/arm (requested by ioerror)
+        [ ] mac installer
+            Couple of options include macport and dmg...
+            - macport (http://guide.macports.org/#development)
+              Build-from-source distribution method (like BSD portinstall).
+              This has been suggested by several people.
+            
+            - dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
+              Most conventional method of software distribution on mac. This is
+              just a container (no updating/removal support), but could contain
+              an icon for the dock that starts a terminal with arm.
         [ ] updater (checks for a new tarball and installs it automatically)
         [ ] look into CAPs to get around permission issues for connection
             listing sudo wrapper for arm to help arm run as the same user as

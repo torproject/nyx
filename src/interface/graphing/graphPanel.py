@@ -41,7 +41,7 @@ BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.height": 5, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.frequentRefresh": True}
+CONFIG = {"features.graph.height": 7, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.showIntermediateBounds": True, "features.graph.frequentRefresh": True}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -285,16 +285,16 @@ class GraphPanel(panel.Panel):
       
       # determines max/min value on the graph
       if self.bounds == BOUNDS_GLOBAL_MAX:
-        primaryMaxBound = param.maxPrimary[self.updateInterval]
-        secondaryMaxBound = param.maxSecondary[self.updateInterval]
+        primaryMaxBound = int(param.maxPrimary[self.updateInterval])
+        secondaryMaxBound = int(param.maxSecondary[self.updateInterval])
       else:
         # both BOUNDS_LOCAL_MAX and BOUNDS_TIGHT use local maxima
         if graphCol < 2:
           # nothing being displayed
           primaryMaxBound, secondaryMaxBound = 0, 0
         else:
-          primaryMaxBound = max(param.primaryCounts[self.updateInterval][1:graphCol + 1])
-          secondaryMaxBound = max(param.secondaryCounts[self.updateInterval][1:graphCol + 1])
+          primaryMaxBound = int(max(param.primaryCounts[self.updateInterval][1:graphCol + 1]))
+          secondaryMaxBound = int(max(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
       
       primaryMinBound = secondaryMinBound = 0
       if self.bounds == BOUNDS_TIGHT:
@@ -306,12 +306,27 @@ class GraphPanel(panel.Panel):
         if primaryMinBound == primaryMaxBound: primaryMinBound = 0
         if secondaryMinBound == secondaryMaxBound: secondaryMinBound = 0
       
-      # displays bound
+      # displays upper and lower bounds
       self.addstr(2, 0, "%4i" % primaryMaxBound, primaryColor)
       self.addstr(self.graphHeight + 1, 0, "%4i" % primaryMinBound, primaryColor)
       
       self.addstr(2, graphCol + 5, "%4i" % secondaryMaxBound, secondaryColor)
       self.addstr(self.graphHeight + 1, graphCol + 5, "%4i" % secondaryMinBound, secondaryColor)
+      
+      # displays intermediate bounds on every other row
+      if CONFIG["features.graph.showIntermediateBounds"]:
+        ticks = (self.graphHeight - 3) / 2
+        for i in range(ticks):
+          row = self.graphHeight - (2 * i) - 3
+          if self.graphHeight % 2 == 0 and i >= (ticks / 2): row -= 1
+          
+          if primaryMinBound != primaryMaxBound:
+            primaryVal = (primaryMaxBound - primaryMinBound) / (self.graphHeight - 1) * (self.graphHeight - row - 1)
+            self.addstr(row + 2, 0, "%4i" % primaryVal, primaryColor)
+          
+          if secondaryMinBound != secondaryMaxBound:
+            secondaryVal = (secondaryMaxBound - secondaryMinBound) / (self.graphHeight - 1) * (self.graphHeight - row - 1)
+            self.addstr(row + 2, graphCol + 5, "%4i" % secondaryVal, secondaryColor)
       
       # creates bar graph (both primary and secondary)
       for col in range(graphCol):
