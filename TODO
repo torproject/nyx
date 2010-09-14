@@ -9,19 +9,17 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
         [ ] log panel
-          - option to clear log
-          - allow home/end keys to jump to start/end
-              also do this for the conn panel and conf panel (request by dun)
-          - make log parsing script stand alone, with syntax hilighting, regex,
-              sorting, etc
           - provide notice if tor supports events that arm doesn't
               getInfo("events/names") provides the space-separated listing
           - check what events TorCtl can provide us, and give notice if any are
               missing
-          - log to file? Is this acceptable? It would allow tor's non-runlevel
-              events to be easily saved.
+          - log to file, allowing non-runlevel events to be saved (provide both
+              a continuous option and snapshots taking into account the current
+              filter)
           - condense tor/arm log listing types if they're the same
               Ie, make default "TOR/ARM NOTICE - ERR"
+          - provide daily dividers (otherwise there's no indicator for the day)
+          - log cropping based on time (idea by voidzero)
           - drop duplicate or overly verbose messages (feature request by asn)
               check if asn wants to implement this when refactoring is done
         [ ] conf panel
@@ -49,6 +47,12 @@ TODO
   [ ] provide performance ARM-DEBUG events
       Help with diagnosing performance bottlenecks. This is pending the
       codebase revisions to figure out the low hanging fruit for caching.
+  [ ] email alerts for changes to the relay's status (similar to tor-weather)
+        [ ] simple alert if tor shuts down
+        [ ] accounting and alerts for if the bandwidth drops to zero
+        [ ] daily/weekly/etc alerts for basic status (log output, bandwidth
+            history, etc), borrowing from the consensus tracker for some of the
+            formatting
   [ ] tor util
         [X] wrapper for accessing torctl
         [ ] allow arm to resume after restarting tor (attaching to a new torctl
@@ -64,7 +68,14 @@ TODO
             - dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
               Most conventional method of software distribution on mac. This is
               just a container (no updating/removal support), but could contain
-              an icon for the dock that starts a terminal with arm.
+              an icon for the dock that starts a terminal with arm. This might
+              include a pkg installer.
+            
+            - mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
+              Plugin for distutils. Like most mac packaging, this can only run
+              on a mac. It also requires setuptools:
+              http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+            
         [ ] updater (checks for a new tarball and installs it automatically)
         [ ] look into CAPs to get around permission issues for connection
             listing sudo wrapper for arm to help arm run as the same user as
@@ -90,10 +101,11 @@ TODO
     * not catching events unexpected by arm
         Future tor and TorCtl revisions could provide new events - these should
         be given the "UNKNOWN" type.
-    * regex fails for multiline log entries (works for two lines, but not more)
-    * when logging no events still showing brackets
-        The current code for dynamically sizing the events label is kinda
-        tricky. Putting this off until revising this section.
+    * log prepopulation fails to limit entries to the current tor instance if
+        the file isn't logged to at the NOTICE level. Use timestamps as a
+        backup method, or just switch entirely?
+    * arm is triggering DEBUG level events
+        https://trac.torproject.org/projects/tor/ticket/1933
   
   * conf panel:
     * torrc validation doesn't catch if parameters are missing
@@ -124,7 +136,7 @@ TODO
     * connection uptimes shouldn't show fractions of a second
     * connections aren't cleared when control port closes
 
-- Features / Site
+- Features
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
       replace the orport, fingerprint, flags, etc)
@@ -156,7 +168,6 @@ TODO
   * attempt to clear controller password from memory
       http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
   * escaping function for uiTools' formatted strings
-  * tor-weather like functionality (email notices)
   * make update rates configurable via the ui
       Also provide option for saving these settings to the config
   * config option to cap resource usage
@@ -164,6 +175,9 @@ TODO
   * switch check of ip address validity to regex?
       match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
       http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
+  * look into using Enum2
+      TorCtl uses a specail class for enumerations. It's probably better than
+      my current range(1, X) approach.
   * audit tor connections
       Provide warnings if tor misbehaves, checks possibly including:
         - ensuring ExitPolicyRejectPrivate is being obeyed

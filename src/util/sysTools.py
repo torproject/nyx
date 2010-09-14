@@ -110,7 +110,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
       
       if isinstance(cachedResults, IOError):
         if IS_FAILURES_CACHED:
-          msg = "system call (cached failure): %s (age: %0.1f seconds, error: %s)" % (command, cacheAge, str(cachedResults))
+          msg = "system call (cached failure): %s (age: %0.1f, error: %s)" % (command, cacheAge, str(cachedResults))
           log.log(CONFIG["log.sysCallCached"], msg)
           
           if suppressExc: return None
@@ -119,7 +119,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
           # flag was toggled after a failure was cached - reissue call, ignoring the cache
           return call(command, 0, suppressExc, quiet)
       else:
-        msg = "system call (cached): %s (age: %0.1f seconds)" % (command, cacheAge)
+        msg = "system call (cached): %s (age: %0.1f)" % (command, cacheAge)
         log.log(CONFIG["log.sysCallCached"], msg)
         
         return cachedResults
@@ -160,7 +160,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
     else: raise errorExc
   else:
     # log call information and if we're caching then save the results
-    msg = "system call: %s (runtime: %0.2f seconds)" % (command, time.time() - startTime)
+    msg = "system call: %s (runtime: %0.2f)" % (command, time.time() - startTime)
     log.log(CONFIG["log.sysCallMade"], msg)
     
     if cacheAge > 0:

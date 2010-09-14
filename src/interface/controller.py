@@ -357,7 +357,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
     "header": headerPanel.HeaderPanel(stdscr, config),
     "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
-    "log": logPanel.LogMonitor(stdscr, conn, loggedEvents)}
+    "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
   
   # TODO: later it would be good to set the right 'top' values during initialization, 
   # but for now this is just necessary for the log panel (and a hack in the log...)
@@ -387,7 +387,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # listeners that update bandwidth and log panels with Tor status
   sighupTracker = sighupListener()
-  conn.add_event_listener(panels["log"])
+  #conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["graph"].stats["system resources"])
   if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
@@ -401,24 +401,26 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # tells Tor to listen to the events we're interested
   loggedEvents = setEventListening(loggedEvents, isBlindMode)
-  panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
+  #panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
+  panels["log"].setLoggedEvents(loggedEvents) # strips any that couldn't be set
   
   # directs logged TorCtl events to log panel
   #TorUtil.loglevel = "DEBUG"
   #TorUtil.logfile = panels["log"]
-  torTools.getConn().addTorCtlListener(panels["log"].tor_ctl_event)
+  #torTools.getConn().addTorCtlListener(panels["log"].tor_ctl_event)
   
   
   # tells revised panels to run as daemons
   panels["header"].start()
+  panels["log"].start()
   
   # warns if tor isn't updating descriptors
   try:
     if conn.get_option("FetchUselessDescriptors")[0][1] == "0" and conn.get_option("DirPort")[0][1] == "0":
-      warning = ["Descriptors won't be updated (causing some connection information to be stale) unless:", \
-                "  a. 'FetchUselessDescriptors 1' is set in your torrc", \
-                "  b. the directory service is provided ('DirPort' defined)", \
-                "  c. or tor is used as a client"]
+      warning = """Descriptors won't be updated (causing some connection information to be stale) unless:
+  a. 'FetchUselessDescriptors 1' is set in your torrc
+  b. the directory service is provided ('DirPort' defined)
+  c. or tor is used as a client"""
       log.log(log.WARN, warning)
   except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
@@ -458,7 +460,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         # if bandwidth graph is being shown then height might have changed
         if panels["graph"].currentDisplay == "bandwidth":
-          panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getPreferredHeight())
+          panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
         
         panels["torrc"].reset()
         sighupTracker.isReset = False
@@ -511,7 +513,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       for panelKey in (PAGE_S + PAGES[page]):
         # redrawing popup can result in display flicker when it should be hidden
         if panelKey != "popup":
-          if panelKey in ("header", "graph"):
+          if panelKey in ("header", "graph", "log"):
             # revised panel (handles its own content refreshing)
             panels[panelKey].redraw()
           else:
@@ -571,7 +573,10 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         # stops panel daemons
         panels["header"].stop()
+        panels["log"].stop()
+        
         panels["header"].join()
+        panels["log"].join()
         
         conn.close() # joins on TorCtl event thread
         break
@@ -636,8 +641,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
           popup.addfstr(5, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
+          popup.addfstr(6, 2, "<b>x</b>: clear event log")
           
-          pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'))
+          pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
         if page == 1:
           popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
@@ -725,6 +731,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         else: panels["graph"].setStats(options[selection].lower())
       
       selectiveRefresh(panels, page)
+      
+      # TODO: this shouldn't be necessary with the above refresh, but doesn't seem responsive otherwise...
+      panels["graph"].redraw(True)
     elif page == 0 and (key == ord('i') or key == ord('I')):
       # provides menu to pick graph panel update interval
       options = [label for (label, intervalTime) in graphing.graphPanel.UPDATE_INTERVALS]
@@ -769,6 +778,8 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         panel.CURSES_LOCK.release()
+      
+      panels["graph"].redraw(True)
     elif page == 0 and (key == ord('e') or key == ord('E')):
       # allow user to enter new types of events to log - unchanged if left blank
       panel.CURSES_LOCK.acquire()
@@ -814,7 +825,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
             loggedEvents = setEventListening(expandedEvents, isBlindMode)
-            panels["log"].loggedEvents = loggedEvents
+            panels["log"].setLoggedEvents(loggedEvents)
           except ValueError, exc:
             panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
             panels["control"].redraw(True)
@@ -828,6 +839,8 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
+      
+      panels["graph"].redraw(True)
     elif page == 0 and (key == ord('f') or key == ord('F')):
       # provides menu to pick previous regular expression filters or to add a new one
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
@@ -844,7 +857,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       
       # applies new setting
       if selection == 0:
-        panels["log"].regexFilter = None
+        panels["log"].setFilter(None)
       elif selection == len(options) - 1:
         # selected 'New...' option - prompt user to input regular expression
         panel.CURSES_LOCK.acquire()
@@ -869,7 +882,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           
           if regexInput != "":
             try:
-              panels["log"].regexFilter = re.compile(regexInput)
+              panels["log"].setFilter(re.compile(regexInput))
               if regexInput in regexFilters: regexFilters.remove(regexInput)
               regexFilters = [regexInput] + regexFilters
             except re.error, exc:
@@ -881,7 +894,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           panel.CURSES_LOCK.release()
       elif selection != -1:
         try:
-          panels["log"].regexFilter = re.compile(regexFilters[selection - 1])
+          panels["log"].setFilter(re.compile(regexFilters[selection - 1]))
           
           # move selection to top
           regexFilters = [regexFilters[selection - 1]] + regexFilters
@@ -896,6 +909,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       # reverts changes made for popup
       panels["graph"].showLabel = True
       setPauseState(panels, isPaused, page)
+      panels["graph"].redraw(True)
     elif page == 0 and key in (ord('n'), ord('N'), ord('m'), ord('M')):
       # Unfortunately modifier keys don't work with the up/down arrows (sending
       # multiple keycodes. The only exception to this is shift + left/right,
@@ -911,6 +925,26 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         if currentHeight < maxHeight + 1:
           panels["graph"].setGraphHeight(panels["graph"].graphHeight + 1)
+    elif page == 0 and (key == ord('x') or key == ord('X')):
+      # provides prompt to confirm that arm should clear the log
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        panels["control"].setMsg("This will clear the log. Are you sure (x again to confirm)?", curses.A_BOLD)
+        panels["control"].redraw(True)
+        
+        curses.cbreak()
+        confirmationKey = stdscr.getch()
+        if confirmationKey in (ord('x'), ord('X')): panels["log"].clear()
+        
+        # reverts display settings
+        curses.halfdelay(REFRESH_RATE * 10)
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
+      finally:
+        panel.CURSES_LOCK.release()
     elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP

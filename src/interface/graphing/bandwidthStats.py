@@ -20,7 +20,7 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
-DEFAULT_CONFIG = {"features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateSuccess": log.NOTICE, "log.graph.bw.prepopulateFailure": log.NOTICE}
+DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False, "features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateSuccess": log.NOTICE, "log.graph.bw.prepopulateFailure": log.NOTICE}
 
 class BandwidthStats(graphPanel.GraphStats):
   """
@@ -254,7 +254,7 @@ class BandwidthStats(graphPanel.GraphStats):
       stats[1] = "- %s" % self._getAvgLabel(isPrimary)
       stats[2] = ", %s" % self._getTotalLabel(isPrimary)
     
-    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1))
+    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"]))
     
     # drops label's components if there's not enough space
     labeling = graphType + " (" + "".join(stats).strip() + "):"
@@ -280,39 +280,40 @@ class BandwidthStats(graphPanel.GraphStats):
     conn = torTools.getConn()
     if not conn.isAlive(): return # keep old values
     
-    myFingerprint = conn.getMyFingerprint()
+    myFingerprint = conn.getInfo("fingerprint")
     if not self._titleStats or not myFingerprint or (event and myFingerprint in event.idlist):
       stats = []
       bwRate = conn.getMyBandwidthRate()
       bwBurst = conn.getMyBandwidthBurst()
       bwObserved = conn.getMyBandwidthObserved()
       bwMeasured = conn.getMyBandwidthMeasured()
+      labelInBytes = self._config["features.graph.bw.transferInBytes"]
       
       if bwRate and bwBurst:
-        bwRateLabel = uiTools.getSizeLabel(bwRate, 1)
-        bwBurstLabel = uiTools.getSizeLabel(bwBurst, 1)
+        bwRateLabel = uiTools.getSizeLabel(bwRate, 1, False, labelInBytes)
+        bwBurstLabel = uiTools.getSizeLabel(bwBurst, 1, False, labelInBytes)
         
         # if both are using rounded values then strip off the ".0" decimal
         if ".0" in bwRateLabel and ".0" in bwBurstLabel:
           bwRateLabel = bwRateLabel.replace(".0", "")
           bwBurstLabel = bwBurstLabel.replace(".0", "")
         
-        stats.append("limit: %s" % bwRateLabel)
-        stats.append("burst: %s" % bwBurstLabel)
+        stats.append("limit: %s/s" % bwRateLabel)
+        stats.append("burst: %s/s" % bwBurstLabel)
       
       # Provide the observed bandwidth either if the measured bandwidth isn't
       # available or if the measured bandwidth is the observed (this happens
       # if there isn't yet enough bandwidth measurements).
       if bwObserved and (not bwMeasured or bwMeasured == bwObserved):
-        stats.append("observed: %s" % uiTools.getSizeLabel(bwObserved, 1))
+        stats.append("observed: %s/s" % uiTools.getSizeLabel(bwObserved, 1, False, labelInBytes))
       elif bwMeasured:
-        stats.append("measured: %s" % uiTools.getSizeLabel(bwMeasured, 1))
+        stats.append("measured: %s/s" % uiTools.getSizeLabel(bwMeasured, 1, False, labelInBytes))
       
       self._titleStats = stats
   
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick)) * 1024, 1)
+    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick)) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"])
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal

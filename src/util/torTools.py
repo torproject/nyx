@@ -12,7 +12,6 @@ fetch a TorCtl instance to experiment with use the following:
 import os
 import time
 import socket
-import getpass
 import thread
 import threading
 
@@ -39,9 +38,12 @@ FAILED_EVENTS = set()
 
 CONTROLLER = None # singleton Controller instance
 
-# valid keys for the controller's getInfo cache
-CACHE_ARGS = ("nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "fingerprint", "pid")
+# Valid keys for the controller's getInfo cache. This includes static GETINFO
+# options (unchangable, even with a SETCONF) and other useful stats
+CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
+              "config/names", "info/names", "features/names", "events/names",
+              "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
+              "bwMeasured", "flags", "pid")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -90,7 +92,7 @@ def getPid(controlPort=9051, pidFilePath=None):
       pidFile.close()
       
       if pidEntry.isdigit(): return pidEntry
-    except Exception: pass
+    except: pass
   
   # attempts to resolve using pidof, failing if:
   # - tor's running under a different name
@@ -160,6 +162,7 @@ class Controller(TorCtl.PostEventListener):
     
     # directs TorCtl to notify us of events
     TorUtil.logger = self
+    TorUtil.loglevel = "DEBUG"
   
   def init(self, conn=None):
     """
@@ -172,7 +175,7 @@ class Controller(TorCtl.PostEventListener):
     """
     
     if conn == None:
-      conn = connect()
+      conn = TorCtl.connect()
       
       if conn == None: raise ValueError("Unable to initialize TorCtl instance.")
     
@@ -268,16 +271,24 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     startTime = time.time()
-    result, raisedExc = default, None
+    result, raisedExc, isFromCache = default, None, False
     if self.isAlive():
-      try:
-        getInfoVal = self.conn.get_info(param)[param]
-        if getInfoVal != None: result = getInfoVal
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-        if type(exc) == TorCtl.TorCtlClosed: self.close()
-        raisedExc = exc
+      if param in CACHE_ARGS and self._cachedParam[param]:
+        result = self._cachedParam[param]
+        isFromCache = True
+      else:
+        try:
+          getInfoVal = self.conn.get_info(param)[param]
+          if getInfoVal != None: result = getInfoVal
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+          if type(exc) == TorCtl.TorCtlClosed: self.close()
+          raisedExc = exc
     
-    msg = "tor control call: GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+    if not isFromCache and result and param in CACHE_ARGS:
+      self._cachedParam[param] = result
+    
+    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
+    msg = "GETINFO %s (%s)" % (param, runtimeLabel)
     log.log(CONFIG["log.torGetInfo"], msg)
     
     self.connLock.release()
@@ -285,6 +296,9 @@ class Controller(TorCtl.PostEventListener):
     if not suppressExc and raisedExc: raise raisedExc
     else: return result
   
+  # TODO: This could have client side caching if there were events to indicate
+  # SETCONF events. Ask if these can be added to tor (then ask mike if he wants
+  # client side caching included in TorCtl?).
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
     Queries the control port for the given configuration option, providing the
@@ -317,7 +331,7 @@ class Controller(TorCtl.PostEventListener):
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         result, raisedExc = default, exc
     
-    msg = "tor control call: GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
+    msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
     log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
@@ -403,16 +417,6 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("bwMeasured", default)
-  
-  def getMyFingerprint(self, default = None):
-    """
-    Provides the fingerprint for this relay.
-    
-    Arguments:
-      default - result if the query fails
-    """
-    
-    return self._getRelayAttr("fingerprint", default, False)
   
   def getMyFlags(self, default = None):
     """
@@ -611,6 +615,7 @@ class Controller(TorCtl.PostEventListener):
       if not issueSighup:
         try:
           self.conn.send_signal("RELOAD")
+          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
           # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
@@ -653,6 +658,8 @@ class Controller(TorCtl.PostEventListener):
             
             if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
             else: raise IOError("failed silently")
+          
+          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
         except IOError, exc:
           raisedException = exc
     
@@ -677,7 +684,7 @@ class Controller(TorCtl.PostEventListener):
   def ns_event(self, event):
     self._updateHeartbeat()
     
-    myFingerprint = self.getMyFingerprint()
+    myFingerprint = self.getInfo("fingerprint")
     if myFingerprint:
       for ns in event.nslist:
         if ns.idhex == myFingerprint:
@@ -700,7 +707,7 @@ class Controller(TorCtl.PostEventListener):
   def new_desc_event(self, event):
     self._updateHeartbeat()
     
-    myFingerprint = self.getMyFingerprint()
+    myFingerprint = self.getInfo("fingerprint")
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
@@ -772,7 +779,7 @@ class Controller(TorCtl.PostEventListener):
     if not currentVal and self.isAlive():
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
-        myFingerprint = self.getMyFingerprint()
+        myFingerprint = self.getInfo("fingerprint")
         
         if myFingerprint:
           queryType = "ns" if key == "nsEntry" else "desc"
@@ -819,13 +826,6 @@ class Controller(TorCtl.PostEventListener):
             bwValue = line[12:]
             if bwValue.isdigit(): result = int(bwValue)
             break
-      elif key == "fingerprint":
-        # Fingerprints are kept until sighup if set (most likely not even a
-        # setconf can change it since it's in the data directory). If orport is
-        # unset then no fingerprint will be set.
-        orPort = self.getOption("ORPort", "0")
-        if orPort == "0": result = UNKNOWN
-        else: result = self.getInfo("fingerprint")
       elif key == "flags":
         for line in self.getMyNetworkStatus([]):
           if line.startswith("s "):

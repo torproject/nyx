@@ -440,7 +440,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   
   def handleKey(self, key):
     # cursor or scroll movement
-    if key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
+    
+    #if key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
+    if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       if self.showingDetails: pageHeight -= 8
       
@@ -457,6 +459,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         elif key == curses.KEY_DOWN: shift = 1
         elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if self.isCursorEnabled else -pageHeight
         elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if self.isCursorEnabled else pageHeight
+        elif key == curses.KEY_HOME: shift = -currentLoc
+        elif key == curses.KEY_END: shift = len(self.connections) # always below the lower bound
         newLoc = currentLoc + shift
         
         # restricts to valid bounds

@@ -328,7 +328,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/address"] == "Unknown":
       volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
     
-    volatile["tor/fingerprint"] = conn.getMyFingerprint(self.vals["tor/fingerprint"])
+    volatile["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     volatile["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
     
     # ps derived stats

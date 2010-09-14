@@ -41,7 +41,7 @@ BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.height": 7, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.showIntermediateBounds": True, "features.graph.frequentRefresh": True}
+CONFIG = {"features.graph.height": 7, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.showIntermediateBounds": True}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -107,12 +107,10 @@ class GraphStats(TorCtl.PostEventListener):
     """
     
     if self._graphPanel and not self.isPauseBuffer and not self.isPaused:
-      if CONFIG["features.graph.frequentRefresh"]: return True
-      else:
-        updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
-        if (self.tick + 1) % updateRate == 0: return True
-    
-    return False
+      # use the minimum of the current refresh rate and the panel's
+      updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
+      return (self.tick + 1) % min(updateRate, self.getRefreshRate()) == 0
+    else: return False
   
   def getTitle(self, width):
     """
@@ -141,6 +139,14 @@ class GraphStats(TorCtl.PostEventListener):
     """
     
     return DEFAULT_CONTENT_HEIGHT
+  
+  def getRefreshRate(self):
+    """
+    Provides the number of ticks between when the stats have new values to be
+    redrawn.
+    """
+    
+    return 1
   
   def isVisible(self):
     """

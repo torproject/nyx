@@ -9,17 +9,17 @@ features.colorInterface true
 
 # log panel parameters
 # prepopulate: attempts to read past events from the log file if true
-# prepopulateAddLimit: maximum entries added from the log file
 # prepopulateReadLimit: maximum entries read from the log file
+# maxRefreshRate: rate limiting (in milliseconds) for drawing the log if
+#     updates are made rapidly (for instance, when at the DEBUG runlevel)
 # 
 # Limits are to prevent big log files from causing a slow startup time. For
 # instance, if arm's only listening for ERR entries but the log has all
-# runlevels then this will add the first <prepopulateAddLimit> ERR entries and
-# stop reading after <prepopulateReadLimit> lines.
+# runlevels then this will stop reading after <prepopulateReadLimit> lines.
 
 features.log.prepopulate true
-features.log.prepopulateAddLimit 1000
 features.log.prepopulateReadLimit 5000
+features.log.maxRefreshRate 300
 
 # general graph parameters
 # height:   height of graphed stats
@@ -29,7 +29,6 @@ features.log.prepopulateReadLimit 5000
 # bound:    0 -> global maxima,        1 -> local maxima, 2 -> tight
 # type:     0 -> None, 1 -> Bandwidth, 2 -> Connections,  3 -> System Resources
 # showIntermediateBounds: shows y-axis increments between the top/bottom bounds
-# frequentRefrsh: updates stats each second if true, otherwise matches interval
 
 features.graph.height 7
 features.graph.maxWidth 150
@@ -37,7 +36,6 @@ features.graph.interval 0
 features.graph.bound 1
 features.graph.type 1
 features.graph.showIntermediateBounds true
-features.graph.frequentRefresh true
 
 # ps graph parameters
 # primary/secondaryStat: any numeric field provided by the ps command
@@ -49,6 +47,7 @@ features.graph.ps.secondaryStat rss
 features.graph.ps.cachedOnly true
 
 features.graph.bw.prepopulate true
+features.graph.bw.transferInBytes false
 features.graph.bw.accounting.show true
 features.graph.bw.accounting.rate 10
 features.graph.bw.accounting.isTimeLong false
@@ -95,6 +94,8 @@ log.graph.ps.invalidStat WARN
 log.graph.ps.abandon WARN
 log.graph.bw.prepopulateSuccess NOTICE
 log.graph.bw.prepopulateFailure NOTICE
+log.logPanel.prepopulateSuccess INFO
+log.logPanel.prepopulateFailed WARN
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN

@@ -48,4 +48,7 @@ class ConnStats(graphPanel.GraphStats):
     avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
     if isPrimary: return "Inbound (%s, avg: %s):" % (self.lastPrimary, avg)
     else: return "Outbound (%s, avg: %s):" % (self.lastSecondary, avg)
+  
+  def getRefreshRate(self):
+    return 5
 

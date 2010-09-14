@@ -21,13 +21,17 @@ COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
 COLOR_ATTR_INITIALIZED = False
 COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 
-# value tuples for label conversions (bytes / seconds, short label, long label)
-SIZE_UNITS = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
-              (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
-              (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
+# value tuples for label conversions (bits / bytes / seconds, short label, long label)
+SIZE_UNITS_BITS =  [(140737488355328.0, " Pb", " Petabit"), (137438953472.0, " Tb", " Terabit"),
+                    (134217728.0, " Gb", " Gigabit"),       (131072.0, " Mb", " Megabit"),
+                    (128.0, " Kb", " Kilobit"),             (0.125, " b", " Bit")]
+SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
+                    (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
+                    (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
 TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
               (60.0, "m", " minute"),                   (1.0, "s", " second")]
 
+SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True, "log.cursesColorSupport": log.INFO}
 
 def loadConfig(config):
@@ -103,7 +107,80 @@ def cropStr(msg, size, minWordLen = 4, addEllipse = True):
     if addEllipse: returnMsg += "..."
     return returnMsg
 
-def getSizeLabel(bytes, decimal = 0, isLong = False):
+def splitLine(message, width, indent = "  "):
+  """
+  Divides message into two lines, attempting to do it on a wordbreak. This
+  adds an ellipse if the second line is too long.
+  
+  Arguments:
+    message - string being divided
+    width   - maximum width constraint for the split
+    indent  - addition made to the start of the second line
+  """
+  
+  if len(message) < width: return (message, "")
+  
+  lastWordbreak = message[:width].rfind(" ")
+  if width - lastWordbreak < 10:
+    line1 = message[:lastWordbreak]
+    line2 = "%s%s" % (indent, message[lastWordbreak:].strip())
+  else:
+    # over ten characters until the last word - dividing
+    line1 = "%s-" % message[:width - 2]
+    line2 = "%s%s" % (indent, message[width - 2:].strip())
+  
+  # ends line with ellipsis if too long
+  if len(line2) > width:
+    lastWordbreak = line2[:width - 4].rfind(" ")
+    
+    # doesn't use wordbreak if it's a long word or the whole line is one 
+    # word (picking up on two space indent to have index 1)
+    if width - lastWordbreak > 10 or lastWordbreak == 1: lastWordbreak = width - 4
+    line2 = "%s..." % line2[:lastWordbreak]
+  
+  return (line1, line2)
+
+def isScrollKey(key):
+  """
+  Returns true if the keycode is recognized by the getScrollPosition function
+  for scrolling.
+  """
+  
+  return key in SCROLL_KEYS
+
+def getScrollPosition(key, position, pageHeight, contentHeight):
+  """
+  Parses navigation keys, providing the new scroll possition the panel should
+  use. Position is always between zero and (contentHeight - pageHeight). This
+  handles the following keys:
+  Up / Down - scrolls a position up or down
+  Page Up / Page Down - scrolls by the pageHeight
+  Home - top of the content
+  End - bottom of the content
+  
+  This provides the input position if the key doesn't correspond to the above.
+  
+  Arguments:
+    key           - keycode for the user's input
+    position      - starting position
+    pageHeight    - size of a single screen's worth of content
+    contentHeight - total lines of content that can be scrolled
+  """
+  
+  if isScrollKey(key):
+    shift = 0
+    if key == curses.KEY_UP: shift = -1
+    elif key == curses.KEY_DOWN: shift = 1
+    elif key == curses.KEY_PPAGE: shift = -pageHeight
+    elif key == curses.KEY_NPAGE: shift = pageHeight
+    elif key == curses.KEY_HOME: shift = -contentHeight
+    elif key == curses.KEY_END: shift = contentHeight
+    
+    # returns the shift, restricted to valid bounds
+    return max(0, min(position + shift, contentHeight - pageHeight))
+  else: return position
+
+def getSizeLabel(bytes, decimal = 0, isLong = False, isBytes=True):
   """
   Converts byte count into label in its most significant units, for instance
   7500 bytes would return "7 KB". If the isLong option is used this expands
@@ -119,9 +196,11 @@ def getSizeLabel(bytes, decimal = 0, isLong = False):
     bytes   - source number of bytes for conversion
     decimal - number of decimal digits to be included
     isLong  - expands units label
+    isBytes - provides units in bytes if true, bits otherwise
   """
   
-  return _getLabel(SIZE_UNITS, bytes, decimal, isLong)
+  if isBytes: return _getLabel(SIZE_UNITS_BYTES, bytes, decimal, isLong)
+  else: return _getLabel(SIZE_UNITS_BITS, bytes, decimal, isLong)
 
 def getTimeLabel(seconds, decimal = 0, isLong = False):
   """

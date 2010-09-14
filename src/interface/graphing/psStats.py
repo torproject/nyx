@@ -4,7 +4,7 @@ graph. By default this provides the cpu and memory usage of the tor process.
 """
 
 import graphPanel
-from util import log, sysTools, torTools, uiTools
+from util import conf, log, sysTools, torTools, uiTools
 
 # number of subsequent failed queries before giving up
 FAILURE_THRESHOLD = 5
@@ -42,6 +42,12 @@ class PsStats(graphPanel.GraphStats):
   
   def getTitle(self, width):
     return "System Resources:"
+  
+  def getRefreshRate(self):
+    # provides the rate at which the panel has new stats to display
+    if self._config["features.graph.ps.cachedOnly"]:
+      return int(conf.getConfig("arm").get("queries.ps.rate"))
+    else: return 1
   
   def getHeaderLabel(self, width, isPrimary):
     avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)

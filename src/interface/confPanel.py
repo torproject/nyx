@@ -27,7 +27,7 @@ LABEL_TB = ["tb", "terabyte", "terabytes"]
 
 # GETCONF aliases (from the _option_abbrevs struct of src/or/config.c)
 # fix for: https://trac.torproject.org/projects/tor/ticket/1798
-# TODO: remove if/when fixed in tor
+# TODO: this has been fixed in tor- wait for a while then retest and remove
 # TODO: the following alias entry doesn't work on Tor 0.2.1.19:
 # "HashedControlPassword": "__HashedControlSessionPassword"
 CONF_ALIASES = {"l": "Log",
@@ -203,11 +203,10 @@ class ConfPanel(panel.Panel):
     return resetSuccessful
   
   def handleKey(self, key):
-    pageHeight = self.getPreferredSize()[0] - 1
-    if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
-    elif key == curses.KEY_DOWN: self.scroll = max(0, min(self.scroll + 1, len(self.confContents) - pageHeight))
-    elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - pageHeight, 0)
-    elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + pageHeight, len(self.confContents) - pageHeight))
+    if uiTools.isScrollKey(key):
+      pageHeight = self.getPreferredSize()[0] - 1
+      contentHeight = len(self.confContents)
+      self.scroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, contentHeight)
     elif key == ord('n') or key == ord('N'): self.showLineNum = not self.showLineNum
     elif key == ord('s') or key == ord('S'):
       self.stripComments = not self.stripComments
