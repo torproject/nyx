@@ -85,6 +85,7 @@ log.configEntryTypeError NOTICE
 log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetConf DEBUG
+log.torEventTypeUnrecognized NOTICE
 log.sysCallMade DEBUG
 log.sysCallCached NONE
 log.sysCallFailed INFO

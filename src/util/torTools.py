@@ -297,8 +297,8 @@ class Controller(TorCtl.PostEventListener):
     else: return result
   
   # TODO: This could have client side caching if there were events to indicate
-  # SETCONF events. Ask if these can be added to tor (then ask mike if he wants
-  # client side caching included in TorCtl?).
+  # SETCONF events. See:
+  # https://trac.torproject.org/projects/tor/ticket/1692
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
     Queries the control port for the given configuration option, providing the

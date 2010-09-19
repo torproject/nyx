@@ -42,7 +42,7 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"logging.rate.refreshRate": 5, "features.graph.type": 1, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
+CONFIG = {"logging.rate.refreshRate": 5, "features.graph.type": 1, "log.torEventTypeUnrecognized": log.NOTICE, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -259,6 +259,7 @@ def setEventListening(selectedEvents, isBlindMode):
   # puzzling results otherwise when trying to discard entries (silently
   # returning out of this function!)
   events = set(selectedEvents)
+  isLoggingUnknown = "UNKNOWN" in events
   
   # removes special types only used in arm (UNKNOWN, TORCTL, ARM_DEBUG, etc)
   toDiscard = []
@@ -266,6 +267,10 @@ def setEventListening(selectedEvents, isBlindMode):
     if eventType not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [eventType]
   
   for eventType in list(toDiscard): events.discard(eventType)
+  
+  # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
+  if isLoggingUnknown:
+    events.update(set(logPanel.getMissingEventTypes()))
   
   setEvents = torTools.getConn().setControllerEvents(list(events))
   
@@ -409,6 +414,11 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   #TorUtil.logfile = panels["log"]
   #torTools.getConn().addTorCtlListener(panels["log"].tor_ctl_event)
   
+  # provides a notice about any event types tor supports but arm doesn't
+  missingEventTypes = logPanel.getMissingEventTypes()
+  if missingEventTypes:
+    pluralLabel = "s" if len(missingEventTypes) > 1 else ""
+    log.log(CONFIG["log.torEventTypeUnrecognized"], "arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (pluralLabel, ", ".join(missingEventTypes)))
   
   # tells revised panels to run as daemons
   panels["header"].start()

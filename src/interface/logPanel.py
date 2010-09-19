@@ -92,6 +92,21 @@ def expandEvents(eventAbbr):
   if invalidFlags: raise ValueError(invalidFlags)
   else: return expandedEvents
 
+def getMissingEventTypes():
+  """
+  Provides the event types the current torctl connection supports but arm
+  doesn't. This provides an empty list if no event types are missing, and None
+  if the GETINFO query fails.
+  """
+  
+  torEventTypes = torTools.getConn().getInfo("events/names")
+  
+  if torEventTypes:
+    torEventTypes = torEventTypes.split(" ")
+    armEventTypes = TOR_EVENT_TYPES.values()
+    return [event for event in torEventTypes if not event in armEventTypes]
+  else: return None # GETINFO call failed
+
 def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   """
   Parses tor's log file for past events matching the given runlevels, providing
@@ -611,28 +626,56 @@ class LogPanel(panel.Panel, threading.Thread):
       # does the following with all runlevel types (tor, arm, and torctl):
       # - pulls to the start of the list
       # - condenses range if there's three or more in a row (ex. "ARM_INFO - WARN")
+      # - condense further if there's identical runlevel ranges for multiple
+      #   types (ex. "NOTICE - ERR, ARM_NOTICE - ERR" becomes "TOR/ARM NOTICE - ERR")
       tmpRunlevels = [] # runlevels pulled from the list (just the runlevel part)
+      runlevelRanges = [] # tuple of type, startLevel, endLevel for ranges to be consensed
+      
+      # reverses runlevels and types so they're appended in the right order
+      reversedRunlevels = list(RUNLEVELS)
+      reversedRunlevels.reverse()
       for prefix in ("TORCTL_", "ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end
-        for runlevel in RUNLEVELS + [""]:
+        for runlevel in reversedRunlevels + [""]:
           eventType = prefix + runlevel
-          if eventType in eventsList:
+          if runlevel and eventType in eventsList:
             # runlevel event found, move to the tmp list
             eventsList.remove(eventType)
             tmpRunlevels.append(runlevel)
           elif tmpRunlevels:
             # adds all tmp list entries to the start of eventsList
             if len(tmpRunlevels) >= 3:
-              # condense sequential runlevels
-              startLevel, endLevel = tmpRunlevels[0], tmpRunlevels[-1]
-              eventsList.insert(0, "%s%s - %s" % (prefix, startLevel, endLevel))
+              # save condense sequential runlevels to be added later
+              runlevelRanges.append((prefix, tmpRunlevels[-1], tmpRunlevels[0]))
             else:
               # adds runlevels individaully
-              tmpRunlevels.reverse()
               for tmpRunlevel in tmpRunlevels:
                 eventsList.insert(0, prefix + tmpRunlevel)
             
             tmpRunlevels = []
+      
+      # adds runlevel ranges, condensing if there's identical ranges
+      for i in range(len(runlevelRanges)):
+        if runlevelRanges[i]:
+          prefix, startLevel, endLevel = runlevelRanges[i]
+          
+          # check for matching ranges
+          matches = []
+          for j in range(i + 1, len(runlevelRanges)):
+            if runlevelRanges[j] and runlevelRanges[j][1] == startLevel and runlevelRanges[j][2] == endLevel:
+              matches.append(runlevelRanges[j])
+              runlevelRanges[j] = None
+          
+          if matches:
+            # strips underscores and replaces empty entries with "TOR"
+            prefixes = [entry[0] for entry in matches] + [prefix]
+            for k in range(len(prefixes)):
+              if prefixes[k] == "": prefixes[k] = "TOR"
+              else: prefixes[k] = prefixes[k].replace("_", "")
+            
+            eventsList.insert(0, "%s %s - %s" % ("/".join(prefixes), startLevel, endLevel))
+          else:
+            eventsList.insert(0, "%s%s - %s" % (prefix, startLevel, endLevel))
       
       # truncates to use an ellipsis if too long, for instance:
       attrLabel = ", ".join(eventsList)

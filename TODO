@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap for next release (1.3.7)
+- Remaining work for next release (1.3.7)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -8,86 +8,54 @@ TODO
       performance (far too much is done in the ui logic). This work is in
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
-        [ ] log panel
-          - provide notice if tor supports events that arm doesn't
-              getInfo("events/names") provides the space-separated listing
-          - check what events TorCtl can provide us, and give notice if any are
-              missing
-          - log to file, allowing non-runlevel events to be saved (provide both
-              a continuous option and snapshots taking into account the current
-              filter)
-          - condense tor/arm log listing types if they're the same
-              Ie, make default "TOR/ARM NOTICE - ERR"
-          - provide daily dividers (otherwise there's no indicator for the day)
-          - log cropping based on time (idea by voidzero)
-          - drop duplicate or overly verbose messages (feature request by asn)
-              check if asn wants to implement this when refactoring is done
-        [ ] conf panel
-          - move torrc validation into util
-          - fetch text via getinfo rather than reading directly?
-              conn.get_info("config-text")
-        [-] conn panel (for version 1.3.8)
-          - expand client connections and note location in circuit (entry-exit)
-          - for clients list all connections to detect what's going through tor
-              and what isn't? If not then netstat calls are unnecessary.
-          - check family connections to see if they're alive (VERSION cell
-              handshake?)
-          - fallback when pid or connection querying via pid is unavailable
-              List all connections listed both by netstat and the consensus
-          - note when connection times are estimates (color?), ie connection
-              was established before arm
-          - connection uptime to associate inbound/outbound connections?
-          - Identify controller connections (if it's arm, vidalia, etc) with
-              special detail page for them
-          - provide bridge / client country statistics
-              Include bridge related data via GETINFO option (feature request
-              by waltman and ioerror).
-      - Country data for client connections (requested by ioerror)
-        [-] controller (for version 1.3.8)
-  [ ] provide performance ARM-DEBUG events
-      Help with diagnosing performance bottlenecks. This is pending the
-      codebase revisions to figure out the low hanging fruit for caching.
-  [ ] email alerts for changes to the relay's status (similar to tor-weather)
-        [ ] simple alert if tor shuts down
-        [ ] accounting and alerts for if the bandwidth drops to zero
-        [ ] daily/weekly/etc alerts for basic status (log output, bandwidth
-            history, etc), borrowing from the consensus tracker for some of the
-            formatting
-  [ ] tor util
-        [X] wrapper for accessing torctl
-        [ ] allow arm to resume after restarting tor (attaching to a new torctl
-            instance)
-  [ ] setup scripts for arm
-        [X] setup scrpt to add to /usr/bin/arm (requested by ioerror)
-        [ ] mac installer
-            Couple of options include macport and dmg...
-            - macport (http://guide.macports.org/#development)
-              Build-from-source distribution method (like BSD portinstall).
-              This has been suggested by several people.
-            
-            - dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
-              Most conventional method of software distribution on mac. This is
-              just a container (no updating/removal support), but could contain
-              an icon for the dock that starts a terminal with arm. This might
-              include a pkg installer.
-            
-            - mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
-              Plugin for distutils. Like most mac packaging, this can only run
-              on a mac. It also requires setuptools:
-              http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
-            
-        [ ] updater (checks for a new tarball and installs it automatically)
-        [ ] look into CAPs to get around permission issues for connection
-            listing sudo wrapper for arm to help arm run as the same user as
-            tor? Irc suggestions:
-              - man capabilities
-              - http://www.linuxjournal.com/article/5737
+      
+      [ ] log panel
+        - log to file, allowing non-runlevel events to be saved (provide both
+            a continuous option and snapshots taking into account the current
+            filter)
+        - provide daily dividers (otherwise there's no indicator for the day)
+        - log cropping based on time (idea by voidzero)
+        - drop duplicate or overly verbose messages (feature request by asn)
+      [ ] conf panel
+        - move torrc validation into util
+        - fetch text via getinfo rather than reading directly?
+            conn.get_info("config-text")
   * release prep
     * ask helix about steps for getting a deb and rpm included in the tor repo
     * check performance of this version vs last version (general screen refresh
         times)
     * pylint --indent-string="  " --disable-msg-cat=CR interface/foo.py | less
     * double check __init__.py and README for changes
+
+- Roadmap for version 1.3.8
+  [ ] refactor panels
+      [ ] conn panel
+        - expand client connections and note location in circuit (entry-exit)
+        - for clients list all connections to detect what's going through tor
+            and what isn't? If not then netstat calls are unnecessary.
+        - check family connections to see if they're alive (VERSION cell
+            handshake?)
+        - fallback when pid or connection querying via pid is unavailable
+            List all connections listed both by netstat and the consensus
+        - note when connection times are estimates (color?), ie connection
+            was established before arm
+        - connection uptime to associate inbound/outbound connections?
+        - Identify controller connections (if it's arm, vidalia, etc) with
+            special detail page for them
+        - provide bridge / client country statistics
+            Include bridge related data via GETINFO option (feature request
+            by waltman and ioerror).
+      [ ] controller and popup panels
+        - country data for client connections (requested by ioerror)
+        - allow arm to resume after restarting tor
+            This requires a full move to the torTools controller.
+  [ ] setup scripts for arm
+      [ ] updater (checks for a new tarball and installs it automatically)
+      [ ] look into CAPs to get around permission issues for connection
+          listing sudo wrapper for arm to help arm run as the same user as
+          tor? Irc suggestions:
+            - man capabilities
+            - http://www.linuxjournal.com/article/5737
 
 - Bugs
   * util are assuming that tor is running under the default command name
@@ -96,16 +64,11 @@ TODO
   * util/torTools.py: effective bandwidth rate/burst measurements don't take
       SETCONF into consideration, blocked on:
       https://trac.torproject.org/projects/tor/ticket/1692
-  
-  * log panel:
-    * not catching events unexpected by arm
-        Future tor and TorCtl revisions could provide new events - these should
-        be given the "UNKNOWN" type.
-    * log prepopulation fails to limit entries to the current tor instance if
-        the file isn't logged to at the NOTICE level. Use timestamps as a
-        backup method, or just switch entirely?
-    * arm is triggering DEBUG level events
-        https://trac.torproject.org/projects/tor/ticket/1933
+  * log prepopulation fails to limit entries to the current tor instance if
+      the file isn't logged to at the NOTICE level. A fix is to use the
+      timestamps to see if it belongs to this tor instance. This requires
+      tor's uptime - blocked on implementation of the following proposal:
+      https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
   
   * conf panel:
     * torrc validation doesn't catch if parameters are missing
@@ -162,6 +125,27 @@ TODO
       circuits at the exit
     * look at vidalia for ideas
     * need to solicit for ideas on what would be most helpful to clients
+  * mac installer
+    * Couple of options include macport and dmg...
+      * macport (http://guide.macports.org/#development)
+        Build-from-source distribution method (like BSD portinstall). This has
+        been suggested by several people.
+        
+      * dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
+        Most conventional method of software distribution on mac. This is just
+        a container (no updating/removal support), but could contain an icon
+        for the dock that starts a terminal with arm. This might include a pkg
+        installer.
+      
+      * mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
+        Plugin for distutils. Like most mac packaging, this can only run on a
+        mac. It also requires setuptools:
+        http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+  * email alerts for changes to the relay's status, similar to tor-weather
+    * simple alert if tor shuts down
+    * accounting and alerts for if the bandwidth drops to zero
+    * daily/weekly/etc alerts for basic status (log output, bandwidth history,
+        etc), borrowing from the consensus tracker for some of the formatting
   * check if batch getInfo/getOption calls provide much performance benefit
   * page with details on client circuits, attempting to detect details like
       country, ISP, latency, exit policy for the circuit, traffic, etc
@@ -175,9 +159,6 @@ TODO
   * switch check of ip address validity to regex?
       match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
       http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
-  * look into using Enum2
-      TorCtl uses a specail class for enumerations. It's probably better than
-      my current range(1, X) approach.
   * audit tor connections
       Provide warnings if tor misbehaves, checks possibly including:
         - ensuring ExitPolicyRejectPrivate is being obeyed
@@ -188,7 +169,6 @@ TODO
           possible yet due to being unable to correlate connections to circuits)
   * check file descriptors being accessed by tor to see if they're outside the
       known pattern
-  * allow killing of circuits? Probably not useful...
   * add page that allows raw control port access
       Start with -t (or -c?) option for commandline-only access with help,
       syntax highlighting, and other spiffy extras
