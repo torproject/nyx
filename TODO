@@ -84,6 +84,10 @@ TODO
   * conn panel:
     * *never* do reverse dns lookups for first hops (could be resolving via
       tor and hence leaking to the exit)
+    * If there's duplicate family entries (and harder case: both nickname and
+      fingerprint entries for the same relay) then the duplicate should be
+      removed. This is also causing a bad scrolling bug where the cursor can't
+      get past the pair of duplicate entries.
     * revise multikey sort of connections
         Currently using a pretty ugly hack. Look at:
         http://www.velocityreviews.com/forums/
