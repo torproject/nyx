@@ -137,6 +137,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
+  loggingTypes = loggingTypes.upper()
   if addLimit and (not readLimit or readLimit > addLimit):
     if "-" in loggingTypes:
       divIndex = loggingTypes.find("-")
