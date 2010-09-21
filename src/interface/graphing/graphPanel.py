@@ -304,8 +304,8 @@ class GraphPanel(panel.Panel):
       
       primaryMinBound = secondaryMinBound = 0
       if self.bounds == BOUNDS_TIGHT:
-        primaryMinBound = min(param.primaryCounts[self.updateInterval][1:graphCol + 1])
-        secondaryMinBound = min(param.secondaryCounts[self.updateInterval][1:graphCol + 1])
+        primaryMinBound = int(min(param.primaryCounts[self.updateInterval][1:graphCol + 1]))
+        secondaryMinBound = int(min(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
         
         # if the max = min (ie, all values are the same) then use zero lower
         # bound so a graph is still displayed
