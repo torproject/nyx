@@ -569,35 +569,71 @@ class LogPanel(panel.Panel, threading.Thread):
     # draws log entries
     lineCount = 1 - self.scroll
     eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
-    for entry in eventLog:
+    seenFirstDateDivider, dividerAttr = False, curses.A_BOLD | uiTools.getColor("yellow")
+    for i in range(len(eventLog)):
+      entry = eventLog[i]
+      
       if self.regexFilter and not self.regexFilter.search(entry.getDisplayMessage()):
         continue  # filter doesn't match log message - skip
       
+      # checks if we should be showing a divider with the date
       if entry.type == DAYBREAK_EVENT:
-        # show a divider with the date
-        if lineCount >= 1:
-          dividerAttr = curses.A_BOLD | uiTools.getColor("yellow")
+        # bottom of the divider
+        if seenFirstDateDivider:
+          if lineCount >= 1:
+            self.win.vline(lineCount, xOffset - 1, curses.ACS_LLCORNER | dividerAttr, 1)
+            self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, width - xOffset)
+            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+          
+          lineCount += 1
+        
+        # top of the divider
+        if lineCount >= 1 and lineCount < height:
           timeLabel = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
           self.win.vline(lineCount, xOffset - 1, curses.ACS_ULCORNER | dividerAttr, 1)
-          self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, 2)
-          self.addstr(lineCount, xOffset + 2, timeLabel, curses.A_BOLD | dividerAttr)
+          self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, 1)
+          self.addstr(lineCount, xOffset + 1, timeLabel, curses.A_BOLD | dividerAttr)
           
-          lineLength = width - xOffset - len(timeLabel) - 2
-          self.win.hline(lineCount, xOffset + len(timeLabel) + 2, curses.ACS_HLINE | dividerAttr, lineLength)
-          self.win.vline(lineCount, xOffset + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
-          
+          lineLength = width - xOffset - len(timeLabel) - 1
+          self.win.hline(lineCount, xOffset + len(timeLabel) + 1, curses.ACS_HLINE | dividerAttr, lineLength)
+          self.win.vline(lineCount, xOffset + len(timeLabel) + 1 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
+        
+        seenFirstDateDivider = True
         lineCount += 1
       else:
         for line in entry.getDisplayMessage().split("\n"):
           # splits over too lines if too long
           if len(line) < width:
-            if lineCount >= 1: self.addstr(lineCount, xOffset, line, uiTools.getColor(entry.color))
+            if lineCount >= 1:
+              if seenFirstDateDivider:
+                self.win.vline(lineCount, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
+                self.win.vline(lineCount, width, curses.ACS_VLINE | dividerAttr, 1)
+              
+              self.addstr(lineCount, xOffset, line, uiTools.getColor(entry.color))
             lineCount += 1
           else:
             (line1, line2) = uiTools.splitLine(line, width - xOffset)
-            if lineCount >= 1: self.addstr(lineCount, xOffset, line1, uiTools.getColor(entry.color))
-            if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(entry.color))
+            if lineCount >= 1:
+              if seenFirstDateDivider:
+                self.win.vline(lineCount, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
+                self.win.vline(lineCount, width, curses.ACS_VLINE | dividerAttr, 1)
+              
+              self.addstr(lineCount, xOffset, line1, uiTools.getColor(entry.color))
+            if lineCount >= 0 and lineCount + 1 < height:
+              if seenFirstDateDivider:
+                self.win.vline(lineCount + 1, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
+                self.win.vline(lineCount + 1, width, curses.ACS_VLINE | dividerAttr, 1)
+              
+              self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(entry.color))
             lineCount += 2
+      
+      # if this is the last line and there's room, then draw the bottom of the divider
+      isLastLine = i == len(eventLog) - 1
+      if isLastLine and seenFirstDateDivider and lineCount < height:
+        self.win.vline(lineCount, xOffset - 1, curses.ACS_LLCORNER | dividerAttr, 1)
+        self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, width - xOffset)
+        self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+        lineCount += 1
       
       if lineCount >= height: break # further log messages wouldn't fit
     
@@ -775,12 +811,16 @@ class LogPanel(panel.Panel, threading.Thread):
     eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
     for entry in eventLog:
       if not self.regexFilter or self.regexFilter.search(entry.getDisplayMessage()):
-        for line in entry.getDisplayMessage().split("\n"):
-          if len(line) >= width: contentLengths[0] += 2
-          else: contentLengths[0] += 1
-          
-          if len(line) >= width - 3: contentLengths[1] += 2
-          else: contentLengths[1] += 1
+        if entry.type == DAYBREAK_EVENT:
+          contentLengths[0] += 2
+          contentLengths[1] += 2
+        else:
+          for line in entry.getDisplayMessage().split("\n"):
+            if len(line) >= width: contentLengths[0] += 2
+            else: contentLengths[0] += 1
+            
+            if len(line) >= width - 3: contentLengths[1] += 2
+            else: contentLengths[1] += 1
     
     # checks if the scroll bar would be displayed to determine the actual length
     actualLength = contentLengths[0] if contentLengths[0] <= height - 1 else contentLengths[1]
