@@ -20,6 +20,7 @@ features.colorInterface true
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
+features.log.showDateDividers true
 
 # general graph parameters
 # height:   height of graphed stats

@@ -33,8 +33,9 @@ EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s ST
 
 RUNLEVELS = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
+DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 
-DEFAULT_CONFIG = {"features.log.prepopulate": True, "features.log.prepopulateReadLimit": 5000, "features.log.maxRefreshRate": 300, "cache.logPanel.size": 1000, "log.logPanel.prepopulateSuccess": log.INFO, "log.logPanel.prepopulateFailed": log.WARN}
+DEFAULT_CONFIG = {"features.log.prepopulate": True, "features.log.prepopulateReadLimit": 5000, "features.log.maxRefreshRate": 300, "features.log.showDateDividers": True, "cache.logPanel.size": 1000, "log.logPanel.prepopulateSuccess": log.INFO, "log.logPanel.prepopulateFailed": log.WARN}
 
 def expandEvents(eventAbbr):
   """
@@ -214,6 +215,34 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   log.log(DEFAULT_CONFIG["log.logPanel.prepopulateSuccess"], msg)
   return loggedEvents
 
+def getDaybreaks(events):
+  """
+  Provides the input events back with special 'DAYBREAK_EVENT' markers inserted
+  whenever the date changed between log entries (or since the most recent
+  event). The timestamp matches the beginning of the day for the following
+  entry.
+  
+  Arguments:
+    events - chronologically ordered listing of events
+  """
+  
+  if not events: return []
+  
+  newListing = []
+  timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
+  lastDay = int((time.time() - timezoneOffset) / 86400)
+  
+  for entry in events:
+    eventDay = int((entry.timestamp - timezoneOffset) / 86400) # days since epoch
+    if eventDay != lastDay:
+      markerTimestamp = (eventDay * 86400) + timezoneOffset
+      newListing.append(LogEntry(markerTimestamp, DAYBREAK_EVENT, "", "white"))
+    
+    newListing.append(entry)
+    lastDay = eventDay
+  
+  return newListing
+
 class LogEntry():
   """
   Individual log file entry, having the following attributes:
@@ -342,7 +371,6 @@ class LogPanel(panel.Panel, threading.Thread):
     self._isPaused = False
     self._pauseBuffer = []              # location where messages are buffered if paused
     
-    self._isChanged = False             # if true, has new event(s) since last drawn if true
     self._lastUpdate = -1               # time the content was last revised
     self._halt = False                  # terminates thread if true
     self._cond = threading.Condition()  # used for pausing/resuming the thread
@@ -352,13 +380,16 @@ class LogPanel(panel.Panel, threading.Thread):
     self.valsLock = threading.RLock()
     
     # cached parameters (invalidated if arguments for them change)
+    # last set of events we've drawn with
+    self._lastLoggedEvents = []
+    
     # _getTitle (args: loggedEvents, regexFilter pattern, width)
     self._titleCache = None
     self._titleArgs = (None, None, None)
     
-    # _getContentLength (args: msgLog, regexFilter pattern, height, width)
+    # _getContentLength (args: msgLog, regexFilter pattern, height, width, day)
     self._contentLengthCache = None
-    self._contentLengthArgs = (None, None, None, None)
+    self._contentLengthArgs = (None, None, None, None, None)
     
     # fetches past tor events from log file, if available
     torEventBacklog = []
@@ -428,7 +459,6 @@ class LogPanel(panel.Panel, threading.Thread):
       
       # notifies the display that it has new content
       if not self.regexFilter or self.regexFilter.search(event.getDisplayMessage()):
-        self._isChanged = True
         self._cond.acquire()
         self._cond.notifyAll()
         self._cond.release()
@@ -501,6 +531,9 @@ class LogPanel(panel.Panel, threading.Thread):
     If true, prevents message log from being updated with new events.
     """
     
+    # TODO: minor bug - if the date changes and the panel is redrawn then the
+    # new date marker is shown
+    
     if isPause == self._isPaused: return
     
     self._isPaused = isPause
@@ -518,7 +551,7 @@ class LogPanel(panel.Panel, threading.Thread):
     """
     
     self.valsLock.acquire()
-    self._isChanged, self._lastUpdate = False, time.time()
+    self._lastLoggedEvents, self._lastUpdate = list(self.msgLog), time.time()
     
     # draws the top label
     self.addstr(0, 0, self._getTitle(width), curses.A_STANDOUT)
@@ -535,20 +568,36 @@ class LogPanel(panel.Panel, threading.Thread):
     
     # draws log entries
     lineCount = 1 - self.scroll
-    for entry in self.msgLog:
+    eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
+    for entry in eventLog:
       if self.regexFilter and not self.regexFilter.search(entry.getDisplayMessage()):
         continue  # filter doesn't match log message - skip
       
-      for line in entry.getDisplayMessage().split("\n"):
-        # splits over too lines if too long
-        if len(line) < width:
-          if lineCount >= 1: self.addstr(lineCount, xOffset, line, uiTools.getColor(entry.color))
-          lineCount += 1
-        else:
-          (line1, line2) = uiTools.splitLine(line, width - xOffset)
-          if lineCount >= 1: self.addstr(lineCount, xOffset, line1, uiTools.getColor(entry.color))
-          if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(entry.color))
-          lineCount += 2
+      if entry.type == DAYBREAK_EVENT:
+        # show a divider with the date
+        if lineCount >= 1:
+          dividerAttr = curses.A_BOLD | uiTools.getColor("yellow")
+          timeLabel = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
+          self.win.vline(lineCount, xOffset - 1, curses.ACS_ULCORNER | dividerAttr, 1)
+          self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, 2)
+          self.addstr(lineCount, xOffset + 2, timeLabel, curses.A_BOLD | dividerAttr)
+          
+          lineLength = width - xOffset - len(timeLabel) - 2
+          self.win.hline(lineCount, xOffset + len(timeLabel) + 2, curses.ACS_HLINE | dividerAttr, lineLength)
+          self.win.vline(lineCount, xOffset + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
+          
+        lineCount += 1
+      else:
+        for line in entry.getDisplayMessage().split("\n"):
+          # splits over too lines if too long
+          if len(line) < width:
+            if lineCount >= 1: self.addstr(lineCount, xOffset, line, uiTools.getColor(entry.color))
+            lineCount += 1
+          else:
+            (line1, line2) = uiTools.splitLine(line, width - xOffset)
+            if lineCount >= 1: self.addstr(lineCount, xOffset, line1, uiTools.getColor(entry.color))
+            if lineCount >= 0: self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(entry.color))
+            lineCount += 2
       
       if lineCount >= height: break # further log messages wouldn't fit
     
@@ -565,13 +614,20 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
     
+    timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
+    currentTime = time.time()
+    
+    # unix time for the start of the current day (local time), used so we
+    # can redraw when the date changes
+    dayStartTime = currentTime - (currentTime - timezoneOffset) % 86400
     while not self._halt:
-      timeSinceReset = time.time() - self._lastUpdate
+      currentTime = time.time()
+      timeSinceReset = currentTime - self._lastUpdate
       maxLogUpdateRate = self._config["features.log.maxRefreshRate"] / 1000.0
       
       sleepTime = 0
-      if not self._isChanged or self._isPaused:
-        sleepTime = 10
+      if (self.msgLog == self._lastLoggedEvents and currentTime < dayStartTime + 86401) or self._isPaused:
+        sleepTime = 5
       elif timeSinceReset < maxLogUpdateRate:
         sleepTime = max(0.05, maxLogUpdateRate - timeSinceReset)
       
@@ -580,6 +636,7 @@ class LogPanel(panel.Panel, threading.Thread):
         if not self._halt: self._cond.wait(sleepTime)
         self._cond.release()
       else:
+        dayStartTime = currentTime - (currentTime - timezoneOffset) % 86400
         self.redraw(True)
   
   def stop(self):
@@ -696,6 +753,11 @@ class LogPanel(panel.Panel, threading.Thread):
     taking into account filtered/wrapped lines, the scroll bar, etc.
     """
     
+    if self._config["features.log.showDateDividers"]:
+      timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
+      currentDay = int((time.time() - timezoneOffset) / 86400)
+    else: currentDay = 0
+    
     # if the arguments haven't changed then we can use cached results
     self.valsLock.acquire()
     height, width = self.getPreferredSize()
@@ -704,12 +766,14 @@ class LogPanel(panel.Panel, threading.Thread):
     isUnchanged &= self._contentLengthArgs[1] == currentPattern
     isUnchanged &= self._contentLengthArgs[2] == height
     isUnchanged &= self._contentLengthArgs[3] == width
+    isUnchanged &= self._contentLengthArgs[4] == currentDay
     if isUnchanged:
       self.valsLock.release()
       return self._contentLengthCache
     
     contentLengths = [0, 0] # length of the content without and with a scroll bar
-    for entry in self.msgLog:
+    eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
+    for entry in eventLog:
       if not self.regexFilter or self.regexFilter.search(entry.getDisplayMessage()):
         for line in entry.getDisplayMessage().split("\n"):
           if len(line) >= width: contentLengths[0] += 2
@@ -722,7 +786,7 @@ class LogPanel(panel.Panel, threading.Thread):
     actualLength = contentLengths[0] if contentLengths[0] <= height - 1 else contentLengths[1]
     
     self._contentLengthCache = actualLength
-    self._contentLengthArgs = (list(self.msgLog), currentPattern, height, width)
+    self._contentLengthArgs = (list(self.msgLog), currentPattern, height, width, currentDay)
     self.valsLock.release()
     return actualLength
 

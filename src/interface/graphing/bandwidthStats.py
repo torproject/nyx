@@ -107,8 +107,7 @@ class BandwidthStats(graphPanel.GraphStats):
     missingReadEntries, missingWriteEntries = None, None
     
     # converts from gmt to local with respect to DST
-    if time.localtime()[8]: tz_offset = time.altzone
-    else: tz_offset = time.timezone
+    tz_offset = time.altzone if time.localtime()[8] else time.timezone
     
     for line in stateFile:
       line = line.strip()
