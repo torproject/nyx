@@ -13,7 +13,7 @@ TODO
         - log to file, allowing non-runlevel events to be saved (provide both
             a continuous option and snapshots taking into account the current
             filter)
-        - provide daily dividers (otherwise there's no indicator for the day)
+        - make the maximum line count for entries configurable
         - log cropping based on time (idea by voidzero)
         - drop duplicate or overly verbose messages (feature request by asn)
       [ ] conf panel
@@ -59,9 +59,6 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
-  * there seems to be an issue merging tor and arm events by timestamp for long
-      running instances (probably a bug with determing the day of prepopulated
-      events)
   * when in client mode and tor stops the header panel doesn't say so
   * util are assuming that tor is running under the default command name
       attempt to determine the command name at runtime (if the pid is available
@@ -119,7 +116,7 @@ TODO
         [notice] Opening Socks listener on 127.0.0.1:9050
         [notice] Opening Transparent pf/netfilter listener on 127.0.0.1:9040
         [notice] Opening DNS listener on 127.0.0.1:53
-      * rdns and whois lookups
+      * rdns and whois lookups (to find ISP, country, and jurisdiction, etc)
         To avoid disclosing connection data to third parties this needs to be
         an all-or-nothing operation (ie, needs to fetch information on all
         relays or none of them). Plan is something like:

@@ -423,7 +423,7 @@ class LogPanel(panel.Panel, threading.Thread):
           self.msgLog.append(torEventBacklog.pop(0))
         elif not torEventBacklog:
           self.msgLog.append(armEventBacklog.pop(0))
-        elif armEventBacklog[0].timestamp > torEventBacklog[0].timestamp:
+        elif armEventBacklog[0].timestamp < torEventBacklog[0].timestamp:
           self.msgLog.append(torEventBacklog.pop(0))
         else:
           self.msgLog.append(armEventBacklog.pop(0))
