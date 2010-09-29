@@ -31,8 +31,10 @@ SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, 
 TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
               (60.0, "m", " minute"),                   (1.0, "s", " second")]
 
+END_WITH_ELLIPSE, END_WITH_HYPHEN = range(1, 3)
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
-CONFIG = {"features.colorInterface": True, "log.cursesColorSupport": log.INFO}
+CONFIG = {"features.colorInterface": True,
+          "log.cursesColorSupport": log.INFO}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -54,7 +56,7 @@ def getColor(color):
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
 
-def cropStr(msg, size, minWordLen = 4, addEllipse = True):
+def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, getRemainder = False):
   """
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
@@ -71,74 +73,59 @@ def cropStr(msg, size, minWordLen = 4, addEllipse = True):
   ""
   
   Arguments:
-    msg        - source text
-    size       - room available for text
-    minWordLen - minimum characters before which a word is dropped, requires
-                 whole word if -1
-    addEllipse - includes an ellipse when truncating if true (dropped if size
-                 size is 
+    msg          - source text
+    size         - room available for text
+    minWordLen   - minimum characters before which a word is dropped, requires
+                   whole word if None
+    minCrop      - minimum characters that must be dropped if a word's cropped
+    endType      - type of ending used when truncating:
+                   None - blank ending
+                   END_WITH_ELLIPSE - includes an ellipse
+                   END_WITH_HYPHEN - adds hyphen when breaking words
+    getRemainder - returns a tuple instead, with the second part being the
+                   cropped portion of the message
   """
   
-  if minWordLen < 0: minWordLen = sys.maxint
+  if minWordLen == None: minWordLen = sys.maxint
+  minWordLen = max(0, minWordLen)
+  minCrop = max(0, minCrop)
   
-  if len(msg) <= size: return msg
-  else:
-    msgWords = msg.split(" ")
-    msgWords.reverse()
-    
-    returnWords = []
-    sizeLeft = size - 3 if addEllipse else size
-    
-    # checks that there's room for at least one word
-    if min(minWordLen, len(msgWords[-1])) > sizeLeft: return ""
-    
-    while sizeLeft > 0:
-      nextWord = msgWords.pop()
-      
-      if len(nextWord) <= sizeLeft:
-        returnWords.append(nextWord)
-        sizeLeft -= (len(nextWord) + 1)
-      elif minWordLen <= sizeLeft:
-        returnWords.append(nextWord[:sizeLeft])
-        sizeLeft = 0
-      else: sizeLeft = 0
-    
-    returnMsg = " ".join(returnWords)
-    if addEllipse: returnMsg += "..."
-    return returnMsg
-
-def splitLine(message, width, indent = "  "):
-  """
-  Divides message into two lines, attempting to do it on a wordbreak. This
-  adds an ellipse if the second line is too long.
+  # checks if there's room for the whole message
+  if len(msg) <= size:
+    if getRemainder: return (msg, "")
+    else: return msg
   
-  Arguments:
-    message - string being divided
-    width   - maximum width constraint for the split
-    indent  - addition made to the start of the second line
-  """
+  # since we're cropping, the effective space available is less with an
+  # ellipse, and cropping words requires an extra space for hyphens
+  if endType == END_WITH_ELLIPSE: size -= 3
+  elif endType == END_WITH_HYPHEN: minWordLen += 1
   
-  if len(message) < width: return (message, "")
+  # checks if there isn't the minimum space needed to include anything
+  if size <= minWordLen:
+    if getRemainder: return ("", msg)
+    else: return ""
   
-  lastWordbreak = message[:width].rfind(" ")
-  if width - lastWordbreak < 10:
-    line1 = message[:lastWordbreak]
-    line2 = "%s%s" % (indent, message[lastWordbreak:].strip())
-  else:
-    # over ten characters until the last word - dividing
-    line1 = "%s-" % message[:width - 2]
-    line2 = "%s%s" % (indent, message[width - 2:].strip())
+  lastWordbreak = msg.rfind(" ", 0, size + 1)
+  includeCrop = size - lastWordbreak - 1 >= minWordLen
   
-  # ends line with ellipsis if too long
-  if len(line2) > width:
-    lastWordbreak = line2[:width - 4].rfind(" ")
-    
-    # doesn't use wordbreak if it's a long word or the whole line is one 
-    # word (picking up on two space indent to have index 1)
-    if width - lastWordbreak > 10 or lastWordbreak == 1: lastWordbreak = width - 4
-    line2 = "%s..." % line2[:lastWordbreak]
+  # if there's a max crop size then make sure we're cropping at least that many characters
+  if includeCrop and minCrop:
+    nextWordbreak = msg.find(" ", size)
+    if nextWordbreak == -1: nextWordbreak = len(msg)
+    includeCrop = nextWordbreak - size + 1 >= minCrop
   
-  return (line1, line2)
+  if includeCrop:
+    returnMsg, remainder = msg[:size], msg[size:]
+    if endType == END_WITH_HYPHEN: returnMsg = returnMsg[:-1] + "-"
+  else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
+  
+  # if this is ending with a comma or period then strip it off
+  if returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
+  
+  if endType == END_WITH_ELLIPSE: returnMsg += "..."
+  
+  if getRemainder: return (returnMsg, remainder)
+  else: return returnMsg
 
 def isScrollKey(key):
   """

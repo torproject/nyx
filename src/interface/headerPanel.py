@@ -154,7 +154,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/orPort"]:
       # Line 4 / Line 2 Right (fingerprint)
       y, x = (1, leftWidth) if isWide else (3, 0)
-      self.addstr(y, x, "fingerprint: %s" % self.vals["tor/fingerprint"])
+      fingerprintLabel = uiTools.cropStr("fingerprint: %s" % self.vals["tor/fingerprint"], width)
+      self.addstr(y, x, fingerprintLabel)
       
       # Line 5 / Line 3 Left (flags)
       if self._isTorConnected:

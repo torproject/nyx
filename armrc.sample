@@ -8,6 +8,8 @@ startup.events N3
 features.colorInterface true
 
 # log panel parameters
+# showDateDividers: show borders with dates for entries from previous days
+# maxLinesPerEntry: max number of lines to display for a single log entry
 # prepopulate: attempts to read past events from the log file if true
 # prepopulateReadLimit: maximum entries read from the log file
 # maxRefreshRate: rate limiting (in milliseconds) for drawing the log if
@@ -17,10 +19,11 @@ features.colorInterface true
 # instance, if arm's only listening for ERR entries but the log has all
 # runlevels then this will stop reading after <prepopulateReadLimit> lines.
 
+features.log.showDateDividers true
+features.log.maxLinesPerEntry 4
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
-features.log.showDateDividers true
 
 # general graph parameters
 # height:   height of graphed stats

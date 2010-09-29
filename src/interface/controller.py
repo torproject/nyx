@@ -42,7 +42,12 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"logging.rate.refreshRate": 5, "features.graph.type": 1, "log.torEventTypeUnrecognized": log.NOTICE, "features.graph.bw.prepopulate": True, "log.refreshRate": log.DEBUG, "log.configEntryUndefined": log.NOTICE}
+CONFIG = {"logging.rate.refreshRate": 5,
+          "features.graph.type": 1,
+          "log.torEventTypeUnrecognized": log.NOTICE,
+          "features.graph.bw.prepopulate": True,
+          "log.refreshRate": log.DEBUG,
+          "log.configEntryUndefined": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -450,6 +455,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # TODO: popups need to force the panels it covers to redraw (or better, have
   # a global refresh function for after changing pages, popups, etc)
+  
+  # TODO: come up with a nice, clean method for other threads to immediately
+  # terminate the draw loop and provide a stacktrace
   while True:
     # tried only refreshing when the screen was resized but it caused a
     # noticeable lag when resizing and didn't have an appreciable effect
@@ -651,7 +659,10 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
           popup.addfstr(5, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
-          popup.addfstr(6, 2, "<b>x</b>: clear event log")
+          
+          hiddenEntryLabel = "hidden" if panels["log"].isDuplicatesHidden else "visible"
+          popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
+          popup.addfstr(6, 41, "<b>x</b>: clear event log")
           
           pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
         if page == 1:

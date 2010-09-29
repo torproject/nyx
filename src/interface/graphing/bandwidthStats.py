@@ -20,7 +20,12 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
-DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False, "features.graph.bw.accounting.show": True, "features.graph.bw.accounting.rate": 10, "features.graph.bw.accounting.isTimeLong": False, "log.graph.bw.prepopulateSuccess": log.NOTICE, "log.graph.bw.prepopulateFailure": log.NOTICE}
+DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False,
+                  "features.graph.bw.accounting.show": True,
+                  "features.graph.bw.accounting.rate": 10,
+                  "features.graph.bw.accounting.isTimeLong": False,
+                  "log.graph.bw.prepopulateSuccess": log.NOTICE,
+                  "log.graph.bw.prepopulateFailure": log.NOTICE}
 
 class BandwidthStats(graphPanel.GraphStats):
   """

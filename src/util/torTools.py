@@ -47,7 +47,9 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"log.torCtlPortClosed": log.NOTICE, "log.torGetInfo": log.DEBUG, "log.torGetConf": log.DEBUG}
+CONFIG = {"log.torCtlPortClosed": log.NOTICE,
+          "log.torGetInfo": log.DEBUG,
+          "log.torGetConf": log.DEBUG}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down

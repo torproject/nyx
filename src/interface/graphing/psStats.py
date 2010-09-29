@@ -12,7 +12,11 @@ FAILURE_THRESHOLD = 5
 # attempts to use cached results from the header panel's ps calls
 HEADER_PS_PARAM = ["%cpu", "rss", "%mem", "etime"]
 
-DEFAULT_CONFIG = {"features.graph.ps.primaryStat": "%cpu", "features.graph.ps.secondaryStat": "rss", "features.graph.ps.cachedOnly": True, "log.graph.ps.invalidStat": log.WARN, "log.graph.ps.abandon": log.WARN}
+DEFAULT_CONFIG = {"features.graph.ps.primaryStat": "%cpu",
+                  "features.graph.ps.secondaryStat": "rss",
+                  "features.graph.ps.cachedOnly": True,
+                  "log.graph.ps.invalidStat": log.WARN,
+                  "log.graph.ps.abandon": log.WARN}
 
 class PsStats(graphPanel.GraphStats):
   """

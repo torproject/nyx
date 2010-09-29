@@ -16,7 +16,11 @@ CALL_CACHE = {}
 IS_FAILURES_CACHED = True           # caches both successful and failed results if true
 CALL_CACHE_LOCK = threading.RLock() # governs concurrent modifications of CALL_CACHE
 
-CONFIG = {"cache.sysCalls.size": 600, "log.sysCallMade": log.DEBUG, "log.sysCallCached": None, "log.sysCallFailed": log.INFO, "log.sysCallCacheGrowing": log.INFO}
+CONFIG = {"cache.sysCalls.size": 600,
+          "log.sysCallMade": log.DEBUG,
+          "log.sysCallCached": None,
+          "log.sysCallFailed": log.INFO,
+          "log.sysCallCacheGrowing": log.INFO}
 
 def loadConfig(config):
   config.update(CONFIG)

@@ -41,7 +41,11 @@ BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 # used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.height": 7, "features.graph.interval": 0, "features.graph.bound": 1, "features.graph.maxWidth": 150, "features.graph.showIntermediateBounds": True}
+CONFIG = {"features.graph.height": 7,
+          "features.graph.interval": 0,
+          "features.graph.bound": 1,
+          "features.graph.maxWidth": 150,
+          "features.graph.showIntermediateBounds": True}
 
 def loadConfig(config):
   config.update(CONFIG)

@@ -2,6 +2,8 @@
 Wrapper for safely working with curses subwindows.
 """
 
+import sys
+import traceback
 import curses
 from threading import RLock
 
@@ -222,6 +224,15 @@ class Panel():
         self.win.erase() # clears any old contents
         self.draw(self.win, self.maxX - 1, self.maxY)
       self.win.refresh()
+    except:
+      # without terminating curses continues in a zombie state (requiring a
+      # kill signal to quit, and screwing up the terminal)
+      # TODO: provide a nicer, general purpose handler for unexpected exceptions
+      try:
+        tracebackFile = open("/tmp/armTraceback", "w")
+        traceback.print_exc(file=tracebackFile)
+      finally:
+        sys.exit(1)
     finally:
       CURSES_LOCK.release()
   

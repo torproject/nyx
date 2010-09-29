@@ -24,7 +24,8 @@ _backlog = dict([(level, []) for level in range(1, 6)])
 # mapping of runlevels to the listeners interested in receiving events from it
 _listeners = dict([(level, []) for level in range(1, 6)])
 
-CONFIG = {"cache.armLog.size": 1000, "cache.armLog.trimSize": 200}
+CONFIG = {"cache.armLog.size": 1000,
+          "cache.armLog.trimSize": 200}
 
 def loadConfig(config):
   config.update(CONFIG)

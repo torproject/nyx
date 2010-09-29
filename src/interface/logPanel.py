@@ -35,7 +35,37 @@ RUNLEVELS = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 
-DEFAULT_CONFIG = {"features.log.prepopulate": True, "features.log.prepopulateReadLimit": 5000, "features.log.maxRefreshRate": 300, "features.log.showDateDividers": True, "cache.logPanel.size": 1000, "log.logPanel.prepopulateSuccess": log.INFO, "log.logPanel.prepopulateFailed": log.WARN}
+ENTRY_INDENT = 2 # spaces an entry's message is indented after the first line
+DEFAULT_CONFIG = {"features.log.showDateDividers": True,
+                  "features.log.maxLinesPerEntry": 4,
+                  "features.log.prepopulate": True,
+                  "features.log.prepopulateReadLimit": 5000,
+                  "features.log.maxRefreshRate": 300,
+                  "cache.logPanel.size": 1000,
+                  "log.logPanel.prepopulateSuccess": log.INFO,
+                  "log.logPanel.prepopulateFailed": log.WARN}
+
+DUPLICATE_MSG = " [%i duplicate%s hidden]"
+
+# static starting portion of common log entries, used to deduplicate entries
+# that have dynamic content: 
+# [NOTICE] We stalled too much while trying to write 125 bytes to address [scrubbed]...
+# [NOTICE] Attempt by %s to open a stream from unknown relay. Closing.
+# [WARN] You specified a server "Amunet8" by name, but this name is not registered
+COMMON_LOG_MESSAGES = ["We stalled too much while trying to write",
+                       "Attempt by ",
+                       "You specified a server "]
+
+# messages with a dynamic beginning (searches the whole string instead)
+# [WARN] 4 unknown, 1 missing key, 3 good, 0 bad, 1 no signature, 4 required
+COMMON_LOG_MESSAGES_INTERNAL = ["missing key, "] 
+
+# cached values and the arguments that generated it for the getDaybreaks and
+# getDuplicates functions
+CACHED_DAYBREAKS_ARGUMENTS = (None, None) # events, current day
+CACHED_DAYBREAKS_RESULT = None
+CACHED_DUPLICATES_ARGUMENTS = None # events
+CACHED_DUPLICATES_RESULT = None
 
 def expandEvents(eventAbbr):
   """
@@ -215,7 +245,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   log.log(DEFAULT_CONFIG["log.logPanel.prepopulateSuccess"], msg)
   return loggedEvents
 
-def getDaybreaks(events):
+def getDaybreaks(events, ignoreTimeForCache = False):
   """
   Provides the input events back with special 'DAYBREAK_EVENT' markers inserted
   whenever the date changed between log entries (or since the most recent
@@ -223,14 +253,22 @@ def getDaybreaks(events):
   entry.
   
   Arguments:
-    events - chronologically ordered listing of events
+    events             - chronologically ordered listing of events
+    ignoreTimeForCache - skips taking the day into consideration for providing
+                         cached results if true
   """
   
+  global CACHED_DAYBREAKS_ARGUMENTS, CACHED_DAYBREAKS_RESULT
   if not events: return []
   
   newListing = []
   timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
-  lastDay = int((time.time() - timezoneOffset) / 86400)
+  currentDay = int((time.time() - timezoneOffset) / 86400)
+  lastDay = currentDay
+  
+  if CACHED_DAYBREAKS_ARGUMENTS[0] == events and \
+    (ignoreTimeForCache or CACHED_DAYBREAKS_ARGUMENTS[1] == currentDay):
+    return list(CACHED_DAYBREAKS_RESULT)
   
   for entry in events:
     eventDay = int((entry.timestamp - timezoneOffset) / 86400) # days since epoch
@@ -241,7 +279,66 @@ def getDaybreaks(events):
     newListing.append(entry)
     lastDay = eventDay
   
+  CACHED_DAYBREAKS_ARGUMENTS = (list(events), currentDay)
+  CACHED_DAYBREAKS_RESULT = list(newListing)
+  
   return newListing
+
+def getDuplicates(events):
+  """
+  Deduplicates a list of log entries, providing back a tuple listing with the
+  log entry and count of duplicates following it. Entries in different days are
+  not considered to be duplicates.
+  
+  Arguments:
+    events - chronologically ordered listing of events
+  """
+  
+  global CACHED_DUPLICATES_ARGUMENTS, CACHED_DUPLICATES_RESULT
+  if CACHED_DUPLICATES_ARGUMENTS == events:
+    return list(CACHED_DUPLICATES_RESULT)
+  
+  eventsRemaining = list(events)
+  returnEvents = []
+  
+  while eventsRemaining:
+    entry = eventsRemaining.pop(0)
+    duplicateIndices = []
+    
+    for i in range(len(eventsRemaining)):
+      forwardEntry = eventsRemaining[i]
+      
+      # if showing dates then do duplicate detection for each day, rather
+      # than globally
+      if forwardEntry.type == DAYBREAK_EVENT: break
+      
+      if entry.type == forwardEntry.type:
+        if entry.msg == forwardEntry.msg: isDuplicate = True
+        else:
+          isDuplicate = False
+          for commonMsg in COMMON_LOG_MESSAGES:
+            if entry.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg):
+              isDuplicate = True
+              break
+          
+          if not isDuplicate:
+            for commonMsg in COMMON_LOG_MESSAGES_INTERNAL:
+              if commonMsg in entry.msg and commonMsg in forwardEntry.msg:
+                isDuplicate = True
+                break
+        
+        if isDuplicate: duplicateIndices.append(i)
+    
+    # drops duplicate entries
+    duplicateIndices.reverse()
+    for i in duplicateIndices: del eventsRemaining[i]
+    
+    returnEvents.append((entry, len(duplicateIndices)))
+  
+  CACHED_DUPLICATES_ARGUMENTS = list(events)
+  CACHED_DUPLICATES_RESULT = list(returnEvents)
+  
+  return returnEvents
 
 class LogEntry():
   """
@@ -360,13 +457,16 @@ class LogPanel(panel.Panel, threading.Thread):
       config.update(self._config)
       
       # ensures prepopulation and cache sizes are sane
+      self._config["features.log.maxLinesPerEntry"] = max(self._config["features.log.maxLinesPerEntry"], 1)
       self._config["features.log.prepopulateReadLimit"] = max(self._config["features.log.prepopulateReadLimit"], 0)
       self._config["features.log.maxRefreshRate"] = max(self._config["features.log.maxRefreshRate"], 10)
       self._config["cache.logPanel.size"] = max(self._config["cache.logPanel.size"], 50)
     
+    self.isDuplicatesHidden = True      # collapses duplicate log entries, only showing the most recent
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
+    self.lastContentHeight = 0          # height of the rendered content when last drawn
     self.scroll = 0
     self._isPaused = False
     self._pauseBuffer = []              # location where messages are buffered if paused
@@ -386,10 +486,6 @@ class LogPanel(panel.Panel, threading.Thread):
     # _getTitle (args: loggedEvents, regexFilter pattern, width)
     self._titleCache = None
     self._titleArgs = (None, None, None)
-    
-    # _getContentLength (args: msgLog, regexFilter pattern, height, width, day)
-    self._contentLengthCache = None
-    self._contentLengthArgs = (None, None, None, None, None)
     
     # fetches past tor events from log file, if available
     torEventBacklog = []
@@ -429,6 +525,9 @@ class LogPanel(panel.Panel, threading.Thread):
           self.msgLog.append(armEventBacklog.pop(0))
     finally:
       log.LOG_LOCK.release()
+    
+    # leaving lastContentHeight as being too low causes initialization problems
+    self.lastContentHeight = len(self.msgLog)
     
     # adds listeners for tor and torctl events
     conn = torTools.getConn()
@@ -517,22 +616,23 @@ class LogPanel(panel.Panel, threading.Thread):
   def handleKey(self, key):
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
-      contentHeight = self._getContentLength()
-      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, contentHeight)
+      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, self.lastContentHeight)
       
       if self.scroll != newScroll:
         self.valsLock.acquire()
         self.scroll = newScroll
         self.redraw(True)
         self.valsLock.release()
+    elif key in (ord('u'), ord('U')):
+      self.valsLock.acquire()
+      self.isDuplicatesHidden = not self.isDuplicatesHidden
+      self.redraw(True)
+      self.valsLock.release()
   
   def setPaused(self, isPause):
     """
     If true, prevents message log from being updated with new events.
     """
-    
-    # TODO: minor bug - if the date changes and the panel is redrawn then the
-    # new date marker is shown
     
     if isPause == self._isPaused: return
     
@@ -557,21 +657,29 @@ class LogPanel(panel.Panel, threading.Thread):
     self.addstr(0, 0, self._getTitle(width), curses.A_STANDOUT)
     
     # restricts scroll location to valid bounds
-    contentHeight = self._getContentLength()
-    self.scroll = max(0, min(self.scroll, contentHeight - height + 1))
+    self.scroll = max(0, min(self.scroll, self.lastContentHeight - height + 1))
     
     # draws left-hand scroll bar if content's longer than the height
-    xOffset = 0 # offset for scroll bar
-    if contentHeight > height - 1:
-      xOffset = 3
-      self.addScrollBar(self.scroll, self.scroll + height - 1, contentHeight, 1)
+    msgIndent, dividerIndent = 0, 0 # offsets for scroll bar
+    if self.lastContentHeight > height - 1:
+      msgIndent, dividerIndent = 3, 2
+      self.addScrollBar(self.scroll, self.scroll + height - 1, self.lastContentHeight, 1)
     
     # draws log entries
     lineCount = 1 - self.scroll
-    eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
-    seenFirstDateDivider, dividerAttr = False, curses.A_BOLD | uiTools.getColor("yellow")
-    for i in range(len(eventLog)):
-      entry = eventLog[i]
+    seenFirstDateDivider = False
+    dividerAttr, duplicateAttr = curses.A_BOLD | uiTools.getColor("yellow"), curses.A_BOLD | uiTools.getColor("green")
+    
+    isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
+    eventLog = getDaybreaks(self.msgLog, self._isPaused) if isDatesShown else list(self.msgLog)
+    if self.isDuplicatesHidden: deduplicatedLog = getDuplicates(eventLog)
+    else: deduplicatedLog = [(entry, 0) for entry in eventLog]
+    
+    # determines if we have the minimum width to show date dividers
+    showDaybreaks = width - dividerIndent >= 3
+    
+    while deduplicatedLog:
+      entry, duplicateCount = deduplicatedLog.pop(0)
       
       if self.regexFilter and not self.regexFilter.search(entry.getDisplayMessage()):
         continue  # filter doesn't match log message - skip
@@ -580,62 +688,93 @@ class LogPanel(panel.Panel, threading.Thread):
       if entry.type == DAYBREAK_EVENT:
         # bottom of the divider
         if seenFirstDateDivider:
-          if lineCount >= 1:
-            self.win.vline(lineCount, xOffset - 1, curses.ACS_LLCORNER | dividerAttr, 1)
-            self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, width - xOffset)
+          if lineCount >= 1 and lineCount < height and showDaybreaks:
+            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
+            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
             self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
           
           lineCount += 1
         
         # top of the divider
-        if lineCount >= 1 and lineCount < height:
+        if lineCount >= 1 and lineCount < height and showDaybreaks:
           timeLabel = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
-          self.win.vline(lineCount, xOffset - 1, curses.ACS_ULCORNER | dividerAttr, 1)
-          self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, 1)
-          self.addstr(lineCount, xOffset + 1, timeLabel, curses.A_BOLD | dividerAttr)
+          self.win.vline(lineCount, dividerIndent, curses.ACS_ULCORNER | dividerAttr, 1)
+          self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, 1)
+          self.addstr(lineCount, dividerIndent + 2, timeLabel, curses.A_BOLD | dividerAttr)
           
-          lineLength = width - xOffset - len(timeLabel) - 1
-          self.win.hline(lineCount, xOffset + len(timeLabel) + 1, curses.ACS_HLINE | dividerAttr, lineLength)
-          self.win.vline(lineCount, xOffset + len(timeLabel) + 1 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
+          if dividerIndent + len(timeLabel) + 2 <= width:
+            lineLength = width - dividerIndent - len(timeLabel) - 2
+            self.win.hline(lineCount, dividerIndent + len(timeLabel) + 2, curses.ACS_HLINE | dividerAttr, lineLength)
+            self.win.vline(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
         
         seenFirstDateDivider = True
         lineCount += 1
       else:
-        for line in entry.getDisplayMessage().split("\n"):
-          # splits over too lines if too long
-          if len(line) < width:
-            if lineCount >= 1:
-              if seenFirstDateDivider:
-                self.win.vline(lineCount, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
-                self.win.vline(lineCount, width, curses.ACS_VLINE | dividerAttr, 1)
-              
-              self.addstr(lineCount, xOffset, line, uiTools.getColor(entry.color))
-            lineCount += 1
-          else:
-            (line1, line2) = uiTools.splitLine(line, width - xOffset)
-            if lineCount >= 1:
-              if seenFirstDateDivider:
-                self.win.vline(lineCount, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
-                self.win.vline(lineCount, width, curses.ACS_VLINE | dividerAttr, 1)
-              
-              self.addstr(lineCount, xOffset, line1, uiTools.getColor(entry.color))
-            if lineCount >= 0 and lineCount + 1 < height:
-              if seenFirstDateDivider:
-                self.win.vline(lineCount + 1, xOffset - 1, curses.ACS_VLINE | dividerAttr, 1)
-                self.win.vline(lineCount + 1, width, curses.ACS_VLINE | dividerAttr, 1)
-              
-              self.addstr(lineCount + 1, xOffset, line2, uiTools.getColor(entry.color))
-            lineCount += 2
+        # entry contents to be displayed, tuples of the form:
+        # (msg, formatting, includeLinebreak)
+        displayQueue = []
+        
+        msgComp = entry.getDisplayMessage().split("\n")
+        for i in range(len(msgComp)):
+          displayQueue.append((msgComp[i].strip(), uiTools.getColor(entry.color), i != len(msgComp) - 1))
+        
+        if duplicateCount:
+          pluralLabel = "s" if duplicateCount > 1 else ""
+          duplicateMsg = DUPLICATE_MSG % (duplicateCount, pluralLabel)
+          displayQueue.append((duplicateMsg, duplicateAttr, False))
+        
+        cursorLoc, lineOffset = msgIndent, 0
+        maxEntriesPerLine = self._config["features.log.maxLinesPerEntry"]
+        while displayQueue:
+          msg, format, includeBreak = displayQueue.pop(0)
+          drawLine = lineCount + lineOffset
+          if lineOffset == maxEntriesPerLine: break
+          
+          maxMsgSize = width - cursorLoc
+          if len(msg) >= maxMsgSize:
+            # message is too long - break it up
+            if lineOffset == maxEntriesPerLine - 1:
+              msg = uiTools.cropStr(msg, maxMsgSize)
+            else:
+              msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.END_WITH_HYPHEN, True)
+              displayQueue.insert(0, (remainder.strip(), format, includeBreak))
+            
+            includeBreak = True
+          
+          if drawLine < height and drawLine >= 1:
+            if seenFirstDateDivider and width - dividerIndent >= 3 and showDaybreaks:
+              self.win.vline(drawLine, dividerIndent, curses.ACS_VLINE | dividerAttr, 1)
+              self.win.vline(drawLine, width, curses.ACS_VLINE | dividerAttr, 1)
+            
+            self.addstr(drawLine, cursorLoc, msg, format)
+          
+          cursorLoc += len(msg)
+          
+          if includeBreak or not displayQueue:
+            lineOffset += 1
+            cursorLoc = msgIndent + ENTRY_INDENT
+        
+        lineCount += lineOffset
       
       # if this is the last line and there's room, then draw the bottom of the divider
-      isLastLine = i == len(eventLog) - 1
-      if isLastLine and seenFirstDateDivider and lineCount < height:
-        self.win.vline(lineCount, xOffset - 1, curses.ACS_LLCORNER | dividerAttr, 1)
-        self.win.hline(lineCount, xOffset, curses.ACS_HLINE | dividerAttr, width - xOffset)
-        self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+      if not deduplicatedLog and seenFirstDateDivider:
+        if lineCount < height and showDaybreaks:
+          # when resizing with a small width the following entries can be
+          # problematc (though I'm not sure why)
+          try:
+            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
+            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
+            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+          except: pass
+        
         lineCount += 1
-      
-      if lineCount >= height: break # further log messages wouldn't fit
+    
+    self.lastContentHeight = lineCount + self.scroll - 1
+    
+    # if we're off the bottom of the page then redraw the content with the
+    # corrected lastContentHeight
+    if self.lastContentHeight > height and self.scroll + height - 1 > self.lastContentHeight:
+      self.draw(subwindow, width, height)
     
     self.valsLock.release()
   
@@ -783,50 +922,3 @@ class LogPanel(panel.Panel, threading.Thread):
     self.valsLock.release()
     return panelLabel
   
-  def _getContentLength(self):
-    """
-    Provides the number of lines the log's contents would currently occupy,
-    taking into account filtered/wrapped lines, the scroll bar, etc.
-    """
-    
-    if self._config["features.log.showDateDividers"]:
-      timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
-      currentDay = int((time.time() - timezoneOffset) / 86400)
-    else: currentDay = 0
-    
-    # if the arguments haven't changed then we can use cached results
-    self.valsLock.acquire()
-    height, width = self.getPreferredSize()
-    currentPattern = self.regexFilter.pattern if self.regexFilter else None
-    isUnchanged = self._contentLengthArgs[0] == self.msgLog
-    isUnchanged &= self._contentLengthArgs[1] == currentPattern
-    isUnchanged &= self._contentLengthArgs[2] == height
-    isUnchanged &= self._contentLengthArgs[3] == width
-    isUnchanged &= self._contentLengthArgs[4] == currentDay
-    if isUnchanged:
-      self.valsLock.release()
-      return self._contentLengthCache
-    
-    contentLengths = [0, 0] # length of the content without and with a scroll bar
-    eventLog = getDaybreaks(self.msgLog) if self._config["features.log.showDateDividers"] else self.msgLog
-    for entry in eventLog:
-      if not self.regexFilter or self.regexFilter.search(entry.getDisplayMessage()):
-        if entry.type == DAYBREAK_EVENT:
-          contentLengths[0] += 2
-          contentLengths[1] += 2
-        else:
-          for line in entry.getDisplayMessage().split("\n"):
-            if len(line) >= width: contentLengths[0] += 2
-            else: contentLengths[0] += 1
-            
-            if len(line) >= width - 3: contentLengths[1] += 2
-            else: contentLengths[1] += 1
-    
-    # checks if the scroll bar would be displayed to determine the actual length
-    actualLength = contentLengths[0] if contentLengths[0] <= height - 1 else contentLengths[1]
-    
-    self._contentLengthCache = actualLength
-    self._contentLengthArgs = (list(self.msgLog), currentPattern, height, width, currentDay)
-    self.valsLock.release()
-    return actualLength
-
