@@ -15,8 +15,7 @@ import sys
 import time
 import threading
 
-import log
-import sysTools
+from util import log, sysTools
 
 # enums for connection resolution utilities
 CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)

@@ -3,7 +3,7 @@ Tracks configured ps stats. If non-numeric then this fails, providing a blank
 graph. By default this provides the cpu and memory usage of the tor process.
 """
 
-import graphPanel
+from interface.graphing import graphPanel
 from util import conf, log, sysTools, torTools, uiTools
 
 # number of subsequent failed queries before giving up

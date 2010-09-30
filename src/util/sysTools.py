@@ -6,7 +6,7 @@ import os
 import time
 import threading
 
-import log
+from util import log
 
 # mapping of commands to if they're available or not
 CMD_AVAILABLE_CACHE = {}
@@ -75,7 +75,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   
   # caching functionality (fetching and trimming)
   if cacheAge > 0:
-    global CALL_CACHE, CONFIG
+    global CALL_CACHE
     
     # keeps consistency that we never use entries over a minute old (these
     # results are 'dirty' and might be trimmed at any time)

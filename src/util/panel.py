@@ -7,7 +7,7 @@ import traceback
 import curses
 from threading import RLock
 
-import log, uiTools
+from util import log, uiTools
 
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
@@ -78,7 +78,7 @@ class Panel():
     Provides panel's identifier.
     """
     
-    return self.name
+    return self.panelName
   
   def getParent(self):
     """
@@ -423,7 +423,7 @@ class Panel():
       self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
       
       # note: doing this log before setting win produces an infinite loop
-      msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.panelName, newHeight, newWidth)
+      msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)
       log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
   

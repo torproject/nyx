@@ -17,8 +17,7 @@ import threading
 
 from TorCtl import TorCtl, TorUtil
 
-import log
-import sysTools
+from util import log, sysTools
 
 # enums for tor's controller state:
 # TOR_INIT - attached to a new controller or restart/sighup signal received

@@ -17,7 +17,7 @@ If a key's defined multiple times then the last instance of it is used.
 import os
 import threading
 
-import log
+from util import log
 
 CONFS = {}  # mapping of identifier to singleton instances of configs
 CONFIG = {"log.configEntryNotFound": None,

@@ -8,7 +8,7 @@ easy method of providing the following interface components:
 import sys
 import curses
 
-import log
+from util import log
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,

@@ -2,7 +2,7 @@
 Tracks stats concerning tor's current connections.
 """
 
-import graphPanel
+from interface.graphing import graphPanel
 from util import connections, torTools
 
 class ConnStats(graphPanel.GraphStats):

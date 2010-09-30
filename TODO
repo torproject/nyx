@@ -23,7 +23,7 @@ TODO
     * check performance of this version vs last version (general screen refresh
         times)
     * stress test under debug level and debug level with large log file
-    * pylint --indent-string="  " --disable-msg-cat=CR interface/foo.py | less
+    * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
 
 - Roadmap for version 1.3.8

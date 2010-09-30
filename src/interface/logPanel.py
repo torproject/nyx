@@ -52,9 +52,17 @@ DUPLICATE_MSG = " [%i duplicate%s hidden]"
 # [NOTICE] We stalled too much while trying to write 125 bytes to address [scrubbed]...
 # [NOTICE] Attempt by %s to open a stream from unknown relay. Closing.
 # [WARN] You specified a server "Amunet8" by name, but this name is not registered
+# [ARM_DEBUG] refresh rate:
+# [ARM_DEBUG] system call: ps
+# [ARM_DEBUG] system call: netstat
+# [ARM_DEBUG] GETINFO accounting/
 COMMON_LOG_MESSAGES = ["We stalled too much while trying to write",
                        "Attempt by ",
-                       "You specified a server "]
+                       "You specified a server ",
+                       "refresh rate: ",
+                       "system call: ps",
+                       "system call: netstat",
+                       "GETINFO accounting/"]
 
 # messages with a dynamic beginning (searches the whole string instead)
 # [WARN] 4 unknown, 1 missing key, 3 good, 0 bad, 1 no signature, 4 required

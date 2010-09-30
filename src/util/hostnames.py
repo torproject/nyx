@@ -32,8 +32,7 @@ import itertools
 import Queue
 import distutils.sysconfig
 
-import log
-import sysTools
+from util import log, sysTools
 
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
