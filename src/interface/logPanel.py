@@ -913,8 +913,9 @@ class LogPanel(panel.Panel, threading.Thread):
       # truncates to use an ellipsis if too long, for instance:
       attrLabel = ", ".join(eventsList)
       if currentPattern: attrLabel += " - filter: %s" % currentPattern
-      attrLabel = uiTools.cropStr(attrLabel, width - 10, -1)
-      panelLabel = "Events (%s):" % attrLabel
+      attrLabel = uiTools.cropStr(attrLabel, width - 10, 1)
+      if attrLabel: attrLabel = " (%s)" % attrLabel
+      panelLabel = "Events%s:" % attrLabel
     
     # cache results and return
     self._titleCache = panelLabel

@@ -116,7 +116,9 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   
   if includeCrop:
     returnMsg, remainder = msg[:size], msg[size:]
-    if endType == END_WITH_HYPHEN: returnMsg = returnMsg[:-1] + "-"
+    if endType == END_WITH_HYPHEN:
+      remainder = returnMsg[-1] + remainder
+      returnMsg = returnMsg[:-1] + "-"
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
