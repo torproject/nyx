@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 import os
 import sys
+from src.version import VERSION
 from distutils.core import setup
-
-VERSION = '1.3.6_dev'
 
 setup(name='arm',
       version=VERSION,

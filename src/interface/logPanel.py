@@ -5,12 +5,14 @@ regular expressions.
 """
 
 import time
+import os
 import curses
 import threading
 from curses.ascii import isprint
 
 from TorCtl import TorCtl
 
+from version import VERSION
 from util import log, panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
@@ -36,14 +38,17 @@ RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 
 ENTRY_INDENT = 2 # spaces an entry's message is indented after the first line
-DEFAULT_CONFIG = {"features.log.showDateDividers": True,
+DEFAULT_CONFIG = {"features.logPath": "",
+                  "features.log.showDateDividers": True,
                   "features.log.maxLinesPerEntry": 4,
                   "features.log.prepopulate": True,
                   "features.log.prepopulateReadLimit": 5000,
                   "features.log.maxRefreshRate": 300,
                   "cache.logPanel.size": 1000,
                   "log.logPanel.prepopulateSuccess": log.INFO,
-                  "log.logPanel.prepopulateFailed": log.WARN}
+                  "log.logPanel.prepopulateFailed": log.WARN,
+                  "log.logPanel.logFileOpened": log.NOTICE,
+                  "log.logPanel.logFileWriteFailed": log.ERR}
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
@@ -59,6 +64,7 @@ DUPLICATE_MSG = " [%i duplicate%s hidden]"
 # [ARM_DEBUG] system call: ps
 # [ARM_DEBUG] system call: netstat
 # [ARM_DEBUG] GETINFO accounting/
+# [BW] READ: 0, WRITTEN: 0
 COMMON_LOG_MESSAGES = {"NOTICE": [
                          "We stalled too much while trying to write",
                          "I learned some more directory information, but not enough to build a circuit",
@@ -71,7 +77,9 @@ COMMON_LOG_MESSAGES = {"NOTICE": [
                          "refresh rate: ",
                          "system call: ps",
                          "system call: netstat",
-                         "GETINFO accounting/"]
+                         "GETINFO accounting/"],
+                       "BW": [
+                         "READ:"]
                       }
 
 # cached values and the arguments that generated it for the getDaybreaks and
@@ -369,10 +377,19 @@ class LogEntry():
     self.color = color
     self._displayMessage = None
   
-  def getDisplayMessage(self):
+  def getDisplayMessage(self, includeDate = False):
     """
     Provides the entry's message for the log.
+    
+    Arguments:
+      includeDate - appends the event's date to the start of the message
     """
+    
+    if includeDate:
+      # not the common case so skip caching
+      entryTime = time.localtime(self.timestamp)
+      timeLabel =  "%i/%i/%i %02i:%02i:%02i" % (entryTime[1], entryTime[2], entryTime[0], entryTime[3], entryTime[4], entryTime[5])
+      return "%s [%s] %s" % (timeLabel, self.type, self.msg)
     
     if not self._displayMessage:
       entryTime = time.localtime(self.timestamp)
@@ -480,6 +497,7 @@ class LogPanel(panel.Panel, threading.Thread):
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
     self.lastContentHeight = 0          # height of the rendered content when last drawn
+    self.logFile = None                 # file log messages are saved to (skipped if None)
     self.scroll = 0
     self._isPaused = False
     self._pauseBuffer = []              # location where messages are buffered if paused
@@ -546,6 +564,21 @@ class LogPanel(panel.Panel, threading.Thread):
     conn = torTools.getConn()
     conn.addEventListener(TorEventObserver(self.registerEvent))
     conn.addTorCtlListener(self._registerTorCtlEvent)
+    
+    # opens log file if we'll be saving entries
+    if self._config["features.logPath"]:
+      logPath = self._config["features.logPath"]
+      
+      # make dir if the path doesn't already exist
+      baseDir = os.path.dirname(logPath)
+      if not os.path.exists(baseDir): os.makedirs(baseDir)
+      
+      try:
+        self.logFile = open(logPath, "a")
+        log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
+      except IOError, exc:
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        self.logFile = None
   
   def registerEvent(self, event):
     """
@@ -559,6 +592,15 @@ class LogPanel(panel.Panel, threading.Thread):
     
     # strips control characters to avoid screwing up the terminal
     event.msg = "".join([char for char in event.msg if (isprint(char) or char == "\n")])
+    
+    # note event in the log file if we're saving them
+    if self.logFile:
+      try:
+        self.logFile.write(event.getDisplayMessage(True) + "\n")
+        self.logFile.flush()
+      except IOError, exc:
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        self.logFile = None
     
     cacheSize = self._config["cache.logPanel.size"]
     if self._isPaused:
@@ -729,7 +771,8 @@ class LogPanel(panel.Panel, threading.Thread):
         
         msgComp = entry.getDisplayMessage().split("\n")
         for i in range(len(msgComp)):
-          displayQueue.append((msgComp[i].strip(), uiTools.getColor(entry.color), i != len(msgComp) - 1))
+          font = curses.A_BOLD if "ERR" in entry.type else curses.A_NORMAL # emphasizes ERR messages
+          displayQueue.append((msgComp[i].strip(), font | uiTools.getColor(entry.color), i != len(msgComp) - 1))
         
         if duplicateCount:
           pluralLabel = "s" if duplicateCount > 1 else ""

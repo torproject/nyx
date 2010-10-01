@@ -10,6 +10,7 @@ import os
 import sys
 import getopt
 
+import version
 import interface.controller
 import interface.logPanel
 import util.conf
@@ -22,9 +23,6 @@ import util.torTools
 import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
-
-VERSION = "1.3.6_dev"
-LAST_MODIFIED = "July 7, 2010"
 
 DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
 DEFAULTS = {"startup.controlPassword": None,
@@ -110,7 +108,7 @@ if __name__ == '__main__':
     elif opt in ("-e", "--event"):
       param["startup.events"] = arg                   # set event flags
     elif opt in ("-v", "--version"):
-      print "arm version %s (released %s)\n" % (VERSION, LAST_MODIFIED)
+      print "arm version %s (released %s)\n" % (version.VERSION, version.LAST_MODIFIED)
       sys.exit()
     elif opt in ("-h", "--help"):
       print HELP_MSG

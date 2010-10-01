@@ -7,6 +7,10 @@ startup.events N3
 
 features.colorInterface true
 
+# If set, arm saves any log messages it reports while running to the given
+# path. This does not take filters into account or include prepopulated events.
+features.logPath 
+
 # log panel parameters
 # showDateDividers: show borders with dates for entries from previous days
 # maxLinesPerEntry: max number of lines to display for a single log entry
@@ -101,6 +105,8 @@ log.graph.bw.prepopulateSuccess NOTICE
 log.graph.bw.prepopulateFailure NOTICE
 log.logPanel.prepopulateSuccess INFO
 log.logPanel.prepopulateFailed WARN
+log.logPanel.logFileOpened NOTICE
+log.logPanel.logFileWriteFailed ERR
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN
