@@ -48,25 +48,31 @@ DEFAULT_CONFIG = {"features.log.showDateDividers": True,
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
 # static starting portion of common log entries, used to deduplicate entries
-# that have dynamic content: 
+# that have dynamic content (checks inside the message if starting with a '*'):
 # [NOTICE] We stalled too much while trying to write 125 bytes to address [scrubbed]...
+# [NOTICE] I learned some more directory information, but not enough to build a circuit: We have only 469/2027 usable descriptors.
 # [NOTICE] Attempt by %s to open a stream from unknown relay. Closing.
 # [WARN] You specified a server "Amunet8" by name, but this name is not registered
+# [WARN] I have no descriptor for the router named "Amunet8" in my declared family; I'll use the nickname as is, but this may confuse clients.
+# [WARN] 4 unknown, 1 missing key, 3 good, 0 bad, 1 no signature, 4 required
 # [ARM_DEBUG] refresh rate:
 # [ARM_DEBUG] system call: ps
 # [ARM_DEBUG] system call: netstat
 # [ARM_DEBUG] GETINFO accounting/
-COMMON_LOG_MESSAGES = ["We stalled too much while trying to write",
-                       "Attempt by ",
-                       "You specified a server ",
-                       "refresh rate: ",
-                       "system call: ps",
-                       "system call: netstat",
-                       "GETINFO accounting/"]
-
-# messages with a dynamic beginning (searches the whole string instead)
-# [WARN] 4 unknown, 1 missing key, 3 good, 0 bad, 1 no signature, 4 required
-COMMON_LOG_MESSAGES_INTERNAL = ["missing key, "] 
+COMMON_LOG_MESSAGES = {"NOTICE": [
+                         "We stalled too much while trying to write",
+                         "I learned some more directory information, but not enough to build a circuit",
+                         "Attempt by "],
+                       "WARN": [
+                         "You specified a server ",
+                         "I have no descriptor for the router named",
+                         "*missing key, "],
+                       "ARM_DEBUG": [
+                         "refresh rate: ",
+                         "system call: ps",
+                         "system call: netstat",
+                         "GETINFO accounting/"]
+                      }
 
 # cached values and the arguments that generated it for the getDaybreaks and
 # getDuplicates functions
@@ -321,19 +327,18 @@ def getDuplicates(events):
       if forwardEntry.type == DAYBREAK_EVENT: break
       
       if entry.type == forwardEntry.type:
+        isDuplicate = False
         if entry.msg == forwardEntry.msg: isDuplicate = True
-        else:
-          isDuplicate = False
-          for commonMsg in COMMON_LOG_MESSAGES:
-            if entry.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg):
-              isDuplicate = True
-              break
-          
-          if not isDuplicate:
-            for commonMsg in COMMON_LOG_MESSAGES_INTERNAL:
-              if commonMsg in entry.msg and commonMsg in forwardEntry.msg:
-                isDuplicate = True
-                break
+        elif entry.type in COMMON_LOG_MESSAGES:
+          for commonMsg in COMMON_LOG_MESSAGES[entry.type]:
+            # if it starts with an asterisk then check the whole message rather
+            # than just the start
+            if commonMsg[0] == "*":
+              isDuplicate = commonMsg[1:] in entry.msg and commonMsg[1:] in forwardEntry.msg
+            else:
+              isDuplicate = entry.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg)
+            
+            if isDuplicate: break
         
         if isDuplicate: duplicateIndices.append(i)
     
