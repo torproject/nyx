@@ -13,7 +13,7 @@ from curses.ascii import isprint
 from TorCtl import TorCtl
 
 from version import VERSION
-from util import log, panel, sysTools, torTools, uiTools
+from util import conf, log, panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
@@ -38,8 +38,9 @@ RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 
 ENTRY_INDENT = 2 # spaces an entry's message is indented after the first line
-DEFAULT_CONFIG = {"features.logPath": "",
+DEFAULT_CONFIG = {"features.logFile": "",
                   "features.log.showDateDividers": True,
+                  "features.log.showDuplicateEntries": False,
                   "features.log.maxLinesPerEntry": 4,
                   "features.log.prepopulate": True,
                   "features.log.prepopulateReadLimit": 5000,
@@ -52,35 +53,9 @@ DEFAULT_CONFIG = {"features.logPath": "",
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
-# static starting portion of common log entries, used to deduplicate entries
-# that have dynamic content (checks inside the message if starting with a '*'):
-# [NOTICE] We stalled too much while trying to write 125 bytes to address [scrubbed]...
-# [NOTICE] I learned some more directory information, but not enough to build a circuit: We have only 469/2027 usable descriptors.
-# [NOTICE] Attempt by %s to open a stream from unknown relay. Closing.
-# [WARN] You specified a server "Amunet8" by name, but this name is not registered
-# [WARN] I have no descriptor for the router named "Amunet8" in my declared family; I'll use the nickname as is, but this may confuse clients.
-# [WARN] 4 unknown, 1 missing key, 3 good, 0 bad, 1 no signature, 4 required
-# [ARM_DEBUG] refresh rate:
-# [ARM_DEBUG] system call: ps
-# [ARM_DEBUG] system call: netstat
-# [ARM_DEBUG] GETINFO accounting/
-# [BW] READ: 0, WRITTEN: 0
-COMMON_LOG_MESSAGES = {"NOTICE": [
-                         "We stalled too much while trying to write",
-                         "I learned some more directory information, but not enough to build a circuit",
-                         "Attempt by "],
-                       "WARN": [
-                         "You specified a server ",
-                         "I have no descriptor for the router named",
-                         "*missing key, "],
-                       "ARM_DEBUG": [
-                         "refresh rate: ",
-                         "system call: ps",
-                         "system call: netstat",
-                         "GETINFO accounting/"],
-                       "BW": [
-                         "READ:"]
-                      }
+# static starting portion of common log entries, fetched from the config when
+# needed if None
+COMMON_LOG_MESSAGES = None
 
 # cached values and the arguments that generated it for the getDaybreaks and
 # getDuplicates functions
@@ -159,6 +134,21 @@ def getMissingEventTypes():
     armEventTypes = TOR_EVENT_TYPES.values()
     return [event for event in torEventTypes if not event in armEventTypes]
   else: return None # GETINFO call failed
+
+def loadLogMessages():
+  """
+  Fetches a mapping of common log messages to their runlevels from the config.
+  """
+  
+  global COMMON_LOG_MESSAGES
+  armConf = conf.getConfig("arm")
+  
+  COMMON_LOG_MESSAGES = {}
+  for confKey in armConf.getKeys():
+    if confKey.startswith("msg."):
+      eventType = confKey[4:].upper()
+      messages = armConf.get(confKey)
+      COMMON_LOG_MESSAGES[eventType] = messages
 
 def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   """
@@ -319,6 +309,9 @@ def getDuplicates(events):
   global CACHED_DUPLICATES_ARGUMENTS, CACHED_DUPLICATES_RESULT
   if CACHED_DUPLICATES_ARGUMENTS == events:
     return list(CACHED_DUPLICATES_RESULT)
+  
+  # loads common log entries from the config if they haven't been
+  if COMMON_LOG_MESSAGES == None: loadLogMessages()
   
   eventsRemaining = list(events)
   returnEvents = []
@@ -492,7 +485,9 @@ class LogPanel(panel.Panel, threading.Thread):
       self._config["features.log.maxRefreshRate"] = max(self._config["features.log.maxRefreshRate"], 10)
       self._config["cache.logPanel.size"] = max(self._config["cache.logPanel.size"], 50)
     
-    self.isDuplicatesHidden = True      # collapses duplicate log entries, only showing the most recent
+    # collapses duplicate log entries if false, showing only the most recent
+    self.showDuplicates = self._config["features.log.showDuplicateEntries"]
+    
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
@@ -566,8 +561,8 @@ class LogPanel(panel.Panel, threading.Thread):
     conn.addTorCtlListener(self._registerTorCtlEvent)
     
     # opens log file if we'll be saving entries
-    if self._config["features.logPath"]:
-      logPath = self._config["features.logPath"]
+    if self._config["features.logFile"]:
+      logPath = self._config["features.logFile"]
       
       # make dir if the path doesn't already exist
       baseDir = os.path.dirname(logPath)
@@ -680,7 +675,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.valsLock.release()
     elif key in (ord('u'), ord('U')):
       self.valsLock.acquire()
-      self.isDuplicatesHidden = not self.isDuplicatesHidden
+      self.showDuplicates = not self.showDuplicates
       self.redraw(True)
       self.valsLock.release()
   
@@ -727,7 +722,7 @@ class LogPanel(panel.Panel, threading.Thread):
     
     isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
     eventLog = getDaybreaks(self.msgLog, self._isPaused) if isDatesShown else list(self.msgLog)
-    if self.isDuplicatesHidden: deduplicatedLog = getDuplicates(eventLog)
+    if not self.showDuplicates: deduplicatedLog = getDuplicates(eventLog)
     else: deduplicatedLog = [(entry, 0) for entry in eventLog]
     
     # determines if we have the minimum width to show date dividers

@@ -23,6 +23,9 @@ CONFS = {}  # mapping of identifier to singleton instances of configs
 CONFIG = {"log.configEntryNotFound": None,
           "log.configEntryTypeError": log.INFO}
 
+# key prefixes that can contain multiple values
+LIST_KEYS = ["msg."]
+
 def loadConfig(config):
   config.update(CONFIG)
 
@@ -38,6 +41,20 @@ def getConfig(handle):
   
   if not handle in CONFS: CONFS[handle] = Config()
   return CONFS[handle]
+
+def isListKey(configKey):
+  """
+  Provides true if the given configuration key can have multiple values (being
+  a list), false otherwise.
+  
+  Arguments:
+    configKey - configuration key to check
+  """
+  for listKeyPrefix in LIST_KEYS:
+    if configKey.startswith(listKeyPrefix):
+      return True
+  
+  return False
 
 class Config():
   """
@@ -61,10 +78,11 @@ class Config():
     self.requestedKeys = set()
     self.rawContents = []   # raw contents read from configuration file
   
-  def getStr(self, key, default=None):
+  def getValue(self, key, default=None):
     """
-    This provides the currently value associated with a given key. If no such
-    key exists then this provides the default.
+    This provides the currently value associated with a given key, and a list
+    of values if isListKey(key) is true. If no such key exists then this
+    provides the default.
     
     Arguments:
       key     - config setting to be fetched
@@ -94,6 +112,7 @@ class Config():
     - integer or float if default is a number (provides default if fails to
       cast)
     - logging runlevel if key starts with "log."
+    - list if isListKey(key) is true
     
     Arguments:
       key      - config setting to be fetched
@@ -103,10 +122,12 @@ class Config():
     """
     
     callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
-    val = self.getStr(key, callDefault)
+    val = self.getValue(key, callDefault)
     if val == default: return val
     
-    if key.startswith("log."):
+    if isinstance(val, list):
+      pass
+    elif key.startswith("log."):
       if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
         val = log.strToRunlevel(val)
       else:
@@ -216,11 +237,16 @@ class Config():
         
         # parse the key/value pair
         if line:
-          if " " in line:
-            key, value = line.split(" ", 1)
-            self.contents[key] = value
+          key, value = line, ""
+          
+          # gets the key/value pair (no value was given if there isn't a space)
+          if " " in line: key, value = line.split(" ", 1)
+          
+          if isListKey(key):
+            if key in self.contents: self.contents[key].append(value)
+            else: self.contents[key] = [value]
           else:
-            self.contents[line] = "" # no value was provided
+            self.contents[key] = value
       
       self.contentsLock.release()
   

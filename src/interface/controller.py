@@ -42,8 +42,8 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"logging.rate.refreshRate": 5,
-          "features.graph.type": 1,
+CONFIG = {"features.graph.type": 1,
+          "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
           "log.refreshRate": log.DEBUG,
@@ -540,7 +540,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       stdscr.refresh()
       
       currentTime = time.time()
-      if currentTime - lastPerformanceLog >= CONFIG["logging.rate.refreshRate"]:
+      if currentTime - lastPerformanceLog >= CONFIG["queries.refreshRate.rate"]:
         log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds" % (currentTime - redrawStartTime))
         lastPerformanceLog = currentTime
     finally:
