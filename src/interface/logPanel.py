@@ -53,6 +53,12 @@ DEFAULT_CONFIG = {"features.logFile": "",
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
+# The height of the drawn content is estimated based on the last time we redrew
+# the panel. It's chiefly used for scrolling and the bar indicating its
+# position. Letting the estimate be too inaccurate results in a display bug, so
+# redraws the display if it's off by this threshold.
+CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
+
 # static starting portion of common log entries, fetched from the config when
 # needed if None
 COMMON_LOG_MESSAGES = None
@@ -820,12 +826,15 @@ class LogPanel(panel.Panel, threading.Thread):
         
         lineCount += 1
     
-    self.lastContentHeight = lineCount + self.scroll - 1
+    # redraw the display if...
+    # - lastContentHeight was off by too much
+    # - we're off the bottom of the page
+    newContentHeight = lineCount + self.scroll - 1
+    forceRedraw = abs(self.lastContentHeight - newContentHeight) >= CONTENT_HEIGHT_REDRAW_THRESHOLD
+    forceRedraw |= newContentHeight > height and self.scroll + height - 1 > newContentHeight
     
-    # if we're off the bottom of the page then redraw the content with the
-    # corrected lastContentHeight
-    if self.lastContentHeight > height and self.scroll + height - 1 > self.lastContentHeight:
-      self.draw(subwindow, width, height)
+    self.lastContentHeight = newContentHeight
+    if forceRedraw: self.redraw(True)
     
     self.valsLock.release()
   

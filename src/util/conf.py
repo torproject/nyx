@@ -50,6 +50,7 @@ def isListKey(configKey):
   Arguments:
     configKey - configuration key to check
   """
+  
   for listKeyPrefix in LIST_KEYS:
     if configKey.startswith(listKeyPrefix):
       return True

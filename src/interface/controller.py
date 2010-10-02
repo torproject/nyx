@@ -660,7 +660,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
           popup.addfstr(5, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
           
-          hiddenEntryLabel = "hidden" if panels["log"].isDuplicatesHidden else "visible"
+          hiddenEntryLabel = "visible" if panels["log"].showDuplicates else "hidden"
           popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
           popup.addfstr(6, 41, "<b>x</b>: clear event log")
           
