@@ -114,7 +114,12 @@ if __name__ == '__main__':
       print HELP_MSG
       sys.exit()
   
-  # attempts to load user's custom configuration
+  # attempts to load user's custom configuration, using defaults if not found
+  if not os.path.exists(configPath):
+    msg = "No configuration found at '%s', using defaults" % configPath
+    util.log.log(util.log.NOTICE, msg)
+    configPath = "%s/armrc.defaults" % os.path.dirname(sys.argv[0])
+  
   config = util.conf.getConfig("arm")
   config.path = configPath
   
@@ -132,8 +137,9 @@ if __name__ == '__main__':
       msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
       util.log.log(util.log.WARN, msg)
   else:
-    msg = "No configuration found at '%s', using defaults" % configPath
-    util.log.log(util.log.NOTICE, msg)
+    # no local copy of the armrc defaults, so fall back to values in the source
+    msg = "defaults file not found, falling back (log duplicate detection will be mostly nonfunctional)"
+    util.log.log(util.log.WARN, msg)
   
   # overwrites undefined parameters with defaults
   for key in param.keys():

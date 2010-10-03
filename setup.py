@@ -13,8 +13,9 @@ setup(name='arm',
       url='http://www.atagar.com/arm/',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
-      data_files=[("/usr/share/man/man1", ["debian/arm.1.gz"]),
-                  ("/usr/bin", ["arm"])],
+      data_files=[("/usr/bin", ["arm"]),
+                  ("/usr/lib/arm", ["src/armrc.defaults"]),
+                  ("/usr/share/man/man1", ["debian/arm.1.gz"])],
      )
 
 # Removes the egg_info file. Apparently it is not optional during setup

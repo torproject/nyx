@@ -6,6 +6,8 @@ debian/arm.1.gz
 src/__init__.py
 src/prereq.py
 src/starter.py
+src/version.py
+src/armrc.defaults
 src/TorCtl/GeoIPSupport.py
 src/TorCtl/PathSupport.py
 src/TorCtl/SQLSupport.py
