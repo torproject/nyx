@@ -663,6 +663,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           hiddenEntryLabel = "visible" if panels["log"].showDuplicates else "hidden"
           popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
           popup.addfstr(6, 41, "<b>x</b>: clear event log")
+          popup.addfstr(7, 41, "<b>a</b>: save snapshot of the log")
           
           pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
         if page == 1:
@@ -797,6 +798,47 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+      finally:
+        panel.CURSES_LOCK.release()
+      
+      panels["graph"].redraw(True)
+    elif page == 0 and (key == ord('a') or key == ord('A')):
+      # allow user to enter a path to take a snapshot - abandons if left blank
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        panels["control"].setMsg("Path to save log snapshot: ")
+        panels["control"].redraw(True)
+        
+        # makes cursor and typing visible
+        try: curses.curs_set(1)
+        except curses.error: pass
+        curses.echo()
+        
+        # gets user input (this blocks monitor updates)
+        pathInput = panels["control"].win.getstr(0, 27)
+        
+        # reverts visability settings
+        try: curses.curs_set(0)
+        except curses.error: pass
+        curses.noecho()
+        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
+        
+        if pathInput != "":
+          try:
+            panels["log"].saveSnapshot(pathInput)
+            panels["control"].setMsg("Saved: %s" % pathInput, curses.A_STANDOUT)
+            panels["control"].redraw(True)
+            time.sleep(2)
+          except IOError, exc:
+            panels["control"].setMsg("Unable to save snapshot: %s" % str(exc), curses.A_STANDOUT)
+            panels["control"].redraw(True)
+            time.sleep(2)
+        
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
       

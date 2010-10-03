@@ -10,9 +10,6 @@ TODO
       bugs are being fixed while refactoring.
       
       [ ] log panel
-        - log to file, allowing non-runlevel events to be saved (provide both
-            a continuous option and snapshots taking into account the current
-            filter)
         - log cropping based on time (idea by voidzero)
       [ ] conf panel
         - move torrc validation into util

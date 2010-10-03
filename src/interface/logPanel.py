@@ -669,6 +669,32 @@ class LogPanel(panel.Panel, threading.Thread):
     self.redraw(True)
     self.valsLock.release()
   
+  def saveSnapshot(self, path):
+    """
+    Saves the log events currently being displayed to the given path. This
+    takes filers into account. This overwrites the file if it already exists,
+    and raises an IOError if there's a problem.
+    
+    Arguments:
+      path - path where to save the log snapshot
+    """
+    
+    # make dir if the path doesn't already exist
+    baseDir = os.path.dirname(path)
+    if not os.path.exists(baseDir): os.makedirs(baseDir)
+    
+    snapshotFile = open(path, "w")
+    self.valsLock.acquire()
+    try:
+      for entry in self.msgLog:
+        isVisible = not self.regexFilter or self.regexFilter.search(entry.getDisplayMessage())
+        if isVisible: snapshotFile.write(entry.getDisplayMessage(True) + "\n")
+      
+      self.valsLock.release()
+    except Exception, exc:
+      self.valsLock.release()
+      raise exc
+  
   def handleKey(self, key):
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
