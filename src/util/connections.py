@@ -94,7 +94,7 @@ def getConnections(resolutionCmd, processName, processPid = ""):
       localIp, localPort = comp[3].split(":")
       foreignIp, foreignPort = comp[4].split(":")
     else:
-      local, foreign = comp[7].split("->")
+      local, foreign = comp[8].split("->")
       localIp, localPort = local.split(":")
       foreignIp, foreignPort = foreign.split(":")
     
