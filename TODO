@@ -9,12 +9,14 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [ ] log panel
-        - log cropping based on time (idea by voidzero)
+      [X] log panel
       [ ] conf panel
         - move torrc validation into util
         - fetch text via getinfo rather than reading directly?
             conn.get_info("config-text")
+        - improve parsing failure notice to give line number
+            just giving "[ARM-WARN] Unable to validate torrc" isn't very
+            helpful...
   * release prep
     * ask helix about steps for getting a deb and rpm included in the tor repo
     * check performance of this version vs last version (general screen refresh

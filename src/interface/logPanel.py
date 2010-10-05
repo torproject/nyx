@@ -36,11 +36,13 @@ EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s ST
 RUNLEVELS = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]
 RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
+TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
 ENTRY_INDENT = 2 # spaces an entry's message is indented after the first line
 DEFAULT_CONFIG = {"features.logFile": "",
                   "features.log.showDateDividers": True,
                   "features.log.showDuplicateEntries": False,
+                  "features.log.entryDuration": 7,
                   "features.log.maxLinesPerEntry": 4,
                   "features.log.prepopulate": True,
                   "features.log.prepopulateReadLimit": 5000,
@@ -69,6 +71,18 @@ CACHED_DAYBREAKS_ARGUMENTS = (None, None) # events, current day
 CACHED_DAYBREAKS_RESULT = None
 CACHED_DUPLICATES_ARGUMENTS = None # events
 CACHED_DUPLICATES_RESULT = None
+
+def daysSince(timestamp=None):
+  """
+  Provides the number of days since the epoch converted to local time (rounded
+  down).
+  
+  Arguments:
+    timestamp - unix timestamp to convert, current time if undefined
+  """
+  
+  if timestamp == None: timestamp = time.time()
+  return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
 def expandEvents(eventAbbr):
   """
@@ -280,8 +294,7 @@ def getDaybreaks(events, ignoreTimeForCache = False):
   if not events: return []
   
   newListing = []
-  timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
-  currentDay = int((time.time() - timezoneOffset) / 86400)
+  currentDay = daysSince()
   lastDay = currentDay
   
   if CACHED_DAYBREAKS_ARGUMENTS[0] == events and \
@@ -289,9 +302,9 @@ def getDaybreaks(events, ignoreTimeForCache = False):
     return list(CACHED_DAYBREAKS_RESULT)
   
   for entry in events:
-    eventDay = int((entry.timestamp - timezoneOffset) / 86400) # days since epoch
+    eventDay = daysSince(entry.timestamp)
     if eventDay != lastDay:
-      markerTimestamp = (eventDay * 86400) + timezoneOffset
+      markerTimestamp = (eventDay * 86400) + TIMEZONE_OFFSET
       newListing.append(LogEntry(markerTimestamp, DAYBREAK_EVENT, "", "white"))
     
     newListing.append(entry)
@@ -507,8 +520,9 @@ class LogPanel(panel.Panel, threading.Thread):
     self._halt = False                  # terminates thread if true
     self._cond = threading.Condition()  # used for pausing/resuming the thread
     
-    # restricts concurrent write access to attributes used to draw the display:
-    # msgLog, loggedEvents, regexFilter, scroll
+    # restricts concurrent write access to attributes used to draw the display
+    # and pausing:
+    # msgLog, loggedEvents, regexFilter, scroll, _pauseBuffer
     self.valsLock = threading.RLock()
     
     # cached parameters (invalidated if arguments for them change)
@@ -558,6 +572,9 @@ class LogPanel(panel.Panel, threading.Thread):
     finally:
       log.LOG_LOCK.release()
     
+    # crops events that are either too old, or more numerous than the caching size
+    self._trimEvents(self.msgLog)
+    
     # leaving lastContentHeight as being too low causes initialization problems
     self.lastContentHeight = len(self.msgLog)
     
@@ -605,12 +622,14 @@ class LogPanel(panel.Panel, threading.Thread):
     
     cacheSize = self._config["cache.logPanel.size"]
     if self._isPaused:
+      self.valsLock.acquire()
       self._pauseBuffer.insert(0, event)
-      if len(self._pauseBuffer) > cacheSize: del self._pauseBuffer[cacheSize:]
+      self._trimEvents(self._pauseBuffer)
+      self.valsLock.release()
     else:
       self.valsLock.acquire()
       self.msgLog.insert(0, event)
-      if len(self.msgLog) > cacheSize: del self.msgLog[cacheSize:]
+      self._trimEvents(self.msgLog)
       
       # notifies the display that it has new content
       if not self.regexFilter or self.regexFilter.search(event.getDisplayMessage()):
@@ -875,12 +894,10 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
     
-    timezoneOffset = time.altzone if time.localtime()[8] else time.timezone
-    currentTime = time.time()
-    
     # unix time for the start of the current day (local time), used so we
     # can redraw when the date changes
-    dayStartTime = currentTime - (currentTime - timezoneOffset) % 86400
+    currentTime = time.time()
+    dayStartTime = currentTime - (currentTime - TIMEZONE_OFFSET) % 86400
     while not self._halt:
       currentTime = time.time()
       timeSinceReset = currentTime - self._lastUpdate
@@ -897,7 +914,7 @@ class LogPanel(panel.Panel, threading.Thread):
         if not self._halt: self._cond.wait(sleepTime)
         self._cond.release()
       else:
-        dayStartTime = currentTime - (currentTime - timezoneOffset) % 86400
+        dayStartTime = currentTime - (currentTime - TIMEZONE_OFFSET) % 86400
         self.redraw(True)
   
   def stop(self):
@@ -1009,3 +1026,30 @@ class LogPanel(panel.Panel, threading.Thread):
     self.valsLock.release()
     return panelLabel
   
+  def _trimEvents(self, eventListing):
+    """
+    Crops events that have either:
+    - grown beyond the cache limit
+    - outlived the configured log duration
+    
+    """
+    
+    self.valsLock.acquire()
+    cacheSize = self._config["cache.logPanel.size"]
+    if len(eventListing) > cacheSize: del eventListing[cacheSize:]
+    
+    logTTL = self._config["features.log.entryDuration"]
+    if logTTL > 0:
+      currentDay = daysSince()
+      
+      breakpoint = None # index at which to crop from
+      for i in range(len(eventListing) - 1, -1, -1):
+        daysSinceEvent = currentDay - daysSince(eventListing[i].timestamp)
+        if daysSinceEvent > logTTL: breakpoint = i # older than the ttl
+        else: break
+      
+      # removes entries older than the ttl
+      if breakpoint != None: del eventListing[breakpoint:]
+    
+    self.valsLock.release()
+
