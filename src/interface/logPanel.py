@@ -894,17 +894,14 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
     
-    # unix time for the start of the current day (local time), used so we
-    # can redraw when the date changes
-    currentTime = time.time()
-    dayStartTime = currentTime - (currentTime - TIMEZONE_OFFSET) % 86400
+    lastDay = daysSince() # used to determine if the date has changed
     while not self._halt:
-      currentTime = time.time()
-      timeSinceReset = currentTime - self._lastUpdate
+      currentDay = daysSince()
+      timeSinceReset = time.time() - self._lastUpdate
       maxLogUpdateRate = self._config["features.log.maxRefreshRate"] / 1000.0
       
       sleepTime = 0
-      if (self.msgLog == self._lastLoggedEvents and currentTime < dayStartTime + 86401) or self._isPaused:
+      if (self.msgLog == self._lastLoggedEvents and lastDay == currentDay) or self._isPaused:
         sleepTime = 5
       elif timeSinceReset < maxLogUpdateRate:
         sleepTime = max(0.05, maxLogUpdateRate - timeSinceReset)
@@ -914,7 +911,7 @@ class LogPanel(panel.Panel, threading.Thread):
         if not self._halt: self._cond.wait(sleepTime)
         self._cond.release()
       else:
-        dayStartTime = currentTime - (currentTime - TIMEZONE_OFFSET) % 86400
+        lastDay = currentDay
         self.redraw(True)
   
   def stop(self):
