@@ -8,7 +8,7 @@ import socket
 
 import controller
 from TorCtl import TorCtl
-from util import log, panel, uiTools
+from util import log, panel, torTools, uiTools
 
 # torrc parameters that can be defined multiple times without overwriting
 # from src/or/config.c (entries with LINELIST or LINELIST_S)
@@ -92,7 +92,7 @@ class ConfPanel(panel.Panel):
     try:
       resetSuccessful = True
       
-      confFile = open(self.confLocation, "r")
+      confFile = open(torTools.getPathPrefix() + self.confLocation, "r")
       self.confContents = confFile.readlines()
       confFile.close()
       

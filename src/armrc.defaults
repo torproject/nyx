@@ -13,10 +13,13 @@ queries.refreshRate.rate 5
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
+# Set this if you're running in a chroot jail or other environment where tor's
+# resources (log, state, etc) have an unreported prefix in their path.
+features.pathPrefix
+
 # If set, arm appends any log messages it reports while running to the given
 # log file. This does not take filters into account or include prepopulated
 # events.
-
 features.logFile 
 
 # Paremters for the log panel
@@ -134,6 +137,7 @@ log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetConf DEBUG
 log.torEventTypeUnrecognized NOTICE
+log.torPrefixPathInvalid NOTICE
 log.sysCallMade DEBUG
 log.sysCallCached NONE
 log.sysCallFailed INFO
@@ -166,8 +170,13 @@ log.cursesColorSupport INFO
 # [BW] READ: 0, WRITTEN: 0
 # [DEBUG] connection_handle_write(): After TLS write of 512: 0 read, 586 written
 # [DEBUG] flush_chunk_tls(): flushed 512 bytes, 0 ready to flush, 0 remain.
+# [DEBUG] conn_read_callback(): socket 7 wants to read.
 # [DEBUG] conn_write_callback(): socket 51 wants to write.
+# [DEBUG] connection_remove(): removing socket -1 (type OR), n_conns now 50
 # [DEBUG] connection_or_process_cells_from_inbuf(): 7: starting, inbuf_datalen 0 (0 pending in tls object).
+# [DEBUG] connection_read_to_buf(): 38: starting, inbuf_datalen 0 (0 pending in tls object). at_most 12800.
+# [DEBUG] connection_read_to_buf(): TLS connection closed on read. Closing. (Nickname moria1, address 128.31.0.34)
+# [INFO] run_connection_housekeeping(): Expiring non-open OR connection to fd 16 (79.193.61.171:443).
 # [INFO] rep_hist_downrate_old_runs(): Discounting all old stability info by a factor of 0.950000
 # [NOTICE] We stalled too much while trying to write 150 bytes to address
 #          [scrubbed].  If this happens a lot, either something is wrong with
@@ -193,8 +202,13 @@ log.cursesColorSupport INFO
 msg.BW READ:
 msg.DEBUG connection_handle_write(): After TLS write of
 msg.DEBUG flush_chunk_tls(): flushed
+msg.DEBUG conn_read_callback(): socket
 msg.DEBUG conn_write_callback(): socket
+msg.DEBUG connection_remove(): removing socket
 msg.DEBUG connection_or_process_cells_from_inbuf():
+msg.DEBUG *pending in tls object). at_most
+msg.DEBUG connection_read_to_buf(): TLS connection closed on read. Closing.
+msg.INFO run_connection_housekeeping(): Expiring
 msg.INFO rep_hist_downrate_old_runs(): Discounting all old stability info by a factor of
 msg.NOTICE We stalled too much while trying to write
 msg.NOTICE I learned some more directory information, but not enough to build a circuit

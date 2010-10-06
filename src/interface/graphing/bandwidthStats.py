@@ -100,7 +100,7 @@ class BandwidthStats(graphPanel.GraphStats):
       return False
     
     # attempt to open the state file
-    try: stateFile = open("%s/state" % dataDir, "r")
+    try: stateFile = open("%s%s/state" % (torTools.getPathPrefix(), dataDir), "r")
     except IOError:
       msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
       log.log(self._config["log.graph.bw.prepopulateFailure"], msg)

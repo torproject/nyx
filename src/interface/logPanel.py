@@ -199,6 +199,9 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   
   if not loggingLocation: return []
   
+  # includes the prefix for tor paths
+  loggingLocation = torTools.getPathPrefix() + loggingLocation
+  
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
   loggingTypes = loggingTypes.upper()

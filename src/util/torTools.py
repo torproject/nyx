@@ -46,9 +46,11 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"log.torCtlPortClosed": log.NOTICE,
+CONFIG = {"features.pathPrefix": "",
+          "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
-          "log.torGetConf": log.DEBUG}
+          "log.torGetConf": log.DEBUG,
+          "log.torPrefixPathInvalid": log.NOTICE}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -63,6 +65,26 @@ TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()]
 
 def loadConfig(config):
   config.update(CONFIG)
+  
+  # make sure the path prefix is valid and exists (providing a notice if not)
+  prefixPath = CONFIG["features.pathPrefix"].strip()
+  
+  if prefixPath:
+    if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+    
+    if prefixPath and not os.path.exists(prefixPath):
+      msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
+      log.log(CONFIG["log.torPrefixPathInvalid"], msg)
+      prefixPath = ""
+  
+  CONFIG["features.pathPrefix"] = prefixPath
+
+def getPathPrefix():
+  """
+  Provides the path prefix that should be used for fetching tor resources.
+  """
+  
+  return CONFIG["features.pathPrefix"]
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
