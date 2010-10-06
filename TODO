@@ -50,6 +50,7 @@ TODO
         - country data for client connections (requested by ioerror)
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
+        - provide measurements for startup time, and try improving bottlenecks
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
       [ ] look into CAPs to get around permission issues for connection

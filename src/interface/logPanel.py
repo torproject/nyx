@@ -51,7 +51,8 @@ DEFAULT_CONFIG = {"features.logFile": "",
                   "log.logPanel.prepopulateSuccess": log.INFO,
                   "log.logPanel.prepopulateFailed": log.WARN,
                   "log.logPanel.logFileOpened": log.NOTICE,
-                  "log.logPanel.logFileWriteFailed": log.ERR}
+                  "log.logPanel.logFileWriteFailed": log.ERR,
+                  "log.logPanel.forceDoubleRedraw": log.DEBUG}
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
@@ -875,11 +876,21 @@ class LogPanel(panel.Panel, threading.Thread):
     # - lastContentHeight was off by too much
     # - we're off the bottom of the page
     newContentHeight = lineCount + self.scroll - 1
-    forceRedraw = abs(self.lastContentHeight - newContentHeight) >= CONTENT_HEIGHT_REDRAW_THRESHOLD
-    forceRedraw |= newContentHeight > height and self.scroll + height - 1 > newContentHeight
+    contentHeightDelta = abs(self.lastContentHeight - newContentHeight)
+    forceRedraw, forceRedrawReason = False, ""
+    
+    if contentHeightDelta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
+      forceRedraw = True
+      forceRedrawReason = "estimate was off by %i" % contentHeightDelta
+    elif newContentHeight > height and self.scroll + height - 1 > newContentHeight:
+      forceRedraw = True
+      forceRedrawReason = "scrolled off the bottom of the page"
     
     self.lastContentHeight = newContentHeight
-    if forceRedraw: self.redraw(True)
+    if forceRedraw:
+      forceRedrawReason = "redrawing the log panel with the corrected content height (%s)" % forceRedrawReason
+      log.log(self._config["log.logPanel.forceDoubleRedraw"], forceRedrawReason)
+      self.redraw(True)
     
     self.valsLock.release()
   

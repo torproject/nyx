@@ -147,6 +147,7 @@ log.logPanel.prepopulateSuccess INFO
 log.logPanel.prepopulateFailed WARN
 log.logPanel.logFileOpened NOTICE
 log.logPanel.logFileWriteFailed ERR
+log.logPanel.forceDoubleRedraw DEBUG
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN
@@ -180,6 +181,8 @@ log.cursesColorSupport INFO
 # [ARM_DEBUG] refresh rate: 0.001 seconds
 # [ARM_DEBUG] system call: ps -p 2354 -o %cpu,rss,%mem,etime (runtime: 0.02)
 # [ARM_DEBUG] system call: netstat -npt | grep 2354/tor (runtime: 0.02)
+# [ARM_DEBUG] recreating panel 'graph' with the dimensions of 14/124
+# [ARM_DEBUG] redrawing the log panel with the corrected content height (estimat was off by 4)
 # [ARM_DEBUG] GETINFO accounting/bytes-left (runtime: 0.0006)
 
 msg.BW READ:
@@ -193,6 +196,8 @@ msg.WARN *missing key,
 msg.ARM_DEBUG refresh rate:
 msg.ARM_DEBUG system call: ps
 msg.ARM_DEBUG system call: netstat
+msg.ARM_DEBUG recreating panel '
+msg.ARM_DEBUG redrawing the log panel with the corrected content height (
 msg.ARM_DEBUG GETINFO accounting/bytes
 msg.ARM_DEBUG GETINFO accounting/bytes-left
 msg.ARM_DEBUG GETINFO accounting/interval-end
