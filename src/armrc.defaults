@@ -164,6 +164,11 @@ log.cursesColorSupport INFO
 # 
 # Examples for the complete messages:
 # [BW] READ: 0, WRITTEN: 0
+# [DEBUG] connection_handle_write(): After TLS write of 512: 0 read, 586 written
+# [DEBUG] flush_chunk_tls(): flushed 512 bytes, 0 ready to flush, 0 remain.
+# [DEBUG] conn_write_callback(): socket 51 wants to write.
+# [DEBUG] connection_or_process_cells_from_inbuf(): 7: starting, inbuf_datalen 0 (0 pending in tls object).
+# [INFO] rep_hist_downrate_old_runs(): Discounting all old stability info by a factor of 0.950000
 # [NOTICE] We stalled too much while trying to write 150 bytes to address
 #          [scrubbed].  If this happens a lot, either something is wrong with
 #          your network connection, or something is wrong with theirs. (fd 238,
@@ -186,6 +191,11 @@ log.cursesColorSupport INFO
 # [ARM_DEBUG] GETINFO accounting/bytes-left (runtime: 0.0006)
 
 msg.BW READ:
+msg.DEBUG connection_handle_write(): After TLS write of
+msg.DEBUG flush_chunk_tls(): flushed
+msg.DEBUG conn_write_callback(): socket
+msg.DEBUG connection_or_process_cells_from_inbuf():
+msg.INFO rep_hist_downrate_old_runs(): Discounting all old stability info by a factor of
 msg.NOTICE We stalled too much while trying to write
 msg.NOTICE I learned some more directory information, but not enough to build a circuit
 msg.NOTICE Attempt by
