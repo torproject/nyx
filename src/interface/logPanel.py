@@ -425,8 +425,8 @@ class TorEventObserver(TorCtl.PostEventListener):
     formatted calls of a callback function.
     
     Arguments:
-      callback   - function accepting a LogEntry, called when an event of these
-                   types occur
+      callback - function accepting a LogEntry, called when an event of these
+                 types occur
     """
     
     TorCtl.PostEventListener.__init__(self)
@@ -766,7 +766,8 @@ class LogPanel(panel.Panel, threading.Thread):
     
     # draws left-hand scroll bar if content's longer than the height
     msgIndent, dividerIndent = 0, 0 # offsets for scroll bar
-    if self.lastContentHeight > height - 1:
+    isScrollBarVisible = self.lastContentHeight > height - 1
+    if isScrollBarVisible:
       msgIndent, dividerIndent = 3, 2
       self.addScrollBar(self.scroll, self.scroll + height - 1, self.lastContentHeight, 1)
     
@@ -880,14 +881,17 @@ class LogPanel(panel.Panel, threading.Thread):
     # - we're off the bottom of the page
     newContentHeight = lineCount + self.scroll - 1
     contentHeightDelta = abs(self.lastContentHeight - newContentHeight)
-    forceRedraw, forceRedrawReason = False, ""
+    forceRedraw, forceRedrawReason = True, ""
     
     if contentHeightDelta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
-      forceRedraw = True
       forceRedrawReason = "estimate was off by %i" % contentHeightDelta
     elif newContentHeight > height and self.scroll + height - 1 > newContentHeight:
-      forceRedraw = True
       forceRedrawReason = "scrolled off the bottom of the page"
+    elif not isScrollBarVisible and newContentHeight > height - 1:
+      forceRedrawReason = "scroll bar wasn't previously visible"
+    elif isScrollBarVisible and newContentHeight <= height - 1:
+      forceRedrawReason = "scroll bar shouldn't be visible"
+    else: forceRedraw = False
     
     self.lastContentHeight = newContentHeight
     if forceRedraw:
@@ -1045,7 +1049,6 @@ class LogPanel(panel.Panel, threading.Thread):
     
     """
     
-    self.valsLock.acquire()
     cacheSize = self._config["cache.logPanel.size"]
     if len(eventListing) > cacheSize: del eventListing[cacheSize:]
     
@@ -1061,6 +1064,4 @@ class LogPanel(panel.Panel, threading.Thread):
       
       # removes entries older than the ttl
       if breakpoint != None: del eventListing[breakpoint:]
-    
-    self.valsLock.release()
 

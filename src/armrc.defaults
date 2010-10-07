@@ -14,7 +14,7 @@ queries.refreshRate.rate 5
 features.colorInterface true
 
 # Set this if you're running in a chroot jail or other environment where tor's
-# resources (log, state, etc) have an unreported prefix in their path.
+# resources (log, state, etc) should have a prefix in their paths.
 features.pathPrefix
 
 # If set, arm appends any log messages it reports while running to the given
@@ -28,7 +28,7 @@ features.logFile
 #   show borders with dates for entries from previous days
 # showDuplicateEntries
 #   shows all log entries if true, otherwise collapses similar entries with an
-#   indicator for how much is hidden
+#   indicator for how much is being hidden
 # entryDuration
 #   number of days log entries are kept before being dropped (if zero then
 #   they're kept until cropped due to caching limits)
