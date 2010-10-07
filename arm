@@ -1,8 +1,13 @@
 #!/bin/sh
-python init/prereq.py
+if [ $0 = /usr/bin/arm ]; then
+  arm_base=/usr/lib/arm/
+else
+  arm_base=src/
+fi
 
-if [ $? = 0 ]
-then
-  python -W ignore::DeprecationWarning init/starter.py $*
+python ${arm_base}prereq.py
+
+if [ $? = 0 ]; then
+  python -W ignore::DeprecationWarning ${arm_base}starter.py $*
 fi
 

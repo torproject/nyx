@@ -60,13 +60,12 @@ share and it should be fine.
 
 > Is there any chance that arm will leak data?
 
-Yes - arm is a passive listener with one exception. The second page
+Not by default, arm is a passive listener with one exception. The second page
 (connections) provides the hostnames of Tor relays you're connected to. This
 means reverse DNS lookups which, if monitored, could leak your current
-connections to an eavesdropper. However, lookups are only made upon request
-(when showing connection details or listing connections by hostname) and you
-can disable lookups entirely with 'r' - see the page's help for the current
-status.
+connections to an eavesdropper. However, this is disabled by default and
+lookups are only made upon request (when showing connection details or listing
+connections by hostname). See the page's help for how to enable lookups.
 
 That said, this is not a terribly big whoop. ISPs and anyone sniffing your
 connection already have this data - the only difference is that instead of
@@ -86,50 +85,56 @@ Arm still runs, just no connection listing or ps stats.
 Layout:
 
 ./
-  arm       - startup script
+  arm     - startup script
+  install - installation script
   
   armrc.sample - example arm configuration file with defaults
   ChangeLog    - revision history
   LICENSE      - copy of the gpl v3
   README       - um... guess you figured this one out
   TODO         - known issues, future plans, etc
+  setup.py     - distutils installation script for arm
   
-  screenshot_page1.png
-  screenshot_page2.png
+  debian/     - resources for generating debs and rpms (most is metadata)
+    make-deb  - script for generating debian installer
+    make-rpm  - script for generating red hat installer
+    arm.1.gz  - man page
   
-  init/
+  src/
     __init__.py
-    starter.py - parses and validates commandline parameters
-    prereq.py  - checks python version and for required packages
-  
-  interface/
-    graphing/
+    starter.py  - parses and validates commandline parameters
+    prereq.py   - checks python version and for required packages
+    version.py  - version and last modified information
+    uninstall   - removal script
+    
+    interface/
+      graphing/
+        __init__.py
+        graphPanel.py     - (page 1) presents graphs for data instances
+        bandwidthStats.py - tracks tor bandwidth usage
+        psStats.py        - tracks system information (such as cpu/memory usage)
+        connStats.py      - tracks number of tor connections
+      
       __init__.py
-      graphPanel.py     - (page 1) presents graphs for data instances
-      bandwidthStats.py - tracks tor bandwidth usage
-      psStats.py        - tracks system information (by default cpu and memory usage)
-      connStats.py      - tracks number of tor connections
+      controller.py          - main display loop, handling input and layout
+      headerPanel.py         - top of all pages, providing general information
+      
+      logPanel.py            - (page 1) displays tor, arm, and torctl events
+      fileDescriptorPopup.py - (popup) displays file descriptors used by tor
+      
+      connPanel.py           - (page 2) displays information on tor connections
+      descriptorPopup.py     - (popup) displays connection descriptor data
+      
+      confPanel.py           - (page 3) displays torrc and performs validation
     
-    __init__.py
-    controller.py          - main display loop, handling input and layout
-    headerPanel.py         - top of all pages, providing general information
-    
-    logPanel.py            - (page 1) displays tor, arm, and torctl events
-    fileDescriptorPopup.py - (popup) displays file descriptors used by tor
-    
-    connPanel.py           - (page 2) displays information on tor connections
-    descriptorPopup.py     - (popup) displays connection descriptor data
-    
-    confPanel.py           - (page 3) displays torrc and performs validation
-  
-  util/
-    __init__.py
-    conf.py        - loading and persistence for user configuration
-    connections.py - service providing periodic connection lookups
-    hostnames.py   - service providing nonblocking reverse dns lookups
-    log.py         - aggregator for application events
-    panel.py       - wrapper for safely working with curses subwindows
-    sysTools.py    - helper for system calls, providing client side caching
-    torTools.py    - wrapper for TorCtl, providing caching and derived information
-    uiTools.py     - helper functions for presenting the user interface
+    util/
+      __init__.py
+      conf.py        - loading and persistence for user configuration
+      connections.py - service providing periodic connection lookups
+      hostnames.py   - service providing nonblocking reverse dns lookups
+      log.py         - aggregator for application events
+      panel.py       - wrapper for safely working with curses subwindows
+      sysTools.py    - helper for system calls, providing client side caching
+      torTools.py    - TorCtl wrapper, providing caching and derived information
+      uiTools.py     - helper functions for presenting the user interface
 

@@ -1,0 +1,15 @@
+#!/bin/sh
+python src/prereq.py
+
+if [ $? = 0 ]; then
+  python setup.py -q install --install-purelib /usr/lib
+  
+  # provide notice if we installed successfully
+  if [ $? = 0 ]; then
+    echo "installed to /usr/lib/arm"
+  fi
+  
+  # cleans up the automatically built temporary files
+  rm -rf ./build
+fi
+
