@@ -85,8 +85,8 @@ Arm still runs, just no connection listing or ps stats.
 Layout:
 
 ./
-  arm       - startup script
-  uninstall - installation script
+  arm     - startup script
+  install - installation script
   
   armrc.sample - example arm configuration file with defaults
   ChangeLog    - revision history
@@ -104,6 +104,7 @@ Layout:
     __init__.py
     starter.py  - parses and validates commandline parameters
     prereq.py   - checks python version and for required packages
+    version.py  - version and last modified information
     uninstall   - removal script
     
     interface/

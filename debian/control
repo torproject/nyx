@@ -1,7 +1,7 @@
 Source: tor-arm
 Section: comm
 Priority: extra
-Maintainer: Damian Johnson <atagar@torproject.org>
+Maintainer: Damian Johnson <atagar1@gmail.com>
 Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), python
 Standards-Version: 3.8.3
 Homepage: http://www.atagar.com/arm

@@ -1,6 +1,57 @@
 CHANGE LOG
 
-6/7/10 - version 1.3.6
+10/6/10 - version 1.3.7
+Numerous improvements, most notably being an expanded log panel, installer, and deb/rpm builds.
+
+    * added: installation/removal scripts and man page (thanks to kaner)
+    * added: scripts and resources for making deb and rpm releases (thanks to ioerror, and also requested by helmut)
+    * added: path prefix option for chroot jails (requested by asn)
+    * added: customizable graph size (requested by voidzero)
+    * added: incremental y-axis measurements to the graph (requested by voidzero)
+    * added: caching for static GETINFO parameter
+    * added: logging for the refresh rate metric
+    * change: full rewrite of the log panel, providing:
+          o dividers for the date, bordering all events that occurred on the same day
+          o hiding duplicate log entries (feature request by asn)
+          o coalescing updates if they're numerous, such as running at the DEBUG runlevel
+          o providing a notice if tor supports event types that arm doesn't, and logging them as the 'UNKNOWN' type
+          o condensing the label for runlevel event ranges further if they're identical for multiple types
+          o options for:
+                + saving logged events to a file, either via snapshots or running persistence
+                + presenting torctl events of arbitrary runlevels
+                + clearing the event log
+                + maximum lines displayed from individual log entries
+                + cropping based on time (requested by voidzero)
+          o numerous performance improvements (for log prepopulation, determining the content length, caching for helper functions, etc)
+          o minor bug fixes including:
+                + added handling for BUILDTIMEOUT_SET events
+                + dropping brackets from label if no events are being logged
+                + merging tor and arm backlogs according to timestamps
+                + regex matches were failing for multiline log entries
+    * change: using PidFile entry to fetch pid if available (idea by arma)
+    * change: dropping irrelevant information from the header when not running as a relay
+    * change: updated torctl version to the current git head release
+    * change: measuring by bits for transfer rates (config can set it back to bytes)
+    * change: home/end keys jump to start/end of all scroll areas (request by dun)
+    * change: trimmed last couple letters off downloaded/uploaded labels (requested by asn)
+    * change: dropping the 'frequentRefresh' parameter in favor of just doing refreshes when there's new graph stats available
+    * fix: shifting bandwidth prepopulation by a sampling interval to account for tor's internal behavior (thanks to voidzero, nickm, arma, and Sebastian)
+    * fix: making rdns resolution disabled by defaut due to possible connection disclosure to upstream resolver (thanks to Sebastian)
+    * fix: skipping bandwidth prepopulation if not running as a relay (caught by arma)
+    * fix: bandwidth stats above the graph weren't getting reset by sighups (caught by voidzero)
+    * fix: config and connection panels were failing to parse a torrc with tabs (caught by voidzero)
+    * fix: remapping torrc aliases so GETCONF calls don't fail (caught by voidzero)
+    * fix: crashing error in bandwidth panel for wide screen displays (caught by cjb)
+    * fix: changing debian arch to all rather than any (suggestion by murb)
+    * fix: had case sensitive check for the torrc logging types (caught by asn)
+    * fix: crashing error when ExitPolicy was undefined (caught by asn)
+    * fix: dumping a stacktrace to /tmp and exiting immediately if exceptions are raised while redrawing
+    * fix: connection panel failed to handle family entries identified by its nickname
+    * fix: race condition between heartbeat detection and getting the first BW event
+    * fix: refreshing after popups to make the interface seem more responsive
+    * fix: crashing and minor display issues if orport was left unset
+
+6/7/10 - version 1.3.6 (r22617)
 Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features. This improved the refresh rate (which is also related to system resource usage) from 30ms to 4ms (an 87% improvement).
 
     * added: settings are fetched from an optional armrc (update rates, controller password, caching, runlevels, etc)
