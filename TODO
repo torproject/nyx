@@ -1,6 +1,6 @@
 TODO
 
-- Remaining work for next release (1.3.7)
+- Roadmap and completed work for next release (1.3.8)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -9,50 +9,50 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [X] log panel
       [ ] conf panel
         - move torrc validation into util
         - fetch text via getinfo rather than reading directly?
-            conn.get_info("config-text")
+           conn.get_info("config-text")
         - improve parsing failure notice to give line number
-            just giving "[ARM-WARN] Unable to validate torrc" isn't very
-            helpful...
-  * release prep
-    * ask helix about steps for getting a deb and rpm included in the tor repo
-    * check performance of this version vs last version (general screen refresh
-        times)
-    * stress test under debug level and debug level with large log file
-    * pylint --indent-string="  " --disable=C,R interface/foo.py | less
-    * double check __init__.py and README for changes
-
-- Roadmap for version 1.3.8
-  [ ] refactor panels
+          just giving "[ARM-WARN] Unable to validate torrc" isn't very
+          helpful...
       [ ] conn panel
         - expand client connections and note location in circuit (entry-exit)
         - for clients list all connections to detect what's going through tor
-            and what isn't? If not then netstat calls are unnecessary.
+          and what isn't? If not then netstat calls are unnecessary.
         - check family connections to see if they're alive (VERSION cell
-            handshake?)
+          handshake?)
         - fallback when pid or connection querying via pid is unavailable
-            List all connections listed both by netstat and the consensus
+          List all connections listed both by netstat and the consensus
         - note when connection times are estimates (color?), ie connection
-            was established before arm
+          was established before arm
         - connection uptime to associate inbound/outbound connections?
         - Identify controller connections (if it's arm, vidalia, etc) with
-            special detail page for them
+          special detail page for them
         - provide bridge / client country statistics
-            Include bridge related data via GETINFO option (feature request
-            by waltman and ioerror).
+          Include bridge related data via GETINFO option (feature request
+          by waltman and ioerror).
         - pick apart applications like iftop and pktstat to see how they get
-            per-connection bandwidth usage. Forum thread discussing it:
-            https://bbs.archlinux.org/viewtopic.php?pid=715906
-      [ ] controller and popup panels
+          per-connection bandwidth usage. Forum thread discussing it:
+          https://bbs.archlinux.org/viewtopic.php?pid=715906
+        - give usage stats for exit port usage (popup?)
         - country data for client connections (requested by ioerror)
+      [ ] attempt to clear controller password from memory
+        - http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
+  * release prep
+    * pylint --indent-string="  " --disable=C,R interface/foo.py | less
+    * double check __init__.py and README for changes
+
+- Roadmap for version 1.3.9
+  [ ] refactor panels
+      [ ] controller and popup panels
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
-        - provide measurements for startup time, and try improving bottlenecks
+        - provide measurements for startup time, and try to improve bottlenecks
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
+        - attempt to verify download signature, providing a warning if unable
+          to do so
       [ ] look into CAPs to get around permission issues for connection
           listing sudo wrapper for arm to help arm run as the same user as
           tor? Irc suggestions:
@@ -60,6 +60,7 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * path for sample armrc in man page is wrong
   * when in client mode and tor stops the header panel doesn't say so
   * util are assuming that tor is running under the default command name
       attempt to determine the command name at runtime (if the pid is available
@@ -106,12 +107,23 @@ TODO
     * connection uptimes shouldn't show fractions of a second
     * connections aren't cleared when control port closes
 
-- Features
-  * general purpose method of erroring nicely
-    Some errors cause portions of the display to die, but curses limps along
-    and overwrites the stacktrace. This has been mostly solved, but all errors
-    should result in a clean death, with the stacktrace saved and a nice
-    message for the user.
+- Future Features
+  * control port interpreter (interactive prompt)
+    Panel and startup option (-t maybe?) for providing raw control port access
+    along with usability improvements (piggybacking on the arm connection):
+      * irc like help (ex "/help GETINFO" could provide a summary of getinfo
+        commands, partly using the results from "GETINFO info/names")
+      * tab completion and up/down for previous commands
+      * warn and get confirmation if command would disrupt arm (for instance
+        'SETEVENTS')
+      * 'safe' option that restricts to read-only access (start with this)
+      * issue sighup reset
+  * menus
+    * http://gnosis.cx/publish/programming/charming_python_6.html ?
+    * additional options:
+      * make update rates configurable via the ui
+      * dialog with flag descriptions and other help
+      * menu with all torrc options (making them editable/toggleable)
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
       replace the orport, fingerprint, flags, etc)
@@ -122,21 +134,35 @@ TODO
         [notice] Opening Socks listener on 127.0.0.1:9050
         [notice] Opening Transparent pf/netfilter listener on 127.0.0.1:9040
         [notice] Opening DNS listener on 127.0.0.1:53
-      * rdns and whois lookups (to find ISP, country, and jurisdiction, etc)
-        To avoid disclosing connection data to third parties this needs to be
-        an all-or-nothing operation (ie, needs to fetch information on all
-        relays or none of them). Plan is something like:
+    * rdns and whois lookups (to find ISP, country, and jurisdiction, etc)
+      To avoid disclosing connection data to third parties this needs to be
+      an all-or-nothing operation (ie, needs to fetch information on all
+      relays or none of them). Plan is something like:
         * add resolving/caching capabilities to fetch information on all relays
           and distil whois entries to just what we care about (hosting provider
           or ISP), by default updating the cache on a daily basis
         * construct tarball and make this available for download rather than
           fetching everything at each client
-        * possibly make these archives downloadable from peer relays (note:
-          this is a no-go for clients) via torrents or some dirport like scheme
-    * special page for client related information, such as ips of our client
-      circuits at the exit
+        * possibly make these archives downloadable from peer relays (this is a
+          no-go for clients) via torrents or some dirport like scheme
     * look at vidalia for ideas
     * need to solicit for ideas on what would be most helpful to clients
+  * general purpose method of erroring nicely
+    Some errors cause portions of the display to die, but curses limps along
+    and overwrites the stacktrace. This has been mostly solved, but all errors
+    should result in a clean death, with the stacktrace saved and a nice
+    message for the user.
+  * handle mutiple tor instances
+    * screen style (dialog for switching between instances)
+    * extra window with whatever stats can be aggregated over all instances
+  * option to save the current settings to the config
+    * provide warning at startup if the armrc doesn't exist, with instructions
+      for generating it
+  * email alerts for changes to the relay's status, similar to tor-weather
+    * simple alert if tor shuts down
+    * accounting and alerts for if the bandwidth drops to zero
+    * daily/weekly/etc alerts for basic status (log output, bandwidth history,
+        etc), borrowing from the consensus tracker for some of the formatting
   * mac installer
     * Couple of options include macport and dmg...
       * macport (http://guide.macports.org/#development)
@@ -153,91 +179,45 @@ TODO
         Plugin for distutils. Like most mac packaging, this can only run on a
         mac. It also requires setuptools:
         http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
-  * email alerts for changes to the relay's status, similar to tor-weather
-    * simple alert if tor shuts down
-    * accounting and alerts for if the bandwidth drops to zero
-    * daily/weekly/etc alerts for basic status (log output, bandwidth history,
-        etc), borrowing from the consensus tracker for some of the formatting
-  * check if batch getInfo/getOption calls provide much performance benefit
-  * page with details on client circuits, attempting to detect details like
-      country, ISP, latency, exit policy for the circuit, traffic, etc
-  * attempt to clear controller password from memory
-      http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
-  * escaping function for uiTools' formatted strings
-  * make update rates configurable via the ui
-      Also provide option for saving these settings to the config
-  * config option to cap resource usage
-  * dialog with flag descriptions and other help
-  * switch check of ip address validity to regex?
-      match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
-      http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
-  * audit tor connections
-      Provide warnings if tor misbehaves, checks possibly including:
-        - ensuring ExitPolicyRejectPrivate is being obeyed
-        - check that ExitPolicy violations don't occur (not possible yet since
-          not all relays aren't identified)
-        - check that all connections are properly related to a circuit, for
-          instance no outbound connections without a corresponding inbound (not
-          possible yet due to being unable to correlate connections to circuits)
-  * check file descriptors being accessed by tor to see if they're outside the
-      known pattern
-  * add page that allows raw control port access
-      Start with -t (or -c?) option for commandline-only access with help,
-      syntax highlighting, and other spiffy extras
-      
-      Piggyback on the arm connection, providing something like an interactive
-      prompt. In addition, provide:
-        - irc like help (ex "/help GETINFO" could provide a summary of getinfo
-        commands, partly using the results from "GETINFO info/names")
-        - tab completion and up/down populates previous entries
-        - warn and get confirmation if command would disrupt arm (for instance
-        'SETEVENTS')
-        - 'guard' option that restricts to GETINFO only  (start with this)
-        - issue sighup reset
-  * menu with all torrc options (making them editable/toggleable)
-  * Setup wizard for new relays
-      Setting the password and such for torrc generation (idea by ioerror)
-  * menus?
-      http://gnosis.cx/publish/programming/charming_python_6.html
+  * look into additions to the used apis
+    * curses (python 2.6 extended?): http://docs.python.org/library/curses.html
+    * new control options (like "desc-annotations/id/<OR identity>")?
   * look into better supporting hidden services (what could be useful here?)
-  * look into providing UPnP support
-      This might be provided by tor itself so wait and see...
-  * unit tests
-      Primarily for util, for instance 'addfstr' woudl be a good candidate.
-  * show qos stats
-      Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
-      available and interesting.
-  * handle mutiple tor instances
-      First multiple tor instances on the same system, then via remote
-      connections too.
-  * Investigations of other possible tools:
-    * look into additions to the used apis
-        - curses (python 2.6 extended?): http://docs.python.org/library/curses.html
-        - new control options (like "desc-annotations/id/<OR identity>")?
-        - look deeper into TorCtl functions (has a resolve function? hu?)
-    * whois lookup for relays? ISP listing?
-    * look into what sort of information tcpdump and iptraf provides (probably
-        can't use for privacy reasons)
-    * vnstat, nload, mrtg, and traceroute
-
-- Ideas (low priority)
-  * python 3 compatibility
-      Currently blocked on TorCtl support.
-  * bundle script that dumps relay stats to stdout
-      Django has a small terminal coloring module that could be nice for
-      formatting. Could possibly include:
-        - desc / ns information for our relay
-        - ps / netstat stats like load, uptime, and connection counts, etc
-      derived from an idea by StrangeCharm
-  * localization
-      Abstract strings from code and provide on translation portal. Thus far
-      there hasn't been any requests for this.
   * provide option for a consensus page
-      Shows full consensus with an interface similar to the connection panel.
-      For this Mike's ConsensusTracker would be helpful (though boost the
-      startup time by several seconds)
-  * follow up on control-spec proposals
-      Proposal and related information is available at:
-      https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
-      https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+    Shows full consensus with an interface similar to the connection panel.
+    For this Mike's ConsensusTracker would be helpful (though boost the
+    startup time by several seconds)
+  * show qos stats
+    Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
+    available and interesting.
+  * escaping function for uiTools' formatted strings
+  * switch check of ip address validity to regex?
+    match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
+    http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
+  * setup wizard for new relays
+    Setting the password and such for torrc generation. Maybe a netinstaller
+    that fetches the right package for the plagform, verifies signatures, etc?
+    (idea by ioerror)
+  * audit what tor does
+    * Provide warnings if tor connections misbehaves, for instance:
+      * ensuring ExitPolicyRejectPrivate is being obeyed
+      * check that ExitPolicy violations don't occur (not possible yet since
+        not all relays aren't identified)
+      * check that all connections are properly related to a circuit, for
+        instance no outbound connections without a corresponding inbound (not
+        possible yet due to being unable to correlate connections to circuits)
+    * check file descriptors being accessed by tor to see if they're outside a
+        known pattern
+  * script that dumps relay stats to stdout
+    Derived from an idea by StrangeCharm. Django has a small terminal coloring
+    module that could be nice for formatting. Could possibly include:
+      * desc / ns information for our relay
+      * ps / netstat stats like load, uptime, and connection counts, etc
+  * implement control-spec proposals:
+    * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
+    * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+  * unit tests
+    Primarily for util, for instance 'addfstr' would be a good candidate.
+  * python 3 compatibility
+    Currently blocked on TorCtl support.
 
