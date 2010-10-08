@@ -340,11 +340,11 @@ class GraphPanel(panel.Panel):
       
       # creates bar graph (both primary and secondary)
       for col in range(graphCol):
-        colCount = param.primaryCounts[self.updateInterval][col + 1] - primaryMinBound
+        colCount = int(param.primaryCounts[self.updateInterval][col + 1]) - primaryMinBound
         colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, primaryMaxBound) - primaryMinBound))
         for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
         
-        colCount = param.secondaryCounts[self.updateInterval][col + 1] - secondaryMinBound
+        colCount = int(param.secondaryCounts[self.updateInterval][col + 1]) - secondaryMinBound
         colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, secondaryMaxBound) - secondaryMinBound))
         for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
       
