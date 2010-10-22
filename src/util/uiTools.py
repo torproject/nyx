@@ -28,8 +28,8 @@ SIZE_UNITS_BITS =  [(140737488355328.0, " Pb", " Petabit"), (137438953472.0, " T
 SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
                     (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
                     (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
-TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
-              (60.0, "m", " minute"),                   (1.0, "s", " second")]
+TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
+              (60.0, "m", " minute"), (1.0, "s", " second")]
 
 END_WITH_ELLIPSE, END_WITH_HYPHEN = range(1, 3)
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
@@ -61,7 +61,9 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
   isn't room for even a truncated single word (or one word plus the ellipse if
-  including those) then this provides an empty string. Examples:
+  including those) then this provides an empty string. If a cropped string ends
+  with a comma or period then it's stripped (unless we're providing the
+  remainder back). Examples:
   
   cropStr("This is a looooong message", 17)
   "This is a looo..."
@@ -86,26 +88,28 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
                    cropped portion of the message
   """
   
-  if minWordLen == None: minWordLen = sys.maxint
-  minWordLen = max(0, minWordLen)
-  minCrop = max(0, minCrop)
-  
   # checks if there's room for the whole message
   if len(msg) <= size:
     if getRemainder: return (msg, "")
     else: return msg
   
+  # avoids negative input
+  size = max(0, size)
+  if minWordLen != None: minWordLen = max(0, minWordLen)
+  minCrop = max(0, minCrop)
+  
   # since we're cropping, the effective space available is less with an
   # ellipse, and cropping words requires an extra space for hyphens
   if endType == END_WITH_ELLIPSE: size -= 3
-  elif endType == END_WITH_HYPHEN: minWordLen += 1
+  elif endType == END_WITH_HYPHEN and minWordLen != None: minWordLen += 1
   
   # checks if there isn't the minimum space needed to include anything
-  if size <= minWordLen:
+  lastWordbreak = msg.rfind(" ", 0, size + 1)
+  if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
     if getRemainder: return ("", msg)
     else: return ""
   
-  lastWordbreak = msg.rfind(" ", 0, size + 1)
+  if minWordLen == None: minWordLen = sys.maxint
   includeCrop = size - lastWordbreak - 1 >= minWordLen
   
   # if there's a max crop size then make sure we're cropping at least that many characters
@@ -122,7 +126,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
-  if returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
+  if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
   
   if endType == END_WITH_ELLIPSE: returnMsg += "..."
   

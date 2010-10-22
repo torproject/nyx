@@ -14,7 +14,7 @@ setup(name='arm',
       packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.util', 'arm.TorCtl'],
       package_dir={'arm': 'src'},
       data_files=[("/usr/bin", ["arm"]),
-                  ("/usr/lib/arm", ["src/armrc.defaults"]),
+                  ("/usr/lib/arm", ["src/settings.cfg"]),
                   ("/usr/share/man/man1", ["debian/arm.1.gz"])],
      )
 

@@ -10,33 +10,31 @@ TODO
       bugs are being fixed while refactoring.
       
       [ ] conf panel
-        - move torrc validation into util
-        - fetch text via getinfo rather than reading directly?
-           conn.get_info("config-text")
-        - improve parsing failure notice to give line number
-          just giving "[ARM-WARN] Unable to validate torrc" isn't very
-          helpful...
+        - display and validation needs to recognize config entries that span
+          multiple lines
+        - option to display the armrc configuration
+        - [validation] check if there's missing entries
+          might be able to use "GETINFO config-text" to determine entries that
+          differ from the defaults, then see if they're all in the torrc
       [ ] conn panel
         - expand client connections and note location in circuit (entry-exit)
-        - for clients list all connections to detect what's going through tor
-          and what isn't? If not then netstat calls are unnecessary.
-        - check family connections to see if they're alive (VERSION cell
+        - for clients give an option to list all connections, to tell which are
+          going through tor and which might be leaking
+        - check family members to see if they're alive (VERSION cell
           handshake?)
         - fallback when pid or connection querying via pid is unavailable
           List all connections listed both by netstat and the consensus
         - note when connection times are estimates (color?), ie connection
           was established before arm
         - connection uptime to associate inbound/outbound connections?
-        - Identify controller connections (if it's arm, vidalia, etc) with
+        - identify controller connections (if it's arm, vidalia, etc) with
           special detail page for them
-        - provide bridge / client country statistics
+        - provide bridge / client country / exiting port statistics
           Include bridge related data via GETINFO option (feature request
           by waltman and ioerror).
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
-        - give usage stats for exit port usage (popup?)
-        - country data for client connections (requested by ioerror)
       [ ] attempt to clear controller password from memory
         - http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
   * release prep
@@ -73,17 +71,6 @@ TODO
       timestamps to see if it belongs to this tor instance. This requires
       tor's uptime - blocked on implementation of the following proposal:
       https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
-  
-  * conf panel:
-    * torrc validation doesn't catch if parameters are missing
-    * scrolling in the torrc isn't working properly when comments are stripped
-        Current method of displaying torrc is pretty stupid (lots of repeated
-        work in display loop). When rewritten fixing this bug should be
-        trivial.
-    * "ExitPolicy" entry in torrc (without path)
-        Produces "May 26 22:11:03.484 [warn] The abbreviation 'ExitPolic' is
-        deprecated. Please use 'ExitPolicy' instead". This is an error in the
-        torrc parsing when only the key is provided.
   
   * conn panel:
     * *never* do reverse dns lookups for first hops (could be resolving via
@@ -145,13 +132,11 @@ TODO
           fetching everything at each client
         * possibly make these archives downloadable from peer relays (this is a
           no-go for clients) via torrents or some dirport like scheme
-    * look at vidalia for ideas
+    * look at Vidalia and TorK for ideas
     * need to solicit for ideas on what would be most helpful to clients
-  * general purpose method of erroring nicely
-    Some errors cause portions of the display to die, but curses limps along
-    and overwrites the stacktrace. This has been mostly solved, but all errors
-    should result in a clean death, with the stacktrace saved and a nice
-    message for the user.
+    * dialog with bridge statuses (idea by mikeperry)
+      https://trac.vidalia-project.net/ticket/570
+      https://trac.torproject.org/projects/tor/ticket/2068
   * handle mutiple tor instances
     * screen style (dialog for switching between instances)
     * extra window with whatever stats can be aggregated over all instances
@@ -179,6 +164,8 @@ TODO
         Plugin for distutils. Like most mac packaging, this can only run on a
         mac. It also requires setuptools:
         http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+  * look through vidalia's tickets for more ideas
+    https://trac.vidalia-project.net/
   * look into additions to the used apis
     * curses (python 2.6 extended?): http://docs.python.org/library/curses.html
     * new control options (like "desc-annotations/id/<OR identity>")?
@@ -216,6 +203,9 @@ TODO
   * implement control-spec proposals:
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+  * gui frontend (gtk?)
+    Look into if the arm utilities and codebase would fit nicely for a gui
+    controller like Vidalia and TorK.
   * unit tests
     Primarily for util, for instance 'addfstr' would be a good candidate.
   * python 3 compatibility

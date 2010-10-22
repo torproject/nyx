@@ -2,7 +2,6 @@
 Wrapper for safely working with curses subwindows.
 """
 
-import sys
 import traceback
 import curses
 from threading import RLock
@@ -224,15 +223,6 @@ class Panel():
         self.win.erase() # clears any old contents
         self.draw(self.win, self.maxX - 1, self.maxY)
       self.win.refresh()
-    except:
-      # without terminating curses continues in a zombie state (requiring a
-      # kill signal to quit, and screwing up the terminal)
-      # TODO: provide a nicer, general purpose handler for unexpected exceptions
-      try:
-        tracebackFile = open("/tmp/armTraceback", "w")
-        traceback.print_exc(file=tracebackFile)
-      finally:
-        sys.exit(1)
     finally:
       CURSES_LOCK.release()
   
@@ -374,6 +364,10 @@ class Panel():
     # ensures slider isn't at top or bottom unless really at those extreme bounds
     if top > 0: sliderTop = max(sliderTop, 1)
     if bottom != size: sliderTop = min(sliderTop, scrollbarHeight - sliderSize - 2)
+    
+    # avoids a rounding error that causes the scrollbar to be too low when at
+    # the bottom
+    if bottom == size: sliderTop = scrollbarHeight - sliderSize - 1
     
     # draws scrollbar slider
     for i in range(scrollbarHeight):

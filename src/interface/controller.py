@@ -344,16 +344,16 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   # attempts to determine tor's current pid (left as None if unresolveable, logging an error later)
   torPid = torTools.getConn().getMyPid()
   
-  try:
-    confLocation = conn.get_info("config-file")["config-file"]
-    if confLocation[0] != "/":
-      # relative path - attempt to add process pwd
-      try:
-        results = sysTools.call("pwdx %s" % torPid)
-        if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
-      except IOError: pass # pwdx call failed
-  except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-    confLocation = ""
+  #try:
+  #  confLocation = conn.get_info("config-file")["config-file"]
+  #  if confLocation[0] != "/":
+  #    # relative path - attempt to add process pwd
+  #    try:
+  #      results = sysTools.call("pwdx %s" % torPid)
+  #      if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
+  #    except IOError: pass # pwdx call failed
+  #except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+  #  confLocation = ""
   
   # minor refinements for connection resolver
   if not isBlindMode:
@@ -378,7 +378,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["torrc"] = confPanel.ConfPanel(stdscr, confLocation, conn)
+  panels["torrc"] = confPanel.ConfPanel(stdscr, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -448,7 +448,7 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # provides notice about any unused config keys
   for key in config.getUnusedKeys():
-    log.log(CONFIG["log.configEntryUndefined"], "unrecognized configuration entry: %s" % key)
+    log.log(CONFIG["log.configEntryUndefined"], "unused configuration entry: %s" % key)
   
   lastPerformanceLog = 0 # ensures we don't do performance logging too frequently
   redrawStartTime = time.time()
@@ -531,8 +531,8 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
       for panelKey in (PAGE_S + PAGES[page]):
         # redrawing popup can result in display flicker when it should be hidden
         if panelKey != "popup":
-          if panelKey in ("header", "graph", "log"):
-            # revised panel (handles its own content refreshing)
+          if panelKey in ("header", "graph", "log", "torrc"):
+            # revised panel (manages its own content refreshing)
             panels[panelKey].redraw()
           else:
             panels[panelKey].redraw(True)

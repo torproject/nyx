@@ -62,8 +62,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._config = dict(DEFAULT_CONFIG)
     
     if config:
-      config.update(self._config)
-      self._config["queries.ps.rate"] = max(self._config["queries.ps.rate"], 1)
+      config.update(self._config, {"queries.ps.rate": 1})
     
     self.vals = {}
     self.valsLock = threading.RLock()

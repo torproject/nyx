@@ -1,6 +1,6 @@
 CHANGE LOG
 
-10/6/10 - version 1.3.7
+10/6/10 - version 1.3.7 (r23439)
 Numerous improvements, most notably being an expanded log panel, installer, and deb/rpm builds.
 
     * added: installation/removal scripts and man page (thanks to kaner)
@@ -50,6 +50,7 @@ Numerous improvements, most notably being an expanded log panel, installer, and 
     * fix: race condition between heartbeat detection and getting the first BW event
     * fix: refreshing after popups to make the interface seem more responsive
     * fix: crashing and minor display issues if orport was left unset
+    * fix (10/7/10, r23463): crashing from type issue in the graph panel (caught by tomb)
 
 6/7/10 - version 1.3.6 (r22617)
 Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features. This improved the refresh rate (which is also related to system resource usage) from 30ms to 4ms (an 87% improvement).

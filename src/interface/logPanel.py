@@ -168,10 +168,10 @@ def loadLogMessages():
   for confKey in armConf.getKeys():
     if confKey.startswith("msg."):
       eventType = confKey[4:].upper()
-      messages = armConf.get(confKey)
+      messages = armConf.get(confKey, [])
       COMMON_LOG_MESSAGES[eventType] = messages
 
-def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
+def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = None):
   """
   Parses tor's log file for past events matching the given runlevels, providing
   a list of log entries (ordered newest to oldest). Limiting the number of read
@@ -182,10 +182,14 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
     runlevels - event types (DEBUG - ERR) to be returned
     readLimit - max lines of the log file that'll be read (unlimited if None)
     addLimit  - maximum entries to provide back (unlimited if None)
+    config    - configuration parameters related to this panel, uses defaults
+                if left as None
   """
   
   startTime = time.time()
   if not runlevels: return []
+  
+  if not config: config = DEFAULT_CONFIG
   
   # checks tor's configuration for the log file's location (if any exists)
   loggingTypes, loggingLocation = None, None
@@ -236,7 +240,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
       logFile.close()
   except IOError:
     msg = "Unable to read tor's log file: %s" % loggingLocation
-    log.log(DEFAULT_CONFIG["log.logPanel.prepopulateFailed"], msg)
+    log.log(config["log.logPanel.prepopulateFailed"], msg)
   
   if not lines: return []
   
@@ -278,7 +282,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   
   if addLimit: loggedEvents = loggedEvents[:addLimit]
   msg = "Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(loggedEvents), loggingLocation, readLimit, time.time() - startTime)
-  log.log(DEFAULT_CONFIG["log.logPanel.prepopulateSuccess"], msg)
+  log.log(config["log.logPanel.prepopulateSuccess"], msg)
   return loggedEvents
 
 def getDaybreaks(events, ignoreTimeForCache = False):
@@ -496,17 +500,16 @@ class LogPanel(panel.Panel, threading.Thread):
   def __init__(self, stdscr, loggedEvents, config=None):
     panel.Panel.__init__(self, stdscr, "log", 0)
     threading.Thread.__init__(self)
+    self.setDaemon(True)
     
     self._config = dict(DEFAULT_CONFIG)
     
     if config:
-      config.update(self._config)
-      
-      # ensures prepopulation and cache sizes are sane
-      self._config["features.log.maxLinesPerEntry"] = max(self._config["features.log.maxLinesPerEntry"], 1)
-      self._config["features.log.prepopulateReadLimit"] = max(self._config["features.log.prepopulateReadLimit"], 0)
-      self._config["features.log.maxRefreshRate"] = max(self._config["features.log.maxRefreshRate"], 10)
-      self._config["cache.logPanel.size"] = max(self._config["cache.logPanel.size"], 50)
+      config.update(self._config, {
+        "features.log.maxLinesPerEntry": 1,
+        "features.log.prepopulateReadLimit": 0,
+        "features.log.maxRefreshRate": 10,
+        "cache.logPanel.size": 50})
     
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
@@ -543,7 +546,7 @@ class LogPanel(panel.Panel, threading.Thread):
       setRunlevels = list(set.intersection(set(self.loggedEvents), set(RUNLEVELS)))
       readLimit = self._config["features.log.prepopulateReadLimit"]
       addLimit = self._config["cache.logPanel.size"]
-      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit)
+      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
     
     # adds arm listener and fetches past events
     log.LOG_LOCK.acquire()
@@ -838,7 +841,7 @@ class LogPanel(panel.Panel, threading.Thread):
           if lineOffset == maxEntriesPerLine: break
           
           maxMsgSize = width - cursorLoc
-          if len(msg) >= maxMsgSize:
+          if len(msg) > maxMsgSize:
             # message is too long - break it up
             if lineOffset == maxEntriesPerLine - 1:
               msg = uiTools.cropStr(msg, maxMsgSize)
@@ -1047,6 +1050,8 @@ class LogPanel(panel.Panel, threading.Thread):
     - grown beyond the cache limit
     - outlived the configured log duration
     
+    Argument:
+      eventListing - listing of log entries
     """
     
     cacheSize = self._config["cache.logPanel.size"]

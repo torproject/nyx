@@ -19,6 +19,7 @@ import util.hostnames
 import util.log
 import util.panel
 import util.sysTools
+import util.torrc
 import util.torTools
 import util.uiTools
 import TorCtl.TorCtl
@@ -114,32 +115,32 @@ if __name__ == '__main__':
       print HELP_MSG
       sys.exit()
   
-  # attempts to load user's custom configuration, using defaults if not found
-  if not os.path.exists(configPath):
-    msg = "No configuration found at '%s', using defaults" % configPath
-    util.log.log(util.log.NOTICE, msg)
-    configPath = "%s/armrc.defaults" % os.path.dirname(sys.argv[0])
-  
   config = util.conf.getConfig("arm")
-  config.path = configPath
   
+  # attempts to fetch attributes for parsing tor's logs, configuration, etc
+  try: config.load("%s/settings.cfg" % os.path.dirname(sys.argv[0]))
+  except IOError, exc:
+    msg = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)" % str(exc)
+    util.log.log(util.log.WARN, msg)
+  
+  # loads user's personal armrc if available
   if os.path.exists(configPath):
     try:
-      config.load()
+      config.load(configPath)
       
       # revises defaults to match user's configuration
       config.update(DEFAULTS)
       
       # loads user preferences for utilities
-      for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torTools, util.uiTools):
+      for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torrc, util.torTools, util.uiTools):
         utilModule.loadConfig(config)
     except IOError, exc:
       msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
       util.log.log(util.log.WARN, msg)
   else:
-    # no local copy of the armrc defaults, so fall back to values in the source
-    msg = "defaults file not found, falling back (log duplicate detection will be mostly nonfunctional)"
-    util.log.log(util.log.WARN, msg)
+    # no armrc found, falling back to the defaults in the source
+    msg = "No configuration found at '%s', using defaults" % configPath
+    util.log.log(util.log.NOTICE, msg)
   
   # overwrites undefined parameters with defaults
   for key in param.keys():

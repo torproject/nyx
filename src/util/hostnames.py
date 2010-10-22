@@ -47,12 +47,12 @@ CONFIG = {"queries.hostnames.poolSize": 5,
           "log.hostnameCacheTrimmed": log.INFO}
 
 def loadConfig(config):
-  config.update(CONFIG)
+  config.update(CONFIG, {
+    "queries.hostnames.poolSize": 1,
+    "cache.hostnames.size": 100,
+    "cache.hostnames.trimSize": 10})
   
-  # ensures sane config values
-  CONFIG["queries.hostnames.poolSize"] = max(1, CONFIG["queries.hostnames.poolSize"])
-  CONFIG["cache.hostnames.size"] = max(100, CONFIG["cache.hostnames.size"])
-  CONFIG["cache.hostnames.trimSize"] = max(10, min(CONFIG["cache.hostnames.trimSize"], CONFIG["cache.hostnames.size"] / 2))
+  CONFIG["cache.hostnames.trimSize"] = min(CONFIG["cache.hostnames.trimSize"], CONFIG["cache.hostnames.size"] / 2)
 
 def start():
   """

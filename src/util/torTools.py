@@ -319,9 +319,6 @@ class Controller(TorCtl.PostEventListener):
     if not suppressExc and raisedExc: raise raisedExc
     else: return result
   
-  # TODO: This could have client side caching if there were events to indicate
-  # SETCONF events. See:
-  # https://trac.torproject.org/projects/tor/ticket/1692
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
     Queries the control port for the given configuration option, providing the
@@ -332,24 +329,66 @@ class Controller(TorCtl.PostEventListener):
     Arguments:
       param       - configuration option to be queried
       default     - result if the query fails and exception's suppressed
-      multiple    - provides a list of results if true, otherwise this just
-                    returns the first value
+      multiple    - provides a list with all returned values if true, otherwise
+                    this just provides the first result
       suppressExc - suppresses lookup errors (returning the default) if true,
                     otherwise this raises the original exception
     """
     
+    fetchType = "list" if multiple else "str"
+    return self._getOption(param, default, fetchType, suppressExc)
+  
+  def getOptionMap(self, param, default = None, suppressExc = True):
+    """
+    Queries the control port for the given configuration option, providing back
+    a mapping of config options to a list of the values returned.
+    
+    There's three use cases for GETCONF:
+    - a single value is provided
+    - multiple values are provided for the option queried
+    - a set of options that weren't necessarily requested are returned (for
+      instance querying HiddenServiceOptions gives HiddenServiceDir,
+      HiddenServicePort, etc)
+    
+    The vast majority of the options fall into the first two catagories, in
+    which case calling getOption is sufficient. However, for the special
+    options that give a set of values this provides back the full response. As
+    of tor version 0.2.1.25 HiddenServiceOptions was the only option like this.
+    
+    Arguments:
+      param       - configuration option to be queried
+      default     - result if the query fails and exception's suppressed
+      suppressExc - suppresses lookup errors (returning the default) if true,
+                    otherwise this raises the original exception
+    """
+    
+    return self._getOption(param, default, "map", suppressExc)
+  
+  # TODO: This could have client side caching if there were events to indicate
+  # SETCONF events. See:
+  # https://trac.torproject.org/projects/tor/ticket/1692
+  def _getOption(self, param, default, fetchType, suppressExc):
+    if not fetchType in ("str", "list", "map"):
+      msg = "BUG: unrecognized fetchType in torTools._getOption (%s)" % fetchType
+      log.log(log.ERR, msg)
+      return default
+    
     self.connLock.acquire()
     
-    startTime = time.time()
-    result, raisedExc = [], None
+    startTime, raisedExc = time.time(), None
+    result = {} if fetchType == "map" else []
     if self.isAlive():
       try:
-        if multiple:
-          for key, value in self.conn.get_option(param):
-            if value != None: result.append(value)
-        else:
+        if fetchType == "str":
           getConfVal = self.conn.get_option(param)[0][1]
           if getConfVal != None: result = getConfVal
+        else:
+          for key, value in self.conn.get_option(param):
+            if value != None:
+              if fetchType == "list": result.append(value)
+              elif fetchType == "map":
+                if key in result: result.append(value)
+                else: result[key] = [value]
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         result, raisedExc = default, exc

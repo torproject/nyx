@@ -48,11 +48,11 @@ CONFIG = {"features.graph.height": 7,
           "features.graph.showIntermediateBounds": True}
 
 def loadConfig(config):
-  config.update(CONFIG)
-  CONFIG["features.graph.height"] = max(MIN_GRAPH_HEIGHT, CONFIG["features.graph.height"])
-  CONFIG["features.graph.maxWidth"] = max(1, CONFIG["features.graph.maxWidth"])
-  CONFIG["features.graph.interval"] = min(len(UPDATE_INTERVALS) - 1, max(0, CONFIG["features.graph.interval"]))
-  CONFIG["features.graph.bound"] = min(2, max(0, CONFIG["features.graph.bound"]))
+  config.update(CONFIG, {
+    "features.graph.height": MIN_GRAPH_HEIGHT,
+    "features.graph.maxWidth": 1,
+    "features.graph.interval": (0, len(UPDATE_INTERVALS) - 1),
+    "features.graph.bound": (0, 2)})
 
 class GraphStats(TorCtl.PostEventListener):
   """

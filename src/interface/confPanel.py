@@ -1,292 +1,264 @@
-#!/usr/bin/env python
-# confPanel.py -- Presents torrc with syntax highlighting.
-# Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
+"""
+Panel displaying the torrc and validation done against it.
+"""
 
 import math
 import curses
-import socket
+import threading
 
-import controller
-from TorCtl import TorCtl
-from util import log, panel, torTools, uiTools
+from util import log, panel, torrc, uiTools
 
-# torrc parameters that can be defined multiple times without overwriting
-# from src/or/config.c (entries with LINELIST or LINELIST_S)
-# last updated for tor version 0.2.1.19
-MULTI_LINE_PARAM = ["AlternateBridgeAuthority", "AlternateDirAuthority", "AlternateHSAuthority", "AuthDirBadDir", "AuthDirBadExit", "AuthDirInvalid", "AuthDirReject", "Bridge", "ControlListenAddress", "ControlSocket", "DirListenAddress", "DirPolicy", "DirServer", "DNSListenAddress", "ExitPolicy", "HashedControlPassword", "HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient", "HidServAuth", "Log", "MapAddress", "NatdListenAddress", "NodeFamily", "ORListenAddress", "ReachableAddresses", "ReachableDirAddresses", "ReachableORAddresses", "RecommendedVersions", "RecommendedClientVersions", "RecommendedServerVersions", "SocksListenAddress", "SocksPolicy", "TransListenAddress", "__HashedControlSessionPassword"]
-
-# hidden service options need to be fetched with HiddenServiceOptions
-HIDDEN_SERVICE_PARAM = ["HiddenServiceDir", "HiddenServiceOptions", "HiddenServicePort", "HiddenServiceVersion", "HiddenServiceAuthorizeClient"]
-HIDDEN_SERVICE_FETCH_PARAM = "HiddenServiceOptions"
-
-# size modifiers allowed by config.c
-LABEL_KB = ["kb", "kbyte", "kbytes", "kilobyte", "kilobytes"]
-LABEL_MB = ["m", "mb", "mbyte", "mbytes", "megabyte", "megabytes"]
-LABEL_GB = ["gb", "gbyte", "gbytes", "gigabyte", "gigabytes"]
-LABEL_TB = ["tb", "terabyte", "terabytes"]
-
-# GETCONF aliases (from the _option_abbrevs struct of src/or/config.c)
-# fix for: https://trac.torproject.org/projects/tor/ticket/1798
-# TODO: this has been fixed in tor- wait for a while then retest and remove
-# TODO: the following alias entry doesn't work on Tor 0.2.1.19:
-# "HashedControlPassword": "__HashedControlSessionPassword"
-CONF_ALIASES = {"l": "Log",
-                "AllowUnverifiedNodes": "AllowInvalidNodes",
-                "AutomapHostSuffixes": "AutomapHostsSuffixes",
-                "AutomapHostOnResolve": "AutomapHostsOnResolve",
-                "BandwidthRateBytes": "BandwidthRate",
-                "BandwidthBurstBytes": "BandwidthBurst",
-                "DirFetchPostPeriod": "StatusFetchPeriod",
-                "MaxConn": "ConnLimit",
-                "ORBindAddress": "ORListenAddress",
-                "DirBindAddress": "DirListenAddress",
-                "SocksBindAddress": "SocksListenAddress",
-                "UseHelperNodes": "UseEntryGuards",
-                "NumHelperNodes": "NumEntryGuards",
-                "UseEntryNodes": "UseEntryGuards",
-                "NumEntryNodes": "NumEntryGuards",
-                "ResolvConf": "ServerDNSResolvConfFile",
-                "SearchDomains": "ServerDNSSearchDomains",
-                "ServerDNSAllowBrokenResolvConf": "ServerDNSAllowBrokenConfig",
-                "PreferTunnelledDirConns": "PreferTunneledDirConns",
-                "BridgeAuthoritativeDirectory": "BridgeAuthoritativeDir",
-                "StrictEntryNodes": "StrictNodes",
-                "StrictExitNodes": "StrictNodes"}
-
-
-# time modifiers allowed by config.c
-LABEL_MIN = ["minute", "minutes"]
-LABEL_HOUR = ["hour", "hours"]
-LABEL_DAY = ["day", "days"]
-LABEL_WEEK = ["week", "weeks"]
+DEFAULT_CONFIG = {"features.torrc.validate": True,
+                  "features.config.showScrollbars": True,
+                  "features.config.maxLinesPerEntry": 5,
+                  "log.confPanel.torrcReadFailed": log.WARN,
+                  "log.torrcValidation.duplicateEntries": log.NOTICE,
+                  "log.torrcValidation.torStateDiffers": log.NOTICE}
 
 class ConfPanel(panel.Panel):
   """
-  Presents torrc with syntax highlighting in a scroll-able area.
+  Presents torrc, armrc, or loaded settings with syntax highlighting in a
+  scrollable area.
   """
   
-  def __init__(self, stdscr, confLocation, conn):
+  def __init__(self, stdscr, config=None):
     panel.Panel.__init__(self, stdscr, "conf", 0)
-    self.confLocation = confLocation
+    
+    self._config = dict(DEFAULT_CONFIG)
+    if config:
+      config.update(self._config, {"features.config.maxLinesPerEntry": 1})
+    
+    self.valsLock = threading.RLock()
+    self.scroll = 0
     self.showLineNum = True
     self.stripComments = False
-    self.confContents = []
-    self.scroll = 0
-    
-    # lines that don't matter due to duplicates
-    self.irrelevantLines = []
-    
-    # used to check consistency with tor's actual values - corrections mapping
-    # is of line numbers (one-indexed) to tor's actual values
+    self.confLocation = ""
+    self.confContents = None # read torrc, None if it failed to load
     self.corrections = {}
-    self.conn = conn
+    
+    # height of the content when last rendered (the cached value is invalid if
+    # _lastContentHeightArgs is None or differs from the current dimensions)
+    self._lastContentHeight = 1
+    self._lastContentHeightArgs = None
     
     self.reset()
   
-  def reset(self, logErrors=True):
+  def reset(self, logErrors = True):
     """
     Reloads torrc contents and resets scroll height. Returns True if
     successful, else false.
+    
+    Arguments:
+      logErrors - logs if unable to read the torrc or issues are found during
+                  validation
     """
     
+    self.valsLock.acquire()
+    
     try:
-      resetSuccessful = True
-      
-      confFile = open(torTools.getPathPrefix() + self.confLocation, "r")
+      self.confLocation = torrc.getConfigLocation()
+      confFile = open(self.confLocation, "r")
       self.confContents = confFile.readlines()
       confFile.close()
+      self.scroll = 0
       
-      # checks if torrc differs from get_option data
-      self.irrelevantLines = []
-      self.corrections = {}
-      parsedCommands = {}       # mapping of parsed commands to line numbers
-      
-      for lineNumber in range(len(self.confContents)):
-        lineText = self.confContents[lineNumber].strip()
-        
-        if lineText and lineText[0] != "#":
-          # relevant to tor (not blank nor comment)
-          ctlEnd = lineText.find(" ")   # end of command
-          argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
-          if argEnd == -1: argEnd = len(lineText)
-          command, argument = lineText[:ctlEnd], lineText[ctlEnd:argEnd].strip()
-          
-          # replace aliases with the internal representation of the command
-          if command in CONF_ALIASES: command = CONF_ALIASES[command]
-          
-          # tor appears to replace tabs with a space, for instance:
-          # "accept\t*:563" is read back as "accept *:563"
-          argument = argument.replace("\t", " ")
-          
-          # expands value if it's a size or time
-          comp = argument.strip().lower().split(" ")
-          if len(comp) > 1:
-            size = 0
-            if comp[1] in LABEL_KB: size = int(comp[0]) * 1024
-            elif comp[1] in LABEL_MB: size = int(comp[0]) * 1048576
-            elif comp[1] in LABEL_GB: size = int(comp[0]) * 1073741824
-            elif comp[1] in LABEL_TB: size = int(comp[0]) * 1099511627776
-            elif comp[1] in LABEL_MIN: size = int(comp[0]) * 60
-            elif comp[1] in LABEL_HOUR: size = int(comp[0]) * 3600
-            elif comp[1] in LABEL_DAY: size = int(comp[0]) * 86400
-            elif comp[1] in LABEL_WEEK: size = int(comp[0]) * 604800
-            if size != 0: argument = str(size)
-              
-          # most parameters are overwritten if defined multiple times, if so
-          # it's erased from corrections and noted as duplicate instead
-          if not command in MULTI_LINE_PARAM and command in parsedCommands.keys():
-            previousLineNum = parsedCommands[command]
-            self.irrelevantLines.append(previousLineNum)
-            if previousLineNum in self.corrections.keys(): del self.corrections[previousLineNum]
-          
-          parsedCommands[command] = lineNumber + 1
-          
-          # check validity against tor's actual state
-          try:
-            actualValues = []
-            if command in HIDDEN_SERVICE_PARAM:
-              # hidden services are fetched via a special command
-              hsInfo = self.conn.get_option(HIDDEN_SERVICE_FETCH_PARAM)
-              for entry in hsInfo:
-                if entry[0] == command:
-                  actualValues.append(entry[1])
-                  break
-            else:
-              # general case - fetch all valid values
-              for key, val in self.conn.get_option(command):
-                if val == None:
-                  # TODO: investigate situations where this might occure
-                  # (happens if trying to parse HIDDEN_SERVICE_PARAM)
-                  if logErrors: log.log(log.WARN, "BUG: Failed to find torrc value for %s" % key)
-                  continue
-                
-                # TODO: check for a better way of figuring out CSV parameters
-                # (kinda doubt this is right... in config.c its listed as being
-                # a 'LINELIST') - still, good enough for common cases
-                if command in MULTI_LINE_PARAM: toAdd = val.split(",")
-                else: toAdd = [val]
-                
-                for newVal in toAdd:
-                  newVal = newVal.strip()
-                  if newVal not in actualValues: actualValues.append(newVal)
-            
-            # there might be multiple values on a single line - if so, check each
-            if command in MULTI_LINE_PARAM and "," in argument:
-              arguments = []
-              for entry in argument.split(","):
-                arguments.append(entry.strip())
-            else:
-              arguments = [argument]
-            
-            for entry in arguments:
-              if not entry in actualValues:
-                self.corrections[lineNumber + 1] = ", ".join(actualValues)
-          except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-            if logErrors: log.log(log.WARN, "Unable to validate line %i of the torrc: %s" % (lineNumber + 1, lineText))
-      
-      # logs issues that arose
-      if self.irrelevantLines and logErrors:
-        if len(self.irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
-        else: first, second, third = "Entry", "is", " on line"
-        baseMsg = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
-        
-        log.log(log.NOTICE, "%s: %s (highlighted in blue)" % (baseMsg, ", ".join([str(val) for val in self.irrelevantLines])))
+      # sets the content height to be something somewhat reasonable
+      self._lastContentHeight = len(self.confContents)
+      self._lastContentHeightArgs = None
+    except IOError, exc:
+      self.confContents = None
+      msg = "Unable to load torrc (%s)" % exc
+      if logErrors: log.log(self._config["log.confPanel.torrcReadFailed"], msg)
+      self.valsLock.release()
+      return False
+    
+    if self._config["features.torrc.validate"]:
+      self.corrections = torrc.validate(self.confContents)
       
       if self.corrections and logErrors:
-        log.log(log.WARN, "Tor's state differs from loaded torrc")
-    except IOError, exc:
-      resetSuccessful = False
-      self.confContents = ["### Unable to load torrc ###"]
-      if logErrors: log.log(log.WARN, "Unable to load torrc (%s)" % str(exc))
+        # logs issues found during validation
+        irrelevantLines, mismatchLines = [], []
+        for lineNum in self.corrections:
+          problem = self.corrections[lineNum][0]
+          if problem == torrc.VAL_DUPLICATE: irrelevantLines.append(lineNum)
+          elif problem == torrc.VAL_MISMATCH: mismatchLines.append(lineNum)
+        
+        if irrelevantLines:
+          irrelevantLines.sort()
+          
+          if len(irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
+          else: first, second, third = "Entry", "is", " on line"
+          msgStart = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
+          msgLines = ", ".join([str(val + 1) for val in irrelevantLines])
+          msg = "%s: %s (highlighted in blue)" % (msgStart, msgLines)
+          log.log(self._config["log.torrcValidation.duplicateEntries"], msg)
+        
+        if mismatchLines:
+          mismatchLines.sort()
+          msgStart = "Tor's state differs from loaded torrc on line%s" % ("s" if len(mismatchLines) > 1 else "")
+          msgLines = ", ".join([str(val + 1) for val in mismatchLines])
+          msg = "%s: %s" % (msgStart, msgLines)
+          log.log(self._config["log.torrcValidation.torStateDiffers"], msg)
     
-    self.scroll = 0
-    return resetSuccessful
+    if self.confContents:
+      # Restricts contents to be displayable characters:
+      # - Tabs print as three spaces. Keeping them as tabs is problematic for
+      #   the layout since it's counted as a single character, but occupies
+      #   several cells.
+      # - Strips control and unprintable characters.
+      for lineNum in range(len(self.confContents)):
+        lineText = self.confContents[lineNum]
+        lineText = lineText.replace("\t", "   ")
+        lineText = "".join([char for char in lineText if curses.ascii.isprint(char)])
+        self.confContents[lineNum] = lineText
+    
+    self.redraw(True)
+    self.valsLock.release()
+    return True
   
   def handleKey(self, key):
-    if uiTools.isScrollKey(key):
+    self.valsLock.acquire()
+    if uiTools.isScrollKey(key) and self.confContents != None:
       pageHeight = self.getPreferredSize()[0] - 1
-      contentHeight = len(self.confContents)
-      self.scroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, contentHeight)
-    elif key == ord('n') or key == ord('N'): self.showLineNum = not self.showLineNum
+      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, self._lastContentHeight)
+      
+      if self.scroll != newScroll:
+        self.scroll = newScroll
+        self.redraw(True)
+    elif key == ord('n') or key == ord('N'):
+      self.showLineNum = not self.showLineNum
+      self._lastContentHeightArgs = None
+      self.redraw(True)
     elif key == ord('s') or key == ord('S'):
       self.stripComments = not self.stripComments
       self.scroll = 0
-    self.redraw(True)
+      self._lastContentHeightArgs = None
+      self.redraw(True)
+    
+    self.valsLock.release()
   
   def draw(self, subwindow, width, height):
-    self.addstr(0, 0, "Tor Config (%s):" % self.confLocation, curses.A_STANDOUT)
+    self.valsLock.acquire()
     
-    pageHeight = height - 1
-    if self.confContents: numFieldWidth = int(math.log10(len(self.confContents))) + 1
-    else: numFieldWidth = 0 # torrc is blank
-    lineNum, displayLineNum = self.scroll + 1, 1 # lineNum corresponds to torrc, displayLineNum concerns what's presented
+    # If true, we assume that the cached value in self._lastContentHeight is
+    # still accurate, and stop drawing when there's nothing more to display.
+    # Otherwise the self._lastContentHeight is suspect, and we'll process all
+    # the content to check if it's right (and redraw again with the corrected
+    # height if not).
+    trustLastContentHeight = self._lastContentHeightArgs == (width, height)
     
-    # determine the ending line in the display (prevents us from going to the 
-    # effort of displaying lines that aren't visible - isn't really a 
-    # noticeable improvement unless the torrc is bazaarly long) 
-    if not self.stripComments:
-      endingLine = min(len(self.confContents), self.scroll + pageHeight)
-    else:
-      # checks for the last line of displayable content (ie, non-comment)
-      endingLine = self.scroll
-      displayedLines = 0        # number of lines of content
-      for i in range(self.scroll, len(self.confContents)):
-        endingLine += 1
-        lineText = self.confContents[i].strip()
-        
-        if lineText and lineText[0] != "#":
-          displayedLines += 1
-          if displayedLines == pageHeight: break
+    # draws the top label
+    locationLabel = " (%s)" % self.confLocation if self.confLocation else ""
+    self.addstr(0, 0, "Tor Config%s:" % locationLabel, curses.A_STANDOUT)
     
-    for i in range(self.scroll, endingLine):
-      lineText = self.confContents[i].strip()
-      skipLine = False # true if we're not presenting line due to stripping
+    # restricts scroll location to valid bounds
+    self.scroll = max(0, min(self.scroll, self._lastContentHeight - height + 1))
+    
+    renderedContents = self.confContents
+    if self.confContents == None:
+      renderedContents = ["### Unable to load torrc ###"]
+    elif self.stripComments:
+      renderedContents = torrc.stripComments(self.confContents)
+    
+    # offset to make room for the line numbers
+    lineNumOffset = int(math.log10(len(renderedContents))) + 2 if self.showLineNum else 0
+    
+    # draws left-hand scroll bar if content's longer than the height
+    scrollOffset = 0
+    if self._config["features.config.showScrollbars"] and self._lastContentHeight > height - 1:
+      scrollOffset = 3
+      self.addScrollBar(self.scroll, self.scroll + height - 1, self._lastContentHeight, 1)
+    
+    displayLine = -self.scroll + 1 # line we're drawing on
+    
+    for lineNumber in range(0, len(renderedContents)):
+      lineText = renderedContents[lineNumber]
+      lineText = lineText.rstrip() # remove ending whitespace
       
-      command, argument, correction, comment = "", "", "", ""
-      commandColor, argumentColor, correctionColor, commentColor = "green", "cyan", "cyan", "white"
+      # blank lines are hidden when stripping comments
+      hideLine = self.stripComments and not lineText
       
-      if not lineText:
-        # no text
-        if self.stripComments: skipLine = True
-      elif lineText[0] == "#":
-        # whole line is commented out
-        comment = lineText
-        if self.stripComments: skipLine = True
+      # splits the line into its component (msg, format) tuples
+      lineComp = {"option": ["", curses.A_BOLD | uiTools.getColor("green")],
+                  "argument": ["", curses.A_BOLD | uiTools.getColor("cyan")],
+                  "correction": ["", curses.A_BOLD | uiTools.getColor("cyan")],
+                  "comment": ["", uiTools.getColor("white")]}
+      
+      # parses the comment
+      commentIndex = lineText.find("#")
+      if commentIndex != -1:
+        lineComp["comment"][0] = lineText[commentIndex:]
+        lineText = lineText[:commentIndex]
+      
+      # splits the option and argument, preserving any whitespace around them
+      strippedLine = lineText.strip()
+      optionIndex = strippedLine.find(" ")
+      if optionIndex == -1:
+        lineComp["option"][0] = lineText # no argument provided
       else:
-        # parse out command, argument, and possible comment
-        ctlEnd = lineText.find(" ")   # end of command
-        argEnd = lineText.find("#")   # end of argument (start of comment or end of line)
-        if argEnd == -1: argEnd = len(lineText)
-        
-        command, argument, comment = lineText[:ctlEnd], lineText[ctlEnd:argEnd], lineText[argEnd:]
-        if self.stripComments: comment = ""
-        
-        # Tabs print as three spaces. Keeping them as tabs is problematic for
-        # the layout since it's counted as a single character, but occupies
-        # several cells.
-        argument = argument.replace("\t", "   ")
-        
-        # changes presentation if value's incorrect or irrelevant
-        if lineNum in self.corrections.keys():
-          argumentColor = "red"
-          correction = " (%s)" % self.corrections[lineNum]
-        elif lineNum in self.irrelevantLines:
-          commandColor = "blue"
-          argumentColor = "blue"
+        optionText = strippedLine[:optionIndex]
+        optionEnd = lineText.find(optionText) + len(optionText)
+        lineComp["option"][0] = lineText[:optionEnd]
+        lineComp["argument"][0] = lineText[optionEnd:]
       
-      if not skipLine:
-        numOffset = 0     # offset for line numbering
-        if self.showLineNum:
-          self.addstr(displayLineNum, 0, ("%%%ii" % numFieldWidth) % lineNum, curses.A_BOLD | uiTools.getColor("yellow"))
-          numOffset = numFieldWidth + 1
+      # gets the correction
+      if lineNumber in self.corrections:
+        lineIssue, lineIssueMsg = self.corrections[lineNumber]
         
-        xLoc = 0
-        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, command, curses.A_BOLD | uiTools.getColor(commandColor), numOffset)
-        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, argument, curses.A_BOLD | uiTools.getColor(argumentColor), numOffset)
-        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, correction, curses.A_BOLD | uiTools.getColor(correctionColor), numOffset)
-        displayLineNum, xLoc = controller.addstr_wrap(self, displayLineNum, xLoc, comment, uiTools.getColor(commentColor), numOffset)
-        
-        displayLineNum += 1
+        if lineIssue == torrc.VAL_DUPLICATE:
+          lineComp["option"][1] = curses.A_BOLD | uiTools.getColor("blue")
+          lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("blue")
+        elif lineIssue == torrc.VAL_MISMATCH:
+          lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("red")
+          lineComp["correction"][0] = " (%s)" % lineIssueMsg
       
-      lineNum += 1
+      # draws the line number
+      if self.showLineNum and not hideLine and displayLine < height and displayLine >= 1:
+        lineNumStr = ("%%%ii" % (lineNumOffset - 1)) % (lineNumber + 1)
+        self.addstr(displayLine, scrollOffset, lineNumStr, curses.A_BOLD | uiTools.getColor("yellow"))
+      
+      # draws the rest of the components with line wrap
+      cursorLoc, lineOffset = lineNumOffset + scrollOffset, 0
+      maxLinesPerEntry = self._config["features.config.maxLinesPerEntry"]
+      displayQueue = [lineComp[entry] for entry in ("option", "argument", "correction", "comment")]
+      
+      while displayQueue:
+        msg, format = displayQueue.pop(0)
+        if hideLine: break
+        
+        maxMsgSize, includeBreak = width - cursorLoc, False
+        if len(msg) >= maxMsgSize:
+          # message is too long - break it up
+          includeBreak = True
+          if lineOffset == maxLinesPerEntry - 1:
+            msg = uiTools.cropStr(msg, maxMsgSize)
+          else:
+            msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.END_WITH_HYPHEN, True)
+            displayQueue.insert(0, (remainder.strip(), format))
+        
+        drawLine = displayLine + lineOffset
+        if msg and drawLine < height and drawLine >= 1:
+          self.addstr(drawLine, cursorLoc, msg, format)
+        
+        cursorLoc += len(msg)
+        if includeBreak or not displayQueue:
+          lineOffset += 1
+          cursorLoc = lineNumOffset + scrollOffset
+      
+      displayLine += lineOffset
+      
+      if trustLastContentHeight and displayLine >= height: break
+    
+    if not trustLastContentHeight:
+      self._lastContentHeightArgs = (width, height)
+      newContentHeight = displayLine + self.scroll - 1
+      
+      if self._lastContentHeight != newContentHeight:
+        self._lastContentHeight = newContentHeight
+        self.redraw(True)
+    
+    self.valsLock.release()
+  
+  def redraw(self, forceRedraw=False, block=False):
+    panel.Panel.redraw(self, forceRedraw, block)
 

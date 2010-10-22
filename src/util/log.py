@@ -28,11 +28,11 @@ CONFIG = {"cache.armLog.size": 1000,
           "cache.armLog.trimSize": 200}
 
 def loadConfig(config):
-  config.update(CONFIG)
+  config.update(CONFIG, {
+    "cache.armLog.size": 10,
+    "cache.armLog.trimSize": 5})
   
-  # ensures sane config values
-  CONFIG["cache.armLog.size"] = max(10, CONFIG["cache.armLog.size"])
-  CONFIG["cache.armLog.trimSize"] = max(5, min(CONFIG["cache.armLog.trimSize"], CONFIG["cache.armLog.size"] / 2))
+  CONFIG["cache.armLog.trimSize"] = min(CONFIG["cache.armLog.trimSize"], CONFIG["cache.armLog.size"] / 2)
 
 def strToRunlevel(runlevelStr):
   """
