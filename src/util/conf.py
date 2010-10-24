@@ -55,6 +55,7 @@ class Config():
     Creates a new configuration instance.
     """
     
+    self.path = None        # location last loaded from
     self.contents = {}      # configuration key/value pairs
     self.contentsLock = threading.RLock()
     self.requestedKeys = set()
@@ -240,6 +241,7 @@ class Config():
         if key in self.contents: self.contents[key].append(value)
         else: self.contents[key] = [value]
     
+    self.path = path
     self.contentsLock.release()
   
   def save(self, saveBackup=True):

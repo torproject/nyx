@@ -13,9 +13,6 @@ queries.refreshRate.rate 5
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
-# Checks the torrc for issues, warning and hilighting problems if true.
-features.torrc.validate true
-
 # Set this if you're running in a chroot jail or other environment where tor's
 # resources (log, state, etc) should have a prefix in their paths.
 features.pathPrefix
@@ -56,13 +53,19 @@ features.log.maxRefreshRate 300
 
 # Paremters for the config panel
 # ---------------------------
+# type
+#   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
+# validate
+#   checks torrc and armrcs for issues, warning and hilighting problems if true
 # showScrollbars
 #   displays scrollbars when the torrc content is longer than the display
 # maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
+features.config.type 0
+features.config.validate true
 features.config.showScrollbars true
-features.config.maxLinesPerEntry 5
+features.config.maxLinesPerEntry 8
 
 # General graph parameters
 # ------------------------
@@ -142,6 +145,7 @@ cache.armLog.size 1000
 cache.armLog.trimSize 200
 
 # Runlevels at which arm logs its events
+log.startTime INFO
 log.refreshRate DEBUG
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE

@@ -8,6 +8,7 @@ command line parameters.
 
 import os
 import sys
+import time
 import getopt
 
 import version
@@ -75,6 +76,7 @@ def isValidIpAddr(ipStr):
   return True
 
 if __name__ == '__main__':
+  startTime = time.time()
   param = dict([(key, None) for key in DEFAULTS.keys()])
   configPath = DEFAULT_CONFIG            # path used for customized configuration
   
@@ -175,9 +177,12 @@ if __name__ == '__main__':
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
+  # initializing the connection may require user input (for the password)
+  # scewing the startup time results so this isn't counted
+  initTime = time.time() - startTime
   controller = util.torTools.getConn()
   controller.init(conn)
   
-  interface.controller.startTorMonitor(expandedEvents, param["startup.blindModeEnabled"])
+  interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
   conn.close()
 

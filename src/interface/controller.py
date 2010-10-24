@@ -46,6 +46,7 @@ CONFIG = {"features.graph.type": 1,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
+          "log.startTime": log.INFO,
           "log.refreshRate": log.DEBUG,
           "log.configEntryUndefined": log.NOTICE}
 
@@ -304,7 +305,7 @@ def selectiveRefresh(panels, page):
   for panelKey in PAGES[page]:
     panels[panelKey].redraw(True)
 
-def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
+def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   """
   Starts arm interface reflecting information on provided control port.
   
@@ -455,6 +456,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
   
   # TODO: popups need to force the panels it covers to redraw (or better, have
   # a global refresh function for after changing pages, popups, etc)
+  
+  initTime = time.time() - startTime
+  log.log(CONFIG["log.startTime"], "arm started (initialization took %0.3f seconds)" % initTime)
   
   # TODO: come up with a nice, clean method for other threads to immediately
   # terminate the draw loop and provide a stacktrace
@@ -705,6 +709,8 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
           
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
+          
+          popup.addfstr(5, 2, "<b>c</b>: displayed configuration (<b>%s</b>)" % confPanel.CONFIG_LABELS[panels["torrc"].configType])
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -1359,8 +1365,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif page == 2 and key == ord('r') or key == ord('R'):
       # reloads torrc, providing a notice if successful or not
-      isSuccessful = panels["torrc"].reset(False)
-      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
+      isSuccessful = panels["torrc"].loadConfig(logErrors = False)
+      confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
+      resetMsg = "%s reloaded" % confTypeLabel if isSuccessful else "failed to reload %s" % confTypeLabel
       if isSuccessful: panels["torrc"].redraw(True)
       
       panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
@@ -1397,6 +1404,26 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
+    elif page == 2 and (key == ord('c') or key == ord('C')):
+      # provides menu to pick config being displayed
+      options = [confPanel.CONFIG_LABELS[confType] for confType in range(4)]
+      initialSelection = panels["torrc"].configType
+      
+      # hides top label of the graph panel and pauses panels
+      panels["torrc"].showLabel = False
+      panels["torrc"].redraw(True)
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "Configuration:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["torrc"].showLabel = True
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1: panels["torrc"].setConfigType(selection)
+      
+      selectiveRefresh(panels, page)
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:
@@ -1404,9 +1431,9 @@ def drawTorMonitor(stdscr, loggedEvents, isBlindMode):
     elif page == 2:
       panels["torrc"].handleKey(key)
 
-def startTorMonitor(loggedEvents, isBlindMode):
+def startTorMonitor(startTime, loggedEvents, isBlindMode):
   try:
-    curses.wrapper(drawTorMonitor, loggedEvents, isBlindMode)
+    curses.wrapper(drawTorMonitor, startTime, loggedEvents, isBlindMode)
   except KeyboardInterrupt:
     pass # skip printing stack trace in case of keyboard interrupt
 
