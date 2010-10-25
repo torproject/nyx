@@ -120,22 +120,24 @@ if __name__ == '__main__':
   config = util.conf.getConfig("arm")
   
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
-  try: config.load("%s/settings.cfg" % os.path.dirname(sys.argv[0]))
+  try:
+    pathPrefix = os.path.dirname(sys.argv[0])
+    if pathPrefix and not pathPrefix.endswith("/"):
+      pathPrefix = pathPrefix + "/"
+    
+    config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
-    msg = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)" % str(exc)
+    # Strips off the error number prefix from the message. Example error msg:
+    # [Errno 2] No such file or directory
+    excMsg = str(exc)
+    if excMsg.startswith("[Errno "): excMsg = excMsg[10:]
+    msg = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)" % excMsg
     util.log.log(util.log.WARN, msg)
   
   # loads user's personal armrc if available
   if os.path.exists(configPath):
     try:
       config.load(configPath)
-      
-      # revises defaults to match user's configuration
-      config.update(DEFAULTS)
-      
-      # loads user preferences for utilities
-      for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torrc, util.torTools, util.uiTools):
-        utilModule.loadConfig(config)
     except IOError, exc:
       msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
       util.log.log(util.log.WARN, msg)
@@ -143,6 +145,13 @@ if __name__ == '__main__':
     # no armrc found, falling back to the defaults in the source
     msg = "No configuration found at '%s', using defaults" % configPath
     util.log.log(util.log.NOTICE, msg)
+  
+  # revises defaults to match user's configuration
+  config.update(DEFAULTS)
+  
+  # loads user preferences for utilities
+  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torrc, util.torTools, util.uiTools):
+    utilModule.loadConfig(config)
   
   # overwrites undefined parameters with defaults
   for key in param.keys():

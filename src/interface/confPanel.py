@@ -14,7 +14,8 @@ DEFAULT_CONFIG = {"features.config.type": 0,
                   "features.config.maxLinesPerEntry": 8,
                   "log.confPanel.torrcReadFailed": log.WARN,
                   "log.torrcValidation.duplicateEntries": log.NOTICE,
-                  "log.torrcValidation.torStateDiffers": log.NOTICE}
+                  "log.torrcValidation.torStateDiffers": log.NOTICE,
+                  "torrc.map": {}}
 
 # configurations that can be displayed
 TOR_STATE, TORRC, ARM_STATE, ARMRC = range(4)
@@ -141,7 +142,14 @@ class ConfPanel(panel.Panel):
         # UseEntryGuards Boolean
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
-        confValue = ", ".join(conn.getOption(confOption, [], True))
+        
+        confValue = None
+        if confOption in self._config["torrc.map"]:
+          confMappings = conn.getOptionMap(self._config["torrc.map"][confOption], {})
+          if confOption in confMappings: confValue = confMappings[confOption]
+          fetchConfOption = self._config["torrc.map"][confOption]
+        else:
+          confValue = ", ".join(conn.getOption(confOption, [], True))
         
         # provides nicer values for recognized types
         if not confValue: confValue = "<none>"
@@ -234,7 +242,10 @@ class ConfPanel(panel.Panel):
       renderedContents = torrc.stripComments(renderedContents)
     
     # offset to make room for the line numbers
-    lineNumOffset = int(math.log10(len(renderedContents))) + 2 if self.showLineNum else 0
+    lineNumOffset = 0
+    if self.showLineNum:
+      if len(renderedContents) == 0: lineNumOffset = 2
+      else: lineNumOffset = int(math.log10(len(renderedContents))) + 2
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 0

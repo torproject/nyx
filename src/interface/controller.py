@@ -484,7 +484,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         if panels["graph"].currentDisplay == "bandwidth":
           panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
         
-        panels["torrc"].reset()
+        panels["torrc"].loadConfig()
         sighupTracker.isReset = False
       
       # gives panels a chance to take advantage of the maximum bounds

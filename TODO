@@ -16,6 +16,8 @@ TODO
         - [validation] check if there's missing entries
           might be able to use "GETINFO config-text" to determine entries that
           differ from the defaults, then see if they're all in the torrc
+        - [validation] tor provides the types for config options, so I might be
+          able to use these instead of hardcoding the multiline values.
       [ ] conn panel
         - expand client connections and note location in circuit (entry-exit)
         - for clients give an option to list all connections, to tell which are
@@ -71,6 +73,10 @@ TODO
       timestamps to see if it belongs to this tor instance. This requires
       tor's uptime - blocked on implementation of the following proposal:
       https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+  * the STATUS_SERVER event may not be supported
+      18:52 < mikeperry> atagar: I believe there is no event parsing for STATUS_SERVER
+      18:53 < mikeperry> atagar: see TorCtl.EventSink and classes that inherit from it
+      18:54 < mikeperry> specifically, TorCtl.EventHandler._decode1, _handle1, and _map1
   
   * conn panel:
     * *never* do reverse dns lookups for first hops (could be resolving via
