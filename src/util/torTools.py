@@ -152,7 +152,7 @@ def getPid(controlPort=9051, pidFilePath=None):
 
 def getConn():
   """
-  Singleton constructor for a Controller. Be aware that this start
+  Singleton constructor for a Controller. Be aware that this starts as being
   uninitialized, needing a TorCtl instance before it's fully functional.
   """
   

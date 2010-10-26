@@ -18,11 +18,11 @@ import headerPanel
 import graphing.graphPanel
 import logPanel
 import connPanel
-import confPanel
+import configFilePanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import conf, log, connections, hostnames, panel, sysTools, torTools, uiTools
+from util import conf, log, connections, hostnames, panel, sysTools, torrc, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
 import graphing.psStats
@@ -42,13 +42,16 @@ PAGES = [
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
-CONFIG = {"features.graph.type": 1,
+CONFIG = {"log.torrc.readFailed": log.WARN,
+          "features.graph.type": 1,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
           "log.startTime": log.INFO,
           "log.refreshRate": log.DEBUG,
-          "log.configEntryUndefined": log.NOTICE}
+          "log.configEntryUndefined": log.NOTICE,
+          "log.torrc.validation.duplicateEntries": log.NOTICE,
+          "log.torrc.validation.torStateDiffers": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -356,6 +359,46 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   #except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
   #  confLocation = ""
   
+  # loads the torrc and provides warnings in case of validation errors
+  loadedTorrc = torrc.getTorrc()
+  loadedTorrc.getLock().acquire()
+  
+  try:
+    loadedTorrc.load()
+  except IOError, exc:
+    excMsg = str(exc)
+    if excMsg.startswith("[Errno "): excMsg = excMsg[10:]
+    msg = "Unable to load torrc (%s)" % excMsg
+    log.log(CONFIG["log.torrc.readFailed"], msg)
+  
+  if loadedTorrc.isLoaded():
+    corrections = loadedTorrc.getCorrections()
+    irrelevantLines, mismatchLines = [], []
+    
+    for lineNum in corrections:
+      problem = corrections[lineNum][0]
+      if problem == torrc.VAL_DUPLICATE: irrelevantLines.append(lineNum)
+      elif problem == torrc.VAL_MISMATCH: mismatchLines.append(lineNum)
+    
+    if irrelevantLines:
+      irrelevantLines.sort()
+      
+      if len(irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
+      else: first, second, third = "Entry", "is", " on line"
+      msgStart = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
+      msgLines = ", ".join([str(val + 1) for val in irrelevantLines])
+      msg = "%s: %s (highlighted in blue)" % (msgStart, msgLines)
+      log.log(CONFIG["log.torrc.validation.duplicateEntries"], msg)
+    
+    if mismatchLines:
+      mismatchLines.sort()
+      msgStart = "Tor's state differs from loaded torrc on line%s" % ("s" if len(mismatchLines) > 1 else "")
+      msgLines = ", ".join([str(val + 1) for val in mismatchLines])
+      msg = "%s: %s" % (msgStart, msgLines)
+      log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
+  
+  loadedTorrc.getLock().release()
+  
   # minor refinements for connection resolver
   if not isBlindMode:
     resolver = connections.getResolver("tor")
@@ -379,7 +422,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["torrc"] = confPanel.ConfPanel(stdscr, config)
+  panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -710,7 +753,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
           
-          popup.addfstr(5, 2, "<b>c</b>: displayed configuration (<b>%s</b>)" % confPanel.CONFIG_LABELS[panels["torrc"].configType])
+          #popup.addfstr(5, 2, "<b>c</b>: displayed configuration (<b>%s</b>)" % configFilePanel.CONFIG_LABELS[panels["torrc"].configType])
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -1365,10 +1408,23 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif page == 2 and key == ord('r') or key == ord('R'):
       # reloads torrc, providing a notice if successful or not
-      isSuccessful = panels["torrc"].loadConfig(logErrors = False)
-      confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
-      resetMsg = "%s reloaded" % confTypeLabel if isSuccessful else "failed to reload %s" % confTypeLabel
-      if isSuccessful: panels["torrc"].redraw(True)
+      loadedTorrc = torrc.getTorrc()
+      loadedTorrc.getLock().acquire()
+      
+      try:
+        loadedTorrc.load()
+        isSuccessful = True
+      except IOError:
+        isSuccessful = False
+      
+      loadedTorrc.getLock().release()
+      
+      #isSuccessful = panels["torrc"].loadConfig(logErrors = False)
+      #confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
+      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
+      if isSuccessful:
+        panels["torrc"]._lastContentHeightArgs = None
+        panels["torrc"].redraw(True)
       
       panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
       panels["control"].redraw(True)
@@ -1404,9 +1460,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 2 and (key == ord('c') or key == ord('C')):
+    elif page == 2 and (key == ord('c') or key == ord('C')) and False:
+      # TODO: disabled for now (pending the ConfigStatePanel implementation)
       # provides menu to pick config being displayed
-      options = [confPanel.CONFIG_LABELS[confType] for confType in range(4)]
+      #options = [confPanel.CONFIG_LABELS[confType] for confType in range(4)]
+      options = []
       initialSelection = panels["torrc"].configType
       
       # hides top label of the graph panel and pauses panels

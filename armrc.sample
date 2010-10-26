@@ -13,6 +13,9 @@ queries.refreshRate.rate 5
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
+# Checks the torrc for issues, warning and hilighting problems if true
+features.torrc.validate true
+
 # Set this if you're running in a chroot jail or other environment where tor's
 # resources (log, state, etc) should have a prefix in their paths.
 features.pathPrefix
@@ -55,15 +58,12 @@ features.log.maxRefreshRate 300
 # ---------------------------
 # type
 #   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
-# validate
-#   checks torrc and armrcs for issues, warning and hilighting problems if true
 # showScrollbars
 #   displays scrollbars when the torrc content is longer than the display
 # maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
 features.config.type 0
-features.config.validate true
 features.config.showScrollbars true
 features.config.maxLinesPerEntry 8
 
@@ -169,9 +169,9 @@ log.logPanel.prepopulateFailed WARN
 log.logPanel.logFileOpened NOTICE
 log.logPanel.logFileWriteFailed ERR
 log.logPanel.forceDoubleRedraw DEBUG
-log.confPanel.torrcReadFailed WARN
-log.torrcValidation.duplicateEntries NOTICE
-log.torrcValidation.torStateDiffers NOTICE
+log.torrc.readFailed WARN
+log.torrc.validation.duplicateEntries NOTICE
+log.torrc.validation.torStateDiffers NOTICE
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN

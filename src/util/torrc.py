@@ -2,9 +2,13 @@
 Helper functions for working with tor's configuration file.
 """
 
+import curses
+import threading
+
 from util import sysTools, torTools, uiTools
 
-CONFIG = {"torrc.map": {},
+CONFIG = {"features.torrc.validate": True,
+          "torrc.map": {},
           "torrc.multiline": [],
           "torrc.alias": {},
           "torrc.label.size.b": [],
@@ -28,8 +32,7 @@ TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
 # VAL_MISMATCH  - the value doesn't match tor's current state
 VAL_DUPLICATE, VAL_MISMATCH = range(1, 3)
 
-# cached results for the stripComments function
-STRIP_COMMENTS_ARG, STRIP_COMMENTS_RESULT = None, None
+TORRC = None # singleton torrc instance
 
 def loadConfig(config):
   CONFIG["torrc.map"] = config.get("torrc.map", {})
@@ -41,6 +44,16 @@ def loadConfig(config):
     if configKey.startswith("torrc.label."):
       configValues = config.get(configKey, "").split(",")
       if configValues: CONFIG[configKey] = [val.strip() for val in configValues]
+
+def getTorrc():
+  """
+  Singleton constructor for a Controller. Be aware that this starts as being
+  unloaded, needing the torrc contents to be loaded before being functional.
+  """
+  
+  global TORRC
+  if TORRC == None: TORRC = Torrc()
+  return TORRC
 
 def getConfigLocation():
   """
@@ -77,32 +90,7 @@ def getConfigLocation():
   
   return torTools.getPathPrefix() + configLocation
 
-def stripComments(contents):
-  """
-  Provides the torrc contents back with comments and extra whitespace stripped.
-  
-  Arguments:
-    contents - torrc contents
-  """
-  
-  global STRIP_COMMENTS_ARG, STRIP_COMMENTS_RESULT
-  
-  if contents == STRIP_COMMENTS_ARG:
-    return list(STRIP_COMMENTS_RESULT)
-  
-  strippedContents = []
-  for line in contents:
-    # strips off comment
-    if line and "#" in line:
-      line = line[:line.find("#")]
-    
-    strippedContents.append(line.strip())
-  
-  STRIP_COMMENTS_ARG = list(contents)
-  STRIP_COMMENTS_RESULT = list(strippedContents)
-  return strippedContents
-
-def validate(contents):
+def validate(contents = None):
   """
   Performs validation on the given torrc contents, providing back a mapping of
   line numbers to tuples of the (issue, msg) found on them.
@@ -112,7 +100,7 @@ def validate(contents):
   """
   
   conn = torTools.getConn()
-  contents = stripComments(contents)
+  contents = _stripComments(contents)
   issuesFound, seenOptions = {}, []
   for lineNumber in range(len(contents) - 1, -1, -1):
     lineText = contents[lineNumber]
@@ -214,4 +202,147 @@ def _getUnitType(unit):
       return TIME_MULT[label], TIME_VALUE
   
   return None, UNRECOGNIZED
+
+def _stripComments(contents):
+  """
+  Removes comments and extra whitespace from the given torrc contents.
+  
+  Arguments:
+    contents - torrc contents
+  """
+  
+  strippedContents = []
+  for line in contents:
+    if line and "#" in line: line = line[:line.find("#")]
+    strippedContents.append(line.strip())
+  return strippedContents
+
+class Torrc():
+  """
+  Wrapper for the torrc. All getters provide None if the contents are unloaded.
+  """
+  
+  def __init__(self):
+    self.contents = None
+    self.configLocation = None
+    self.valsLock = threading.RLock()
+    
+    # cached results for the current contents
+    self.displayableContents = None
+    self.strippedContents = None
+    self.corrections = None
+  
+  def load(self):
+    """
+    Loads or reloads the torrc contents, raising an IOError if there's a
+    problem.
+    """
+    
+    self.valsLock.acquire()
+    
+    # clears contents and caches
+    self.contents, self.configLocation = None, None
+    self.displayableContents = None
+    self.strippedContents = None
+    self.corrections = None
+    
+    try:
+      self.configLocation = getConfigLocation()
+      configFile = open(self.configLocation, "r")
+      self.contents = configFile.readlines()
+      configFile.close()
+    except IOError, exc:
+      self.valsLock.release()
+      raise exc
+    
+    self.valsLock.release()
+  
+  def isLoaded(self):
+    """
+    Provides true if there's loaded contents, false otherwise.
+    """
+    
+    return self.contents != None
+  
+  def getConfigLocation(self):
+    """
+    Provides the location of the loaded configuration contents. This may be
+    available, even if the torrc failed to be loaded.
+    """
+    
+    return self.configLocation
+  
+  def getContents(self):
+    """
+    Provides the contents of the configuration file.
+    """
+    
+    self.valsLock.acquire()
+    returnVal = list(self.contents) if self.contents else None
+    self.valsLock.relese()
+    return returnVal
+  
+  def getDisplayContents(self, strip = False):
+    """
+    Provides the contents of the configuration file, formatted in a rendering
+    frindly fashion:
+    - Tabs print as three spaces. Keeping them as tabs is problematic for
+      layouts since it's counted as a single character, but occupies several
+      cells.
+    - Strips control and unprintable characters.
+    
+    Arguments:
+      strip - removes comments and extra whitespace if true
+    """
+    
+    self.valsLock.acquire()
+    
+    if not self.isLoaded(): returnVal = None
+    else:
+      if self.displayableContents == None:
+        # restricts contents to displayable characters
+        self.displayableContents = []
+        
+        for lineNum in range(len(self.contents)):
+          lineText = self.contents[lineNum]
+          lineText = lineText.replace("\t", "   ")
+          lineText = "".join([char for char in lineText if curses.ascii.isprint(char)])
+          self.displayableContents.append(lineText)
+      
+      if strip:
+        if self.strippedContents == None:
+          self.strippedContents = _stripComments(self.displayableContents)
+        
+        returnVal = list(self.strippedContents)
+      else: returnVal = list(self.displayableContents)
+    
+    self.valsLock.release()
+    return returnVal
+  
+  def getCorrections(self):
+    """
+    Performs validation on the loaded contents and provides back the
+    corrections. If validation is disabled then this won't provide any
+    results.
+    """
+    
+    self.valsLock.acquire()
+    
+    if not self.isLoaded(): returnVal = None
+    elif not CONFIG["features.torrc.validate"]: returnVal = {}
+    else:
+      if self.corrections == None:
+        self.corrections = validate(self.contents)
+      
+      returnVal = dict(self.corrections)
+    
+    self.valsLock.release()
+    return returnVal
+  
+  def getLock(self):
+    """
+    Provides the lock governing concurrent access to the contents.
+    """
+    
+    return self.valsLock
 
