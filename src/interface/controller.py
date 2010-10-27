@@ -18,6 +18,7 @@ import headerPanel
 import graphing.graphPanel
 import logPanel
 import connPanel
+import configStatePanel
 import configFilePanel
 import descriptorPopup
 import fileDescriptorPopup
@@ -422,7 +423,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
+  panels["torrc"] = configStatePanel.ConfigStatePanel(stdscr, configStatePanel.TOR_STATE, config)
+  #panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -527,7 +529,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         if panels["graph"].currentDisplay == "bandwidth":
           panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
         
-        panels["torrc"].loadConfig()
+        # TODO: should redraw the configFilePanel
+        #panels["torrc"].loadConfig()
         sighupTracker.isReset = False
       
       # gives panels a chance to take advantage of the maximum bounds
@@ -744,11 +747,12 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
-          strippingLabel = "on" if panels["torrc"].stripComments else "off"
-          popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
+          # TODO: reintroduce options for the configFilePanel
+          #strippingLabel = "on" if panels["torrc"].stripComments else "off"
+          #popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
           
-          lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
-          popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
+          #lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
+          #popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
           
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
@@ -1406,7 +1410,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 2 and key == ord('r') or key == ord('R'):
+    elif page == 2 and False and key == ord('r') or key == ord('R'):
       # reloads torrc, providing a notice if successful or not
       loadedTorrc = torrc.getTorrc()
       loadedTorrc.getLock().acquire()

@@ -20,7 +20,7 @@ class ConfigFilePanel(panel.Panel):
   """
   
   def __init__(self, stdscr, configType, config=None):
-    panel.Panel.__init__(self, stdscr, "conf", 0)
+    panel.Panel.__init__(self, stdscr, "confFile", 0)
     
     self._config = dict(DEFAULT_CONFIG)
     if config:

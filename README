@@ -126,7 +126,8 @@ Layout:
       connPanel.py           - (page 2) displays information on tor connections
       descriptorPopup.py     - (popup) displays connection descriptor data
       
-      confPanel.py           - (page 3) displays torrc and performs validation
+      configFilePanel.py     - (page 3) displays torrc/armrc and validation
+      configStatePanel.py    - editor panel for the tor and arm config states
     
     util/
       __init__.py
