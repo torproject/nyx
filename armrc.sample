@@ -58,14 +58,18 @@ features.log.maxRefreshRate 300
 # ---------------------------
 # type
 #   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
+# colWidth.*
+#   maximum column content width
 # showScrollbars
 #   displays scrollbars when the torrc content is longer than the display
 # maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
 features.config.type 0
-features.config.showScrollbars true
-features.config.maxLinesPerEntry 8
+features.config.state.colWidth.option 25
+features.config.state.colWidth.value 15
+features.config.file.showScrollbars true
+features.config.file.maxLinesPerEntry 8
 
 # General graph parameters
 # ------------------------

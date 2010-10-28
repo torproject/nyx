@@ -46,7 +46,8 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"features.pathPrefix": "",
+CONFIG = {"torrc.map": {},
+          "features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
           "log.torGetConf": log.DEBUG,
@@ -336,7 +337,18 @@ class Controller(TorCtl.PostEventListener):
     """
     
     fetchType = "list" if multiple else "str"
-    return self._getOption(param, default, fetchType, suppressExc)
+    
+    if param in CONFIG["torrc.map"]:
+      # This is among the options fetched via a special command. The results
+      # are a set of values that (hopefully) contain the one we were
+      # requesting.
+      configMappings = self._getOption(param, default, "map", suppressExc)
+      if param in configMappings:
+        if fetchType == "list": return configMappings[param]
+        else: return configMappings[param][0]
+      else: return default
+    else:
+      return self._getOption(param, default, fetchType, suppressExc)
   
   def getOptionMap(self, param, default = None, suppressExc = True):
     """
@@ -354,6 +366,10 @@ class Controller(TorCtl.PostEventListener):
     which case calling getOption is sufficient. However, for the special
     options that give a set of values this provides back the full response. As
     of tor version 0.2.1.25 HiddenServiceOptions was the only option like this.
+    
+    The getOption function accounts for these special mappings, and the only
+    advantage to this funtion is that it provides all related values in a
+    single response.
     
     Arguments:
       param       - configuration option to be queried

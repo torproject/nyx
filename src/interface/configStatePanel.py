@@ -8,7 +8,8 @@ import threading
 
 from util import conf, panel, torTools, uiTools
 
-DEFAULT_CONFIG = {"torrc.map": {}}
+DEFAULT_CONFIG = {"features.config.state.colWidth.option": 25,
+                  "features.config.state.colWidth.value": 15}
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
@@ -17,11 +18,32 @@ class ConfigEntry():
   Configuration option in the panel.
   """
   
-  def __init__(self, option, value, type, description = ""):
+  def __init__(self, option, type, description = "", isDefault = True):
     self.option = option
-    self.value = value
     self.type = type
     self.description = description
+    self.isDefault = isDefault
+  
+  def getValue(self):
+    """
+    Provides the current value of the configuration entry, taking advantage of
+    the torTools caching to effectively query the accurate value. This uses the
+    value's type to provide a user friendly representation if able.
+    """
+    
+    conn = torTools.getConn()
+    confValue = ", ".join(conn.getOption(self.option, [], True))
+    
+    # provides nicer values for recognized types
+    if not confValue: confValue = "<none>"
+    elif self.type == "Boolean" and confValue in ("0", "1"):
+      confValue = "False" if confValue == "0" else "True"
+    elif self.type == "DataSize" and confValue.isdigit():
+      confValue = uiTools.getSizeLabel(int(confValue))
+    elif self.type == "TimeInterval" and confValue.isdigit():
+      confValue = uiTools.getTimeLabel(int(confValue), isLong = True)
+    
+    return confValue
 
 class ConfigStatePanel(panel.Panel):
   """
@@ -33,7 +55,9 @@ class ConfigStatePanel(panel.Panel):
     panel.Panel.__init__(self, stdscr, "confState", 0)
     
     self._config = dict(DEFAULT_CONFIG)
-    if config: config.update(self._config)
+    if config: config.update(self._config, {
+      "features.config.state.colWidth.option": 5,
+      "features.config.state.colWidth.value": 5})
     
     self.configType = configType
     self.confContents = []
@@ -52,25 +76,7 @@ class ConfigStatePanel(panel.Panel):
         # UseEntryGuards Boolean
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
-        
-        confValue = None
-        if confOption in self._config["torrc.map"]:
-          confMappings = conn.getOptionMap(self._config["torrc.map"][confOption], {})
-          if confOption in confMappings: confValue = confMappings[confOption]
-          fetchConfOption = self._config["torrc.map"][confOption]
-        else:
-          confValue = ", ".join(conn.getOption(confOption, [], True))
-        
-        # provides nicer values for recognized types
-        if not confValue: confValue = "<none>"
-        elif confType == "Boolean" and confValue in ("0", "1"):
-          confValue = "False" if confValue == "0" else "True"
-        elif confType == "DataSize" and confValue.isdigit():
-          confValue = uiTools.getSizeLabel(int(confValue))
-        elif confType == "TimeInterval" and confValue.isdigit():
-          confValue = uiTools.getTimeLabel(int(confValue), isLong = True)
-        
-        self.confContents.append(ConfigEntry(confOption, confValue, confType))
+        self.confContents.append(ConfigEntry(confOption, confType))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
@@ -104,21 +110,24 @@ class ConfigStatePanel(panel.Panel):
     # determines the width for the columns
     optionColWidth, valueColWidth, typeColWidth = 0, 0, 0
     
+    # constructs a mapping of entries to their current values
+    entryToValues = {}
     for entry in self.confContents:
+      entryToValues[entry] = entry.getValue()
       optionColWidth = max(optionColWidth, len(entry.option))
-      valueColWidth = max(valueColWidth, len(entry.value))
+      valueColWidth = max(valueColWidth, len(entryToValues[entry]))
       typeColWidth = max(typeColWidth, len(entry.type))
     
     # TODO: make the size dynamic between the value and description
-    optionColWidth = min(25, optionColWidth)
-    valueColWidth = min(25, valueColWidth)
+    optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
+    valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
     
     for lineNum in range(self.scroll, len(self.confContents)):
       entry = self.confContents[lineNum]
       drawLine = lineNum + 1 - self.scroll
       
       optionLabel = uiTools.cropStr(entry.option, optionColWidth)
-      valueLabel = uiTools.cropStr(entry.value, valueColWidth)
+      valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
       
       self.addstr(drawLine, scrollOffset, optionLabel, curses.A_BOLD | uiTools.getColor("green"))
       self.addstr(drawLine, scrollOffset + optionColWidth + 1, valueLabel, curses.A_BOLD | uiTools.getColor("green"))

@@ -8,8 +8,8 @@ import threading
 
 from util import conf, panel, torrc, uiTools
 
-DEFAULT_CONFIG = {"features.config.showScrollbars": True,
-                  "features.config.maxLinesPerEntry": 8}
+DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
+                  "features.config.file.maxLinesPerEntry": 8}
 
 TORRC, ARMRC = range(1, 3) # configuration file types that can  be displayed
 
@@ -24,7 +24,7 @@ class ConfigFilePanel(panel.Panel):
     
     self._config = dict(DEFAULT_CONFIG)
     if config:
-      config.update(self._config, {"features.config.maxLinesPerEntry": 1})
+      config.update(self._config, {"features.config.file.maxLinesPerEntry": 1})
     
     self.valsLock = threading.RLock()
     self.configType = configType
@@ -99,7 +99,7 @@ class ConfigFilePanel(panel.Panel):
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 0
-    if self._config["features.config.showScrollbars"] and self._lastContentHeight > height - 1:
+    if self._config["features.config.file.showScrollbars"] and self._lastContentHeight > height - 1:
       scrollOffset = 3
       self.addScrollBar(self.scroll, self.scroll + height - 1, self._lastContentHeight, 1)
     
@@ -164,7 +164,7 @@ class ConfigFilePanel(panel.Panel):
       
       # draws the rest of the components with line wrap
       cursorLoc, lineOffset = lineNumOffset + scrollOffset, 0
-      maxLinesPerEntry = self._config["features.config.maxLinesPerEntry"]
+      maxLinesPerEntry = self._config["features.config.file.maxLinesPerEntry"]
       displayQueue = [lineComp[entry] for entry in ("option", "argument", "correction", "comment")]
       
       while displayQueue:

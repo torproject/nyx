@@ -8,7 +8,6 @@ import threading
 from util import sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
-          "torrc.map": {},
           "torrc.multiline": [],
           "torrc.alias": {},
           "torrc.label.size.b": [],
@@ -35,7 +34,6 @@ VAL_DUPLICATE, VAL_MISMATCH = range(1, 3)
 TORRC = None # singleton torrc instance
 
 def loadConfig(config):
-  CONFIG["torrc.map"] = config.get("torrc.map", {})
   CONFIG["torrc.multiline"] = config.get("torrc.multiline", [])
   CONFIG["torrc.alias"] = config.get("torrc.alias", {})
   
@@ -128,13 +126,7 @@ def validate(contents = None):
     value, valueType = _parseConfValue(value)
     
     # issues GETCONF to get the values tor's currently configured to use
-    torValues = []
-    if option in CONFIG["torrc.map"]:
-      # special option that's fetched with special values
-      confMappings = conn.getOptionMap(CONFIG["torrc.map"][option], {})
-      if option in confMappings: torValues = confMappings[option]
-    else:
-      torValues = conn.getOption(option, [], True)
+    torValues = conn.getOption(option, [], True)
     
     # multiline entries can be comma separated values (for both tor and conf)
     valueList = [value]
