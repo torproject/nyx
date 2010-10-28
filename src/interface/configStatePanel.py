@@ -31,8 +31,7 @@ class ConfigEntry():
     value's type to provide a user friendly representation if able.
     """
     
-    conn = torTools.getConn()
-    confValue = ", ".join(conn.getOption(self.option, [], True))
+    confValue = ", ".join(torTools.getConn().getOption(self.option, [], True))
     
     # provides nicer values for recognized types
     if not confValue: confValue = "<none>"
@@ -52,7 +51,7 @@ class ConfigStatePanel(panel.Panel):
   """
   
   def __init__(self, stdscr, configType, config=None):
-    panel.Panel.__init__(self, stdscr, "confState", 0)
+    panel.Panel.__init__(self, stdscr, "configState", 0)
     
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config, {
@@ -67,8 +66,14 @@ class ConfigStatePanel(panel.Panel):
     # TODO: this will need to be able to listen for SETCONF events (arg!)
     
     if self.configType == TOR_STATE:
-      # for all recognized tor config options, provide their current value
       conn = torTools.getConn()
+      
+      # gets options that differ from their default
+      setOptions = set()
+      configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+      for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
+      
+      # for all recognized tor config options, provide their current value
       configOptionQuery = conn.getInfo("config/names", "").strip().split("\n")
       
       for lineNum in range(len(configOptionQuery)):
@@ -76,7 +81,7 @@ class ConfigStatePanel(panel.Panel):
         # UseEntryGuards Boolean
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
-        self.confContents.append(ConfigEntry(confOption, confType))
+        self.confContents.append(ConfigEntry(confOption, confType, "", not confOption in setOptions))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
@@ -118,7 +123,6 @@ class ConfigStatePanel(panel.Panel):
       valueColWidth = max(valueColWidth, len(entryToValues[entry]))
       typeColWidth = max(typeColWidth, len(entry.type))
     
-    # TODO: make the size dynamic between the value and description
     optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
     valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
     
@@ -129,9 +133,11 @@ class ConfigStatePanel(panel.Panel):
       optionLabel = uiTools.cropStr(entry.option, optionColWidth)
       valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
       
-      self.addstr(drawLine, scrollOffset, optionLabel, curses.A_BOLD | uiTools.getColor("green"))
-      self.addstr(drawLine, scrollOffset + optionColWidth + 1, valueLabel, curses.A_BOLD | uiTools.getColor("green"))
-      self.addstr(drawLine, scrollOffset + optionColWidth + valueColWidth + 2, entry.type, curses.A_BOLD | uiTools.getColor("green"))
+      lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
+      
+      self.addstr(drawLine, scrollOffset, optionLabel, lineFormat)
+      self.addstr(drawLine, scrollOffset + optionColWidth + 1, valueLabel, lineFormat)
+      self.addstr(drawLine, scrollOffset + optionColWidth + valueColWidth + 2, entry.type, lineFormat)
       
       if drawLine >= height: break
     
