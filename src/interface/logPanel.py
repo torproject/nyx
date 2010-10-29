@@ -509,7 +509,7 @@ class LogPanel(panel.Panel, threading.Thread):
         "features.log.maxLinesPerEntry": 1,
         "features.log.prepopulateReadLimit": 0,
         "features.log.maxRefreshRate": 10,
-        "cache.logPanel.size": 50})
+        "cache.logPanel.size": 1000})
     
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
@@ -627,7 +627,6 @@ class LogPanel(panel.Panel, threading.Thread):
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
         self.logFile = None
     
-    cacheSize = self._config["cache.logPanel.size"]
     if self._isPaused:
       self.valsLock.acquire()
       self._pauseBuffer.insert(0, event)
