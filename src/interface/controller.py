@@ -23,7 +23,7 @@ import configFilePanel
 import descriptorPopup
 import fileDescriptorPopup
 
-from util import conf, log, connections, hostnames, panel, sysTools, torrc, torTools, uiTools
+from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
 import graphing.psStats
@@ -361,7 +361,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   #  confLocation = ""
   
   # loads the torrc and provides warnings in case of validation errors
-  loadedTorrc = torrc.getTorrc()
+  loadedTorrc = torConfig.getTorrc()
   loadedTorrc.getLock().acquire()
   
   try:
@@ -378,8 +378,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     
     for lineNum in corrections:
       problem = corrections[lineNum][0]
-      if problem == torrc.VAL_DUPLICATE: irrelevantLines.append(lineNum)
-      elif problem == torrc.VAL_MISMATCH: mismatchLines.append(lineNum)
+      if problem == torConfig.VAL_DUPLICATE: irrelevantLines.append(lineNum)
+      elif problem == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
     
     if irrelevantLines:
       irrelevantLines.sort()
@@ -1412,7 +1412,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif page == 2 and False and key == ord('r') or key == ord('R'):
       # reloads torrc, providing a notice if successful or not
-      loadedTorrc = torrc.getTorrc()
+      loadedTorrc = torConfig.getTorrc()
       loadedTorrc.getLock().acquire()
       
       try:

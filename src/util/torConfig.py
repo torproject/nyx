@@ -59,6 +59,95 @@ def getTorrc():
   if TORRC == None: TORRC = Torrc()
   return TORRC
 
+def loadOptionDescriptions():
+  """
+  Fetches and parses descriptions for tor's configuration options from its man
+  page. This can be a somewhat lengthy call, and raises an IOError if issues
+  occure.
+  """
+  
+  CONFIG_DESCRIPTIONS_LOCK.acquire()
+  CONFIG_DESCRIPTIONS.clear()
+  
+  raisedExc = None
+  try:
+    manCallResults = sysTools.call("man tor")
+    
+    lastOption, lastArg = None, None
+    lastDescription = ""
+    for line in manCallResults:
+      strippedLine = line.strip()
+      
+      # we have content, but an indent less than an option (ignore line)
+      if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
+      
+      # line starts with an indent equivilant to a new config option
+      isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
+      
+      if isOptIndent:
+        # Most lines with this indent that aren't config options won't have
+        # any description set at this point (not a perfect filter, but cuts
+        # down on the noise).
+        strippedDescription = lastDescription.strip()
+        if lastOption and strippedDescription:
+          CONFIG_DESCRIPTIONS[lastOption] = (lastArg, strippedDescription)
+        lastDescription = ""
+        
+        # parses the option and argument
+        line = line.strip()
+        divIndex = line.find(" ")
+        if divIndex != -1:
+          lastOption, lastArg = line[:divIndex], line[divIndex + 1:]
+      else:
+        # Appends the text to the running description. Empty lines and lines
+        # starting with a specific indentation are used for formatting, for
+        # instance the ExitPolicy and TestingTorNetwork entries.
+        if lastDescription and lastDescription[-1] != "\n":
+          lastDescription += " "
+        
+        if not strippedLine:
+          lastDescription += "\n\n"
+        elif line.startswith(" " * MAN_EX_INDENT):
+          lastDescription += "    %s\n" % strippedLine
+        else: lastDescription += strippedLine
+    
+  except IOError, exc:
+    raisedExc = exc
+  
+  CONFIG_DESCRIPTIONS_LOCK.release()
+  if raisedExc: raise raisedExc
+
+def isConfigDescriptionAvailable(option):
+  """
+  Returns if a description for the given configuration option has been loaded
+  or not.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  return option in CONFIG_DESCRIPTIONS
+
+def getConfigDescription(option):
+  """
+  Provides a tuple with arguments and description for the given tor
+  configuration option, fetched from its man page. This provides None if no
+  such option has been loaded. If the man page is in the process of being
+  loaded then this call blocks until it finishes.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  CONFIG_DESCRIPTIONS_LOCK.acquire()
+  
+  if option in CONFIG_DESCRIPTIONS:
+    returnVal = CONFIG_DESCRIPTIONS[option]
+  else: returnVal = None
+  
+  CONFIG_DESCRIPTIONS_LOCK.release()
+  return returnVal
+
 def getConfigLocation():
   """
   Provides the location of the torrc, raising an IOError with the reason if the
@@ -161,115 +250,6 @@ def validate(contents = None):
         issuesFound[lineNumber] = (VAL_MISMATCH, ", ".join(displayValues))
   
   return issuesFound
-
-def loadOptionDescriptions():
-  """
-  Fetches and parses descriptions for tor's configuration options from its man
-  page. This can be a somewhat lengthy call, and raises an IOError if issues
-  occure.
-  """
-  
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-  CONFIG_DESCRIPTIONS.clear()
-  
-  raisedExc = None
-  try:
-    manCallResults = sysTools.call("man tor")
-    
-    lastOption, lastArg = None, None
-    lastDescription = ""
-    for line in manCallResults:
-      strippedLine = line.strip()
-      
-      # we have content, but an indent less than an option (ignore line)
-      if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
-      
-      # line starts with an indent equivilant to a new config option
-      isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
-      
-      if isOptIndent:
-        # Most lines with this indent that aren't config options won't have
-        # any description set at this point (not a perfect filter, but cuts
-        # down on the noise).
-        strippedDescription = lastDescription.strip()
-        if lastOption and strippedDescription:
-          CONFIG_DESCRIPTIONS[lastOption] = (lastArg, strippedDescription)
-        lastDescription = ""
-        
-        # parses the option and argument
-        line = line.strip()
-        divIndex = line.find(" ")
-        if divIndex != -1:
-          lastOption, lastArg = line[:divIndex], line[divIndex + 1:]
-      else:
-        # Appends the text to the running description. Empty lines and lines
-        # starting with a specific indentation are used for formatting, for
-        # instance the ExitPolicy and TestingTorNetwork entries.
-        if lastDescription and lastDescription[-1] != "\n":
-          lastDescription += " "
-        
-        if not strippedLine:
-          lastDescription += "\n\n"
-        elif line.startswith(" " * MAN_EX_INDENT):
-          lastDescription += "    %s\n" % strippedLine
-        else: lastDescription += strippedLine
-    
-  except IOError, exc:
-    raisedExc = exc
-  
-  CONFIG_DESCRIPTIONS_LOCK.release()
-  if raisedExc: raise raisedExc
-
-def isConfigDescriptionAvailable(option):
-  """
-  Returns if a description for the given configuration option has been loaded
-  or not.
-  
-  Arguments:
-    option - tor config option
-  """
-  
-  return option in CONFIG_DESCRIPTIONS
-
-def getConfigDescription(option):
-  """
-  Provides a tuple with arguments and description for the given tor
-  configuration option, fetched from its man page. This provides None if no
-  such option has been loaded. If the man page is in the process of being
-  loaded then this call blocks until it finishes.
-  
-  Arguments:
-    option - tor config option
-  """
-  
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-  
-  if option in CONFIG_DESCRIPTIONS:
-    returnVal = CONFIG_DESCRIPTIONS[option]
-  else: returnVal = None
-  
-  CONFIG_DESCRIPTIONS_LOCK.release()
-  return returnVal
-
-def _testConfigDescriptions():
-  """
-  Tester for the loadOptionDescriptions function, fetching the man page
-  contents and dumping its parsed results.
-  """
-  
-  loadOptionDescriptions()
-  sortedOptions = CONFIG_DESCRIPTIONS.keys()
-  sortedOptions.sort()
-  
-  for i in range(len(sortedOptions)):
-    option = sortedOptions[i]
-    argument, description = getConfigDescription(option)
-    optLabel = "OPTION: \"%s\"" % option
-    argLabel = "ARGUMENT: \"%s\"" % argument
-    
-    print "     %-45s %s" % (optLabel, argLabel)
-    print "\"%s\"" % description
-    if i != len(sortedOptions) - 1: print "-" * 80
 
 def _parseConfValue(confArg):
   """
@@ -452,4 +432,24 @@ class Torrc():
     """
     
     return self.valsLock
+
+def _testConfigDescriptions():
+  """
+  Tester for the loadOptionDescriptions function, fetching the man page
+  contents and dumping its parsed results.
+  """
+  
+  loadOptionDescriptions()
+  sortedOptions = CONFIG_DESCRIPTIONS.keys()
+  sortedOptions.sort()
+  
+  for i in range(len(sortedOptions)):
+    option = sortedOptions[i]
+    argument, description = getConfigDescription(option)
+    optLabel = "OPTION: \"%s\"" % option
+    argLabel = "ARGUMENT: \"%s\"" % argument
+    
+    print "     %-45s %s" % (optLabel, argLabel)
+    print "\"%s\"" % description
+    if i != len(sortedOptions) - 1: print "-" * 80
 

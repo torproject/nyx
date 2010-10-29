@@ -20,7 +20,7 @@ import util.hostnames
 import util.log
 import util.panel
 import util.sysTools
-import util.torrc
+import util.torConfig
 import util.torTools
 import util.uiTools
 import TorCtl.TorCtl
@@ -150,7 +150,7 @@ if __name__ == '__main__':
   config.update(DEFAULTS)
   
   # loads user preferences for utilities
-  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torrc, util.torTools, util.uiTools):
+  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torConfig, util.torTools, util.uiTools):
     utilModule.loadConfig(config)
   
   # overwrites undefined parameters with defaults

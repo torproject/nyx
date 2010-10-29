@@ -6,7 +6,7 @@ import math
 import curses
 import threading
 
-from util import conf, panel, torrc, uiTools
+from util import conf, panel, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
                   "features.config.file.maxLinesPerEntry": 8}
@@ -73,7 +73,7 @@ class ConfigFilePanel(panel.Panel):
     
     renderedContents, corrections, confLocation = None, {}, None
     if self.configType == TORRC:
-      loadedTorrc = torrc.getTorrc()
+      loadedTorrc = torConfig.getTorrc()
       loadedTorrc.getLock().acquire()
       confLocation = loadedTorrc.getConfigLocation()
       
@@ -145,10 +145,10 @@ class ConfigFilePanel(panel.Panel):
       if lineNumber in corrections:
         lineIssue, lineIssueMsg = corrections[lineNumber]
         
-        if lineIssue == torrc.VAL_DUPLICATE:
+        if lineIssue == torConfig.VAL_DUPLICATE:
           lineComp["option"][1] = curses.A_BOLD | uiTools.getColor("blue")
           lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("blue")
-        elif lineIssue == torrc.VAL_MISMATCH:
+        elif lineIssue == torConfig.VAL_MISMATCH:
           lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("red")
           lineComp["correction"][0] = " (%s)" % lineIssueMsg
         else:
