@@ -6,7 +6,7 @@ and the resulting configuration files saved.
 import curses
 import threading
 
-from util import conf, panel, torTools, uiTools
+from util import conf, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 15}
@@ -81,7 +81,12 @@ class ConfigStatePanel(panel.Panel):
         # UseEntryGuards Boolean
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
-        self.confContents.append(ConfigEntry(confOption, confType, "", not confOption in setOptions))
+        
+        confDescription = ""
+        descriptionComp = torConfig.getConfigDescription(confOption)
+        if descriptionComp: confDescription = descriptionComp[1]
+        
+        self.confContents.append(ConfigEntry(confOption, confType, confDescription, not confOption in setOptions))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
@@ -134,10 +139,19 @@ class ConfigStatePanel(panel.Panel):
       valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
       
       lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
+      xOffset = scrollOffset
       
-      self.addstr(drawLine, scrollOffset, optionLabel, lineFormat)
-      self.addstr(drawLine, scrollOffset + optionColWidth + 1, valueLabel, lineFormat)
-      self.addstr(drawLine, scrollOffset + optionColWidth + valueColWidth + 2, entry.type, lineFormat)
+      self.addstr(drawLine, xOffset, optionLabel, lineFormat)
+      xOffset += optionColWidth + 1
+      
+      self.addstr(drawLine, xOffset, valueLabel, lineFormat)
+      xOffset += valueColWidth + 1
+      
+      self.addstr(drawLine, xOffset, entry.type, lineFormat)
+      xOffset += typeColWidth + 1
+      
+      descriptionLabel = uiTools.cropStr(entry.description, width - xOffset)
+      self.addstr(drawLine, xOffset, descriptionLabel, lineFormat)
       
       if drawLine >= height: break
     

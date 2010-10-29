@@ -60,6 +60,10 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * The log panel gets cripplingly slow if the log grows to be even moderately
+    large (200 entries or so). This is most likely due to the hack for
+    dynamically determining the content height. Check if a solution like the
+    one for the confFilePanel will work.
   * path for sample armrc in man page is wrong
   * when in client mode and tor stops the header panel doesn't say so
   * util are assuming that tor is running under the default command name

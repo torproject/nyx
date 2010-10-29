@@ -117,17 +117,6 @@ def loadOptionDescriptions():
   CONFIG_DESCRIPTIONS_LOCK.release()
   if raisedExc: raise raisedExc
 
-def isConfigDescriptionAvailable(option):
-  """
-  Returns if a description for the given configuration option has been loaded
-  or not.
-  
-  Arguments:
-    option - tor config option
-  """
-  
-  return option in CONFIG_DESCRIPTIONS
-
 def getConfigDescription(option):
   """
   Provides a tuple with arguments and description for the given tor

@@ -186,6 +186,18 @@ if __name__ == '__main__':
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
+  # It is important that this is loaded before entering the curses context,
+  # otherwise the man call pegs the cpu for around a minute (I'm not sure
+  # why... curses must mess the terminal in a way that's important to man).
+  
+  # TODO: Moving into an async call isn't helping with the startup time. Next,
+  # try caching the parsed results to disk (idea by nickm).
+  #import threading
+  #t = threading.Thread(target = util.torConfig.loadOptionDescriptions)
+  #t.setDaemon(True)
+  #t.start()
+  util.torConfig.loadOptionDescriptions()
+  
   # initializing the connection may require user input (for the password)
   # scewing the startup time results so this isn't counted
   initTime = time.time() - startTime
