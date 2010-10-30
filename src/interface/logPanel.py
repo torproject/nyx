@@ -564,7 +564,7 @@ class LogPanel(panel.Panel, threading.Thread):
       for level, msg, eventTime in log._getEntries(setRunlevels):
         runlevelStr = log.RUNLEVEL_STR[level]
         armEventEntry = LogEntry(eventTime, "ARM_" + runlevelStr, msg, RUNLEVEL_EVENT_COLOR[runlevelStr])
-        armEventBacklog.append(armEventEntry)
+        armEventBacklog.insert(0, armEventEntry)
       
       # joins armEventBacklog and torEventBacklog chronologically into msgLog
       while armEventBacklog or torEventBacklog:
@@ -602,7 +602,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.logFile = open(logPath, "a")
         log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
       except IOError, exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
   
   def registerEvent(self, event):
@@ -624,7 +624,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.logFile.write(event.getDisplayMessage(True) + "\n")
         self.logFile.flush()
       except IOError, exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
     if self._isPaused:

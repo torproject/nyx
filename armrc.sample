@@ -71,6 +71,19 @@ features.config.state.colWidth.value 15
 features.config.file.showScrollbars true
 features.config.file.maxLinesPerEntry 8
 
+# Descriptions for tor's configuration options can be loaded from its man page
+# to give usage information on the settings page. They can also be persisted to
+# a file to speed future lookups.
+# ---------------------------
+# enabled
+#   allows the descriptions to be fetched from the man page if true
+# persistPath
+#   location descriptions should be loaded from and saved to (this feature is
+#   disabled if unset)
+
+features.config.descriptions.enabled true
+features.config.descriptions.persistPath /tmp/arm/torConfigDescriptions.txt
+
 # General graph parameters
 # ------------------------
 # height
@@ -176,6 +189,12 @@ log.logPanel.forceDoubleRedraw DEBUG
 log.torrc.readFailed WARN
 log.torrc.validation.duplicateEntries NOTICE
 log.torrc.validation.torStateDiffers NOTICE
+log.configDescriptions.readManPageSuccess INFO
+log.configDescriptions.readManPageFailed WARN
+log.configDescriptions.persistance.loadSuccess INFO
+log.configDescriptions.persistance.loadFailed INFO
+log.configDescriptions.persistance.saveSuccess NOTICE
+log.configDescriptions.persistance.saveFailed NOTICE
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN

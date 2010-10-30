@@ -2,6 +2,7 @@
 Helper functions for working with tor's configuration file.
 """
 
+import os
 import curses
 import threading
 
@@ -38,6 +39,7 @@ CONFIG_DESCRIPTIONS = {}
 TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
 MAN_EX_INDENT = 15 # indentation used for man page examples
+PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a file
 
 def loadConfig(config):
   CONFIG["torrc.multiline"] = config.get("torrc.multiline", [])
@@ -59,11 +61,19 @@ def getTorrc():
   if TORRC == None: TORRC = Torrc()
   return TORRC
 
-def loadOptionDescriptions():
+def loadOptionDescriptions(loadPath = None):
   """
   Fetches and parses descriptions for tor's configuration options from its man
   page. This can be a somewhat lengthy call, and raises an IOError if issues
   occure.
+  
+  If available, this can load the configuration descriptions from a file where
+  they were previously persisted to cut down on the load time (latency for this
+  is around 200ms).
+  
+  Arguments:
+    loadPath - if set, this attempts to fetch the configuration descriptions
+               from the given path instead of the man page
   """
   
   CONFIG_DESCRIPTIONS_LOCK.acquire()
@@ -71,51 +81,104 @@ def loadOptionDescriptions():
   
   raisedExc = None
   try:
-    manCallResults = sysTools.call("man tor")
-    
-    lastOption, lastArg = None, None
-    lastDescription = ""
-    for line in manCallResults:
-      strippedLine = line.strip()
+    if loadPath:
+      # Input file is expected to be of the form:
+      # <option>
+      # <arg description>
+      # <description, possibly multiple lines>
+      # <PERSIST_ENTRY_DIVIDER>
+      inputFile = open(loadPath, "r")
+      inputFileContents = inputFile.readlines()
+      inputFile.close()
       
-      # we have content, but an indent less than an option (ignore line)
-      if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
+      try:
+        while inputFileContents:
+          option = inputFileContents.pop(0).rstrip()
+          argument = inputFileContents.pop(0).rstrip()
+          
+          description, loadedLine = "", inputFileContents.pop(0)
+          while loadedLine != PERSIST_ENTRY_DIVIDER:
+            description += loadedLine
+            
+            if inputFileContents: loadedLine = inputFileContents.pop(0)
+            else: break
+          
+          CONFIG_DESCRIPTIONS[option] = (argument, description.rstrip())
+      except IndexError:
+        CONFIG_DESCRIPTIONS.clear()
+        raise IOError("input file format is invalid")
+    else:
+      manCallResults = sysTools.call("man tor")
       
-      # line starts with an indent equivilant to a new config option
-      isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
-      
-      if isOptIndent:
-        # Most lines with this indent that aren't config options won't have
-        # any description set at this point (not a perfect filter, but cuts
-        # down on the noise).
-        strippedDescription = lastDescription.strip()
-        if lastOption and strippedDescription:
-          CONFIG_DESCRIPTIONS[lastOption] = (lastArg, strippedDescription)
-        lastDescription = ""
+      lastOption, lastArg = None, None
+      lastDescription = ""
+      for line in manCallResults:
+        strippedLine = line.strip()
         
-        # parses the option and argument
-        line = line.strip()
-        divIndex = line.find(" ")
-        if divIndex != -1:
-          lastOption, lastArg = line[:divIndex], line[divIndex + 1:]
-      else:
-        # Appends the text to the running description. Empty lines and lines
-        # starting with a specific indentation are used for formatting, for
-        # instance the ExitPolicy and TestingTorNetwork entries.
-        if lastDescription and lastDescription[-1] != "\n":
-          lastDescription += " "
+        # we have content, but an indent less than an option (ignore line)
+        if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
         
-        if not strippedLine:
-          lastDescription += "\n\n"
-        elif line.startswith(" " * MAN_EX_INDENT):
-          lastDescription += "    %s\n" % strippedLine
-        else: lastDescription += strippedLine
-    
+        # line starts with an indent equivilant to a new config option
+        isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
+        
+        if isOptIndent:
+          # Most lines with this indent that aren't config options won't have
+          # any description set at this point (not a perfect filter, but cuts
+          # down on the noise).
+          strippedDescription = lastDescription.strip()
+          if lastOption and strippedDescription:
+            CONFIG_DESCRIPTIONS[lastOption] = (lastArg, strippedDescription)
+          lastDescription = ""
+          
+          # parses the option and argument
+          line = line.strip()
+          divIndex = line.find(" ")
+          if divIndex != -1:
+            lastOption, lastArg = line[:divIndex], line[divIndex + 1:]
+        else:
+          # Appends the text to the running description. Empty lines and lines
+          # starting with a specific indentation are used for formatting, for
+          # instance the ExitPolicy and TestingTorNetwork entries.
+          if lastDescription and lastDescription[-1] != "\n":
+            lastDescription += " "
+          
+          if not strippedLine:
+            lastDescription += "\n\n"
+          elif line.startswith(" " * MAN_EX_INDENT):
+            lastDescription += "    %s\n" % strippedLine
+          else: lastDescription += strippedLine
   except IOError, exc:
     raisedExc = exc
   
   CONFIG_DESCRIPTIONS_LOCK.release()
   if raisedExc: raise raisedExc
+
+def saveOptionDescriptions(path):
+  """
+  Preserves the current configuration descriptors to the given path. This
+  raises an IOError if unable to do so.
+  
+  Arguments:
+    path - location to persist configuration descriptors
+  """
+  
+  # make dir if the path doesn't already exist
+  baseDir = os.path.dirname(path)
+  if not os.path.exists(baseDir): os.makedirs(baseDir)
+  outputFile = open(path, "w")
+  
+  CONFIG_DESCRIPTIONS_LOCK.acquire()
+  sortedOptions = CONFIG_DESCRIPTIONS.keys()
+  sortedOptions.sort()
+  
+  for i in range(len(sortedOptions)):
+    option = sortedOptions[i]
+    argument, description = getConfigDescription(option)
+    outputFile.write("%s\n%s\n%s\n" % (option, argument, description))
+    if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
+  
+  outputFile.close()
+  CONFIG_DESCRIPTIONS_LOCK.release()
 
 def getConfigDescription(option):
   """
@@ -355,7 +418,7 @@ class Torrc():
     
     self.valsLock.acquire()
     returnVal = list(self.contents) if self.contents else None
-    self.valsLock.relese()
+    self.valsLock.release()
     return returnVal
   
   def getDisplayContents(self, strip = False):

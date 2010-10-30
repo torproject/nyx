@@ -27,11 +27,19 @@ import TorCtl.TorCtl
 import TorCtl.TorUtil
 
 DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
-DEFAULTS = {"startup.controlPassword": None,
-            "startup.interface.ipAddress": "127.0.0.1",
-            "startup.interface.port": 9051,
-            "startup.blindModeEnabled": False,
-            "startup.events": "N3"}
+CONFIG = {"startup.controlPassword": None,
+          "startup.interface.ipAddress": "127.0.0.1",
+          "startup.interface.port": 9051,
+          "startup.blindModeEnabled": False,
+          "startup.events": "N3",
+          "features.config.descriptions.enabled": True,
+          "features.config.descriptions.persistPath": "/tmp/arm/torConfigDescriptions.txt",
+          "log.configDescriptions.readManPageSuccess": util.log.INFO,
+          "log.configDescriptions.readManPageFailed": util.log.WARN,
+          "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
+          "log.configDescriptions.persistance.loadFailed": util.log.INFO,
+          "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
+          "log.configDescriptions.persistance.saveFailed": util.log.NOTICE}
 
 OPT = "i:c:be:vh"
 OPT_EXPANDED = ["interface=", "config=", "blind", "event=", "version", "help"]
@@ -50,7 +58,19 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (DEFAULTS["startup.interface.ipAddress"], DEFAULTS["startup.interface.port"], DEFAULT_CONFIG, DEFAULTS["startup.events"], interface.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+
+# messages related to loading the tor configuration descriptions
+DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
+DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
+DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
+DESC_READ_MAN_FAILED_MSG = "Unable to read descriptions for tor's configuration options from its man page (%s)"
+DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
+DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
+
+NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
+STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
+STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
 
 def isValidIpAddr(ipStr):
   """
@@ -75,10 +95,62 @@ def isValidIpAddr(ipStr):
   
   return True
 
+def _loadConfigurationDescriptions():
+  """
+  Attempts to load descriptions for tor's configuration options, fetching them
+  from the man page and persisting them to a file to speed future startups.
+  """
+  
+  # It is important that this is loaded before entering the curses context,
+  # otherwise the man call pegs the cpu for around a minute (I'm not sure
+  # why... curses must mess the terminal in a way that's important to man).
+  
+  if CONFIG["features.config.descriptions.enabled"]:
+    isConfigDescriptionsLoaded = False
+    descriptorPath = CONFIG["features.config.descriptions.persistPath"]
+    
+    # attempts to load persisted configuration descriptions
+    if descriptorPath:
+      try:
+        loadStartTime = time.time()
+        util.torConfig.loadOptionDescriptions(descriptorPath)
+        isConfigDescriptionsLoaded = True
+        
+        msg = DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
+        util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
+      except IOError, exc:
+        msg = DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
+        util.log.log(CONFIG["log.configDescriptions.persistance.loadFailed"], msg)
+    
+    if not isConfigDescriptionsLoaded:
+      try:
+        # fetches configuration options from the man page
+        loadStartTime = time.time()
+        util.torConfig.loadOptionDescriptions()
+        isConfigDescriptionsLoaded = True
+        
+        msg = DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime)
+        util.log.log(CONFIG["log.configDescriptions.readManPageSuccess"], msg)
+      except IOError, exc:
+        msg = DESC_READ_MAN_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
+        util.log.log(CONFIG["log.configDescriptions.readManPageFailed"], msg)
+      
+      # persists configuration descriptions 
+      if isConfigDescriptionsLoaded and descriptorPath:
+        try:
+          loadStartTime = time.time()
+          util.torConfig.saveOptionDescriptions(descriptorPath)
+          
+          msg = DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
+          util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
+        except IOError, exc:
+          msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
+          util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
+
 if __name__ == '__main__':
   startTime = time.time()
-  param = dict([(key, None) for key in DEFAULTS.keys()])
-  configPath = DEFAULT_CONFIG            # path used for customized configuration
+  param = dict([(key, None) for key in CONFIG.keys()])
+  configPath = DEFAULT_CONFIG # path used for customized configuration
   
   # parses user input, noting any issues
   try:
@@ -127,11 +199,7 @@ if __name__ == '__main__':
     
     config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
-    # Strips off the error number prefix from the message. Example error msg:
-    # [Errno 2] No such file or directory
-    excMsg = str(exc)
-    if excMsg.startswith("[Errno "): excMsg = excMsg[10:]
-    msg = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)" % excMsg
+    msg = NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc)
     util.log.log(util.log.WARN, msg)
   
   # loads user's personal armrc if available
@@ -139,15 +207,15 @@ if __name__ == '__main__':
     try:
       config.load(configPath)
     except IOError, exc:
-      msg = "Failed to load configuration (using defaults): \"%s\"" % str(exc)
+      msg = STANDARD_CFG_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
       util.log.log(util.log.WARN, msg)
   else:
     # no armrc found, falling back to the defaults in the source
-    msg = "No configuration found at '%s', using defaults" % configPath
+    msg = STANDARD_CFG_NOT_FOUND_MSG % configPath
     util.log.log(util.log.NOTICE, msg)
   
   # revises defaults to match user's configuration
-  config.update(DEFAULTS)
+  config.update(CONFIG)
   
   # loads user preferences for utilities
   for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torConfig, util.torTools, util.uiTools):
@@ -155,7 +223,7 @@ if __name__ == '__main__':
   
   # overwrites undefined parameters with defaults
   for key in param.keys():
-    if param[key] == None: param[key] = DEFAULTS[key]
+    if param[key] == None: param[key] = CONFIG[key]
   
   # validates that input has a valid ip address and port
   controlAddr = param["startup.interface.ipAddress"]
@@ -182,21 +250,12 @@ if __name__ == '__main__':
   # sets up TorCtl connection, prompting for the passphrase if necessary and
   # sending problems to stdout if they arise
   TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
-  authPassword = config.get("startup.controlPassword", DEFAULTS["startup.controlPassword"])
+  authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
-  # It is important that this is loaded before entering the curses context,
-  # otherwise the man call pegs the cpu for around a minute (I'm not sure
-  # why... curses must mess the terminal in a way that's important to man).
-  
-  # TODO: Moving into an async call isn't helping with the startup time. Next,
-  # try caching the parsed results to disk (idea by nickm).
-  #import threading
-  #t = threading.Thread(target = util.torConfig.loadOptionDescriptions)
-  #t.setDaemon(True)
-  #t.start()
-  util.torConfig.loadOptionDescriptions()
+  # fetches descriptions for tor's configuration options
+  _loadConfigurationDescriptions()
   
   # initializing the connection may require user input (for the password)
   # scewing the startup time results so this isn't counted

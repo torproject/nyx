@@ -367,9 +367,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   try:
     loadedTorrc.load()
   except IOError, exc:
-    excMsg = str(exc)
-    if excMsg.startswith("[Errno "): excMsg = excMsg[10:]
-    msg = "Unable to load torrc (%s)" % excMsg
+    msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
     log.log(CONFIG["log.torrc.readFailed"], msg)
   
   if loadedTorrc.isLoaded():
@@ -886,7 +884,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             panels["control"].redraw(True)
             time.sleep(2)
           except IOError, exc:
-            panels["control"].setMsg("Unable to save snapshot: %s" % str(exc), curses.A_STANDOUT)
+            panels["control"].setMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), curses.A_STANDOUT)
             panels["control"].redraw(True)
             time.sleep(2)
         
@@ -1451,7 +1449,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           try:
             torTools.getConn().reload()
           except IOError, exc:
-            log.log(log.ERR, "Error detected when reloading tor: %s" % str(exc))
+            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
             
             #errorMsg = " (%s)" % str(err) if str(err) else ""
             #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
