@@ -110,6 +110,13 @@ def loadOptionDescriptions(loadPath = None):
     else:
       manCallResults = sysTools.call("man tor")
       
+      # Fetches all options available with this tor instance. This isn't
+      # vital, and the validOptions are left empty if the call fails.
+      conn, validOptions = torTools.getConn(), []
+      configOptionQuery = conn.getInfo("config/names").strip().split("\n")
+      if configOptionQuery:
+        validOptions = [line[:line.find(" ")].lower() for line in configOptionQuery]
+      
       lastOption, lastArg = None, None
       lastDescription = ""
       for line in manCallResults:
@@ -122,11 +129,12 @@ def loadOptionDescriptions(loadPath = None):
         isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
         
         if isOptIndent:
-          # Most lines with this indent that aren't config options won't have
-          # any description set at this point (not a perfect filter, but cuts
-          # down on the noise).
+          # Filters the line based on if the option is recognized by tor or
+          # not. This isn't necessary for arm, so if unable to make the check
+          # then we skip filtering (no loss, the map will just have some extra
+          # noise).
           strippedDescription = lastDescription.strip()
-          if lastOption and strippedDescription:
+          if lastOption and (not validOptions or lastOption.lower() in validOptions):
             CONFIG_DESCRIPTIONS[lastOption.lower()] = (lastArg, strippedDescription)
           lastDescription = ""
           
