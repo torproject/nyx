@@ -103,7 +103,7 @@ def loadOptionDescriptions(loadPath = None):
             if inputFileContents: loadedLine = inputFileContents.pop(0)
             else: break
           
-          CONFIG_DESCRIPTIONS[option] = (argument, description.rstrip())
+          CONFIG_DESCRIPTIONS[option.lower()] = (argument, description.rstrip())
       except IndexError:
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
@@ -127,7 +127,7 @@ def loadOptionDescriptions(loadPath = None):
           # down on the noise).
           strippedDescription = lastDescription.strip()
           if lastOption and strippedDescription:
-            CONFIG_DESCRIPTIONS[lastOption] = (lastArg, strippedDescription)
+            CONFIG_DESCRIPTIONS[lastOption.lower()] = (lastArg, strippedDescription)
           lastDescription = ""
           
           # parses the option and argument
@@ -193,8 +193,8 @@ def getConfigDescription(option):
   
   CONFIG_DESCRIPTIONS_LOCK.acquire()
   
-  if option in CONFIG_DESCRIPTIONS:
-    returnVal = CONFIG_DESCRIPTIONS[option]
+  if option.lower() in CONFIG_DESCRIPTIONS:
+    returnVal = CONFIG_DESCRIPTIONS[option.lower()]
   else: returnVal = None
   
   CONFIG_DESCRIPTIONS_LOCK.release()
