@@ -60,7 +60,7 @@ class ConfigStatePanel(panel.Panel):
     
     self.configType = configType
     self.confContents = []
-    self.scroll = 0
+    self.scroller = uiTools.Scroller(True)
     self.valsLock = threading.RLock()
     
     # TODO: this will need to be able to listen for SETCONF events (arg!)
@@ -98,11 +98,8 @@ class ConfigStatePanel(panel.Panel):
     self.valsLock.acquire()
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
-      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, len(self.confContents))
-      
-      if self.scroll != newScroll:
-        self.scroll = newScroll
-        self.redraw(True)
+      isChanged = self.scroller.handleKey(key, self.confContents, pageHeight)
+      if isChanged: self.redraw(True)
   
   def draw(self, subwindow, width, height):
     self.valsLock.acquire()
@@ -111,11 +108,14 @@ class ConfigStatePanel(panel.Panel):
     sourceLabel = "Tor" if self.configType == TOR_STATE else "Arm"
     self.addstr(0, 0, "%s Config:" % sourceLabel, curses.A_STANDOUT)
     
+    scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1)
+    cursorSelection = self.scroller.getCursorSelection(self.confContents)
+    
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 0
     if len(self.confContents) > height - 1:
       scrollOffset = 3
-      self.addScrollBar(self.scroll, self.scroll + height - 1, len(self.confContents), 1)
+      self.addScrollBar(scrollLoc, scrollLoc + height - 1, len(self.confContents), 1)
     
     # determines the width for the columns
     optionColWidth, valueColWidth, typeColWidth = 0, 0, 0
@@ -130,28 +130,23 @@ class ConfigStatePanel(panel.Panel):
     
     optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
     valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
+    descriptionColWidth = max(0, width - scrollOffset - optionColWidth - valueColWidth - typeColWidth - 3)
     
-    for lineNum in range(self.scroll, len(self.confContents)):
+    for lineNum in range(scrollLoc, len(self.confContents)):
       entry = self.confContents[lineNum]
-      drawLine = lineNum + 1 - self.scroll
+      drawLine = lineNum + 1 - scrollLoc
       
+      # TODO: need to cut off description at the first newline
       optionLabel = uiTools.cropStr(entry.option, optionColWidth)
       valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
+      descriptionLabel = uiTools.cropStr(entry.description, descriptionColWidth, None)
       
       lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
-      xOffset = scrollOffset
+      if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
-      self.addstr(drawLine, xOffset, optionLabel, lineFormat)
-      xOffset += optionColWidth + 1
-      
-      self.addstr(drawLine, xOffset, valueLabel, lineFormat)
-      xOffset += valueColWidth + 1
-      
-      self.addstr(drawLine, xOffset, entry.type, lineFormat)
-      xOffset += typeColWidth + 1
-      
-      descriptionLabel = uiTools.cropStr(entry.description, width - xOffset)
-      self.addstr(drawLine, xOffset, descriptionLabel, lineFormat)
+      lineTextLayout = "%%-%is %%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, typeColWidth, descriptionColWidth)
+      lineText = lineTextLayout % (optionLabel, valueLabel, entry.type, descriptionLabel)
+      self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       
       if drawLine >= height: break
     

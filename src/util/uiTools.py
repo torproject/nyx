@@ -141,7 +141,7 @@ def isScrollKey(key):
   
   return key in SCROLL_KEYS
 
-def getScrollPosition(key, position, pageHeight, contentHeight):
+def getScrollPosition(key, position, pageHeight, contentHeight, isCursor = False):
   """
   Parses navigation keys, providing the new scroll possition the panel should
   use. Position is always between zero and (contentHeight - pageHeight). This
@@ -158,19 +158,21 @@ def getScrollPosition(key, position, pageHeight, contentHeight):
     position      - starting position
     pageHeight    - size of a single screen's worth of content
     contentHeight - total lines of content that can be scrolled
+    isCursor      - tracks a cursor position rather than scroll if true
   """
   
   if isScrollKey(key):
     shift = 0
     if key == curses.KEY_UP: shift = -1
     elif key == curses.KEY_DOWN: shift = 1
-    elif key == curses.KEY_PPAGE: shift = -pageHeight
-    elif key == curses.KEY_NPAGE: shift = pageHeight
+    elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if isCursor else -pageHeight
+    elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if isCursor else pageHeight
     elif key == curses.KEY_HOME: shift = -contentHeight
     elif key == curses.KEY_END: shift = contentHeight
     
     # returns the shift, restricted to valid bounds
-    return max(0, min(position + shift, contentHeight - pageHeight))
+    maxLoc = contentHeight - 1 if isCursor else contentHeight - pageHeight
+    return max(0, min(position + shift, maxLoc))
   else: return position
 
 def getSizeLabel(bytes, decimal = 0, isLong = False, isBytes=True):
@@ -241,6 +243,90 @@ def getTimeLabels(seconds, isLong = False):
       seconds %= countPerUnit
   
   return timeLabels
+
+class Scroller:
+  """
+  Tracks the scrolling position when there might be a visible cursor. This
+  expects that there is a single line displayed per an entry in the contents.
+  """
+  
+  def __init__(self, isCursorEnabled):
+    self.scrollLoc, self.cursorLoc = 0, 0
+    self.cursorSelection = None
+    self.isCursorEnabled = isCursorEnabled
+  
+  def getScrollLoc(self, content, pageHeight):
+    """
+    Provides the scrolling location, taking into account its cursor's location
+    content size, and page height.
+    
+    Arguments:
+      content    - displayed content
+      pageHeight - height of the display area for the content
+    """
+    
+    if content and pageHeight:
+      self.scrollLoc = max(0, min(self.scrollLoc, len(content) - pageHeight + 1))
+      
+      if self.isCursorEnabled:
+        self.getCursorSelection(content) # resets the cursor location
+        
+        if self.cursorLoc < self.scrollLoc:
+          self.scrollLoc = self.cursorLoc
+        elif self.cursorLoc > self.scrollLoc + pageHeight - 1:
+          self.scrollLoc = self.cursorLoc - pageHeight + 1
+    
+    return self.scrollLoc
+  
+  def getCursorSelection(self, content):
+    """
+    Provides the selected item in the content. This is the same entry until
+    the cursor moves or it's no longer available (in which case it moves on to
+    the next entry).
+    
+    Arguments:
+      content - displayed content
+    """
+    
+    # TODO: needs to handle duplicate entries when using this for the
+    # connection panel
+    
+    if not self.isCursorEnabled: return None
+    elif not content:
+      self.cursorLoc, self.cursorSelection = 0, None
+      return None
+    
+    self.cursorLoc = min(self.cursorLoc, len(content) - 1)
+    if self.cursorSelection != None and self.cursorSelection in content:
+      # moves cursor location to track the selection
+      self.cursorLoc = content.index(self.cursorSelection)
+    else:
+      # select the next closest entry
+      self.cursorSelection = content[self.cursorLoc]
+    
+    return self.cursorSelection
+  
+  def handleKey(self, key, content, pageHeight):
+    """
+    Moves either the scroll or cursor according to the given input.
+    
+    Arguments:
+      key        - key code of user input
+      content    - displayed content
+      pageHeight - height of the display area for the content
+    """
+    
+    if self.isCursorEnabled:
+      self.getCursorSelection(content) # resets the cursor location
+      startLoc = self.cursorLoc
+    else: startLoc = self.scrollLoc
+    
+    newLoc = getScrollPosition(key, startLoc, pageHeight, len(content), self.isCursorEnabled)
+    if startLoc != newLoc:
+      if self.isCursorEnabled: self.cursorSelection = content[newLoc]
+      else: self.scrollLoc = newLoc
+      return True
+    else: return False
 
 def _getLabel(units, count, decimal, isLong):
   """
