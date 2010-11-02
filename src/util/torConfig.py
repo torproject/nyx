@@ -6,7 +6,7 @@ import os
 import curses
 import threading
 
-from util import sysTools, torTools, uiTools
+from util import log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
           "torrc.multiline": [],
@@ -20,7 +20,8 @@ CONFIG = {"features.torrc.validate": True,
           "torrc.label.time.min": [],
           "torrc.label.time.hour": [],
           "torrc.label.time.day": [],
-          "torrc.label.time.week": []}
+          "torrc.label.time.week": [],
+          "log.configDescriptions.unrecognizedCategory": log.NOTICE}
 
 # enums and values for numeric torrc entries
 UNRECOGNIZED, SIZE_VALUE, TIME_VALUE = range(1, 4)
@@ -35,6 +36,13 @@ VAL_DUPLICATE, VAL_MISMATCH = range(1, 3)
 # descriptions of tor's configuration options fetched from its man page
 CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
 CONFIG_DESCRIPTIONS = {}
+
+# categories for tor configuration options
+GENERAL, CLIENT, SERVER, DIRECTORY, AUTHORITY, HIDDEN_SERVICE, TESTING = range(1, 8)
+OPTION_CATEGORY_STR = {GENERAL: "General",     CLIENT: "Client",
+                       SERVER: "Relay",        DIRECTORY: "Directory",
+                       AUTHORITY: "Authority", HIDDEN_SERVICE: "Hidden Service",
+                       TESTING: "Testing"}
 
 TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
@@ -91,8 +99,19 @@ def loadOptionDescriptions(loadPath = None):
       inputFileContents = inputFile.readlines()
       inputFile.close()
       
+      # constructs a reverse mapping for categories
+      strToCat = dict([(OPTION_CATEGORY_STR[cat], cat) for cat in OPTION_CATEGORY_STR])
+      
       try:
         while inputFileContents:
+          # gets category enum, failing if it doesn't exist
+          categoryStr = inputFileContents.pop(0).rstrip()
+          if categoryStr in strToCat:
+            category = strToCat[categoryStr]
+          else:
+            baseMsg = "invalid category in input file: '%s'"
+            raise IOError(baseMsg % categoryStr)
+          
           option = inputFileContents.pop(0).rstrip()
           argument = inputFileContents.pop(0).rstrip()
           
@@ -103,7 +122,7 @@ def loadOptionDescriptions(loadPath = None):
             if inputFileContents: loadedLine = inputFileContents.pop(0)
             else: break
           
-          CONFIG_DESCRIPTIONS[option.lower()] = (argument, description.rstrip())
+          CONFIG_DESCRIPTIONS[option.lower()] = (category, argument, description.rstrip())
       except IndexError:
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
@@ -118,9 +137,21 @@ def loadOptionDescriptions(loadPath = None):
         validOptions = [line[:line.find(" ")].lower() for line in configOptionQuery]
       
       lastOption, lastArg = None, None
-      lastDescription = ""
+      lastCategory, lastDescription = GENERAL, ""
       for line in manCallResults:
         strippedLine = line.strip()
+        
+        # checks if this is a category header
+        if not line.startswith(" ") and "OPTIONS" in line:
+          if line.startswith("CLIENT"): lastCategory = CLIENT
+          elif line.startswith("SERVER"): lastCategory = SERVER
+          elif line.startswith("DIRECTORY SERVER"): lastCategory = DIRECTORY
+          elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = AUTHORITY
+          elif line.startswith("HIDDEN SERVICE"): lastCategory = HIDDEN_SERVICE
+          elif line.startswith("TESTING NETWORK"): lastCategory = TESTING
+          else:
+            msg = "Unrecognized category in the man page: %s" % line.strip()
+            log.log(CONFIG["log.configDescriptions.unrecognizedCategory"], msg)
         
         # we have content, but an indent less than an option (ignore line)
         if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
@@ -135,7 +166,7 @@ def loadOptionDescriptions(loadPath = None):
           # noise).
           strippedDescription = lastDescription.strip()
           if lastOption and (not validOptions or lastOption.lower() in validOptions):
-            CONFIG_DESCRIPTIONS[lastOption.lower()] = (lastArg, strippedDescription)
+            CONFIG_DESCRIPTIONS[lastOption.lower()] = (lastCategory, lastArg, strippedDescription)
           lastDescription = ""
           
           # parses the option and argument
@@ -181,8 +212,8 @@ def saveOptionDescriptions(path):
   
   for i in range(len(sortedOptions)):
     option = sortedOptions[i]
-    argument, description = getConfigDescription(option)
-    outputFile.write("%s\n%s\n%s\n" % (option, argument, description))
+    category, argument, description = getConfigDescription(option)
+    outputFile.write("%s\n%s\n%s\n%s\n" % (OPTION_CATEGORY_STR[category], option, argument, description))
     if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
   
   outputFile.close()
@@ -190,10 +221,12 @@ def saveOptionDescriptions(path):
 
 def getConfigDescription(option):
   """
-  Provides a tuple with arguments and description for the given tor
-  configuration option, fetched from its man page. This provides None if no
-  such option has been loaded. If the man page is in the process of being
-  loaded then this call blocks until it finishes.
+  Provides a tuple of the form:
+  (category, argument usage, description)
+  
+  with information for the tor tor configuration option fetched from its man
+  page. This provides None if no such option has been loaded. If the man page
+  is in the process of being loaded then this call blocks until it finishes.
   
   Arguments:
     option - tor config option

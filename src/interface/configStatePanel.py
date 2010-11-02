@@ -13,14 +13,25 @@ DEFAULT_CONFIG = {"features.config.state.colWidth.option": 25,
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
+# mappings of option categories to the color for their entries
+CATEGORY_COLOR = {torConfig.GENERAL: "green",
+                  torConfig.CLIENT: "blue",
+                  torConfig.SERVER: "yellow",
+                  torConfig.DIRECTORY: "magenta",
+                  torConfig.AUTHORITY: "red",
+                  torConfig.HIDDEN_SERVICE: "cyan",
+                  torConfig.TESTING: "white"}
+
 class ConfigEntry():
   """
   Configuration option in the panel.
   """
   
-  def __init__(self, option, type, description = "", isDefault = True):
+  def __init__(self, category, option, type, argumentUsage, description, isDefault):
+    self.category = category
     self.option = option
     self.type = type
+    self.argumentUsage = argumentUsage
     self.description = description
     self.isDefault = isDefault
   
@@ -82,16 +93,16 @@ class ConfigStatePanel(panel.Panel):
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
         
-        confDescription = ""
+        cat, arg, desc = None, "", ""
         descriptionComp = torConfig.getConfigDescription(confOption)
-        if descriptionComp: confDescription = descriptionComp[1]
+        if descriptionComp: cat, arg, desc = descriptionComp
         
-        self.confContents.append(ConfigEntry(confOption, confType, confDescription, not confOption in setOptions))
+        self.confContents.append(ConfigEntry(cat, confOption, confType, arg, desc, not confOption in setOptions))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
-        self.confContents.append(ConfigEntry(key, ", ".join(armConf.getValue(key, [], True)), ""))
+        self.confContents.append(ConfigEntry("", key, ", ".join(armConf.getValue(key, [], True)), "", "", True))
       #self.confContents.sort() # TODO: make contents sortable?
   
   def handleKey(self, key):
@@ -141,7 +152,9 @@ class ConfigStatePanel(panel.Panel):
       valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
       descriptionLabel = uiTools.cropStr(entry.description, descriptionColWidth, None)
       
-      lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
+      lineFormat = curses.A_NORMAL if entry.isDefault else curses.A_BOLD
+      if entry.category: lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.category])
+      #lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
       lineTextLayout = "%%-%is %%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, typeColWidth, descriptionColWidth)

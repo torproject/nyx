@@ -191,6 +191,7 @@ log.torrc.validation.duplicateEntries NOTICE
 log.torrc.validation.torStateDiffers NOTICE
 log.configDescriptions.readManPageSuccess INFO
 log.configDescriptions.readManPageFailed WARN
+log.configDescriptions.unrecognizedCategory NOTICE
 log.configDescriptions.persistance.loadSuccess INFO
 log.configDescriptions.persistance.loadFailed INFO
 log.configDescriptions.persistance.saveSuccess NOTICE
