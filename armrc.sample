@@ -67,6 +67,9 @@ features.log.maxRefreshRate 300
 # showPrivateOptions
 #   tor provides config options of the form "__<option>" that can be dangerous
 #   to set, if true arm provides these on the config panel
+# showVirtualOptions
+#   virtual options are placeholders for other option groups, never having
+#   values or being setable themselves
 
 features.config.type 0
 features.config.state.colWidth.option 25
@@ -74,6 +77,7 @@ features.config.state.colWidth.value 15
 features.config.file.showScrollbars true
 features.config.file.maxLinesPerEntry 8
 features.config.showPrivateOptions false
+features.config.showVirtualOptions false
 
 # Descriptions for tor's configuration options can be loaded from its man page
 # to give usage information on the settings page. They can also be persisted to

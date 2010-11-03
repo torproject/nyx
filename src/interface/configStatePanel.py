@@ -9,6 +9,7 @@ import threading
 from util import conf, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.showPrivateOptions": False,
+                  "features.config.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 15}
 
@@ -126,8 +127,10 @@ class ConfigStatePanel(panel.Panel):
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
         
-        # skips private entires if not set to show them
+        # skips private and virtual entires if not set to show them
         if not self._config["features.config.showPrivateOptions"] and confOption.startswith("__"):
+          continue
+        elif not self._config["features.config.showVirtualOptions"] and confType == "Virtual":
           continue
         
         cat, arg, desc = None, "", ""
