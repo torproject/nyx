@@ -8,7 +8,8 @@ import threading
 
 from util import conf, panel, torTools, torConfig, uiTools
 
-DEFAULT_CONFIG = {"features.config.state.colWidth.option": 25,
+DEFAULT_CONFIG = {"features.config.showPrivateOptions": False,
+                  "features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 15}
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
@@ -124,6 +125,10 @@ class ConfigStatePanel(panel.Panel):
         # UseEntryGuards Boolean
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
+        
+        # skips private entires if not set to show them
+        if not self._config["features.config.showPrivateOptions"] and confOption.startswith("__"):
+          continue
         
         cat, arg, desc = None, "", ""
         descriptionComp = torConfig.getConfigDescription(confOption)
