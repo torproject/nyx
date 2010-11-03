@@ -127,7 +127,7 @@ class ConfigStatePanel(panel.Panel):
         line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
         
-        # skips private and virtual entires if not set to show them
+        # skips private and virtual entries if not set to show them
         if not self._config["features.config.showPrivateOptions"] and confOption.startswith("__"):
           continue
         elif not self._config["features.config.showVirtualOptions"] and confType == "Virtual":
