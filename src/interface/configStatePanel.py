@@ -20,7 +20,17 @@ CATEGORY_COLOR = {torConfig.GENERAL: "green",
                   torConfig.DIRECTORY: "magenta",
                   torConfig.AUTHORITY: "red",
                   torConfig.HIDDEN_SERVICE: "cyan",
-                  torConfig.TESTING: "white"}
+                  torConfig.TESTING: "white",
+                  torConfig.UNKNOWN: "black"}
+
+# attributes of a ConfigEntry
+FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_IS_DEFAULT = range(1, 8)
+FIELD_STR = {FIELD_CATEGORY: "Category",
+             FIELD_OPTION: "Option Name",
+             FIELD_TYPE: "Arg Type",
+             FIELD_ARG_USAGE: "Arg Usage",
+             FIELD_DESCRIPTION: "Description",
+             FIELD_IS_DEFAULT: "Is Default"}
 
 class ConfigEntry():
   """
@@ -28,32 +38,54 @@ class ConfigEntry():
   """
   
   def __init__(self, category, option, type, argumentUsage, description, isDefault):
-    self.category = category
-    self.option = option
-    self.type = type
-    self.argumentUsage = argumentUsage
-    self.description = description
-    self.isDefault = isDefault
+    self.fields = {}
+    self.fields[FIELD_CATEGORY] = category
+    self.fields[FIELD_OPTION] = option
+    self.fields[FIELD_TYPE] = type
+    self.fields[FIELD_ARG_USAGE] = argumentUsage
+    self.fields[FIELD_DESCRIPTION] = description
+    self.fields[FIELD_IS_DEFAULT] = isDefault
   
-  def getValue(self):
+  def get(self, field):
+    """
+    Provides back the value in the given field.
+    
+    Arguments:
+      field - enum for the field to be provided back
+    """
+    
+    if field == FIELD_VALUE: return self._getValue()
+    else: return self.fields[field]
+  
+  def _getValue(self):
     """
     Provides the current value of the configuration entry, taking advantage of
     the torTools caching to effectively query the accurate value. This uses the
     value's type to provide a user friendly representation if able.
     """
     
-    confValue = ", ".join(torTools.getConn().getOption(self.option, [], True))
+    confValue = ", ".join(torTools.getConn().getOption(self.get(FIELD_OPTION), [], True))
     
     # provides nicer values for recognized types
     if not confValue: confValue = "<none>"
-    elif self.type == "Boolean" and confValue in ("0", "1"):
+    elif self.get(FIELD_TYPE) == "Boolean" and confValue in ("0", "1"):
       confValue = "False" if confValue == "0" else "True"
-    elif self.type == "DataSize" and confValue.isdigit():
+    elif self.get(FIELD_TYPE) == "DataSize" and confValue.isdigit():
       confValue = uiTools.getSizeLabel(int(confValue))
-    elif self.type == "TimeInterval" and confValue.isdigit():
+    elif self.get(FIELD_TYPE) == "TimeInterval" and confValue.isdigit():
       confValue = uiTools.getTimeLabel(int(confValue), isLong = True)
     
     return confValue
+  
+  def getAttr(self, argTypes):
+    """
+    Provides back a list with the given parameters.
+    
+    Arguments:
+      argTypes - list of enums for the arguments to be provided back
+    """
+    
+    return [self.get(field) for field in argTypes]
 
 class ConfigStatePanel(panel.Panel):
   """
@@ -98,11 +130,14 @@ class ConfigStatePanel(panel.Panel):
         if descriptionComp: cat, arg, desc = descriptionComp
         
         self.confContents.append(ConfigEntry(cat, confOption, confType, arg, desc, not confOption in setOptions))
+      
+      self.confContents.sort(key=lambda i: (i.getAttr([FIELD_CATEGORY, FIELD_OPTION, FIELD_IS_DEFAULT])))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
         self.confContents.append(ConfigEntry("", key, ", ".join(armConf.getValue(key, [], True)), "", "", True))
+      
       #self.confContents.sort() # TODO: make contents sortable?
   
   def handleKey(self, key):
@@ -134,10 +169,10 @@ class ConfigStatePanel(panel.Panel):
     # constructs a mapping of entries to their current values
     entryToValues = {}
     for entry in self.confContents:
-      entryToValues[entry] = entry.getValue()
-      optionColWidth = max(optionColWidth, len(entry.option))
+      entryToValues[entry] = entry.get(FIELD_VALUE)
+      optionColWidth = max(optionColWidth, len(entry.get(FIELD_OPTION)))
       valueColWidth = max(valueColWidth, len(entryToValues[entry]))
-      typeColWidth = max(typeColWidth, len(entry.type))
+      typeColWidth = max(typeColWidth, len(entry.get(FIELD_TYPE)))
     
     optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
     valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
@@ -148,17 +183,17 @@ class ConfigStatePanel(panel.Panel):
       drawLine = lineNum + 1 - scrollLoc
       
       # TODO: need to cut off description at the first newline
-      optionLabel = uiTools.cropStr(entry.option, optionColWidth)
+      optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionColWidth)
       valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
-      descriptionLabel = uiTools.cropStr(entry.description, descriptionColWidth, None)
+      descriptionLabel = uiTools.cropStr(entry.get(FIELD_DESCRIPTION), descriptionColWidth, None)
       
-      lineFormat = curses.A_NORMAL if entry.isDefault else curses.A_BOLD
-      if entry.category: lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.category])
+      lineFormat = curses.A_NORMAL if entry.get(FIELD_IS_DEFAULT) else curses.A_BOLD
+      if entry.get(FIELD_CATEGORY): lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.get(FIELD_CATEGORY)])
       #lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
       lineTextLayout = "%%-%is %%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, typeColWidth, descriptionColWidth)
-      lineText = lineTextLayout % (optionLabel, valueLabel, entry.type, descriptionLabel)
+      lineText = lineTextLayout % (optionLabel, valueLabel, entry.get(FIELD_TYPE), descriptionLabel)
       self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       
       if drawLine >= height: break

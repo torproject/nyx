@@ -38,11 +38,11 @@ CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
 CONFIG_DESCRIPTIONS = {}
 
 # categories for tor configuration options
-GENERAL, CLIENT, SERVER, DIRECTORY, AUTHORITY, HIDDEN_SERVICE, TESTING = range(1, 8)
+GENERAL, CLIENT, SERVER, DIRECTORY, AUTHORITY, HIDDEN_SERVICE, TESTING, UNKNOWN = range(1, 9)
 OPTION_CATEGORY_STR = {GENERAL: "General",     CLIENT: "Client",
                        SERVER: "Relay",        DIRECTORY: "Directory",
                        AUTHORITY: "Authority", HIDDEN_SERVICE: "Hidden Service",
-                       TESTING: "Testing"}
+                       TESTING: "Testing",     UNKNOWN: "Unknown"}
 
 TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
@@ -225,8 +225,9 @@ def getConfigDescription(option):
   (category, argument usage, description)
   
   with information for the tor tor configuration option fetched from its man
-  page. This provides None if no such option has been loaded. If the man page
-  is in the process of being loaded then this call blocks until it finishes.
+  page. This provides a type of UKNOWN if no such option has been loaded. If
+  the man page is in the process of being loaded then this call blocks until
+  it finishes.
   
   Arguments:
     option - tor config option
@@ -236,7 +237,7 @@ def getConfigDescription(option):
   
   if option.lower() in CONFIG_DESCRIPTIONS:
     returnVal = CONFIG_DESCRIPTIONS[option.lower()]
-  else: returnVal = None
+  else: returnVal = (UNKNOWN, "", "")
   
   CONFIG_DESCRIPTIONS_LOCK.release()
   return returnVal
