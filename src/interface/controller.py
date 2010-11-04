@@ -1484,6 +1484,77 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if selection != -1: panels["torrc"].setConfigType(selection)
       
       selectiveRefresh(panels, page)
+    elif page == 2 and (key == ord('s') or key == ord('S')):
+      # set ordering for config options
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        curses.cbreak() # wait indefinitely for key presses (no timeout)
+        
+        # lists event types
+        popup = panels["popup"]
+        selections = []     # new ordering
+        cursorLoc = 0       # index of highlighted option
+        
+        # listing of inital ordering
+        prevOrdering = "<b>Current Order: "
+        for sortType in panels["torrc"].sortOrdering:
+          sortStr, colorStr = configStatePanel.FIELD_ATTR[sortType]
+          prevOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
+        prevOrdering = prevOrdering[:-2] + "</b>"
+        
+        # Makes listing of all options
+        options = []
+        for sortType in range(7): options.append(configStatePanel.FIELD_ATTR[sortType][0])
+        options.append("Cancel")
+        
+        while len(selections) < 3:
+          popup.clear()
+          popup.win.box()
+          popup.addstr(0, 0, "Config Option Ordering:", curses.A_STANDOUT)
+          popup.addfstr(1, 2, prevOrdering)
+          
+          # provides new ordering
+          newOrdering = "<b>New Order: "
+          if selections:
+            for sortType in selections:
+              sortStr, colorStr = configStatePanel.FIELD_ATTR[sortType]
+              prevOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
+            newOrdering = newOrdering[:-2] + "</b>"
+          else: newOrdering += "</b>"
+          popup.addfstr(2, 2, newOrdering)
+          
+          row, col, index = 4, 0, 0
+          for option in options:
+            popup.addstr(row, col * 19 + 2, option, curses.A_STANDOUT if cursorLoc == index else curses.A_NORMAL)
+            col += 1
+            index += 1
+            if col == 4: row, col = row + 1, 0
+          
+          popup.refresh()
+          
+          key = stdscr.getch()
+          if key == curses.KEY_LEFT: cursorLoc = max(0, cursorLoc - 1)
+          elif key == curses.KEY_RIGHT: cursorLoc = min(len(options) - 1, cursorLoc + 1)
+          elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
+          elif key == curses.KEY_DOWN: cursorLoc = min(len(options) - 1, cursorLoc + 4)
+          elif key in (curses.KEY_ENTER, 10, ord(' ')):
+            # selected entry (the ord of '10' seems needed to pick up enter)
+            selection = options[cursorLoc]
+            if selection == "Cancel": break
+            else:
+              options.remove(selection)
+              cursorLoc = min(cursorLoc, len(options) - 1)
+          elif key == 27: break # esc - cancel
+          
+        if len(selections) == 3:
+          panels["torrc"].setSortOrder(selections)
+        
+        setPauseState(panels, isPaused, page)
+        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+        panels["torrc"].redraw(True)
+      finally:
+        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:

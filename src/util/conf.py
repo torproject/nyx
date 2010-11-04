@@ -21,7 +21,7 @@ from util import log
 
 CONFS = {}  # mapping of identifier to singleton instances of configs
 CONFIG = {"log.configEntryNotFound": None,
-          "log.configEntryTypeError": log.INFO}
+          "log.configEntryTypeError": log.NOTICE}
 
 def loadConfig(config):
   config.update(CONFIG)

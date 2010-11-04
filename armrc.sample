@@ -58,6 +58,10 @@ features.log.maxRefreshRate 300
 # ---------------------------
 # type
 #   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
+# order
+#   three comma separated configuration attributes, options including:
+#   0 -> Category,  1 -> Option Name,   2 -> Value,     3 -> Arg Type,
+#   4 -> Arg Usage, 5 -> Description,   6 -> Is Default
 # colWidth.*
 #   maximum column content width
 # showScrollbars
@@ -72,6 +76,7 @@ features.log.maxRefreshRate 300
 #   values or being setable themselves
 
 features.config.type 0
+features.config.order 0, 1, 6
 features.config.state.colWidth.option 25
 features.config.state.colWidth.value 15
 features.config.file.showScrollbars true

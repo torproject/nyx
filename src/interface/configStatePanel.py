@@ -6,12 +6,13 @@ and the resulting configuration files saved.
 import curses
 import threading
 
-from util import conf, panel, torTools, torConfig, uiTools
+from util import conf, log, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.showPrivateOptions": False,
                   "features.config.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
-                  "features.config.state.colWidth.value": 15}
+                  "features.config.state.colWidth.value": 15,
+                  "log.configEntryTypeError": log.NOTICE}
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
@@ -26,13 +27,15 @@ CATEGORY_COLOR = {torConfig.GENERAL: "green",
                   torConfig.UNKNOWN: "black"}
 
 # attributes of a ConfigEntry
-FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_IS_DEFAULT = range(1, 8)
-FIELD_STR = {FIELD_CATEGORY: "Category",
-             FIELD_OPTION: "Option Name",
-             FIELD_TYPE: "Arg Type",
-             FIELD_ARG_USAGE: "Arg Usage",
-             FIELD_DESCRIPTION: "Description",
-             FIELD_IS_DEFAULT: "Is Default"}
+FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_IS_DEFAULT = range(7)
+DEFAULT_SORT_ORDER = (FIELD_CATEGORY, FIELD_OPTION, FIELD_IS_DEFAULT)
+FIELD_ATTR = {FIELD_CATEGORY: ("Category", "red"),
+              FIELD_OPTION: ("Option Name", "blue"),
+              FIELD_VALUE: ("Value", "cyan"),
+              FIELD_TYPE: ("Arg Type", "green"),
+              FIELD_ARG_USAGE: ("Arg Usage", "yellow"),
+              FIELD_DESCRIPTION: ("Description", "white"),
+              FIELD_IS_DEFAULT: ("Is Default", "magenta")}
 
 class ConfigEntry():
   """
@@ -98,10 +101,35 @@ class ConfigStatePanel(panel.Panel):
   def __init__(self, stdscr, configType, config=None):
     panel.Panel.__init__(self, stdscr, "configState", 0)
     
+    self.sortOrdering = DEFAULT_SORT_ORDER
     self._config = dict(DEFAULT_CONFIG)
-    if config: config.update(self._config, {
-      "features.config.state.colWidth.option": 5,
-      "features.config.state.colWidth.value": 5})
+    if config:
+      config.update(self._config, {
+        "features.config.state.colWidth.option": 5,
+        "features.config.state.colWidth.value": 5})
+      
+      # overrides the initial sort orderting if set
+      confSortOrder = config.get("features.config.order")
+      if confSortOrder:
+        # validates the input, setting the errorMsg if there's a problem
+        confSortOrderComp, errorMsg = confSortOrder.split(","), None
+        defaultOrderStr = ", ".join([str(i) for i in self.sortOrdering])
+        baseErrorMsg = "config entry 'features.config.order' is expected to %%s, defaulting to '%s'" % defaultOrderStr
+        
+        if len(confSortOrderComp) != 3:
+          # checks that we got three comma separated values
+          errorMsg = baseErrorMsg % "be three comma separated values"
+        else:
+          # checks that values are numeric and in the right range
+          for val in confSortOrderComp:
+            val = val.strip()
+            if not val.isdigit() or int(val) < 0 or int(val) > 6:
+              errorMsg = baseErrorMsg % "only have numeric entries ranging 0-6"
+              break
+        
+        if errorMsg: log.log(self._config["log.configEntryTypeError"], errorMsg)
+        else:
+          self.sortOrdering = [int(val.strip()) for val in confSortOrderComp]
     
     self.configType = configType
     self.confContents = []
@@ -139,14 +167,32 @@ class ConfigStatePanel(panel.Panel):
         
         self.confContents.append(ConfigEntry(cat, confOption, confType, arg, desc, not confOption in setOptions))
       
-      self.confContents.sort(key=lambda i: (i.getAttr([FIELD_CATEGORY, FIELD_OPTION, FIELD_IS_DEFAULT])))
+      
+      self.setSortOrder() # initial sorting of the contents
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
         self.confContents.append(ConfigEntry("", key, ", ".join(armConf.getValue(key, [], True)), "", "", True))
-      
-      #self.confContents.sort() # TODO: make contents sortable?
+  
+  def setSortOrder(self, ordering = None):
+    """
+    Sets the configuration attributes we're sorting by and resorts the
+    contents. If the ordering isn't defined then this resorts based on the
+    last set ordering.
+    """
+    
+    self.valsLock.acquire()
+    if ordering: self.sortOrdering = ordering
+    self.confContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
+    self.valsLock.release()
+  
+  def getSortOrder(self):
+    """
+    Provides the current configuration attributes we're sorting by.
+    """
+    
+    return self.sortOrdering
   
   def handleKey(self, key):
     self.valsLock.acquire()
@@ -154,6 +200,7 @@ class ConfigStatePanel(panel.Panel):
       pageHeight = self.getPreferredSize()[0] - 1
       isChanged = self.scroller.handleKey(key, self.confContents, pageHeight)
       if isChanged: self.redraw(True)
+    self.valsLock.release()
   
   def draw(self, subwindow, width, height):
     self.valsLock.acquire()
@@ -172,7 +219,7 @@ class ConfigStatePanel(panel.Panel):
       self.addScrollBar(scrollLoc, scrollLoc + height - 1, len(self.confContents), 1)
     
     # determines the width for the columns
-    optionColWidth, valueColWidth, typeColWidth = 0, 0, 0
+    optionColWidth, valueColWidth = 0, 0
     
     # constructs a mapping of entries to their current values
     entryToValues = {}
@@ -180,11 +227,10 @@ class ConfigStatePanel(panel.Panel):
       entryToValues[entry] = entry.get(FIELD_VALUE)
       optionColWidth = max(optionColWidth, len(entry.get(FIELD_OPTION)))
       valueColWidth = max(valueColWidth, len(entryToValues[entry]))
-      typeColWidth = max(typeColWidth, len(entry.get(FIELD_TYPE)))
     
     optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
     valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
-    descriptionColWidth = max(0, width - scrollOffset - optionColWidth - valueColWidth - typeColWidth - 3)
+    descriptionColWidth = max(0, width - scrollOffset - optionColWidth - valueColWidth - 2)
     
     for lineNum in range(scrollLoc, len(self.confContents)):
       entry = self.confContents[lineNum]
@@ -200,8 +246,8 @@ class ConfigStatePanel(panel.Panel):
       #lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
-      lineTextLayout = "%%-%is %%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, typeColWidth, descriptionColWidth)
-      lineText = lineTextLayout % (optionLabel, valueLabel, entry.get(FIELD_TYPE), descriptionLabel)
+      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, descriptionColWidth)
+      lineText = lineTextLayout % (optionLabel, valueLabel, descriptionLabel)
       self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       
       if drawLine >= height: break
