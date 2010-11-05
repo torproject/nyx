@@ -6,13 +6,12 @@ and the resulting configuration files saved.
 import curses
 import threading
 
-from util import conf, log, panel, torTools, torConfig, uiTools
+from util import conf, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.showPrivateOptions": False,
                   "features.config.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
-                  "features.config.state.colWidth.value": 15,
-                  "log.configEntryTypeError": log.NOTICE}
+                  "features.config.state.colWidth.value": 15}
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
@@ -108,28 +107,7 @@ class ConfigStatePanel(panel.Panel):
         "features.config.state.colWidth.option": 5,
         "features.config.state.colWidth.value": 5})
       
-      # overrides the initial sort orderting if set
-      confSortOrder = config.get("features.config.order")
-      if confSortOrder:
-        # validates the input, setting the errorMsg if there's a problem
-        confSortOrderComp, errorMsg = confSortOrder.split(","), None
-        defaultOrderStr = ", ".join([str(i) for i in self.sortOrdering])
-        baseErrorMsg = "config entry 'features.config.order' is expected to %%s, defaulting to '%s'" % defaultOrderStr
-        
-        if len(confSortOrderComp) != 3:
-          # checks that we got three comma separated values
-          errorMsg = baseErrorMsg % "be three comma separated values"
-        else:
-          # checks that values are numeric and in the right range
-          for val in confSortOrderComp:
-            val = val.strip()
-            if not val.isdigit() or int(val) < 0 or int(val) > 6:
-              errorMsg = baseErrorMsg % "only have numeric entries ranging 0-6"
-              break
-        
-        if errorMsg: log.log(self._config["log.configEntryTypeError"], errorMsg)
-        else:
-          self.sortOrdering = [int(val.strip()) for val in confSortOrderComp]
+      self.sortOrdering = config.getIntCSV("features.config.order", self.sortOrdering, 3, 0, 6)
     
     self.configType = configType
     self.confContents = []

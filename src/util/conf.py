@@ -14,7 +14,6 @@ would be loaded as four entries (the last one's value being an empty string).
 If a key's defined multiple times then the last instance of it is used.
 """
 
-import os
 import threading
 
 from util import log
@@ -115,7 +114,8 @@ class Config():
       if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
         val = log.strToRunlevel(val)
       else:
-        msg = "config entry '%s' is expected to be a runlevel, defaulting to '%s'" % (key, callDefault)
+        msg = "config entry '%s' is expected to be a runlevel" % key
+        if default != None: msg += ", defaulting to '%s'" % callDefault
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, bool):
@@ -152,6 +152,77 @@ class Config():
     
     return val
   
+  def getStrCSV(self, key, default = None, count = None):
+    """
+    Fetches the given key as a comma separated value. This provides back a list
+    with the stripped values.
+    
+    Arguments:
+      key     - config setting to be fetched
+      default - value provided if no such key exists or doesn't match the count
+      count   - if set, then a TypeError is logged (and default returned) if
+                the number of elements doesn't match the count
+    """
+    
+    confValue = self.getValue(key)
+    if confValue == None: return default
+    else:
+      confComp = [entry.strip() for entry in confValue.split(",")]
+      
+      # check if the count doesn't match
+      if count != None and len(confComp) != count:
+        msg = "config entry '%s' is expected to be %i comma separated values" % (key, count)
+        if default != None and (isinstance(default, list) or isinstance(default, tuple)):
+          defaultStr = ", ".join([str(i) for i in default])
+          msg += ", defaulting to '%s'" % defaultStr
+        
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        return default
+      
+      return confComp
+  
+  def getIntCSV(self, key, default = None, count = None, minValue = None, maxValue = None):
+    """
+    Fetches the given comma separated value, logging a TypeError (and returning
+    the default) if the values arne't ints or aren't constrained to the given
+    bounds.
+    
+    Arguments:
+      key      - config setting to be fetched
+      default  - value provided if no such key exists, doesn't match the count,
+                 values aren't all integers, or doesn't match the bounds
+      count    - checks that the number of values matches this if set
+      minValue - checks that all values are over this if set
+      maxValue - checks that all values are less than this if set
+    """
+    
+    confComp = self.getStrCSV(key, default, count)
+    if confComp == default: return default
+    
+    # validates the input, setting the errorMsg if there's a problem
+    errorMsg = None
+    baseErrorMsg = "config entry '%s' is expected to %%s" % key
+    if default != None and (isinstance(default, list) or isinstance(default, tuple)):
+      defaultStr = ", ".join([str(i) for i in default])
+      baseErrorMsg += ", defaulting to '%s'" % defaultStr
+    
+    for val in confComp:
+      if not val.isdigit():
+        errorMsg = baseErrorMsg % "only have integer values"
+        break
+      else:
+        if minValue != None and int(val) < minValue:
+          errorMsg = baseErrorMsg % "only have values over %i" % minValue
+          break
+        elif maxValue != None and int(val) > maxValue:
+          errorMsg = baseErrorMsg % "only have values less than %i" % maxValue
+          break
+    
+    if errorMsg:
+      log.log(CONFIG["log.configEntryTypeError"], errorMsg)
+      return default
+    else: return [int(val) for val in confComp]
+
   def update(self, confMappings, limits = {}):
     """
     Revises a set of key/value mappings to reflect the current configuration.
