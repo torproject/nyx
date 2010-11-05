@@ -9,7 +9,6 @@ import threading
 from util import log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
-          "torrc.multiline": [],
           "torrc.alias": {},
           "torrc.label.size.b": [],
           "torrc.label.size.kb": [],
@@ -48,9 +47,9 @@ TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
 MAN_EX_INDENT = 15 # indentation used for man page examples
 PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a file
+MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
 def loadConfig(config):
-  CONFIG["torrc.multiline"] = config.get("torrc.multiline", [])
   CONFIG["torrc.alias"] = config.get("torrc.alias", {})
   
   # all the torrc.label.* values are comma separated lists
@@ -277,6 +276,29 @@ def getConfigLocation():
   
   return torTools.getPathPrefix() + configLocation
 
+def getMultilineParameters():
+  """
+  Provides parameters that can be defined multiple times in the torrc without
+  overwriting the value.
+  """
+  
+  # fetches config options with the LINELIST (aka 'LineList'), LINELIST_S (aka
+  # 'Dependent'), and LINELIST_V (aka 'Virtual') types
+  global MULTILINE_PARAM
+  if MULTILINE_PARAM == None:
+    conn = torTools.getConn()
+    configOptionQuery = conn.getInfo("config/names", "").strip().split("\n")
+    
+    multilineEntries = []
+    for line in configOptionQuery:
+      confOption, confType = line.strip().split(" ", 1)
+      if confType in ("LineList", "Dependant", "Virtual"):
+        multilineEntries.append(confOption)
+    
+    MULTILINE_PARAM = multilineEntries
+  
+  return tuple(MULTILINE_PARAM)
+
 def validate(contents = None):
   """
   Performs validation on the given torrc contents, providing back a mapping of
@@ -298,7 +320,7 @@ def validate(contents = None):
     else: option, value = lineText, ""
     
     # most parameters are overwritten if defined multiple times
-    if option in seenOptions and not option in CONFIG["torrc.multiline"]:
+    if option in seenOptions and not option in getMultilineParameters():
       issuesFound[lineNumber] = (VAL_DUPLICATE, "")
       continue
     else: seenOptions.append(option)
@@ -319,7 +341,7 @@ def validate(contents = None):
     
     # multiline entries can be comma separated values (for both tor and conf)
     valueList = [value]
-    if option in CONFIG["torrc.multiline"]:
+    if option in getMultilineParameters():
       valueList = [val.strip() for val in value.split(",")]
       
       fetchedValues, torValues = torValues, []
