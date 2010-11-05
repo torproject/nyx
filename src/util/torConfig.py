@@ -308,6 +308,9 @@ def validate(contents = None):
     contents - torrc contents
   """
   
+  # TODO: needs to recognize tor's new multiline values
+  # https://trac.torproject.org/projects/tor/ticket/1929
+  
   conn = torTools.getConn()
   contents = _stripComments(contents)
   issuesFound, seenOptions = {}, []

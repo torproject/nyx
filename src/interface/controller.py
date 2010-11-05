@@ -745,6 +745,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
+          popup.addfstr(3, 2, "<b>s</b>: sort ordering")
           # TODO: reintroduce options for the configFilePanel
           #strippingLabel = "on" if panels["torrc"].stripComments else "off"
           #popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
@@ -1503,6 +1504,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           prevOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
         prevOrdering = prevOrdering[:-2] + "</b>"
         
+        # constructs a mapping of str to enum for configStatePanel.FIELD_ATTR
+        strToEnumAttr = {}
+        for i in range(7):
+          strToEnumAttr[configStatePanel.FIELD_ATTR[i][0]] = i
+        
         # Makes listing of all options
         options = []
         for sortType in range(7): options.append(configStatePanel.FIELD_ATTR[sortType][0])
@@ -1519,7 +1525,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           if selections:
             for sortType in selections:
               sortStr, colorStr = configStatePanel.FIELD_ATTR[sortType]
-              prevOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
+              newOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
             newOrdering = newOrdering[:-2] + "</b>"
           else: newOrdering += "</b>"
           popup.addfstr(2, 2, newOrdering)
@@ -1543,6 +1549,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             selection = options[cursorLoc]
             if selection == "Cancel": break
             else:
+              selections.append(strToEnumAttr[selection])
               options.remove(selection)
               cursorLoc = min(cursorLoc, len(options) - 1)
           elif key == 27: break # esc - cancel
