@@ -264,6 +264,98 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   
   return selection
 
+def showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors):
+  """
+  Displays a sorting dialog of the form:
+  
+  Current Order: <previous selection>
+  New Order: <selections made>
+  
+  <option 1>    <option 2>    <option 3>   Cancel
+  
+  Options are colored when among the "Current Order" or "New Order", but not
+  when an option below them. If cancel is selected or the user presses escape
+  then this returns None. Otherwise, the new ordering is provided.
+  
+  Arguments:
+    stdscr, panels, isPaused, page - boiler plate arguments of the controller
+        (should be refactored away when rewriting)
+    
+    titleLabel   - title displayed for the popup window
+    options      - ordered listing of option labels
+    oldSelection - current ordering
+    optionColors - mappings of options to their color
+  
+  """
+  
+  panel.CURSES_LOCK.acquire()
+  newSelections = []  # new ordering
+  
+  try:
+    setPauseState(panels, isPaused, page, True)
+    curses.cbreak() # wait indefinitely for key presses (no timeout)
+    
+    popup = panels["popup"]
+    cursorLoc = 0       # index of highlighted option
+    
+    # label for the inital ordering
+    formattedPrevListing = []
+    for sortType in oldSelection:
+      colorStr = optionColors.get(sortType, "white")
+      formattedPrevListing.append("<%s>%s</%s>" % (colorStr, sortType, colorStr))
+    prevOrderingLabel = "<b>Current Order: %s</b>" % ", ".join(formattedPrevListing)
+    
+    selectionOptions = list(options)
+    selectionOptions.append("Cancel")
+    
+    while len(newSelections) < len(oldSelection):
+      popup.clear()
+      popup.win.box()
+      popup.addstr(0, 0, titleLabel, curses.A_STANDOUT)
+      popup.addfstr(1, 2, prevOrderingLabel)
+      
+      # provides new ordering
+      formattedNewListing = []
+      for sortType in newSelections:
+        colorStr = optionColors.get(sortType, "white")
+        formattedNewListing.append("<%s>%s</%s>" % (colorStr, sortType, colorStr))
+      newOrderingLabel = "<b>New Order: %s</b>" % ", ".join(formattedNewListing)
+      popup.addfstr(2, 2, newOrderingLabel)
+      
+      # presents remaining options, each row having up to four options with
+      # spacing of nineteen cells
+      row, col = 4, 0
+      for i in range(len(selectionOptions)):
+        popup.addstr(row, col * 19 + 2, selectionOptions[i], curses.A_STANDOUT if cursorLoc == i else curses.A_NORMAL)
+        col += 1
+        if col == 4: row, col = row + 1, 0
+      
+      popup.refresh()
+      
+      key = stdscr.getch()
+      if key == curses.KEY_LEFT: cursorLoc = max(0, cursorLoc - 1)
+      elif key == curses.KEY_RIGHT: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 1)
+      elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
+      elif key == curses.KEY_DOWN: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 4)
+      elif key in (curses.KEY_ENTER, 10, ord(' ')):
+        # selected entry (the ord of '10' seems needed to pick up enter)
+        selection = selectionOptions[cursorLoc]
+        if selection == "Cancel": break
+        else:
+          newSelections.append(selection)
+          selectionOptions.remove(selection)
+          cursorLoc = min(cursorLoc, len(selectionOptions) - 1)
+      elif key == 27: break # esc - cancel
+      
+    setPauseState(panels, isPaused, page)
+    curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
+  finally:
+    panel.CURSES_LOCK.release()
+  
+  if len(newSelections) == len(oldSelection):
+    return newSelections
+  else: return None
+
 def setEventListening(selectedEvents, isBlindMode):
   # creates a local copy, note that a suspected python bug causes *very*
   # puzzling results otherwise when trying to discard entries (silently
@@ -1294,71 +1386,20 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         connections.getResolver("tor").overwriteResolver = optionTypes[selection]
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection listing
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        curses.cbreak() # wait indefinitely for key presses (no timeout)
-        
-        # lists event types
-        popup = panels["popup"]
-        selections = []     # new ordering
-        cursorLoc = 0       # index of highlighted option
-        
-        # listing of inital ordering
-        prevOrdering = "<b>Current Order: "
-        for sort in panels["conn"].sortOrdering: prevOrdering += connPanel.getSortLabel(sort, True) + ", "
-        prevOrdering = prevOrdering[:-2] + "</b>"
-        
-        # Makes listing of all options
-        options = []
-        for (type, label, func) in connPanel.SORT_TYPES: options.append(connPanel.getSortLabel(type))
-        options.append("Cancel")
-        
-        while len(selections) < 3:
-          popup.clear()
-          popup.win.box()
-          popup.addstr(0, 0, "Connection Ordering:", curses.A_STANDOUT)
-          popup.addfstr(1, 2, prevOrdering)
-          
-          # provides new ordering
-          newOrdering = "<b>New Order: "
-          if selections:
-            for sort in selections: newOrdering += connPanel.getSortLabel(sort, True) + ", "
-            newOrdering = newOrdering[:-2] + "</b>"
-          else: newOrdering += "</b>"
-          popup.addfstr(2, 2, newOrdering)
-          
-          row, col, index = 4, 0, 0
-          for option in options:
-            popup.addstr(row, col * 19 + 2, option, curses.A_STANDOUT if cursorLoc == index else curses.A_NORMAL)
-            col += 1
-            index += 1
-            if col == 4: row, col = row + 1, 0
-          
-          popup.refresh()
-          
-          key = stdscr.getch()
-          if key == curses.KEY_LEFT: cursorLoc = max(0, cursorLoc - 1)
-          elif key == curses.KEY_RIGHT: cursorLoc = min(len(options) - 1, cursorLoc + 1)
-          elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
-          elif key == curses.KEY_DOWN: cursorLoc = min(len(options) - 1, cursorLoc + 4)
-          elif key in (curses.KEY_ENTER, 10, ord(' ')):
-            # selected entry (the ord of '10' seems needed to pick up enter)
-            selection = options[cursorLoc]
-            if selection == "Cancel": break
-            else:
-              selections.append(connPanel.getSortType(selection.replace("Tor ID", "Fingerprint")))
-              options.remove(selection)
-              cursorLoc = min(cursorLoc, len(options) - 1)
-          elif key == 27: break # esc - cancel
-          
-        if len(selections) == 3:
-          panels["conn"].sortOrdering = selections
-          panels["conn"].sortConnections()
-        setPauseState(panels, isPaused, page)
-        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-      finally:
-        panel.CURSES_LOCK.release()
+      titleLabel = "Connection Ordering:"
+      options = [connPanel.getSortLabel(i) for i in range(9)]
+      oldSelection = [connPanel.getSortLabel(entry) for entry in panels["conn"].sortOrdering]
+      optionColors = dict([connPanel.getSortLabel(i, True) for i in range(9)])
+      results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
+      
+      if results:
+        # converts labels back to enums
+        resultEnums = [connPanel.getSortType(entry) for entry in results]
+        panels["conn"].sortOrdering = resultEnums
+        panels["conn"].sortConnections()
+      
+      # TODO: not necessary until the connection panel rewrite
+      #panels["conn"].redraw(True)
     elif page == 1 and (key == ord('c') or key == ord('C')):
       # displays popup with client circuits
       clientCircuits = None
@@ -1487,81 +1528,25 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       selectiveRefresh(panels, page)
     elif page == 2 and (key == ord('s') or key == ord('S')):
       # set ordering for config options
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        curses.cbreak() # wait indefinitely for key presses (no timeout)
+      titleLabel = "Config Option Ordering:"
+      options = [configStatePanel.FIELD_ATTR[i][0] for i in range(7)]
+      oldSelection = [configStatePanel.FIELD_ATTR[entry][0] for entry in panels["torrc"].sortOrdering]
+      optionColors = dict([configStatePanel.FIELD_ATTR[i] for i in range(7)])
+      results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
+      
+      if results:
+        # converts labels back to enums
+        resultEnums = []
         
-        # lists event types
-        popup = panels["popup"]
-        selections = []     # new ordering
-        cursorLoc = 0       # index of highlighted option
+        for label in results:
+          for entryEnum in configStatePanel.FIELD_ATTR:
+            if label == configStatePanel.FIELD_ATTR[entryEnum][0]:
+              resultEnums.append(entryEnum)
+              break
         
-        # listing of inital ordering
-        prevOrdering = "<b>Current Order: "
-        for sortType in panels["torrc"].sortOrdering:
-          sortStr, colorStr = configStatePanel.FIELD_ATTR[sortType]
-          prevOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
-        prevOrdering = prevOrdering[:-2] + "</b>"
-        
-        # constructs a mapping of str to enum for configStatePanel.FIELD_ATTR
-        strToEnumAttr = {}
-        for i in range(7):
-          strToEnumAttr[configStatePanel.FIELD_ATTR[i][0]] = i
-        
-        # Makes listing of all options
-        options = []
-        for sortType in range(7): options.append(configStatePanel.FIELD_ATTR[sortType][0])
-        options.append("Cancel")
-        
-        while len(selections) < 3:
-          popup.clear()
-          popup.win.box()
-          popup.addstr(0, 0, "Config Option Ordering:", curses.A_STANDOUT)
-          popup.addfstr(1, 2, prevOrdering)
-          
-          # provides new ordering
-          newOrdering = "<b>New Order: "
-          if selections:
-            for sortType in selections:
-              sortStr, colorStr = configStatePanel.FIELD_ATTR[sortType]
-              newOrdering += "<%s>%s</%s>, " % (colorStr, sortStr, colorStr)
-            newOrdering = newOrdering[:-2] + "</b>"
-          else: newOrdering += "</b>"
-          popup.addfstr(2, 2, newOrdering)
-          
-          row, col, index = 4, 0, 0
-          for option in options:
-            popup.addstr(row, col * 19 + 2, option, curses.A_STANDOUT if cursorLoc == index else curses.A_NORMAL)
-            col += 1
-            index += 1
-            if col == 4: row, col = row + 1, 0
-          
-          popup.refresh()
-          
-          key = stdscr.getch()
-          if key == curses.KEY_LEFT: cursorLoc = max(0, cursorLoc - 1)
-          elif key == curses.KEY_RIGHT: cursorLoc = min(len(options) - 1, cursorLoc + 1)
-          elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
-          elif key == curses.KEY_DOWN: cursorLoc = min(len(options) - 1, cursorLoc + 4)
-          elif key in (curses.KEY_ENTER, 10, ord(' ')):
-            # selected entry (the ord of '10' seems needed to pick up enter)
-            selection = options[cursorLoc]
-            if selection == "Cancel": break
-            else:
-              selections.append(strToEnumAttr[selection])
-              options.remove(selection)
-              cursorLoc = min(cursorLoc, len(options) - 1)
-          elif key == 27: break # esc - cancel
-          
-        if len(selections) == 3:
-          panels["torrc"].setSortOrder(selections)
-        
-        setPauseState(panels, isPaused, page)
-        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-        panels["torrc"].redraw(True)
-      finally:
-        panel.CURSES_LOCK.release()
+        panels["torrc"].setSortOrder(resultEnums)
+      
+      panels["torrc"].redraw(True)
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:
