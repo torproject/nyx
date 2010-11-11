@@ -26,14 +26,15 @@ CATEGORY_COLOR = {torConfig.GENERAL: "green",
                   torConfig.UNKNOWN: "black"}
 
 # attributes of a ConfigEntry
-FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_IS_DEFAULT = range(7)
-DEFAULT_SORT_ORDER = (FIELD_CATEGORY, FIELD_OPTION, FIELD_IS_DEFAULT)
+FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT = range(8)
+DEFAULT_SORT_ORDER = (FIELD_CATEGORY, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT)
 FIELD_ATTR = {FIELD_CATEGORY: ("Category", "red"),
               FIELD_OPTION: ("Option Name", "blue"),
               FIELD_VALUE: ("Value", "cyan"),
               FIELD_TYPE: ("Arg Type", "green"),
               FIELD_ARG_USAGE: ("Arg Usage", "yellow"),
               FIELD_DESCRIPTION: ("Description", "white"),
+              FIELD_MAN_ENTRY: ("Man Page Entry", "blue"),
               FIELD_IS_DEFAULT: ("Is Default", "magenta")}
 
 class ConfigEntry():
@@ -41,14 +42,22 @@ class ConfigEntry():
   Configuration option in the panel.
   """
   
-  def __init__(self, category, option, type, argumentUsage, description, isDefault):
+  def __init__(self, option, type, isDefault, manEntry):
     self.fields = {}
-    self.fields[FIELD_CATEGORY] = category
     self.fields[FIELD_OPTION] = option
     self.fields[FIELD_TYPE] = type
-    self.fields[FIELD_ARG_USAGE] = argumentUsage
-    self.fields[FIELD_DESCRIPTION] = description
     self.fields[FIELD_IS_DEFAULT] = isDefault
+    
+    if manEntry:
+      self.fields[FIELD_MAN_ENTRY] = manEntry.index
+      self.fields[FIELD_CATEGORY] = manEntry.category
+      self.fields[FIELD_ARG_USAGE] = manEntry.argUsage
+      self.fields[FIELD_DESCRIPTION] = manEntry.description
+    else:
+      self.fields[FIELD_MAN_ENTRY] = 99999 # sorts non-man entries last
+      self.fields[FIELD_CATEGORY] = torConfig.UNKNOWN
+      self.fields[FIELD_ARG_USAGE] = ""
+      self.fields[FIELD_DESCRIPTION] = ""
   
   def get(self, field):
     """
@@ -139,11 +148,8 @@ class ConfigStatePanel(panel.Panel):
         elif not self._config["features.config.showVirtualOptions"] and confType == "Virtual":
           continue
         
-        cat, arg, desc = None, "", ""
-        descriptionComp = torConfig.getConfigDescription(confOption)
-        if descriptionComp: cat, arg, desc = descriptionComp
-        
-        self.confContents.append(ConfigEntry(cat, confOption, confType, arg, desc, not confOption in setOptions))
+        manEntry = torConfig.getConfigDescription(confOption)
+        self.confContents.append(ConfigEntry(confOption, confType, not confOption in setOptions, manEntry))
       
       
       self.setSortOrder() # initial sorting of the contents

@@ -1529,9 +1529,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 2 and (key == ord('s') or key == ord('S')):
       # set ordering for config options
       titleLabel = "Config Option Ordering:"
-      options = [configStatePanel.FIELD_ATTR[i][0] for i in range(7)]
+      options = [configStatePanel.FIELD_ATTR[i][0] for i in range(8)]
       oldSelection = [configStatePanel.FIELD_ATTR[entry][0] for entry in panels["torrc"].sortOrdering]
-      optionColors = dict([configStatePanel.FIELD_ATTR[i] for i in range(7)])
+      optionColors = dict([configStatePanel.FIELD_ATTR[i] for i in range(8)])
       results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
       
       if results:
