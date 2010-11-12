@@ -39,6 +39,53 @@ CONFIG = {"features.colorInterface": True,
 def loadConfig(config):
   config.update(CONFIG)
 
+def demoGlyphs():
+  """
+  Displays all ACS options with their corresponding representation. These are
+  undocumented in the pydocs. For more information see the following man page:
+  http://www.mkssoftware.com/docs/man5/terminfo.5.asp
+  """
+  
+  try: curses.wrapper(_showGlyphs)
+  except KeyboardInterrupt: pass # quit
+
+def _showGlyphs(stdscr):
+  """
+  Renders a chart with the ACS glyphs.
+  """
+  
+  # allows things like semi-transparent backgrounds
+  try: curses.use_default_colors()
+  except curses.error: pass
+  
+  # attempts to make the cursor invisible
+  try: curses.curs_set(0)
+  except curses.error: pass
+  
+  acsOptions = [item for item in curses.__dict__.items() if item[0].startswith("ACS_")]
+  acsOptions.sort(key=lambda i: (i[1])) # order by character codes
+  
+  # displays a chart with all the glyphs and their representations
+  height, width = stdscr.getmaxyx()
+  if width < 30: return # not enough room to show a column
+  columns = width / 30
+  
+  # display title
+  stdscr.addstr(0, 0, "Curses Glyphs:", curses.A_STANDOUT)
+  
+  x, y = 0, 1
+  while acsOptions:
+    name, keycode = acsOptions.pop(0)
+    stdscr.addstr(y, x * 30, "%s (%i)" % (name, keycode))
+    stdscr.addch(y, (x * 30) + 25, keycode)
+    
+    x += 1
+    if x >= columns:
+      x, y = 0, y + 1
+      if y >= height: break
+  
+  stdscr.getch() # quit on keyboard input
+
 def getColor(color):
   """
   Provides attribute corresponding to a given text color. Supported colors
