@@ -8,6 +8,7 @@ easy method of providing the following interface components:
 import sys
 import curses
 
+from curses.ascii import isprint
 from util import log
 
 # colors curses can handle
@@ -85,6 +86,19 @@ def _showGlyphs(stdscr):
       if y >= height: break
   
   stdscr.getch() # quit on keyboard input
+
+def getPrintable(line, keepNewlines = True):
+  """
+  Provides the line back with non-printable characters stripped.
+  
+  Arguments:
+    line          - string to be processed
+    stripNewlines - retains newlines if true, stripped otherwise
+  """
+  
+  line = line.replace('\xc2', "'")
+  line = "".join([char for char in line if (isprint(char) or (keepNewlines and char == "\n"))])
+  return line
 
 def getColor(color):
   """

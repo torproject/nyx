@@ -159,6 +159,7 @@ def loadOptionDescriptions(loadPath = None):
       optionCount, lastOption, lastArg = 0, None, None
       lastCategory, lastDescription = GENERAL, ""
       for line in manCallResults:
+        line = uiTools.getPrintable(line)
         strippedLine = line.strip()
         
         # we have content, but an indent less than an option (ignore line)
@@ -535,7 +536,7 @@ class Torrc():
         for lineNum in range(len(self.contents)):
           lineText = self.contents[lineNum]
           lineText = lineText.replace("\t", "   ")
-          lineText = "".join([char for char in lineText if curses.ascii.isprint(char)])
+          lineText = uiTools.getPrintable(lineText)
           self.displayableContents.append(lineText)
       
       if strip:

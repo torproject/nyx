@@ -8,7 +8,6 @@ import time
 import os
 import curses
 import threading
-from curses.ascii import isprint
 
 from TorCtl import TorCtl
 
@@ -616,7 +615,7 @@ class LogPanel(panel.Panel, threading.Thread):
     if not event.type in self.loggedEvents: return
     
     # strips control characters to avoid screwing up the terminal
-    event.msg = "".join([char for char in event.msg if (isprint(char) or char == "\n")])
+    event.msg = uiTools.getPrintable(event.msg)
     
     # note event in the log file if we're saving them
     if self.logFile:

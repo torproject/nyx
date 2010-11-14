@@ -8,7 +8,8 @@ import threading
 
 from util import conf, panel, torTools, torConfig, uiTools
 
-DEFAULT_CONFIG = {"features.config.showPrivateOptions": False,
+DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
+                  "features.config.showPrivateOptions": False,
                   "features.config.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 15}
@@ -113,6 +114,7 @@ class ConfigStatePanel(panel.Panel):
     self._config = dict(DEFAULT_CONFIG)
     if config:
       config.update(self._config, {
+        "features.config.selectionDetails.height": 0,
         "features.config.state.colWidth.option": 5,
         "features.config.state.colWidth.value": 5})
       
@@ -182,6 +184,10 @@ class ConfigStatePanel(panel.Panel):
     self.valsLock.acquire()
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
+      detailPanelHeight = self._config["features.config.selectionDetails.height"]
+      if detailPanelHeight > 0 and detailPanelHeight + 2 <= pageHeight:
+        pageHeight -= (detailPanelHeight + 1)
+      
       isChanged = self.scroller.handleKey(key, self.confContents, pageHeight)
       if isChanged: self.redraw(True)
     self.valsLock.release()
@@ -190,17 +196,30 @@ class ConfigStatePanel(panel.Panel):
     self.valsLock.acquire()
     
     # draws the top label
-    sourceLabel = "Tor" if self.configType == TOR_STATE else "Arm"
-    self.addstr(0, 0, "%s Config:" % sourceLabel, curses.A_STANDOUT)
+    titleLabel = "%s Configuration:" % ("Tor" if self.configType == TOR_STATE else "Arm")
+    self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
     
-    scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1)
-    cursorSelection = self.scroller.getCursorSelection(self.confContents)
+    # panel with details for the current selection
+    detailPanelHeight = self._config["features.config.selectionDetails.height"]
+    if detailPanelHeight == 0 or detailPanelHeight + 2 >= height:
+      # no detail panel
+      detailPanelHeight = 0
+      scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1)
+      cursorSelection = self.scroller.getCursorSelection(self.confContents)
+    else:
+      # Shrink detail panel if there isn't sufficient room for the whole
+      # thing. The extra line is for the bottom border.
+      detailPanelHeight = min(height - 1, detailPanelHeight + 1)
+      scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1 - detailPanelHeight)
+      cursorSelection = self.scroller.getCursorSelection(self.confContents)
+      
+      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, titleLabel)
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 0
-    if len(self.confContents) > height - 1:
+    if len(self.confContents) > height - detailPanelHeight - 1:
       scrollOffset = 3
-      self.addScrollBar(scrollLoc, scrollLoc + height - 1, len(self.confContents), 1)
+      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self.confContents), 1 + detailPanelHeight)
     
     # determines the width for the columns
     optionColWidth, valueColWidth = 0, 0
@@ -218,7 +237,7 @@ class ConfigStatePanel(panel.Panel):
     
     for lineNum in range(scrollLoc, len(self.confContents)):
       entry = self.confContents[lineNum]
-      drawLine = lineNum + 1 - scrollLoc
+      drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
       
       # TODO: need to cut off description at the first newline
       optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionColWidth)
@@ -237,4 +256,71 @@ class ConfigStatePanel(panel.Panel):
       if drawLine >= height: break
     
     self.valsLock.release()
+  
+  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, titleLabel):
+    """
+    Renders a panel for the selected configuration option.
+    """
+    
+    # border (top)
+    if width >= len(titleLabel):
+      self.win.hline(0, len(titleLabel), curses.ACS_HLINE, width - len(titleLabel))
+      self.win.vline(0, width, curses.ACS_URCORNER, 1)
+    
+    # border (sides)
+    self.win.vline(1, 0, curses.ACS_VLINE, detailPanelHeight - 1)
+    self.win.vline(1, width, curses.ACS_VLINE, detailPanelHeight - 1)
+    
+    # border (bottom)
+    self.win.vline(detailPanelHeight, 0, curses.ACS_LLCORNER, 1)
+    if width >= 2: self.win.vline(detailPanelHeight, 1, curses.ACS_TTEE, 1)
+    if width >= 3: self.win.hline(detailPanelHeight, 2, curses.ACS_HLINE, width - 2)
+    self.win.vline(detailPanelHeight, width, curses.ACS_LRCORNER, 1)
+    
+    selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(FIELD_CATEGORY)])
+    
+    # first entry:
+    # <option> (<category> Option)
+    optionLabel =" (%s Option)" % torConfig.OPTION_CATEGORY_STR[cursorSelection.get(FIELD_CATEGORY)]
+    self.addstr(1, 2, cursorSelection.get(FIELD_OPTION) + optionLabel, selectionFormat)
+    
+    # second entry:
+    # Value: <value> ([default|custom], <type>, usage: <argument usage>)
+    if detailPanelHeight >= 3:
+      valueAttr = []
+      valueAttr.append("default" if cursorSelection.get(FIELD_IS_DEFAULT) else "custom")
+      valueAttr.append(cursorSelection.get(FIELD_TYPE))
+      valueAttr.append("usage: %s" % (cursorSelection.get(FIELD_ARG_USAGE)))
+      valueAttrLabel = ", ".join(valueAttr)
+      
+      valueLabelWidth = width - 12 - len(valueAttrLabel)
+      valueLabel = uiTools.cropStr(cursorSelection.get(FIELD_VALUE), valueLabelWidth)
+      
+      self.addstr(2, 2, "Value: %s (%s)" % (valueLabel, valueAttrLabel), selectionFormat)
+    
+    # remainder is filled with the man page description
+    descriptionHeight = max(0, detailPanelHeight - 3)
+    descriptionContent = "Description: " + cursorSelection.get(FIELD_DESCRIPTION)
+    
+    for i in range(descriptionHeight):
+      # checks if we're done writing the description
+      if not descriptionContent: break
+      
+      # there's a leading indent after the first line
+      if i > 0: descriptionContent = "  " + descriptionContent
+      
+      # we only want to work with content up until the next newline
+      if "\n" in descriptionContent:
+        lineContent, descriptionContent = descriptionContent.split("\n", 1)
+      else: lineContent, descriptionContent = descriptionContent, ""
+      
+      if i != descriptionHeight - 1:
+        # there's more lines to display
+        msg, remainder = uiTools.cropStr(lineContent, width - 2, 4, 4, uiTools.END_WITH_HYPHEN, True)
+        descriptionContent = remainder.strip() + descriptionContent
+      else:
+        # this is the last line, end it with an ellipse
+        msg = uiTools.cropStr(lineContent, width - 2, 4, 4)
+      
+      self.addstr(3 + i, 2, msg, selectionFormat)
 

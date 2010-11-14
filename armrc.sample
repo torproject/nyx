@@ -62,11 +62,14 @@ features.log.maxRefreshRate 300
 #   three comma separated configuration attributes, options including:
 #   0 -> Category,  1 -> Option Name,   2 -> Value,     3 -> Arg Type,
 #   4 -> Arg Usage, 5 -> Description,   6 -> Man Entry, 7 -> Is Default
+# selectionDetails.height
+#   rows of data for the panel showing details on the current selection, this
+#   is disabled entirely if zero
 # colWidth.*
 #   maximum column content width
-# showScrollbars
+# file.showScrollbars
 #   displays scrollbars when the torrc content is longer than the display
-# maxLinesPerEntry
+# file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 # showPrivateOptions
 #   tor provides config options of the form "__<option>" that can be dangerous
@@ -77,6 +80,7 @@ features.log.maxRefreshRate 300
 
 features.config.type 0
 features.config.order 0, 6, 7
+features.config.selectionDetails.height 6
 features.config.state.colWidth.option 25
 features.config.state.colWidth.value 15
 features.config.file.showScrollbars true
