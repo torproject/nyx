@@ -24,7 +24,7 @@ CATEGORY_COLOR = {torConfig.GENERAL: "green",
                   torConfig.AUTHORITY: "red",
                   torConfig.HIDDEN_SERVICE: "cyan",
                   torConfig.TESTING: "white",
-                  torConfig.UNKNOWN: "black"}
+                  torConfig.UNKNOWN: "white"}
 
 # attributes of a ConfigEntry
 FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT = range(8)
