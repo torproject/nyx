@@ -2,11 +2,11 @@
 python src/prereq.py
 
 if [ $? = 0 ]; then
-  python setup.py -q install
+  python setup.py -q install --install-purelib /usr/share/pyshared
   
   # provide notice if we installed successfully
   if [ $? = 0 ]; then
-    echo "installed to /usr/share/arm"
+    echo "installed to /usr/share/pyshared/arm"
   fi
   
   # cleans up the automatically built temporary files

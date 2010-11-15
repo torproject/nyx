@@ -5,16 +5,6 @@ import gzip
 from src.version import VERSION
 from distutils.core import setup
 
-# Provides the configuration option to install to "/usr/share" rather than as a
-# python module. Alternatives are to either provide this as an input argument
-# (not an option for deb/rpm builds) or add a setup.cfg with:
-#   [install]
-#   install-purelib=/usr/share
-# which would mean a bit more unnecessary clutter.
-
-if "install" in sys.argv:
-  sys.argv += ["--install-purelib", "/usr/share"]
-
 # Compresses the man page. This is a temporary file that we'll install. If
 # something goes wrong then we'll print the issue and use the uncompressed man
 # page instead.
@@ -44,20 +34,11 @@ setup(name='arm',
       package_dir={'arm': 'src'},
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
-                  ("/usr/share/arm", ["src/settings.cfg"])],
+                  ("/usr/share/pyshared/arm", ["src/settings.cfg"])],
      )
 
 # Cleans up the temporary compressed man page.
 if manFilename == '/tmp/arm.1.gz' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
-
-# Removes the egg_info file. Apparently it is not optional during setup
-# (hardcoded in distutils/command/install.py), nor are there any arguments to
-# bypass its creation.
-# TODO: not sure how to remove this from the deb build too...
-eggPath = '/usr/share/arm-%s.egg-info' % VERSION
-if os.path.isfile(eggPath):
-  if "-q" not in sys.argv: print "Removing %s" % eggPath
-  os.remove(eggPath)
 
