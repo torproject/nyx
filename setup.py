@@ -7,18 +7,17 @@ from distutils.core import setup
 
 # Compresses the man page. This is a temporary file that we'll install. If
 # something goes wrong then we'll print the issue and use the uncompressed man
-# page instead. Build resources are cleaned up by the installion script later.
+# page instead.
 try:
   manInputFile = open('arm.1', 'r')
   manContents = manInputFile.read()
   manInputFile.close()
   
-  if not os.path.exists('./build'): os.makedirs('./build')
-  manOutputFile = gzip.open('build/arm.1.gz', 'wb')
+  manOutputFile = gzip.open('/tmp/arm.1.gz', 'wb')
   manOutputFile.write(manContents)
   manOutputFile.close()
   
-  manFilename = "build/arm.1.gz"
+  manFilename = "/tmp/arm.1.gz"
 except IOError, exc:
   print "Unable to compress man page: %s" % exc
   manFilename = "arm.1"
@@ -36,6 +35,11 @@ setup(name='arm',
                   ("/usr/share/man/man1", [manFilename]),
                   ("/usr/lib/arm", ["src/settings.cfg"])],
      )
+
+# Cleans up the temporary compressed man page.
+if manFilename == '/tmp/arm.1.gz' and os.path.isfile(manFilename):
+  if "-q" not in sys.argv: print "Removing %s" % manFilename
+  os.remove(manFilename)
 
 # Removes the egg_info file. Apparently it is not optional during setup
 # (hardcoded in distutils/command/install.py), nor are there any arguments to
