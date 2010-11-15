@@ -2,8 +2,8 @@ README
 setup.cfg
 setup.py
 arm
+arm.1
 armrc.sample
-debian/arm.1.gz
 src/__init__.py
 src/prereq.py
 src/starter.py

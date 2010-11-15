@@ -1,10 +1,9 @@
 #!/bin/sh
 cp debian/setup.cfg ./
-cp debian/arm.1.gz ./
 debuild -I.svn -i.svn -I.pyc -i.pyc
 
 # cleans up after deb build
-files="build debian/tor-arm debian/python-module-stampdir debian/tor-arm.debhelper.log debian/files debian/tor-arm.substvars setup.cfg arm.1.gz"
+files="build debian/tor-arm debian/python-module-stampdir debian/tor-arm.debhelper.log debian/files debian/tor-arm.substvars setup.cfg"
 
 for i in $files 
 do
