@@ -1,5 +1,5 @@
 #!/bin/sh
-files="/usr/bin/arm /usr/share/man/man1/arm.1.gz /usr/lib/arm"
+files="/usr/bin/arm /usr/share/man/man1/arm.1.gz /usr/share/arm"
 
 for i in $files 
 do

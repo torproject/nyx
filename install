@@ -6,7 +6,7 @@ if [ $? = 0 ]; then
   
   # provide notice if we installed successfully
   if [ $? = 0 ]; then
-    echo "installed to /usr/lib/arm"
+    echo "installed to /usr/share/arm"
   fi
   
   # cleans up the automatically built temporary files
