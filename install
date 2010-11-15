@@ -2,7 +2,7 @@
 python src/prereq.py
 
 if [ $? = 0 ]; then
-  python setup.py -q install --install-purelib /usr/lib
+  python setup.py -q install
   
   # provide notice if we installed successfully
   if [ $? = 0 ]; then

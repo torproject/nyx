@@ -5,9 +5,20 @@ import gzip
 from src.version import VERSION
 from distutils.core import setup
 
+# Provides the configuration option to install to "/usr/lib" rather than as a
+# python module. Alternatives are to either provide this as an input argument
+# (not an option for deb/rpm builds) or add a setup.cfg with:
+#   [install]
+#   install-purelib=/usr/lib
+# which would mean a bit more unnecessary clutter.
+
+if "install" in sys.argv:
+  sys.argv += ["--install-purelib", "/usr/lib"]
+
 # Compresses the man page. This is a temporary file that we'll install. If
 # something goes wrong then we'll print the issue and use the uncompressed man
 # page instead.
+
 try:
   manInputFile = open('arm.1', 'r')
   manContents = manInputFile.read()
