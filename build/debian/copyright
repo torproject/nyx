@@ -1,0 +1,27 @@
+This package was debianized by Damian Johnson <atagar@torproject.org>
+Tue, 08 Jun 2010 19:06:24 +0200
+
+It was downloaded from: http://www.atagar.com/arm
+
+Upstream Authors:
+                    Damian Johnson <atagar@torproject.org>
+
+Copyright:
+    Copyright (C) 2010 by Damian Johnson <atagar@torproject.org>
+
+License: GPL
+   This package is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 3 of the License.
+
+   This package is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this package; if not, see .
+
+On Debian systems, the complete text of the GNU General
+Public License can be found in `/usr/share/common-licenses/GPL-3'.
+
