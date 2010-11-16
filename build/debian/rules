@@ -1,6 +1,5 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-export DH_VERBOSE=1
 
 DEB_PYTHON_SYSTEM := pysupport
 
