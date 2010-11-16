@@ -88,17 +88,13 @@ Layout:
   arm     - startup script
   install - installation script
   
+  arm.1        - man page
   armrc.sample - example arm configuration file with defaults
   ChangeLog    - revision history
   LICENSE      - copy of the gpl v3
   README       - um... guess you figured this one out
   TODO         - known issues, future plans, etc
   setup.py     - distutils installation script for arm
-  
-  debian/     - resources for generating debs and rpms (most is metadata)
-    make-deb  - script for generating debian installer
-    make-rpm  - script for generating red hat installer
-    arm.1.gz  - man page
   
   src/
     __init__.py
