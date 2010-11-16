@@ -1,5 +1,15 @@
 builds -
   Helper scripts for deb and rpm builds.
+  
+  Deb build:
+    svn export relese release_build
+    tar czf tor-arm_1.3.7.orig.tar.gz release_build
+    svn export resources/build/debian release_build/debian
+    cd release_build
+    ./debian/make-deb
+    
+    # alternate (works, but svn export is simpler):
+    # tar czf tor-arm_1.3.7.orig.tar.gz --exclude-vcs --exclude="*.pyc" -v release
 
 TorCtl (dependency) -
   Last Updated: 8/22/10 (c514a0a7105cebe7cc5fa199750b90369b820bfb):
