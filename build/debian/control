@@ -3,14 +3,14 @@ Section: comm
 Priority: extra
 Maintainer: Damian Johnson (www.atagar.com) <atagar1@gmail.com>
 Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), python
-Standards-Version: 3.8.0
+Standards-Version: 3.8.3
 Homepage: http://www.atagar.com/arm
 
 Package: tor-arm
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}
 Suggests: tor
-Description: terminal tor status monitor
+Description: arm is a terminal status monitor for tor
  The anonymizing relay monitor (arm) is a terminal status monitor for Tor
  relays, intended for command-line aficionados, ssh connections, and anyone
  stuck with a tty terminal. This works much like top does for system usage,
