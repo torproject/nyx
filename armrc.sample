@@ -65,28 +65,32 @@ features.log.maxRefreshRate 300
 # selectionDetails.height
 #   rows of data for the panel showing details on the current selection, this
 #   is disabled entirely if zero
-# colWidth.*
+# features.config.prepopulateEditValues
+#   when editing config values the current value is prepopulated if true, and
+#   left blank otherwise
+# state.colWidth.*
 #   maximum column content width
+# state.showPrivateOptions
+#   tor provides config options of the form "__<option>" that can be dangerous
+#   to set, if true arm provides these on the config panel
+# state.showVirtualOptions
+#   virtual options are placeholders for other option groups, never having
+#   values or being setable themselves
 # file.showScrollbars
 #   displays scrollbars when the torrc content is longer than the display
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
-# showPrivateOptions
-#   tor provides config options of the form "__<option>" that can be dangerous
-#   to set, if true arm provides these on the config panel
-# showVirtualOptions
-#   virtual options are placeholders for other option groups, never having
-#   values or being setable themselves
 
 features.config.type 0
 features.config.order 0, 6, 7
 features.config.selectionDetails.height 6
+features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
 features.config.state.colWidth.value 10
+features.config.state.showPrivateOptions false
+features.config.state.showVirtualOptions false
 features.config.file.showScrollbars true
 features.config.file.maxLinesPerEntry 8
-features.config.showPrivateOptions false
-features.config.showVirtualOptions false
 
 # Descriptions for tor's configuration options can be loaded from its man page
 # to give usage information on the settings page. They can also be persisted to

@@ -10,6 +10,7 @@ import re
 import math
 import time
 import curses
+import curses.textpad
 import socket
 from TorCtl import TorCtl
 from TorCtl import TorUtil
@@ -45,6 +46,7 @@ PAUSEABLE = ["header", "graph", "log", "conn"]
 
 CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.type": 1,
+          "features.config.prepopulateEditValues": True,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
@@ -1563,24 +1565,39 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # makes cursor and typing visible
         try: curses.curs_set(1)
         except curses.error: pass
-        curses.echo()
         
-        # gets user input (this blocks monitor updates)
-        # TODO: can I prepopulate a value?
-        newConfigValue = panels["control"].win.getstr(0, len(titleMsg))
+        # temporary subwindow for user input
+        displayWidth = panels["control"].getPreferredSize()[1]
+        inputSubwindow = panels["control"].parent.subwin(1, displayWidth - len(titleMsg), panels["control"].top, len(titleMsg))
+        
+        # prepopulates the current value
+        if CONFIG["features.config.prepopulateEditValues"]:
+          initialValue = selection.get(configStatePanel.FIELD_VALUE)
+          if initialValue != "<none>": inputSubwindow.addstr(0, 0, initialValue)
+        
+        # fetches the user's input for the new config value
+        textbox = curses.textpad.Textbox(inputSubwindow)
+        newConfigValue = textbox.edit().strip()
         
         # reverts visability settings
         try: curses.curs_set(0)
         except curses.error: pass
-        curses.noecho()
-        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
+        #curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
         
         # it would be nice to quit on esc, but looks like this might not be possible...
         if newConfigValue != "":
           conn = torTools.getConn()
           
+          # if the value's a boolean then allow for 'true' and 'false' inputs
+          if selection.get(configStatePanel.FIELD_TYPE) == "Boolean":
+            if newConfigValue.lower() == "true": newConfigValue = "1"
+            elif newConfigValue.lower() == "false": newConfigValue = "0"
+          
           try:
-            conn.getTorCtl().set_option(configOption, newConfigValue)
+            if selection.get(configStatePanel.FIELD_TYPE) == "LineList":
+              conn.getTorCtl().set_options([(configOption, val) for val in newConfigValue.split(",")])
+            else:
+              conn.getTorCtl().set_option(configOption, newConfigValue)
             
             # resets the isDefault flag
             setOptions = set()
@@ -1601,12 +1618,17 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             excStr = str(exc)
             
             if excStr.startswith("513 Unacceptable option value: "):
-              # common validation error prefix
+              # crops off the common error prefix
               excStr = excStr[31:]
+              
+              # Truncates messages like:
+              # Value 'BandwidthRate la de da' is malformed or out of bounds.
+              # to: Value 'la de da' is malformed or out of bounds.
+              if excStr.startswith("Value '"):
+                excStr = excStr.replace("%s " % configOption, "", 1)
             
             errorMsg = "%s (press any key)" % excStr
-            maxMsgLength = panels["control"].getPreferredSize()[1]
-            panels["control"].setMsg(uiTools.cropStr(errorMsg, maxMsgLength), curses.A_STANDOUT)
+            panels["control"].setMsg(uiTools.cropStr(errorMsg, displayWidth), curses.A_STANDOUT)
             panels["control"].redraw(True)
             
             curses.cbreak() # wait indefinitely for key presses (no timeout)

@@ -9,8 +9,8 @@ import threading
 from util import conf, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
-                  "features.config.showPrivateOptions": False,
-                  "features.config.showVirtualOptions": False,
+                  "features.config.state.showPrivateOptions": False,
+                  "features.config.state.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 10}
 
@@ -145,9 +145,9 @@ class ConfigStatePanel(panel.Panel):
         confOption, confType = line.strip().split(" ", 1)
         
         # skips private and virtual entries if not set to show them
-        if not self._config["features.config.showPrivateOptions"] and confOption.startswith("__"):
+        if not self._config["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
           continue
-        elif not self._config["features.config.showVirtualOptions"] and confType == "Virtual":
+        elif not self._config["features.config.state.showVirtualOptions"] and confType == "Virtual":
           continue
         
         manEntry = torConfig.getConfigDescription(confOption)
