@@ -1604,9 +1604,14 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
               # common validation error prefix
               excStr = excStr[31:]
             
-            panels["control"].setMsg("Invalid value: %s" % excStr, curses.A_STANDOUT)
+            errorMsg = "%s (press any key)" % excStr
+            maxMsgLength = panels["control"].getPreferredSize()[1]
+            panels["control"].setMsg(uiTools.cropStr(errorMsg, maxMsgLength), curses.A_STANDOUT)
             panels["control"].redraw(True)
-            time.sleep(2)
+            
+            curses.cbreak() # wait indefinitely for key presses (no timeout)
+            stdscr.getch()
+            curses.halfdelay(REFRESH_RATE * 10)
         
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
         setPauseState(panels, isPaused, page)
