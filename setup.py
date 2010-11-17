@@ -23,6 +23,12 @@ except IOError, exc:
   print "Unable to compress man page: %s" % exc
   manFilename = "arm.1"
 
+# if this is placing resources for debian then the sample armrc should go in
+# tor-arm instead of arm
+docPath = "/usr/share/doc/"
+if "--install-layout=deb" in sys.argv: docPath += "tor-arm"
+else: docPath += "arm"
+
 setup(name='arm',
       version=VERSION,
       description='Terminal tor status monitor',
@@ -34,6 +40,7 @@ setup(name='arm',
       package_dir={'arm': 'src'},
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
+                  (docPath, ["armrc.sample"]),
                   ("/usr/share/pyshared/arm", ["src/settings.cfg"])],
      )
 
