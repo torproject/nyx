@@ -82,7 +82,7 @@ features.config.type 0
 features.config.order 0, 6, 7
 features.config.selectionDetails.height 6
 features.config.state.colWidth.option 25
-features.config.state.colWidth.value 15
+features.config.state.colWidth.value 10
 features.config.file.showScrollbars true
 features.config.file.maxLinesPerEntry 8
 features.config.showPrivateOptions false

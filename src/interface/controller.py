@@ -1547,6 +1547,71 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["torrc"].setSortOrder(resultEnums)
       
       panels["torrc"].redraw(True)
+    elif page == 2 and key in (curses.KEY_ENTER, 10, ord(' ')):
+      # let the user edit the configuration value, unchanged if left blank
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        selection = panels["torrc"].getSelection()
+        configOption = selection.get(configStatePanel.FIELD_OPTION)
+        titleMsg = "%s Value: " % configOption
+        panels["control"].setMsg(titleMsg)
+        panels["control"].redraw(True)
+        
+        # makes cursor and typing visible
+        try: curses.curs_set(1)
+        except curses.error: pass
+        curses.echo()
+        
+        # gets user input (this blocks monitor updates)
+        # TODO: can I prepopulate a value?
+        newConfigValue = panels["control"].win.getstr(0, len(titleMsg))
+        
+        # reverts visability settings
+        try: curses.curs_set(0)
+        except curses.error: pass
+        curses.noecho()
+        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
+        
+        # it would be nice to quit on esc, but looks like this might not be possible...
+        if newConfigValue != "":
+          conn = torTools.getConn()
+          
+          try:
+            conn.getTorCtl().set_option(configOption, newConfigValue)
+            
+            # resets the isDefault flag
+            setOptions = set()
+            configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+            for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
+            
+            selection.fields[configStatePanel.FIELD_IS_DEFAULT] = not configOption in setOptions
+            
+            # flushing cached values (needed until we can detect SETCONF calls)
+            for fetchType in ("str", "list", "map"):
+              entry = (configOption, fetchType)
+              
+              if entry in conn._cachedConf:
+                del conn._cachedConf[entry]
+            
+            panels["torrc"].redraw(True)
+          except Exception, exc:
+            excStr = str(exc)
+            
+            if excStr.startswith("513 Unacceptable option value: "):
+              # common validation error prefix
+              excStr = excStr[31:]
+            
+            panels["control"].setMsg("Invalid value: %s" % excStr, curses.A_STANDOUT)
+            panels["control"].redraw(True)
+            time.sleep(2)
+        
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
+      finally:
+        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:

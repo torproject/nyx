@@ -12,7 +12,7 @@ DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
                   "features.config.showPrivateOptions": False,
                   "features.config.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
-                  "features.config.state.colWidth.value": 15}
+                  "features.config.state.colWidth.value": 10}
 
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
@@ -160,6 +160,13 @@ class ConfigStatePanel(panel.Panel):
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
         self.confContents.append(ConfigEntry("", key, ", ".join(armConf.getValue(key, [], True)), "", "", True))
+  
+  def getSelection(self):
+    """
+    Provides the currently selected entry.
+    """
+    
+    return self.scroller.getCursorSelection(self.confContents)
   
   def setSortOrder(self, ordering = None):
     """
