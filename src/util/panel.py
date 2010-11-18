@@ -327,6 +327,40 @@ class Panel():
         baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
         raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
   
+  def getstr(self, y, x, initialText = ""):
+    """
+    Provides a text field where the user can input a string, blocking until
+    they've done so and returning the result. If the user presses escape then
+    this terminates and provides back the initial value. This should only be
+    called from the context of a panel's draw method.
+    
+    Arguments:
+      y           - vertical location
+      x           - horizontal location
+      initialText - starting text in this field
+    """
+    
+    # makes cursor visible
+    try: previousCursorState = curses.curs_set(1)
+    except curses.error: previousCursorState = 0
+    
+    # temporary subwindow for user input
+    displayWidth = self.getPreferredSize()[1]
+    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, x)
+    
+    # prepopulates the initial text
+    if initialText: inputSubwindow.addstr(0, 0, initialText)
+    
+    # displays the text field, blocking until the user's done
+    textbox = curses.textpad.Textbox(inputSubwindow)
+    userInput = textbox.edit().strip()
+    
+    # reverts visability settings
+    try: curses.curs_set(previousCursorState)
+    except curses.error: pass
+    
+    return userInput
+  
   def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1):
     """
     Draws a left justified scroll bar reflecting position within a vertical

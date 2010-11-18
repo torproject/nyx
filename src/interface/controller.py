@@ -958,19 +958,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["control"].setMsg("Path to save log snapshot: ")
         panels["control"].redraw(True)
         
-        # makes cursor and typing visible
-        try: curses.curs_set(1)
-        except curses.error: pass
-        curses.echo()
-        
         # gets user input (this blocks monitor updates)
-        pathInput = panels["control"].win.getstr(0, 27)
-        
-        # reverts visability settings
-        try: curses.curs_set(0)
-        except curses.error: pass
-        curses.noecho()
-        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
+        pathInput = panels["control"].getstr(0, 27)
         
         if pathInput != "":
           try:
@@ -999,11 +988,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["control"].setMsg("Events to log: ")
         panels["control"].redraw(True)
         
-        # makes cursor and typing visible
-        try: curses.curs_set(1)
-        except curses.error: pass
-        curses.echo()
-        
         # lists event types
         popup = panels["popup"]
         popup.height = 11
@@ -1020,14 +1004,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         popup.refresh()
         
         # gets user input (this blocks monitor updates)
-        eventsInput = panels["control"].win.getstr(0, 15)
+        eventsInput = panels["control"].getstr(0, 15)
         eventsInput = eventsInput.replace(' ', '') # strips spaces
-        
-        # reverts visability settings
-        try: curses.curs_set(0)
-        except curses.error: pass
-        curses.noecho()
-        curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
         
         # it would be nice to quit on esc, but looks like this might not be possible...
         if eventsInput != "":
@@ -1075,19 +1053,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           panels["control"].setMsg("Regular expression: ")
           panels["control"].redraw(True)
           
-          # makes cursor and typing visible
-          try: curses.curs_set(1)
-          except curses.error: pass
-          curses.echo()
-          
           # gets user input (this blocks monitor updates)
-          regexInput = panels["control"].win.getstr(0, 20)
-          
-          # reverts visability settings
-          try: curses.curs_set(0)
-          except curses.error: pass
-          curses.noecho()
-          curses.halfdelay(REFRESH_RATE * 10)
+          regexInput = panels["control"].getstr(0, 20)
           
           if regexInput != "":
             try:
@@ -1562,30 +1529,18 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["control"].setMsg(titleMsg)
         panels["control"].redraw(True)
         
-        # makes cursor and typing visible
-        try: curses.curs_set(1)
-        except curses.error: pass
-        
-        # temporary subwindow for user input
         displayWidth = panels["control"].getPreferredSize()[1]
-        inputSubwindow = panels["control"].parent.subwin(1, displayWidth - len(titleMsg), panels["control"].top, len(titleMsg))
+        initialValue = selection.get(configStatePanel.FIELD_VALUE)
         
-        # prepopulates the current value
-        if CONFIG["features.config.prepopulateEditValues"]:
-          initialValue = selection.get(configStatePanel.FIELD_VALUE)
-          if initialValue != "<none>": inputSubwindow.addstr(0, 0, initialValue)
+        # initial input for the text field
+        initialText = ""
+        if CONFIG["features.config.prepopulateEditValues"] and initialValue != "<none>":
+          initialText = initialValue
         
-        # fetches the user's input for the new config value
-        textbox = curses.textpad.Textbox(inputSubwindow)
-        newConfigValue = textbox.edit().strip()
-        
-        # reverts visability settings
-        try: curses.curs_set(0)
-        except curses.error: pass
-        #curses.halfdelay(REFRESH_RATE * 10) # evidenlty previous tweaks reset this...
+        newConfigValue = panels["control"].getstr(0, len(titleMsg), initialText)
         
         # it would be nice to quit on esc, but looks like this might not be possible...
-        if newConfigValue != "":
+        if newConfigValue != "" and newConfigValue != initialValue:
           conn = torTools.getConn()
           
           # if the value's a boolean then allow for 'true' and 'false' inputs

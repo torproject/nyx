@@ -50,7 +50,7 @@ class PsStats(graphPanel.GraphStats):
   def getRefreshRate(self):
     # provides the rate at which the panel has new stats to display
     if self._config["features.graph.ps.cachedOnly"]:
-      return int(conf.getConfig("arm").get("queries.ps.rate"))
+      return int(conf.getConfig("arm").get("queries.ps.rate", 5))
     else: return 1
   
   def getHeaderLabel(self, width, isPrimary):
