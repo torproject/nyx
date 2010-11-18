@@ -20,3 +20,6 @@ binary-arch:
 clean::
 	dh_clean
 
+binary-post-install/tor-arm::
+	find debian/tor-arm -name 'arm-*egg-info' -exec rm -v '{}' +
+
