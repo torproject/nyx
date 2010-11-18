@@ -2,14 +2,19 @@
 import os
 import sys
 import gzip
+import tempfile
 from src.version import VERSION
 from distutils.core import setup
 
-# When we're running the install target as a deb we do the following:
-# - use 'tor-arm' instead of 'arm' in the path for the sample armrc
-# - account for the debian build prefix when removing the egg-info
+# Use 'tor-arm' instead of 'arm' in the path for the sample armrc if we're
+# building for debian.
 
-isDebInstall = "--install-layout=deb" in sys.argv
+isDebInstall = False
+for arg in sys.argv:
+  if "tor-arm" in arg:
+    isDebInstall = True
+    break
+
 docPath = "/usr/share/doc/%s" % ("tor-arm" if isDebInstall else "arm")
 
 # Provides the configuration option to install to "/usr/share" rather than as a
@@ -31,13 +36,15 @@ try:
   manContents = manInputFile.read()
   manInputFile.close()
   
-  manOutputFile = gzip.open('/tmp/arm.1.gz', 'wb')
+  # temporary destination for the man page guarenteed to be unoccupied (to
+  # avoid conflicting with files that are already there)
+  manOutputFile = gzip.open(tempfile.mktemp("/arm.1.gz"), 'wb')
   manOutputFile.write(manContents)
   manOutputFile.close()
   
   # places in tmp rather than a relative path to avoid having this copy appear
   # in the deb and rpm builds
-  manFilename = "/tmp/arm.1.gz"
+  manFilename = manOutputFile.name
 except IOError, exc:
   print "Unable to compress man page: %s" % exc
   manFilename = "arm.1"
@@ -58,7 +65,7 @@ setup(name='arm',
      )
 
 # Cleans up the temporary compressed man page.
-if manFilename == '/tmp/arm.1.gz' and os.path.isfile(manFilename):
+if manFilename != 'arm.1' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
 
@@ -67,7 +74,6 @@ if manFilename == '/tmp/arm.1.gz' and os.path.isfile(manFilename):
 # bypass its creation.
 # TODO: not sure how to remove this from the deb build too...
 eggPath = '/usr/share/arm-%s.egg-info' % VERSION
-if isDebInstall: eggPath = "./debian/tor-arm" + eggPath
 
 if os.path.isfile(eggPath):
   if "-q" not in sys.argv: print "Removing %s" % eggPath
