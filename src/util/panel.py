@@ -351,15 +351,20 @@ class Panel():
     # prepopulates the initial text
     if initialText: inputSubwindow.addstr(0, 0, initialText)
     
-    # displays the text field, blocking until the user's done
-    textbox = curses.textpad.Textbox(inputSubwindow)
-    userInput = textbox.edit().strip()
+    # Displays the text field, blocking until the user's done. This closes the
+    # text panel and returns userInput to the initial text if the user presses
+    # escape (the curses.ascii.BEL is one of the character codes that can cause
+    # the textpad to terminate).
+    textbox = curses.textpad.Textbox(inputSubwindow, True)
+    userInput = textbox.edit(lambda key: curses.ascii.BEL if key == 27 else key)
+    
+    if textbox.lastcmd == curses.ascii.BEL: userInput = initialText
     
     # reverts visability settings
     try: curses.curs_set(previousCursorState)
     except curses.error: pass
     
-    return userInput
+    return userInput.strip()
   
   def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1):
     """
