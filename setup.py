@@ -5,6 +5,13 @@ import gzip
 from src.version import VERSION
 from distutils.core import setup
 
+# When we're running the install target as a deb we do the following:
+# - use 'tor-arm' instead of 'arm' in the path for the sample armrc
+# - account for the debian build prefix when removing the egg-info
+
+isDebInstall = "--install-layout=deb" in sys.argv
+docPath = "/usr/share/doc/%s" % ("tor-arm" if isDebInstall else "arm")
+
 # Provides the configuration option to install to "/usr/share" rather than as a
 # python module. Alternatives are to either provide this as an input argument
 # (not an option for deb/rpm builds) or add a setup.cfg with:
@@ -28,16 +35,12 @@ try:
   manOutputFile.write(manContents)
   manOutputFile.close()
   
+  # places in tmp rather than a relative path to avoid having this copy appear
+  # in the deb and rpm builds
   manFilename = "/tmp/arm.1.gz"
 except IOError, exc:
   print "Unable to compress man page: %s" % exc
   manFilename = "arm.1"
-
-# if this is placing resources for debian then the sample armrc should go in
-# tor-arm instead of arm
-docPath = "/usr/share/doc/"
-if "--install-layout=deb" in sys.argv: docPath += "tor-arm"
-else: docPath += "arm"
 
 setup(name='arm',
       version=VERSION,
@@ -64,6 +67,8 @@ if manFilename == '/tmp/arm.1.gz' and os.path.isfile(manFilename):
 # bypass its creation.
 # TODO: not sure how to remove this from the deb build too...
 eggPath = '/usr/share/arm-%s.egg-info' % VERSION
+if isDebInstall: eggPath = "./debian/tor-arm" + eggPath
+
 if os.path.isfile(eggPath):
   if "-q" not in sys.argv: print "Removing %s" % eggPath
   os.remove(eggPath)
