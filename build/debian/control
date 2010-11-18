@@ -3,7 +3,7 @@ Section: comm
 Priority: extra
 Maintainer: Damian Johnson (www.atagar.com) <atagar1@gmail.com>
 Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), python
-Standards-Version: 3.8.3
+Standards-Version: 3.9.1
 Homepage: http://www.atagar.com/arm
 
 Package: tor-arm
