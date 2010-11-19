@@ -75,7 +75,7 @@ if manFilename != 'arm.1' and os.path.isfile(manFilename):
 # TODO: not sure how to remove this from the deb build too...
 eggPath = '/usr/share/arm-%s.egg-info' % VERSION
 
-if os.path.isfile(eggPath):
+if not isDebInstall and os.path.isfile(eggPath):
   if "-q" not in sys.argv: print "Removing %s" % eggPath
   os.remove(eggPath)
 
