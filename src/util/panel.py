@@ -353,11 +353,9 @@ class Panel():
     
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns userInput to the initial text if the user presses
-    # escape (the curses.ascii.BEL is one of the character codes that can cause
-    # the textpad to terminate).
+    # escape.
     textbox = curses.textpad.Textbox(inputSubwindow, True)
-    userInput = textbox.edit(lambda key: curses.ascii.BEL if key == 27 else key)
-    
+    userInput = textbox.edit(lambda key: _textboxValidate(textbox, key))
     if textbox.lastcmd == curses.ascii.BEL: userInput = initialText
     
     # reverts visability settings
@@ -459,4 +457,34 @@ class Panel():
       msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)
       log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
+
+def _textboxValidate(textbox, key):
+  """
+  Interceptor for keystrokes given to a textbox, doing the following:
+  - quits by setting the input to curses.ascii.BEL when escape is pressed
+  - stops the cursor at the end of the box's content when pressing the right
+    arrow
+  - home and end keys move to the start/end of the line
+  """
   
+  y, x = textbox.win.getyx()
+  if key == 27:
+    # curses.ascii.BEL is a character codes that causes textpad to terminate
+    return curses.ascii.BEL
+  elif key == curses.KEY_HOME:
+    textbox.win.move(y, 0)
+    return None
+  elif key in (curses.KEY_END, curses.KEY_RIGHT):
+    msgLen = len(textbox.gather())
+    textbox.win.move(y, x) # reverts cursor movement during gather call
+    
+    if key == curses.KEY_END and msgLen > 0 and x < msgLen - 1:
+      # if we're in the content then move to the end
+      textbox.win.move(y, msgLen - 1)
+      return None
+    elif key == curses.KEY_RIGHT and x >= msgLen - 1:
+      # don't move the cursor if there's no content after it
+      return None
+  
+  return key
+
