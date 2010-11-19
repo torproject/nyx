@@ -19,6 +19,7 @@ binary-arch:
 
 clean::
 	dh_clean
+	rm debian/pycompat
 
 binary-post-install/tor-arm::
 	find debian/tor-arm -name 'arm-*egg-info' -exec rm -v '{}' +
