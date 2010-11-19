@@ -1525,7 +1525,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # provides prompt
         selection = panels["torrc"].getSelection()
         configOption = selection.get(configStatePanel.FIELD_OPTION)
-        titleMsg = "%s Value: " % configOption
+        titleMsg = "%s Value (esc to cancel): " % configOption
         panels["control"].setMsg(titleMsg)
         panels["control"].redraw(True)
         
@@ -1540,7 +1540,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         newConfigValue = panels["control"].getstr(0, len(titleMsg), initialText)
         
         # it would be nice to quit on esc, but looks like this might not be possible...
-        if newConfigValue != "" and newConfigValue != initialValue:
+        if newConfigValue != initialValue:
           conn = torTools.getConn()
           
           # if the value's a boolean then allow for 'true' and 'false' inputs
@@ -1550,9 +1550,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           try:
             if selection.get(configStatePanel.FIELD_TYPE) == "LineList":
-              conn.getTorCtl().set_options([(configOption, val) for val in newConfigValue.split(",")])
-            else:
-              conn.getTorCtl().set_option(configOption, newConfigValue)
+              newConfigValue = newConfigValue.split(",")
+            
+            conn.setOption(configOption, newConfigValue)
             
             # resets the isDefault flag
             setOptions = set()
@@ -1560,29 +1560,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
             
             selection.fields[configStatePanel.FIELD_IS_DEFAULT] = not configOption in setOptions
-            
-            # flushing cached values (needed until we can detect SETCONF calls)
-            for fetchType in ("str", "list", "map"):
-              entry = (configOption, fetchType)
-              
-              if entry in conn._cachedConf:
-                del conn._cachedConf[entry]
-            
             panels["torrc"].redraw(True)
           except Exception, exc:
-            excStr = str(exc)
-            
-            if excStr.startswith("513 Unacceptable option value: "):
-              # crops off the common error prefix
-              excStr = excStr[31:]
-              
-              # Truncates messages like:
-              # Value 'BandwidthRate la de da' is malformed or out of bounds.
-              # to: Value 'la de da' is malformed or out of bounds.
-              if excStr.startswith("Value '"):
-                excStr = excStr.replace("%s " % configOption, "", 1)
-            
-            errorMsg = "%s (press any key)" % excStr
+            errorMsg = "%s (press any key)" % exc
             panels["control"].setMsg(uiTools.cropStr(errorMsg, displayWidth), curses.A_STANDOUT)
             panels["control"].redraw(True)
             

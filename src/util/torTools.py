@@ -51,6 +51,7 @@ CONFIG = {"torrc.map": {},
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
           "log.torGetConf": log.DEBUG,
+          "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE}
 
 # events used for controller functionality:
@@ -431,6 +432,59 @@ class Controller(TorCtl.PostEventListener):
     if not suppressExc and raisedExc: raise raisedExc
     elif result == []: return default
     else: return result
+  
+  def setOption(self, param, value):
+    """
+    Issues a SETCONF to set the given option/value pair. An exeptions raised
+    if it fails to be set.
+    
+    Arguments:
+      param - configuration option to be set
+      value - value to set the parameter to (this can be either a string or a
+              list of strings)
+    """
+    
+    isMultiple = isinstance(value, list) or isinstance(value, tuple)
+    self.connLock.acquire()
+    
+    startTime, raisedExc = time.time(), None
+    if self.isAlive():
+      try:
+        if isMultiple: self.conn.set_options([(param, val) for val in value])
+        else: self.conn.set_option(param, value)
+        
+        # flushing cached values (needed until we can detect SETCONF calls)
+        for fetchType in ("str", "list", "map"):
+          entry = (param, fetchType)
+          
+          if entry in self._cachedConf:
+            del self._cachedConf[entry]
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+        if type(exc) == TorCtl.TorCtlClosed: self.close()
+        elif type(exc) == TorCtl.ErrorReply:
+          excStr = str(exc)
+          if excStr.startswith("513 Unacceptable option value: "):
+            # crops off the common error prefix
+            excStr = excStr[31:]
+            
+            # Truncates messages like:
+            # Value 'BandwidthRate la de da' is malformed or out of bounds.
+            # to: Value 'la de da' is malformed or out of bounds.
+            if excStr.startswith("Value '"):
+              excStr = excStr.replace("%s " % param, "", 1)
+            
+            exc = TorCtl.ErrorReply(excStr)
+        
+        raisedExc = exc
+    
+    self.connLock.release()
+    
+    setCall = "%s %s" % (param, ", ".join(value) if isMultiple else value)
+    excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
+    msg = "SETCONF %s (%sruntime: %0.4f)" % (setCall.strip(), excLabel, time.time() - startTime)
+    log.log(CONFIG["log.torSetConf"], msg)
+    
+    if raisedExc: raise raisedExc
   
   def getMyNetworkStatus(self, default = None):
     """

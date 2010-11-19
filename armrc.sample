@@ -191,6 +191,7 @@ log.configEntryTypeError NOTICE
 log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetConf DEBUG
+log.torSetConf INFO
 log.torEventTypeUnrecognized NOTICE
 log.torPrefixPathInvalid NOTICE
 log.sysCallMade DEBUG
