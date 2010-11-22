@@ -37,8 +37,7 @@ TODO
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
-      [ ] attempt to clear controller password from memory
-        - http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
+      [X] attempt to clear controller password from memory
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
