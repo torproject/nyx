@@ -60,6 +60,10 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * Log deduplication is currently an n^2 operation. Hence it can't handle
+    large logs (for instance, when at the DEBUG runlevel). Currently we're
+    timing out the function if it takes too long, but a more efficient method
+    for deduplication would be preferable.
   * The log panel gets cripplingly slow if the log grows to be even moderately
     large (200 entries or so). This is most likely due to the hack for
     dynamically determining the content height. Check if a solution like the

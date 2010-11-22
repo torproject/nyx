@@ -41,6 +41,7 @@ PAGE_S = ["header", "control", "popup"] # sticky (ie, always available) page
 PAGES = [
   ["graph", "log"],
   ["conn"],
+  ["config"],
   ["torrc"]]
 PAUSEABLE = ["header", "graph", "log", "conn"]
 
@@ -515,8 +516,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["torrc"] = configStatePanel.ConfigStatePanel(stdscr, configStatePanel.TOR_STATE, config)
-  #panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
+  panels["config"] = configStatePanel.ConfigStatePanel(stdscr, configStatePanel.TOR_STATE, config)
+  panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -673,7 +674,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       for panelKey in (PAGE_S + PAGES[page]):
         # redrawing popup can result in display flicker when it should be hidden
         if panelKey != "popup":
-          if panelKey in ("header", "graph", "log", "torrc"):
+          if panelKey in ("header", "graph", "log", "config", "torrc"):
             # revised panel (manages its own content refreshing)
             panels[panelKey].redraw()
           else:
@@ -839,18 +840,22 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
-          popup.addfstr(3, 2, "<b>s</b>: sort ordering")
-          # TODO: reintroduce options for the configFilePanel
-          #strippingLabel = "on" if panels["torrc"].stripComments else "off"
-          #popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
+          popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
+          popup.addfstr(3, 41, "<b>s</b>: sort ordering")
+        elif page == 3:
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
+          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
+          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
-          #lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
-          #popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
+          strippingLabel = "on" if panels["torrc"].stripComments else "off"
+          popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
+          
+          lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
+          popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
           
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
-          
-          #popup.addfstr(5, 2, "<b>c</b>: displayed configuration (<b>%s</b>)" % configFilePanel.CONFIG_LABELS[panels["torrc"].configType])
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -1419,62 +1424,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 2 and False and key == ord('r') or key == ord('R'):
-      # reloads torrc, providing a notice if successful or not
-      loadedTorrc = torConfig.getTorrc()
-      loadedTorrc.getLock().acquire()
-      
-      try:
-        loadedTorrc.load()
-        isSuccessful = True
-      except IOError:
-        isSuccessful = False
-      
-      loadedTorrc.getLock().release()
-      
-      #isSuccessful = panels["torrc"].loadConfig(logErrors = False)
-      #confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
-      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
-      if isSuccessful:
-        panels["torrc"]._lastContentHeightArgs = None
-        panels["torrc"].redraw(True)
-      
-      panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
-      panels["control"].redraw(True)
-      time.sleep(1)
-      
-      panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-    elif page == 2 and (key == ord('x') or key == ord('X')):
-      # provides prompt to confirm that arm should issue a sighup
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
-        panels["control"].redraw(True)
-        
-        curses.cbreak()
-        confirmationKey = stdscr.getch()
-        if confirmationKey in (ord('x'), ord('X')):
-          try:
-            torTools.getConn().reload()
-          except IOError, exc:
-            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
-            
-            #errorMsg = " (%s)" % str(err) if str(err) else ""
-            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
-            #panels["control"].redraw(True)
-            #time.sleep(2)
-        
-        # reverts display settings
-        curses.halfdelay(REFRESH_RATE * 10)
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
     elif page == 2 and (key == ord('c') or key == ord('C')) and False:
-      # TODO: disabled for now (pending the ConfigStatePanel implementation)
+      # TODO: disabled for now (probably gonna be going with separate pages
+      # rather than popup menu)
       # provides menu to pick config being displayed
       #options = [confPanel.CONFIG_LABELS[confType] for confType in range(4)]
       options = []
@@ -1499,7 +1451,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       # set ordering for config options
       titleLabel = "Config Option Ordering:"
       options = [configStatePanel.FIELD_ATTR[i][0] for i in range(8)]
-      oldSelection = [configStatePanel.FIELD_ATTR[entry][0] for entry in panels["torrc"].sortOrdering]
+      oldSelection = [configStatePanel.FIELD_ATTR[entry][0] for entry in panels["config"].sortOrdering]
       optionColors = dict([configStatePanel.FIELD_ATTR[i] for i in range(8)])
       results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
       
@@ -1513,9 +1465,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
               resultEnums.append(entryEnum)
               break
         
-        panels["torrc"].setSortOrder(resultEnums)
+        panels["config"].setSortOrder(resultEnums)
       
-      panels["torrc"].redraw(True)
+      panels["config"].redraw(True)
     elif page == 2 and key in (curses.KEY_ENTER, 10, ord(' ')):
       # let the user edit the configuration value, unchanged if left blank
       panel.CURSES_LOCK.acquire()
@@ -1523,7 +1475,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page, True)
         
         # provides prompt
-        selection = panels["torrc"].getSelection()
+        selection = panels["config"].getSelection()
         configOption = selection.get(configStatePanel.FIELD_OPTION)
         titleMsg = "%s Value (esc to cancel): " % configOption
         panels["control"].setMsg(titleMsg)
@@ -1560,7 +1512,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
             
             selection.fields[configStatePanel.FIELD_IS_DEFAULT] = not configOption in setOptions
-            panels["torrc"].redraw(True)
+            panels["config"].redraw(True)
           except Exception, exc:
             errorMsg = "%s (press any key)" % exc
             panels["control"].setMsg(uiTools.cropStr(errorMsg, displayWidth), curses.A_STANDOUT)
@@ -1574,11 +1526,67 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
+    elif page == 3 and key == ord('r') or key == ord('R'):
+      # reloads torrc, providing a notice if successful or not
+      loadedTorrc = torConfig.getTorrc()
+      loadedTorrc.getLock().acquire()
+      
+      try:
+        loadedTorrc.load()
+        isSuccessful = True
+      except IOError:
+        isSuccessful = False
+      
+      loadedTorrc.getLock().release()
+      
+      #isSuccessful = panels["torrc"].loadConfig(logErrors = False)
+      #confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
+      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
+      if isSuccessful:
+        panels["torrc"]._lastContentHeightArgs = None
+        panels["torrc"].redraw(True)
+      
+      panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
+      panels["control"].redraw(True)
+      time.sleep(1)
+      
+      panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+    elif page == 3 and (key == ord('x') or key == ord('X')):
+      # provides prompt to confirm that arm should issue a sighup
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
+        panels["control"].redraw(True)
+        
+        curses.cbreak()
+        confirmationKey = stdscr.getch()
+        if confirmationKey in (ord('x'), ord('X')):
+          try:
+            torTools.getConn().reload()
+          except IOError, exc:
+            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
+            
+            #errorMsg = " (%s)" % str(err) if str(err) else ""
+            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
+            #panels["control"].redraw(True)
+            #time.sleep(2)
+        
+        # reverts display settings
+        curses.halfdelay(REFRESH_RATE * 10)
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
+      finally:
+        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:
       panels["conn"].handleKey(key)
     elif page == 2:
+      panels["config"].handleKey(key)
+    elif page == 3:
       panels["torrc"].handleKey(key)
 
 def startTorMonitor(startTime, loggedEvents, isBlindMode):

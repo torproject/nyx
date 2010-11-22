@@ -109,7 +109,7 @@ class ConfigFilePanel(panel.Panel):
     if self.showLabel:
       sourceLabel = "Tor" if self.configType == TORRC else "Arm"
       locationLabel = " (%s)" % confLocation if confLocation else ""
-      self.addstr(0, 0, "%s Config%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
+      self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
     
     for lineNumber in range(0, len(renderedContents)):
       lineText = renderedContents[lineNumber]
