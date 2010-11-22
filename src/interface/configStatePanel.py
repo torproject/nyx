@@ -232,14 +232,17 @@ class ConfigStatePanel(panel.Panel):
     optionColWidth, valueColWidth = 0, 0
     
     # constructs a mapping of entries to their current values
+    # TODO: just skip dynamic widths entirely?
     entryToValues = {}
     for entry in self.confContents:
       entryToValues[entry] = entry.get(FIELD_VALUE)
-      optionColWidth = max(optionColWidth, len(entry.get(FIELD_OPTION)))
-      valueColWidth = max(valueColWidth, len(entryToValues[entry]))
+      #optionColWidth = max(optionColWidth, len(entry.get(FIELD_OPTION)))
+      #valueColWidth = max(valueColWidth, len(entryToValues[entry]))
     
-    optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
-    valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
+    #optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
+    #valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
+    optionColWidth = self._config["features.config.state.colWidth.option"]
+    valueColWidth = self._config["features.config.state.colWidth.value"]
     descriptionColWidth = max(0, width - scrollOffset - optionColWidth - valueColWidth - 2)
     
     for lineNum in range(scrollLoc, len(self.confContents)):

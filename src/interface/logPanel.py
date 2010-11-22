@@ -72,6 +72,9 @@ CACHED_DAYBREAKS_RESULT = None
 CACHED_DUPLICATES_ARGUMENTS = None # events
 CACHED_DUPLICATES_RESULT = None
 
+# duration we'll wait for the deduplication function before giving up (in ms)
+DEDUPLICATION_TIMEOUT = 100
+
 def daysSince(timestamp=None):
   """
   Provides the number of days since the epoch converted to local time (rounded
@@ -326,7 +329,8 @@ def getDuplicates(events):
   """
   Deduplicates a list of log entries, providing back a tuple listing with the
   log entry and count of duplicates following it. Entries in different days are
-  not considered to be duplicates.
+  not considered to be duplicates. This times out, returning None if it takes
+  longer than DEDUPLICATION_TIMEOUT.
   
   Arguments:
     events - chronologically ordered listing of events
@@ -339,35 +343,17 @@ def getDuplicates(events):
   # loads common log entries from the config if they haven't been
   if COMMON_LOG_MESSAGES == None: loadLogMessages()
   
+  startTime = time.time()
   eventsRemaining = list(events)
   returnEvents = []
   
   while eventsRemaining:
     entry = eventsRemaining.pop(0)
-    duplicateIndices = []
+    duplicateIndices = isDuplicate(entry, eventsRemaining, True)
     
-    for i in range(len(eventsRemaining)):
-      forwardEntry = eventsRemaining[i]
-      
-      # if showing dates then do duplicate detection for each day, rather
-      # than globally
-      if forwardEntry.type == DAYBREAK_EVENT: break
-      
-      if entry.type == forwardEntry.type:
-        isDuplicate = False
-        if entry.msg == forwardEntry.msg: isDuplicate = True
-        elif entry.type in COMMON_LOG_MESSAGES:
-          for commonMsg in COMMON_LOG_MESSAGES[entry.type]:
-            # if it starts with an asterisk then check the whole message rather
-            # than just the start
-            if commonMsg[0] == "*":
-              isDuplicate = commonMsg[1:] in entry.msg and commonMsg[1:] in forwardEntry.msg
-            else:
-              isDuplicate = entry.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg)
-            
-            if isDuplicate: break
-        
-        if isDuplicate: duplicateIndices.append(i)
+    # checks if the call timeout has been reached
+    if (time.time() - startTime) > DEDUPLICATION_TIMEOUT / 1000.0:
+      return None
     
     # drops duplicate entries
     duplicateIndices.reverse()
@@ -379,6 +365,48 @@ def getDuplicates(events):
   CACHED_DUPLICATES_RESULT = list(returnEvents)
   
   return returnEvents
+
+def isDuplicate(event, eventSet, getDuplicates = False):
+  """
+  True if the event is a duplicate for something in the eventSet, false
+  otherwise. If the getDuplicates flag is set this provides the indices of
+  the duplicates instead.
+  
+  Arguments:
+    event         - event to search for duplicates of
+    eventSet      - set to look for the event in
+    getDuplicates - instead of providing back a boolean this gives a list of
+                    the duplicate indices in the eventSet
+  """
+  
+  duplicateIndices = []
+  for i in range(len(eventSet)):
+    forwardEntry = eventSet[i]
+    
+    # if showing dates then do duplicate detection for each day, rather
+    # than globally
+    if forwardEntry.type == DAYBREAK_EVENT: break
+    
+    if event.type == forwardEntry.type:
+      isDuplicate = False
+      if event.msg == forwardEntry.msg: isDuplicate = True
+      elif event.type in COMMON_LOG_MESSAGES:
+        for commonMsg in COMMON_LOG_MESSAGES[event.type]:
+          # if it starts with an asterisk then check the whole message rather
+          # than just the start
+          if commonMsg[0] == "*":
+            isDuplicate = commonMsg[1:] in event.msg and commonMsg[1:] in forwardEntry.msg
+          else:
+            isDuplicate = event.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg)
+          
+          if isDuplicate: break
+      
+      if isDuplicate:
+        if getDuplicates: duplicateIndices.append(i)
+        else: return True
+  
+  if getDuplicates: return duplicateIndices
+  else: return False
 
 class LogEntry():
   """
@@ -779,7 +807,14 @@ class LogPanel(panel.Panel, threading.Thread):
     
     isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
     eventLog = getDaybreaks(self.msgLog, self._isPaused) if isDatesShown else list(self.msgLog)
-    if not self.showDuplicates: deduplicatedLog = getDuplicates(eventLog)
+    if not self.showDuplicates:
+      deduplicatedLog = getDuplicates(eventLog)
+      
+      if deduplicatedLog == None:
+        msg = "Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive."
+        log.log(log.WARN, msg)
+        self.showDuplicates = True
+        deduplicatedLog = [(entry, 0) for entry in eventLog]
     else: deduplicatedLog = [(entry, 0) for entry in eventLog]
     
     # determines if we have the minimum width to show date dividers

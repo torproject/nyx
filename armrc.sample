@@ -69,7 +69,7 @@ features.log.maxRefreshRate 300
 #   when editing config values the current value is prepopulated if true, and
 #   left blank otherwise
 # state.colWidth.*
-#   maximum column content width
+#   column content width
 # state.showPrivateOptions
 #   tor provides config options of the form "__<option>" that can be dangerous
 #   to set, if true arm provides these on the config panel
