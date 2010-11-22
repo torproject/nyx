@@ -254,9 +254,21 @@ if __name__ == '__main__':
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None: sys.exit(1)
   
-  # removing reference so memory can be freed (unfortunately python does allow
-  # for direct access to the memory so this is the best we can do)
+  # removing references to the controller password so the memory can be freed
+  # (unfortunately python does allow for direct access to the memory so this
+  # is the best we can do)
   del authPassword
+  if "startup.controlPassword" in config.contents:
+    del config.contents["startup.controlPassword"]
+    
+    pwLineNum = None
+    for i in range(len(config.rawContents)):
+      if config.rawContents[i].strip().startswith("startup.controlPassword"):
+        pwLineNum = i
+        break
+    
+    if pwLineNum != None:
+      del config.rawContents[i]
   
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
