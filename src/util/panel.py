@@ -242,7 +242,12 @@ class Panel():
     # subwindows need a single character buffer (either in the x or y 
     # direction) from actual content to prevent crash when shrank
     if self.win and self.maxX > x and self.maxY > y:
-      self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+      try:
+        self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+      except:
+        # this might produce a _curses.error during edge cases, for instance
+        # when resizing with visible popups
+        pass
   
   def addfstr(self, y, x, msg):
     """
@@ -413,8 +418,8 @@ class Panel():
     
     # draws box around the scroll bar
     self.win.vline(drawTop, 1, curses.ACS_VLINE, self.maxY - 2)
-    self.win.vline(drawBottom, 1, curses.ACS_LRCORNER, 1)
-    self.win.hline(drawBottom, 0, curses.ACS_HLINE, 1)
+    self.win.addch(drawBottom, 1, curses.ACS_LRCORNER)
+    self.win.addch(drawBottom, 0, curses.ACS_HLINE)
   
   def _resetSubwindow(self):
     """
@@ -485,6 +490,10 @@ def _textboxValidate(textbox, key):
     elif key == curses.KEY_RIGHT and x >= msgLen - 1:
       # don't move the cursor if there's no content after it
       return None
+  elif key == -1:
+    # if we're resizing the display during text entry then cancel it
+    # (otherwise the input field is filled with nonprintable characters)
+    return curses.ascii.BEL
   
   return key
 
