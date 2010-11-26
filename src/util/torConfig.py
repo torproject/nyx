@@ -191,7 +191,8 @@ def loadOptionDescriptions(loadPath = None):
           
           # if this is a category header then switch it
           if isCategoryLine:
-            if line.startswith("CLIENT"): lastCategory = CLIENT
+            if line.startswith("OPTIONS"): lastCategory = GENERAL
+            elif line.startswith("CLIENT"): lastCategory = CLIENT
             elif line.startswith("SERVER"): lastCategory = SERVER
             elif line.startswith("DIRECTORY SERVER"): lastCategory = DIRECTORY
             elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = AUTHORITY
