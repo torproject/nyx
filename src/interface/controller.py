@@ -20,8 +20,8 @@ import headerPanel
 import graphing.graphPanel
 import logPanel
 import connPanel
-import configStatePanel
-import configFilePanel
+import configPanel
+import torrcPanel
 import descriptorPopup
 import fileDescriptorPopup
 
@@ -517,8 +517,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["config"] = configStatePanel.ConfigStatePanel(stdscr, configStatePanel.TOR_STATE, config)
-  panels["torrc"] = configFilePanel.ConfigFilePanel(stdscr, configFilePanel.TORRC, config)
+  panels["config"] = configPanel.ConfigStatePanel(stdscr, configPanel.TOR_STATE, config)
+  panels["torrc"] = torrcPanel.ConfigFilePanel(stdscr, torrcPanel.TORRC, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")
@@ -623,7 +623,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         if panels["graph"].currentDisplay == "bandwidth":
           panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
         
-        # TODO: should redraw the configFilePanel
+        # TODO: should redraw the torrcPanel
         #panels["torrc"].loadConfig()
         sighupTracker.isReset = False
       
@@ -1582,9 +1582,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 2 and (key == ord('s') or key == ord('S')):
       # set ordering for config options
       titleLabel = "Config Option Ordering:"
-      options = [configStatePanel.FIELD_ATTR[i][0] for i in range(8)]
-      oldSelection = [configStatePanel.FIELD_ATTR[entry][0] for entry in panels["config"].sortOrdering]
-      optionColors = dict([configStatePanel.FIELD_ATTR[i] for i in range(8)])
+      options = [configPanel.FIELD_ATTR[i][0] for i in range(8)]
+      oldSelection = [configPanel.FIELD_ATTR[entry][0] for entry in panels["config"].sortOrdering]
+      optionColors = dict([configPanel.FIELD_ATTR[i] for i in range(8)])
       results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
       
       if results:
@@ -1592,8 +1592,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         resultEnums = []
         
         for label in results:
-          for entryEnum in configStatePanel.FIELD_ATTR:
-            if label == configStatePanel.FIELD_ATTR[entryEnum][0]:
+          for entryEnum in configPanel.FIELD_ATTR:
+            if label == configPanel.FIELD_ATTR[entryEnum][0]:
               resultEnums.append(entryEnum)
               break
         
@@ -1608,13 +1608,13 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # provides prompt
         selection = panels["config"].getSelection()
-        configOption = selection.get(configStatePanel.FIELD_OPTION)
+        configOption = selection.get(configPanel.FIELD_OPTION)
         titleMsg = "%s Value (esc to cancel): " % configOption
         panels["control"].setMsg(titleMsg)
         panels["control"].redraw(True)
         
         displayWidth = panels["control"].getPreferredSize()[1]
-        initialValue = selection.get(configStatePanel.FIELD_VALUE)
+        initialValue = selection.get(configPanel.FIELD_VALUE)
         
         # initial input for the text field
         initialText = ""
@@ -1628,12 +1628,12 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           conn = torTools.getConn()
           
           # if the value's a boolean then allow for 'true' and 'false' inputs
-          if selection.get(configStatePanel.FIELD_TYPE) == "Boolean":
+          if selection.get(configPanel.FIELD_TYPE) == "Boolean":
             if newConfigValue.lower() == "true": newConfigValue = "1"
             elif newConfigValue.lower() == "false": newConfigValue = "0"
           
           try:
-            if selection.get(configStatePanel.FIELD_TYPE) == "LineList":
+            if selection.get(configPanel.FIELD_TYPE) == "LineList":
               newConfigValue = newConfigValue.split(",")
             
             conn.setOption(configOption, newConfigValue)
@@ -1643,7 +1643,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
             for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
             
-            selection.fields[configStatePanel.FIELD_IS_DEFAULT] = not configOption in setOptions
+            selection.fields[configPanel.FIELD_IS_DEFAULT] = not configOption in setOptions
             panels["config"].redraw(True)
           except Exception, exc:
             errorMsg = "%s (press any key)" % exc
