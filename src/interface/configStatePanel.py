@@ -275,17 +275,17 @@ class ConfigStatePanel(panel.Panel):
     # border (top)
     if width >= len(titleLabel):
       self.win.hline(0, len(titleLabel), curses.ACS_HLINE, width - len(titleLabel))
-      self.win.vline(0, width, curses.ACS_URCORNER, 1)
+      self.win.addch(0, width, curses.ACS_URCORNER)
     
     # border (sides)
     self.win.vline(1, 0, curses.ACS_VLINE, detailPanelHeight - 1)
     self.win.vline(1, width, curses.ACS_VLINE, detailPanelHeight - 1)
     
     # border (bottom)
-    self.win.vline(detailPanelHeight, 0, curses.ACS_LLCORNER, 1)
-    if width >= 2: self.win.vline(detailPanelHeight, 1, curses.ACS_TTEE, 1)
+    self.win.addch(detailPanelHeight, 0, curses.ACS_LLCORNER)
+    if width >= 2: self.win.addch(detailPanelHeight, 1, curses.ACS_TTEE)
     if width >= 3: self.win.hline(detailPanelHeight, 2, curses.ACS_HLINE, width - 2)
-    self.win.vline(detailPanelHeight, width, curses.ACS_LRCORNER, 1)
+    self.win.addch(detailPanelHeight, width, curses.ACS_LRCORNER)
     
     selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(FIELD_CATEGORY)])
     

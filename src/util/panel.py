@@ -336,8 +336,8 @@ class Panel():
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
-    this terminates and provides back the initial value. This should only be
-    called from the context of a panel's draw method.
+    this terminates and provides back None. This should only be called from
+    the context of a panel's draw method.
     
     Arguments:
       y           - vertical location
@@ -360,14 +360,14 @@ class Panel():
     # text panel and returns userInput to the initial text if the user presses
     # escape.
     textbox = curses.textpad.Textbox(inputSubwindow, True)
-    userInput = textbox.edit(lambda key: _textboxValidate(textbox, key))
-    if textbox.lastcmd == curses.ascii.BEL: userInput = initialText
+    userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
+    if textbox.lastcmd == curses.ascii.BEL: userInput = None
     
     # reverts visability settings
     try: curses.curs_set(previousCursorState)
     except curses.error: pass
     
-    return userInput.strip()
+    return userInput
   
   def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1):
     """
@@ -490,7 +490,7 @@ def _textboxValidate(textbox, key):
     elif key == curses.KEY_RIGHT and x >= msgLen - 1:
       # don't move the cursor if there's no content after it
       return None
-  elif key == -1:
+  elif key == 410:
     # if we're resizing the display during text entry then cancel it
     # (otherwise the input field is filled with nonprintable characters)
     return curses.ascii.BEL

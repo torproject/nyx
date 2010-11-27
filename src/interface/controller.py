@@ -6,6 +6,7 @@
 Curses (terminal) interface for the arm relay status monitor.
 """
 
+import os
 import re
 import math
 import time
@@ -841,7 +842,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
           popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
-          popup.addfstr(3, 41, "<b>s</b>: sort ordering")
+          popup.addfstr(3, 41, "<b>w</b>: save current configuration")
+          popup.addfstr(4, 2, "<b>s</b>: sort ordering")
         elif page == 3:
           popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
@@ -966,7 +968,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # gets user input (this blocks monitor updates)
         pathInput = panels["control"].getstr(0, 27)
         
-        if pathInput != "":
+        if pathInput:
           try:
             panels["log"].saveSnapshot(pathInput)
             panels["control"].setMsg("Saved: %s" % pathInput, curses.A_STANDOUT)
@@ -1010,10 +1012,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # gets user input (this blocks monitor updates)
         eventsInput = panels["control"].getstr(0, 15)
-        eventsInput = eventsInput.replace(' ', '') # strips spaces
+        if eventsInput: eventsInput = eventsInput.replace(' ', '') # strips spaces
         
         # it would be nice to quit on esc, but looks like this might not be possible...
-        if eventsInput != "":
+        if eventsInput:
           try:
             expandedEvents = logPanel.expandEvents(eventsInput)
             loggedEvents = setEventListening(expandedEvents, isBlindMode)
@@ -1061,7 +1063,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           # gets user input (this blocks monitor updates)
           regexInput = panels["control"].getstr(0, 20)
           
-          if regexInput != "":
+          if regexInput:
             try:
               panels["log"].setFilter(re.compile(regexInput))
               if regexInput in regexFilters: regexFilters.remove(regexInput)
@@ -1447,6 +1449,136 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if selection != -1: panels["torrc"].setConfigType(selection)
       
       selectiveRefresh(panels, page)
+    elif page == 2 and (key == ord('w') or key == ord('W')):
+      # display a popup for saving the current configuration
+      panel.CURSES_LOCK.acquire()
+      try:
+        configText = torTools.getConn().getInfo("config-text", "").strip()
+        configLines = configText.split("\n")
+        
+        # lists event types
+        popup = panels["popup"]
+        popup.height = len(configLines) + 3
+        popup.recreate(stdscr)
+        displayHeight, displayWidth = panels["popup"].getPreferredSize()
+        
+        # displayed options (truncating the labels if there's limited room)
+        if displayWidth >= 30: selectionOptions = ("Save", "Save As...", "Cancel")
+        else: selectionOptions = ("Save", "Save As", "X")
+        
+        # checks if we can show options beside the last line of visible content
+        lastIndex = min(displayHeight - 3, len(configLines) - 1)
+        isOptionLineSeparate = displayWidth < (30 + len(configLines[lastIndex]))
+        
+        # if we're showing all the content and have room to display selection
+        # options besides the text then shrink the popup by a row
+        if not isOptionLineSeparate and displayHeight == len(configLines) + 3:
+          popup.height -= 1
+          popup.recreate(stdscr)
+        
+        key, selection = 0, 2
+        while key not in (curses.KEY_ENTER, 10, ord(' ')):
+          # if the popup has been resized then recreate it (needed for the
+          # proper border height)
+          newHeight, newWidth = panels["popup"].getPreferredSize()
+          if (displayHeight, displayWidth) != (newHeight, newWidth):
+            displayHeight, displayWidth = newHeight, newWidth
+            popup.recreate(stdscr)
+          
+          # if there isn't room to display the popup then cancel it
+          if displayHeight <= 2:
+            selection = 2
+            break
+          
+          popup.clear()
+          popup.win.box()
+          popup.addstr(0, 0, "Configuration being saved:", curses.A_STANDOUT)
+          
+          visibleConfigLines = displayHeight - 3 if isOptionLineSeparate else displayHeight - 2
+          for i in range(visibleConfigLines):
+            line = uiTools.cropStr(configLines[i], displayWidth - 2)
+            
+            if " " in line:
+              option, arg = line.split(" ", 1)
+              popup.addstr(i + 1, 1, option, curses.A_BOLD | uiTools.getColor("green"))
+              popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | uiTools.getColor("cyan"))
+            else:
+              popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.getColor("green"))
+          
+          # draws 'T' between the lower left and the covered panel's scroll bar
+          if displayWidth > 1: popup.win.addch(displayHeight - 1, 1, curses.ACS_TTEE)
+          
+          # draws selection options (drawn right to left)
+          drawX = displayWidth - 1
+          for i in range(len(selectionOptions) - 1, -1, -1):
+            optionLabel = selectionOptions[i]
+            drawX -= (len(optionLabel) + 2)
+            
+            # if we've run out of room then drop the option (this will only
+            # occure on tiny displays)
+            if drawX < 1: break
+            
+            selectionFormat = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+            popup.addstr(displayHeight - 2, drawX, "[")
+            popup.addstr(displayHeight - 2, drawX + 1, optionLabel, selectionFormat | curses.A_BOLD)
+            popup.addstr(displayHeight - 2, drawX + len(optionLabel) + 1, "]")
+            
+            drawX -= 1 # space gap between the options
+          
+          popup.refresh()
+          
+          key = stdscr.getch()
+          if key == curses.KEY_LEFT: selection = max(0, selection - 1)
+          elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
+        
+        if selection in (0, 1):
+          loadedTorrc = torConfig.getTorrc()
+          try: configLocation = loadedTorrc.getConfigLocation()
+          except IOError: configLocation = ""
+          
+          if selection == 1:
+            # prompts user for a configuration location
+            promptMsg = "Save to (esc to cancel): "
+            panels["control"].setMsg(promptMsg)
+            panels["control"].redraw(True)
+            configLocation = panels["control"].getstr(0, len(promptMsg), configLocation)
+            if configLocation: configLocation = os.path.abspath(configLocation)
+          
+          if configLocation:
+            try:
+              # make dir if the path doesn't already exist
+              baseDir = os.path.dirname(configLocation)
+              if not os.path.exists(baseDir): os.makedirs(baseDir)
+              
+              # saves the configuration to the file
+              configFile = open(configLocation, "w")
+              configFile.write(configText)
+              configFile.close()
+              
+              # reloads the cached torrc if overwriting it
+              if configLocation == loadedTorrc.getConfigLocation():
+                try:
+                  loadedTorrc.load()
+                  panels["torrc"]._lastContentHeightArgs = None
+                except IOError: pass
+              
+              msg = "Saved configuration to %s" % configLocation
+            except (IOError, OSError), exc:
+              msg = "Unable to save configuration (%s)" % sysTools.getFileErrorMsg(exc)
+            
+            panels["control"].setMsg(msg, curses.A_STANDOUT)
+            panels["control"].redraw(True)
+            time.sleep(2)
+          
+          panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        
+        # reverts popup dimensions
+        popup.height = 9
+        popup.recreate(stdscr, 80)
+      finally:
+        panel.CURSES_LOCK.release()
+      
+      panels["config"].redraw(True)
     elif page == 2 and (key == ord('s') or key == ord('S')):
       # set ordering for config options
       titleLabel = "Config Option Ordering:"
@@ -1492,7 +1624,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         newConfigValue = panels["control"].getstr(0, len(titleMsg), initialText)
         
         # it would be nice to quit on esc, but looks like this might not be possible...
-        if newConfigValue != initialValue:
+        if newConfigValue != None and newConfigValue != initialValue:
           conn = torTools.getConn()
           
           # if the value's a boolean then allow for 'true' and 'false' inputs
