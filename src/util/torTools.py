@@ -46,10 +46,12 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"features.pathPrefix": "",
+CONFIG = {"torrc.map": {},
+          "features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
           "log.torGetConf": log.DEBUG,
+          "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE}
 
 # events used for controller functionality:
@@ -152,7 +154,7 @@ def getPid(controlPort=9051, pidFilePath=None):
 
 def getConn():
   """
-  Singleton constructor for a Controller. Be aware that this start
+  Singleton constructor for a Controller. Be aware that this starts as being
   uninitialized, needing a TorCtl instance before it's fully functional.
   """
   
@@ -180,8 +182,12 @@ class Controller(TorCtl.PostEventListener):
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
     
-    # cached getInfo parameters (None if unset or possibly changed)
+    # cached GETINFO parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    
+    # cached GETCONF parameters, entries consisting of:
+    # (option, fetch_type) => value
+    self._cachedConf = {}
     
     # directs TorCtl to notify us of events
     TorUtil.logger = self
@@ -319,9 +325,6 @@ class Controller(TorCtl.PostEventListener):
     if not suppressExc and raisedExc: raise raisedExc
     else: return result
   
-  # TODO: This could have client side caching if there were events to indicate
-  # SETCONF events. See:
-  # https://trac.torproject.org/projects/tor/ticket/1692
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
     Queries the control port for the given configuration option, providing the
@@ -332,29 +335,96 @@ class Controller(TorCtl.PostEventListener):
     Arguments:
       param       - configuration option to be queried
       default     - result if the query fails and exception's suppressed
-      multiple    - provides a list of results if true, otherwise this just
-                    returns the first value
+      multiple    - provides a list with all returned values if true, otherwise
+                    this just provides the first result
       suppressExc - suppresses lookup errors (returning the default) if true,
                     otherwise this raises the original exception
     """
     
+    fetchType = "list" if multiple else "str"
+    
+    if param in CONFIG["torrc.map"]:
+      # This is among the options fetched via a special command. The results
+      # are a set of values that (hopefully) contain the one we were
+      # requesting.
+      configMappings = self._getOption(CONFIG["torrc.map"][param], default, "map", suppressExc)
+      if param in configMappings:
+        if fetchType == "list": return configMappings[param]
+        else: return configMappings[param][0]
+      else: return default
+    else:
+      return self._getOption(param, default, fetchType, suppressExc)
+  
+  def getOptionMap(self, param, default = None, suppressExc = True):
+    """
+    Queries the control port for the given configuration option, providing back
+    a mapping of config options to a list of the values returned.
+    
+    There's three use cases for GETCONF:
+    - a single value is provided
+    - multiple values are provided for the option queried
+    - a set of options that weren't necessarily requested are returned (for
+      instance querying HiddenServiceOptions gives HiddenServiceDir,
+      HiddenServicePort, etc)
+    
+    The vast majority of the options fall into the first two catagories, in
+    which case calling getOption is sufficient. However, for the special
+    options that give a set of values this provides back the full response. As
+    of tor version 0.2.1.25 HiddenServiceOptions was the only option like this.
+    
+    The getOption function accounts for these special mappings, and the only
+    advantage to this funtion is that it provides all related values in a
+    single response.
+    
+    Arguments:
+      param       - configuration option to be queried
+      default     - result if the query fails and exception's suppressed
+      suppressExc - suppresses lookup errors (returning the default) if true,
+                    otherwise this raises the original exception
+    """
+    
+    return self._getOption(param, default, "map", suppressExc)
+  
+  # TODO: cache isn't updated (or invalidated) during SETCONF events:
+  # https://trac.torproject.org/projects/tor/ticket/1692
+  def _getOption(self, param, default, fetchType, suppressExc):
+    if not fetchType in ("str", "list", "map"):
+      msg = "BUG: unrecognized fetchType in torTools._getOption (%s)" % fetchType
+      log.log(log.ERR, msg)
+      return default
+    
     self.connLock.acquire()
+    startTime, raisedExc, isFromCache = time.time(), None, False
+    result = {} if fetchType == "map" else []
     
-    startTime = time.time()
-    result, raisedExc = [], None
     if self.isAlive():
-      try:
-        if multiple:
-          for key, value in self.conn.get_option(param):
-            if value != None: result.append(value)
-        else:
-          getConfVal = self.conn.get_option(param)[0][1]
-          if getConfVal != None: result = getConfVal
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-        if type(exc) == TorCtl.TorCtlClosed: self.close()
-        result, raisedExc = default, exc
+      if (param, fetchType) in self._cachedConf:
+        isFromCache = True
+        result = self._cachedConf[(param, fetchType)]
+      else:
+        try:
+          if fetchType == "str":
+            getConfVal = self.conn.get_option(param)[0][1]
+            if getConfVal != None: result = getConfVal
+          else:
+            for key, value in self.conn.get_option(param):
+              if value != None:
+                if fetchType == "list": result.append(value)
+                elif fetchType == "map":
+                  if key in result: result.append(value)
+                  else: result[key] = [value]
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+          if type(exc) == TorCtl.TorCtlClosed: self.close()
+          result, raisedExc = default, exc
     
-    msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
+    if not isFromCache and result:
+      cacheValue = result
+      if fetchType == "list": cacheValue = list(result)
+      elif fetchType == "map": cacheValue = dict(result)
+      self._cachedConf[(param, fetchType)] = cacheValue
+    
+    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
+    msg = "GETCONF %s (%s)" % (param, runtimeLabel)
     log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
@@ -362,6 +432,59 @@ class Controller(TorCtl.PostEventListener):
     if not suppressExc and raisedExc: raise raisedExc
     elif result == []: return default
     else: return result
+  
+  def setOption(self, param, value):
+    """
+    Issues a SETCONF to set the given option/value pair. An exeptions raised
+    if it fails to be set.
+    
+    Arguments:
+      param - configuration option to be set
+      value - value to set the parameter to (this can be either a string or a
+              list of strings)
+    """
+    
+    isMultiple = isinstance(value, list) or isinstance(value, tuple)
+    self.connLock.acquire()
+    
+    startTime, raisedExc = time.time(), None
+    if self.isAlive():
+      try:
+        if isMultiple: self.conn.set_options([(param, val) for val in value])
+        else: self.conn.set_option(param, value)
+        
+        # flushing cached values (needed until we can detect SETCONF calls)
+        for fetchType in ("str", "list", "map"):
+          entry = (param, fetchType)
+          
+          if entry in self._cachedConf:
+            del self._cachedConf[entry]
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
+        if type(exc) == TorCtl.TorCtlClosed: self.close()
+        elif type(exc) == TorCtl.ErrorReply:
+          excStr = str(exc)
+          if excStr.startswith("513 Unacceptable option value: "):
+            # crops off the common error prefix
+            excStr = excStr[31:]
+            
+            # Truncates messages like:
+            # Value 'BandwidthRate la de da' is malformed or out of bounds.
+            # to: Value 'la de da' is malformed or out of bounds.
+            if excStr.startswith("Value '"):
+              excStr = excStr.replace("%s " % param, "", 1)
+            
+            exc = TorCtl.ErrorReply(excStr)
+        
+        raisedExc = exc
+    
+    self.connLock.release()
+    
+    setCall = "%s %s" % (param, ", ".join(value) if isMultiple else value)
+    excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
+    msg = "SETCONF %s (%sruntime: %0.4f)" % (setCall.strip(), excLabel, time.time() - startTime)
+    log.log(CONFIG["log.torSetConf"], msg)
+    
+    if raisedExc: raise raisedExc
   
   def getMyNetworkStatus(self, default = None):
     """
@@ -639,6 +762,7 @@ class Controller(TorCtl.PostEventListener):
         try:
           self.conn.send_signal("RELOAD")
           self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
           # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
@@ -683,6 +807,7 @@ class Controller(TorCtl.PostEventListener):
             else: raise IOError("failed silently")
           
           self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
     
@@ -876,8 +1001,9 @@ class Controller(TorCtl.PostEventListener):
       eventType - enum representing tor's new status
     """
     
-    # resets cached getInfo parameters
+    # resets cached GETINFO and GETCONF parameters
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    self._cachedConf = {}
     
     # gives a notice that the control port has closed
     if eventType == TOR_CLOSED:

@@ -54,6 +54,26 @@ def isAvailable(command, cached=True):
     CMD_AVAILABLE_CACHE[command] = cmdExists
     return cmdExists
 
+def getFileErrorMsg(exc):
+  """
+  Strips off the error number prefix for file related IOError messages. For
+  instance, instead of saying:
+  [Errno 2] No such file or directory
+  
+  this would return:
+  no such file or directory
+  
+  Arguments:
+    exc - file related IOError exception
+  """
+  
+  excStr = str(exc)
+  if excStr.startswith("[Errno ") and "] " in excStr:
+    excStr = excStr[excStr.find("] ") + 2:].strip()
+    excStr = excStr[0].lower() + excStr[1:]
+  
+  return excStr
+
 def call(command, cacheAge=0, suppressExc=False, quiet=True):
   """
   Convenience function for performing system calls, providing:

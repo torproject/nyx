@@ -37,8 +37,7 @@ class BandwidthStats(graphPanel.GraphStats):
     
     self._config = dict(DEFAULT_CONFIG)
     if config:
-      config.update(self._config)
-      self._config["features.graph.bw.accounting.rate"] = max(1, self._config["features.graph.bw.accounting.rate"])
+      config.update(self._config, {"features.graph.bw.accounting.rate": 1})
     
     # accounting data (set by _updateAccountingInfo method)
     self.accountingLastUpdated = 0

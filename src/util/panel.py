@@ -2,7 +2,6 @@
 Wrapper for safely working with curses subwindows.
 """
 
-import sys
 import traceback
 import curses
 from threading import RLock
@@ -224,15 +223,6 @@ class Panel():
         self.win.erase() # clears any old contents
         self.draw(self.win, self.maxX - 1, self.maxY)
       self.win.refresh()
-    except:
-      # without terminating curses continues in a zombie state (requiring a
-      # kill signal to quit, and screwing up the terminal)
-      # TODO: provide a nicer, general purpose handler for unexpected exceptions
-      try:
-        tracebackFile = open("/tmp/armTraceback", "w")
-        traceback.print_exc(file=tracebackFile)
-      finally:
-        sys.exit(1)
     finally:
       CURSES_LOCK.release()
   
@@ -252,7 +242,12 @@ class Panel():
     # subwindows need a single character buffer (either in the x or y 
     # direction) from actual content to prevent crash when shrank
     if self.win and self.maxX > x and self.maxY > y:
-      self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+      try:
+        self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+      except:
+        # this might produce a _curses.error during edge cases, for instance
+        # when resizing with visible popups
+        pass
   
   def addfstr(self, y, x, msg):
     """
@@ -337,6 +332,43 @@ class Panel():
         baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
         raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
   
+  def getstr(self, y, x, initialText = ""):
+    """
+    Provides a text field where the user can input a string, blocking until
+    they've done so and returning the result. If the user presses escape then
+    this terminates and provides back None. This should only be called from
+    the context of a panel's draw method.
+    
+    Arguments:
+      y           - vertical location
+      x           - horizontal location
+      initialText - starting text in this field
+    """
+    
+    # makes cursor visible
+    try: previousCursorState = curses.curs_set(1)
+    except curses.error: previousCursorState = 0
+    
+    # temporary subwindow for user input
+    displayWidth = self.getPreferredSize()[1]
+    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, x)
+    
+    # prepopulates the initial text
+    if initialText: inputSubwindow.addstr(0, 0, initialText)
+    
+    # Displays the text field, blocking until the user's done. This closes the
+    # text panel and returns userInput to the initial text if the user presses
+    # escape.
+    textbox = curses.textpad.Textbox(inputSubwindow, True)
+    userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
+    if textbox.lastcmd == curses.ascii.BEL: userInput = None
+    
+    # reverts visability settings
+    try: curses.curs_set(previousCursorState)
+    except curses.error: pass
+    
+    return userInput
+  
   def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1):
     """
     Draws a left justified scroll bar reflecting position within a vertical
@@ -375,6 +407,10 @@ class Panel():
     if top > 0: sliderTop = max(sliderTop, 1)
     if bottom != size: sliderTop = min(sliderTop, scrollbarHeight - sliderSize - 2)
     
+    # avoids a rounding error that causes the scrollbar to be too low when at
+    # the bottom
+    if bottom == size: sliderTop = scrollbarHeight - sliderSize - 1
+    
     # draws scrollbar slider
     for i in range(scrollbarHeight):
       if i >= sliderTop and i <= sliderTop + sliderSize:
@@ -382,8 +418,8 @@ class Panel():
     
     # draws box around the scroll bar
     self.win.vline(drawTop, 1, curses.ACS_VLINE, self.maxY - 2)
-    self.win.vline(drawBottom, 1, curses.ACS_LRCORNER, 1)
-    self.win.hline(drawBottom, 0, curses.ACS_HLINE, 1)
+    self.win.addch(drawBottom, 1, curses.ACS_LRCORNER)
+    self.win.addch(drawBottom, 0, curses.ACS_HLINE)
   
   def _resetSubwindow(self):
     """
@@ -426,4 +462,38 @@ class Panel():
       msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)
       log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
+
+def _textboxValidate(textbox, key):
+  """
+  Interceptor for keystrokes given to a textbox, doing the following:
+  - quits by setting the input to curses.ascii.BEL when escape is pressed
+  - stops the cursor at the end of the box's content when pressing the right
+    arrow
+  - home and end keys move to the start/end of the line
+  """
   
+  y, x = textbox.win.getyx()
+  if key == 27:
+    # curses.ascii.BEL is a character codes that causes textpad to terminate
+    return curses.ascii.BEL
+  elif key == curses.KEY_HOME:
+    textbox.win.move(y, 0)
+    return None
+  elif key in (curses.KEY_END, curses.KEY_RIGHT):
+    msgLen = len(textbox.gather())
+    textbox.win.move(y, x) # reverts cursor movement during gather call
+    
+    if key == curses.KEY_END and msgLen > 0 and x < msgLen - 1:
+      # if we're in the content then move to the end
+      textbox.win.move(y, msgLen - 1)
+      return None
+    elif key == curses.KEY_RIGHT and x >= msgLen - 1:
+      # don't move the cursor if there's no content after it
+      return None
+  elif key == 410:
+    # if we're resizing the display during text entry then cancel it
+    # (otherwise the input field is filled with nonprintable characters)
+    return curses.ascii.BEL
+  
+  return key
+

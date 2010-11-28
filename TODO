@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap and completed work for next release (1.3.8)
+- Roadmap and completed work for next release (1.4.1)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -9,34 +9,45 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [ ] conf panel
-        - move torrc validation into util
-        - fetch text via getinfo rather than reading directly?
-           conn.get_info("config-text")
-        - improve parsing failure notice to give line number
-          just giving "[ARM-WARN] Unable to validate torrc" isn't very
-          helpful...
       [ ] conn panel
         - expand client connections and note location in circuit (entry-exit)
-        - for clients list all connections to detect what's going through tor
-          and what isn't? If not then netstat calls are unnecessary.
-        - check family connections to see if they're alive (VERSION cell
+        - for clients give an option to list all connections, to tell which are
+          going through tor and which might be leaking
+        - check family members to see if they're alive (VERSION cell
           handshake?)
         - fallback when pid or connection querying via pid is unavailable
           List all connections listed both by netstat and the consensus
         - note when connection times are estimates (color?), ie connection
           was established before arm
         - connection uptime to associate inbound/outbound connections?
-        - Identify controller connections (if it's arm, vidalia, etc) with
+        - identify controller connections (if it's arm, vidalia, etc) with
           special detail page for them
-        - provide bridge / client country statistics
+        - provide bridge / client country / exiting port statistics
           Include bridge related data via GETINFO option (feature request
           by waltman and ioerror).
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
-        - give usage stats for exit port usage (popup?)
-        - country data for client connections (requested by ioerror)
+      [ ] control port interpreter (interactive prompt)
+          Panel and startup option (-t maybe?) for providing raw control port
+          access along with usability improvements (piggybacking on the arm
+          connection):
+          - irc like help (ex "/help GETINFO" could provide a summary of
+            getinfo commands, partly using the results from
+            "GETINFO info/names")
+          - tab completion and up/down for previous commands
+          - warn and get confirmation if command would disrupt arm (for
+            instance 'SETEVENTS')
+          - 'safe' option that restricts to read-only access (start with this)
+          - issue sighup reset
+      [ ] low hanging fruit from the "client mode use cases" below
+  * release prep
+    * pylint --indent-string="  " --disable=C,R interface/foo.py | less
+    * double check __init__.py and README for changes
+
+- Roadmap for version 1.4.2
+  [ ] refactor panels
+      [ ] controller and popup panels
       [ ] attempt to clear controller password from memory
         - http://www.codexon.com/posts/clearing-passwords-in-memory-with-python
   * release prep
@@ -49,6 +60,12 @@ TODO
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
         - provide measurements for startup time, and try to improve bottlenecks
+  [ ] menus
+      - http://gnosis.cx/publish/programming/charming_python_6.html ?
+      - additional options:
+        - make update rates configurable via the ui
+        - dialog with flag descriptions and other help
+        - menu with all torrc options (making them editable/toggleable)
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
         - attempt to verify download signature, providing a warning if unable
@@ -60,7 +77,10 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
-  * path for sample armrc in man page is wrong
+  * Log deduplication is currently an n^2 operation. Hence it can't handle
+    large logs (for instance, when at the DEBUG runlevel). Currently we're
+    timing out the function if it takes too long, but a more efficient method
+    for deduplication would be preferable.
   * when in client mode and tor stops the header panel doesn't say so
   * util are assuming that tor is running under the default command name
       attempt to determine the command name at runtime (if the pid is available
@@ -73,17 +93,10 @@ TODO
       timestamps to see if it belongs to this tor instance. This requires
       tor's uptime - blocked on implementation of the following proposal:
       https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
-  
-  * conf panel:
-    * torrc validation doesn't catch if parameters are missing
-    * scrolling in the torrc isn't working properly when comments are stripped
-        Current method of displaying torrc is pretty stupid (lots of repeated
-        work in display loop). When rewritten fixing this bug should be
-        trivial.
-    * "ExitPolicy" entry in torrc (without path)
-        Produces "May 26 22:11:03.484 [warn] The abbreviation 'ExitPolic' is
-        deprecated. Please use 'ExitPolicy' instead". This is an error in the
-        torrc parsing when only the key is provided.
+  * the STATUS_SERVER event may not be supported
+      18:52 < mikeperry> atagar: I believe there is no event parsing for STATUS_SERVER
+      18:53 < mikeperry> atagar: see TorCtl.EventSink and classes that inherit from it
+      18:54 < mikeperry> specifically, TorCtl.EventHandler._decode1, _handle1, and _map1
   
   * conn panel:
     * *never* do reverse dns lookups for first hops (could be resolving via
@@ -108,22 +121,6 @@ TODO
     * connections aren't cleared when control port closes
 
 - Future Features
-  * control port interpreter (interactive prompt)
-    Panel and startup option (-t maybe?) for providing raw control port access
-    along with usability improvements (piggybacking on the arm connection):
-      * irc like help (ex "/help GETINFO" could provide a summary of getinfo
-        commands, partly using the results from "GETINFO info/names")
-      * tab completion and up/down for previous commands
-      * warn and get confirmation if command would disrupt arm (for instance
-        'SETEVENTS')
-      * 'safe' option that restricts to read-only access (start with this)
-      * issue sighup reset
-  * menus
-    * http://gnosis.cx/publish/programming/charming_python_6.html ?
-    * additional options:
-      * make update rates configurable via the ui
-      * dialog with flag descriptions and other help
-      * menu with all torrc options (making them editable/toggleable)
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
       replace the orport, fingerprint, flags, etc)
@@ -145,13 +142,15 @@ TODO
           fetching everything at each client
         * possibly make these archives downloadable from peer relays (this is a
           no-go for clients) via torrents or some dirport like scheme
-    * look at vidalia for ideas
+    * look at Vidalia and TorK for ideas
     * need to solicit for ideas on what would be most helpful to clients
-  * general purpose method of erroring nicely
-    Some errors cause portions of the display to die, but curses limps along
-    and overwrites the stacktrace. This has been mostly solved, but all errors
-    should result in a clean death, with the stacktrace saved and a nice
-    message for the user.
+    * dialog with bridge statuses (idea by mikeperry)
+      https://trac.vidalia-project.net/ticket/570
+      https://trac.torproject.org/projects/tor/ticket/2068
+  * feature parity for arm's config values (armrc entries)
+    * editability
+    * parse descriptions from the man page? autogeneration of the man page from
+      something storing the descriptions
   * handle mutiple tor instances
     * screen style (dialog for switching between instances)
     * extra window with whatever stats can be aggregated over all instances
@@ -179,6 +178,9 @@ TODO
         Plugin for distutils. Like most mac packaging, this can only run on a
         mac. It also requires setuptools:
         http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+  * tab completion for input fields that expect a filesystem path
+  * look through vidalia's tickets for more ideas
+    https://trac.vidalia-project.net/
   * look into additions to the used apis
     * curses (python 2.6 extended?): http://docs.python.org/library/curses.html
     * new control options (like "desc-annotations/id/<OR identity>")?
@@ -216,6 +218,9 @@ TODO
   * implement control-spec proposals:
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+  * gui frontend (gtk?)
+    Look into if the arm utilities and codebase would fit nicely for a gui
+    controller like Vidalia and TorK.
   * unit tests
     Primarily for util, for instance 'addfstr' would be a good candidate.
   * python 3 compatibility

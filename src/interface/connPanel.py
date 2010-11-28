@@ -89,7 +89,8 @@ def getSortLabel(sortType, withColor = False):
         elif label == "Country Code": color = "yellow"
         elif label == "Connection Time": color = "magenta"
       
-      if color: return "<%s>%s</%s>" % (color, label, color)
+      #if color: return "<%s>%s</%s>" % (color, label, color)
+      if color: return (label, color)
       else: return label
   
   raise ValueError(sortType)

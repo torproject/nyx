@@ -88,6 +88,7 @@ Layout:
   arm     - startup script
   install - installation script
   
+  arm.1        - man page
   armrc.sample - example arm configuration file with defaults
   ChangeLog    - revision history
   LICENSE      - copy of the gpl v3
@@ -95,17 +96,13 @@ Layout:
   TODO         - known issues, future plans, etc
   setup.py     - distutils installation script for arm
   
-  debian/     - resources for generating debs and rpms (most is metadata)
-    make-deb  - script for generating debian installer
-    make-rpm  - script for generating red hat installer
-    arm.1.gz  - man page
-  
   src/
     __init__.py
-    starter.py  - parses and validates commandline parameters
-    prereq.py   - checks python version and for required packages
-    version.py  - version and last modified information
-    uninstall   - removal script
+    starter.py   - parses and validates commandline parameters
+    prereq.py    - checks python version and for required packages
+    version.py   - version and last modified information
+    settings.cfg - attributes loaded for parsing tor related data
+    uninstall    - removal script
     
     interface/
       graphing/
@@ -125,7 +122,8 @@ Layout:
       connPanel.py           - (page 2) displays information on tor connections
       descriptorPopup.py     - (popup) displays connection descriptor data
       
-      confPanel.py           - (page 3) displays torrc and performs validation
+      configPanel.py         - (page 3) editor panel for the tor configuration
+      torrcPanel.py          - (page 4) displays torrc and validation
     
     util/
       __init__.py
@@ -135,6 +133,7 @@ Layout:
       log.py         - aggregator for application events
       panel.py       - wrapper for safely working with curses subwindows
       sysTools.py    - helper for system calls, providing client side caching
+      torConfig.py   - functions for working with the torrc and config options
       torTools.py    - TorCtl wrapper, providing caching and derived information
       uiTools.py     - helper functions for presenting the user interface
 

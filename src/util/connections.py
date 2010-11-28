@@ -147,7 +147,7 @@ def getResolver(processName, processPid = ""):
   else: RESOLVERS[haltedIndex] = r
   return r
 
-if __name__ == '__main__':
+def test():
   # quick method for testing connection resolution
   userInput = raw_input("Enter query (<ss, netstat, lsof> PROCESS_NAME [PID]): ").split()
   

@@ -14,17 +14,13 @@ would be loaded as four entries (the last one's value being an empty string).
 If a key's defined multiple times then the last instance of it is used.
 """
 
-import os
 import threading
 
 from util import log
 
 CONFS = {}  # mapping of identifier to singleton instances of configs
 CONFIG = {"log.configEntryNotFound": None,
-          "log.configEntryTypeError": log.INFO}
-
-# key prefixes that can contain multiple values
-LIST_KEYS = ["msg."]
+          "log.configEntryTypeError": log.NOTICE}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -42,21 +38,6 @@ def getConfig(handle):
   if not handle in CONFS: CONFS[handle] = Config()
   return CONFS[handle]
 
-def isListKey(configKey):
-  """
-  Provides true if the given configuration key can have multiple values (being
-  a list), false otherwise.
-  
-  Arguments:
-    configKey - configuration key to check
-  """
-  
-  for listKeyPrefix in LIST_KEYS:
-    if configKey.startswith(listKeyPrefix):
-      return True
-  
-  return False
-
 class Config():
   """
   Handler for easily working with custom configurations, providing persistence
@@ -73,27 +54,29 @@ class Config():
     Creates a new configuration instance.
     """
     
-    self.path = None        # path to the associated configuration file
+    self.path = None        # location last loaded from
     self.contents = {}      # configuration key/value pairs
     self.contentsLock = threading.RLock()
     self.requestedKeys = set()
     self.rawContents = []   # raw contents read from configuration file
   
-  def getValue(self, key, default=None):
+  def getValue(self, key, default=None, multiple=False):
     """
-    This provides the currently value associated with a given key, and a list
-    of values if isListKey(key) is true. If no such key exists then this
-    provides the default.
+    This provides the currently value associated with a given key. If no such
+    key exists then this provides the default.
     
     Arguments:
-      key     - config setting to be fetched
-      default - value provided if no such key exists
+      key      - config setting to be fetched
+      default  - value provided if no such key exists
+      multiple - provides back a list of all values if true, otherwise this
+                 returns the last loaded configuration value
     """
     
     self.contentsLock.acquire()
     
     if key in self.contents:
       val = self.contents[key]
+      if not multiple: val = val[-1]
       self.requestedKeys.add(key)
     else:
       msg = "config entry '%s' not found, defaulting to '%s'" % (key, str(default))
@@ -104,35 +87,35 @@ class Config():
     
     return val
   
-  def get(self, key, default=None, minValue=0, maxValue=None):
+  def get(self, key, default=None):
     """
     Fetches the given configuration, using the key and default value to hint
     the type it should be. Recognized types are:
+    - logging runlevel if key starts with "log."
     - boolean if default is a boolean (valid values are 'true' and 'false',
       anything else provides the default)
     - integer or float if default is a number (provides default if fails to
       cast)
-    - logging runlevel if key starts with "log."
-    - list if isListKey(key) is true
+    - list of all defined values default is a list
+    - mapping of all defined values (key/value split via "=>") if the default
+      is a dict
     
     Arguments:
       key      - config setting to be fetched
       default  - value provided if no such key exists
-      minValue - if set and default value is numeric then uses this constraint
-      maxValue - if set and default value is numeric then uses this constraint
     """
     
     callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
-    val = self.getValue(key, callDefault)
+    isMultivalue = isinstance(default, list) or isinstance(default, dict)
+    val = self.getValue(key, callDefault, isMultivalue)
     if val == default: return val
     
-    if isinstance(val, list):
-      pass
-    elif key.startswith("log."):
+    if key.startswith("log."):
       if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
         val = log.strToRunlevel(val)
       else:
-        msg = "config entry '%s' is expected to be a runlevel, defaulting to '%s'" % (key, callDefault)
+        msg = "config entry '%s' is expected to be a runlevel" % key
+        if default != None: msg += ", defaulting to '%s'" % callDefault
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, bool):
@@ -143,37 +126,124 @@ class Config():
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, int):
-      try:
-        val = int(val)
-        if minValue: val = max(val, minValue)
-        if maxValue: val = min(val, maxValue)
+      try: val = int(val)
       except ValueError:
         msg = "config entry '%s' is expected to be an integer, defaulting to '%i'" % (key, default)
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, float):
-      try:
-        val = float(val)
-        if minValue: val = max(val, minValue)
-        if maxValue: val = min(val, maxValue)
+      try: val = float(val)
       except ValueError:
         msg = "config entry '%s' is expected to be a float, defaulting to '%f'" % (key, default)
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
+    elif isinstance(default, list):
+      pass # nothing special to do (already a list)
+    elif isinstance(default, dict):
+      valMap = {}
+      for entry in val:
+        if "=>" in entry:
+          entryKey, entryVal = entry.split("=>", 1)
+          valMap[entryKey.strip()] = entryVal.strip()
+        else:
+          msg = "ignoring invalid %s config entry (expected a mapping, but \"%s\" was missing \"=>\")" % (key, entry)
+          log.log(CONFIG["log.configEntryTypeError"], msg)
+      val = valMap
     
     return val
   
-  def update(self, confMappings):
+  def getStrCSV(self, key, default = None, count = None):
+    """
+    Fetches the given key as a comma separated value. This provides back a list
+    with the stripped values.
+    
+    Arguments:
+      key     - config setting to be fetched
+      default - value provided if no such key exists or doesn't match the count
+      count   - if set, then a TypeError is logged (and default returned) if
+                the number of elements doesn't match the count
+    """
+    
+    confValue = self.getValue(key)
+    if confValue == None: return default
+    else:
+      confComp = [entry.strip() for entry in confValue.split(",")]
+      
+      # check if the count doesn't match
+      if count != None and len(confComp) != count:
+        msg = "config entry '%s' is expected to be %i comma separated values" % (key, count)
+        if default != None and (isinstance(default, list) or isinstance(default, tuple)):
+          defaultStr = ", ".join([str(i) for i in default])
+          msg += ", defaulting to '%s'" % defaultStr
+        
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+        return default
+      
+      return confComp
+  
+  def getIntCSV(self, key, default = None, count = None, minValue = None, maxValue = None):
+    """
+    Fetches the given comma separated value, logging a TypeError (and returning
+    the default) if the values arne't ints or aren't constrained to the given
+    bounds.
+    
+    Arguments:
+      key      - config setting to be fetched
+      default  - value provided if no such key exists, doesn't match the count,
+                 values aren't all integers, or doesn't match the bounds
+      count    - checks that the number of values matches this if set
+      minValue - checks that all values are over this if set
+      maxValue - checks that all values are less than this if set
+    """
+    
+    confComp = self.getStrCSV(key, default, count)
+    if confComp == default: return default
+    
+    # validates the input, setting the errorMsg if there's a problem
+    errorMsg = None
+    baseErrorMsg = "config entry '%s' is expected to %%s" % key
+    if default != None and (isinstance(default, list) or isinstance(default, tuple)):
+      defaultStr = ", ".join([str(i) for i in default])
+      baseErrorMsg += ", defaulting to '%s'" % defaultStr
+    
+    for val in confComp:
+      if not val.isdigit():
+        errorMsg = baseErrorMsg % "only have integer values"
+        break
+      else:
+        if minValue != None and int(val) < minValue:
+          errorMsg = baseErrorMsg % "only have values over %i" % minValue
+          break
+        elif maxValue != None and int(val) > maxValue:
+          errorMsg = baseErrorMsg % "only have values less than %i" % maxValue
+          break
+    
+    if errorMsg:
+      log.log(CONFIG["log.configEntryTypeError"], errorMsg)
+      return default
+    else: return [int(val) for val in confComp]
+
+  def update(self, confMappings, limits = {}):
     """
     Revises a set of key/value mappings to reflect the current configuration.
     Undefined values are left with their current values.
     
     Arguments:
       confMappings - configuration key/value mappings to be revised
+      limits       - mappings of limits on numeric values, expected to be of
+                     the form "configKey -> min" or "configKey -> (min, max)"
     """
     
     for entry in confMappings.keys():
-      confMappings[entry] = self.get(entry, confMappings[entry])
+      val = self.get(entry, confMappings[entry])
+      
+      if entry in limits and (isinstance(val, int) or isinstance(val, float)):
+        if isinstance(limits[entry], tuple):
+          val = max(val, limits[entry][0])
+          val = min(val, limits[entry][1])
+        else: val = max(val, limits[entry])
+      
+      confMappings[entry] = val
   
   def getKeys(self):
     """
@@ -211,45 +281,39 @@ class Config():
     self.contents.clear()
     self.contentsLock.release()
   
-  def load(self):
+  def load(self, path):
     """
-    Reads in the contents of the currently set configuration file (appending
-    any results to the current configuration). If the file's empty or doesn't
-    exist then this doesn't do anything.
+    Reads in the contents of the given path, adding its configuration values
+    and overwriting any that already exist. If the file's empty then this
+    doesn't do anything. Other issues (like having insufficient permissions or
+    if the file doesn't exist) result in an IOError.
     
-    Other issues (like having an unset path or insufficient permissions) result
-    in an IOError.
+    Arguments:
+      path - file path to be loaded
     """
     
-    if not self.path: raise IOError("unable to load (config path undefined)")
+    configFile = open(path, "r")
+    self.rawContents = configFile.readlines()
+    configFile.close()
     
-    if os.path.exists(self.path):
-      configFile = open(self.path, "r")
-      self.rawContents = configFile.readlines()
-      configFile.close()
+    self.contentsLock.acquire()
+    
+    for line in self.rawContents:
+      # strips any commenting or excess whitespace
+      commentStart = line.find("#")
+      if commentStart != -1: line = line[:commentStart]
+      line = line.strip()
       
-      self.contentsLock.acquire()
-      
-      for line in self.rawContents:
-        # strips any commenting or excess whitespace
-        commentStart = line.find("#")
-        if commentStart != -1: line = line[:commentStart]
-        line = line.strip()
+      # parse the key/value pair
+      if line and " " in line:
+        key, value = line.split(" ", 1)
+        value = value.strip()
         
-        # parse the key/value pair
-        if line:
-          key, value = line, ""
-          
-          # gets the key/value pair (no value was given if there isn't a space)
-          if " " in line: key, value = line.split(" ", 1)
-          
-          if isListKey(key):
-            if key in self.contents: self.contents[key].append(value)
-            else: self.contents[key] = [value]
-          else:
-            self.contents[key] = value
-      
-      self.contentsLock.release()
+        if key in self.contents: self.contents[key].append(value)
+        else: self.contents[key] = [value]
+    
+    self.path = path
+    self.contentsLock.release()
   
   def save(self, saveBackup=True):
     """

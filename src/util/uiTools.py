@@ -8,6 +8,7 @@ easy method of providing the following interface components:
 import sys
 import curses
 
+from curses.ascii import isprint
 from util import log
 
 # colors curses can handle
@@ -28,8 +29,8 @@ SIZE_UNITS_BITS =  [(140737488355328.0, " Pb", " Petabit"), (137438953472.0, " T
 SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
                     (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
                     (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
-TIME_UNITS = [(86400.0, "d", " day"),                   (3600.0, "h", " hour"),
-              (60.0, "m", " minute"),                   (1.0, "s", " second")]
+TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
+              (60.0, "m", " minute"), (1.0, "s", " second")]
 
 END_WITH_ELLIPSE, END_WITH_HYPHEN = range(1, 3)
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
@@ -38,6 +39,66 @@ CONFIG = {"features.colorInterface": True,
 
 def loadConfig(config):
   config.update(CONFIG)
+
+def demoGlyphs():
+  """
+  Displays all ACS options with their corresponding representation. These are
+  undocumented in the pydocs. For more information see the following man page:
+  http://www.mkssoftware.com/docs/man5/terminfo.5.asp
+  """
+  
+  try: curses.wrapper(_showGlyphs)
+  except KeyboardInterrupt: pass # quit
+
+def _showGlyphs(stdscr):
+  """
+  Renders a chart with the ACS glyphs.
+  """
+  
+  # allows things like semi-transparent backgrounds
+  try: curses.use_default_colors()
+  except curses.error: pass
+  
+  # attempts to make the cursor invisible
+  try: curses.curs_set(0)
+  except curses.error: pass
+  
+  acsOptions = [item for item in curses.__dict__.items() if item[0].startswith("ACS_")]
+  acsOptions.sort(key=lambda i: (i[1])) # order by character codes
+  
+  # displays a chart with all the glyphs and their representations
+  height, width = stdscr.getmaxyx()
+  if width < 30: return # not enough room to show a column
+  columns = width / 30
+  
+  # display title
+  stdscr.addstr(0, 0, "Curses Glyphs:", curses.A_STANDOUT)
+  
+  x, y = 0, 1
+  while acsOptions:
+    name, keycode = acsOptions.pop(0)
+    stdscr.addstr(y, x * 30, "%s (%i)" % (name, keycode))
+    stdscr.addch(y, (x * 30) + 25, keycode)
+    
+    x += 1
+    if x >= columns:
+      x, y = 0, y + 1
+      if y >= height: break
+  
+  stdscr.getch() # quit on keyboard input
+
+def getPrintable(line, keepNewlines = True):
+  """
+  Provides the line back with non-printable characters stripped.
+  
+  Arguments:
+    line          - string to be processed
+    stripNewlines - retains newlines if true, stripped otherwise
+  """
+  
+  line = line.replace('\xc2', "'")
+  line = "".join([char for char in line if (isprint(char) or (keepNewlines and char == "\n"))])
+  return line
 
 def getColor(color):
   """
@@ -61,7 +122,9 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
   isn't room for even a truncated single word (or one word plus the ellipse if
-  including those) then this provides an empty string. Examples:
+  including those) then this provides an empty string. If a cropped string ends
+  with a comma or period then it's stripped (unless we're providing the
+  remainder back). Examples:
   
   cropStr("This is a looooong message", 17)
   "This is a looo..."
@@ -86,26 +149,28 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
                    cropped portion of the message
   """
   
-  if minWordLen == None: minWordLen = sys.maxint
-  minWordLen = max(0, minWordLen)
-  minCrop = max(0, minCrop)
-  
   # checks if there's room for the whole message
   if len(msg) <= size:
     if getRemainder: return (msg, "")
     else: return msg
   
+  # avoids negative input
+  size = max(0, size)
+  if minWordLen != None: minWordLen = max(0, minWordLen)
+  minCrop = max(0, minCrop)
+  
   # since we're cropping, the effective space available is less with an
   # ellipse, and cropping words requires an extra space for hyphens
   if endType == END_WITH_ELLIPSE: size -= 3
-  elif endType == END_WITH_HYPHEN: minWordLen += 1
+  elif endType == END_WITH_HYPHEN and minWordLen != None: minWordLen += 1
   
   # checks if there isn't the minimum space needed to include anything
-  if size <= minWordLen:
+  lastWordbreak = msg.rfind(" ", 0, size + 1)
+  if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
     if getRemainder: return ("", msg)
     else: return ""
   
-  lastWordbreak = msg.rfind(" ", 0, size + 1)
+  if minWordLen == None: minWordLen = sys.maxint
   includeCrop = size - lastWordbreak - 1 >= minWordLen
   
   # if there's a max crop size then make sure we're cropping at least that many characters
@@ -122,7 +187,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
-  if returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
+  if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
   
   if endType == END_WITH_ELLIPSE: returnMsg += "..."
   
@@ -137,7 +202,7 @@ def isScrollKey(key):
   
   return key in SCROLL_KEYS
 
-def getScrollPosition(key, position, pageHeight, contentHeight):
+def getScrollPosition(key, position, pageHeight, contentHeight, isCursor = False):
   """
   Parses navigation keys, providing the new scroll possition the panel should
   use. Position is always between zero and (contentHeight - pageHeight). This
@@ -154,19 +219,21 @@ def getScrollPosition(key, position, pageHeight, contentHeight):
     position      - starting position
     pageHeight    - size of a single screen's worth of content
     contentHeight - total lines of content that can be scrolled
+    isCursor      - tracks a cursor position rather than scroll if true
   """
   
   if isScrollKey(key):
     shift = 0
     if key == curses.KEY_UP: shift = -1
     elif key == curses.KEY_DOWN: shift = 1
-    elif key == curses.KEY_PPAGE: shift = -pageHeight
-    elif key == curses.KEY_NPAGE: shift = pageHeight
+    elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if isCursor else -pageHeight
+    elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if isCursor else pageHeight
     elif key == curses.KEY_HOME: shift = -contentHeight
     elif key == curses.KEY_END: shift = contentHeight
     
     # returns the shift, restricted to valid bounds
-    return max(0, min(position + shift, contentHeight - pageHeight))
+    maxLoc = contentHeight - 1 if isCursor else contentHeight - pageHeight
+    return max(0, min(position + shift, maxLoc))
   else: return position
 
 def getSizeLabel(bytes, decimal = 0, isLong = False, isBytes=True):
@@ -237,6 +304,90 @@ def getTimeLabels(seconds, isLong = False):
       seconds %= countPerUnit
   
   return timeLabels
+
+class Scroller:
+  """
+  Tracks the scrolling position when there might be a visible cursor. This
+  expects that there is a single line displayed per an entry in the contents.
+  """
+  
+  def __init__(self, isCursorEnabled):
+    self.scrollLoc, self.cursorLoc = 0, 0
+    self.cursorSelection = None
+    self.isCursorEnabled = isCursorEnabled
+  
+  def getScrollLoc(self, content, pageHeight):
+    """
+    Provides the scrolling location, taking into account its cursor's location
+    content size, and page height.
+    
+    Arguments:
+      content    - displayed content
+      pageHeight - height of the display area for the content
+    """
+    
+    if content and pageHeight:
+      self.scrollLoc = max(0, min(self.scrollLoc, len(content) - pageHeight + 1))
+      
+      if self.isCursorEnabled:
+        self.getCursorSelection(content) # resets the cursor location
+        
+        if self.cursorLoc < self.scrollLoc:
+          self.scrollLoc = self.cursorLoc
+        elif self.cursorLoc > self.scrollLoc + pageHeight - 1:
+          self.scrollLoc = self.cursorLoc - pageHeight + 1
+    
+    return self.scrollLoc
+  
+  def getCursorSelection(self, content):
+    """
+    Provides the selected item in the content. This is the same entry until
+    the cursor moves or it's no longer available (in which case it moves on to
+    the next entry).
+    
+    Arguments:
+      content - displayed content
+    """
+    
+    # TODO: needs to handle duplicate entries when using this for the
+    # connection panel
+    
+    if not self.isCursorEnabled: return None
+    elif not content:
+      self.cursorLoc, self.cursorSelection = 0, None
+      return None
+    
+    self.cursorLoc = min(self.cursorLoc, len(content) - 1)
+    if self.cursorSelection != None and self.cursorSelection in content:
+      # moves cursor location to track the selection
+      self.cursorLoc = content.index(self.cursorSelection)
+    else:
+      # select the next closest entry
+      self.cursorSelection = content[self.cursorLoc]
+    
+    return self.cursorSelection
+  
+  def handleKey(self, key, content, pageHeight):
+    """
+    Moves either the scroll or cursor according to the given input.
+    
+    Arguments:
+      key        - key code of user input
+      content    - displayed content
+      pageHeight - height of the display area for the content
+    """
+    
+    if self.isCursorEnabled:
+      self.getCursorSelection(content) # resets the cursor location
+      startLoc = self.cursorLoc
+    else: startLoc = self.scrollLoc
+    
+    newLoc = getScrollPosition(key, startLoc, pageHeight, len(content), self.isCursorEnabled)
+    if startLoc != newLoc:
+      if self.isCursorEnabled: self.cursorSelection = content[newLoc]
+      else: self.scrollLoc = newLoc
+      return True
+    else: return False
 
 def _getLabel(units, count, decimal, isLong):
   """

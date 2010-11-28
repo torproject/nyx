@@ -8,7 +8,6 @@ import time
 import os
 import curses
 import threading
-from curses.ascii import isprint
 
 from TorCtl import TorCtl
 
@@ -72,6 +71,9 @@ CACHED_DAYBREAKS_ARGUMENTS = (None, None) # events, current day
 CACHED_DAYBREAKS_RESULT = None
 CACHED_DUPLICATES_ARGUMENTS = None # events
 CACHED_DUPLICATES_RESULT = None
+
+# duration we'll wait for the deduplication function before giving up (in ms)
+DEDUPLICATION_TIMEOUT = 100
 
 def daysSince(timestamp=None):
   """
@@ -168,10 +170,10 @@ def loadLogMessages():
   for confKey in armConf.getKeys():
     if confKey.startswith("msg."):
       eventType = confKey[4:].upper()
-      messages = armConf.get(confKey)
+      messages = armConf.get(confKey, [])
       COMMON_LOG_MESSAGES[eventType] = messages
 
-def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
+def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = None):
   """
   Parses tor's log file for past events matching the given runlevels, providing
   a list of log entries (ordered newest to oldest). Limiting the number of read
@@ -182,10 +184,14 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
     runlevels - event types (DEBUG - ERR) to be returned
     readLimit - max lines of the log file that'll be read (unlimited if None)
     addLimit  - maximum entries to provide back (unlimited if None)
+    config    - configuration parameters related to this panel, uses defaults
+                if left as None
   """
   
   startTime = time.time()
   if not runlevels: return []
+  
+  if not config: config = DEFAULT_CONFIG
   
   # checks tor's configuration for the log file's location (if any exists)
   loggingTypes, loggingLocation = None, None
@@ -236,7 +242,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
       logFile.close()
   except IOError:
     msg = "Unable to read tor's log file: %s" % loggingLocation
-    log.log(DEFAULT_CONFIG["log.logPanel.prepopulateFailed"], msg)
+    log.log(config["log.logPanel.prepopulateFailed"], msg)
   
   if not lines: return []
   
@@ -278,7 +284,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   
   if addLimit: loggedEvents = loggedEvents[:addLimit]
   msg = "Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(loggedEvents), loggingLocation, readLimit, time.time() - startTime)
-  log.log(DEFAULT_CONFIG["log.logPanel.prepopulateSuccess"], msg)
+  log.log(config["log.logPanel.prepopulateSuccess"], msg)
   return loggedEvents
 
 def getDaybreaks(events, ignoreTimeForCache = False):
@@ -323,7 +329,8 @@ def getDuplicates(events):
   """
   Deduplicates a list of log entries, providing back a tuple listing with the
   log entry and count of duplicates following it. Entries in different days are
-  not considered to be duplicates.
+  not considered to be duplicates. This times out, returning None if it takes
+  longer than DEDUPLICATION_TIMEOUT.
   
   Arguments:
     events - chronologically ordered listing of events
@@ -336,35 +343,17 @@ def getDuplicates(events):
   # loads common log entries from the config if they haven't been
   if COMMON_LOG_MESSAGES == None: loadLogMessages()
   
+  startTime = time.time()
   eventsRemaining = list(events)
   returnEvents = []
   
   while eventsRemaining:
     entry = eventsRemaining.pop(0)
-    duplicateIndices = []
+    duplicateIndices = isDuplicate(entry, eventsRemaining, True)
     
-    for i in range(len(eventsRemaining)):
-      forwardEntry = eventsRemaining[i]
-      
-      # if showing dates then do duplicate detection for each day, rather
-      # than globally
-      if forwardEntry.type == DAYBREAK_EVENT: break
-      
-      if entry.type == forwardEntry.type:
-        isDuplicate = False
-        if entry.msg == forwardEntry.msg: isDuplicate = True
-        elif entry.type in COMMON_LOG_MESSAGES:
-          for commonMsg in COMMON_LOG_MESSAGES[entry.type]:
-            # if it starts with an asterisk then check the whole message rather
-            # than just the start
-            if commonMsg[0] == "*":
-              isDuplicate = commonMsg[1:] in entry.msg and commonMsg[1:] in forwardEntry.msg
-            else:
-              isDuplicate = entry.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg)
-            
-            if isDuplicate: break
-        
-        if isDuplicate: duplicateIndices.append(i)
+    # checks if the call timeout has been reached
+    if (time.time() - startTime) > DEDUPLICATION_TIMEOUT / 1000.0:
+      return None
     
     # drops duplicate entries
     duplicateIndices.reverse()
@@ -376,6 +365,48 @@ def getDuplicates(events):
   CACHED_DUPLICATES_RESULT = list(returnEvents)
   
   return returnEvents
+
+def isDuplicate(event, eventSet, getDuplicates = False):
+  """
+  True if the event is a duplicate for something in the eventSet, false
+  otherwise. If the getDuplicates flag is set this provides the indices of
+  the duplicates instead.
+  
+  Arguments:
+    event         - event to search for duplicates of
+    eventSet      - set to look for the event in
+    getDuplicates - instead of providing back a boolean this gives a list of
+                    the duplicate indices in the eventSet
+  """
+  
+  duplicateIndices = []
+  for i in range(len(eventSet)):
+    forwardEntry = eventSet[i]
+    
+    # if showing dates then do duplicate detection for each day, rather
+    # than globally
+    if forwardEntry.type == DAYBREAK_EVENT: break
+    
+    if event.type == forwardEntry.type:
+      isDuplicate = False
+      if event.msg == forwardEntry.msg: isDuplicate = True
+      elif event.type in COMMON_LOG_MESSAGES:
+        for commonMsg in COMMON_LOG_MESSAGES[event.type]:
+          # if it starts with an asterisk then check the whole message rather
+          # than just the start
+          if commonMsg[0] == "*":
+            isDuplicate = commonMsg[1:] in event.msg and commonMsg[1:] in forwardEntry.msg
+          else:
+            isDuplicate = event.msg.startswith(commonMsg) and forwardEntry.msg.startswith(commonMsg)
+          
+          if isDuplicate: break
+      
+      if isDuplicate:
+        if getDuplicates: duplicateIndices.append(i)
+        else: return True
+  
+  if getDuplicates: return duplicateIndices
+  else: return False
 
 class LogEntry():
   """
@@ -496,17 +527,16 @@ class LogPanel(panel.Panel, threading.Thread):
   def __init__(self, stdscr, loggedEvents, config=None):
     panel.Panel.__init__(self, stdscr, "log", 0)
     threading.Thread.__init__(self)
+    self.setDaemon(True)
     
     self._config = dict(DEFAULT_CONFIG)
     
     if config:
-      config.update(self._config)
-      
-      # ensures prepopulation and cache sizes are sane
-      self._config["features.log.maxLinesPerEntry"] = max(self._config["features.log.maxLinesPerEntry"], 1)
-      self._config["features.log.prepopulateReadLimit"] = max(self._config["features.log.prepopulateReadLimit"], 0)
-      self._config["features.log.maxRefreshRate"] = max(self._config["features.log.maxRefreshRate"], 10)
-      self._config["cache.logPanel.size"] = max(self._config["cache.logPanel.size"], 50)
+      config.update(self._config, {
+        "features.log.maxLinesPerEntry": 1,
+        "features.log.prepopulateReadLimit": 0,
+        "features.log.maxRefreshRate": 10,
+        "cache.logPanel.size": 1000})
     
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
@@ -543,7 +573,7 @@ class LogPanel(panel.Panel, threading.Thread):
       setRunlevels = list(set.intersection(set(self.loggedEvents), set(RUNLEVELS)))
       readLimit = self._config["features.log.prepopulateReadLimit"]
       addLimit = self._config["cache.logPanel.size"]
-      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit)
+      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
     
     # adds arm listener and fetches past events
     log.LOG_LOCK.acquire()
@@ -561,7 +591,7 @@ class LogPanel(panel.Panel, threading.Thread):
       for level, msg, eventTime in log._getEntries(setRunlevels):
         runlevelStr = log.RUNLEVEL_STR[level]
         armEventEntry = LogEntry(eventTime, "ARM_" + runlevelStr, msg, RUNLEVEL_EVENT_COLOR[runlevelStr])
-        armEventBacklog.append(armEventEntry)
+        armEventBacklog.insert(0, armEventEntry)
       
       # joins armEventBacklog and torEventBacklog chronologically into msgLog
       while armEventBacklog or torEventBacklog:
@@ -599,7 +629,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.logFile = open(logPath, "a")
         log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
       except IOError, exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
   
   def registerEvent(self, event):
@@ -613,7 +643,7 @@ class LogPanel(panel.Panel, threading.Thread):
     if not event.type in self.loggedEvents: return
     
     # strips control characters to avoid screwing up the terminal
-    event.msg = "".join([char for char in event.msg if (isprint(char) or char == "\n")])
+    event.msg = uiTools.getPrintable(event.msg)
     
     # note event in the log file if we're saving them
     if self.logFile:
@@ -621,10 +651,9 @@ class LogPanel(panel.Panel, threading.Thread):
         self.logFile.write(event.getDisplayMessage(True) + "\n")
         self.logFile.flush()
       except IOError, exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % exc)
+        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
-    cacheSize = self._config["cache.logPanel.size"]
     if self._isPaused:
       self.valsLock.acquire()
       self._pauseBuffer.insert(0, event)
@@ -778,7 +807,14 @@ class LogPanel(panel.Panel, threading.Thread):
     
     isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
     eventLog = getDaybreaks(self.msgLog, self._isPaused) if isDatesShown else list(self.msgLog)
-    if not self.showDuplicates: deduplicatedLog = getDuplicates(eventLog)
+    if not self.showDuplicates:
+      deduplicatedLog = getDuplicates(eventLog)
+      
+      if deduplicatedLog == None:
+        msg = "Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive."
+        log.log(log.WARN, msg)
+        self.showDuplicates = True
+        deduplicatedLog = [(entry, 0) for entry in eventLog]
     else: deduplicatedLog = [(entry, 0) for entry in eventLog]
     
     # determines if we have the minimum width to show date dividers
@@ -838,7 +874,7 @@ class LogPanel(panel.Panel, threading.Thread):
           if lineOffset == maxEntriesPerLine: break
           
           maxMsgSize = width - cursorLoc
-          if len(msg) >= maxMsgSize:
+          if len(msg) > maxMsgSize:
             # message is too long - break it up
             if lineOffset == maxEntriesPerLine - 1:
               msg = uiTools.cropStr(msg, maxMsgSize)
@@ -1047,6 +1083,8 @@ class LogPanel(panel.Panel, threading.Thread):
     - grown beyond the cache limit
     - outlived the configured log duration
     
+    Argument:
+      eventListing - listing of log entries
     """
     
     cacheSize = self._config["cache.logPanel.size"]
