@@ -114,6 +114,17 @@ def loadOptionDescriptions(loadPath = None):
       strToCat = dict([(OPTION_CATEGORY_STR[cat], cat) for cat in OPTION_CATEGORY_STR])
       
       try:
+        versionLine = inputFileContents.pop(0).rstrip()
+        
+        if versionLine.startswith("Tor Version "):
+          fileVersion = versionLine[12:]
+          torVersion = torTools.getConn().getInfo("version", "")
+          if fileVersion != torVersion:
+            msg = "wrong version, tor is %s but the file's from %s" % (torVersion, fileVersion)
+            raise IOError(msg)
+        else:
+          raise IOError("unable to parse version")
+        
         while inputFileContents:
           # gets category enum, failing if it doesn't exist
           categoryStr = inputFileContents.pop(0).rstrip()
@@ -238,6 +249,8 @@ def saveOptionDescriptions(path):
   sortedOptions = CONFIG_DESCRIPTIONS.keys()
   sortedOptions.sort()
   
+  torVersion = torTools.getConn().getInfo("version", "")
+  outputFile.write("Tor Version %s\n" % torVersion)
   for i in range(len(sortedOptions)):
     option = sortedOptions[i]
     manEntry = getConfigDescription(option)
