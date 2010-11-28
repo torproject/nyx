@@ -1176,7 +1176,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page, True)
         
         # provides prompt
-        panels["control"].setMsg("This will clear the log. Are you sure (x again to confirm)?", curses.A_BOLD)
+        panels["control"].setMsg("This will clear the log. Are you sure (c again to confirm)?", curses.A_BOLD)
         panels["control"].redraw(True)
         
         curses.cbreak()
