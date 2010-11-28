@@ -56,7 +56,10 @@ CONFIG = {"log.torrc.readFailed": log.WARN,
           "log.refreshRate": log.DEBUG,
           "log.configEntryUndefined": log.NOTICE,
           "log.torrc.validation.duplicateEntries": log.NOTICE,
-          "log.torrc.validation.torStateDiffers": log.NOTICE}
+          "log.torrc.validation.torStateDiffers": log.NOTICE,
+          "log.torrc.validation.missingTorrcEntries": log.NOTICE,
+          "log.torrc.validation.valueIsDefault": log.NOTICE,
+          "log.torrc.validation.unnecessaryTorrcEntries": log.WARN}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -468,21 +471,25 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   if loadedTorrc.isLoaded():
     corrections = loadedTorrc.getCorrections()
-    irrelevantLines, mismatchLines = [], []
+    duplicateOptions, mismatchLines, missingOptions, defaultOptions = [], [], [], []
     
-    for lineNum in corrections:
-      problem = corrections[lineNum][0]
-      if problem == torConfig.VAL_DUPLICATE: irrelevantLines.append(lineNum)
-      elif problem == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
+    for lineNum, issue, msg in corrections:
+      if issue == torConfig.VAL_DUPLICATE:
+        duplicateOptions.append("%s (line %i)" % (msg, lineNum))
+      elif issue == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
+      elif issue == torConfig.VAL_MISSING: missingOptions.append(msg)
+      elif issue == torConfig.VAL_IS_DEFAULT:
+        defaultOptions.append("%s (line %i)" % (msg, lineNum))
     
-    if irrelevantLines:
-      irrelevantLines.sort()
+    if duplicateOptions:
+      duplicateOptions.sort()
       
-      if len(irrelevantLines) > 1: first, second, third = "Entries", "are", ", including lines"
-      else: first, second, third = "Entry", "is", " on line"
-      msgStart = "%s in your torrc %s ignored due to duplication%s" % (first, second, third)
-      msgLines = ", ".join([str(val + 1) for val in irrelevantLines])
-      msg = "%s: %s (highlighted in blue)" % (msgStart, msgLines)
+      if len(duplicateOptions) > 1:
+        msgStart = "Entries in your torrc are being ignored due to having duplicates"
+      else:
+        msgStart = "An entry in your torrc are being ignored due to having a duplicate"
+      
+      msg = "%s: %s" % (msgStart, ", ".join(duplicateOptions))
       log.log(CONFIG["log.torrc.validation.duplicateEntries"], msg)
     
     if mismatchLines:
@@ -491,6 +498,31 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       msgLines = ", ".join([str(val + 1) for val in mismatchLines])
       msg = "%s: %s" % (msgStart, msgLines)
       log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
+    
+    if missingOptions:
+      missingOptions.sort()
+      
+      if len(missingOptions) > 1:
+        msgStart = "Configuration options differ from their defaults but aren't in the torrc"
+      else:
+        msgStart = "Configuration option differs from its defaults but isn't in the torrc"
+      
+      msg = "%s: %s" % (msgStart, ", ".join(missingOptions))
+      log.log(CONFIG["log.torrc.validation.missingTorrcEntries"], msg)
+    
+    if defaultOptions:
+      defaultOptions.sort()
+      
+      if len(defaultOptions) > 1:
+        msgStart = "Entries in your torrc match their default values"
+      else:
+        msgStart = "An entry in your torrc matches its default value"
+      
+      msg = "%s: %s" % (msgStart, ", ".join(defaultOptions))
+      log.log(CONFIG["log.torrc.validation.valueIsDefault"], msg)
+    
+    if duplicateOptions or defaultOptions:
+      log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], "Unneeded torrc entries found. They've been highlighted in blue on the torrc page.")
   
   loadedTorrc.getLock().release()
   

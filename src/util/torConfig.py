@@ -28,9 +28,11 @@ SIZE_MULT = {"b": 1, "kb": 1024, "mb": 1048576, "gb": 1073741824, "tb": 10995116
 TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
 
 # enums for issues found during torrc validation:
-# VAL_DUPLICATE - entry is ignored due to being a duplicate
-# VAL_MISMATCH  - the value doesn't match tor's current state
-VAL_DUPLICATE, VAL_MISMATCH = range(1, 3)
+# VAL_DUPLICATE  - entry is ignored due to being a duplicate
+# VAL_MISMATCH   - the value doesn't match tor's current state
+# VAL_MISSING    - value differs from its default but is missing from the torrc
+# VAL_IS_DEFAULT - the configuration option matches tor's default
+VAL_DUPLICATE, VAL_MISMATCH, VAL_MISSING, VAL_IS_DEFAULT = range(1, 5)
 
 # descriptions of tor's configuration options fetched from its man page
 CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
@@ -326,15 +328,21 @@ def getMultilineParameters():
 
 def validate(contents = None):
   """
-  Performs validation on the given torrc contents, providing back a mapping of
-  line numbers to tuples of the (issue, msg) found on them.
+  Performs validation on the given torrc contents, providing back a listing of
+  (line number, issue, msg) tuples for issues found. If the issue occures on a
+  multiline torrc entry then the line number is for the last line of the entry.
   
   Arguments:
     contents - torrc contents
   """
   
   conn = torTools.getConn()
-  issuesFound, seenOptions = {}, []
+  issuesFound, seenOptions = [], []
+  
+  # used later to check if either any options match their defaults or custom
+  # options aren't in the torrc
+  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+  customOptions = [entry[:entry.find(" ")] for entry in configTextQuery]
   
   # Strips comments and collapses multiline multi-line entries, for more
   # information see:
@@ -360,11 +368,19 @@ def validate(contents = None):
     if len(lineComp) == 2: option, value = lineComp
     else: option, value = lineText, ""
     
+    # if an aliased option then use its real name
+    if option in CONFIG["torrc.alias"]:
+      option = CONFIG["torrc.alias"][option]
+    
     # most parameters are overwritten if defined multiple times
     if option in seenOptions and not option in getMultilineParameters():
-      issuesFound[lineNumber] = (VAL_DUPLICATE, "")
+      issuesFound.append((lineNumber, VAL_DUPLICATE, option))
       continue
     else: seenOptions.append(option)
+    
+    # checks if the value isn't necessary due to matching the defaults
+    if not option in customOptions:
+      issuesFound.append((lineNumber, VAL_IS_DEFAULT, option))
     
     # replace aliases with their recognized representation
     if option in CONFIG["torrc.alias"]:
@@ -412,7 +428,15 @@ def validate(contents = None):
         elif valueType == TIME_VALUE:
           displayValues = [uiTools.getTimeLabel(int(val)) for val in torValues]
         
-        issuesFound[lineNumber] = (VAL_MISMATCH, ", ".join(displayValues))
+        issuesFound.append((lineNumber, VAL_MISMATCH, ", ".join(displayValues)))
+  
+  # checks if any options that differ from their defaults aren't in the torrc
+  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+  configOptions = [entry[:entry.find(" ")] for entry in configTextQuery]
+  
+  for option in customOptions:
+    if not option in seenOptions:
+      issuesFound.append((None, VAL_MISSING, option))
   
   return issuesFound
 
@@ -586,7 +610,7 @@ class Torrc():
       if self.corrections == None:
         self.corrections = validate(self.contents)
       
-      returnVal = dict(self.corrections)
+      returnVal = list(self.corrections)
     
     self.valsLock.release()
     return returnVal

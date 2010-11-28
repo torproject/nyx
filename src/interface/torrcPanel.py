@@ -81,7 +81,9 @@ class TorrcPanel(panel.Panel):
         renderedContents = ["### Unable to load the torrc ###"]
       else:
         renderedContents = loadedTorrc.getDisplayContents(self.stripComments)
-        corrections = loadedTorrc.getCorrections()
+        
+        # constructs a mapping of line numbers to the issue on it
+        corrections = dict((lineNum, (issue, msg)) for lineNum, issue, msg in loadedTorrc.getCorrections())
       
       loadedTorrc.getLock().release()
     else:
@@ -155,7 +157,7 @@ class TorrcPanel(panel.Panel):
       if lineNumber in corrections:
         lineIssue, lineIssueMsg = corrections[lineNumber]
         
-        if lineIssue == torConfig.VAL_DUPLICATE:
+        if lineIssue in (torConfig.VAL_DUPLICATE, torConfig.VAL_IS_DEFAULT):
           lineComp["option"][1] = curses.A_BOLD | uiTools.getColor("blue")
           lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("blue")
         elif lineIssue == torConfig.VAL_MISMATCH:

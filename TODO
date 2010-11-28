@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap and completed work for next release (1.3.8)
+- Roadmap and completed work for next release (1.4.2)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -9,15 +9,6 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [ ] conf panel
-        - display and validation needs to recognize config entries that span
-          multiple lines
-        - option to display the armrc configuration
-        - [validation] check if there's missing entries
-          might be able to use "GETINFO config-text" to determine entries that
-          differ from the defaults, then see if they're all in the torrc
-        - [validation] tor provides the types for config options, so I might be
-          able to use these instead of hardcoding the multiline values.
       [ ] conn panel
         - expand client connections and note location in circuit (entry-exit)
         - for clients give an option to list all connections, to tell which are
@@ -37,17 +28,35 @@ TODO
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
-      [X] attempt to clear controller password from memory
+      [ ] control port interpreter (interactive prompt)
+          Panel and startup option (-t maybe?) for providing raw control port
+          access along with usability improvements (piggybacking on the arm
+          connection):
+          - irc like help (ex "/help GETINFO" could provide a summary of
+            getinfo commands, partly using the results from
+            "GETINFO info/names")
+          - tab completion and up/down for previous commands
+          - warn and get confirmation if command would disrupt arm (for
+            instance 'SETEVENTS')
+          - 'safe' option that restricts to read-only access (start with this)
+          - issue sighup reset
+      [ ] low hanging fruit from the "client mode use cases" below
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
 
-- Roadmap for version 1.3.9
+- Roadmap for version 1.4.3
   [ ] refactor panels
       [ ] controller and popup panels
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
         - provide measurements for startup time, and try to improve bottlenecks
+  [ ] menus
+      - http://gnosis.cx/publish/programming/charming_python_6.html ?
+      - additional options:
+        - make update rates configurable via the ui
+        - dialog with flag descriptions and other help
+        - menu with all torrc options (making them editable/toggleable)
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
         - attempt to verify download signature, providing a warning if unable
@@ -63,11 +72,6 @@ TODO
     large logs (for instance, when at the DEBUG runlevel). Currently we're
     timing out the function if it takes too long, but a more efficient method
     for deduplication would be preferable.
-  * The log panel gets cripplingly slow if the log grows to be even moderately
-    large (200 entries or so). This is most likely due to the hack for
-    dynamically determining the content height. Check if a solution like the
-    one for the confFilePanel will work.
-  * path for sample armrc in man page is wrong
   * when in client mode and tor stops the header panel doesn't say so
   * util are assuming that tor is running under the default command name
       attempt to determine the command name at runtime (if the pid is available
@@ -108,22 +112,6 @@ TODO
     * connections aren't cleared when control port closes
 
 - Future Features
-  * control port interpreter (interactive prompt)
-    Panel and startup option (-t maybe?) for providing raw control port access
-    along with usability improvements (piggybacking on the arm connection):
-      * irc like help (ex "/help GETINFO" could provide a summary of getinfo
-        commands, partly using the results from "GETINFO info/names")
-      * tab completion and up/down for previous commands
-      * warn and get confirmation if command would disrupt arm (for instance
-        'SETEVENTS')
-      * 'safe' option that restricts to read-only access (start with this)
-      * issue sighup reset
-  * menus
-    * http://gnosis.cx/publish/programming/charming_python_6.html ?
-    * additional options:
-      * make update rates configurable via the ui
-      * dialog with flag descriptions and other help
-      * menu with all torrc options (making them editable/toggleable)
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
       replace the orport, fingerprint, flags, etc)
@@ -150,6 +138,10 @@ TODO
     * dialog with bridge statuses (idea by mikeperry)
       https://trac.vidalia-project.net/ticket/570
       https://trac.torproject.org/projects/tor/ticket/2068
+  * feature parity for arm's config values (armrc entries)
+    * editability
+    * parse descriptions from the man page? autogeneration of the man page from
+      something storing the descriptions
   * handle mutiple tor instances
     * screen style (dialog for switching between instances)
     * extra window with whatever stats can be aggregated over all instances
@@ -177,6 +169,7 @@ TODO
         Plugin for distutils. Like most mac packaging, this can only run on a
         mac. It also requires setuptools:
         http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+  * tab completion for input fields that expect a filesystem path
   * look through vidalia's tickets for more ideas
     https://trac.vidalia-project.net/
   * look into additions to the used apis
