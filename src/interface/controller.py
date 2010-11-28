@@ -55,10 +55,7 @@ CONFIG = {"log.torrc.readFailed": log.WARN,
           "log.startTime": log.INFO,
           "log.refreshRate": log.DEBUG,
           "log.configEntryUndefined": log.NOTICE,
-          "log.torrc.validation.duplicateEntries": log.NOTICE,
-          "log.torrc.validation.torStateDiffers": log.NOTICE,
-          "log.torrc.validation.missingTorrcEntries": log.NOTICE,
-          "log.torrc.validation.valueIsDefault": log.NOTICE,
+          "log.torrc.validation.torStateDiffers": log.WARN,
           "log.torrc.validation.unnecessaryTorrcEntries": log.WARN}
 
 class ControlPanel(panel.Panel):
@@ -471,58 +468,61 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   if loadedTorrc.isLoaded():
     corrections = loadedTorrc.getCorrections()
-    duplicateOptions, mismatchLines, missingOptions, defaultOptions = [], [], [], []
+    duplicateOptions, defaultOptions, mismatchLines, missingOptions = [], [], [], []
     
     for lineNum, issue, msg in corrections:
       if issue == torConfig.VAL_DUPLICATE:
         duplicateOptions.append("%s (line %i)" % (msg, lineNum))
-      elif issue == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
-      elif issue == torConfig.VAL_MISSING: missingOptions.append(msg)
       elif issue == torConfig.VAL_IS_DEFAULT:
         defaultOptions.append("%s (line %i)" % (msg, lineNum))
-    
-    if duplicateOptions:
-      duplicateOptions.sort()
-      
-      if len(duplicateOptions) > 1:
-        msgStart = "Entries in your torrc are being ignored due to having duplicates"
-      else:
-        msgStart = "An entry in your torrc are being ignored due to having a duplicate"
-      
-      msg = "%s: %s" % (msgStart, ", ".join(duplicateOptions))
-      log.log(CONFIG["log.torrc.validation.duplicateEntries"], msg)
-    
-    if mismatchLines:
-      mismatchLines.sort()
-      msgStart = "Tor's state differs from loaded torrc on line%s" % ("s" if len(mismatchLines) > 1 else "")
-      msgLines = ", ".join([str(val + 1) for val in mismatchLines])
-      msg = "%s: %s" % (msgStart, msgLines)
-      log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
-    
-    if missingOptions:
-      missingOptions.sort()
-      
-      if len(missingOptions) > 1:
-        msgStart = "Configuration options differ from their defaults but aren't in the torrc"
-      else:
-        msgStart = "Configuration option differs from its defaults but isn't in the torrc"
-      
-      msg = "%s: %s" % (msgStart, ", ".join(missingOptions))
-      log.log(CONFIG["log.torrc.validation.missingTorrcEntries"], msg)
-    
-    if defaultOptions:
-      defaultOptions.sort()
-      
-      if len(defaultOptions) > 1:
-        msgStart = "Entries in your torrc match their default values"
-      else:
-        msgStart = "An entry in your torrc matches its default value"
-      
-      msg = "%s: %s" % (msgStart, ", ".join(defaultOptions))
-      log.log(CONFIG["log.torrc.validation.valueIsDefault"], msg)
+      elif issue == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
+      elif issue == torConfig.VAL_MISSING: missingOptions.append(msg)
     
     if duplicateOptions or defaultOptions:
-      log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], "Unneeded torrc entries found. They've been highlighted in blue on the torrc page.")
+      msg = "Unneeded torrc entries found. They've been highlighted in blue on the torrc page."
+      
+      if duplicateOptions:
+        if len(duplicateOptions) > 1:
+          msg += "\n- entries ignored due to having duplicates: "
+        else:
+          msg += "\n- entry ignored due to having a duplicate: "
+        
+        duplicateOptions.sort()
+        msg += ", ".join(duplicateOptions)
+      
+      if defaultOptions:
+        if len(defaultOptions) > 1:
+          msg += "\n- entries match their default values"
+        else:
+          msg += "\n- entry matches its default value"
+        
+        defaultOptions.sort()
+        msg += ", ".join(defaultOptions)
+      
+      log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], msg)
+    
+    if mismatchLines or missingOptions:
+      msg = "The torrc differ from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
+      
+      if mismatchLines:
+        if len(mismatchLines) > 1:
+          msg += "\n- torrc values differ on line lines: "
+        else:
+          msg += "\n- torrc value differs on line line: "
+        
+        mismatchLines.sort()
+        msg += ", ".join([str(val + 1) for val in mismatchLines])
+        
+      if missingOptions:
+        if len(missingOptions) > 1:
+          msg += "\n-configuration values are missing from the torrc: "
+        else:
+          msg += "\n-configuration value is missing from the torrc: "
+        
+        missingOptions.sort()
+        msg += ", ".join(missingOptions)
+      
+      log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
   
   loadedTorrc.getLock().release()
   
@@ -806,6 +806,35 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
       
       selectiveRefresh(panels, page)
+    elif key == ord('x') or key == ord('X'):
+      # provides prompt to confirm that arm should issue a sighup
+      panel.CURSES_LOCK.acquire()
+      try:
+        setPauseState(panels, isPaused, page, True)
+        
+        # provides prompt
+        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
+        panels["control"].redraw(True)
+        
+        curses.cbreak()
+        confirmationKey = stdscr.getch()
+        if confirmationKey in (ord('x'), ord('X')):
+          try:
+            torTools.getConn().reload()
+          except IOError, exc:
+            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
+            
+            #errorMsg = " (%s)" % str(err) if str(err) else ""
+            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
+            #panels["control"].redraw(True)
+            #time.sleep(2)
+        
+        # reverts display settings
+        curses.halfdelay(REFRESH_RATE * 10)
+        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+        setPauseState(panels, isPaused, page)
+      finally:
+        panel.CURSES_LOCK.release()
     elif key == ord('h') or key == ord('H'):
       # displays popup for current page's controls
       panel.CURSES_LOCK.acquire()
@@ -838,7 +867,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           hiddenEntryLabel = "visible" if panels["log"].showDuplicates else "hidden"
           popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
-          popup.addfstr(6, 41, "<b>x</b>: clear event log")
+          popup.addfstr(6, 41, "<b>c</b>: clear event log")
           popup.addfstr(7, 41, "<b>a</b>: save snapshot of the log")
           
           pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
@@ -1140,7 +1169,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         if currentHeight < maxHeight + 1:
           panels["graph"].setGraphHeight(panels["graph"].graphHeight + 1)
-    elif page == 0 and (key == ord('x') or key == ord('X')):
+    elif page == 0 and (key == ord('c') or key == ord('C')):
       # provides prompt to confirm that arm should clear the log
       panel.CURSES_LOCK.acquire()
       try:
@@ -1152,7 +1181,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         curses.cbreak()
         confirmationKey = stdscr.getch()
-        if confirmationKey in (ord('x'), ord('X')): panels["log"].clear()
+        if confirmationKey in (ord('c'), ord('C')): panels["log"].clear()
         
         # reverts display settings
         curses.halfdelay(REFRESH_RATE * 10)
@@ -1713,35 +1742,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       time.sleep(1)
       
       panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-    elif page == 3 and (key == ord('x') or key == ord('X')):
-      # provides prompt to confirm that arm should issue a sighup
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
-        panels["control"].redraw(True)
-        
-        curses.cbreak()
-        confirmationKey = stdscr.getch()
-        if confirmationKey in (ord('x'), ord('X')):
-          try:
-            torTools.getConn().reload()
-          except IOError, exc:
-            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
-            
-            #errorMsg = " (%s)" % str(err) if str(err) else ""
-            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
-            #panels["control"].redraw(True)
-            #time.sleep(2)
-        
-        # reverts display settings
-        curses.halfdelay(REFRESH_RATE * 10)
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
     elif page == 0:
       panels["log"].handleKey(key)
     elif page == 1:

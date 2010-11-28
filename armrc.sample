@@ -209,10 +209,7 @@ log.logPanel.logFileOpened NOTICE
 log.logPanel.logFileWriteFailed ERR
 log.logPanel.forceDoubleRedraw DEBUG
 log.torrc.readFailed WARN
-log.torrc.validation.duplicateEntries NOTICE
-log.torrc.validation.torStateDiffers NOTICE
-log.torrc.validation.missingTorrcEntries NOTICE
-log.torrc.validation.valueIsDefault NOTICE
+log.torrc.validation.torStateDiffers WARN
 log.torrc.validation.unnecessaryTorrcEntries WARN
 log.configDescriptions.readManPageSuccess INFO
 log.configDescriptions.readManPageFailed WARN
