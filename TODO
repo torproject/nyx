@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap and completed work for next release (1.4.2)
+- Roadmap and completed work for next release (1.4.1)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -45,7 +45,7 @@ TODO
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
 
-- Roadmap for version 1.4.3
+- Roadmap for version 1.4.2
   [ ] refactor panels
       [ ] controller and popup panels
         - allow arm to resume after restarting tor
