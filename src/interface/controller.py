@@ -517,8 +517,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
   panels["control"] = ControlPanel(stdscr, isBlindMode)
-  panels["config"] = configPanel.ConfigStatePanel(stdscr, configPanel.TOR_STATE, config)
-  panels["torrc"] = torrcPanel.ConfigFilePanel(stdscr, torrcPanel.TORRC, config)
+  panels["config"] = configPanel.ConfigPanel(stdscr, configPanel.TOR_STATE, config)
+  panels["torrc"] = torrcPanel.TorrcPanel(stdscr, torrcPanel.TORRC, config)
   
   # provides error if pid coulnd't be determined (hopefully shouldn't happen...)
   if not torPid: log.log(log.WARN, "Unable to resolve tor pid, abandoning connection listing")

@@ -101,7 +101,7 @@ class ConfigEntry():
     
     return [self.get(field) for field in argTypes]
 
-class ConfigStatePanel(panel.Panel):
+class ConfigPanel(panel.Panel):
   """
   Renders a listing of the tor or arm configuration state, allowing options to
   be selected and edited.

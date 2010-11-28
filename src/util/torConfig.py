@@ -333,14 +333,27 @@ def validate(contents = None):
     contents - torrc contents
   """
   
-  # TODO: needs to recognize tor's new multiline values
-  # https://trac.torproject.org/projects/tor/ticket/1929
-  
   conn = torTools.getConn()
-  contents = _stripComments(contents)
   issuesFound, seenOptions = {}, []
-  for lineNumber in range(len(contents) - 1, -1, -1):
-    lineText = contents[lineNumber]
+  
+  # Strips comments and collapses multiline multi-line entries, for more
+  # information see:
+  # https://trac.torproject.org/projects/tor/ticket/1929
+  strippedContents, multilineBuffer = [], ""
+  for line in _stripComments(contents):
+    if not line: strippedContents.append("")
+    else:
+      line = multilineBuffer + line
+      multilineBuffer = ""
+      
+      if line.endswith("\\"):
+        multilineBuffer = line[:-1]
+        strippedContents.append("")
+      else:
+        strippedContents.append(line.strip())
+  
+  for lineNumber in range(len(strippedContents) - 1, -1, -1):
+    lineText = strippedContents[lineNumber]
     if not lineText: continue
     
     lineComp = lineText.split(None, 1)
@@ -366,6 +379,14 @@ def validate(contents = None):
     
     # issues GETCONF to get the values tor's currently configured to use
     torValues = conn.getOption(option, [], True)
+    
+    # Some singleline entries are lists, in which case tor provides csv values
+    # without spaces, such as:
+    # lolcat1,lolcat2,cutebunny,extracutebunny,birthdaynode
+    # so we need to strip spaces in comma separated values.
+    
+    if "," in value:
+      value = ",".join([val.strip() for val in value.split(",")])
     
     # multiline entries can be comma separated values (for both tor and conf)
     valueList = [value]

@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
 
 TORRC, ARMRC = range(1, 3) # configuration file types that can  be displayed
 
-class ConfigFilePanel(panel.Panel):
+class TorrcPanel(panel.Panel):
   """
   Renders the current torrc or armrc with syntax highlighting in a scrollable
   area.
@@ -111,6 +111,7 @@ class ConfigFilePanel(panel.Panel):
       locationLabel = " (%s)" % confLocation if confLocation else ""
       self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
     
+    isMultiline = False # set if we're in the middle of a multiline torrc entry
     for lineNumber in range(0, len(renderedContents)):
       lineText = renderedContents[lineNumber]
       lineText = lineText.rstrip() # remove ending whitespace
@@ -133,13 +134,22 @@ class ConfigFilePanel(panel.Panel):
       # splits the option and argument, preserving any whitespace around them
       strippedLine = lineText.strip()
       optionIndex = strippedLine.find(" ")
-      if optionIndex == -1:
-        lineComp["option"][0] = lineText # no argument provided
+      if isMultiline:
+        # part of a multiline entry started on a previous line so everything
+        # is part of the argument
+        lineComp["argument"][0] = lineText
+      elif optionIndex == -1:
+        # no argument provided
+        lineComp["option"][0] = lineText
       else:
         optionText = strippedLine[:optionIndex]
         optionEnd = lineText.find(optionText) + len(optionText)
         lineComp["option"][0] = lineText[:optionEnd]
         lineComp["argument"][0] = lineText[optionEnd:]
+      
+      # flags following lines as belonging to this multiline entry if it ends
+      # with a slash
+      if strippedLine: isMultiline = strippedLine.endswith("\\")
       
       # gets the correction
       if lineNumber in corrections:
