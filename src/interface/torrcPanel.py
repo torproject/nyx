@@ -11,7 +11,9 @@ from util import conf, panel, torConfig, uiTools
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
                   "features.config.file.maxLinesPerEntry": 8}
 
-TORRC, ARMRC = range(1, 3) # configuration file types that can  be displayed
+# TODO: The armrc use case is incomplete. There should be equivilant reloading
+# and validation capabilities to the torrc.
+TORRC, ARMRC = range(1, 3) # configuration file types that can be displayed
 
 class TorrcPanel(panel.Panel):
   """
@@ -87,8 +89,6 @@ class TorrcPanel(panel.Panel):
       
       loadedTorrc.getLock().release()
     else:
-      # TODO: The armrc use case is incomplete. There should be equivilant
-      # reloading and validation capabilities to the torrc.
       loadedArmrc = conf.getConfig("arm")
       confLocation = loadedArmrc.path
       renderedContents = list(loadedArmrc.rawContents)
@@ -113,7 +113,7 @@ class TorrcPanel(panel.Panel):
       locationLabel = " (%s)" % confLocation if confLocation else ""
       self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
     
-    isMultiline = False # set if we're in the middle of a multiline torrc entry
+    isMultiline = False # true if we're in the middle of a multiline torrc entry
     for lineNumber in range(0, len(renderedContents)):
       lineText = renderedContents[lineNumber]
       lineText = lineText.rstrip() # remove ending whitespace
@@ -218,7 +218,4 @@ class TorrcPanel(panel.Panel):
         self.redraw(True)
     
     self.valsLock.release()
-  
-  def redraw(self, forceRedraw=False, block=False):
-    panel.Panel.redraw(self, forceRedraw, block)
 

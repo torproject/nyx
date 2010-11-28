@@ -14,6 +14,9 @@ DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
                   "features.config.state.colWidth.option": 25,
                   "features.config.state.colWidth.value": 10}
 
+# TODO: The arm use cases are incomplete since they currently can't be
+# modified, have their descriptions fetched, or even get a complete listing
+# of what's available.
 TOR_STATE, ARM_STATE = range(1, 3) # state to be presented
 
 # mappings of option categories to the color for their entries
@@ -125,23 +128,14 @@ class ConfigPanel(panel.Panel):
     self.scroller = uiTools.Scroller(True)
     self.valsLock = threading.RLock()
     
-    # TODO: this will need to be able to listen for SETCONF events (arg!)
-    
     if self.configType == TOR_STATE:
       conn = torTools.getConn()
+      customOptions = torConfig.getCustomOptions()
+      configOptionLines = conn.getInfo("config/names", "").strip().split("\n")
       
-      # gets options that differ from their default
-      setOptions = set()
-      configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
-      for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
-      
-      # for all recognized tor config options, provide their current value
-      configOptionQuery = conn.getInfo("config/names", "").strip().split("\n")
-      
-      for lineNum in range(len(configOptionQuery)):
+      for line in configOptionLines:
         # lines are of the form "<option> <type>", like:
         # UseEntryGuards Boolean
-        line = configOptionQuery[lineNum]
         confOption, confType = line.strip().split(" ", 1)
         
         # skips private and virtual entries if not set to show them
@@ -151,15 +145,14 @@ class ConfigPanel(panel.Panel):
           continue
         
         manEntry = torConfig.getConfigDescription(confOption)
-        self.confContents.append(ConfigEntry(confOption, confType, not confOption in setOptions, manEntry))
-      
+        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions, manEntry))
       
       self.setSortOrder() # initial sorting of the contents
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
-        self.confContents.append(ConfigEntry("", key, ", ".join(armConf.getValue(key, [], True)), "", "", True))
+        pass # TODO: implement
   
   def getSelection(self):
     """
@@ -171,21 +164,17 @@ class ConfigPanel(panel.Panel):
   def setSortOrder(self, ordering = None):
     """
     Sets the configuration attributes we're sorting by and resorts the
-    contents. If the ordering isn't defined then this resorts based on the
-    last set ordering.
+    contents.
+    
+    Arguments:
+      ordering - new ordering, if undefined then this resorts with the last
+                 set ordering
     """
     
     self.valsLock.acquire()
     if ordering: self.sortOrdering = ordering
     self.confContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
     self.valsLock.release()
-  
-  def getSortOrder(self):
-    """
-    Provides the current configuration attributes we're sorting by.
-    """
-    
-    return self.sortOrdering
   
   def handleKey(self, key):
     self.valsLock.acquire()
@@ -212,13 +201,13 @@ class ConfigPanel(panel.Panel):
       # no detail panel
       detailPanelHeight = 0
       scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1)
-      cursorSelection = self.scroller.getCursorSelection(self.confContents)
+      cursorSelection = self.getSelection()
     else:
       # Shrink detail panel if there isn't sufficient room for the whole
       # thing. The extra line is for the bottom border.
       detailPanelHeight = min(height - 1, detailPanelHeight + 1)
       scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1 - detailPanelHeight)
-      cursorSelection = self.scroller.getCursorSelection(self.confContents)
+      cursorSelection = self.getSelection()
       
       self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, titleLabel)
     
@@ -228,38 +217,25 @@ class ConfigPanel(panel.Panel):
       scrollOffset = 3
       self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self.confContents), 1 + detailPanelHeight)
     
-    # determines the width for the columns
-    optionColWidth, valueColWidth = 0, 0
-    
-    # constructs a mapping of entries to their current values
-    # TODO: just skip dynamic widths entirely?
-    entryToValues = {}
-    for entry in self.confContents:
-      entryToValues[entry] = entry.get(FIELD_VALUE)
-      #optionColWidth = max(optionColWidth, len(entry.get(FIELD_OPTION)))
-      #valueColWidth = max(valueColWidth, len(entryToValues[entry]))
-    
-    #optionColWidth = min(self._config["features.config.state.colWidth.option"], optionColWidth)
-    #valueColWidth = min(self._config["features.config.state.colWidth.value"], valueColWidth)
-    optionColWidth = self._config["features.config.state.colWidth.option"]
-    valueColWidth = self._config["features.config.state.colWidth.value"]
-    descriptionColWidth = max(0, width - scrollOffset - optionColWidth - valueColWidth - 2)
+    optionWidth = self._config["features.config.state.colWidth.option"]
+    valueWidth = self._config["features.config.state.colWidth.value"]
+    descriptionWidth = max(0, width - scrollOffset - optionWidth - valueWidth - 2)
     
     for lineNum in range(scrollLoc, len(self.confContents)):
       entry = self.confContents[lineNum]
       drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
       
-      # TODO: need to cut off description at the first newline
-      optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionColWidth)
-      valueLabel = uiTools.cropStr(entryToValues[entry], valueColWidth)
-      descriptionLabel = uiTools.cropStr(entry.get(FIELD_DESCRIPTION), descriptionColWidth, None)
+      optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionWidth)
+      valueLabel = uiTools.cropStr(entry.get(FIELD_VALUE), valueWidth)
+      
+      # ends description at the first newline
+      descriptionLabel = uiTools.cropStr(entry.get(FIELD_DESCRIPTION).split("\n")[0], descriptionWidth, None)
       
       lineFormat = curses.A_NORMAL if entry.get(FIELD_IS_DEFAULT) else curses.A_BOLD
       if entry.get(FIELD_CATEGORY): lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.get(FIELD_CATEGORY)])
-      #lineFormat = uiTools.getColor("green") if entry.isDefault else curses.A_BOLD | uiTools.getColor("yellow")
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
-      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionColWidth, valueColWidth, descriptionColWidth)
+      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionWidth, valueWidth, descriptionWidth)
       lineText = lineTextLayout % (optionLabel, valueLabel, descriptionLabel)
       self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       

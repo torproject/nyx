@@ -3,7 +3,6 @@ Helper functions for working with tor's configuration file.
 """
 
 import os
-import curses
 import threading
 
 from util import log, sysTools, torTools, uiTools
@@ -326,6 +325,16 @@ def getMultilineParameters():
   
   return tuple(MULTILINE_PARAM)
 
+def getCustomOptions():
+  """
+  Provides the set of torrc parameters that differ from their defaults.
+  """
+  
+  customOptions, conn = set(), torTools.getConn()
+  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+  for entry in configTextQuery: customOptions.add(entry[:entry.find(" ")])
+  return customOptions
+
 def validate(contents = None):
   """
   Performs validation on the given torrc contents, providing back a listing of
@@ -337,12 +346,8 @@ def validate(contents = None):
   """
   
   conn = torTools.getConn()
+  customOptions = getCustomOptions()
   issuesFound, seenOptions = [], []
-  
-  # used later to check if either any options match their defaults or custom
-  # options aren't in the torrc
-  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
-  customOptions = [entry[:entry.find(" ")] for entry in configTextQuery]
   
   # Strips comments and collapses multiline multi-line entries, for more
   # information see:
@@ -430,10 +435,7 @@ def validate(contents = None):
         
         issuesFound.append((lineNumber, VAL_MISMATCH, ", ".join(displayValues)))
   
-  # checks if any options that differ from their defaults aren't in the torrc
-  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
-  configOptions = [entry[:entry.find(" ")] for entry in configTextQuery]
-  
+  # checks if any custom options are missing from the torrc
   for option in customOptions:
     if not option in seenOptions:
       issuesFound.append((None, VAL_MISSING, option))

@@ -1671,11 +1671,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             conn.setOption(configOption, newConfigValue)
             
             # resets the isDefault flag
-            setOptions = set()
-            configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
-            for entry in configTextQuery: setOptions.add(entry[:entry.find(" ")])
+            customOptions = torConfig.getCustomOptions()
+            selection.fields[configPanel.FIELD_IS_DEFAULT] = not configOption in customOptions
             
-            selection.fields[configPanel.FIELD_IS_DEFAULT] = not configOption in setOptions
             panels["config"].redraw(True)
           except Exception, exc:
             errorMsg = "%s (press any key)" % exc
