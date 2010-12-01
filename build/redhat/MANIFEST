@@ -16,6 +16,7 @@ src/TorCtl/StatsSupport.py
 src/TorCtl/TorCtl.py
 src/TorCtl/TorUtil.py
 src/TorCtl/__init__.py
+src/TorCtl/LICENSE
 src/interface/__init__.py
 src/interface/confPanel.py
 src/interface/connPanel.py
