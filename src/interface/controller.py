@@ -492,9 +492,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       if defaultOptions:
         if len(defaultOptions) > 1:
-          msg += "\n- entries match their default values"
+          msg += "\n- entries match their default values: "
         else:
-          msg += "\n- entry matches its default value"
+          msg += "\n- entry matches its default value: "
         
         defaultOptions.sort()
         msg += ", ".join(defaultOptions)

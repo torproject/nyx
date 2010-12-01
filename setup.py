@@ -39,7 +39,13 @@ if "install" in sys.argv:
     
     # temporary destination for the man page guarenteed to be unoccupied (to
     # avoid conflicting with files that are already there)
-    manOutputFile = gzip.open(tempfile.mktemp("/arm.1.gz"), 'wb')
+    tmpFilename = tempfile.mktemp("/arm.1.gz")
+    
+    # make dir if the path doesn't already exist
+    baseDir = os.path.dirname(tmpFilename)
+    if not os.path.exists(baseDir): os.makedirs(baseDir)
+    
+    manOutputFile = gzip.open(tmpFilename, 'wb')
     manOutputFile.write(manContents)
     manOutputFile.close()
     
