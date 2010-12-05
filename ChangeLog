@@ -1,6 +1,6 @@
 CHANGE LOG
 
-11/27/10 - version 1.4.0
+11/27/10 - version 1.4.0 (r23873)
 Introducing a new page for managing tor's configuration, along with several other improvements.
 
     * added: editor for the tor configuration, providing:

@@ -41,9 +41,22 @@ TODO
           - 'safe' option that restricts to read-only access (start with this)
           - issue sighup reset
       [ ] low hanging fruit from the "client mode use cases" below
+      [ ] store resources (config and cache) in the home directory (suggestion
+          by Sebastian)
+      [ ] note TERM="rxvt-unicode" as possible fix when graph isn't visible
+          while using screen
+      [ ] include short, summary descriptions instead of man contents in
+          the listing
+      [ ] add warning when arm cpu resource usage is high that the -b flag
+          would be suggested (caught by Clete - "arm went from using 30% of
+          the CPU time to 1% constant" on a 360MHz machine)
+      [ ] deb issue: "one issue I noticed was that, again, the source package
+          is not idempotent, that is to say if I unpack the .dsc and build the
+          package I end up with a different .diff.gz"
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
+    * Gentoo notification (contact NightMonkey)
 
 - Roadmap for version 1.4.2
   [ ] refactor panels
@@ -68,6 +81,10 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * The manpage layout is system dependent, so the scraper needs to be more
+    resilient against being confused by whitespace. Another improvement is
+    including fallback results if the man page can't be parsed (suggested by
+    rransom, issue caught by NightMonkey).
   * Log deduplication is currently an n^2 operation. Hence it can't handle
     large logs (for instance, when at the DEBUG runlevel). Currently we're
     timing out the function if it takes too long, but a more efficient method

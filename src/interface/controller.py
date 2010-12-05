@@ -1401,7 +1401,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["conn"].sortConnections()
     elif page == 1 and (key == ord('u') or key == ord('U')):
       # provides menu to pick identification resolving utility
-      optionTypes = [None, connections.CMD_NETSTAT, connections.CMD_SS, connections.CMD_LSOF]
+      optionTypes = [None, connections.CMD_NETSTAT, connections.CMD_SS, connections.CMD_LSOF, connections.CMD_SOCKSTAT, connections.CMD_BSD_SOCKSTAT, connections.CMD_BSD_PROCSTAT]
       options = ["auto"] + [connections.CMD_STR[util] for util in optionTypes[1:]]
       
       initialSelection = connections.getResolver("tor").overwriteResolver # enums correspond to indices

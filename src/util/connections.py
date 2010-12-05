@@ -5,12 +5,18 @@ utilities:
 - netstat   netstat -npt | grep <pid>/<process>
 - ss        ss -p | grep "\"<process>\",<pid>"
 - lsof      lsof -nPi | grep "<process>\s*<pid>.*(ESTABLISHED)"
+- sockstat  sockstat | egrep "<process>\s*<pid>.*ESTABLISHED"
 
-all queries dump its stderr (directing it to /dev/null). Unfortunately FreeBSD
-lacks support for the needed netstat flags and has a completely different
-program for 'ss', so this is quite likely to fail there.
+all queries dump its stderr (directing it to /dev/null).
+
+FreeBSD lacks support for the needed netstat flags and has a completely
+different program for 'ss'. However, there's a couple other options (thanks to
+Fabian Keil and Hans Schnehl):
+- sockstat    sockstat -4 | egrep '<process>\s*<pid>' | grep -v '*:*'
+- procstat    procstat -f 'pgrep <process>' | grep '<pid>' | grep -v '0.0.0.0:0'
 """
 
+import os
 import sys
 import time
 import threading
@@ -18,8 +24,13 @@ import threading
 from util import log, sysTools
 
 # enums for connection resolution utilities
-CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)
-CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
+CMD_NETSTAT, CMD_SS, CMD_LSOF, CMD_SOCKSTAT, CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT = range(1, 7)
+CMD_STR = {CMD_NETSTAT: "netstat",
+           CMD_SS: "ss",
+           CMD_LSOF: "lsof",
+           CMD_SOCKSTAT: "sockstat",
+           CMD_BSD_SOCKSTAT: "sockstat (bsd)",
+           CMD_BSD_PROCSTAT: "procstat (bsd)"}
 
 # If true this provides new instantiations for resolvers if the old one has
 # been stopped. This can make it difficult ensure all threads are terminated
@@ -46,11 +57,20 @@ RUN_SS = "ss -np | grep \"\\\"%s\\\",%s\""
 # tor  9912  atagar  20u  IPv4  33453  TCP 127.0.0.1:9051->127.0.0.1:53308
 RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
 
+# output:
+# atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED
+# *note: this isn't available by default under ubuntu
+RUN_SOCKSTAT = "sockstat | egrep \"%s\s*%s.*ESTABLISHED\""
+
+RUN_BSD_SOCKSTAT = "sockstat -4 | egrep '%s\s*%s' | grep -v '*:*'"
+RUN_BSD_PROCSTAT = "procstat -f 'pgrep %s' | grep '%s' | grep -v '0.0.0.0:0'"
+
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
 CONFIG = {"queries.connections.minRate": 5,
+          "log.connResolverOptions": log.INFO,
           "log.connLookupFailed": log.INFO,
           "log.connLookupFailover": log.NOTICE,
           "log.connLookupAbandon": log.WARN,
@@ -78,7 +98,11 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   
   if resolutionCmd == CMD_NETSTAT: cmd = RUN_NETSTAT % (processPid, processName)
   elif resolutionCmd == CMD_SS: cmd = RUN_SS % (processName, processPid)
-  else: cmd = RUN_LSOF % (processName, processPid)
+  elif resolutionCmd == CMD_LSOF: cmd = RUN_LSOF % (processName, processPid)
+  elif resolutionCmd == CMD_SOCKSTAT: cmd = RUN_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == CMD_BSD_SOCKSTAT: cmd = RUN_BSD_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == CMD_BSD_PROCSTAT: cmd = RUN_BSD_PROCSTAT % (processName, processPid)
+  else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
   
   # raises an IOError if the command fails or isn't available
   results = sysTools.call(cmd)
@@ -93,10 +117,19 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     if resolutionCmd == CMD_NETSTAT or resolutionCmd == CMD_SS:
       localIp, localPort = comp[3].split(":")
       foreignIp, foreignPort = comp[4].split(":")
-    else:
+    elif resolutionCmd == CMD_LSOF:
       local, foreign = comp[8].split("->")
       localIp, localPort = local.split(":")
       foreignIp, foreignPort = foreign.split(":")
+    elif resolutionCmd == CMD_SOCKSTAT:
+      localIp, localPort = comp[4].split(":")
+      foreignIp, foreignPort = comp[5].split(":")
+    elif resolutionCmd == CMD_BSD_SOCKSTAT:
+      localIp, localPort = comp[5].split(":")
+      foreignIp, foreignPort = comp[6].split(":")
+    elif resolutionCmd == CMD_BSD_PROCSTAT:
+      localIp, localPort = comp[9].split(":")
+      foreignIp, foreignPort = comp[10].split(":")
     
     conn.append((localIp, localPort, foreignIp, foreignPort))
   
@@ -216,6 +249,7 @@ class ConnectionResolver(threading.Thread):
     overwriteResolver - method of resolution (uses default if None)
     * defaultResolver - resolver used by default (None if all resolution
                         methods have been exhausted)
+    resolverOptions   - resolvers to be cycled through (differ by os)
     
     * read-only
   """
@@ -243,9 +277,16 @@ class ConnectionResolver(threading.Thread):
     self.overwriteResolver = None
     self.defaultResolver = CMD_NETSTAT
     
+    osType = os.uname()[0]
+    if osType == "FreeBSD": self.resolverOptions = [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT]
+    else: self.resolverOptions = [CMD_NETSTAT, CMD_SS, CMD_LSOF, CMD_SOCKSTAT]
+    
+    resolverLabels = ", ".join([CMD_STR[option] for option in self.resolverOptions])
+    log.log(CONFIG["log.connResolverOptions"], "Operating System: %s, Connection Resolvers: %s" % (osType, resolverLabels))
+    
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
-    for resolver in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
+    for resolver in self.resolverOptions:
       if sysTools.isAvailable(CMD_STR[resolver]):
         self.defaultResolver = resolver
         break
@@ -320,7 +361,7 @@ class ConnectionResolver(threading.Thread):
             
             # pick another (non-blacklisted) resolver
             newResolver = None
-            for r in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
+            for r in self.resolverOptions:
               if not r in self._resolverBlacklist:
                 newResolver = r
                 break
