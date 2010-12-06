@@ -12,8 +12,8 @@ all queries dump its stderr (directing it to /dev/null).
 FreeBSD lacks support for the needed netstat flags and has a completely
 different program for 'ss'. However, there's a couple other options (thanks to
 Fabian Keil and Hans Schnehl):
-- sockstat    sockstat -4 | egrep '<process>\s*<pid>' | grep -v '*:*'
-- procstat    procstat -f 'pgrep <process>' | grep '<pid>' | grep -v '0.0.0.0:0'
+- sockstat    sockstat -4c | grep '<process> *<pid>'
+- procstat    procstat -f <pid> | grep TCP | grep -v 0.0.0.0:0
 """
 
 import os
@@ -62,8 +62,8 @@ RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
 # *note: this isn't available by default under ubuntu
 RUN_SOCKSTAT = "sockstat | egrep \"%s\s*%s.*ESTABLISHED\""
 
-RUN_BSD_SOCKSTAT = "sockstat -4 | egrep '%s\s*%s' | grep -v '*:*'"
-RUN_BSD_PROCSTAT = "procstat -f 'pgrep %s' | grep '%s' | grep -v '0.0.0.0:0'"
+RUN_BSD_SOCKSTAT = "sockstat -4c | grep '%s *%s'"
+RUN_BSD_PROCSTAT = "procstat -f %s | grep TCP | grep -v 0.0.0.0:0"
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
@@ -101,7 +101,7 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   elif resolutionCmd == CMD_LSOF: cmd = RUN_LSOF % (processName, processPid)
   elif resolutionCmd == CMD_SOCKSTAT: cmd = RUN_SOCKSTAT % (processName, processPid)
   elif resolutionCmd == CMD_BSD_SOCKSTAT: cmd = RUN_BSD_SOCKSTAT % (processName, processPid)
-  elif resolutionCmd == CMD_BSD_PROCSTAT: cmd = RUN_BSD_PROCSTAT % (processName, processPid)
+  elif resolutionCmd == CMD_BSD_PROCSTAT: cmd = RUN_BSD_PROCSTAT % processPid
   else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
   
   # raises an IOError if the command fails or isn't available
@@ -182,7 +182,7 @@ def getResolver(processName, processPid = ""):
 
 def test():
   # quick method for testing connection resolution
-  userInput = raw_input("Enter query (<ss, netstat, lsof> PROCESS_NAME [PID]): ").split()
+  userInput = raw_input("Enter query (<ss, netstat, lsof, sockstat> PROCESS_NAME [PID]): ").split()
   
   # checks if there's enough arguments
   if len(userInput) == 0: sys.exit(0)
@@ -195,6 +195,7 @@ def test():
   if userInput[0] == "ss": userInput[0] = CMD_SS
   elif userInput[0] == "netstat": userInput[0] = CMD_NETSTAT
   elif userInput[0] == "lsof": userInput[0] = CMD_LSOF
+  elif userInput[0] == "sockstat": userInput[0] = CMD_SOCKSTAT
   else:
     print "unrecognized type of resolver: %s" % userInput[2]
     sys.exit(1)

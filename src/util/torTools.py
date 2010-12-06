@@ -93,9 +93,11 @@ def getPid(controlPort=9051, pidFilePath=None):
   Attempts to determine the process id for a running tor process, using the
   following:
   1. GETCONF PidFile
-  2. "pidof tor"
-  3. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
-  4. "ps -o pid -C tor"
+  2. "pgrep -x tor"
+  3. "pidof tor"
+  4. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
+  5. "ps -o pid -C tor"
+  6. "sockstat -4l -P tcp -p %i | grep tor" % <tor control port>
   
   If pidof or ps provide multiple tor instances then their results are
   discarded (since only netstat can differentiate using the control port). This
@@ -118,6 +120,16 @@ def getPid(controlPort=9051, pidFilePath=None):
       
       if pidEntry.isdigit(): return pidEntry
     except: pass
+  
+  # attempts to resolve using pgrep, failing if:
+  # - tor is running under a different name
+  # - there are multiple instances of tor
+  try:
+    results = sysTools.call("pgrep -x tor")
+    if len(results) == 1 and len(results[0].split()) == 1:
+      pid = results[0].strip()
+      if pid.isdigit(): return pid
+  except IOError: pass
   
   # attempts to resolve using pidof, failing if:
   # - tor's running under a different name
@@ -147,6 +159,21 @@ def getPid(controlPort=9051, pidFilePath=None):
     results = sysTools.call("ps -o pid -C tor")
     if len(results) == 2:
       pid = results[1].strip()
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  # attempts to resolve using sockstat, failing if:
+  # - sockstat doesn't accept the -4 flag (BSD only)
+  # - tor is running under a different name
+  # - there are multiple instances of Tor, using the
+  #   same control port on different addresses.
+  # 
+  # TODO: the later two issues could be solved by filtering for the control
+  # port IP address instead of the process name.
+  try:
+    results = sysTools.call("sockstat -4l -P tcp -p %i | grep tor" % controlPort)
+    if len(results) == 1 and len(results[0].split()) == 7:
+      pid = results[0].split()[2]
       if pid.isdigit(): return pid
   except IOError: pass
   

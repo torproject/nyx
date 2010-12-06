@@ -218,6 +218,7 @@ log.configDescriptions.persistance.loadSuccess INFO
 log.configDescriptions.persistance.loadFailed INFO
 log.configDescriptions.persistance.saveSuccess NOTICE
 log.configDescriptions.persistance.saveFailed NOTICE
+log.connResolverOptions INFO
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
 log.connLookupAbandon WARN
