@@ -180,6 +180,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     try:
       self.address = "" # fetched when needed if unset
       self.nickname = self.conn.get_option("Nickname")[0][1]
+      if self.nickname == None: self.nickname = "Unnamed"
       
       self.orPort = self.conn.get_option("ORPort")[0][1]
       self.dirPort = self.conn.get_option("DirPort")[0][1]
