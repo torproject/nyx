@@ -51,7 +51,7 @@ if "install" in sys.argv:
     
     # places in tmp rather than a relative path to avoid having this copy appear
     # in the deb and rpm builds
-    manFilename = manOutputFile.name
+    manFilename = tmpFilename
   except IOError, exc:
     print "Unable to compress man page: %s" % exc
 
