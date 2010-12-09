@@ -54,6 +54,7 @@ CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.bw.prepopulate": True,
           "log.startTime": log.INFO,
           "log.refreshRate": log.DEBUG,
+          "log.highCpuUsage": log.WARN,
           "log.configEntryUndefined": log.NOTICE,
           "log.torrc.validation.torStateDiffers": log.WARN,
           "log.torrc.validation.unnecessaryTorrcEntries": log.WARN}
@@ -631,6 +632,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   initTime = time.time() - startTime
   log.log(CONFIG["log.startTime"], "arm started (initialization took %0.3f seconds)" % initTime)
   
+  # attributes to give a WARN level event if arm's resource usage is too high
+  isResourceWarningGiven = False
+  lastResourceCheck = startTime
+  
   # TODO: come up with a nice, clean method for other threads to immediately
   # terminate the draw loop and provide a stacktrace
   while True:
@@ -722,6 +727,20 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%%" % (currentTime - redrawStartTime, 100 * cpuAvg))
         lastPerformanceLog = currentTime
+        
+        # once per minute check if the sustained cpu usage is above 5%, if so
+        # then give a warning (and if able, some advice for lowering it)
+        if not isResourceWarningGiven and currentTime > (lastResourceCheck + 60):
+          if cpuAvg >= 0.05:
+            msg = "Arm's cpu usage is high (averaging %0.3f%%)." % (100 * cpuAvg)
+            
+            if not isBlindMode:
+              msg += " You could lower it by dropping the connection data (running as \"arm -b\")."
+            
+            log.log(CONFIG["log.highCpuUsage"], msg)
+            isResourceWarningGiven = True
+          
+          lastResourceCheck = currentTime
     finally:
       panel.CURSES_LOCK.release()
     

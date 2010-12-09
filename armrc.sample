@@ -185,6 +185,7 @@ cache.armLog.trimSize 200
 # Runlevels at which arm logs its events
 log.startTime INFO
 log.refreshRate DEBUG
+log.highCpuUsage WARN
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
