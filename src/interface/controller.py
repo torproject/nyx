@@ -535,7 +535,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr, config),
+    "header": headerPanel.HeaderPanel(stdscr, startTime, config),
     "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
@@ -717,7 +717,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       currentTime = time.time()
       if currentTime - lastPerformanceLog >= CONFIG["queries.refreshRate.rate"]:
-        log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds" % (currentTime - redrawStartTime))
+        cpuTotal = sum(os.times()[:3])
+        cpuAvg = cpuTotal / (currentTime - startTime)
+        
+        log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%%" % (currentTime - redrawStartTime, 100 * cpuAvg))
         lastPerformanceLog = currentTime
     finally:
       panel.CURSES_LOCK.release()

@@ -38,16 +38,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
   """
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
-    tor/ version, versionStatus, nickname, orPort, dirPort, controlPort,
-         exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
-         *address, *fingerprint, *flags
-    sys/ hostname, os, version
-    ps/  *%cpu, *rss, *%mem, pid, *etime
+    tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
+          exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
+          *address, *fingerprint, *flags
+    sys/  hostname, os, version
+    stat/ *%torCpu, *%armCpu, *rss, *%mem, pid, *etime
   
   * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr, config=None):
+  def __init__(self, stdscr, startTime, config=None):
     panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
@@ -60,6 +60,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
     self._config = dict(DEFAULT_CONFIG)
+    
+    # The last arm cpu usage sampling taken. This is a tuple of the form:
+    # (total arm cpu time, sampling timestamp)
+    # 
+    # The initial cpu total should be zero. However, at startup the cpu time
+    # in practice is often greater than the real time causing the initially
+    # reported cpu usage to be over 100% (which shouldn't be possible on
+    # single core systems).
+    # 
+    # Setting the initial cpu total to the value at this panel's init tends to
+    # give smoother results (staying in the same ballpark as the second
+    # sampling) so fudging the numbers this way for now.
+    
+    self._armCpuSampling = (sum(os.times()[:3]), startTime)
     
     if config:
       config.update(self._config, {"queries.ps.rate": 1})
@@ -138,13 +152,13 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
-    if self.vals["ps/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["ps/rss"]) * 1024)
+    if self.vals["stat/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["stat/rss"]) * 1024)
     else: memoryLabel = "0"
     
-    sysFields = ((0, "cpu: %s%%" % self.vals["ps/%cpu"]),
-                 (13, "mem: %s (%s%%)" % (memoryLabel, self.vals["ps/%mem"])),
-                 (34, "pid: %s" % (self.vals["ps/pid"] if self._isTorConnected else "")),
-                 (47, "uptime: %s" % self.vals["ps/etime"]))
+    sysFields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
+                 (27, "mem: %s (%s%%)" % (memoryLabel, self.vals["stat/%mem"])),
+                 (47, "pid: %s" % (self.vals["stat/pid"] if self._isTorConnected else "")),
+                 (59, "uptime: %s" % self.vals["stat/etime"]))
     
     for (start, label) in sysFields:
       if start + len(label) <= rightWidth: self.addstr(y, x + start, label)
@@ -310,15 +324,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["sys/version"] = unameVals[2]
       
       pid = conn.getMyPid()
-      self.vals["ps/pid"] = pid if pid else ""
+      self.vals["stat/pid"] = pid if pid else ""
       
       # reverts volatile parameters to defaults
       self.vals["tor/fingerprint"] = "Unknown"
       self.vals["tor/flags"] = []
-      self.vals["ps/%cpu"] = "0"
-      self.vals["ps/rss"] = "0"
-      self.vals["ps/%mem"] = "0"
-      self.vals["ps/etime"] = ""
+      self.vals["stat/%torCpu"] = "0"
+      self.vals["stat/%armCpu"] = "0"
+      self.vals["stat/rss"] = "0"
+      self.vals["stat/%mem"] = "0"
+      self.vals["stat/etime"] = ""
     
     # sets volatile parameters
     volatile = {}
@@ -333,32 +348,44 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # ps derived stats
     psParams = ["%cpu", "rss", "%mem", "etime"]
-    if self.vals["ps/pid"]:
+    if self.vals["stat/pid"]:
       # if call fails then everything except etime are zeroed out (most likely
       # tor's no longer running)
-      volatile["ps/%cpu"] = "0"
-      volatile["ps/rss"] = "0"
-      volatile["ps/%mem"] = "0"
+      volatile["stat/%torCpu"] = "0"
+      volatile["stat/rss"] = "0"
+      volatile["stat/%mem"] = "0"
       
       # the ps call formats results as:
       # %CPU   RSS %MEM     ELAPSED
       # 0.3 14096  1.3       29:51
       psRate = self._config["queries.ps.rate"]
-      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["ps/pid"], ",".join(psParams)), psRate, True)
+      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["stat/pid"], ",".join(psParams)), psRate, True)
       
       if psCall and len(psCall) >= 2:
         stats = psCall[1].strip().split()
         
         if len(stats) == len(psParams):
           for i in range(len(psParams)):
-            volatile["ps/" + psParams[i]] = stats[i]
+            paramName = psParams[i]
+            if paramName == "%cpu": paramName = "%torCpu"
+            volatile["stat/" + paramName] = stats[i]
+    
+    # determines the cpu time for the arm process (including user and system
+    # time of both the primary and child processes)
+    
+    currentTime, totalCpuTime = time.time(), sum(os.times()[:3])
+    cpuDelta = totalCpuTime - self._armCpuSampling[0]
+    timeDelta = currentTime - self._armCpuSampling[1]
+    self.vals["stat/%armCpu"] = "%0.1f" % (100 * cpuDelta / timeDelta)
+    self._armCpuSampling = (totalCpuTime, currentTime)
     
     # checks if any changes have been made and merges volatile into vals
+    
     self._isChanged |= setStatic
     for key, val in volatile.items():
       self._isChanged |= self.vals[key] != val
       self.vals[key] = val
     
-    self._lastUpdate = time.time()
+    self._lastUpdate = currentTime
     self.valsLock.release()
 

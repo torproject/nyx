@@ -42,6 +42,8 @@ Introducing a new page for managing tor's configuration, along with several othe
     * fix: making the interface more resilient to being resized while popups are visible
     * fix: log panel wasn't respecting the prepopulate* log level config options
     * fix: off by one error when wrapping lines in the log panel
+    * fix (11/30/10, r23882): install script was failing to make the temporary directory for the compressed man page
+    * fix (11/30/10, r23882): a torrc validation log entries had a typo
 
 10/6/10 - version 1.3.7 (r23439)
 Numerous improvements, most notably being an expanded log panel, installer, and deb/rpm builds.

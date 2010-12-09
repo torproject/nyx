@@ -26,10 +26,22 @@ Tor is running with an available control port. This means either...
   ... or including 'ControlPort <PORT>' in your torrc
 
 For full functionality this also needs:
-Common *nix commands including: ps, pidof, tail, pwdx, host, ulimit, and a
-  method of connection resolution (netstat, ss, or lsof)
-To be ran with the same user as tor to avoid permission issues with connection
-  resolution and reading the torrc
+- To be ran with the same user as tor to avoid permission issues with
+  connection resolution and reading the torrc.
+
+- Common *nix commands including:
+    * ps
+    * a method of connection resolution (any of the following):
+      * sockstat
+      * netstat
+      * ss
+      * lsof
+      * procstat
+    * tail
+    * pwdx
+    * ulimit
+    * pgrep or pidof
+    * host (if dns lookups are enabled)
 
 This is started via 'arm' (use the '--help' argument for usage).
 
