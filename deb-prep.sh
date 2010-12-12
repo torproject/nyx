@@ -3,6 +3,11 @@
 # simply run:
 # cd release_deb
 # ./debian/make-deb
+# 
+# To try rebulding:
+# dget http://www.atagar.com/transfer/tmp/armBuild_12-7-10/tor-arm_1.4.0.1-1.dsc
+# dpkg-source -x tor-arm_1.4.0.1-1.dsc
+# debuild -rfakeroot -uc -us -j3
 
 # alternate (works, but svn export is simpler):
 # tar czf tor-arm_1.3.7.orig.tar.gz --exclude-vcs --exclude="*.pyc" -v release
