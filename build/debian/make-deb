@@ -1,4 +1,4 @@
 #!/bin/sh
-debuild -I.svn -i.svn -I.pyc -i.pyc
+debuild
 fakeroot debian/rules clean
 
