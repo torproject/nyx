@@ -42,7 +42,7 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid")
+              "bwMeasured", "flags", "pid", "pathPrefix")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -52,7 +52,9 @@ CONFIG = {"torrc.map": {},
           "log.torGetInfo": log.DEBUG,
           "log.torGetConf": log.DEBUG,
           "log.torSetConf": log.INFO,
-          "log.torPrefixPathInvalid": log.NOTICE}
+          "log.torPrefixPathInvalid": log.NOTICE,
+          "log.bsdJailFound": log.INFO,
+          "log.unknownBsdJailId": log.WARN}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -67,26 +69,6 @@ TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()]
 
 def loadConfig(config):
   config.update(CONFIG)
-  
-  # make sure the path prefix is valid and exists (providing a notice if not)
-  prefixPath = CONFIG["features.pathPrefix"].strip()
-  
-  if prefixPath:
-    if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
-    
-    if prefixPath and not os.path.exists(prefixPath):
-      msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
-      log.log(CONFIG["log.torPrefixPathInvalid"], msg)
-      prefixPath = ""
-  
-  CONFIG["features.pathPrefix"] = prefixPath
-
-def getPathPrefix():
-  """
-  Provides the path prefix that should be used for fetching tor resources.
-  """
-  
-  return CONFIG["features.pathPrefix"]
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
@@ -179,6 +161,29 @@ def getPid(controlPort=9051, pidFilePath=None):
   
   return None
 
+def getBsdJailId():
+  """
+  Get the FreeBSD jail id for the monitored Tor process.
+  """
+  
+  # Output when called from a FreeBSD jail or when Tor isn't jailed:
+  #   JID
+  #    0
+  # 
+  # Otherwise it's something like:
+  #   JID
+  #    1
+  
+  torPid = getConn().getMyPid()
+  psOutput = sysTools.call("ps -p %s -o jid" % torPid)
+  
+  if len(psOutput) == 2 and len(psOutput[1].split()) == 1:
+    jid = psOutput[1].strip()
+    if jid.isdigit(): return int(jid)
+  
+  log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
+  return 0
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
@@ -208,6 +213,11 @@ class Controller(TorCtl.PostEventListener):
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
+    
+    # Logs issues and notices when fetching the path prefix if true. This is
+    # only done once for the duration of the application to avoid pointless
+    # messages.
+    self._pathPrefixLogging = True
     
     # cached GETINFO parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
@@ -609,6 +619,18 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("pid", None)
   
+  def getPathPrefix(self):
+    """
+    Provides the path prefix that should be used for fetching tor resources.
+    If undefined and Tor is inside a jail under FreeBsd then this provides the
+    jail's path.
+    """
+    
+    result = self._getRelayAttr("pathPrefix", "")
+    
+    if result == UNKNOWN: return ""
+    else: return result
+  
   def getStatus(self):
     """
     Provides a tuple consisting of the control port's current status and unix
@@ -1008,6 +1030,39 @@ class Controller(TorCtl.PostEventListener):
             break
       elif key == "pid":
         result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+      elif key == "pathPrefix":
+        # make sure the path prefix is valid and exists (providing a notice if not)
+        prefixPath = CONFIG["features.pathPrefix"].strip()
+        
+        # adjusts the prefix path to account for jails under FreeBSD (many
+        # thanks to Fabian Keil!)
+        if not prefixPath and os.uname()[0] == "FreeBSD":
+          jid = getBsdJailId()
+          if jid != 0:
+            # Output should be something like:
+            #    JID  IP Address      Hostname      Path
+            #      1  10.0.0.2        tor-jail      /usr/jails/tor-jail
+            jlsOutput = sysTools.call("jls -j %s" % jid)
+            
+            if len(jlsOutput) == 2 and len(jlsOutput[1].split()) == 4:
+              prefixPath = jlsOutput[1].split()[3]
+              
+              if self._pathPrefixLogging:
+                msg = "Adjusting paths to account for Tor running in a jail at: %s" % prefixPath
+                log.log(CONFIG["log.bsdJailFound"], msg)
+        
+        if prefixPath:
+          # strips off ending slash from the path
+          if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+          
+          # avoid using paths that don't exist
+          if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
+            msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
+            log.log(CONFIG["log.torPrefixPathInvalid"], msg)
+            prefixPath = ""
+        
+        self._pathPrefixLogging = False # prevents logging if fetched again
+        result = prefixPath
       
       # cache value
       if result: self._cachedParam[key] = result

@@ -149,8 +149,18 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
         return cachedResults
   
   startTime = time.time()
-  commandComp = command.split("|")
   commandCall, results, errorExc = None, None, None
+  
+  # Gets all the commands involved, taking piping into consideration. If the
+  # pipe is quoted (ie, echo "an | example") then it's ignored.
+  
+  commandComp = []
+  for component in command.split("|"):
+    if not commandComp or component.count("\"") % 2 == 0:
+      commandComp.append(component)
+    else:
+      # pipe is within quotes
+      commandComp[-1] += "|" + component
   
   # preprocessing for the commands to prevent anything going to stdout
   for i in range(len(commandComp)):

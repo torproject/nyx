@@ -313,7 +313,7 @@ def getConfigLocation():
     except IOError, exc:
       raise IOError(failureMsg % ("the pwdx call failed: " + str(exc)))
   
-  return torTools.getPathPrefix() + configLocation
+  return conn.getPathPrefix() + configLocation
 
 def getMultilineParameters():
   """

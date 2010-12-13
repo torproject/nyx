@@ -156,6 +156,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.orPort = "0"
     self.dirPort = "0"
     self.controlPort = "0"
+    self.socksPort = "0"
     self.family = []                # fingerpints of family entries
     self.isBridge = False           # true if BridgeRelay is set
     self.exitPolicy = ""
@@ -192,6 +193,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         self.listenPort = listenAddr[listenAddr.find(":") + 1:]
       else: self.listenPort = self.orPort
       
+      self.socksPort = torTools.getConn().getOption("SocksPort", "0")
+      
       # entry is None if not set, otherwise of the format "$<fingerprint>,$<fingerprint>"
       familyEntry = self.conn.get_option("MyFamily")[0][1]
       if familyEntry: self.family = familyEntry.split(",")
@@ -216,6 +219,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       self.orPort = "0"
       self.dirPort = "0"
       self.controlPort = "0"
+      self.socksPort = "0"
       self.family = []
       self.isBridge = False
       self.exitPolicy = ""
@@ -325,6 +329,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
           type = "inbound"
           connectionCountTmp[0] += 1
           if SCRUB_PRIVATE_DATA and fIp not in self.fingerprintMappings.keys(): isPrivate = isGuard or self.isBridge
+        elif lPort == self.socksPort:
+          type = "client"
+          connectionCountTmp[2] += 1
         elif lPort == self.controlPort:
           type = "control"
           connectionCountTmp[4] += 1
@@ -348,8 +355,13 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
             connectionCountTmp[1] += 1
             if SCRUB_PRIVATE_DATA and fIp not in self.fingerprintMappings.keys(): isPrivate = isExitAllowed(fIp, fPort, self.exitPolicy, self.exitRejectPrivate)
         
-        # replace nat address with external version if available
-        if self.address and type != "control": lIp = self.address
+        # replace nat address with external version if available and the
+        # external address isn't a private IP
+        # TODO: range should restrict to the following address ranges:
+        #   10.*, 172.16.* - 172.31.*, 192.168.*
+        # being lazy right now - fix the 172.* range when rewriting
+        isPrivateIp = fIp.startswith("10.") or fIp.startswith("192.168.") or fIp.startswith("172.")
+        if self.address and type != "control" and not isPrivateIp: lIp = self.address
         
         try:
           countryCodeQuery = "ip-to-country/%s" % fIp
