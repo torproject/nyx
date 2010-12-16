@@ -3,9 +3,9 @@
 
 DEB_PYTHON_SYSTEM := pysupport
 
-	include /usr/share/cdbs/1/rules/debhelper.mk
-	include /usr/share/cdbs/1/class/python-distutils.mk
-  DEB_PYTHON_PRIVATE_MODULES_DIRS += /usr/share/arm
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/class/python-distutils.mk
+DEB_PYTHON_PRIVATE_MODULES_DIRS += /usr/share/arm
 
 binary-post-install/tor-arm::
 	find debian/tor-arm -name 'arm-*egg-info' -exec rm -v '{}' +
