@@ -448,7 +448,7 @@ class Controller(TorCtl.PostEventListener):
               if value != None:
                 if fetchType == "list": result.append(value)
                 elif fetchType == "map":
-                  if key in result: result.append(value)
+                  if key in result: result[key].append(value)
                   else: result[key] = [value]
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
           if type(exc) == TorCtl.TorCtlClosed: self.close()
