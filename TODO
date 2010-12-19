@@ -30,6 +30,9 @@ TODO
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
+        - include an option to show both the internal and external ips for the
+          local connection, ie:
+          myInternal --> myExternal --> foreign
       [ ] control port interpreter (interactive prompt)
           Panel and startup option (-t maybe?) for providing raw control port
           access along with usability improvements (piggybacking on the arm

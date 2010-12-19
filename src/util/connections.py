@@ -3,8 +3,8 @@ Fetches connection data (IP addresses and ports) associated with a given
 process. This sort of data can be retrieved via a variety of common *nix
 utilities:
 - netstat   netstat -np | grep "ESTABLISHED <pid>/<process>"
-- sockstat  sockstat | egrep "<process>\s*<pid>.*ESTABLISHED"
-- lsof      lsof -nPi | egrep "^<process>\s*<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
+- sockstat  sockstat | egrep "<process> *<pid>.*ESTABLISHED"
+- lsof      lsof -nPi | egrep "^<process> *<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
 - ss        ss -nptu | grep "ESTAB.*\"<process>\",<pid>"
 
 all queries dump its stderr (directing it to /dev/null). Results include UDP
@@ -60,12 +60,12 @@ RUN_SS = "ss -nptu | grep \"ESTAB.*\\\"%s\\\",%s\""
 # oddly, using the -p flag via:
 # lsof      lsof -nPi -p <pid> | grep "^<process>.*(ESTABLISHED)"
 # is much slower (11-28% in tests I ran)
-RUN_LSOF = "lsof -nPi | egrep \"^%s\\s*%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
+RUN_LSOF = "lsof -nPi | egrep \"^%s *%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
 
 # output:
 # atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED
 # *note: this isn't available by default under ubuntu
-RUN_SOCKSTAT = "sockstat | egrep \"%s\s*%s.*ESTABLISHED\""
+RUN_SOCKSTAT = "sockstat | egrep \"%s *%s.*ESTABLISHED\""
 
 RUN_BSD_SOCKSTAT = "sockstat -4c | grep '%s *%s'"
 RUN_BSD_PROCSTAT = "procstat -f %s | grep TCP | grep -v 0.0.0.0:0"
@@ -139,7 +139,12 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   # parses results for the resolution command
   conn = []
   for line in results:
-    comp = line.split()
+    if resolutionCmd == CMD_LSOF:
+      # Different versions of lsof have different numbers of columns, so
+      # stripping off the optional 'established' entry so we can just use
+      # the last one.
+      comp = line.replace("(ESTABLISHED)", "").strip().split()
+    else: comp = line.split()
     
     if resolutionCmd == CMD_NETSTAT:
       localIp, localPort = comp[3].split(":")
@@ -148,7 +153,7 @@ def getConnections(resolutionCmd, processName, processPid = ""):
       localIp, localPort = comp[4].split(":")
       foreignIp, foreignPort = comp[5].split(":")
     elif resolutionCmd == CMD_LSOF:
-      local, foreign = comp[8].split("->")
+      local, foreign = comp[-1].split("->")
       localIp, localPort = local.split(":")
       foreignIp, foreignPort = foreign.split(":")
     elif resolutionCmd == CMD_SOCKSTAT:

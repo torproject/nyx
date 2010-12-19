@@ -98,7 +98,7 @@ while True:
   elif userInput == "3":
     uiTools.demoGlyphs()
     
-    # Switching to a curses context and back repetedy seems to screw up the
+    # Switching to a curses context and back repeatedly seems to screw up the
     # terminal. Just to be safe this ends the process after the demo.
     break
   else:
