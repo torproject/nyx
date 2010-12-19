@@ -3,6 +3,7 @@ Helper functions for working with the underlying system.
 """
 
 import os
+import sys
 import time
 import threading
 
@@ -15,6 +16,8 @@ CMD_AVAILABLE_CACHE = {}
 CALL_CACHE = {}
 IS_FAILURES_CACHED = True           # caches both successful and failed results if true
 CALL_CACHE_LOCK = threading.RLock() # governs concurrent modifications of CALL_CACHE
+
+PROCESS_NAME_CACHE = {} # mapping of pids to their process names
 
 CONFIG = {"cache.sysCalls.size": 600,
           "log.sysCallMade": log.DEBUG,
@@ -73,6 +76,55 @@ def getFileErrorMsg(exc):
     excStr = excStr[0].lower() + excStr[1:]
   
   return excStr
+
+def getProcessName(pid, default = None, cacheFailure = True):
+  """
+  Provides the name associated with the given process id. This is platform
+  specific and only implemented for Linux.
+  
+  Arguments:
+    pid          - process id for the process being returned
+    default      - result if the process name can't be retrieved (raises an
+                   IOError on failure instead if undefined)
+    cacheFailure - if the lookup fails and there's a default then caches the
+                   default value to prevent further lookups
+  """
+  
+  if pid in PROCESS_NAME_CACHE:
+    return PROCESS_NAME_CACHE[pid]
+  
+  processName, raisedExc = "", None
+  if sys.platform.lower().startswith("linux"):
+    if pid == 0:
+      # special case for the kernel process
+      processName = "sched"
+    else:
+      try:
+        statFilePath = "/proc/%s/stat" % pid
+        statFile = open(statFilePath)
+        statContents = statFile.read()
+        statFile.close()
+        
+        # contents are of the form:
+        # 8438 (tor) S 8407 8438 8407 34818 8438 4202496...
+        start, end = statContents.find("("), statContents.find(")")
+        if start != -1 and end != -1:
+          processName = statContents[start + 1:end]
+        else:
+          raise IOError("stat file had an unexpected format: %s" % statFilePath)
+      except IOError, exc:
+        raisedExc = exc
+  
+  if raisedExc:
+    if default == None: raise raisedExc
+    else:
+      if cacheFailure:
+        PROCESS_NAME_CACHE[pid] = default
+      
+      return default
+  else:
+    PROCESS_NAME_CACHE[pid] = processName
+    return processName
 
 def call(command, cacheAge=0, suppressExc=False, quiet=True):
   """
