@@ -4,7 +4,7 @@ process. This sort of data can be retrieved via a variety of common *nix
 utilities:
 - netstat   netstat -np | grep "ESTABLISHED <pid>/<process>"
 - sockstat  sockstat | egrep "<process> *<pid>.*ESTABLISHED"
-- lsof      lsof -nPi | egrep "^<process> *<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
+- lsof      lsof -wnPi | egrep "^<process> *<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
 - ss        ss -nptu | grep "ESTAB.*\"<process>\",<pid>"
 
 all queries dump its stderr (directing it to /dev/null). Results include UDP
@@ -53,14 +53,15 @@ RUN_NETSTAT = "netstat -np | grep \"ESTABLISHED %s/%s\""
 # *note: under freebsd this command belongs to a spreadsheet program
 RUN_SS = "ss -nptu | grep \"ESTAB.*\\\"%s\\\",%s\""
 
-# n = prevent dns lookups, P = show port numbers (not names), i = ip only
+# n = prevent dns lookups, P = show port numbers (not names), i = ip only,
+# -w = no warnings
 # output:
 # tor  3873  atagar  45u  IPv4  40994  0t0  TCP 10.243.55.20:45724->194.154.227.109:9001 (ESTABLISHED)
 # 
 # oddly, using the -p flag via:
 # lsof      lsof -nPi -p <pid> | grep "^<process>.*(ESTABLISHED)"
 # is much slower (11-28% in tests I ran)
-RUN_LSOF = "lsof -nPi | egrep \"^%s *%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
+RUN_LSOF = "lsof -wnPi | egrep \"^%s *%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
 
 # output:
 # atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED

@@ -86,6 +86,8 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * The cpu usage spikes for scrollable content when the key's held. Try
+    coalescing the events.
   * The manpage layout is system dependent, so the scraper needs to be more
     resilient against being confused by whitespace. Another improvement is
     including fallback results if the man page can't be parsed (suggested by
@@ -133,6 +135,27 @@ TODO
     * connection uptimes shouldn't show fractions of a second
     * connections aren't cleared when control port closes
 
+- Packaging
+  * OpenWrt - OpenWrt uses the opkg packaging format which could make use of
+    arm's current deb packages. Packaging for this platform would help with
+    the Torouter project:
+    https://trac.torproject.org/projects/tor/wiki/TheOnionRouter/Torouter
+  * Mac - Couple of options include macport and dmg...
+    * macport (http://guide.macports.org/#development)
+      Build-from-source distribution method (like BSD portinstall). This has
+      been suggested by several people.
+      
+    * dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
+      Most conventional method of software distribution on mac. This is just
+      a container (no updating/removal support), but could contain an icon
+      for the dock that starts a terminal with arm. This might include a pkg
+      installer.
+    
+    * mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
+      Plugin for distutils. Like most mac packaging, this can only run on a
+      mac. It also requires setuptools:
+      http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+
 - Future Features
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
@@ -175,22 +198,6 @@ TODO
     * accounting and alerts for if the bandwidth drops to zero
     * daily/weekly/etc alerts for basic status (log output, bandwidth history,
         etc), borrowing from the consensus tracker for some of the formatting
-  * mac installer
-    * Couple of options include macport and dmg...
-      * macport (http://guide.macports.org/#development)
-        Build-from-source distribution method (like BSD portinstall). This has
-        been suggested by several people.
-        
-      * dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
-        Most conventional method of software distribution on mac. This is just
-        a container (no updating/removal support), but could contain an icon
-        for the dock that starts a terminal with arm. This might include a pkg
-        installer.
-      
-      * mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
-        Plugin for distutils. Like most mac packaging, this can only run on a
-        mac. It also requires setuptools:
-        http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
   * tab completion for input fields that expect a filesystem path
   * look through vidalia's tickets for more ideas
     https://trac.vidalia-project.net/
@@ -212,7 +219,8 @@ TODO
   * setup wizard for new relays
     Setting the password and such for torrc generation. Maybe a netinstaller
     that fetches the right package for the plagform, verifies signatures, etc?
-    (idea by ioerror)
+    Another alternative would be that when arm is started and tor isn't
+    running offer to start tor as a client, relay, or bridge. (idea by ioerror)
   * audit what tor does
     * Provide warnings if tor connections misbehaves, for instance:
       * ensuring ExitPolicyRejectPrivate is being obeyed
