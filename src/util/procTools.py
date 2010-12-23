@@ -22,11 +22,6 @@ import base64
 
 from util import log
 
-# TODO: need to log the runtimes for proc queries
-# TODO: need to update the header panel time every second to give a more fluid appearance
-# TODO: finish integrating proc connection selection into arm's interface
-# TODO: integrate ps resultion into arm's header panel
-
 # cached system values
 SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None
 CLOCK_TICKS = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
