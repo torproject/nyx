@@ -18,15 +18,15 @@ options that perform even better (thanks to Fabian Keil and Hans Schnehl):
 """
 
 import os
-import sys
 import time
 import threading
 
-from util import log, sysTools
+from util import log, procTools, sysTools
 
 # enums for connection resolution utilities
-CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS, CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT = range(1, 7)
-CMD_STR = {CMD_NETSTAT: "netstat",
+CMD_PROC, CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS, CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT = range(1, 8)
+CMD_STR = {CMD_PROC: "proc",
+           CMD_NETSTAT: "netstat",
            CMD_SS: "ss",
            CMD_LSOF: "lsof",
            CMD_SOCKSTAT: "sockstat",
@@ -105,7 +105,8 @@ def getResolverCommand(resolutionCmd, processName, processPid = ""):
     # if the pid was undefined then match any in that field
     processPid = "[0-9]*"
   
-  if resolutionCmd == CMD_NETSTAT: return RUN_NETSTAT % (processPid, processName)
+  if resolutionCmd == CMD_PROC: return ""
+  elif resolutionCmd == CMD_NETSTAT: return RUN_NETSTAT % (processPid, processName)
   elif resolutionCmd == CMD_SS: return RUN_SS % (processName, processPid)
   elif resolutionCmd == CMD_LSOF: return RUN_LSOF % (processName, processPid)
   elif resolutionCmd == CMD_SOCKSTAT: return RUN_SOCKSTAT % (processName, processPid)
@@ -130,46 +131,56 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     processPid    - process ID (this helps improve accuracy)
   """
   
-  
-  # raises an IOError if the command fails or isn't available
-  cmd = getResolverCommand(resolutionCmd, processName, processPid)
-  results = sysTools.call(cmd)
-  
-  if not results: raise IOError("No results found using: %s" % cmd)
-  
-  # parses results for the resolution command
-  conn = []
-  for line in results:
-    if resolutionCmd == CMD_LSOF:
-      # Different versions of lsof have different numbers of columns, so
-      # stripping off the optional 'established' entry so we can just use
-      # the last one.
-      comp = line.replace("(ESTABLISHED)", "").strip().split()
-    else: comp = line.split()
+  if resolutionCmd == CMD_PROC:
+    # Attempts resolution via checking the proc contents.
+    if not processPid:
+      raise ValueError("proc resolution requires a pid")
     
-    if resolutionCmd == CMD_NETSTAT:
-      localIp, localPort = comp[3].split(":")
-      foreignIp, foreignPort = comp[4].split(":")
-    elif resolutionCmd == CMD_SS:
-      localIp, localPort = comp[4].split(":")
-      foreignIp, foreignPort = comp[5].split(":")
-    elif resolutionCmd == CMD_LSOF:
-      local, foreign = comp[-1].split("->")
-      localIp, localPort = local.split(":")
-      foreignIp, foreignPort = foreign.split(":")
-    elif resolutionCmd == CMD_SOCKSTAT:
-      localIp, localPort = comp[4].split(":")
-      foreignIp, foreignPort = comp[5].split(":")
-    elif resolutionCmd == CMD_BSD_SOCKSTAT:
-      localIp, localPort = comp[5].split(":")
-      foreignIp, foreignPort = comp[6].split(":")
-    elif resolutionCmd == CMD_BSD_PROCSTAT:
-      localIp, localPort = comp[9].split(":")
-      foreignIp, foreignPort = comp[10].split(":")
+    try:
+      return procTools.getConnections(processPid)
+    except Exception, exc:
+      raise IOError(str(exc))
+  else:
+    # Queries a resolution utility (netstat, lsof, etc). This raises an
+    # IOError if the command fails or isn't available.
+    cmd = getResolverCommand(resolutionCmd, processName, processPid)
+    results = sysTools.call(cmd)
     
-    conn.append((localIp, localPort, foreignIp, foreignPort))
-  
-  return conn
+    if not results: raise IOError("No results found using: %s" % cmd)
+    
+    # parses results for the resolution command
+    conn = []
+    for line in results:
+      if resolutionCmd == CMD_LSOF:
+        # Different versions of lsof have different numbers of columns, so
+        # stripping off the optional 'established' entry so we can just use
+        # the last one.
+        comp = line.replace("(ESTABLISHED)", "").strip().split()
+      else: comp = line.split()
+      
+      if resolutionCmd == CMD_NETSTAT:
+        localIp, localPort = comp[3].split(":")
+        foreignIp, foreignPort = comp[4].split(":")
+      elif resolutionCmd == CMD_SS:
+        localIp, localPort = comp[4].split(":")
+        foreignIp, foreignPort = comp[5].split(":")
+      elif resolutionCmd == CMD_LSOF:
+        local, foreign = comp[-1].split("->")
+        localIp, localPort = local.split(":")
+        foreignIp, foreignPort = foreign.split(":")
+      elif resolutionCmd == CMD_SOCKSTAT:
+        localIp, localPort = comp[4].split(":")
+        foreignIp, foreignPort = comp[5].split(":")
+      elif resolutionCmd == CMD_BSD_SOCKSTAT:
+        localIp, localPort = comp[5].split(":")
+        foreignIp, foreignPort = comp[6].split(":")
+      elif resolutionCmd == CMD_BSD_PROCSTAT:
+        localIp, localPort = comp[9].split(":")
+        foreignIp, foreignPort = comp[10].split(":")
+      
+      conn.append((localIp, localPort, foreignIp, foreignPort))
+    
+    return conn
 
 def isResolverAlive(processName, processPid = ""):
   """
@@ -226,8 +237,12 @@ def getSystemResolvers(osType = None):
   """
   
   if osType == None: osType = os.uname()[0]
-  if osType == "FreeBSD": return [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
-  else: return [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+  if osType == "FreeBSD":
+    return [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
+  elif osType == "Linux":
+    return [CMD_PROC, CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+  else:
+    return [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
 
 class ConnectionResolver(threading.Thread):
   """
@@ -292,7 +307,7 @@ class ConnectionResolver(threading.Thread):
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
-    self.defaultResolver = CMD_NETSTAT
+    self.defaultResolver = CMD_PROC
     
     osType = os.uname()[0]
     self.resolverOptions = getSystemResolvers(osType)
@@ -303,7 +318,7 @@ class ConnectionResolver(threading.Thread):
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
     for resolver in self.resolverOptions:
-      if sysTools.isAvailable(CMD_STR[resolver]):
+      if resolver == CMD_PROC or sysTools.isAvailable(CMD_STR[resolver]):
         self.defaultResolver = resolver
         break
     

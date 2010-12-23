@@ -195,6 +195,7 @@ log.torGetConf DEBUG
 log.torSetConf INFO
 log.torEventTypeUnrecognized NOTICE
 log.torPrefixPathInvalid NOTICE
+log.procCallMade DEBUG
 log.sysCallMade DEBUG
 log.sysCallCached NONE
 log.sysCallFailed INFO

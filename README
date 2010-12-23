@@ -144,6 +144,7 @@ Layout:
       hostnames.py   - service providing nonblocking reverse dns lookups
       log.py         - aggregator for application events
       panel.py       - wrapper for safely working with curses subwindows
+      procTools.py   - queries process & system information from /proc contents
       sysTools.py    - helper for system calls, providing client side caching
       torConfig.py   - functions for working with the torrc and config options
       torTools.py    - TorCtl wrapper, providing caching and derived information

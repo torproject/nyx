@@ -3,11 +3,10 @@ Helper functions for working with the underlying system.
 """
 
 import os
-import sys
 import time
 import threading
 
-from util import log
+from util import log, procTools
 
 # mapping of commands to if they're available or not
 CMD_AVAILABLE_CACHE = {}
@@ -94,26 +93,11 @@ def getProcessName(pid, default = None, cacheFailure = True):
     return PROCESS_NAME_CACHE[pid]
   
   processName, raisedExc = "", None
-  if sys.platform.lower().startswith("linux"):
-    if pid == 0:
-      # special case for the kernel process
-      processName = "sched"
-    else:
-      try:
-        statFilePath = "/proc/%s/stat" % pid
-        statFile = open(statFilePath)
-        statContents = statFile.read()
-        statFile.close()
-        
-        # contents are of the form:
-        # 8438 (tor) S 8407 8438 8407 34818 8438 4202496...
-        start, end = statContents.find("("), statContents.find(")")
-        if start != -1 and end != -1:
-          processName = statContents[start + 1:end]
-        else:
-          raise IOError("stat file had an unexpected format: %s" % statFilePath)
-      except IOError, exc:
-        raisedExc = exc
+  if os.uname()[0] == "Linux":
+    try:
+      processName = procTools.getStats(pid, procTools.STAT_COMMAND)[0]
+    except IOError, exc:
+      raisedExc = exc
   
   if raisedExc:
     if default == None: raise raisedExc

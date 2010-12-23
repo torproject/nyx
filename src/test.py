@@ -67,7 +67,7 @@ while True:
       # provide the selection options
       printDivider()
       print("Select a resolver:")
-      for i in range(1, 7):
+      for i in range(1, 8):
         print("  %i. %s" % (i, connections.CMD_STR[i]))
       print("  q. Go back to the main menu")
       
@@ -76,7 +76,7 @@ while True:
         printDivider()
         break
       
-      if userSelection.isdigit() and int(userSelection) in range(1, 7):
+      if userSelection.isdigit() and int(userSelection) in range(1, 8):
         try:
           resolver = int(userSelection)
           startTime = time.time()
