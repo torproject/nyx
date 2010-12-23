@@ -733,7 +733,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # once per minute check if the sustained cpu usage is above 5%, if so
         # then give a warning (and if able, some advice for lowering it)
-        if not isResourceWarningGiven and currentTime > (lastResourceCheck + 60):
+        # TODO: disabling this for now (scrolling causes cpu spikes for quick
+        # redraws, ie this is usually triggered by user input)
+        if False and not isResourceWarningGiven and currentTime > (lastResourceCheck + 60):
           if cpuAvg >= 0.05:
             msg = "Arm's cpu usage is high (averaging %0.3f%%)." % (100 * cpuAvg)
             
