@@ -78,8 +78,8 @@ def getFileErrorMsg(exc):
 
 def getProcessName(pid, default = None, cacheFailure = True):
   """
-  Provides the name associated with the given process id. This is platform
-  specific and only implemented for Linux.
+  Provides the name associated with the given process id. This isn't available
+  on all platforms.
   
   Arguments:
     pid          - process id for the process being returned
@@ -93,7 +93,7 @@ def getProcessName(pid, default = None, cacheFailure = True):
     return PROCESS_NAME_CACHE[pid]
   
   processName, raisedExc = "", None
-  if os.uname()[0] == "Linux":
+  if procTools.isProcAvailable():
     try:
       processName = procTools.getStats(pid, procTools.STAT_COMMAND)[0]
     except IOError, exc:

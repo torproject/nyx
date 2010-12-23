@@ -237,12 +237,17 @@ def getSystemResolvers(osType = None):
   """
   
   if osType == None: osType = os.uname()[0]
+  
   if osType == "FreeBSD":
-    return [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
-  elif osType == "Linux":
-    return [CMD_PROC, CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+    resolvers = [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
   else:
-    return [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+    resolvers = [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+  
+  # proc resolution, by far, outperforms the others so defaults to this is able
+  if procTools.isProcAvailable():
+    resolvers = [CMD_PROC] + resolvers
+  
+  return resolvers
 
 class ConnectionResolver(threading.Thread):
   """

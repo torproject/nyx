@@ -86,6 +86,7 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * The default resolver isn't configurable.
   * The cpu usage spikes for scrollable content when the key's held. Try
     coalescing the events.
   * The manpage layout is system dependent, so the scraper needs to be more

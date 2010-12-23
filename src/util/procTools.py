@@ -27,10 +27,19 @@ SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None
 CLOCK_TICKS = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
 STAT_COMMAND, STAT_CPU_UTIME, STAT_CPU_STIME, STAT_START_TIME = range(4)
 
-CONFIG = {"log.procCallMade": log.DEBUG}
+CONFIG = {"queries.useProc": True,
+          "log.procCallMade": log.DEBUG}
 
 def loadConfig(config):
   config.update(CONFIG)
+
+def isProcAvailable():
+  """
+  Provides true if configured to use proc resolution and it's available on the
+  platform, false otherwise.
+  """
+  
+  return CONFIG["queries.useProc"] and os.uname()[0] == "Linux"
 
 def getSystemStartTime():
   """
