@@ -17,7 +17,7 @@ import threading
 
 from TorCtl import TorCtl, TorUtil
 
-from util import log, sysTools
+from util import log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
 # TOR_INIT - attached to a new controller or restart/sighup signal received
@@ -42,7 +42,7 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid", "pathPrefix")
+              "bwMeasured", "flags", "pid", "pathPrefix", "startTime")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -50,6 +50,7 @@ CONFIG = {"torrc.map": {},
           "features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
+          "log.torGetInfoCache": None,
           "log.torGetConf": log.DEBUG,
           "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
@@ -353,9 +354,12 @@ class Controller(TorCtl.PostEventListener):
     if not isFromCache and result and param in CACHE_ARGS:
       self._cachedParam[param] = result
     
-    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
-    msg = "GETINFO %s (%s)" % (param, runtimeLabel)
-    log.log(CONFIG["log.torGetInfo"], msg)
+    if isFromCache:
+      msg = "GETINFO %s (cache fetch)" % param
+      log.log(CONFIG["log.torGetInfoCache"], msg)
+    else:
+      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+      log.log(CONFIG["log.torGetInfo"], msg)
     
     self.connLock.release()
     
@@ -629,6 +633,17 @@ class Controller(TorCtl.PostEventListener):
     result = self._getRelayAttr("pathPrefix", "")
     
     if result == UNKNOWN: return ""
+    else: return result
+  
+  def getStartTime(self):
+    """
+    Provides the unix time for when the tor process first started. If this
+    can't be determined then this provides None.
+    """
+    
+    result = self._getRelayAttr("startTime", None)
+    
+    if result == UNKNOWN: return None
     else: return result
   
   def getStatus(self):
@@ -1063,6 +1078,20 @@ class Controller(TorCtl.PostEventListener):
         
         self._pathPrefixLogging = False # prevents logging if fetched again
         result = prefixPath
+      elif key == "startTime":
+        myPid = self.getMyPid()
+        
+        if myPid:
+          try:
+            if procTools.isProcAvailable():
+              result = float(procTools.getStats(myPid, procTools.STAT_START_TIME)[0])
+            else:
+              psCall = sysTools.call("ps -p %s -o etime" % myPid)
+              
+              if psCall and len(psCall) >= 2:
+                etimeEntry = psCall[1].strip()
+                result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
+          except: pass
       
       # cache value
       if result: self._cachedParam[key] = result

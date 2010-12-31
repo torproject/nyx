@@ -6,7 +6,7 @@ startup.blindModeEnabled false
 startup.events N3
 
 # Seconds between querying information
-queries.ps.rate 5
+queries.resourceUsage.rate 5
 queries.connections.minRate 5
 queries.refreshRate.rate 5
 
@@ -153,18 +153,6 @@ features.graph.bw.accounting.show true
 features.graph.bw.accounting.rate 10
 features.graph.bw.accounting.isTimeLong false
 
-# Parameters for graphing ps stats
-# --------------------------------
-# primary/secondaryStat
-#   any numeric field provided by the ps command
-# cachedOnly
-#   determines if the graph should query ps or rely on cached results (this
-#   lowers the call volume but limits the graph's granularity)
-
-features.graph.ps.primaryStat %cpu
-features.graph.ps.secondaryStat rss
-features.graph.ps.cachedOnly true
-
 # Thread pool size for hostname resolutions
 # Determines the maximum number of concurrent requests. Upping this to around
 # thirty or so seems to be problematic, causing intermittently seizing.
@@ -196,6 +184,7 @@ log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
 log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
+log.torGetInfoCache NONE
 log.torGetConf DEBUG
 log.torSetConf INFO
 log.torEventTypeUnrecognized NOTICE
@@ -206,8 +195,6 @@ log.sysCallCached NONE
 log.sysCallFailed INFO
 log.sysCallCacheGrowing INFO
 log.panelRecreated DEBUG
-log.graph.ps.invalidStat WARN
-log.graph.ps.abandon WARN
 log.graph.bw.prepopulateSuccess NOTICE
 log.graph.bw.prepopulateFailure NOTICE
 log.logPanel.prepopulateSuccess INFO
@@ -234,4 +221,7 @@ log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO
 log.bsdJailFound INFO
 log.unknownBsdJailId WARN
+log.stats.failedProcResolution DEBUG
+log.stats.procResolutionFailover INFO
+log.stats.failedPsResolution INFO
 

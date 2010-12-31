@@ -14,7 +14,6 @@ import curses
 import curses.textpad
 import socket
 from TorCtl import TorCtl
-from TorCtl import TorUtil
 
 import headerPanel
 import graphing.graphPanel
@@ -28,7 +27,7 @@ import fileDescriptorPopup
 from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
-import graphing.psStats
+import graphing.resourceStats
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
@@ -539,7 +538,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr, startTime, config),
+    "header": headerPanel.HeaderPanel(stdscr, startTime),
     "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
@@ -561,7 +560,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", graphing.bandwidthStats.BandwidthStats(config))
-  panels["graph"].addStats("system resources", graphing.psStats.PsStats(config))
+  panels["graph"].addStats("system resources", graphing.resourceStats.ResourceStats())
   if not isBlindMode: panels["graph"].addStats("connections", graphing.connStats.ConnStats())
   
   # sets graph based on config parameter
@@ -639,6 +638,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   isResourceWarningGiven = False
   lastResourceCheck = startTime
   
+  lastSize = None
+  
   # TODO: come up with a nice, clean method for other threads to immediately
   # terminate the draw loop and provide a stacktrace
   while True:
@@ -715,9 +716,13 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       for panelKey in (PAGE_S + PAGES[page]):
         # redrawing popup can result in display flicker when it should be hidden
         if panelKey != "popup":
+          newSize = stdscr.getmaxyx()
+          isResize = lastSize != newSize
+          lastSize = newSize
+          
           if panelKey in ("header", "graph", "log", "config", "torrc"):
             # revised panel (manages its own content refreshing)
-            panels[panelKey].redraw()
+            panels[panelKey].redraw(isResize)
           else:
             panels[panelKey].redraw(True)
       
@@ -726,9 +731,16 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       currentTime = time.time()
       if currentTime - lastPerformanceLog >= CONFIG["queries.refreshRate.rate"]:
         cpuTotal = sum(os.times()[:3])
-        cpuAvg = cpuTotal / (currentTime - startTime)
+        pythonCpuAvg = cpuTotal / (currentTime - startTime)
+        sysCallCpuAvg = sysTools.getSysCpuUsage()
+        totalCpuAvg = pythonCpuAvg + sysCallCpuAvg
         
-        log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%%" % (currentTime - redrawStartTime, 100 * cpuAvg))
+        if sysCallCpuAvg > 0.00001:
+          log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%% (python), %0.3f%% (system calls), %0.3f%% (total)" % (currentTime - redrawStartTime, 100 * pythonCpuAvg, 100 * sysCallCpuAvg, 100 * totalCpuAvg))
+        else:
+          # with the proc enhancements the sysCallCpuAvg is usually zero
+          log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%%" % (currentTime - redrawStartTime, 100 * totalCpuAvg))
+        
         lastPerformanceLog = currentTime
         
         # once per minute check if the sustained cpu usage is above 5%, if so
@@ -736,8 +748,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # TODO: disabling this for now (scrolling causes cpu spikes for quick
         # redraws, ie this is usually triggered by user input)
         if False and not isResourceWarningGiven and currentTime > (lastResourceCheck + 60):
-          if cpuAvg >= 0.05:
-            msg = "Arm's cpu usage is high (averaging %0.3f%%)." % (100 * cpuAvg)
+          if totalCpuAvg >= 0.05:
+            msg = "Arm's cpu usage is high (averaging %0.3f%%)." % (100 * totalCpuAvg)
             
             if not isBlindMode:
               msg += " You could lower it by dropping the connection data (running as \"arm -b\")."
@@ -785,19 +797,25 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # this appears to be a python bug: http://bugs.python.org/issue3014
         # (haven't seen this is quite some time... mysteriously resolved?)
         
-        # joins on utility daemon threads - this might take a moment since
-        # the internal threadpools being joined might be sleeping
-        resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
-        if resolver: resolver.stop()  # sets halt flag (returning immediately)
-        hostnames.stop()              # halts and joins on hostname worker thread pool
-        if resolver: resolver.join()  # joins on halted resolver
-        
         # stops panel daemons
         panels["header"].stop()
         panels["log"].stop()
         
         panels["header"].join()
         panels["log"].join()
+        
+        # joins on utility daemon threads - this might take a moment since
+        # the internal threadpools being joined might be sleeping
+        conn = torTools.getConn()
+        myPid = conn.getMyPid()
+        
+        resourceTracker = sysTools.getResourceTracker(myPid) if (myPid and sysTools.isTrackerAlive(myPid)) else None
+        resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
+        if resourceTracker: resourceTracker.stop()
+        if resolver: resolver.stop()  # sets halt flag (returning immediately)
+        hostnames.stop()              # halts and joins on hostname worker thread pool
+        if resourceTracker: resourceTracker.join()
+        if resolver: resolver.join()  # joins on halted resolver
         
         conn.close() # joins on TorCtl event thread
         break
