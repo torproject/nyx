@@ -1,9 +1,10 @@
-# startup options
+# Startup options
 startup.controlPassword
 startup.interface.ipAddress 127.0.0.1
 startup.interface.port 9051
 startup.blindModeEnabled false
 startup.events N3
+startup.dataDirectory ~/.arm
 
 # Seconds between querying information
 queries.resourceUsage.rate 5

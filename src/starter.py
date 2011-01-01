@@ -27,14 +27,14 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
-DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
+DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
           "startup.interface.ipAddress": "127.0.0.1",
           "startup.interface.port": 9051,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
+          "data.cache.path": "~/.arm/cache",
           "features.config.descriptions.enabled": True,
-          "features.config.descriptions.persistPath": "/tmp/arm/torConfigDescriptions.txt",
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
           "log.configDescriptions.readManPageFailed": util.log.WARN,
           "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
@@ -60,6 +60,9 @@ Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
 """ % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+
+# filename used for cached tor config descriptions
+CONFIG_DESC_FILENAME = "torConfigDescriptions.txt"
 
 # messages related to loading the tor configuration descriptions
 DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
@@ -108,7 +111,14 @@ def _loadConfigurationDescriptions():
   
   if CONFIG["features.config.descriptions.enabled"]:
     isConfigDescriptionsLoaded = False
-    descriptorPath = CONFIG["features.config.descriptions.persistPath"]
+    
+    # determines the path where cached descriptions should be persisted (left
+    # undefined of arm caching is disabled)
+    cachePath, descriptorPath = CONFIG["data.cache.path"], None
+    
+    if cachePath:
+      if not cachePath.endswith("/"): cachePath += "/"
+      descriptorPath = os.path.expanduser(cachePath) + CONFIG_DESC_FILENAME
     
     # attempts to load persisted configuration descriptions
     if descriptorPath:
