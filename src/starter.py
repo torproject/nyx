@@ -27,6 +27,7 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
+LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
           "startup.interface.ipAddress": "127.0.0.1",
@@ -42,14 +43,15 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE}
 
-OPT = "i:c:be:vh"
-OPT_EXPANDED = ["interface=", "config=", "blind", "event=", "version", "help"]
+OPT = "i:c:dbe:vh"
+OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
                                     defaults to: %s
+  -d, --debug                     writes all arm logs to %s
   -b, --blind                     disable connection lookups
   -e, --event EVENT_FLAGS         event types in message log  (default: %s)
 %s
@@ -59,7 +61,7 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDescriptions.txt"
@@ -161,6 +163,7 @@ def _loadConfigurationDescriptions():
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
+  isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
   # parses user input, noting any issues
@@ -189,6 +192,7 @@ if __name__ == '__main__':
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
+    elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
     elif opt in ("-e", "--event"):
@@ -199,6 +203,19 @@ if __name__ == '__main__':
     elif opt in ("-h", "--help"):
       print HELP_MSG
       sys.exit()
+  
+  if isDebugMode:
+    try:
+      util.log.setDumpFile(LOG_DUMP_PATH)
+      
+      currentTime = time.localtime()
+      timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
+      initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
+      
+      util.log.DUMP_FILE.write("%s\n%s\n" % (initMsg, "-" * len(initMsg)))
+      util.log.DUMP_FILE.flush()
+    except IOError, exc:
+      print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
   
   config = util.conf.getConfig("arm")
   
