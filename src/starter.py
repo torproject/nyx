@@ -214,7 +214,7 @@ if __name__ == '__main__':
       
       util.log.DUMP_FILE.write("%s\n%s\n" % (initMsg, "-" * len(initMsg)))
       util.log.DUMP_FILE.flush()
-    except IOError, exc:
+    except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
   
   config = util.conf.getConfig("arm")
