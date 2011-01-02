@@ -17,6 +17,7 @@ IS_FAILURES_CACHED = True           # caches both successful and failed results 
 CALL_CACHE_LOCK = threading.RLock() # governs concurrent modifications of CALL_CACHE
 
 PROCESS_NAME_CACHE = {} # mapping of pids to their process names
+PWD_CACHE = {}          # mapping of pids to their present working directory
 RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
 
 # Runtimes for system calls, used to estimate cpu usage. Entries are tuples of
@@ -137,6 +138,61 @@ def getProcessName(pid, default = None, cacheFailure = True):
   else:
     PROCESS_NAME_CACHE[pid] = processName
     return processName
+
+def getPwd(pid):
+  """
+  Provices the working directory of the given process. This raises an IOError
+  if it can't be determined.
+  
+  Arguments:
+    pid - pid of the process
+  """
+  
+  if not pid: raise IOError("we couldn't get the pid")
+  elif pid in PWD_CACHE: return PWD_CACHE[pid]
+  
+  # try fetching via the proc contents if available
+  if procTools.isProcAvailable():
+    try:
+      pwd = procTools.getPwd(pid)
+      PWD_CACHE[pid] = pwd
+      return pwd
+    except IOError: pass # fall back to pwdx
+  
+  try:
+    # pwdx results are of the form:
+    # 3799: /home/atagar
+    # 5839: No such process
+    results = sysTools.call("pwdx %s" % pid)
+    if not results:
+      raise IOError("pwdx didn't return any results")
+    elif results[0].endswith("No such process"):
+      raise IOError("pwdx reported no process for pid " + pid)
+    elif len(results) != 1 or results.count(" ") != 1:
+      raise IOError("we got unexpected output from pwdx")
+    else:
+      pwd = results[0][results[0].find(" ") + 1:]
+      PWD_CACHE[pid] = pwd
+      return pwd
+  except IOError, exc:
+    raise IOError("the pwdx call failed: " + str(exc))
+
+def expandRelativePath(path, ownerPid):
+  """
+  Expands relative paths to be an absolute path with reference to a given
+  process. This raises an IOError if the process pwd is required and can't be
+  resolved.
+  
+  Arguments:
+    path     - path to be expanded
+    ownerPid - pid of the process to which the path belongs
+  """
+  
+  if not path or path[0] == "/": return path
+  else:
+    if path.startswith("./"): path = path[2:]
+    processPwd = getPwd(ownerPid)
+    return "%s/%s" % (processPwd, path)
 
 def call(command, cacheAge=0, suppressExc=False, quiet=True):
   """

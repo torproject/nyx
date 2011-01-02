@@ -288,32 +288,13 @@ def getConfigLocation():
   
   conn = torTools.getConn()
   configLocation = conn.getInfo("config-file")
+  torPid, torPrefix = conn.getMyPid(), conn.getPathPrefix()
   if not configLocation: raise IOError("unable to query the torrc location")
   
-  # checks if this is a relative path, needing the tor pwd to be appended
-  if configLocation[0] != "/":
-    torPid = conn.getMyPid()
-    failureMsg = "querying tor's pwd failed because %s"
-    if not torPid: raise IOError(failureMsg % "we couldn't get the pid")
-    
-    try:
-      # pwdx results are of the form:
-      # 3799: /home/atagar
-      # 5839: No such process
-      results = sysTools.call("pwdx %s" % torPid)
-      if not results:
-        raise IOError(failureMsg % "pwdx didn't return any results")
-      elif results[0].endswith("No such process"):
-        raise IOError(failureMsg % ("pwdx reported no process for pid " + torPid))
-      elif len(results) != 1 or results.count(" ") != 1:
-        raise IOError(failureMsg % "we got unexpected output from pwdx")
-      else:
-        pwdPath = results[0][results[0].find(" ") + 1:]
-        configLocation = "%s/%s" % (pwdPath, configLocation)
-    except IOError, exc:
-      raise IOError(failureMsg % ("the pwdx call failed: " + str(exc)))
-  
-  return conn.getPathPrefix() + configLocation
+  try:
+    return torPrefix + sysTools.expandRelativePath(configLocation, torPid)
+  except IOError, exc:
+    raise IOError("querying tor's pwd failed because %s" % exc)
 
 def getMultilineParameters():
   """

@@ -82,7 +82,7 @@ def getPhysicalMemory():
   
   return SYS_PHYSICAL_MEMORY
 
-def getCwd(pid):
+def getPwd(pid):
   """
   Provides the current working directory for the given process.
   

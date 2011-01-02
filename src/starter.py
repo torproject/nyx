@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import getopt
+import socket
 
 import version
 import interface.controller
@@ -280,7 +281,36 @@ if __name__ == '__main__':
   TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
-  if conn == None: sys.exit(1)
+  if conn == None:
+    # Connecting to the control port will probably fail if it's using cookie
+    # authentication and the cookie path is relative (unfortunately this is
+    # the case for TBB). This is discussed in:
+    # https://trac.torproject.org/projects/tor/ticket/1101
+    #
+    # Until this is fixed including a hack to expand the relative path in
+    # these cases, setting conn to the established connection if successful
+    # and leaving it undefined otherwise. Even if successful this prints the
+    # error message saying that the auth cookie couldn't be found
+    # (unfortunately this is unavoidable without either changing TorCtl or
+    # making this a much bigger hack).
+    
+    try:
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      s.connect((controlAddr, controlPort))
+      tmpConn = TorCtl.TorCtl.Connection(s)
+      
+      if tmpConn.get_auth_type() == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
+        cookiePath = tmpConn.get_auth_cookie_path()
+        torPid = util.torTools.getPid(controlPort)
+        
+        if torPid and cookiePath[0] != "/":
+          # previous attempt to connect failed due to having a relative path - fix it
+          tmpConn._cookiePath = util.sysTools.expandRelativePath(cookiePath, torPid)
+          tmpConn.authenticate(cookiePath)
+          conn = tmpConn # success!
+    except: pass
+    
+    if conn == None: sys.exit(1)
   
   # removing references to the controller password so the memory can be freed
   # (unfortunately python does allow for direct access to the memory so this
