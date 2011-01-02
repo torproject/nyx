@@ -89,8 +89,6 @@ TODO
   * When attaching to a TBB instance arm is degraded in several noticeable
     ways:
     * unable to query man page results
-    * autodetection for relative cookie path is broken
-    * path prefix detection (for instance to find the torrc) is broken
   * The default resolver isn't configurable.
   * The cpu usage spikes for scrollable content when the key's held. Try
     coalescing the events.

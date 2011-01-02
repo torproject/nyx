@@ -163,15 +163,15 @@ def getPwd(pid):
     # pwdx results are of the form:
     # 3799: /home/atagar
     # 5839: No such process
-    results = sysTools.call("pwdx %s" % pid)
+    results = call("pwdx %s" % pid)
     if not results:
       raise IOError("pwdx didn't return any results")
     elif results[0].endswith("No such process"):
       raise IOError("pwdx reported no process for pid " + pid)
-    elif len(results) != 1 or results.count(" ") != 1:
+    elif len(results) != 1 or results[0].count(" ") != 1:
       raise IOError("we got unexpected output from pwdx")
     else:
-      pwd = results[0][results[0].find(" ") + 1:]
+      pwd = results[0][results[0].find(" ") + 1:].strip()
       PWD_CACHE[pid] = pwd
       return pwd
   except IOError, exc:
