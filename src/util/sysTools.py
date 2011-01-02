@@ -122,11 +122,25 @@ def getProcessName(pid, default = None, cacheFailure = True):
     return PROCESS_NAME_CACHE[pid]
   
   processName, raisedExc = "", None
+  
+  # fetch it from proc contents if available
   if procTools.isProcAvailable():
     try:
       processName = procTools.getStats(pid, procTools.STAT_COMMAND)[0]
     except IOError, exc:
       raisedExc = exc
+  
+  # fall back to querying via ps
+  if not processName:
+    # the ps call formats results as:
+    # COMMAND
+    # tor
+    psCall = call("ps -p %s -o command" % pid)
+    
+    if psCall and len(psCall) >= 2 and not " " in psCall[1]:
+      processName, raisedExc = psCall[1].strip(), None
+    else:
+      raisedExc = ValueError("Unexpected output from ps: %s" % psCall)
   
   if raisedExc:
     if default == None: raise raisedExc

@@ -530,7 +530,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   if not isBlindMode:
     if torPid:
       # use the tor pid to help narrow connection results
-      resolver = connections.getResolver("tor", torPid)
+      torCmdName = sysTools.getProcessName(torPid, "tor")
+      resolver = connections.getResolver(torCmdName, torPid, "tor")
     else:
       resolver = connections.getResolver("tor")
   

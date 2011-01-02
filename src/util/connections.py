@@ -199,7 +199,7 @@ def isResolverAlive(processName, processPid = ""):
   
   return False
 
-def getResolver(processName, processPid = ""):
+def getResolver(processName, processPid = "", alias=None):
   """
   Singleton constructor for resolver instances. If a resolver already exists
   for the process then it's returned. Otherwise one is created and started.
@@ -208,18 +208,20 @@ def getResolver(processName, processPid = ""):
     processName - name of the process being resolved
     processPid  - pid of the process being resolved, if undefined this matches
                   against any resolver with the process name
+    alias       - alternative handle under which the resolver can be requested
   """
   
   # check if one's already been created
+  requestHandle = alias if alias else processName
   haltedIndex = -1 # old instance of this resolver with the _halt flag set
   for i in range(len(RESOLVERS)):
     resolver = RESOLVERS[i]
-    if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
+    if resolver.handle == requestHandle and (not processPid or resolver.processPid == processPid):
       if resolver._halt and RECREATE_HALTED_RESOLVERS: haltedIndex = i
       else: return resolver
   
   # make a new resolver
-  r = ConnectionResolver(processName, processPid)
+  r = ConnectionResolver(processName, processPid, handle = requestHandle)
   r.start()
   
   # overwrites halted instance of this resolver if it exists, otherwise append
@@ -291,7 +293,7 @@ class ConnectionResolver(threading.Thread):
     * read-only
   """
   
-  def __init__(self, processName, processPid = "", resolveRate = None):
+  def __init__(self, processName, processPid = "", resolveRate = None, handle = None):
     """
     Initializes a new resolver daemon. When no longer needed it's suggested
     that this is stopped.
@@ -301,6 +303,8 @@ class ConnectionResolver(threading.Thread):
       processPid  - pid of the process being resolved
       resolveRate - time between resolving connections (in seconds, None if
                     chosen dynamically)
+      handle      - name used to query this resolver, this is the processName
+                    if undefined
     """
     
     threading.Thread.__init__(self)
@@ -309,6 +313,7 @@ class ConnectionResolver(threading.Thread):
     self.processName = processName
     self.processPid = processPid
     self.resolveRate = resolveRate
+    self.handle = handle if handle else processName
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
