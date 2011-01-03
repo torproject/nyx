@@ -667,6 +667,16 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # TODO: should redraw the torrcPanel
         #panels["torrc"].loadConfig()
+        
+        # reload the torrc if it's previously been loaded
+        if loadedTorrc.isLoaded():
+          try:
+            loadedTorrc.load()
+            if page == 3: panels["torrc"].redraw(True)
+          except IOError, exc:
+            msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
+            log.log(CONFIG["log.torrc.readFailed"], msg)
+        
         sighupTracker.isReset = False
       
       # gives panels a chance to take advantage of the maximum bounds

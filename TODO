@@ -62,6 +62,7 @@ TODO
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for changes
     * Gentoo notification (contact NightMonkey)
+    * ArcLinux notification
 
 - Roadmap for version 1.4.2
   [ ] refactor panels
@@ -101,9 +102,6 @@ TODO
     timing out the function if it takes too long, but a more efficient method
     for deduplication would be preferable.
   * when in client mode and tor stops the header panel doesn't say so
-  * util are assuming that tor is running under the default command name
-      attempt to determine the command name at runtime (if the pid is available
-      then ps can do the mapping)
   * util/torTools.py: effective bandwidth rate/burst measurements don't take
       SETCONF into consideration, blocked on:
       https://trac.torproject.org/projects/tor/ticket/1692
