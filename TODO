@@ -87,9 +87,6 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
-  * When attaching to a TBB instance arm is degraded in several noticeable
-    ways:
-    * unable to query man page results
   * The default resolver isn't configurable.
   * The cpu usage spikes for scrollable content when the key's held. Try
     coalescing the events.
@@ -185,6 +182,9 @@ TODO
     * dialog with bridge statuses (idea by mikeperry)
       https://trac.vidalia-project.net/ticket/570
       https://trac.torproject.org/projects/tor/ticket/2068
+  * make use of the new process/* GETINFO options
+    They'll be available in the next tor release, as per:
+    https://trac.torproject.org/projects/tor/ticket/2291
   * feature parity for arm's config values (armrc entries)
     * editability
     * parse descriptions from the man page? autogeneration of the man page from

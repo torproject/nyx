@@ -207,8 +207,10 @@ log.torrc.readFailed WARN
 log.torrc.validation.torStateDiffers WARN
 log.torrc.validation.unnecessaryTorrcEntries WARN
 log.configDescriptions.readManPageSuccess INFO
-log.configDescriptions.readManPageFailed WARN
+log.configDescriptions.readManPageFailed NOTICE
 log.configDescriptions.unrecognizedCategory NOTICE
+log.configDescriptions.internalLoadSuccess NOTICE
+log.configDescriptions.internalLoadFailed ERR
 log.configDescriptions.persistance.loadSuccess INFO
 log.configDescriptions.persistance.loadFailed INFO
 log.configDescriptions.persistance.saveSuccess NOTICE

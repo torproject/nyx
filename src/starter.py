@@ -38,7 +38,9 @@ CONFIG = {"startup.controlPassword": None,
           "data.cache.path": "~/.arm/cache",
           "features.config.descriptions.enabled": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
-          "log.configDescriptions.readManPageFailed": util.log.WARN,
+          "log.configDescriptions.readManPageFailed": util.log.NOTICE,
+          "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
+          "log.configDescriptions.internalLoadFailed": util.log.ERR,
           "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
           "log.configDescriptions.persistance.loadFailed": util.log.INFO,
           "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
@@ -65,13 +67,15 @@ arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
 """ % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
-CONFIG_DESC_FILENAME = "torConfigDescriptions.txt"
+CONFIG_DESC_FILENAME = "torConfigDesc.txt"
 
 # messages related to loading the tor configuration descriptions
 DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
 DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
+DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
+DESC_INTERNAL_LOAD_FAILED_MSG = "Unable to load fallback descriptions. Categories and help for Tor's configuration options won't be available. (%s)"
 DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
-DESC_READ_MAN_FAILED_MSG = "Unable to read descriptions for tor's configuration options from its man page (%s)"
+DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuration options from its man page (%s)"
 DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
 DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
@@ -102,7 +106,7 @@ def isValidIpAddr(ipStr):
   
   return True
 
-def _loadConfigurationDescriptions():
+def _loadConfigurationDescriptions(pathPrefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
   from the man page and persisting them to a file to speed future startups.
@@ -123,7 +127,7 @@ def _loadConfigurationDescriptions():
       if not cachePath.endswith("/"): cachePath += "/"
       descriptorPath = os.path.expanduser(cachePath) + CONFIG_DESC_FILENAME
     
-    # attempts to load persisted configuration descriptions
+    # attempts to load configuration descriptions cached in the data directory
     if descriptorPath:
       try:
         loadStartTime = time.time()
@@ -136,9 +140,9 @@ def _loadConfigurationDescriptions():
         msg = DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.persistance.loadFailed"], msg)
     
+    # fetches configuration options from the man page
     if not isConfigDescriptionsLoaded:
       try:
-        # fetches configuration options from the man page
         loadStartTime = time.time()
         util.torConfig.loadOptionDescriptions()
         isConfigDescriptionsLoaded = True
@@ -160,6 +164,20 @@ def _loadConfigurationDescriptions():
         except IOError, exc:
           msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
           util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
+    
+    # finally fall back to the cached descriptors provided with arm (this is
+    # often the case for tbb and manual builds)
+    if not isConfigDescriptionsLoaded:
+      try:
+        loadStartTime = time.time()
+        loadedVersion = util.torConfig.loadOptionDescriptions(pathPrefix + CONFIG_DESC_FILENAME, False)
+        isConfigDescriptionsLoaded = True
+        
+        msg = DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion
+        util.log.log(CONFIG["log.configDescriptions.internalLoadSuccess"], msg)
+      except IOError, exc:
+        msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
+        util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
 if __name__ == '__main__':
   startTime = time.time()
@@ -221,11 +239,11 @@ if __name__ == '__main__':
   config = util.conf.getConfig("arm")
   
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+  
   try:
-    pathPrefix = os.path.dirname(sys.argv[0])
-    if pathPrefix and not pathPrefix.endswith("/"):
-      pathPrefix = pathPrefix + "/"
-    
     config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
     msg = NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc)
@@ -335,7 +353,7 @@ if __name__ == '__main__':
   controller.init(conn)
   
   # fetches descriptions for tor's configuration options
-  _loadConfigurationDescriptions()
+  _loadConfigurationDescriptions(pathPrefix)
   
   interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
   conn.close()

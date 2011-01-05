@@ -80,25 +80,29 @@ def getTorrc():
   if TORRC == None: TORRC = Torrc()
   return TORRC
 
-def loadOptionDescriptions(loadPath = None):
+def loadOptionDescriptions(loadPath = None, checkVersion = True):
   """
   Fetches and parses descriptions for tor's configuration options from its man
   page. This can be a somewhat lengthy call, and raises an IOError if issues
-  occure.
+  occure. When successful loading from a file this returns the version for the
+  contents loaded.
   
   If available, this can load the configuration descriptions from a file where
   they were previously persisted to cut down on the load time (latency for this
   is around 200ms).
   
   Arguments:
-    loadPath - if set, this attempts to fetch the configuration descriptions
-               from the given path instead of the man page
+    loadPath     - if set, this attempts to fetch the configuration
+                   descriptions from the given path instead of the man page
+    checkVersion - discards the results if true and tor's version doens't
+                   match the cached descriptors, otherwise accepts anyway
   """
   
   CONFIG_DESCRIPTIONS_LOCK.acquire()
   CONFIG_DESCRIPTIONS.clear()
   
   raisedExc = None
+  loadedVersion = ""
   try:
     if loadPath:
       # Input file is expected to be of the form:
@@ -118,8 +122,10 @@ def loadOptionDescriptions(loadPath = None):
         
         if versionLine.startswith("Tor Version "):
           fileVersion = versionLine[12:]
+          loadedVersion = fileVersion
           torVersion = torTools.getConn().getInfo("version", "")
-          if fileVersion != torVersion:
+          
+          if checkVersion and fileVersion != torVersion:
             msg = "wrong version, tor is %s but the file's from %s" % (torVersion, fileVersion)
             raise IOError(msg)
         else:
@@ -160,6 +166,9 @@ def loadOptionDescriptions(loadPath = None):
         raise IOError("input file format is invalid")
     else:
       manCallResults = sysTools.call("man tor")
+      
+      if not manCallResults:
+        raise IOError("man page not found")
       
       # Fetches all options available with this tor instance. This isn't
       # vital, and the validOptions are left empty if the call fails.
@@ -230,6 +239,7 @@ def loadOptionDescriptions(loadPath = None):
   
   CONFIG_DESCRIPTIONS_LOCK.release()
   if raisedExc: raise raisedExc
+  else: return loadedVersion
 
 def saveOptionDescriptions(path):
   """

@@ -110,11 +110,12 @@ Layout:
   
   src/
     __init__.py
-    starter.py   - parses and validates commandline parameters
-    prereq.py    - checks python version and for required packages
-    version.py   - version and last modified information
-    settings.cfg - attributes loaded for parsing tor related data
-    uninstall    - removal script
+    starter.py        - parses and validates commandline parameters
+    prereq.py         - checks python version and for required packages
+    version.py        - version and last modified information
+    settings.cfg      - attributes loaded for parsing tor related data
+    torConfigDesc.txt - fallback descriptions of Tor's configuration options
+    uninstall         - removal script
     
     interface/
       graphing/
