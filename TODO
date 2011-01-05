@@ -88,6 +88,9 @@ TODO
 
 - Bugs
   * The default resolver isn't configurable.
+  * The arm header panel doesn't properly reflect when the ip address
+    changes. This provides a notice event saying:
+    "Our IP Address has changed from X to Y; rebuilding descriptor (source Z)."
   * The cpu usage spikes for scrollable content when the key's held. Try
     coalescing the events.
   * The manpage layout is system dependent, so the scraper needs to be more

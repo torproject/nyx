@@ -53,6 +53,11 @@ MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 def loadConfig(config):
   CONFIG["torrc.alias"] = config.get("torrc.alias", {})
   
+  # fetches any config.summary.* values
+  for configKey in config.getKeys():
+    if configKey.startswith("config.summary."):
+      CONFIG[configKey.lower()] = config.get(configKey)
+  
   # all the torrc.label.* values are comma separated lists
   for configKey in CONFIG.keys():
     if configKey.startswith("torrc.label."):
@@ -269,6 +274,17 @@ def saveOptionDescriptions(path):
   
   outputFile.close()
   CONFIG_DESCRIPTIONS_LOCK.release()
+
+def getConfigSummary(option):
+  """
+  Provides a short summary description of th configuration option. If none is
+  known then this proivdes None.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  return CONFIG.get("config.summary.%s" % option.lower())
 
 def getConfigDescription(option):
   """
