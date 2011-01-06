@@ -2,6 +2,7 @@
 Wrapper for safely working with curses subwindows.
 """
 
+import sys
 import traceback
 import curses
 from threading import RLock
@@ -358,8 +359,16 @@ class Panel():
     
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns userInput to the initial text if the user presses
-    # escape.
-    textbox = curses.textpad.Textbox(inputSubwindow, True)
+    # escape. Insert mode is available in Python 2.6+, before that the
+    # constructor only accepted a subwindow argument as per:
+    # https://trac.torproject.org/projects/tor/ticket/2354
+    
+    majorVersion, minorVersion = sys.version_info[:2]
+    if majorVersion == 2 and minorVersion >= 6:
+      textbox = curses.textpad.Textbox(inputSubwindow, True)
+    else:
+      textbox = curses.textpad.Textbox(inputSubwindow)
+    
     userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
     if textbox.lastcmd == curses.ascii.BEL: userInput = None
     
