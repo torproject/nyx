@@ -205,7 +205,7 @@ log.logPanel.logFileWriteFailed ERR
 log.logPanel.forceDoubleRedraw DEBUG
 log.torrc.readFailed WARN
 log.torrc.validation.torStateDiffers WARN
-log.torrc.validation.unnecessaryTorrcEntries WARN
+log.torrc.validation.unnecessaryTorrcEntries NOTICE
 log.configDescriptions.readManPageSuccess INFO
 log.configDescriptions.readManPageFailed NOTICE
 log.configDescriptions.unrecognizedCategory NOTICE

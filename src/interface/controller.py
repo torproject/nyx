@@ -56,7 +56,7 @@ CONFIG = {"log.torrc.readFailed": log.WARN,
           "log.highCpuUsage": log.WARN,
           "log.configEntryUndefined": log.NOTICE,
           "log.torrc.validation.torStateDiffers": log.WARN,
-          "log.torrc.validation.unnecessaryTorrcEntries": log.WARN}
+          "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
