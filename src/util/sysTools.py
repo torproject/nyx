@@ -520,7 +520,7 @@ class ResourceTracker(threading.Thread):
             msg = "Unable to query process resource usage from proc (%s)" % exc
             log.log(CONFIG["log.stats.failedProcResolution"], msg)
             self._cond.acquire()
-            self._cond.wait(0.5)
+            if not self._halt: self._cond.wait(0.5)
             self._cond.release()
         else:
           # exponential backoff on making failed ps calls
@@ -528,7 +528,7 @@ class ResourceTracker(threading.Thread):
           msg = "Unable to query process resource usage from ps, waiting %0.2f seconds (%s)" % (sleepTime, exc)
           log.log(CONFIG["log.stats.failedProcResolution"], msg)
           self._cond.acquire()
-          self._cond.wait(sleepTime)
+          if not self._halt: self._cond.wait(sleepTime)
           self._cond.release()
       
       # If this is the first run then the cpuSampling stat is meaningless

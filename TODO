@@ -88,6 +88,8 @@ TODO
 
 - Bugs
   * The default resolver isn't configurable.
+  * The config write dialog (ie, the one for saving the config) has its a
+    misaligned border when it's smaller than the top detail section.
   * The arm header panel doesn't properly reflect when the ip address
     changes. This provides a notice event saying:
     "Our IP Address has changed from X to Y; rebuilding descriptor (source Z)."

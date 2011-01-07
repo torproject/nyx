@@ -515,9 +515,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
       if missingOptions:
         if len(missingOptions) > 1:
-          msg += "\n-configuration values are missing from the torrc: "
+          msg += "\n- configuration values are missing from the torrc: "
         else:
-          msg += "\n-configuration value is missing from the torrc: "
+          msg += "\n- configuration value is missing from the torrc: "
         
         missingOptions.sort()
         msg += ", ".join(missingOptions)
