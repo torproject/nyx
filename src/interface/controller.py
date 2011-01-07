@@ -506,9 +506,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       if mismatchLines:
         if len(mismatchLines) > 1:
-          msg += "\n- torrc values differ on line lines: "
+          msg += "\n- torrc values differ on lines: "
         else:
-          msg += "\n- torrc value differs on line line: "
+          msg += "\n- torrc value differs on line: "
         
         mismatchLines.sort()
         msg += ", ".join([str(val + 1) for val in mismatchLines])
