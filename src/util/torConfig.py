@@ -421,14 +421,6 @@ def validate(contents = None):
     # issues GETCONF to get the values tor's currently configured to use
     torValues = conn.getOption(option, [], True)
     
-    # Some singleline entries are lists, in which case tor provides csv values
-    # without spaces, such as:
-    # lolcat1,lolcat2,cutebunny,extracutebunny,birthdaynode
-    # so we need to strip spaces in comma separated values.
-    
-    if "," in value:
-      value = ",".join([val.strip() for val in value.split(",")])
-    
     # multiline entries can be comma separated values (for both tor and conf)
     valueList = [value]
     if option in getMultilineParameters():
