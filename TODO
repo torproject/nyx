@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap and completed work for next release (1.4.1)
+- Roadmap and completed work for next release (1.4.2)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -9,7 +9,7 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [ ] conn panel
+      * conn panel
         - expand client connections and note location in circuit (entry-exit)
         - for clients give an option to list all connections, to tell which are
           going through tor and which might be leaking
@@ -33,49 +33,46 @@ TODO
         - include an option to show both the internal and external ips for the
           local connection, ie:
           myInternal --> myExternal --> foreign
-      [ ] control port interpreter (interactive prompt)
-          Panel and startup option (-t maybe?) for providing raw control port
-          access along with usability improvements (piggybacking on the arm
-          connection):
-          - irc like help (ex "/help GETINFO" could provide a summary of
-            getinfo commands, partly using the results from
-            "GETINFO info/names")
-          - tab completion and up/down for previous commands
-          - warn and get confirmation if command would disrupt arm (for
-            instance 'SETEVENTS')
-          - 'safe' option that restricts to read-only access (start with this)
-          - issue sighup reset
-      [ ] low hanging fruit from the "client mode use cases" below
-      [ ] store resources (config and cache) in the home directory (suggestion
-          by Sebastian)
-      [ ] note TERM="rxvt-unicode" as possible fix when graph isn't visible
-          while using screen
-      [ ] include short, summary descriptions instead of man contents in
-          the listing
-      [ ] add warning when arm cpu resource usage is high that the -b flag
-          would be suggested (caught by Clete - "arm went from using 30% of
-          the CPU time to 1% constant" on a 360MHz machine)
-      [ ] deb issue: "one issue I noticed was that, again, the source package
-          is not idempotent, that is to say if I unpack the .dsc and build the
-          package I end up with a different .diff.gz"
+          idea and initial patch by Fabian Keil
+      * expand dump (--debug) information
+        - os and python versions
+        - arm and tor configs (scrubbing private attributes)
+      * classify config options as useful (defaultly shown), standard, and
+        deprecated (configured to be hidden by default)
+      * check tor source for deprecated options like 'group' (are they
+        ignored? idea is thanks to NightMonkey)
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
-    * double check __init__.py and README for changes
-    * Gentoo notification (contact NightMonkey)
-    * ArcLinux notification
+    * double check __init__.py and README for added or removed files
+    * wait a week, then bump package versions
+      * Debian
+        Contact: weasel (Peter Palfrader)
+        Initial Release: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=603056
+        Update Instructions:
+          * TBD
+      
+      * Gentoo
+        Contact: NightMonkey (Jesse Adelman)
+        Initial Release: https://bugs.gentoo.org/show_bug.cgi?id=341731
+        Update Instructions:
+          * go to https://bugs.gentoo.org
+          * make a generic bug with "net-misc/arm-X.X.X version bump, please"
+      
+      * ArchLinux
+        Contact: Spider.007
+        Initial Release: http://aur.archlinux.org/packages.php?ID=44172
+        Update Instructions:
+          * go to aur.archlinux.org
+          * select "Out-of-date" for the package
 
-- Roadmap for version 1.4.2
+- Roadmap for version 1.4.3
   [ ] refactor panels
       [ ] controller and popup panels
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
-        - provide measurements for startup time, and try to improve bottlenecks
-  [ ] menus
-      - http://gnosis.cx/publish/programming/charming_python_6.html ?
-      - additional options:
-        - make update rates configurable via the ui
-        - dialog with flag descriptions and other help
-        - menu with all torrc options (making them editable/toggleable)
+        - improve on performance bottlenecks for startup time and cpu usage
+        - intermittent concurrency bugs during shutdown, one possible source:
+          https://trac.torproject.org/projects/tor/ticket/2144
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
         - attempt to verify download signature, providing a warning if unable
@@ -187,6 +184,24 @@ TODO
     * dialog with bridge statuses (idea by mikeperry)
       https://trac.vidalia-project.net/ticket/570
       https://trac.torproject.org/projects/tor/ticket/2068
+  * menus
+    * http://gnosis.cx/publish/programming/charming_python_6.html ?
+    * additional options:
+      * make update rates configurable via the ui
+      * dialog with flag descriptions and other help
+      * menu with all torrc options (making them editable/toggleable)
+  * control port interpreter (interactive prompt)
+    Panel and startup option (-t maybe?) for providing raw control port
+    access along with usability improvements (piggybacking on the arm
+    connection):
+    * irc like help (ex "/help GETINFO" could provide a summary of
+      getinfo commands, partly using the results from
+      "GETINFO info/names")
+    * tab completion and up/down for previous commands
+    * warn and get confirmation if command would disrupt arm (for
+      instance 'SETEVENTS')
+    * 'safe' option that restricts to read-only access (start with this)
+    * issue sighup reset
   * make use of the new process/* GETINFO options
     They'll be available in the next tor release, as per:
     https://trac.torproject.org/projects/tor/ticket/2291

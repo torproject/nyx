@@ -92,6 +92,12 @@ pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
 Arm still runs, just no connection listing or ps stats.
 
+> The bandwidth graph showing up
+
+Some terminals, most notably screen sessions on Gentoo, appear to have a bug
+where highlighted spaces aren't rendered. A reported workaround is to set:
+  TERM="rxvt-unicode"
+
 -------------------------------------------------------------------------------
 
 Layout:
@@ -113,6 +119,7 @@ Layout:
     starter.py        - parses and validates commandline parameters
     prereq.py         - checks python version and for required packages
     version.py        - version and last modified information
+    test.py           - method for starting tests and demos
     settings.cfg      - attributes loaded for parsing tor related data
     torConfigDesc.txt - fallback descriptions of Tor's configuration options
     uninstall         - removal script
