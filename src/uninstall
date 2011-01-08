@@ -1,7 +1,7 @@
 #!/bin/sh
 files="/usr/bin/arm /usr/share/man/man1/arm.1.gz /usr/share/arm"
 
-for i in $files 
+for i in $files
 do
   if [ -f $i -o -d $i ]; then
     rm -rf $i

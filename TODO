@@ -1,6 +1,6 @@
 TODO
 
-- Roadmap and completed work for next release (1.4.1)
+- Roadmap and completed work for next release (1.4.2)
   [ ] refactor panels
       Currently the interface is a bit of a rat's nest (especially the
       controller). The goal is to use better modularization to both simplify
@@ -9,7 +9,7 @@ TODO
       progress - /init and /util are done and /interface is partly done. Known
       bugs are being fixed while refactoring.
       
-      [ ] conn panel
+      * conn panel
         - expand client connections and note location in circuit (entry-exit)
         - for clients give an option to list all connections, to tell which are
           going through tor and which might be leaking
@@ -25,27 +25,47 @@ TODO
         - provide bridge / client country / exiting port statistics
           Include bridge related data via GETINFO option (feature request
           by waltman and ioerror).
+        - note the common port usage along with the exit statistics
+        - show the port used in scrubbed exit connections
         - pick apart applications like iftop and pktstat to see how they get
           per-connection bandwidth usage. Forum thread discussing it:
           https://bbs.archlinux.org/viewtopic.php?pid=715906
-      [ ] control port interpreter (interactive prompt)
-          Panel and startup option (-t maybe?) for providing raw control port
-          access along with usability improvements (piggybacking on the arm
-          connection):
-          - irc like help (ex "/help GETINFO" could provide a summary of
-            getinfo commands, partly using the results from
-            "GETINFO info/names")
-          - tab completion and up/down for previous commands
-          - warn and get confirmation if command would disrupt arm (for
-            instance 'SETEVENTS')
-          - 'safe' option that restricts to read-only access (start with this)
-          - issue sighup reset
-      [ ] low hanging fruit from the "client mode use cases" below
+        - include an option to show both the internal and external ips for the
+          local connection, ie:
+          myInternal --> myExternal --> foreign
+          idea and initial patch by Fabian Keil
+      * expand dump (--debug) information
+        - os and python versions
+        - arm and tor configs (scrubbing private attributes)
+      * classify config options as useful (defaultly shown), standard, and
+        deprecated (configured to be hidden by default)
+      * check tor source for deprecated options like 'group' (are they
+        ignored? idea is thanks to NightMonkey)
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
-    * double check __init__.py and README for changes
+    * double check __init__.py and README for added or removed files
+    * wait a week, then bump package versions
+      * Debian
+        Contact: weasel (Peter Palfrader)
+        Initial Release: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=603056
+        Update Instructions:
+          * TBD
+      
+      * Gentoo
+        Contact: NightMonkey (Jesse Adelman)
+        Initial Release: https://bugs.gentoo.org/show_bug.cgi?id=341731
+        Update Instructions:
+          * go to https://bugs.gentoo.org
+          * make a generic bug with "net-misc/arm-X.X.X version bump, please"
+      
+      * ArchLinux
+        Contact: Spider.007
+        Initial Release: http://aur.archlinux.org/packages.php?ID=44172
+        Update Instructions:
+          * go to aur.archlinux.org
+          * select "Out-of-date" for the package
 
-- Roadmap for version 1.4.2
+- Roadmap for version 1.4.3
   [ ] refactor panels
       [ ] controller and popup panels
       [ ] attempt to clear controller password from memory
@@ -59,13 +79,9 @@ TODO
       [ ] controller and popup panels
         - allow arm to resume after restarting tor
             This requires a full move to the torTools controller.
-        - provide measurements for startup time, and try to improve bottlenecks
-  [ ] menus
-      - http://gnosis.cx/publish/programming/charming_python_6.html ?
-      - additional options:
-        - make update rates configurable via the ui
-        - dialog with flag descriptions and other help
-        - menu with all torrc options (making them editable/toggleable)
+        - improve on performance bottlenecks for startup time and cpu usage
+        - intermittent concurrency bugs during shutdown, one possible source:
+          https://trac.torproject.org/projects/tor/ticket/2144
   [ ] setup scripts for arm
       [ ] updater (checks for a new tarball and installs it automatically)
         - attempt to verify download signature, providing a warning if unable
@@ -77,14 +93,23 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * The default resolver isn't configurable.
+  * The config write dialog (ie, the one for saving the config) has its a
+    misaligned border when it's smaller than the top detail section.
+  * The arm header panel doesn't properly reflect when the ip address
+    changes. This provides a notice event saying:
+    "Our IP Address has changed from X to Y; rebuilding descriptor (source Z)."
+  * The cpu usage spikes for scrollable content when the key's held. Try
+    coalescing the events.
+  * The manpage layout is system dependent, so the scraper needs to be more
+    resilient against being confused by whitespace. Another improvement is
+    including fallback results if the man page can't be parsed (suggested by
+    rransom, issue caught by NightMonkey).
   * Log deduplication is currently an n^2 operation. Hence it can't handle
     large logs (for instance, when at the DEBUG runlevel). Currently we're
     timing out the function if it takes too long, but a more efficient method
     for deduplication would be preferable.
   * when in client mode and tor stops the header panel doesn't say so
-  * util are assuming that tor is running under the default command name
-      attempt to determine the command name at runtime (if the pid is available
-      then ps can do the mapping)
   * util/torTools.py: effective bandwidth rate/burst measurements don't take
       SETCONF into consideration, blocked on:
       https://trac.torproject.org/projects/tor/ticket/1692
@@ -120,6 +145,27 @@ TODO
     * connection uptimes shouldn't show fractions of a second
     * connections aren't cleared when control port closes
 
+- Packaging
+  * OpenWrt - OpenWrt uses the opkg packaging format which could make use of
+    arm's current deb packages. Packaging for this platform would help with
+    the Torouter project:
+    https://trac.torproject.org/projects/tor/wiki/TheOnionRouter/Torouter
+  * Mac - Couple of options include macport and dmg...
+    * macport (http://guide.macports.org/#development)
+      Build-from-source distribution method (like BSD portinstall). This has
+      been suggested by several people.
+      
+    * dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
+      Most conventional method of software distribution on mac. This is just
+      a container (no updating/removal support), but could contain an icon
+      for the dock that starts a terminal with arm. This might include a pkg
+      installer.
+    
+    * mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
+      Plugin for distutils. Like most mac packaging, this can only run on a
+      mac. It also requires setuptools:
+      http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
+
 - Future Features
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
@@ -147,6 +193,27 @@ TODO
     * dialog with bridge statuses (idea by mikeperry)
       https://trac.vidalia-project.net/ticket/570
       https://trac.torproject.org/projects/tor/ticket/2068
+  * menus
+    * http://gnosis.cx/publish/programming/charming_python_6.html ?
+    * additional options:
+      * make update rates configurable via the ui
+      * dialog with flag descriptions and other help
+      * menu with all torrc options (making them editable/toggleable)
+  * control port interpreter (interactive prompt)
+    Panel and startup option (-t maybe?) for providing raw control port
+    access along with usability improvements (piggybacking on the arm
+    connection):
+    * irc like help (ex "/help GETINFO" could provide a summary of
+      getinfo commands, partly using the results from
+      "GETINFO info/names")
+    * tab completion and up/down for previous commands
+    * warn and get confirmation if command would disrupt arm (for
+      instance 'SETEVENTS')
+    * 'safe' option that restricts to read-only access (start with this)
+    * issue sighup reset
+  * make use of the new process/* GETINFO options
+    They'll be available in the next tor release, as per:
+    https://trac.torproject.org/projects/tor/ticket/2291
   * feature parity for arm's config values (armrc entries)
     * editability
     * parse descriptions from the man page? autogeneration of the man page from
@@ -162,22 +229,6 @@ TODO
     * accounting and alerts for if the bandwidth drops to zero
     * daily/weekly/etc alerts for basic status (log output, bandwidth history,
         etc), borrowing from the consensus tracker for some of the formatting
-  * mac installer
-    * Couple of options include macport and dmg...
-      * macport (http://guide.macports.org/#development)
-        Build-from-source distribution method (like BSD portinstall). This has
-        been suggested by several people.
-        
-      * dmg (http://en.wikipedia.org/wiki/Apple_Disk_Image)
-        Most conventional method of software distribution on mac. This is just
-        a container (no updating/removal support), but could contain an icon
-        for the dock that starts a terminal with arm. This might include a pkg
-        installer.
-      
-      * mpkg (http://pypi.python.org/pypi/bdist_mpkg/)
-        Plugin for distutils. Like most mac packaging, this can only run on a
-        mac. It also requires setuptools:
-        http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
   * tab completion for input fields that expect a filesystem path
   * look through vidalia's tickets for more ideas
     https://trac.vidalia-project.net/
@@ -199,7 +250,8 @@ TODO
   * setup wizard for new relays
     Setting the password and such for torrc generation. Maybe a netinstaller
     that fetches the right package for the plagform, verifies signatures, etc?
-    (idea by ioerror)
+    Another alternative would be that when arm is started and tor isn't
+    running offer to start tor as a client, relay, or bridge. (idea by ioerror)
   * audit what tor does
     * Provide warnings if tor connections misbehaves, for instance:
       * ensuring ExitPolicyRejectPrivate is being obeyed

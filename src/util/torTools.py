@@ -17,7 +17,7 @@ import threading
 
 from TorCtl import TorCtl, TorUtil
 
-from util import log, sysTools
+from util import log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
 # TOR_INIT - attached to a new controller or restart/sighup signal received
@@ -42,7 +42,7 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid")
+              "bwMeasured", "flags", "pid", "pathPrefix", "startTime")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -50,9 +50,12 @@ CONFIG = {"torrc.map": {},
           "features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
+          "log.torGetInfoCache": None,
           "log.torGetConf": log.DEBUG,
           "log.torSetConf": log.INFO,
-          "log.torPrefixPathInvalid": log.NOTICE}
+          "log.torPrefixPathInvalid": log.NOTICE,
+          "log.bsdJailFound": log.INFO,
+          "log.unknownBsdJailId": log.WARN}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -67,35 +70,17 @@ TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()]
 
 def loadConfig(config):
   config.update(CONFIG)
-  
-  # make sure the path prefix is valid and exists (providing a notice if not)
-  prefixPath = CONFIG["features.pathPrefix"].strip()
-  
-  if prefixPath:
-    if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
-    
-    if prefixPath and not os.path.exists(prefixPath):
-      msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
-      log.log(CONFIG["log.torPrefixPathInvalid"], msg)
-      prefixPath = ""
-  
-  CONFIG["features.pathPrefix"] = prefixPath
-
-def getPathPrefix():
-  """
-  Provides the path prefix that should be used for fetching tor resources.
-  """
-  
-  return CONFIG["features.pathPrefix"]
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
   Attempts to determine the process id for a running tor process, using the
   following:
   1. GETCONF PidFile
-  2. "pidof tor"
-  3. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
-  4. "ps -o pid -C tor"
+  2. "pgrep -x tor"
+  3. "pidof tor"
+  4. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
+  5. "ps -o pid -C tor"
+  6. "sockstat -4l -P tcp -p %i | grep tor" % <tor control port>
   
   If pidof or ps provide multiple tor instances then their results are
   discarded (since only netstat can differentiate using the control port). This
@@ -118,6 +103,16 @@ def getPid(controlPort=9051, pidFilePath=None):
       
       if pidEntry.isdigit(): return pidEntry
     except: pass
+  
+  # attempts to resolve using pgrep, failing if:
+  # - tor is running under a different name
+  # - there are multiple instances of tor
+  try:
+    results = sysTools.call("pgrep -x tor")
+    if len(results) == 1 and len(results[0].split()) == 1:
+      pid = results[0].strip()
+      if pid.isdigit(): return pid
+  except IOError: pass
   
   # attempts to resolve using pidof, failing if:
   # - tor's running under a different name
@@ -150,7 +145,45 @@ def getPid(controlPort=9051, pidFilePath=None):
       if pid.isdigit(): return pid
   except IOError: pass
   
+  # attempts to resolve using sockstat, failing if:
+  # - sockstat doesn't accept the -4 flag (BSD only)
+  # - tor is running under a different name
+  # - there are multiple instances of Tor, using the
+  #   same control port on different addresses.
+  # 
+  # TODO: the later two issues could be solved by filtering for the control
+  # port IP address instead of the process name.
+  try:
+    results = sysTools.call("sockstat -4l -P tcp -p %i | grep tor" % controlPort)
+    if len(results) == 1 and len(results[0].split()) == 7:
+      pid = results[0].split()[2]
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
   return None
+
+def getBsdJailId():
+  """
+  Get the FreeBSD jail id for the monitored Tor process.
+  """
+  
+  # Output when called from a FreeBSD jail or when Tor isn't jailed:
+  #   JID
+  #    0
+  # 
+  # Otherwise it's something like:
+  #   JID
+  #    1
+  
+  torPid = getConn().getMyPid()
+  psOutput = sysTools.call("ps -p %s -o jid" % torPid)
+  
+  if len(psOutput) == 2 and len(psOutput[1].split()) == 1:
+    jid = psOutput[1].strip()
+    if jid.isdigit(): return int(jid)
+  
+  log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
+  return 0
 
 def getConn():
   """
@@ -181,6 +214,11 @@ class Controller(TorCtl.PostEventListener):
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
+    
+    # Logs issues and notices when fetching the path prefix if true. This is
+    # only done once for the duration of the application to avoid pointless
+    # messages.
+    self._pathPrefixLogging = True
     
     # cached GETINFO parameters (None if unset or possibly changed)
     self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
@@ -316,9 +354,12 @@ class Controller(TorCtl.PostEventListener):
     if not isFromCache and result and param in CACHE_ARGS:
       self._cachedParam[param] = result
     
-    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
-    msg = "GETINFO %s (%s)" % (param, runtimeLabel)
-    log.log(CONFIG["log.torGetInfo"], msg)
+    if isFromCache:
+      msg = "GETINFO %s (cache fetch)" % param
+      log.log(CONFIG["log.torGetInfoCache"], msg)
+    else:
+      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+      log.log(CONFIG["log.torGetInfo"], msg)
     
     self.connLock.release()
     
@@ -411,7 +452,7 @@ class Controller(TorCtl.PostEventListener):
               if value != None:
                 if fetchType == "list": result.append(value)
                 elif fetchType == "map":
-                  if key in result: result.append(value)
+                  if key in result: result[key].append(value)
                   else: result[key] = [value]
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
           if type(exc) == TorCtl.TorCtlClosed: self.close()
@@ -581,6 +622,29 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("pid", None)
+  
+  def getPathPrefix(self):
+    """
+    Provides the path prefix that should be used for fetching tor resources.
+    If undefined and Tor is inside a jail under FreeBsd then this provides the
+    jail's path.
+    """
+    
+    result = self._getRelayAttr("pathPrefix", "")
+    
+    if result == UNKNOWN: return ""
+    else: return result
+  
+  def getStartTime(self):
+    """
+    Provides the unix time for when the tor process first started. If this
+    can't be determined then this provides None.
+    """
+    
+    result = self._getRelayAttr("startTime", None)
+    
+    if result == UNKNOWN: return None
+    else: return result
   
   def getStatus(self):
     """
@@ -981,6 +1045,53 @@ class Controller(TorCtl.PostEventListener):
             break
       elif key == "pid":
         result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+      elif key == "pathPrefix":
+        # make sure the path prefix is valid and exists (providing a notice if not)
+        prefixPath = CONFIG["features.pathPrefix"].strip()
+        
+        # adjusts the prefix path to account for jails under FreeBSD (many
+        # thanks to Fabian Keil!)
+        if not prefixPath and os.uname()[0] == "FreeBSD":
+          jid = getBsdJailId()
+          if jid != 0:
+            # Output should be something like:
+            #    JID  IP Address      Hostname      Path
+            #      1  10.0.0.2        tor-jail      /usr/jails/tor-jail
+            jlsOutput = sysTools.call("jls -j %s" % jid)
+            
+            if len(jlsOutput) == 2 and len(jlsOutput[1].split()) == 4:
+              prefixPath = jlsOutput[1].split()[3]
+              
+              if self._pathPrefixLogging:
+                msg = "Adjusting paths to account for Tor running in a jail at: %s" % prefixPath
+                log.log(CONFIG["log.bsdJailFound"], msg)
+        
+        if prefixPath:
+          # strips off ending slash from the path
+          if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+          
+          # avoid using paths that don't exist
+          if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
+            msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
+            log.log(CONFIG["log.torPrefixPathInvalid"], msg)
+            prefixPath = ""
+        
+        self._pathPrefixLogging = False # prevents logging if fetched again
+        result = prefixPath
+      elif key == "startTime":
+        myPid = self.getMyPid()
+        
+        if myPid:
+          try:
+            if procTools.isProcAvailable():
+              result = float(procTools.getStats(myPid, procTools.STAT_START_TIME)[0])
+            else:
+              psCall = sysTools.call("ps -p %s -o etime" % myPid)
+              
+              if psCall and len(psCall) >= 2:
+                etimeEntry = psCall[1].strip()
+                result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
+          except: pass
       
       # cache value
       if result: self._cachedParam[key] = result

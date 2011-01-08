@@ -1,6 +1,48 @@
 CHANGE LOG
 
-11/27/10 - version 1.4.0
+1/7/11 - version 1.4.1
+Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
+
+    * added: querying the proc contents when able for tor resource and connection samplings to *greatly* reduce arm's resource usage (many thanks to psutil)
+    * added: vastly improved BSD compatibility, thanks to patches by Fabian Keil
+          o pid resolution via pgrep (all platforms) and sockstat (bsd only)
+          o connection resolution via sockstat (all platforms) and procstat (bsd only)
+          o autodetecting the path prefix for FreeBSD jails
+    * added: displaying summaries of the options on the configuration panel (idea by Sebastian)
+    * added: arm cpu usage to the header panel and logs (with an estimate for system call usages)
+    * added: testing script for checking connection resolution performance, connection dumps, and the glyph demo
+    * added: option to dump arm debug logs (better failsafe option)
+    * change: incrementing the uptime field of the header panel each second
+    * change: centralizing arm resources in ~/.arm (suggested by Sebastian and also thanks to feedback from rransom)
+    * change: using exponential backoff of ps/proc resource resolutions when calls fail or tor isn't running
+    * change: reordered resolvers by order of performance
+    * change: when tor's man page is unavailable falling back to descriptions provided with arm (often the case with tbb)
+    * change: dropping support for graphing of custom ps attributes (feature was never used, kinda pointless, and incompatible with the proc enhancement)
+    * fix: providing proper cpu samplings rather than an average over the life of the process
+    * fix: expanding relative paths for the authentication cookie (mostly a problem for tbb instances)
+    * fix: crashing error when querying hidden service parameters (caught by StrangeCharm, fixed by katmagic and chiiph)
+    * fix: initially built diff differed from rebuilt version since it was missing the pycompat (caught by weasel)
+    * fix: startup script wasn't handling unusual paths, such as with spaces and dashes (caught by weasel)
+    * fix: startup script was forking the final process instead of calling exec (caught by weasel)
+    * fix: log entries weren't being bracketed by date dividers when no scroll bars were visible (caught thanks to twur)
+    * fix: workaround for config-text providing Log entries regardless of if it matches the default (caught thanks to Trystero)
+    * fix: config validation mistakenly thought that Tor stripped spaces from CSV getconf responses (caught by murble)
+    * fix: presenting a text input field with python 2.5 would crash (caught by murble)
+    * fix: reloading torrc contents when a sighup is issued (caught by StrangeCharm)
+    * fix: modifying lsof resolution to work with additional platforms (patch by Fabian Keil)
+    * fix: dropping the locale for internal connections (patch by Fabian Keil)
+    * fix: labeling connections to our socks port as being client connections (caught by Fabian Keil)
+    * fix: skipping internal -> external address translation when the external address is private (caught by Fabian Keil)
+    * fix: suppressing superfluous lsof warnings (patch by Hans Schnehl)
+    * fix: when the pid was unavailable some resolvers failed to work
+    * fix: including udp connection results (needed since exits proxy dns traffic)
+    * fix: crashing issue when nickname was undefined but displayed on the connection panel
+    * fix: concurrency issue caused the first connection resolution to often not have the pid
+    * fix: connection resolution wasn't finding results if tor was running under a different name
+    * fix: brought all Linux connection resolvers into parity (established tcp connections only)
+    * fix: commands with quoted pipes were being mis-parsed by the sysTools' call function
+
+11/27/10 - version 1.4.0 (r23873)
 Introducing a new page for managing tor's configuration, along with several other improvements.
 
     * added: editor for the tor configuration, providing:
@@ -42,6 +84,8 @@ Introducing a new page for managing tor's configuration, along with several othe
     * fix: making the interface more resilient to being resized while popups are visible
     * fix: log panel wasn't respecting the prepopulate* log level config options
     * fix: off by one error when wrapping lines in the log panel
+    * fix (11/30/10, r23882): install script was failing to make the temporary directory for the compressed man page
+    * fix (11/30/10, r23882): a torrc validation log entries had a typo
 
 10/6/10 - version 1.3.7 (r23439)
 Numerous improvements, most notably being an expanded log panel, installer, and deb/rpm builds.

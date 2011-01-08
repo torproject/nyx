@@ -6,6 +6,7 @@ result in entries from that runlevel being dropped). All functions are thread
 safe.
 """
 
+import os
 import time
 from sys import maxint
 from threading import RLock
@@ -27,12 +28,32 @@ _listeners = dict([(level, []) for level in range(1, 6)])
 CONFIG = {"cache.armLog.size": 1000,
           "cache.armLog.trimSize": 200}
 
+DUMP_FILE = None
+
 def loadConfig(config):
   config.update(CONFIG, {
     "cache.armLog.size": 10,
     "cache.armLog.trimSize": 5})
   
   CONFIG["cache.armLog.trimSize"] = min(CONFIG["cache.armLog.trimSize"], CONFIG["cache.armLog.size"] / 2)
+
+def setDumpFile(logPath):
+  """
+  Logs all future logged events to the given path. This raises an IOError if
+  the file fails to be opened. If the file already exists then this overwrites
+  it.
+  
+  Arguments:
+    logPath - path where to persist logs
+  """
+  
+  global DUMP_FILE
+  
+  # make sure that the parent directory exists
+  baseDir = os.path.dirname(logPath)
+  if not os.path.exists(baseDir): os.makedirs(baseDir)
+  
+  DUMP_FILE = open(logPath, "w")
 
 def strToRunlevel(runlevelStr):
   """
@@ -75,6 +96,7 @@ def log(level, msg, eventTime = None):
     eventTime - unix time at which the event occurred, current time if undefined
   """
   
+  global DUMP_FILE
   if not level: return
   if eventTime == None: eventTime = time.time()
   
@@ -100,6 +122,18 @@ def log(level, msg, eventTime = None):
     # truncates backlog if too long
     toDelete = len(eventBacklog) - CONFIG["cache.armLog.size"]
     if toDelete >= 0: del eventBacklog[: toDelete + CONFIG["cache.armLog.trimSize"]]
+    
+    # persists the event if a debug file's been set
+    if DUMP_FILE:
+      try:
+        entryTime = time.localtime(eventTime)
+        timeLabel = "%i/%i/%i %02i:%02i:%02i" % (entryTime[1], entryTime[2], entryTime[0], entryTime[3], entryTime[4], entryTime[5])
+        logEntry = "%s [%s] %s\n" % (timeLabel, runlevelToStr(level), msg)
+        DUMP_FILE.write(logEntry)
+        DUMP_FILE.flush()
+      except IOError, exc:
+        DUMP_FILE = None
+        log(ERR, "Failed to write to the debug file - %s" % exc)
     
     # notifies listeners
     for callback in _listeners[level]:

@@ -14,7 +14,6 @@ import curses
 import curses.textpad
 import socket
 from TorCtl import TorCtl
-from TorCtl import TorUtil
 
 import headerPanel
 import graphing.graphPanel
@@ -28,7 +27,7 @@ import fileDescriptorPopup
 from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
-import graphing.psStats
+import graphing.resourceStats
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
@@ -54,9 +53,10 @@ CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.bw.prepopulate": True,
           "log.startTime": log.INFO,
           "log.refreshRate": log.DEBUG,
+          "log.highCpuUsage": log.WARN,
           "log.configEntryUndefined": log.NOTICE,
           "log.torrc.validation.torStateDiffers": log.WARN,
-          "log.torrc.validation.unnecessaryTorrcEntries": log.WARN}
+          "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE}
 
 class ControlPanel(panel.Panel):
   """ Draws single line label for interface controls. """
@@ -506,18 +506,18 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       if mismatchLines:
         if len(mismatchLines) > 1:
-          msg += "\n- torrc values differ on line lines: "
+          msg += "\n- torrc values differ on lines: "
         else:
-          msg += "\n- torrc value differs on line line: "
+          msg += "\n- torrc value differs on line: "
         
         mismatchLines.sort()
         msg += ", ".join([str(val + 1) for val in mismatchLines])
         
       if missingOptions:
         if len(missingOptions) > 1:
-          msg += "\n-configuration values are missing from the torrc: "
+          msg += "\n- configuration values are missing from the torrc: "
         else:
-          msg += "\n-configuration value is missing from the torrc: "
+          msg += "\n- configuration value is missing from the torrc: "
         
         missingOptions.sort()
         msg += ", ".join(missingOptions)
@@ -528,14 +528,18 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   # minor refinements for connection resolver
   if not isBlindMode:
-    resolver = connections.getResolver("tor")
-    if torPid: resolver.processPid = torPid # helps narrow connection results
+    if torPid:
+      # use the tor pid to help narrow connection results
+      torCmdName = sysTools.getProcessName(torPid, "tor")
+      resolver = connections.getResolver(torCmdName, torPid, "tor")
+    else:
+      resolver = connections.getResolver("tor")
   
   # hack to display a better (arm specific) notice if all resolvers fail
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr, config),
+    "header": headerPanel.HeaderPanel(stdscr, startTime),
     "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
@@ -557,7 +561,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   # statistical monitors for graph
   panels["graph"].addStats("bandwidth", graphing.bandwidthStats.BandwidthStats(config))
-  panels["graph"].addStats("system resources", graphing.psStats.PsStats(config))
+  panels["graph"].addStats("system resources", graphing.resourceStats.ResourceStats())
   if not isBlindMode: panels["graph"].addStats("connections", graphing.connStats.ConnStats())
   
   # sets graph based on config parameter
@@ -631,6 +635,12 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   initTime = time.time() - startTime
   log.log(CONFIG["log.startTime"], "arm started (initialization took %0.3f seconds)" % initTime)
   
+  # attributes to give a WARN level event if arm's resource usage is too high
+  isResourceWarningGiven = False
+  lastResourceCheck = startTime
+  
+  lastSize = None
+  
   # TODO: come up with a nice, clean method for other threads to immediately
   # terminate the draw loop and provide a stacktrace
   while True:
@@ -657,6 +667,16 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # TODO: should redraw the torrcPanel
         #panels["torrc"].loadConfig()
+        
+        # reload the torrc if it's previously been loaded
+        if loadedTorrc.isLoaded():
+          try:
+            loadedTorrc.load()
+            if page == 3: panels["torrc"].redraw(True)
+          except IOError, exc:
+            msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
+            log.log(CONFIG["log.torrc.readFailed"], msg)
+        
         sighupTracker.isReset = False
       
       # gives panels a chance to take advantage of the maximum bounds
@@ -707,9 +727,13 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       for panelKey in (PAGE_S + PAGES[page]):
         # redrawing popup can result in display flicker when it should be hidden
         if panelKey != "popup":
+          newSize = stdscr.getmaxyx()
+          isResize = lastSize != newSize
+          lastSize = newSize
+          
           if panelKey in ("header", "graph", "log", "config", "torrc"):
             # revised panel (manages its own content refreshing)
-            panels[panelKey].redraw()
+            panels[panelKey].redraw(isResize)
           else:
             panels[panelKey].redraw(True)
       
@@ -717,8 +741,34 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       currentTime = time.time()
       if currentTime - lastPerformanceLog >= CONFIG["queries.refreshRate.rate"]:
-        log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds" % (currentTime - redrawStartTime))
+        cpuTotal = sum(os.times()[:3])
+        pythonCpuAvg = cpuTotal / (currentTime - startTime)
+        sysCallCpuAvg = sysTools.getSysCpuUsage()
+        totalCpuAvg = pythonCpuAvg + sysCallCpuAvg
+        
+        if sysCallCpuAvg > 0.00001:
+          log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%% (python), %0.3f%% (system calls), %0.3f%% (total)" % (currentTime - redrawStartTime, 100 * pythonCpuAvg, 100 * sysCallCpuAvg, 100 * totalCpuAvg))
+        else:
+          # with the proc enhancements the sysCallCpuAvg is usually zero
+          log.log(CONFIG["log.refreshRate"], "refresh rate: %0.3f seconds, average cpu usage: %0.3f%%" % (currentTime - redrawStartTime, 100 * totalCpuAvg))
+        
         lastPerformanceLog = currentTime
+        
+        # once per minute check if the sustained cpu usage is above 5%, if so
+        # then give a warning (and if able, some advice for lowering it)
+        # TODO: disabling this for now (scrolling causes cpu spikes for quick
+        # redraws, ie this is usually triggered by user input)
+        if False and not isResourceWarningGiven and currentTime > (lastResourceCheck + 60):
+          if totalCpuAvg >= 0.05:
+            msg = "Arm's cpu usage is high (averaging %0.3f%%)." % (100 * totalCpuAvg)
+            
+            if not isBlindMode:
+              msg += " You could lower it by dropping the connection data (running as \"arm -b\")."
+            
+            log.log(CONFIG["log.highCpuUsage"], msg)
+            isResourceWarningGiven = True
+          
+          lastResourceCheck = currentTime
     finally:
       panel.CURSES_LOCK.release()
     
@@ -758,19 +808,25 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # this appears to be a python bug: http://bugs.python.org/issue3014
         # (haven't seen this is quite some time... mysteriously resolved?)
         
-        # joins on utility daemon threads - this might take a moment since
-        # the internal threadpools being joined might be sleeping
-        resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
-        if resolver: resolver.stop()  # sets halt flag (returning immediately)
-        hostnames.stop()              # halts and joins on hostname worker thread pool
-        if resolver: resolver.join()  # joins on halted resolver
-        
         # stops panel daemons
         panels["header"].stop()
         panels["log"].stop()
         
         panels["header"].join()
         panels["log"].join()
+        
+        # joins on utility daemon threads - this might take a moment since
+        # the internal threadpools being joined might be sleeping
+        conn = torTools.getConn()
+        myPid = conn.getMyPid()
+        
+        resourceTracker = sysTools.getResourceTracker(myPid) if (myPid and sysTools.isTrackerAlive(myPid)) else None
+        resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
+        if resourceTracker: resourceTracker.stop()
+        if resolver: resolver.stop()  # sets halt flag (returning immediately)
+        hostnames.stop()              # halts and joins on hostname worker thread pool
+        if resourceTracker: resourceTracker.join()
+        if resolver: resolver.join()  # joins on halted resolver
         
         conn.close() # joins on TorCtl event thread
         break
@@ -1401,7 +1457,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["conn"].sortConnections()
     elif page == 1 and (key == ord('u') or key == ord('U')):
       # provides menu to pick identification resolving utility
-      optionTypes = [None, connections.CMD_NETSTAT, connections.CMD_SS, connections.CMD_LSOF]
+      optionTypes = [None, connections.CMD_PROC, connections.CMD_NETSTAT, connections.CMD_SOCKSTAT, connections.CMD_LSOF, connections.CMD_SS, connections.CMD_BSD_SOCKSTAT, connections.CMD_BSD_PROCSTAT]
       options = ["auto"] + [connections.CMD_STR[util] for util in optionTypes[1:]]
       
       initialSelection = connections.getResolver("tor").overwriteResolver # enums correspond to indices

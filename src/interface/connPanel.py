@@ -105,6 +105,20 @@ def getSortType(sortLabel):
     if sortLabel == label: return type
   raise ValueError(sortLabel)
 
+def ipAddressIsPrivate(ipAddr):
+  """
+  Provides true if the IP address belongs on the local network or belongs to
+  loopback, false otherwise. These include:
+  Private ranges: 10.*, 172.16.* - 172.31.*, 192.168.*
+  Loopback: 127.*
+  
+  Arguments:
+    ipAddr - IP address to be checked
+  """
+  
+  # TODO: being lazy right now and just declaring all of 172.* as private
+  return ipAddr.startswith("10.") or ipAddr.startswith("192.168.") or ipAddr.startswith("172.") or ipAddr.startswith("127.")
+
 class ConnPanel(TorCtl.PostEventListener, panel.Panel):
   """
   Lists tor related connection data.
@@ -156,6 +170,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.orPort = "0"
     self.dirPort = "0"
     self.controlPort = "0"
+    self.socksPort = "0"
     self.family = []                # fingerpints of family entries
     self.isBridge = False           # true if BridgeRelay is set
     self.exitPolicy = ""
@@ -180,6 +195,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     try:
       self.address = "" # fetched when needed if unset
       self.nickname = self.conn.get_option("Nickname")[0][1]
+      if self.nickname == None: self.nickname = "Unnamed"
       
       self.orPort = self.conn.get_option("ORPort")[0][1]
       self.dirPort = self.conn.get_option("DirPort")[0][1]
@@ -190,6 +206,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       if listenAddr and ":" in listenAddr:
         self.listenPort = listenAddr[listenAddr.find(":") + 1:]
       else: self.listenPort = self.orPort
+      
+      self.socksPort = torTools.getConn().getOption("SocksPort", "0")
       
       # entry is None if not set, otherwise of the format "$<fingerprint>,$<fingerprint>"
       familyEntry = self.conn.get_option("MyFamily")[0][1]
@@ -215,6 +233,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
       self.orPort = "0"
       self.dirPort = "0"
       self.controlPort = "0"
+      self.socksPort = "0"
       self.family = []
       self.isBridge = False
       self.exitPolicy = ""
@@ -324,6 +343,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
           type = "inbound"
           connectionCountTmp[0] += 1
           if SCRUB_PRIVATE_DATA and fIp not in self.fingerprintMappings.keys(): isPrivate = isGuard or self.isBridge
+        elif lPort == self.socksPort:
+          type = "client"
+          connectionCountTmp[2] += 1
         elif lPort == self.controlPort:
           type = "control"
           connectionCountTmp[4] += 1
@@ -347,17 +369,22 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
             connectionCountTmp[1] += 1
             if SCRUB_PRIVATE_DATA and fIp not in self.fingerprintMappings.keys(): isPrivate = isExitAllowed(fIp, fPort, self.exitPolicy, self.exitRejectPrivate)
         
-        # replace nat address with external version if available
-        if self.address and type != "control": lIp = self.address
+        # replace nat address with external version if available and the
+        # external address isn't a private IP
+        isPrivateIp = ipAddressIsPrivate(fIp)
+        if self.address and type != "control" and not isPrivateIp: lIp = self.address
         
-        try:
-          countryCodeQuery = "ip-to-country/%s" % fIp
-          countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+        if isPrivateIp:
           countryCode = "??"
-          if not self.providedGeoipWarning:
-            log.log(log.WARN, "Tor geoip database is unavailable.")
-            self.providedGeoipWarning = True
+        else:
+          try:
+            countryCodeQuery = "ip-to-country/%s" % fIp
+            countryCode = self.conn.get_info(countryCodeQuery)[countryCodeQuery]
+          except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
+            countryCode = "??"
+            if not self.providedGeoipWarning:
+              log.log(log.WARN, "Tor geoip database is unavailable.")
+              self.providedGeoipWarning = True
         
         if (fIp, fPort) in connTimes: connTime = connTimes[(fIp, fPort)]
         else: connTime = time.time()
@@ -532,7 +559,9 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
             if self.listingType == LIST_IP:
               # base data requires 73 characters
               src = "%s:%s" % (entry[CONN_L_IP], entry[CONN_L_PORT])
-              dst = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+              dst = "%s:%s" % (entry[CONN_F_IP], entry[CONN_F_PORT])
+              if not ipAddressIsPrivate(entry[CONN_F_IP]):
+                dst += " (%s)" % entry[CONN_COUNTRY]
               
               if isPrivate: dst = "<scrubbed>"
               
@@ -565,9 +594,12 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
                 foreignHostnameSpace -= 22
                 
                 if isPrivate: ipEntry = "<scrubbed>"
-                else: ipEntry = "%s %s" % (entry[CONN_F_IP], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                else:
+                  ipEntry = "%s:%s" % (entry[CONN_F_IP], entry[CONN_F_PORT])
+                  if ipAddressIsPrivate(entry[CONN_F_IP]):
+                    ipEntry += " (%s)" % entry[CONN_COUNTRY]
+                
                 etc += "%-20s  " % ipEntry
-              
               if width > 134 + xOffset:
                 # show fingerprint (column width: 42 characters)
                 foreignHostnameSpace -= 42
@@ -613,7 +645,11 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
               if width > 125 + xOffset:
                 # shows ip/port/locale (column width: 28 characters)
                 if isPrivate: ipEntry = "<scrubbed>"
-                else: ipEntry = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                else:
+                  ipEntry = "%s:%s" % (entry[CONN_F_IP], entry[CONN_F_PORT])
+                  if ipAddressIsPrivate(entry[CONN_F_IP]):
+                    ipEntry += " (%s)" % entry[CONN_COUNTRY]
+                
                 etc += "%-26s  " % ipEntry
             else:
               # base data uses whatever extra room's available (using minimun of 50 characters)
@@ -635,7 +671,11 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
                 foreignNicknameSpace -= 28
                 
                 if isPrivate: ipEntry = "<scrubbed>"
-                else: ipEntry = "%s:%s %s" % (entry[CONN_F_IP], entry[CONN_F_PORT], "" if type == "control" else "(%s)" % entry[CONN_COUNTRY])
+                else:
+                  ipEntry = "%s:%s" % (entry[CONN_F_IP], entry[CONN_F_PORT])
+                  if ipAddressIsPrivate(entry[CONN_F_IP]):
+                    ipEntry += " (%s)" % entry[CONN_COUNTRY]
+                
                 etc += "%-26s  " % ipEntry
               
               dst = ("%%-%is" % foreignNicknameSpace) % dst

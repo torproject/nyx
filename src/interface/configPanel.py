@@ -30,13 +30,14 @@ CATEGORY_COLOR = {torConfig.GENERAL: "green",
                   torConfig.UNKNOWN: "white"}
 
 # attributes of a ConfigEntry
-FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_DESCRIPTION, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT = range(8)
+FIELD_CATEGORY, FIELD_OPTION, FIELD_VALUE, FIELD_TYPE, FIELD_ARG_USAGE, FIELD_SUMMARY, FIELD_DESCRIPTION, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT = range(9)
 DEFAULT_SORT_ORDER = (FIELD_CATEGORY, FIELD_MAN_ENTRY, FIELD_IS_DEFAULT)
 FIELD_ATTR = {FIELD_CATEGORY: ("Category", "red"),
               FIELD_OPTION: ("Option Name", "blue"),
               FIELD_VALUE: ("Value", "cyan"),
               FIELD_TYPE: ("Arg Type", "green"),
               FIELD_ARG_USAGE: ("Arg Usage", "yellow"),
+              FIELD_SUMMARY: ("Summary", "green"),
               FIELD_DESCRIPTION: ("Description", "white"),
               FIELD_MAN_ENTRY: ("Man Page Entry", "blue"),
               FIELD_IS_DEFAULT: ("Is Default", "magenta")}
@@ -46,7 +47,7 @@ class ConfigEntry():
   Configuration option in the panel.
   """
   
-  def __init__(self, option, type, isDefault, manEntry):
+  def __init__(self, option, type, isDefault, summary, manEntry):
     self.fields = {}
     self.fields[FIELD_OPTION] = option
     self.fields[FIELD_TYPE] = type
@@ -62,6 +63,8 @@ class ConfigEntry():
       self.fields[FIELD_CATEGORY] = torConfig.UNKNOWN
       self.fields[FIELD_ARG_USAGE] = ""
       self.fields[FIELD_DESCRIPTION] = ""
+    
+    self.fields[FIELD_SUMMARY] = summary if summary != None else self.fields[FIELD_DESCRIPTION]
   
   def get(self, field):
     """
@@ -144,8 +147,9 @@ class ConfigPanel(panel.Panel):
         elif not self._config["features.config.state.showVirtualOptions"] and confType == "Virtual":
           continue
         
+        summary = torConfig.getConfigSummary(confOption)
         manEntry = torConfig.getConfigDescription(confOption)
-        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions, manEntry))
+        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions, summary, manEntry))
       
       self.setSortOrder() # initial sorting of the contents
     elif self.configType == ARM_STATE:
@@ -227,16 +231,14 @@ class ConfigPanel(panel.Panel):
       
       optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionWidth)
       valueLabel = uiTools.cropStr(entry.get(FIELD_VALUE), valueWidth)
-      
-      # ends description at the first newline
-      descriptionLabel = uiTools.cropStr(entry.get(FIELD_DESCRIPTION).split("\n")[0], descriptionWidth, None)
+      summaryLabel = uiTools.cropStr(entry.get(FIELD_SUMMARY), descriptionWidth, None)
       
       lineFormat = curses.A_NORMAL if entry.get(FIELD_IS_DEFAULT) else curses.A_BOLD
       if entry.get(FIELD_CATEGORY): lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.get(FIELD_CATEGORY)])
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
       lineTextLayout = "%%-%is %%-%is %%-%is" % (optionWidth, valueWidth, descriptionWidth)
-      lineText = lineTextLayout % (optionLabel, valueLabel, descriptionLabel)
+      lineText = lineTextLayout % (optionLabel, valueLabel, summaryLabel)
       self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       
       if drawLine >= height: break

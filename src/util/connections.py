@@ -2,24 +2,36 @@
 Fetches connection data (IP addresses and ports) associated with a given
 process. This sort of data can be retrieved via a variety of common *nix
 utilities:
-- netstat   netstat -npt | grep <pid>/<process>
-- ss        ss -p | grep "\"<process>\",<pid>"
-- lsof      lsof -nPi | grep "<process>\s*<pid>.*(ESTABLISHED)"
+- netstat   netstat -np | grep "ESTABLISHED <pid>/<process>"
+- sockstat  sockstat | egrep "<process> *<pid>.*ESTABLISHED"
+- lsof      lsof -wnPi | egrep "^<process> *<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
+- ss        ss -nptu | grep "ESTAB.*\"<process>\",<pid>"
 
-all queries dump its stderr (directing it to /dev/null). Unfortunately FreeBSD
-lacks support for the needed netstat flags and has a completely different
-program for 'ss', so this is quite likely to fail there.
+all queries dump its stderr (directing it to /dev/null). Results include UDP
+and established TCP connections.
+
+FreeBSD lacks support for the needed netstat flags and has a completely
+different program for 'ss'. However, lsof works and there's a couple other
+options that perform even better (thanks to Fabian Keil and Hans Schnehl):
+- sockstat    sockstat -4c | grep '<process> *<pid>'
+- procstat    procstat -f <pid> | grep TCP | grep -v 0.0.0.0:0
 """
 
-import sys
+import os
 import time
 import threading
 
-from util import log, sysTools
+from util import log, procTools, sysTools
 
 # enums for connection resolution utilities
-CMD_NETSTAT, CMD_SS, CMD_LSOF = range(1, 4)
-CMD_STR = {CMD_NETSTAT: "netstat", CMD_SS: "ss", CMD_LSOF: "lsof"}
+CMD_PROC, CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS, CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT = range(1, 8)
+CMD_STR = {CMD_PROC: "proc",
+           CMD_NETSTAT: "netstat",
+           CMD_SS: "ss",
+           CMD_LSOF: "lsof",
+           CMD_SOCKSTAT: "sockstat",
+           CMD_BSD_SOCKSTAT: "sockstat (bsd)",
+           CMD_BSD_PROCSTAT: "procstat (bsd)"}
 
 # If true this provides new instantiations for resolvers if the old one has
 # been stopped. This can make it difficult ensure all threads are terminated
@@ -28,29 +40,43 @@ RECREATE_HALTED_RESOLVERS = False
 
 # formatted strings for the commands to be executed with the various resolvers
 # options are:
-# n = prevents dns lookups, p = include process, t = tcp only
+# n = prevents dns lookups, p = include process
 # output:
 # tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
 # *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
 #   equivilant -p doesn't exist so this can't function)
-RUN_NETSTAT = "netstat -npt | grep %s/%s"
+RUN_NETSTAT = "netstat -np | grep \"ESTABLISHED %s/%s\""
 
-# n = numeric ports, p = include process
+# n = numeric ports, p = include process, t = tcp sockets, u = udp sockets
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
 # *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -np | grep \"\\\"%s\\\",%s\""
+RUN_SS = "ss -nptu | grep \"ESTAB.*\\\"%s\\\",%s\""
 
-# n = prevent dns lookups, P = show port numbers (not names), i = ip only
+# n = prevent dns lookups, P = show port numbers (not names), i = ip only,
+# -w = no warnings
 # output:
-# tor  9912  atagar  20u  IPv4  33453  TCP 127.0.0.1:9051->127.0.0.1:53308
-RUN_LSOF = "lsof -nPi | grep \"%s\s*%s.*(ESTABLISHED)\""
+# tor  3873  atagar  45u  IPv4  40994  0t0  TCP 10.243.55.20:45724->194.154.227.109:9001 (ESTABLISHED)
+# 
+# oddly, using the -p flag via:
+# lsof      lsof -nPi -p <pid> | grep "^<process>.*(ESTABLISHED)"
+# is much slower (11-28% in tests I ran)
+RUN_LSOF = "lsof -wnPi | egrep \"^%s *%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
+
+# output:
+# atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED
+# *note: this isn't available by default under ubuntu
+RUN_SOCKSTAT = "sockstat | egrep \"%s *%s.*ESTABLISHED\""
+
+RUN_BSD_SOCKSTAT = "sockstat -4c | grep '%s *%s'"
+RUN_BSD_PROCSTAT = "procstat -f %s | grep TCP | grep -v 0.0.0.0:0"
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
 CONFIG = {"queries.connections.minRate": 5,
+          "log.connResolverOptions": log.INFO,
           "log.connLookupFailed": log.INFO,
           "log.connLookupFailover": log.NOTICE,
           "log.connLookupAbandon": log.WARN,
@@ -58,6 +84,35 @@ CONFIG = {"queries.connections.minRate": 5,
 
 def loadConfig(config):
   config.update(CONFIG)
+
+def getResolverCommand(resolutionCmd, processName, processPid = ""):
+  """
+  Provides the command that would be processed for the given resolver type.
+  This raises a ValueError if either the resolutionCmd isn't recognized or a
+  pid was requited but not provided.
+  
+  Arguments:
+    resolutionCmd - command to use in resolving the address
+    processName   - name of the process for which connections are fetched
+    processPid    - process ID (this helps improve accuracy)
+  """
+  
+  if not processPid:
+    # the pid is required for procstat resolution
+    if resolutionCmd == CMD_BSD_PROCSTAT:
+      raise ValueError("procstat resolution requires a pid")
+    
+    # if the pid was undefined then match any in that field
+    processPid = "[0-9]*"
+  
+  if resolutionCmd == CMD_PROC: return ""
+  elif resolutionCmd == CMD_NETSTAT: return RUN_NETSTAT % (processPid, processName)
+  elif resolutionCmd == CMD_SS: return RUN_SS % (processName, processPid)
+  elif resolutionCmd == CMD_LSOF: return RUN_LSOF % (processName, processPid)
+  elif resolutionCmd == CMD_SOCKSTAT: return RUN_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == CMD_BSD_SOCKSTAT: return RUN_BSD_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == CMD_BSD_PROCSTAT: return RUN_BSD_PROCSTAT % processPid
+  else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
 
 def getConnections(resolutionCmd, processName, processPid = ""):
   """
@@ -76,31 +131,56 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     processPid    - process ID (this helps improve accuracy)
   """
   
-  if resolutionCmd == CMD_NETSTAT: cmd = RUN_NETSTAT % (processPid, processName)
-  elif resolutionCmd == CMD_SS: cmd = RUN_SS % (processName, processPid)
-  else: cmd = RUN_LSOF % (processName, processPid)
-  
-  # raises an IOError if the command fails or isn't available
-  results = sysTools.call(cmd)
-  
-  if not results: raise IOError("No results found using: %s" % cmd)
-  
-  # parses results for the resolution command
-  conn = []
-  for line in results:
-    comp = line.split()
+  if resolutionCmd == CMD_PROC:
+    # Attempts resolution via checking the proc contents.
+    if not processPid:
+      raise ValueError("proc resolution requires a pid")
     
-    if resolutionCmd == CMD_NETSTAT or resolutionCmd == CMD_SS:
-      localIp, localPort = comp[3].split(":")
-      foreignIp, foreignPort = comp[4].split(":")
-    else:
-      local, foreign = comp[8].split("->")
-      localIp, localPort = local.split(":")
-      foreignIp, foreignPort = foreign.split(":")
+    try:
+      return procTools.getConnections(processPid)
+    except Exception, exc:
+      raise IOError(str(exc))
+  else:
+    # Queries a resolution utility (netstat, lsof, etc). This raises an
+    # IOError if the command fails or isn't available.
+    cmd = getResolverCommand(resolutionCmd, processName, processPid)
+    results = sysTools.call(cmd)
     
-    conn.append((localIp, localPort, foreignIp, foreignPort))
-  
-  return conn
+    if not results: raise IOError("No results found using: %s" % cmd)
+    
+    # parses results for the resolution command
+    conn = []
+    for line in results:
+      if resolutionCmd == CMD_LSOF:
+        # Different versions of lsof have different numbers of columns, so
+        # stripping off the optional 'established' entry so we can just use
+        # the last one.
+        comp = line.replace("(ESTABLISHED)", "").strip().split()
+      else: comp = line.split()
+      
+      if resolutionCmd == CMD_NETSTAT:
+        localIp, localPort = comp[3].split(":")
+        foreignIp, foreignPort = comp[4].split(":")
+      elif resolutionCmd == CMD_SS:
+        localIp, localPort = comp[4].split(":")
+        foreignIp, foreignPort = comp[5].split(":")
+      elif resolutionCmd == CMD_LSOF:
+        local, foreign = comp[-1].split("->")
+        localIp, localPort = local.split(":")
+        foreignIp, foreignPort = foreign.split(":")
+      elif resolutionCmd == CMD_SOCKSTAT:
+        localIp, localPort = comp[4].split(":")
+        foreignIp, foreignPort = comp[5].split(":")
+      elif resolutionCmd == CMD_BSD_SOCKSTAT:
+        localIp, localPort = comp[5].split(":")
+        foreignIp, foreignPort = comp[6].split(":")
+      elif resolutionCmd == CMD_BSD_PROCSTAT:
+        localIp, localPort = comp[9].split(":")
+        foreignIp, foreignPort = comp[10].split(":")
+      
+      conn.append((localIp, localPort, foreignIp, foreignPort))
+    
+    return conn
 
 def isResolverAlive(processName, processPid = ""):
   """
@@ -119,7 +199,7 @@ def isResolverAlive(processName, processPid = ""):
   
   return False
 
-def getResolver(processName, processPid = ""):
+def getResolver(processName, processPid = "", alias=None):
   """
   Singleton constructor for resolver instances. If a resolver already exists
   for the process then it's returned. Otherwise one is created and started.
@@ -128,18 +208,20 @@ def getResolver(processName, processPid = ""):
     processName - name of the process being resolved
     processPid  - pid of the process being resolved, if undefined this matches
                   against any resolver with the process name
+    alias       - alternative handle under which the resolver can be requested
   """
   
   # check if one's already been created
+  requestHandle = alias if alias else processName
   haltedIndex = -1 # old instance of this resolver with the _halt flag set
   for i in range(len(RESOLVERS)):
     resolver = RESOLVERS[i]
-    if resolver.processName == processName and (not processPid or resolver.processPid == processPid):
+    if resolver.handle == requestHandle and (not processPid or resolver.processPid == processPid):
       if resolver._halt and RECREATE_HALTED_RESOLVERS: haltedIndex = i
       else: return resolver
   
   # make a new resolver
-  r = ConnectionResolver(processName, processPid)
+  r = ConnectionResolver(processName, processPid, handle = requestHandle)
   r.start()
   
   # overwrites halted instance of this resolver if it exists, otherwise append
@@ -147,37 +229,27 @@ def getResolver(processName, processPid = ""):
   else: RESOLVERS[haltedIndex] = r
   return r
 
-def test():
-  # quick method for testing connection resolution
-  userInput = raw_input("Enter query (<ss, netstat, lsof> PROCESS_NAME [PID]): ").split()
+def getSystemResolvers(osType = None):
+  """
+  Provides the types of connection resolvers available on this operating
+  system.
   
-  # checks if there's enough arguments
-  if len(userInput) == 0: sys.exit(0)
-  elif len(userInput) == 1:
-    print "no process name provided"
-    sys.exit(1)
+  Arguments:
+    osType - operating system type, fetched from the os module if undefined
+  """
   
-  # translates resolver string to enum
-  userInput[0] = userInput[0].lower()
-  if userInput[0] == "ss": userInput[0] = CMD_SS
-  elif userInput[0] == "netstat": userInput[0] = CMD_NETSTAT
-  elif userInput[0] == "lsof": userInput[0] = CMD_LSOF
+  if osType == None: osType = os.uname()[0]
+  
+  if osType == "FreeBSD":
+    resolvers = [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
   else:
-    print "unrecognized type of resolver: %s" % userInput[2]
-    sys.exit(1)
+    resolvers = [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
   
-  # resolves connections
-  try:
-    if len(userInput) == 2: connections = getConnections(userInput[0], userInput[1])
-    else: connections = getConnections(userInput[0], userInput[1], userInput[2])
-  except IOError, exc:
-    print exc
-    sys.exit(1)
+  # proc resolution, by far, outperforms the others so defaults to this is able
+  if procTools.isProcAvailable():
+    resolvers = [CMD_PROC] + resolvers
   
-  # prints results
-  print "-" * 40
-  for lIp, lPort, fIp, fPort in connections:
-    print "%s:%s -> %s:%s" % (lIp, lPort, fIp, fPort)
+  return resolvers
 
 class ConnectionResolver(threading.Thread):
   """
@@ -216,11 +288,12 @@ class ConnectionResolver(threading.Thread):
     overwriteResolver - method of resolution (uses default if None)
     * defaultResolver - resolver used by default (None if all resolution
                         methods have been exhausted)
+    resolverOptions   - resolvers to be cycled through (differ by os)
     
     * read-only
   """
   
-  def __init__(self, processName, processPid = "", resolveRate = None):
+  def __init__(self, processName, processPid = "", resolveRate = None, handle = None):
     """
     Initializes a new resolver daemon. When no longer needed it's suggested
     that this is stopped.
@@ -230,6 +303,8 @@ class ConnectionResolver(threading.Thread):
       processPid  - pid of the process being resolved
       resolveRate - time between resolving connections (in seconds, None if
                     chosen dynamically)
+      handle      - name used to query this resolver, this is the processName
+                    if undefined
     """
     
     threading.Thread.__init__(self)
@@ -238,15 +313,22 @@ class ConnectionResolver(threading.Thread):
     self.processName = processName
     self.processPid = processPid
     self.resolveRate = resolveRate
+    self.handle = handle if handle else processName
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
-    self.defaultResolver = CMD_NETSTAT
+    self.defaultResolver = CMD_PROC
+    
+    osType = os.uname()[0]
+    self.resolverOptions = getSystemResolvers(osType)
+    
+    resolverLabels = ", ".join([CMD_STR[option] for option in self.resolverOptions])
+    log.log(CONFIG["log.connResolverOptions"], "Operating System: %s, Connection Resolvers: %s" % (osType, resolverLabels))
     
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
-    for resolver in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
-      if sysTools.isAvailable(CMD_STR[resolver]):
+    for resolver in self.resolverOptions:
+      if resolver == CMD_PROC or sysTools.isAvailable(CMD_STR[resolver]):
         self.defaultResolver = resolver
         break
     
@@ -320,7 +402,7 @@ class ConnectionResolver(threading.Thread):
             
             # pick another (non-blacklisted) resolver
             newResolver = None
-            for r in [CMD_NETSTAT, CMD_SS, CMD_LSOF]:
+            for r in self.resolverOptions:
               if not r in self._resolverBlacklist:
                 newResolver = r
                 break

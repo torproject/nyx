@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import getopt
+import socket
 
 import version
 import interface.controller
@@ -19,6 +20,7 @@ import util.connections
 import util.hostnames
 import util.log
 import util.panel
+import util.procTools
 import util.sysTools
 import util.torConfig
 import util.torTools
@@ -26,29 +28,33 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
-DEFAULT_CONFIG = os.path.expanduser("~/.armrc")
+LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
+DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
           "startup.interface.ipAddress": "127.0.0.1",
           "startup.interface.port": 9051,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
+          "data.cache.path": "~/.arm/cache",
           "features.config.descriptions.enabled": True,
-          "features.config.descriptions.persistPath": "/tmp/arm/torConfigDescriptions.txt",
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
-          "log.configDescriptions.readManPageFailed": util.log.WARN,
+          "log.configDescriptions.readManPageFailed": util.log.NOTICE,
+          "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
+          "log.configDescriptions.internalLoadFailed": util.log.ERR,
           "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
           "log.configDescriptions.persistance.loadFailed": util.log.INFO,
           "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE}
 
-OPT = "i:c:be:vh"
-OPT_EXPANDED = ["interface=", "config=", "blind", "event=", "version", "help"]
+OPT = "i:c:dbe:vh"
+OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
                                     defaults to: %s
+  -d, --debug                     writes all arm logs to %s
   -b, --blind                     disable connection lookups
   -e, --event EVENT_FLAGS         event types in message log  (default: %s)
 %s
@@ -58,13 +64,18 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+
+# filename used for cached tor config descriptions
+CONFIG_DESC_FILENAME = "torConfigDesc.txt"
 
 # messages related to loading the tor configuration descriptions
 DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
 DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
+DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
+DESC_INTERNAL_LOAD_FAILED_MSG = "Unable to load fallback descriptions. Categories and help for Tor's configuration options won't be available. (%s)"
 DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
-DESC_READ_MAN_FAILED_MSG = "Unable to read descriptions for tor's configuration options from its man page (%s)"
+DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuration options from its man page (%s)"
 DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
 DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
@@ -95,7 +106,7 @@ def isValidIpAddr(ipStr):
   
   return True
 
-def _loadConfigurationDescriptions():
+def _loadConfigurationDescriptions(pathPrefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
   from the man page and persisting them to a file to speed future startups.
@@ -107,9 +118,16 @@ def _loadConfigurationDescriptions():
   
   if CONFIG["features.config.descriptions.enabled"]:
     isConfigDescriptionsLoaded = False
-    descriptorPath = CONFIG["features.config.descriptions.persistPath"]
     
-    # attempts to load persisted configuration descriptions
+    # determines the path where cached descriptions should be persisted (left
+    # undefined of arm caching is disabled)
+    cachePath, descriptorPath = CONFIG["data.cache.path"], None
+    
+    if cachePath:
+      if not cachePath.endswith("/"): cachePath += "/"
+      descriptorPath = os.path.expanduser(cachePath) + CONFIG_DESC_FILENAME
+    
+    # attempts to load configuration descriptions cached in the data directory
     if descriptorPath:
       try:
         loadStartTime = time.time()
@@ -122,9 +140,9 @@ def _loadConfigurationDescriptions():
         msg = DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.persistance.loadFailed"], msg)
     
+    # fetches configuration options from the man page
     if not isConfigDescriptionsLoaded:
       try:
-        # fetches configuration options from the man page
         loadStartTime = time.time()
         util.torConfig.loadOptionDescriptions()
         isConfigDescriptionsLoaded = True
@@ -146,10 +164,25 @@ def _loadConfigurationDescriptions():
         except IOError, exc:
           msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
           util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
+    
+    # finally fall back to the cached descriptors provided with arm (this is
+    # often the case for tbb and manual builds)
+    if not isConfigDescriptionsLoaded:
+      try:
+        loadStartTime = time.time()
+        loadedVersion = util.torConfig.loadOptionDescriptions(pathPrefix + CONFIG_DESC_FILENAME, False)
+        isConfigDescriptionsLoaded = True
+        
+        msg = DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion
+        util.log.log(CONFIG["log.configDescriptions.internalLoadSuccess"], msg)
+      except IOError, exc:
+        msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
+        util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
+  isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
   # parses user input, noting any issues
@@ -178,6 +211,7 @@ if __name__ == '__main__':
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
+    elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
     elif opt in ("-e", "--event"):
@@ -189,14 +223,27 @@ if __name__ == '__main__':
       print HELP_MSG
       sys.exit()
   
+  if isDebugMode:
+    try:
+      util.log.setDumpFile(LOG_DUMP_PATH)
+      
+      currentTime = time.localtime()
+      timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
+      initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
+      
+      util.log.DUMP_FILE.write("%s\n%s\n" % (initMsg, "-" * len(initMsg)))
+      util.log.DUMP_FILE.flush()
+    except (OSError, IOError), exc:
+      print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
+  
   config = util.conf.getConfig("arm")
   
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+  
   try:
-    pathPrefix = os.path.dirname(sys.argv[0])
-    if pathPrefix and not pathPrefix.endswith("/"):
-      pathPrefix = pathPrefix + "/"
-    
     config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
     msg = NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc)
@@ -218,7 +265,7 @@ if __name__ == '__main__':
   config.update(CONFIG)
   
   # loads user preferences for utilities
-  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.sysTools, util.torConfig, util.torTools, util.uiTools):
+  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.procTools, util.sysTools, util.torConfig, util.torTools, util.uiTools):
     utilModule.loadConfig(config)
   
   # overwrites undefined parameters with defaults
@@ -252,7 +299,36 @@ if __name__ == '__main__':
   TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
-  if conn == None: sys.exit(1)
+  if conn == None:
+    # Connecting to the control port will probably fail if it's using cookie
+    # authentication and the cookie path is relative (unfortunately this is
+    # the case for TBB). This is discussed in:
+    # https://trac.torproject.org/projects/tor/ticket/1101
+    #
+    # Until this is fixed including a hack to expand the relative path in
+    # these cases, setting conn to the established connection if successful
+    # and leaving it undefined otherwise. Even if successful this prints the
+    # error message saying that the auth cookie couldn't be found
+    # (unfortunately this is unavoidable without either changing TorCtl or
+    # making this a much bigger hack).
+    
+    try:
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      s.connect((controlAddr, controlPort))
+      tmpConn = TorCtl.TorCtl.Connection(s)
+      
+      if tmpConn.get_auth_type() == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
+        cookiePath = tmpConn.get_auth_cookie_path()
+        torPid = util.torTools.getPid(controlPort)
+        
+        if torPid and cookiePath[0] != "/":
+          # previous attempt to connect failed due to having a relative path - fix it
+          tmpConn._cookiePath = util.sysTools.expandRelativePath(cookiePath, torPid)
+          tmpConn.authenticate(cookiePath)
+          conn = tmpConn # success!
+    except: pass
+    
+    if conn == None: sys.exit(1)
   
   # removing references to the controller password so the memory can be freed
   # (unfortunately python does allow for direct access to the memory so this
@@ -277,7 +353,7 @@ if __name__ == '__main__':
   controller.init(conn)
   
   # fetches descriptions for tor's configuration options
-  _loadConfigurationDescriptions()
+  _loadConfigurationDescriptions(pathPrefix)
   
   interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
   conn.close()

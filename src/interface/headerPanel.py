@@ -32,37 +32,51 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
-DEFAULT_CONFIG = {"queries.ps.rate": 5}
-
 class HeaderPanel(panel.Panel, threading.Thread):
   """
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
-    tor/ version, versionStatus, nickname, orPort, dirPort, controlPort,
-         exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
-         *address, *fingerprint, *flags
-    sys/ hostname, os, version
-    ps/  *%cpu, *rss, *%mem, pid, *etime
+    tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
+          exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
+          *address, *fingerprint, *flags, pid, startTime
+    sys/  hostname, os, version
+    stat/ *%torCpu, *%armCpu, *rss, *%mem
   
   * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr, config=None):
+  def __init__(self, stdscr, startTime):
     panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
-    self._isLastDrawWide = False
-    self._isChanged = False     # new stats to be drawn if true
     self._isPaused = False      # prevents updates if true
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
-    self._config = dict(DEFAULT_CONFIG)
     
-    if config:
-      config.update(self._config, {"queries.ps.rate": 1})
+    # Time when the panel was paused or tor was stopped. This is used to
+    # freeze the uptime statistic (uptime increments normally when None).
+    self._haltTime = None
+    
+    # The last arm cpu usage sampling taken. This is a tuple of the form:
+    # (total arm cpu time, sampling timestamp)
+    # 
+    # The initial cpu total should be zero. However, at startup the cpu time
+    # in practice is often greater than the real time causing the initially
+    # reported cpu usage to be over 100% (which shouldn't be possible on
+    # single core systems).
+    # 
+    # Setting the initial cpu total to the value at this panel's init tends to
+    # give smoother results (staying in the same ballpark as the second
+    # sampling) so fudging the numbers this way for now.
+    
+    self._armCpuSampling = (sum(os.times()[:3]), startTime)
+    
+    # Last sampling received from the ResourceTracker, used to detect when it
+    # changes.
+    self._lastResourceFetch = -1
     
     self.vals = {}
     self.valsLock = threading.RLock()
@@ -138,13 +152,21 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
-    if self.vals["ps/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["ps/rss"]) * 1024)
+    if self.vals["stat/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["stat/rss"]))
     else: memoryLabel = "0"
     
-    sysFields = ((0, "cpu: %s%%" % self.vals["ps/%cpu"]),
-                 (13, "mem: %s (%s%%)" % (memoryLabel, self.vals["ps/%mem"])),
-                 (34, "pid: %s" % (self.vals["ps/pid"] if self._isTorConnected else "")),
-                 (47, "uptime: %s" % self.vals["ps/etime"]))
+    uptimeLabel = ""
+    if self.vals["tor/startTime"]:
+      if self._haltTime:
+        # freeze the uptime when paused or the tor process is stopped
+        uptimeLabel = uiTools.getShortTimeLabel(self._haltTime - self.vals["tor/startTime"])
+      else:
+        uptimeLabel = uiTools.getShortTimeLabel(time.time() - self.vals["tor/startTime"])
+    
+    sysFields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
+                 (27, "mem: %s (%s%%)" % (memoryLabel, self.vals["stat/%mem"])),
+                 (47, "pid: %s" % (self.vals["tor/pid"] if self._isTorConnected else "")),
+                 (59, "uptime: %s" % uptimeLabel))
     
     for (start, label) in sysFields:
       if start + len(label) <= rightWidth: self.addstr(y, x + start, label)
@@ -197,39 +219,55 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # TODO: not sure what information to provide here...
       pass
     
-    self._isLastDrawWide = isWide
-    self._isChanged = False
     self.valsLock.release()
-  
-  def redraw(self, forceRedraw=False, block=False):
-    # determines if the content needs to be redrawn or not
-    isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-    panel.Panel.redraw(self, forceRedraw or self._isChanged or isWide != self._isLastDrawWide, block)
   
   def setPaused(self, isPause):
     """
     If true, prevents updates from being presented.
     """
     
-    self._isPaused = isPause
+    if not self._isPaused == isPause:
+      self._isPaused = isPause
+      if self._isTorConnected:
+        if isPause: self._haltTime = time.time()
+        else: self._haltTime = None
+      
+      # Redraw now so we'll be displaying the state right when paused
+      # (otherwise the uptime might be off by a second, and change when
+      # the panel's redrawn for other reasons).
+      self.redraw(True)
   
   def run(self):
     """
     Keeps stats updated, querying new information at a set rate.
     """
     
+    lastDraw = time.time() - 1
     while not self._halt:
-      timeSinceReset = time.time() - self._lastUpdate
-      psRate = self._config["queries.ps.rate"]
+      currentTime = time.time()
       
-      if self._isPaused or timeSinceReset < psRate or not self._isTorConnected:
-        sleepTime = max(0.5, psRate - timeSinceReset)
+      if self._isPaused or currentTime - lastDraw < 1 or not self._isTorConnected:
         self._cond.acquire()
-        if not self._halt: self._cond.wait(sleepTime)
+        if not self._halt: self._cond.wait(0.2)
         self._cond.release()
       else:
-        self._update()
-        self.redraw()
+        # Update the volatile attributes (cpu, memory, flags, etc) if we have
+        # a new resource usage sampling (the most dynamic stat) or its been
+        # twenty seconds since last fetched (so we still refresh occasionally
+        # when resource fetches fail).
+        # 
+        # Otherwise, just redraw the panel to change the uptime field.
+        
+        isChanged = False
+        if self.vals["tor/pid"]:
+          resourceTracker = sysTools.getResourceTracker(self.vals["tor/pid"])
+          isChanged = self._lastResourceFetch != resourceTracker.getRunCount()
+        
+        if isChanged or currentTime - self._lastUpdate >= 20:
+          self._update()
+        
+        self.redraw(True)
+        lastDraw += 1
   
   def stop(self):
     """
@@ -252,10 +290,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     if eventType == torTools.TOR_INIT:
       self._isTorConnected = True
+      if self._isPaused: self._haltTime = time.time()
+      else: self._haltTime = None
+      
       self._update(True)
-      self.redraw()
+      self.redraw(True)
     elif eventType == torTools.TOR_CLOSED:
       self._isTorConnected = False
+      self._haltTime = time.time()
       self._update()
       self.redraw(True)
   
@@ -310,55 +352,54 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["sys/version"] = unameVals[2]
       
       pid = conn.getMyPid()
-      self.vals["ps/pid"] = pid if pid else ""
+      self.vals["tor/pid"] = pid if pid else ""
+      
+      startTime = conn.getStartTime()
+      self.vals["tor/startTime"] = startTime if startTime else ""
       
       # reverts volatile parameters to defaults
       self.vals["tor/fingerprint"] = "Unknown"
       self.vals["tor/flags"] = []
-      self.vals["ps/%cpu"] = "0"
-      self.vals["ps/rss"] = "0"
-      self.vals["ps/%mem"] = "0"
-      self.vals["ps/etime"] = ""
+      self.vals["stat/%torCpu"] = "0"
+      self.vals["stat/%armCpu"] = "0"
+      self.vals["stat/rss"] = "0"
+      self.vals["stat/%mem"] = "0"
     
     # sets volatile parameters
-    volatile = {}
-    
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
     # events. Introduce caching via torTools?
     if self.vals["tor/address"] == "Unknown":
-      volatile["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
+      self.vals["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
     
-    volatile["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
-    volatile["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
+    self.vals["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
+    self.vals["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
     
-    # ps derived stats
-    psParams = ["%cpu", "rss", "%mem", "etime"]
-    if self.vals["ps/pid"]:
-      # if call fails then everything except etime are zeroed out (most likely
-      # tor's no longer running)
-      volatile["ps/%cpu"] = "0"
-      volatile["ps/rss"] = "0"
-      volatile["ps/%mem"] = "0"
+    # ps or proc derived resource usage stats
+    if self.vals["tor/pid"]:
+      resourceTracker = sysTools.getResourceTracker(self.vals["tor/pid"])
       
-      # the ps call formats results as:
-      # %CPU   RSS %MEM     ELAPSED
-      # 0.3 14096  1.3       29:51
-      psRate = self._config["queries.ps.rate"]
-      psCall = sysTools.call("ps -p %s -o %s" % (self.vals["ps/pid"], ",".join(psParams)), psRate, True)
-      
-      if psCall and len(psCall) >= 2:
-        stats = psCall[1].strip().split()
-        
-        if len(stats) == len(psParams):
-          for i in range(len(psParams)):
-            volatile["ps/" + psParams[i]] = stats[i]
+      if resourceTracker.lastQueryFailed():
+        self.vals["stat/%torCpu"] = "0"
+        self.vals["stat/rss"] = "0"
+        self.vals["stat/%mem"] = "0"
+      else:
+        cpuUsage, _, memUsage, memUsagePercent = resourceTracker.getResourceUsage()
+        self._lastResourceFetch = resourceTracker.getRunCount()
+        self.vals["stat/%torCpu"] = "%0.1f" % (100 * cpuUsage)
+        self.vals["stat/rss"] = str(memUsage)
+        self.vals["stat/%mem"] = "%0.1f" % (100 * memUsagePercent)
     
-    # checks if any changes have been made and merges volatile into vals
-    self._isChanged |= setStatic
-    for key, val in volatile.items():
-      self._isChanged |= self.vals[key] != val
-      self.vals[key] = val
+    # determines the cpu time for the arm process (including user and system
+    # time of both the primary and child processes)
     
-    self._lastUpdate = time.time()
+    totalArmCpuTime, currentTime = sum(os.times()[:3]), time.time()
+    armCpuDelta = totalArmCpuTime - self._armCpuSampling[0]
+    armTimeDelta = currentTime - self._armCpuSampling[1]
+    pythonCpuTime = armCpuDelta / armTimeDelta
+    sysCallCpuTime = sysTools.getSysCpuUsage()
+    self.vals["stat/%armCpu"] = "%0.1f" % (100 * (pythonCpuTime + sysCallCpuTime))
+    self._armCpuSampling = (totalArmCpuTime, currentTime)
+    
+    self._lastUpdate = currentTime
     self.valsLock.release()
 

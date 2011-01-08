@@ -206,7 +206,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
   if not loggingLocation: return []
   
   # includes the prefix for tor paths
-  loggingLocation = torTools.getPathPrefix() + loggingLocation
+  loggingLocation = torTools.getConn().getPathPrefix() + loggingLocation
   
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
@@ -794,7 +794,7 @@ class LogPanel(panel.Panel, threading.Thread):
     self.scroll = max(0, min(self.scroll, self.lastContentHeight - height + 1))
     
     # draws left-hand scroll bar if content's longer than the height
-    msgIndent, dividerIndent = 0, 0 # offsets for scroll bar
+    msgIndent, dividerIndent = 1, 0 # offsets for scroll bar
     isScrollBarVisible = self.lastContentHeight > height - 1
     if isScrollBarVisible:
       msgIndent, dividerIndent = 3, 2

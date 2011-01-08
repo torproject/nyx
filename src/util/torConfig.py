@@ -53,6 +53,11 @@ MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 def loadConfig(config):
   CONFIG["torrc.alias"] = config.get("torrc.alias", {})
   
+  # fetches any config.summary.* values
+  for configKey in config.getKeys():
+    if configKey.startswith("config.summary."):
+      CONFIG[configKey.lower()] = config.get(configKey)
+  
   # all the torrc.label.* values are comma separated lists
   for configKey in CONFIG.keys():
     if configKey.startswith("torrc.label."):
@@ -80,25 +85,29 @@ def getTorrc():
   if TORRC == None: TORRC = Torrc()
   return TORRC
 
-def loadOptionDescriptions(loadPath = None):
+def loadOptionDescriptions(loadPath = None, checkVersion = True):
   """
   Fetches and parses descriptions for tor's configuration options from its man
   page. This can be a somewhat lengthy call, and raises an IOError if issues
-  occure.
+  occure. When successful loading from a file this returns the version for the
+  contents loaded.
   
   If available, this can load the configuration descriptions from a file where
   they were previously persisted to cut down on the load time (latency for this
   is around 200ms).
   
   Arguments:
-    loadPath - if set, this attempts to fetch the configuration descriptions
-               from the given path instead of the man page
+    loadPath     - if set, this attempts to fetch the configuration
+                   descriptions from the given path instead of the man page
+    checkVersion - discards the results if true and tor's version doens't
+                   match the cached descriptors, otherwise accepts anyway
   """
   
   CONFIG_DESCRIPTIONS_LOCK.acquire()
   CONFIG_DESCRIPTIONS.clear()
   
   raisedExc = None
+  loadedVersion = ""
   try:
     if loadPath:
       # Input file is expected to be of the form:
@@ -118,8 +127,10 @@ def loadOptionDescriptions(loadPath = None):
         
         if versionLine.startswith("Tor Version "):
           fileVersion = versionLine[12:]
+          loadedVersion = fileVersion
           torVersion = torTools.getConn().getInfo("version", "")
-          if fileVersion != torVersion:
+          
+          if checkVersion and fileVersion != torVersion:
             msg = "wrong version, tor is %s but the file's from %s" % (torVersion, fileVersion)
             raise IOError(msg)
         else:
@@ -160,6 +171,9 @@ def loadOptionDescriptions(loadPath = None):
         raise IOError("input file format is invalid")
     else:
       manCallResults = sysTools.call("man tor")
+      
+      if not manCallResults:
+        raise IOError("man page not found")
       
       # Fetches all options available with this tor instance. This isn't
       # vital, and the validOptions are left empty if the call fails.
@@ -230,6 +244,7 @@ def loadOptionDescriptions(loadPath = None):
   
   CONFIG_DESCRIPTIONS_LOCK.release()
   if raisedExc: raise raisedExc
+  else: return loadedVersion
 
 def saveOptionDescriptions(path):
   """
@@ -260,6 +275,17 @@ def saveOptionDescriptions(path):
   outputFile.close()
   CONFIG_DESCRIPTIONS_LOCK.release()
 
+def getConfigSummary(option):
+  """
+  Provides a short summary description of th configuration option. If none is
+  known then this proivdes None.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  return CONFIG.get("config.summary.%s" % option.lower())
+
 def getConfigDescription(option):
   """
   Provides ManPageEntry instances populated with information fetched from the
@@ -288,32 +314,13 @@ def getConfigLocation():
   
   conn = torTools.getConn()
   configLocation = conn.getInfo("config-file")
+  torPid, torPrefix = conn.getMyPid(), conn.getPathPrefix()
   if not configLocation: raise IOError("unable to query the torrc location")
   
-  # checks if this is a relative path, needing the tor pwd to be appended
-  if configLocation[0] != "/":
-    torPid = conn.getMyPid()
-    failureMsg = "querying tor's pwd failed because %s"
-    if not torPid: raise IOError(failureMsg % "we couldn't get the pid")
-    
-    try:
-      # pwdx results are of the form:
-      # 3799: /home/atagar
-      # 5839: No such process
-      results = sysTools.call("pwdx %s" % torPid)
-      if not results:
-        raise IOError(failureMsg % "pwdx didn't return any results")
-      elif results[0].endswith("No such process"):
-        raise IOError(failureMsg % ("pwdx reported no process for pid " + torPid))
-      elif len(results) != 1 or results.count(" ") != 1:
-        raise IOError(failureMsg % "we got unexpected output from pwdx")
-      else:
-        pwdPath = results[0][results[0].find(" ") + 1:]
-        configLocation = "%s/%s" % (pwdPath, configLocation)
-    except IOError, exc:
-      raise IOError(failureMsg % ("the pwdx call failed: " + str(exc)))
-  
-  return torTools.getPathPrefix() + configLocation
+  try:
+    return torPrefix + sysTools.expandRelativePath(configLocation, torPid)
+  except IOError, exc:
+    raise IOError("querying tor's pwd failed because %s" % exc)
 
 def getMultilineParameters():
   """
@@ -345,7 +352,11 @@ def getCustomOptions():
   
   customOptions, conn = set(), torTools.getConn()
   configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
-  for entry in configTextQuery: customOptions.add(entry[:entry.find(" ")])
+  
+  for entry in configTextQuery:
+    # tor provides a Log entry even if it matches the default
+    if entry != "Log notice stdout":
+      customOptions.add(entry[:entry.find(" ")])
   return customOptions
 
 def validate(contents = None):
@@ -413,14 +424,6 @@ def validate(contents = None):
     
     # issues GETCONF to get the values tor's currently configured to use
     torValues = conn.getOption(option, [], True)
-    
-    # Some singleline entries are lists, in which case tor provides csv values
-    # without spaces, such as:
-    # lolcat1,lolcat2,cutebunny,extracutebunny,birthdaynode
-    # so we need to strip spaces in comma separated values.
-    
-    if "," in value:
-      value = ",".join([val.strip() for val in value.split(",")])
     
     # multiline entries can be comma separated values (for both tor and conf)
     valueList = [value]

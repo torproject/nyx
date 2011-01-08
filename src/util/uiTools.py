@@ -298,12 +298,73 @@ def getTimeLabels(seconds, isLong = False):
   
   timeLabels = []
   
-  for countPerUnit, shortLabel, longLabel in TIME_UNITS:
+  for countPerUnit, _, _ in TIME_UNITS:
     if seconds >= countPerUnit:
       timeLabels.append(_getLabel(TIME_UNITS, seconds, 0, isLong))
       seconds %= countPerUnit
   
   return timeLabels
+
+def getShortTimeLabel(seconds):
+  """
+  Provides a time in the following format:
+  [[dd-]hh:]mm:ss
+  
+  Arguments:
+    seconds - source number of seconds for conversion
+  """
+  
+  timeComp = {}
+  
+  for amount, _, label in TIME_UNITS:
+    count = int(seconds / amount)
+    seconds %= amount
+    timeComp[label.strip()] = count
+  
+  labelPrefix = ""
+  if timeComp["day"]:
+    labelPrefix = "%i-%02i:" % (timeComp["day"], timeComp["hour"])
+  elif timeComp["hour"]:
+    labelPrefix = "%02i:" % timeComp["hour"]
+  
+  return "%s%02i:%02i" % (labelPrefix, timeComp["minute"], timeComp["second"])
+
+def parseShortTimeLabel(timeEntry):
+  """
+  Provides the number of seconds corresponding to the formatting used for the
+  cputime and etime fields of ps:
+  [[dd-]hh:]mm:ss
+  
+  If the input entry is malformed then this raises a ValueError.
+  
+  Arguments:
+    timeEntry - formatting ps time entry
+  """
+  
+  days, hours, minutes, seconds = 0, 0, 0, 0
+  errorMsg = "invalidly formatted ps time entry: %s" % timeEntry
+  
+  dateDivider = timeEntry.find("-")
+  if dateDivider != -1:
+    days = int(timeEntry[:dateDivider])
+    timeEntry = timeEntry[dateDivider+1:]
+  
+  timeComp = timeEntry.split(":")
+  if len(timeComp) == 3:
+    hours, minutes, seconds = timeComp
+  elif len(timeComp) == 2:
+    minutes, seconds = timeComp
+  else:
+    raise ValueError(errorMsg)
+  
+  try:
+    timeSum = int(seconds)
+    timeSum += int(minutes) * 60
+    timeSum += int(hours) * 3600
+    timeSum += int(days) * 86400
+    return timeSum
+  except ValueError:
+    raise ValueError(errorMsg)
 
 class Scroller:
   """
