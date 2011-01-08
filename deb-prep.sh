@@ -19,6 +19,6 @@ svn export release release_deb
 # /usr/share/doc/arm/armrc.sample -> /usr/share/doc/tor-arm/armrc.sample.gz
 sed -i 's/\/usr\/share\/doc\/arm\/armrc.sample/\/usr\/share\/doc\/tor-arm\/armrc.sample.gz/g' release_deb/arm.1
 
-tar czf tor-arm_1.4.0.1.orig.tar.gz release_deb
+tar czf tor-arm_1.4.1.0.orig.tar.gz release_deb
 svn export resources/build/debian release_deb/debian
 

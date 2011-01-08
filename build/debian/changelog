@@ -1,3 +1,15 @@
+tor-arm (1.4.1.0-1) unstable; urgency=low
+
+  * Upstream release 1.4.1.0.
+  
+ -- Damian Johnson <atagar@torproject.org>  Fri, 7 Jan 2011 23:30:43 -0700
+
+tor-arm (1.4.0.1-2) unstable; urgency=low
+
+  * Fixing lintian issue with spacing in the rules file (discussed in #607281).
+  
+ -- Damian Johnson <atagar@torproject.org>  Tue, 16 Dec 2010 23:30:43 -0700
+
 tor-arm (1.4.0.1-1) unstable; urgency=low
 
   * Upstream release 1.4.0.1.
