@@ -1,6 +1,6 @@
 CHANGE LOG
 
-1/7/11 - version 1.4.1
+1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
 
     * added: querying the proc contents when able for tor resource and connection samplings to *greatly* reduce arm's resource usage (many thanks to psutil)
