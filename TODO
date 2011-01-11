@@ -34,13 +34,12 @@ TODO
           local connection, ie:
           myInternal --> myExternal --> foreign
           idea and initial patch by Fabian Keil
-      * expand dump (--debug) information
-        - os and python versions
-        - arm and tor configs (scrubbing private attributes)
+        - give a warning if family relays don't name us
       * classify config options as useful (defaultly shown), standard, and
         deprecated (configured to be hidden by default)
       * check tor source for deprecated options like 'group' (are they
         ignored? idea is thanks to NightMonkey)
+      * elaborate on the password prompt (suggestion by weasel)
   * release prep
     * pylint --indent-string="  " --disable=C,R interface/foo.py | less
     * double check __init__.py and README for added or removed files
@@ -212,7 +211,8 @@ TODO
       something storing the descriptions
   * handle mutiple tor instances
     * screen style (dialog for switching between instances)
-    * extra window with whatever stats can be aggregated over all instances
+    * extra window with whatever stats can be aggregated over all instances,
+      or a config option to aggregate stats for bw, resource usage, etc
   * option to save the current settings to the config
     * provide warning at startup if the armrc doesn't exist, with instructions
       for generating it

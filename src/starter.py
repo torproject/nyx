@@ -276,9 +276,10 @@ if __name__ == '__main__':
       currentTime = time.localtime()
       timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
       initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
+      pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
       osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
       
-      util.log.DUMP_FILE.write("%s\n%s\n%s\n" % (initMsg, osLabel, "-" * 80))
+      util.log.DUMP_FILE.write("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
       util.log.DUMP_FILE.flush()
     except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
