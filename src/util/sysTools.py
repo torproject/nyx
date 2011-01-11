@@ -504,6 +504,7 @@ class ResourceTracker(threading.Thread):
           if not isSuccessful:
             raise IOError("unrecognized output from ps: %s" % psCall)
       except IOError, exc:
+        newValues = {}
         self._failureCount += 1
         
         if self._useProc:
@@ -531,14 +532,14 @@ class ResourceTracker(threading.Thread):
           if not self._halt: self._cond.wait(sleepTime)
           self._cond.release()
       
-      # If this is the first run then the cpuSampling stat is meaningless
-      # (there isn't a previous tick to sample from so it's zero at this
-      # point). Setting it to the average, which is a fairer estimate.
-      if self.lastLookup == -1:
-        newValues["cpuSampling"] = newValues["cpuAvg"]
-          
       # sets the new values
       if newValues:
+        # If this is the first run then the cpuSampling stat is meaningless
+        # (there isn't a previous tick to sample from so it's zero at this
+        # point). Setting it to the average, which is a fairer estimate.
+        if self.lastLookup == -1:
+          newValues["cpuSampling"] = newValues["cpuAvg"]
+        
         self._valLock.acquire()
         self.cpuSampling = newValues["cpuSampling"]
         self.cpuAvg = newValues["cpuAvg"]
