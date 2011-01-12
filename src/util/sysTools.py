@@ -479,8 +479,15 @@ class ResourceTracker(threading.Thread):
           newValues["memUsagePercentage"] = float(memUsage) / totalMemory
         else:
           # the ps call formats results as:
-          # %CPU   RSS %MEM     ELAPSED
-          # 0.3 14096  1.3       29:51
+          # 
+          #     TIME     ELAPSED   RSS %MEM
+          # 3-08:06:32 21-00:00:12 121844 23.5
+          # 
+          # or if Tor has only recently been started:
+          # 
+          #     TIME      ELAPSED    RSS %MEM
+          #  0:04.40        37:57  18772  0.9
+          
           psCall = call("ps -p %s -o cputime,etime,rss,%%mem" % self.processPid)
           
           isSuccessful = False
