@@ -227,4 +227,5 @@ log.unknownBsdJailId WARN
 log.stats.failedProcResolution DEBUG
 log.stats.procResolutionFailover INFO
 log.stats.failedPsResolution INFO
+log.savingDebugLog NOTICE
 

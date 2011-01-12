@@ -479,8 +479,15 @@ class ResourceTracker(threading.Thread):
           newValues["memUsagePercentage"] = float(memUsage) / totalMemory
         else:
           # the ps call formats results as:
-          # %CPU   RSS %MEM     ELAPSED
-          # 0.3 14096  1.3       29:51
+          # 
+          #     TIME     ELAPSED   RSS %MEM
+          # 3-08:06:32 21-00:00:12 121844 23.5
+          # 
+          # or if Tor has only recently been started:
+          # 
+          #     TIME      ELAPSED    RSS %MEM
+          #  0:04.40        37:57  18772  0.9
+          
           psCall = call("ps -p %s -o cputime,etime,rss,%%mem" % self.processPid)
           
           isSuccessful = False
@@ -504,6 +511,7 @@ class ResourceTracker(threading.Thread):
           if not isSuccessful:
             raise IOError("unrecognized output from ps: %s" % psCall)
       except IOError, exc:
+        newValues = {}
         self._failureCount += 1
         
         if self._useProc:
@@ -531,14 +539,14 @@ class ResourceTracker(threading.Thread):
           if not self._halt: self._cond.wait(sleepTime)
           self._cond.release()
       
-      # If this is the first run then the cpuSampling stat is meaningless
-      # (there isn't a previous tick to sample from so it's zero at this
-      # point). Setting it to the average, which is a fairer estimate.
-      if self.lastLookup == -1:
-        newValues["cpuSampling"] = newValues["cpuAvg"]
-          
       # sets the new values
       if newValues:
+        # If this is the first run then the cpuSampling stat is meaningless
+        # (there isn't a previous tick to sample from so it's zero at this
+        # point). Setting it to the average, which is a fairer estimate.
+        if self.lastLookup == -1:
+          newValues["cpuSampling"] = newValues["cpuAvg"]
+        
         self._valLock.acquire()
         self.cpuSampling = newValues["cpuSampling"]
         self.cpuAvg = newValues["cpuAvg"]

@@ -11,6 +11,7 @@ import sys
 import time
 import getopt
 import socket
+import platform
 
 import version
 import interface.controller
@@ -44,7 +45,8 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
           "log.configDescriptions.persistance.loadFailed": util.log.INFO,
           "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
-          "log.configDescriptions.persistance.saveFailed": util.log.NOTICE}
+          "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
+          "log.savingDebugLog": util.log.NOTICE}
 
 OPT = "i:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
@@ -82,6 +84,9 @@ DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
 STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
 STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
+
+# torrc entries that are scrubbed when dumping
+PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
 def isValidIpAddr(ipStr):
   """
@@ -179,6 +184,47 @@ def _loadConfigurationDescriptions(pathPrefix):
         msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
+def _dumpConfig():
+  """
+  Dumps the current arm and tor configurations at the DEBUG runlevel. This
+  attempts to scrub private information, but naturally the user should double
+  check that I didn't miss anything.
+  """
+  
+  config = util.conf.getConfig("arm")
+  conn = util.torTools.getConn()
+  
+  # dumps arm's configuration
+  armConfigEntry = ""
+  armConfigKeys = list(config.getKeys())
+  armConfigKeys.sort()
+  
+  for configKey in armConfigKeys:
+    # Skips some config entries that are loaded by default. This fetches
+    # the config values directly to avoid misflagging them as being used by
+    # arm.
+    
+    if not configKey.startswith("config.summary.") and not configKey.startswith("torrc.") and not configKey.startswith("msg."):
+      armConfigEntry += "%s -> %s\n" % (configKey, config.contents[configKey])
+  
+  if armConfigEntry: armConfigEntry = "Arm Configuration:\n%s" % armConfigEntry
+  else: armConfigEntry = "Arm Configuration: None"
+  
+  # dumps tor's version and configuration
+  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version")
+  
+  for line in conn.getInfo("config-text").split("\n"):
+    if " " in line: key, value = line.split(" ", 1)
+    else: key, value = line, ""
+    
+    if key in PRIVATE_TORRC_ENTRIES:
+      torConfigEntry += "%s <scrubbed>\n" % key
+    else:
+      torConfigEntry += "%s %s\n" % (key, value)
+  
+  util.log.log(util.log.DEBUG, armConfigEntry.strip())
+  util.log.log(util.log.DEBUG, torConfigEntry.strip())
+
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
@@ -230,8 +276,10 @@ if __name__ == '__main__':
       currentTime = time.localtime()
       timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
       initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
+      pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
+      osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
       
-      util.log.DUMP_FILE.write("%s\n%s\n" % (initMsg, "-" * len(initMsg)))
+      util.log.DUMP_FILE.write("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
       util.log.DUMP_FILE.flush()
     except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
@@ -354,6 +402,11 @@ if __name__ == '__main__':
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)
+  
+  # dump tor and arm configuration when in debug mode
+  if isDebugMode:
+    util.log.log(CONFIG["log.savingDebugLog"], "Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
+    _dumpConfig()
   
   interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
   conn.close()
