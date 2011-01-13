@@ -40,29 +40,6 @@ TODO
       * check tor source for deprecated options like 'group' (are they
         ignored? idea is thanks to NightMonkey)
       * elaborate on the password prompt (suggestion by weasel)
-  * release prep
-    * pylint --indent-string="  " --disable=C,R interface/foo.py | less
-    * double check __init__.py and README for added or removed files
-    * wait a week, then bump package versions
-      * Debian
-        Contact: weasel (Peter Palfrader)
-        Initial Release: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=603056
-        Update Instructions:
-          * TBD
-      
-      * Gentoo
-        Contact: NightMonkey (Jesse Adelman)
-        Initial Release: https://bugs.gentoo.org/show_bug.cgi?id=341731
-        Update Instructions:
-          * go to https://bugs.gentoo.org
-          * make a generic bug with "net-misc/arm-X.X.X version bump, please"
-      
-      * ArchLinux
-        Contact: Spider.007
-        Initial Release: http://aur.archlinux.org/packages.php?ID=44172
-        Update Instructions:
-          * go to aur.archlinux.org
-          * select "Out-of-date" for the package
 
 - Roadmap for version 1.4.3
   [ ] refactor panels
@@ -269,4 +246,61 @@ TODO
     Primarily for util, for instance 'addfstr' would be a good candidate.
   * python 3 compatibility
     Currently blocked on TorCtl support.
+
+- Release Checklist
+  1. Run a sanity check over major changes:
+    - pylint --indent-string="  " --disable=C,R interface/foo.py | less
+    - double check __init__.py and README for added or removed files
+  2. Revise the TODO (adding plans for the next release)
+  3. Update release notes
+    - Spellcheck notes and copy them to the site (atagar.com/arm/log.php)
+    - Copy rendered release notes into the ChangeLog
+  4. Check into release and upload the signed tarball
+    - svn co https://svn.torproject.org/svn/arm/
+    - svn merge release trunk
+    - bump the version
+      - release/src/version.py
+      - resources/deb-prep.sh
+      - resources/build/debian/changelog
+    - svn commit -m "Arm release 1.4.1"
+      - note the commit number in the site log and ChangeLog
+    - svn export release arm
+      - copy the export and perform a final sanity check that it works
+    - tar cjf arm-1.4.1.0.tar.bz2 arm
+    - gpg --detach-sig --armor arm-1.4.1.0.tar.bz2
+    - copy tarball and sig to the webserver (both to resources and static)
+    - update links and bump the release in download.php and index.php
+      - double check that there aren't any broken links
+  5. Release notifications
+    - Log into https://blog.torproject.org/user/
+    - Write a new blog post, example:
+      https://blog.torproject.org/blog/arm-release-141
+    - Send an update to or-talk, example:
+      http://archives.seul.org/or/talk/Jan-2011/msg00096.html
+  6. After a week bump package versions:
+    - Debian
+      Contact: weasel (Peter Palfrader)
+      Initial Release: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=603056
+      Update Instructions:
+        - update resources/build/debian/changelog
+        - ./resources/deb-prep.sh
+        - cd release_deb
+        - ./debian/make-deb
+        - copy the results to the webserver, example:
+          http://www.atagar.com/transfer/tmp/armBuild_12-7-10/
+        - send the dsc link to weasel
+    
+    - Gentoo
+      Contact: NightMonkey (Jesse Adelman)
+      Initial Release: https://bugs.gentoo.org/show_bug.cgi?id=341731
+      Update Instructions:
+        - go to https://bugs.gentoo.org
+        - make a generic bug with "net-misc/arm-X.X.X version bump, please"
+    
+    - ArchLinux
+      Contact: Spider.007
+      Initial Release: http://aur.archlinux.org/packages.php?ID=44172
+      Update Instructions:
+        - go to aur.archlinux.org
+        - select "Out-of-date" for the package
 
