@@ -333,7 +333,7 @@ def parseShortTimeLabel(timeEntry):
   """
   Provides the number of seconds corresponding to the formatting used for the
   cputime and etime fields of ps:
-  [[dd-]hh:]mm:ss or hh:mm.ss
+  [[dd-]hh:]mm:ss or mm:ss.ss
   
   If the input entry is malformed then this raises a ValueError.
   
@@ -349,14 +349,12 @@ def parseShortTimeLabel(timeEntry):
     days = int(timeEntry[:dateDivider])
     timeEntry = timeEntry[dateDivider+1:]
   
-  # normalise the seconds delimiter
-  timeEntry = timeEntry.replace(".", ":")
-  
   timeComp = timeEntry.split(":")
   if len(timeComp) == 3:
     hours, minutes, seconds = timeComp
   elif len(timeComp) == 2:
     minutes, seconds = timeComp
+    seconds = round(float(seconds))
   else:
     raise ValueError(errorMsg)
   
