@@ -472,10 +472,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     
     for lineNum, issue, msg in corrections:
       if issue == torConfig.VAL_DUPLICATE:
-        duplicateOptions.append("%s (line %i)" % (msg, lineNum))
+        duplicateOptions.append("%s (line %i)" % (msg, lineNum + 1))
       elif issue == torConfig.VAL_IS_DEFAULT:
-        defaultOptions.append("%s (line %i)" % (msg, lineNum))
-      elif issue == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum)
+        defaultOptions.append("%s (line %i)" % (msg, lineNum + 1))
+      elif issue == torConfig.VAL_MISMATCH: mismatchLines.append(lineNum + 1)
       elif issue == torConfig.VAL_MISSING: missingOptions.append(msg)
     
     if duplicateOptions or defaultOptions:
