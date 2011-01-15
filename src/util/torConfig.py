@@ -8,6 +8,7 @@ import threading
 from util import log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
+          "config.important": [],
           "torrc.alias": {},
           "torrc.label.size.b": [],
           "torrc.label.size.kb": [],
@@ -51,10 +52,13 @@ PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a
 MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
 def loadConfig(config):
-  CONFIG["torrc.alias"] = config.get("torrc.alias", {})
+  config.update(CONFIG)
   
-  # fetches any config.summary.* values
+  # stores lowercase entries to drop case sensitivity
+  CONFIG["config.important"] = [entry.lower() for entry in CONFIG["config.important"]]
+  
   for configKey in config.getKeys():
+    # fetches any config.summary.* values
     if configKey.startswith("config.summary."):
       CONFIG[configKey.lower()] = config.get(configKey)
   
@@ -285,6 +289,17 @@ def getConfigSummary(option):
   """
   
   return CONFIG.get("config.summary.%s" % option.lower())
+
+def isImportant(option):
+  """
+  Provides True if the option has the 'important' flag in the configuration,
+  False otherwise.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  return option.lower() in CONFIG["config.important"]
 
 def getConfigDescription(option):
   """

@@ -12,7 +12,7 @@ DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
                   "features.config.state.showPrivateOptions": False,
                   "features.config.state.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
-                  "features.config.state.colWidth.value": 10}
+                  "features.config.state.colWidth.value": 15}
 
 # TODO: The arm use cases are incomplete since they currently can't be
 # modified, have their descriptions fetched, or even get a complete listing
@@ -131,6 +131,10 @@ class ConfigPanel(panel.Panel):
     self.scroller = uiTools.Scroller(True)
     self.valsLock = threading.RLock()
     
+    # shows all configuration options if true, otherwise only the ones with
+    # the 'important' flag are shown
+    self.showAll = False
+    
     if self.configType == TOR_STATE:
       conn = torTools.getConn()
       customOptions = torConfig.getCustomOptions()
@@ -150,20 +154,30 @@ class ConfigPanel(panel.Panel):
         summary = torConfig.getConfigSummary(confOption)
         manEntry = torConfig.getConfigDescription(confOption)
         self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions, summary, manEntry))
-      
-      self.setSortOrder() # initial sorting of the contents
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
       for key in armConf.getKeys():
         pass # TODO: implement
+    
+    # mirror listing with only the important configuration options
+    self.confImportantContents = []
+    for entry in self.confContents:
+      if torConfig.isImportant(entry.get(FIELD_OPTION)):
+        self.confImportantContents.append(entry)
+    
+    # if there aren't any important options then show everything
+    if not self.confImportantContents:
+      self.confImportantContents = self.confContents
+    
+    self.setSortOrder() # initial sorting of the contents
   
   def getSelection(self):
     """
     Provides the currently selected entry.
     """
     
-    return self.scroller.getCursorSelection(self.confContents)
+    return self.scroller.getCursorSelection(self._getConfigOptions())
   
   def setSortOrder(self, ordering = None):
     """
@@ -178,6 +192,7 @@ class ConfigPanel(panel.Panel):
     self.valsLock.acquire()
     if ordering: self.sortOrdering = ordering
     self.confContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
+    self.confImportantContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
     self.valsLock.release()
   
   def handleKey(self, key):
@@ -188,45 +203,54 @@ class ConfigPanel(panel.Panel):
       if detailPanelHeight > 0 and detailPanelHeight + 2 <= pageHeight:
         pageHeight -= (detailPanelHeight + 1)
       
-      isChanged = self.scroller.handleKey(key, self.confContents, pageHeight)
+      isChanged = self.scroller.handleKey(key, self._getConfigOptions(), pageHeight)
       if isChanged: self.redraw(True)
+    elif key == ord('a') or key == ord('A'):
+      self.showAll = not self.showAll
+      self.redraw(True)
     self.valsLock.release()
   
   def draw(self, subwindow, width, height):
     self.valsLock.acquire()
     
     # draws the top label
-    titleLabel = "%s Configuration:" % ("Tor" if self.configType == TOR_STATE else "Arm")
+    configType = "Tor" if self.configType == TOR_STATE else "Arm"
+    hiddenMsg = "press 'a' to hide most options" if self.showAll else "press 'a' to show all options"
+    
+    titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
     self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
     
     # panel with details for the current selection
     detailPanelHeight = self._config["features.config.selectionDetails.height"]
+    isScrollbarVisible = False
     if detailPanelHeight == 0 or detailPanelHeight + 2 >= height:
       # no detail panel
       detailPanelHeight = 0
-      scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1)
+      scrollLoc = self.scroller.getScrollLoc(self._getConfigOptions(), height - 1)
       cursorSelection = self.getSelection()
+      isScrollbarVisible = len(self._getConfigOptions()) > height - 1
     else:
       # Shrink detail panel if there isn't sufficient room for the whole
       # thing. The extra line is for the bottom border.
       detailPanelHeight = min(height - 1, detailPanelHeight + 1)
-      scrollLoc = self.scroller.getScrollLoc(self.confContents, height - 1 - detailPanelHeight)
+      scrollLoc = self.scroller.getScrollLoc(self._getConfigOptions(), height - 1 - detailPanelHeight)
       cursorSelection = self.getSelection()
+      isScrollbarVisible = len(self._getConfigOptions()) > height - detailPanelHeight - 1
       
-      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, titleLabel)
+      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, titleLabel, isScrollbarVisible)
     
     # draws left-hand scroll bar if content's longer than the height
-    scrollOffset = 0
-    if len(self.confContents) > height - detailPanelHeight - 1:
+    scrollOffset = 1
+    if isScrollbarVisible:
       scrollOffset = 3
-      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self.confContents), 1 + detailPanelHeight)
+      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self._getConfigOptions()), 1 + detailPanelHeight)
     
     optionWidth = self._config["features.config.state.colWidth.option"]
     valueWidth = self._config["features.config.state.colWidth.value"]
     descriptionWidth = max(0, width - scrollOffset - optionWidth - valueWidth - 2)
     
-    for lineNum in range(scrollLoc, len(self.confContents)):
-      entry = self.confContents[lineNum]
+    for lineNum in range(scrollLoc, len(self._getConfigOptions())):
+      entry = self._getConfigOptions()[lineNum]
       drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
       
       optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionWidth)
@@ -245,7 +269,10 @@ class ConfigPanel(panel.Panel):
     
     self.valsLock.release()
   
-  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, titleLabel):
+  def _getConfigOptions(self):
+    return self.confContents if self.showAll else self.confImportantContents
+  
+  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, titleLabel, isScrollbarVisible):
     """
     Renders a panel for the selected configuration option.
     """
@@ -260,9 +287,11 @@ class ConfigPanel(panel.Panel):
     self.win.vline(1, width, curses.ACS_VLINE, detailPanelHeight - 1)
     
     # border (bottom)
+    # This is a solid border unless the scrollbar is visible, in which case a
+    # 'T' pipe connects the border to the bar.
     self.win.addch(detailPanelHeight, 0, curses.ACS_LLCORNER)
-    if width >= 2: self.win.addch(detailPanelHeight, 1, curses.ACS_TTEE)
-    if width >= 3: self.win.hline(detailPanelHeight, 2, curses.ACS_HLINE, width - 2)
+    if width >= 2: self.win.hline(detailPanelHeight, 1, curses.ACS_HLINE, width - 1)
+    if width >= 2 and isScrollbarVisible: self.win.addch(detailPanelHeight, 1, curses.ACS_TTEE)
     self.win.addch(detailPanelHeight, width, curses.ACS_LRCORNER)
     
     selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(FIELD_CATEGORY)])

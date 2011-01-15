@@ -92,7 +92,7 @@ features.config.order 0, 6, 7
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
-features.config.state.colWidth.value 10
+features.config.state.colWidth.value 15
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
 features.config.file.showScrollbars true
