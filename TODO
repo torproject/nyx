@@ -209,6 +209,9 @@ TODO
     Shows full consensus with an interface similar to the connection panel.
     For this Mike's ConsensusTracker would be helpful (though boost the
     startup time by several seconds)
+  * splash screen when starting up to indicate that arm is loading, which
+    would be especially helpful when arm's taking a while to parse the man
+    page (idea by Sjon)
   * show qos stats
     Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
     available and interesting.

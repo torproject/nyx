@@ -24,6 +24,18 @@ from util import log, procTools, sysTools, uiTools
 # TOR_CLOSED - control port closed
 TOR_INIT, TOR_CLOSED = range(1, 3)
 
+# Addresses of the default directory authorities for tor version 0.2.3.0-alpha
+# (this comes from the dirservers array in src/or/config.c).
+DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
+               ("128.31.0.39", "9031"),       # moria1
+               ("216.224.124.114", "9030"),   # ides
+               ("212.112.245.170", "80"),     # gabelmoo
+               ("194.109.206.212", "80"),     # dizum
+               ("193.23.244.244", "80"),      # dannenberg
+               ("208.83.223.34", "443"),      # urras
+               ("213.115.239.118", "443"),    # maatuska
+               ("82.94.251.203", "80")]       # Tonga
+
 # message logged by default when a controller can't set an event type
 DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
 
@@ -42,7 +54,8 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid", "pathPrefix", "startTime")
+              "bwMeasured", "flags", "pid", "pathPrefix", "startTime",
+              "authorities")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -623,6 +636,16 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("pid", None)
   
+  def getMyDirAuthorities(self):
+    """
+    Provides a listing of IP/port tuples for the directory authorities we've
+    been configured to use. If set in the configuration then these are custom
+    authorities, otherwise its an estimate of what Tor has been hardcoded to
+    use (unfortunately, this might be out of date).
+    """
+    
+    return self._getRelayAttr("authorities", [])
+  
   def getPathPrefix(self):
     """
     Provides the path prefix that should be used for fetching tor resources.
@@ -1092,6 +1115,27 @@ class Controller(TorCtl.PostEventListener):
                 etimeEntry = psCall[1].strip()
                 result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
           except: pass
+      elif key == "authorities":
+        # There's two configuration options that can overwrite the default
+        # authorities: DirServer and AlternateDirAuthority.
+        
+        # TODO: Both options accept a set of flags to more precisely set what they
+        # overwrite. Ideally this would account for these flags to more accurately
+        # identify authority connections from relays.
+        
+        dirServerCfg = self.getOption("DirServer", [], True)
+        altDirAuthCfg = self.getOption("AlternateDirAuthority", [], True)
+        altAuthoritiesCfg = dirServerCfg + altDirAuthCfg
+        
+        if altAuthoritiesCfg:
+          result = []
+          
+          # entries are of the form:
+          # [nickname] [flags] address:port fingerprint
+          for entry in dirServerCfg:
+            locationComp = entry.split()[-2] # address:port component
+            result.append(tuple(locationComp.split(":", 1)))
+        else: result = list(DIR_SERVERS)
       
       # cache value
       if result: self._cachedParam[key] = result
