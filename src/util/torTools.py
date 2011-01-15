@@ -1132,7 +1132,7 @@ class Controller(TorCtl.PostEventListener):
           
           # entries are of the form:
           # [nickname] [flags] address:port fingerprint
-          for entry in dirServerCfg:
+          for entry in altAuthoritiesCfg:
             locationComp = entry.split()[-2] # address:port component
             result.append(tuple(locationComp.split(":", 1)))
         else: result = list(DIR_SERVERS)
