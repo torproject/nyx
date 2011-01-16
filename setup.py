@@ -17,6 +17,23 @@ for arg in sys.argv:
 
 docPath = "/usr/share/doc/%s" % ("tor-arm" if isDebInstall else "arm")
 
+# Allow the docPath to be overridden via a '--docPath' argument. This is to
+# support custom documentation locations on Gentoo, as discussed in:
+# https://bugs.gentoo.org/349792
+
+try:
+  docPathFlagIndex = sys.argv.index("--docPath")
+  if docPathFlagIndex < len(sys.argv) - 1:
+    docPath = sys.argv[docPathFlagIndex + 1]
+    
+    # remove the custom --docPath argument (otherwise the setup call will
+    # complain about them)
+    del sys.argv[docPathFlagIndex:docPathFlagIndex + 3]
+  else:
+    print "No path provided for --docPath"
+    sys.exit(1)
+except ValueError: pass # --docPath flag not found
+
 # Provides the configuration option to install to "/usr/share" rather than as a
 # python module. Alternatives are to either provide this as an input argument
 # (not an option for deb/rpm builds) or add a setup.cfg with:
@@ -77,8 +94,7 @@ if manFilename != 'arm.1' and os.path.isfile(manFilename):
 
 # Removes the egg_info file. Apparently it is not optional during setup
 # (hardcoded in distutils/command/install.py), nor are there any arguments to
-# bypass its creation.
-# TODO: not sure how to remove this from the deb build too...
+# bypass its creation. The deb build removes this as part of its rules script.
 eggPath = '/usr/share/arm-%s.egg-info' % VERSION
 
 if not isDebInstall and os.path.isfile(eggPath):
