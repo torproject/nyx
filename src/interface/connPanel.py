@@ -878,6 +878,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.familyFingerprints = {}
     
     for familyEntry in self.family:
+      if not familyEntry: continue
+      
       if familyEntry[0] == "$":
         # relay identified by fingerprint
         self.familyFingerprints[familyEntry] = familyEntry[1:]
