@@ -81,6 +81,12 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
 # provides int -> str mappings for torctl event runlevels
 TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
 
+# This prevents controllers from spawning worker threads (and by extension
+# notifying status listeners). This is important when shutting down to prevent
+# rogue threads from being alive during shutdown.
+
+NO_SPAWN = False
+
 def loadConfig(config):
   config.update(CONFIG)
 
@@ -277,7 +283,8 @@ class Controller(TorCtl.PostEventListener):
       self._statusTime = time.time()
       
       # notifies listeners that a new controller is available
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
   def close(self):
     """
@@ -287,6 +294,7 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     if self.conn:
       self.conn.close()
+      self.conn._thread.join()
       self.conn = None
       self.connLock.release()
       
@@ -294,7 +302,8 @@ class Controller(TorCtl.PostEventListener):
       self._statusTime = time.time()
       
       # notifies listeners that the controller's been shut down
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
     else: self.connLock.release()
   
   def isAlive(self):
@@ -914,7 +923,8 @@ class Controller(TorCtl.PostEventListener):
       self._status = TOR_INIT
       self._statusTime = time.time()
       
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
   
   def ns_event(self, event):
     self._updateHeartbeat()

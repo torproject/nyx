@@ -808,6 +808,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # this appears to be a python bug: http://bugs.python.org/issue3014
         # (haven't seen this is quite some time... mysteriously resolved?)
         
+        torTools.NO_SPAWN = True # prevents further worker threads from being spawned
+        
         # stops panel daemons
         panels["header"].stop()
         panels["log"].stop()
