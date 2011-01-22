@@ -88,29 +88,6 @@ STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
-def isValidIpAddr(ipStr):
-  """
-  Returns true if input is a valid IPv4 address, false otherwise.
-  """
-  
-  for i in range(4):
-    if i < 3:
-      divIndex = ipStr.find(".")
-      if divIndex == -1: return False # expected a period to be valid
-      octetStr = ipStr[:divIndex]
-      ipStr = ipStr[divIndex + 1:]
-    else:
-      octetStr = ipStr
-    
-    try:
-      octet = int(octetStr)
-      if not octet >= 0 or not octet <= 255: return False
-    except ValueError:
-      # address value isn't an integer
-      return False
-  
-  return True
-
 def _loadConfigurationDescriptions(pathPrefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
@@ -324,7 +301,7 @@ if __name__ == '__main__':
   controlAddr = param["startup.interface.ipAddress"]
   controlPort = param["startup.interface.port"]
   
-  if not isValidIpAddr(controlAddr):
+  if not util.connections.isValidIpAddress(controlAddr):
     print "'%s' isn't a valid IP address" % controlAddr
     sys.exit()
   elif controlPort < 0 or controlPort > 65535:
@@ -409,5 +386,4 @@ if __name__ == '__main__':
     _dumpConfig()
   
   interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
-  conn.close()
 

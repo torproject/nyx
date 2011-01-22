@@ -85,6 +85,45 @@ CONFIG = {"queries.connections.minRate": 5,
 def loadConfig(config):
   config.update(CONFIG)
 
+def isValidIpAddress(ipStr):
+  """
+  Returns true if input is a valid IPv4 address, false otherwise.
+  """
+  
+  # checks if theres four period separated values
+  if not ipStr.count(".") == 3: return False
+  
+  # checks that each value in the octet are decimal values between 0-255
+  for ipComp in ipStr.split("."):
+    if not ipComp.isdigit() or int(ipComp) < 0 or int(ipComp) > 255:
+      return False
+  
+  return True
+
+def ipAddressIsPrivate(ipAddr):
+  """
+  Provides true if the IP address belongs on the local network or belongs to
+  loopback, false otherwise. These include:
+  Private ranges: 10.*, 172.16.* - 172.31.*, 192.168.*
+  Loopback: 127.*
+  
+  Arguments:
+    ipAddr - IP address to be checked
+  """
+  
+  # checks for any of the simple wildcard ranges
+  if ipAddr.startswith("10.") or ipAddr.startswith("192.168.") or ipAddr.startswith("127."):
+    return True
+  
+  # checks for the 172.16.* - 172.31.* range
+  if ipAddr.startswith("172.") and ipAddr.count(".") == 3:
+    secondOctet = ipAddr[4:ipAddr.find(".", 4)]
+    
+    if secondOctet.isdigit() and int(secondOctet) >= 16 and int(secondOctet) <= 31:
+      return True
+  
+  return False
+
 def getResolverCommand(resolutionCmd, processName, processPid = ""):
   """
   Provides the command that would be processed for the given resolver type.
@@ -333,6 +372,7 @@ class ConnectionResolver(threading.Thread):
         break
     
     self._connections = []        # connection cache (latest results)
+    self._resolutionCounter = 0   # number of successful connection resolutions
     self._isPaused = False
     self._halt = False            # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -371,6 +411,7 @@ class ConnectionResolver(threading.Thread):
         lookupTime = time.time() - resolveStart
         
         self._connections = connResults
+        self._resolutionCounter += 1
         
         newMinDefaultRate = 100 * lookupTime
         if self.defaultRate < newMinDefaultRate:
@@ -427,6 +468,14 @@ class ConnectionResolver(threading.Thread):
     
     if self._halt: return []
     else: return list(self._connections)
+  
+  def getResolutionCount(self):
+    """
+    Provides the number of successful resolutions so far. This can be used to
+    determine if the connection results are new for the caller or not.
+    """
+    
+    return self._resolutionCounter
   
   def setPaused(self, isPause):
     """
