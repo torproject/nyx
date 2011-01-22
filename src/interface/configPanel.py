@@ -47,11 +47,16 @@ class ConfigEntry():
   Configuration option in the panel.
   """
   
-  def __init__(self, option, type, isDefault, summary, manEntry):
+  def __init__(self, option, type, isDefault):
     self.fields = {}
     self.fields[FIELD_OPTION] = option
     self.fields[FIELD_TYPE] = type
     self.fields[FIELD_IS_DEFAULT] = isDefault
+    
+    # Fetches extra infromation from external sources (the arm config and tor
+    # man page). These are None if unavailable for this config option.
+    summary = torConfig.getConfigSummary(option)
+    manEntry = torConfig.getConfigDescription(option)
     
     if manEntry:
       self.fields[FIELD_MAN_ENTRY] = manEntry.index
@@ -64,7 +69,12 @@ class ConfigEntry():
       self.fields[FIELD_ARG_USAGE] = ""
       self.fields[FIELD_DESCRIPTION] = ""
     
+    # uses the full man page description if a summary is unavailable
     self.fields[FIELD_SUMMARY] = summary if summary != None else self.fields[FIELD_DESCRIPTION]
+    
+    # cache of what's displayed for this configuration option
+    self.labelCache = None
+    self.labelCacheArgs = None
   
   def get(self, field):
     """
@@ -76,6 +86,41 @@ class ConfigEntry():
     
     if field == FIELD_VALUE: return self._getValue()
     else: return self.fields[field]
+  
+  def getAll(self, fields):
+    """
+    Provides back a list with the given field values.
+    
+    Arguments:
+      field - enums for the fields to be provided back
+    """
+    
+    return [self.get(field) for field in fields]
+  
+  def getLabel(self, optionWidth, valueWidth, summaryWidth):
+    """
+    Provides display string of the configuration entry with the given
+    constraints on the width of the contents.
+    
+    Arguments:
+      optionWidth  - width of the option column
+      valueWidth   - width of the value column
+      summaryWidth - width of the summary column
+    """
+    
+    # Fetching the display entries is very common so this caches the values.
+    # Doing this substantially drops cpu usage when scrolling (by around 40%).
+    
+    argSet = (optionWidth, valueWidth, summaryWidth)
+    if not self.labelCache or self.labelCacheArgs != argSet:
+      optionLabel = uiTools.cropStr(self.get(FIELD_OPTION), optionWidth)
+      valueLabel = uiTools.cropStr(self.get(FIELD_VALUE), valueWidth)
+      summaryLabel = uiTools.cropStr(self.get(FIELD_SUMMARY), summaryWidth, None)
+      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionWidth, valueWidth, summaryWidth)
+      self.labelCache = lineTextLayout % (optionLabel, valueLabel, summaryLabel)
+      self.labelCacheArgs = argSet
+    
+    return self.labelCache
   
   def _getValue(self):
     """
@@ -96,16 +141,6 @@ class ConfigEntry():
       confValue = uiTools.getTimeLabel(int(confValue), isLong = True)
     
     return confValue
-  
-  def getAttr(self, argTypes):
-    """
-    Provides back a list with the given parameters.
-    
-    Arguments:
-      argTypes - list of enums for the arguments to be provided back
-    """
-    
-    return [self.get(field) for field in argTypes]
 
 class ConfigPanel(panel.Panel):
   """
@@ -124,7 +159,7 @@ class ConfigPanel(panel.Panel):
         "features.config.state.colWidth.option": 5,
         "features.config.state.colWidth.value": 5})
       
-      self.sortOrdering = config.getIntCSV("features.config.order", self.sortOrdering, 3, 0, 6)
+      self.sortOrdering = config.getIntCSV("features.config.order", self.sortOrdering, 3, 0, 9)
     
     self.configType = configType
     self.confContents = []
@@ -145,15 +180,13 @@ class ConfigPanel(panel.Panel):
         # UseEntryGuards Boolean
         confOption, confType = line.strip().split(" ", 1)
         
-        # skips private and virtual entries if not set to show them
+        # skips private and virtual entries if not configured to show them
         if not self._config["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
           continue
         elif not self._config["features.config.state.showVirtualOptions"] and confType == "Virtual":
           continue
         
-        summary = torConfig.getConfigSummary(confOption)
-        manEntry = torConfig.getConfigDescription(confOption)
-        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions, summary, manEntry))
+        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions))
     elif self.configType == ARM_STATE:
       # loaded via the conf utility
       armConf = conf.getConfig("arm")
@@ -191,8 +224,8 @@ class ConfigPanel(panel.Panel):
     
     self.valsLock.acquire()
     if ordering: self.sortOrdering = ordering
-    self.confContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
-    self.confImportantContents.sort(key=lambda i: (i.getAttr(self.sortOrdering)))
+    self.confContents.sort(key=lambda i: (i.getAll(self.sortOrdering)))
+    self.confImportantContents.sort(key=lambda i: (i.getAll(self.sortOrdering)))
     self.valsLock.release()
   
   def handleKey(self, key):
@@ -253,16 +286,11 @@ class ConfigPanel(panel.Panel):
       entry = self._getConfigOptions()[lineNum]
       drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
       
-      optionLabel = uiTools.cropStr(entry.get(FIELD_OPTION), optionWidth)
-      valueLabel = uiTools.cropStr(entry.get(FIELD_VALUE), valueWidth)
-      summaryLabel = uiTools.cropStr(entry.get(FIELD_SUMMARY), descriptionWidth, None)
-      
       lineFormat = curses.A_NORMAL if entry.get(FIELD_IS_DEFAULT) else curses.A_BOLD
       if entry.get(FIELD_CATEGORY): lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.get(FIELD_CATEGORY)])
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
-      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionWidth, valueWidth, descriptionWidth)
-      lineText = lineTextLayout % (optionLabel, valueLabel, summaryLabel)
+      lineText = entry.getLabel(optionWidth, valueWidth, descriptionWidth)
       self.addstr(drawLine, scrollOffset, lineText, lineFormat)
       
       if drawLine >= height: break
