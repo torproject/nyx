@@ -229,6 +229,9 @@ class Controller(TorCtl.PostEventListener):
     self.torctlListeners = []           # callback functions for TorCtl events
     self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
+    self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
+    self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
+    self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
@@ -272,6 +275,11 @@ class Controller(TorCtl.PostEventListener):
       self.conn = conn
       self.conn.add_event_listener(self)
       for listener in self.eventListeners: self.conn.add_event_listener(listener)
+      
+      # reset caches for ip -> fingerprint lookups
+      self._fingerprintMappings = None
+      self._fingerprintLookupCache = {}
+      self._fingerprintsAttachedCache = None
       
       # sets the events listened for by the new controller (incompatible events
       # are dropped with a logged warning)
@@ -687,6 +695,34 @@ class Controller(TorCtl.PostEventListener):
     
     return (self._status, self._statusTime)
   
+  def getRelayFingerprint(self, relayAddress, relayPort = None):
+    """
+    Provides the fingerprint associated with the given address. If there's
+    multiple potential matches or the mapping is unknown then this returns
+    None. This disambiguates the fingerprint if there's multiple relays on
+    the same ip address by several methods, one of them being to pick relays
+    we have a connection with.
+    
+    Arguments:
+      relayAddress - address of relay to be returned
+      relayPort    - orport of relay (to further narrow the results)
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # query the fingerprint if it isn't yet cached
+      if not (relayAddress, relayPort) in self._fingerprintLookupCache:
+        relayFingerprint = self._getRelayFingerprint(relayAddress, relayPort)
+        self._fingerprintLookupCache[(relayAddress, relayPort)] = relayFingerprint
+      
+      result = self._fingerprintLookupCache[(relayAddress, relayPort)]
+    
+    self.connLock.release()
+    
+    return result
+  
   def addEventListener(self, listener):
     """
     Directs further tor controller events to callback functions of the
@@ -945,20 +981,72 @@ class Controller(TorCtl.PostEventListener):
   def new_consensus_event(self, event):
     self._updateHeartbeat()
     
+    self.connLock.acquire()
+    
     self._cachedParam["nsEntry"] = None
     self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
+    
+    # reconstructs ip -> relay data mappings
+    self._fingerprintLookupCache = {}
+    self._fingerprintsAttachedCache = None
+    
+    if self._fingerprintMappings != None:
+      self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
+    
+    self.connLock.release()
   
   def new_desc_event(self, event):
     self._updateHeartbeat()
+    
+    self.connLock.acquire()
     
     myFingerprint = self.getInfo("fingerprint")
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
+    
+    # If we're tracking ip address -> fingerprint mappings then update with
+    # the new relays.
+    self._fingerprintLookupCache = {}
+    self._fingerprintsAttachedCache = None
+    
+    if self._fingerprintMappings != None:
+      for fingerprint in event.idlist:
+        # gets consensus data for the new descriptor
+        try: nsLookup = self.conn.get_network_status("id/%s" % fingerprint)
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): continue
+        
+        if len(nsLookup) > 1:
+          # multiple records for fingerprint (shouldn't happen)
+          log.log(log.WARN, "Multiple consensus entries for fingerprint: %s" % fingerprint)
+          continue
+        
+        # updates fingerprintMappings with new data
+        newRelay = nsLookup[0]
+        if newRelay.ip in self._fingerprintMappings:
+          # if entry already exists with the same orport, remove it
+          orportMatch = None
+          for entryPort, entryFingerprint in self._fingerprintMappings[newRelay.ip]:
+            if entryPort == newRelay.orport:
+              orportMatch = (entryPort, entryFingerprint)
+              break
+          
+          if orportMatch: self._fingerprintMappings[newRelay.ip].remove(orportMatch)
+          
+          # add the new entry
+          self._fingerprintMappings[newRelay.ip].append((newRelay.orport, newRelay.idhex))
+        else:
+          self._fingerprintMappings[newRelay.ip] = [(newRelay.orport, newRelay.idhex)]
+    
+    self.connLock.release()
   
   def circ_status_event(self, event):
     self._updateHeartbeat()
+    
+    # CIRC events aren't required, but if one's received then flush this cache
+    # since it uses circuit-status results.
+    self._fingerprintsAttachedCache = None
   
   def buildtimeout_set_event(self, event):
     self._updateHeartbeat()
@@ -1000,6 +1088,132 @@ class Controller(TorCtl.PostEventListener):
     
     # alternative is to use the event's timestamp (via event.arrived_at)
     self.lastHeartbeat = time.time()
+  
+  def _getFingerprintMappings(self, nsList = None):
+    """
+    Provides IP address to (port, fingerprint) tuple mappings for all of the
+    currently cached relays.
+    
+    Arguments:
+      nsList - network status listing (fetched if not provided)
+    """
+    
+    results = {}
+    if self.isAlive():
+      # fetch the current network status if not provided
+      if not nsList:
+        try: nsList = self.conn.get_network_status()
+        except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
+      
+      # construct mappings of ips to relay data
+      for relay in nsList:
+        if relay.ip in results: results[relay.ip].append((relay.orport, relay.idhex))
+        else: results[relay.ip] = [(relay.orport, relay.idhex)]
+    
+    return results
+  
+  def _getRelayFingerprint(self, relayAddress, relayPort):
+    """
+    Provides the fingerprint associated with the address/port combination.
+    
+    Arguments:
+      relayAddress - address of relay to be returned
+      relayPort    - orport of relay (to further narrow the results)
+    """
+    
+    # If we were provided with a string port then convert to an int (so
+    # lookups won't mismatch based on type).
+    if isinstance(relayPort, str): relayPort = int(relayPort)
+    
+    # checks if this matches us
+    if relayAddress == self.getInfo("address"):
+      if not relayPort or relayPort == self.getOption("ORPort"):
+        return self.getInfo("fingerprint")
+    
+    # if we haven't yet populated the ip -> fingerprint mappings then do so
+    if self._fingerprintMappings == None:
+      self._fingerprintMappings = self._getFingerprintMappings()
+    
+    potentialMatches = self._fingerprintMappings.get(relayAddress)
+    if not potentialMatches: return None # no relay matches this ip address
+    
+    if len(potentialMatches) == 1:
+      # There's only one relay belonging to this ip address. If the port
+      # matches then we're done.
+      match = potentialMatches[0]
+      
+      if relayPort and match[0] != relayPort: return None
+      else: return match[1]
+    elif relayPort:
+      # Multiple potential matches, so trying to match based on the port.
+      for entryPort, entryFingerprint in potentialMatches:
+        if entryPort == relayPort:
+          return entryFingerprint
+    
+    # Disambiguates based on our orconn-status and circuit-status results.
+    # This only includes relays we're connected to, so chances are pretty
+    # slim that we'll still have a problem narrowing this down. Note that we
+    # aren't necessarily checking for events that can create new client
+    # circuits (so this cache might be a little dirty).
+    
+    # populates the cache
+    if self._fingerprintsAttachedCache == None:
+      self._fingerprintsAttachedCache = []
+      
+      # orconn-status has entries of the form:
+      # $33173252B70A50FE3928C7453077936D71E45C52=shiven CONNECTED
+      orconnResults = self.getInfo("orconn-status")
+      if orconnResults:
+        for line in orconnResults.split("\n"):
+          self._fingerprintsAttachedCache.append(line[1:line.find("=")])
+      
+      # circuit-status has entries of the form:
+      # 7 BUILT $33173252B70A50FE3928C7453077936D71E45C52=shiven,...
+      circStatusResults = self.getInfo("circuit-status")
+      if circStatusResults:
+        for line in circStatusResults.split("\n"):
+          clientEntries = line.split(" ")[2].split(",")
+          
+          for entry in clientEntries:
+            self._fingerprintsAttachedCache.append(entry[1:entry.find("=")])
+    
+    # narrow to only relays we have a connection to
+    attachedMatches = []
+    for _, entryFingerprint in potentialMatches:
+      if entryFingerprint in self._fingerprintsAttachedCache:
+        attachedMatches.append(entryFingerprint)
+    
+    if len(attachedMatches) == 1:
+      return attachedMatches[0]
+    
+    # Highly unlikely, but still haven't found it. Last we'll use some
+    # tricks from Mike's ConsensusTracker, excluding possiblities that
+    # have...
+    # - lost their Running flag
+    # - list a bandwidth of 0
+    # - have 'opt hibernating' set
+    # 
+    # This involves constructing a TorCtl Router and checking its 'down'
+    # flag (which is set by the three conditions above). This is the last
+    # resort since it involves a couple GETINFO queries.
+    
+    for entryPort, entryFingerprint in list(potentialMatches):
+      try:
+        nsCall = self.conn.get_network_status("id/%s" % entryFingerprint)
+        if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
+        nsEntry = nsCall[0]
+        
+        descEntry = self.getInfo("desc/id/%s" % entryFingerprint)
+        if not descEntry: raise TorCtl.ErrorReply() # relay descriptor couldn't be fetched
+        descLines = descEntry.split("\n")
+        
+        isDown = TorCtl.Router.build_from_desc(descLines, nsEntry).down
+        if isDown: potentialMatches.remove((entryPort, entryFingerprint))
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+    
+    if len(potentialMatches) == 1:
+      return potentialMatches[0][1]
+    else: return None
   
   def _getRelayAttr(self, key, default, cacheUndefined = True):
     """
