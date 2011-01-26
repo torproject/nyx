@@ -232,6 +232,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
+    self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._isReset = False               # internal flag for tracking resets
     self._status = TOR_CLOSED           # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
@@ -280,6 +281,7 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintMappings = None
       self._fingerprintLookupCache = {}
       self._fingerprintsAttachedCache = None
+      self._nicknameLookupCache = {}
       
       # sets the events listened for by the new controller (incompatible events
       # are dropped with a logged warning)
@@ -723,6 +725,34 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
+  def getRelayNickname(self, relayFingerprint):
+    """
+    Provides the nickname associated with the given relay. This provides None
+    if no such relay exists, and "Unnamed" if the name hasn't been set.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # query the nickname if it isn't yet cached
+      if not relayFingerprint in self._nicknameLookupCache:
+        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+        
+        if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
+        else: relayNickname = None
+        
+        self._nicknameLookupCache[relayFingerprint] = relayNickname
+      
+      result = self._nicknameLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
   def addEventListener(self, listener):
     """
     Directs further tor controller events to callback functions of the
@@ -987,9 +1017,10 @@ class Controller(TorCtl.PostEventListener):
     self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
     
-    # reconstructs ip -> relay data mappings
+    # reconstructs consensus based mappings
     self._fingerprintLookupCache = {}
     self._fingerprintsAttachedCache = None
+    self._nicknameLookupCache = {}
     
     if self._fingerprintMappings != None:
       self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
