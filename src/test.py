@@ -11,6 +11,7 @@ MENU = """Arm Test Options:
   1. Resolver Performance Test
   2. Resolver Dump
   3. Glyph Demo
+  4. Exit Policy Check
   q. Quit
 
 Selection: """
@@ -23,7 +24,7 @@ while True:
   userInput = raw_input(MENU)
   
   # initiate the TorCtl connection if the test needs it
-  if userInput in ("1", "2") and not conn:
+  if userInput in ("1", "2", "4") and not conn:
     conn = torTools.getConn()
     conn.init()
     
@@ -101,6 +102,42 @@ while True:
     # Switching to a curses context and back repeatedly seems to screw up the
     # terminal. Just to be safe this ends the process after the demo.
     break
+  elif userInput == "4":
+    # display the current exit policy and query if destinations are allowed by it
+    exitPolicy = conn.getExitPolicy()
+    print("Exit Policy: %s" % exitPolicy)
+    printDivider()
+    
+    while True:
+      # provide the selection options
+      userSelection = raw_input("\nCheck if destination is allowed (q to go back): ")
+      userSelection = userSelection.replace(" ", "").strip() # removes all whitespace
+      
+      isValidQuery, isExitAllowed = True, False
+      if userSelection == "q":
+        printDivider()
+        break
+      elif connections.isValidIpAddress(userSelection):
+        # just an ip address (use port 80)
+        isExitAllowed = exitPolicy.check(userSelection, 80)
+      elif userSelection.isdigit():
+        # just a port (use a common ip like 4.2.2.2)
+        isExitAllowed = exitPolicy.check("4.2.2.2", userSelection)
+      elif ":" in userSelection:
+        # ip/port combination
+        ipAddr, port = userSelection.split(":", 1)
+        
+        if connections.isValidIpAddress(ipAddr) and port.isdigit():
+          isExitAllowed = exitPolicy.check(ipAddr, port)
+        else: isValidQuery = False
+      else: isValidQuery = False # invalid input
+      
+      if isValidQuery:
+        resultStr = "is" if isExitAllowed else "is *not*"
+        print("Exiting %s allowed to that destination" % resultStr)
+      else:
+        print("'%s' isn't a valid destination (should be an ip, port, or ip:port)\n" % userSelection)
+    
   else:
     print("'%s' isn't a valid selection\n" % userInput)
 

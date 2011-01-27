@@ -81,6 +81,9 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
 # provides int -> str mappings for torctl event runlevels
 TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
 
+# ip address ranges substituted by the 'private' keyword
+PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
+
 # This prevents controllers from spawning worker threads (and by extension
 # notifying status listeners). This is important when shutting down to prevent
 # rogue threads from being alive during shutdown.
@@ -238,6 +241,9 @@ class Controller(TorCtl.PostEventListener):
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
     
+    self._exitPolicyChecker = None
+    self._exitPolicyLookupCache = {}    # mappings of ip/port tuples to if they were accepted by the policy or not
+    
     # Logs issues and notices when fetching the path prefix if true. This is
     # only done once for the duration of the application to avoid pointless
     # messages.
@@ -282,6 +288,9 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintLookupCache = {}
       self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
+      
+      self._exitPolicyChecker = self.getExitPolicy()
+      self._exitPolicyLookupCache = {}
       
       # sets the events listened for by the new controller (incompatible events
       # are dropped with a logged warning)
@@ -471,9 +480,9 @@ class Controller(TorCtl.PostEventListener):
     result = {} if fetchType == "map" else []
     
     if self.isAlive():
-      if (param, fetchType) in self._cachedConf:
+      if (param.lower(), fetchType) in self._cachedConf:
         isFromCache = True
-        result = self._cachedConf[(param, fetchType)]
+        result = self._cachedConf[(param.lower(), fetchType)]
       else:
         try:
           if fetchType == "str":
@@ -494,7 +503,7 @@ class Controller(TorCtl.PostEventListener):
       cacheValue = result
       if fetchType == "list": cacheValue = list(result)
       elif fetchType == "map": cacheValue = dict(result)
-      self._cachedConf[(param, fetchType)] = cacheValue
+      self._cachedConf[(param.lower(), fetchType)] = cacheValue
     
     runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
     msg = "GETCONF %s (%s)" % (param, runtimeLabel)
@@ -528,10 +537,15 @@ class Controller(TorCtl.PostEventListener):
         
         # flushing cached values (needed until we can detect SETCONF calls)
         for fetchType in ("str", "list", "map"):
-          entry = (param, fetchType)
+          entry = (param.lower(), fetchType)
           
           if entry in self._cachedConf:
             del self._cachedConf[entry]
+        
+        # special caches for the exit policy
+        if param.lower() == "exitpolicy":
+          self._exitPolicyChecker = self.getExitPolicy()
+          self._exitPolicyLookupCache = {}
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         elif type(exc) == TorCtl.ErrorReply:
@@ -696,6 +710,67 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return (self._status, self._statusTime)
+  
+  def isExitingAllowed(self, ipAddress, port):
+    """
+    Checks if the given destination can be exited to by this relay, returning
+    True if so and False otherwise.
+    """
+    
+    self.connLock.acquire()
+    
+    result = False
+    if self.isAlive():
+      # query the policy if it isn't yet cached
+      if not (ipAddress, port) in self._exitPolicyLookupCache:
+        isAccepted = self._exitPolicyChecker.check(ipAddress, port)
+        self._exitPolicyLookupCache[(ipAddress, port)] = isAccepted
+      
+      result = self._exitPolicyLookupCache[(ipAddress, port)]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getExitPolicy(self):
+    """
+    Provides an ExitPolicy instance for the head of this relay's exit policy
+    chain. If there's no active connection then this provides None.
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      policyEntries = []
+      for exitPolicy in self.getOption("ExitPolicy", [], True):
+        policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
+      
+      # appends the default exit policy
+      defaultExitPolicy = self.getInfo("exit-policy/default")
+      
+      if defaultExitPolicy:
+        policyEntries += defaultExitPolicy.split(",")
+      
+      # construct the policy chain backwards
+      policyEntries.reverse()
+      
+      for entry in policyEntries:
+        result = ExitPolicy(entry, result)
+      
+      # Checks if we are rejecting private connections. If set, this appends
+      # 'reject private' and 'reject <my ip>' to the start of our policy chain.
+      isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
+      
+      if isPrivateRejected:
+        result = ExitPolicy("reject private", result)
+        
+        myAddress = self.getInfo("address")
+        if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+    
+    self.connLock.release()
+    
+    return result
   
   def getRelayFingerprint(self, relayAddress, relayPort = None):
     """
@@ -1421,4 +1496,137 @@ class Controller(TorCtl.PostEventListener):
     
     for callback in self.statusListeners:
       callback(self, eventType)
+
+class ExitPolicy:
+  """
+  Single rule from the user's exit policy. These are chained together to form
+  complete policies.
+  """
+  
+  def __init__(self, ruleEntry, nextRule):
+    """
+    Exit policy rule constructor.
+    
+    Arguments:
+      ruleEntry - tor exit policy rule (for instance, "reject *:135-139")
+      nextRule  - next rule to be checked when queries don't match this policy
+    """
+    
+    # sanitize the input a bit, cleaning up tabs and stripping quotes
+    ruleEntry = ruleEntry.replace("\\t", " ").replace("\"", "")
+    
+    self.ruleEntry = ruleEntry
+    self.nextRule = nextRule
+    self.isAccept = ruleEntry.startswith("accept")
+    
+    # strips off "accept " or "reject " and extra spaces
+    ruleEntry = ruleEntry[7:].replace(" ", "")
+    
+    # split ip address (with mask if provided) and port
+    if ":" in ruleEntry: entryIp, entryPort = ruleEntry.split(":", 1)
+    else: entryIp, entryPort = ruleEntry, "*"
+    
+    # sets the ip address component
+    self.isIpWildcard = entryIp == "*" or entryIp.endswith("/0")
+    
+    # checks for the private alias (which expands this to a chain of entries)
+    if entryIp.lower() == "private":
+      entryIp = PRIVATE_IP_RANGES[0]
+      
+      # constructs the chain backwards (last first)
+      lastHop = self.nextRule
+      prefix = "accept " if self.isAccept else "reject "
+      suffix = ":" + entryPort
+      for addr in PRIVATE_IP_RANGES[-1:0:-1]:
+        lastHop = ExitPolicy(prefix + addr + suffix, lastHop)
+      
+      self.nextRule = lastHop # our next hop is the start of the chain
+    
+    if "/" in entryIp:
+      ipComp = entryIp.split("/", 1)
+      self.ipAddress = ipComp[0]
+      self.ipMask = int(ipComp[1])
+    else:
+      self.ipAddress = entryIp
+      self.ipMask = 32
+    
+    # constructs the binary address just in case of comparison with a mask
+    if self.ipAddress != "*":
+      self.ipAddressBin = ""
+      for octet in self.ipAddress.split("."):
+        # bin converts the int to a binary string, then we pad with zeros
+        self.ipAddressBin += ("%8s" % bin(int(octet))[2:]).replace(" ", "0")
+    else:
+      self.ipAddressBin = "0" * 32
+    
+    # sets the port component
+    self.minPort, self.maxPort = 0, 0
+    self.isPortWildcard = entryPort == "*"
+    
+    if entryPort != "*":
+      if "-" in entryPort:
+        portComp = entryPort.split("-", 1)
+        self.minPort = int(portComp[0])
+        self.maxPort = int(portComp[1])
+      else:
+        self.minPort = int(entryPort)
+        self.maxPort = int(entryPort)
+    
+    # if both the address and port are wildcards then we're effectively the
+    # last entry so cut off the remaining chain
+    if self.isIpWildcard and self.isPortWildcard:
+      self.nextRule = None
+  
+  def check(self, ipAddress, port):
+    """
+    Checks if the rule chain allows exiting to this address, returning true if
+    so and false otherwise.
+    """
+    
+    port = int(port)
+    
+    # does the port check first since comparing ip masks is more work
+    isPortMatch = self.isPortWildcard or (port >= self.minPort and port <= self.maxPort)
+    
+    if isPortMatch:
+      isIpMatch = self.isIpWildcard or self.ipAddress == ipAddress
+      
+      # expands the check to include the mask if it has one
+      if not isIpMatch and self.ipMask != 32:
+        inputAddressBin = ""
+        for octet in ipAddress.split("."):
+          inputAddressBin += ("%8s" % bin(int(octet))[2:]).replace(" ", "0")
+        
+        cropSize = 32 - self.ipMask
+        isIpMatch = self.ipAddressBin[:cropSize] == inputAddressBin[:cropSize]
+      
+      if isIpMatch: return self.isAccept
+    
+    # our policy doesn't concern this address, move on to the next one
+    if self.nextRule: return self.nextRule.check(ipAddress, port)
+    else: return True # fell off the chain without a conclusion (shouldn't happen...)
+  
+  def __str__(self):
+    # This provides the actual policy rather than the entry used to construct
+    # it so the 'private' keyword is expanded.
+    
+    acceptanceLabel = "accept" if self.isAccept else "reject"
+    
+    if self.isIpWildcard:
+      ipLabel = "*"
+    elif self.ipMask != 32:
+      ipLabel = "%s/%i" % (self.ipAddress, self.ipMask)
+    else: ipLabel = self.ipAddress
+    
+    if self.isPortWildcard:
+      portLabel = "*"
+    elif self.minPort != self.maxPort:
+      portLabel = "%i-%i" % (self.minPort, self.maxPort)
+    else: portLabel = str(self.minPort)
+    
+    myPolicy = "%s %s:%s" % (acceptanceLabel, ipLabel, portLabel)
+    
+    if self.nextRule:
+      return myPolicy + ", " + str(self.nextRule)
+    else: return myPolicy
 
