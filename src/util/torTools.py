@@ -815,12 +815,18 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the nickname if it isn't yet cached
       if not relayFingerprint in self._nicknameLookupCache:
-        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
-        
-        if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
-        else: relayNickname = None
-        
-        self._nicknameLookupCache[relayFingerprint] = relayNickname
+        if relayFingerprint == getInfo("fingerprint"):
+          # this is us, simply check the config
+          myNickname = self.getOption("Nickname", "Unnamed")
+          self._nicknameLookupCache[relayFingerprint] = myNickname
+        else:
+          # check the consensus for the relay
+          nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+          
+          if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
+          else: relayNickname = None
+          
+          self._nicknameLookupCache[relayFingerprint] = relayNickname
       
       result = self._nicknameLookupCache[relayFingerprint]
     
@@ -1554,8 +1560,9 @@ class ExitPolicy:
     if self.ipAddress != "*":
       self.ipAddressBin = ""
       for octet in self.ipAddress.split("."):
-        # bin converts the int to a binary string, then we pad with zeros
-        self.ipAddressBin += ("%8s" % bin(int(octet))[2:]).replace(" ", "0")
+        # Converts the int to a binary string, padded with zeros. Source:
+        # http://www.daniweb.com/code/snippet216539.html
+        self.ipAddressBin += "".join([str((int(octet) >> y) & 1) for y in range(7, -1, -1)])
     else:
       self.ipAddressBin = "0" * 32
     
@@ -1595,10 +1602,9 @@ class ExitPolicy:
       if not isIpMatch and self.ipMask != 32:
         inputAddressBin = ""
         for octet in ipAddress.split("."):
-          inputAddressBin += ("%8s" % bin(int(octet))[2:]).replace(" ", "0")
+          inputAddressBin += "".join([str((int(octet) >> y) & 1) for y in range(7, -1, -1)])
         
-        cropSize = 32 - self.ipMask
-        isIpMatch = self.ipAddressBin[:cropSize] == inputAddressBin[:cropSize]
+        isIpMatch = self.ipAddressBin[:self.ipMask] == inputAddressBin[:self.ipMask]
       
       if isIpMatch: return self.isAccept
     
