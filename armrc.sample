@@ -62,12 +62,11 @@ features.log.maxRefreshRate 300
 
 # Paremters for the config panel
 # ---------------------------
-# type
-#   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
 # order
 #   three comma separated configuration attributes, options including:
-#   0 -> Category,  1 -> Option Name,   2 -> Value,     3 -> Arg Type,
-#   4 -> Arg Usage, 5 -> Description,   6 -> Man Entry, 7 -> Is Default
+#   0 -> Category,  1 -> Option Name,   2 -> Value,       3 -> Arg Type,
+#   4 -> Arg Usage, 5 -> Summary,       6 -> Description, 7 -> Man Entry,
+#   8 -> Is Default
 # selectionDetails.height
 #   rows of data for the panel showing details on the current selection, this
 #   is disabled entirely if zero
@@ -87,8 +86,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.type 0
-features.config.order 0, 6, 7
+features.config.order 0, 7, 8
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
@@ -104,12 +102,11 @@ features.config.file.maxLinesPerEntry 8
 # ---------------------------
 # enabled
 #   allows the descriptions to be fetched from the man page if true
-# persistPath
-#   location descriptions should be loaded from and saved to (this feature is
-#   disabled if unset)
+# persist
+#   caches the descriptions (substantially saving on future startup times)
 
 features.config.descriptions.enabled true
-features.config.descriptions.persistPath /tmp/arm/torConfigDescriptions.txt
+features.config.descriptions.persist true
 
 # General graph parameters
 # ------------------------

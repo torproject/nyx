@@ -105,17 +105,16 @@ class Config():
       default  - value provided if no such key exists
     """
     
-    callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
     isMultivalue = isinstance(default, list) or isinstance(default, dict)
-    val = self.getValue(key, callDefault, isMultivalue)
+    val = self.getValue(key, default, isMultivalue)
     if val == default: return val
     
     if key.startswith("log."):
-      if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
-        val = log.strToRunlevel(val)
+      if val.upper() == "NONE": val = None
+      elif val.upper() in log.Runlevel.values(): val = val.upper()
       else:
         msg = "config entry '%s' is expected to be a runlevel" % key
-        if default != None: msg += ", defaulting to '%s'" % callDefault
+        if default != None: msg += ", defaulting to '%s'" % default
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, bool):

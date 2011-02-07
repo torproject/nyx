@@ -17,12 +17,12 @@ import threading
 
 from TorCtl import TorCtl, TorUtil
 
-from util import log, procTools, sysTools, uiTools
+from util import enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
-# TOR_INIT - attached to a new controller or restart/sighup signal received
-# TOR_CLOSED - control port closed
-TOR_INIT, TOR_CLOSED = range(1, 3)
+# INIT - attached to a new controller or restart/sighup signal received
+# CLOSED - control port closed
+State = enum.Enum("INIT", "CLOSED")
 
 # Addresses of the default directory authorities for tor version 0.2.3.0-alpha
 # (this comes from the dirservers array in src/or/config.c).
@@ -237,7 +237,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._isReset = False               # internal flag for tracking resets
-    self._status = TOR_CLOSED           # current status of the attached control port
+    self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
     
@@ -298,12 +298,12 @@ class Controller(TorCtl.PostEventListener):
       
       self.connLock.release()
       
-      self._status = TOR_INIT
+      self._status = State.INIT
       self._statusTime = time.time()
       
       # notifies listeners that a new controller is available
       if not NO_SPAWN:
-        thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+        thread.start_new_thread(self._notifyStatusListeners, (State.INIT,))
   
   def close(self):
     """
@@ -313,16 +313,29 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     if self.conn:
       self.conn.close()
-      self.conn._thread.join()
+      
+      # If we're closing due to an event from TorCtl (for instance, tor was
+      # stopped) then TorCtl is shutting itself down and there's no need to
+      # join on its thread (actually, this *is* the TorCtl thread in that
+      # case so joining on it causes deadlock).
+      # 
+      # This poses a slight possability of shutting down with a live orphaned
+      # thread if Tor is shut down, then arm shuts down before TorCtl has a
+      # chance to terminate. However, I've never seen that occure so leaving
+      # that alone for now.
+      
+      if not threading.currentThread() == self.conn._thread:
+        self.conn._thread.join()
+      
       self.conn = None
       self.connLock.release()
       
-      self._status = TOR_CLOSED
+      self._status = State.CLOSED
       self._statusTime = time.time()
       
       # notifies listeners that the controller's been shut down
       if not NO_SPAWN:
-        thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
+        thread.start_new_thread(self._notifyStatusListeners, (State.CLOSED,))
     else: self.connLock.release()
   
   def isAlive(self):
@@ -1067,11 +1080,11 @@ class Controller(TorCtl.PostEventListener):
     if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
       self._isReset = True
       
-      self._status = TOR_INIT
+      self._status = State.INIT
       self._statusTime = time.time()
       
       if not NO_SPAWN:
-        thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+        thread.start_new_thread(self._notifyStatusListeners, (State.INIT,))
   
   def ns_event(self, event):
     self._updateHeartbeat()
@@ -1443,7 +1456,7 @@ class Controller(TorCtl.PostEventListener):
         if myPid:
           try:
             if procTools.isProcAvailable():
-              result = float(procTools.getStats(myPid, procTools.STAT_START_TIME)[0])
+              result = float(procTools.getStats(myPid, procTools.Stat.START_TIME)[0])
             else:
               psCall = sysTools.call("ps -p %s -o etime" % myPid)
               
@@ -1497,7 +1510,7 @@ class Controller(TorCtl.PostEventListener):
     self._cachedConf = {}
     
     # gives a notice that the control port has closed
-    if eventType == TOR_CLOSED:
+    if eventType == State.CLOSED:
       log.log(CONFIG["log.torCtlPortClosed"], "Tor control port closed")
     
     for callback in self.statusListeners:

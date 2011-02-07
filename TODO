@@ -61,6 +61,12 @@ TODO
 
 - Bugs
   * The default resolver isn't configurable.
+  * Default config value checks don't work with older versions of tor. We need
+    a version check for the feature. From Sjon:
+    > Okay, I found the problem with all values being tagged as default,
+    > 'GETINFO config-text' has been introduced in 0.2.2.7, while I am
+    > running 0.2.1.28. Maybe a check in arm for the version-number for that
+    > feature to be enabled might be an idea?
   * When saving the config the Log entry should be filtered out if unnecessary.
   * The config write dialog (ie, the one for saving the config) has its a
     misaligned border when it's smaller than the top detail section.
@@ -216,9 +222,10 @@ TODO
     Take a look at 'linux-tor-prio.sh' to see if any of the stats are 
     available and interesting.
   * escaping function for uiTools' formatted strings
-  * switch check of ip address validity to regex?
-    match = re.match("(\d*)\.(\d*)\.(\d*)\.(\d*)", ip)
-    http://wang.yuxuan.org/blog/2009/4/2/python_script_to_convert_from_ip_range_to_ip_mask
+  * provide an option for showing cpu usage on a per-core basis
+    This would be similar to top when you press 1, ie cpu0 X%, cpu1 Y%, etc.
+    This would help relay operators in checking system load (feature request
+    by Jordan)
   * setup wizard for new relays
     Setting the password and such for torrc generation. Maybe a netinstaller
     that fetches the right package for the plagform, verifies signatures, etc?
@@ -292,6 +299,17 @@ TODO
         - copy the results to the webserver, example:
           http://www.atagar.com/transfer/tmp/armBuild_12-7-10/
         - send the dsc link to weasel
+        - sign deb and copy that and sig for the download page
+    
+    - Red Hat
+      Contact: None
+      Update Instructions:
+        - update resources/build/redHat/MANIFEST
+        - ./resources/rpm-prep.sh
+        - cd release_rpm
+        - ./debian/make-rpm
+        - copy the results to the webserver
+        - sign rpm and copy that and sig for the download page
     
     - Gentoo
       Contact: NightMonkey (Jesse Adelman)

@@ -5,7 +5,7 @@ Helper functions for working with tor's configuration file.
 import os
 import threading
 
-from util import log, sysTools, torTools, uiTools
+from util import enum, log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
           "config.important": [],
@@ -23,27 +23,23 @@ CONFIG = {"features.torrc.validate": True,
           "log.configDescriptions.unrecognizedCategory": log.NOTICE}
 
 # enums and values for numeric torrc entries
-UNRECOGNIZED, SIZE_VALUE, TIME_VALUE = range(1, 4)
+ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
 SIZE_MULT = {"b": 1, "kb": 1024, "mb": 1048576, "gb": 1073741824, "tb": 1099511627776}
 TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
 
 # enums for issues found during torrc validation:
-# VAL_DUPLICATE  - entry is ignored due to being a duplicate
-# VAL_MISMATCH   - the value doesn't match tor's current state
-# VAL_MISSING    - value differs from its default but is missing from the torrc
-# VAL_IS_DEFAULT - the configuration option matches tor's default
-VAL_DUPLICATE, VAL_MISMATCH, VAL_MISSING, VAL_IS_DEFAULT = range(1, 5)
+# DUPLICATE  - entry is ignored due to being a duplicate
+# MISMATCH   - the value doesn't match tor's current state
+# MISSING    - value differs from its default but is missing from the torrc
+# IS_DEFAULT - the configuration option matches tor's default
+ValidationError = enum.Enum("DUPLICATE", "MISMATCH", "MISSING", "IS_DEFAULT")
 
 # descriptions of tor's configuration options fetched from its man page
 CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
 CONFIG_DESCRIPTIONS = {}
 
 # categories for tor configuration options
-GENERAL, CLIENT, SERVER, DIRECTORY, AUTHORITY, HIDDEN_SERVICE, TESTING, UNKNOWN = range(1, 9)
-OPTION_CATEGORY_STR = {GENERAL: "General",     CLIENT: "Client",
-                       SERVER: "Relay",        DIRECTORY: "Directory",
-                       AUTHORITY: "Authority", HIDDEN_SERVICE: "Hidden Service",
-                       TESTING: "Testing",     UNKNOWN: "Unknown"}
+Category = enum.Enum("GENERAL", "CLIENT", "RELAY", "DIRECTORY", "AUTHORITY", "HIDDEN_SERVICE", "TESTING", "UNKNOWN")
 
 TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
@@ -123,9 +119,6 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
       inputFileContents = inputFile.readlines()
       inputFile.close()
       
-      # constructs a reverse mapping for categories
-      strToCat = dict([(OPTION_CATEGORY_STR[cat], cat) for cat in OPTION_CATEGORY_STR])
-      
       try:
         versionLine = inputFileContents.pop(0).rstrip()
         
@@ -142,10 +135,8 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         
         while inputFileContents:
           # gets category enum, failing if it doesn't exist
-          categoryStr = inputFileContents.pop(0).rstrip()
-          if categoryStr in strToCat:
-            category = strToCat[categoryStr]
-          else:
+          category = inputFileContents.pop(0).rstrip()
+          if not category in Category.values():
             baseMsg = "invalid category in input file: '%s'"
             raise IOError(baseMsg % categoryStr)
           
@@ -187,7 +178,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         validOptions = [line[:line.find(" ")].lower() for line in configOptionQuery]
       
       optionCount, lastOption, lastArg = 0, None, None
-      lastCategory, lastDescription = GENERAL, ""
+      lastCategory, lastDescription = Category.GENERAL, ""
       for line in manCallResults:
         line = uiTools.getPrintable(line)
         strippedLine = line.strip()
@@ -221,13 +212,13 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
           
           # if this is a category header then switch it
           if isCategoryLine:
-            if line.startswith("OPTIONS"): lastCategory = GENERAL
-            elif line.startswith("CLIENT"): lastCategory = CLIENT
-            elif line.startswith("SERVER"): lastCategory = SERVER
-            elif line.startswith("DIRECTORY SERVER"): lastCategory = DIRECTORY
-            elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = AUTHORITY
-            elif line.startswith("HIDDEN SERVICE"): lastCategory = HIDDEN_SERVICE
-            elif line.startswith("TESTING NETWORK"): lastCategory = TESTING
+            if line.startswith("OPTIONS"): lastCategory = Category.GENERAL
+            elif line.startswith("CLIENT"): lastCategory = Category.CLIENT
+            elif line.startswith("SERVER"): lastCategory = Category.RELAY
+            elif line.startswith("DIRECTORY SERVER"): lastCategory = Category.DIRECTORY
+            elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = Category.AUTHORITY
+            elif line.startswith("HIDDEN SERVICE"): lastCategory = Category.HIDDEN_SERVICE
+            elif line.startswith("TESTING NETWORK"): lastCategory = Category.TESTING
             else:
               msg = "Unrecognized category in the man page: %s" % line.strip()
               log.log(CONFIG["log.configDescriptions.unrecognizedCategory"], msg)
@@ -273,7 +264,7 @@ def saveOptionDescriptions(path):
   for i in range(len(sortedOptions)):
     option = sortedOptions[i]
     manEntry = getConfigDescription(option)
-    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (OPTION_CATEGORY_STR[manEntry.category], manEntry.index, option, manEntry.argUsage, manEntry.description))
+    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (manEntry.category, manEntry.index, option, manEntry.argUsage, manEntry.description))
     if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
   
   outputFile.close()
@@ -418,13 +409,13 @@ def validate(contents = None):
     
     # most parameters are overwritten if defined multiple times
     if option in seenOptions and not option in getMultilineParameters():
-      issuesFound.append((lineNumber, VAL_DUPLICATE, option))
+      issuesFound.append((lineNumber, ValidationError.DUPLICATE, option))
       continue
     else: seenOptions.append(option)
     
     # checks if the value isn't necessary due to matching the defaults
     if not option in customOptions:
-      issuesFound.append((lineNumber, VAL_IS_DEFAULT, option))
+      issuesFound.append((lineNumber, ValidationError.IS_DEFAULT, option))
     
     # replace aliases with their recognized representation
     if option in CONFIG["torrc.alias"]:
@@ -459,17 +450,17 @@ def validate(contents = None):
       if not isBlankMatch and not val in torValues:
         # converts corrections to reader friedly size values
         displayValues = torValues
-        if valueType == SIZE_VALUE:
+        if valueType == ValueType.SIZE:
           displayValues = [uiTools.getSizeLabel(int(val)) for val in torValues]
-        elif valueType == TIME_VALUE:
+        elif valueType == ValueType.TIME:
           displayValues = [uiTools.getTimeLabel(int(val)) for val in torValues]
         
-        issuesFound.append((lineNumber, VAL_MISMATCH, ", ".join(displayValues)))
+        issuesFound.append((lineNumber, ValidationError.MISMATCH, ", ".join(displayValues)))
   
   # checks if any custom options are missing from the torrc
   for option in customOptions:
     if not option in seenOptions:
-      issuesFound.append((None, VAL_MISSING, option))
+      issuesFound.append((None, ValidationError.MISSING, option))
   
   return issuesFound
 
@@ -485,13 +476,13 @@ def _parseConfValue(confArg):
   
   if confArg.count(" ") == 1:
     val, unit = confArg.lower().split(" ", 1)
-    if not val.isdigit(): return confArg, UNRECOGNIZED
+    if not val.isdigit(): return confArg, ValueType.UNRECOGNIZED
     mult, multType = _getUnitType(unit)
     
     if mult != None:
       return str(int(val) * mult), multType
   
-  return confArg, UNRECOGNIZED
+  return confArg, ValueType.UNRECOGNIZED
 
 def _getUnitType(unit):
   """
@@ -504,13 +495,13 @@ def _getUnitType(unit):
   
   for label in SIZE_MULT:
     if unit in CONFIG["torrc.label.size." + label]:
-      return SIZE_MULT[label], SIZE_VALUE
+      return SIZE_MULT[label], ValueType.SIZE
   
   for label in TIME_MULT:
     if unit in CONFIG["torrc.label.time." + label]:
-      return TIME_MULT[label], TIME_VALUE
+      return TIME_MULT[label], ValueType.TIME
   
-  return None, UNRECOGNIZED
+  return None, ValueType.UNRECOGNIZED
 
 def _stripComments(contents):
   """

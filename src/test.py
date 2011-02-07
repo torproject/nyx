@@ -44,7 +44,7 @@ while True:
       connectionResults.sort()
       allConnectionResults.append(connectionResults)
       
-      resolverLabel = "%-10s" % connections.CMD_STR[resolver]
+      resolverLabel = "%-10s" % resolver
       countLabel = "%4i results" % len(connectionResults)
       timeLabel = "%0.4f seconds" % (time.time() - startTime)
       print "%s %s     %s" % (resolverLabel, countLabel, timeLabel)
@@ -68,8 +68,9 @@ while True:
       # provide the selection options
       printDivider()
       print("Select a resolver:")
-      for i in range(1, 8):
-        print("  %i. %s" % (i, connections.CMD_STR[i]))
+      availableResolvers = connections.Resolver.values()
+      for i in range(len(availableResolvers)):
+        print("  %i. %s" % (i, availableResolvers[i]))
       print("  q. Go back to the main menu")
       
       userSelection = raw_input("\nSelection: ")

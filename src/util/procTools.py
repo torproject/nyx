@@ -20,12 +20,12 @@ import time
 import socket
 import base64
 
-from util import log
+from util import enum, log
 
 # cached system values
 SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None
 CLOCK_TICKS = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
-STAT_COMMAND, STAT_CPU_UTIME, STAT_CPU_STIME, STAT_START_TIME = range(4)
+Stat = enum.Enum("COMMAND", "CPU_UTIME", "CPU_STIME", "START_TIME")
 
 CONFIG = {"queries.useProc": True,
           "log.procCallMade": log.DEBUG}
@@ -128,10 +128,10 @@ def getMemoryUsage(pid):
 def getStats(pid, *statTypes):
   """
   Provides process specific information. Options are:
-  STAT_COMMAND      command name under which the process is running
-  STAT_CPU_UTIME    total user time spent on the process
-  STAT_CPU_STIME    total system time spent on the process
-  STAT_START_TIME   when this process began, in unix time
+  Stat.COMMAND      command name under which the process is running
+  Stat.CPU_UTIME    total user time spent on the process
+  Stat.CPU_STIME    total system time spent on the process
+  Stat.START_TIME   when this process began, in unix time
   
   Arguments:
     pid       - queried process
@@ -159,19 +159,19 @@ def getStats(pid, *statTypes):
   
   results, queriedStats = [], []
   for statType in statTypes:
-    if statType == STAT_COMMAND:
+    if statType == Stat.COMMAND:
       queriedStats.append("command")
       if pid == 0: results.append("sched")
       else: results.append(statComp[1])
-    elif statType == STAT_CPU_UTIME:
+    elif statType == Stat.CPU_UTIME:
       queriedStats.append("utime")
       if pid == 0: results.append("0")
       else: results.append(str(float(statComp[13]) / CLOCK_TICKS))
-    elif statType == STAT_CPU_STIME:
+    elif statType == Stat.CPU_STIME:
       queriedStats.append("stime")
       if pid == 0: results.append("0")
       else: results.append(str(float(statComp[14]) / CLOCK_TICKS))
-    elif statType == STAT_START_TIME:
+    elif statType == Stat.START_TIME:
       queriedStats.append("start time")
       if pid == 0: return getSystemStartTime()
       else:

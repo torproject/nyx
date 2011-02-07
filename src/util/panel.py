@@ -56,8 +56,9 @@ class Panel():
     # implementations aren't entirely deterministic (for instance panels
     # might chose their height based on its parent's current width).
     
-    self.parent = parent
     self.panelName = name
+    self.parent = parent
+    self.visible = True
     self.top = top
     self.height = height
     self.width = width
@@ -98,6 +99,23 @@ class Panel():
     if self.parent != parent:
       self.parent = parent
       self.win = None
+  
+  def isVisible(self):
+    """
+    Provides if the panel's configured to be visible or not.
+    """
+    
+    return self.visible
+  
+  def setVisible(self, isVisible):
+    """
+    Toggles if the panel is visible or not.
+    
+    Arguments:
+      isVisible - panel is redrawn when requested if true, skipped otherwise
+    """
+    
+    self.visible = isVisible
   
   def getTop(self):
     """
@@ -197,6 +215,9 @@ class Panel():
                     if the request is willing to wait its turn or should be
                     abandoned
     """
+    
+    # skipped if not currently visible
+    if not self.isVisible(): return
     
     # if the panel's completely outside its parent then this is a no-op
     newHeight, newWidth = self.getPreferredSize()

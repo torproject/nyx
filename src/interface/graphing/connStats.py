@@ -17,11 +17,11 @@ class ConnStats(graphPanel.GraphStats):
     # listens for tor reload (sighup) events which can reset the ports tor uses
     conn = torTools.getConn()
     self.orPort, self.dirPort, self.controlPort = "0", "0", "0"
-    self.resetListener(conn, torTools.TOR_INIT) # initialize port values
+    self.resetListener(conn, torTools.State.INIT) # initialize port values
     conn.addStatusListener(self.resetListener)
   
   def resetListener(self, conn, eventType):
-    if eventType == torTools.TOR_INIT:
+    if eventType == torTools.State.INIT:
       self.orPort = conn.getOption("ORPort", "0")
       self.dirPort = conn.getOption("DirPort", "0")
       self.controlPort = conn.getOption("ControlPort", "0")

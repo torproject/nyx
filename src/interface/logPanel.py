@@ -32,8 +32,8 @@ EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s ST
           12345 arm runlevel+            X No Events
           67890 torctl runlevel+         U Unknown Events"""
 
-RUNLEVELS = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]
-RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
+RUNLEVEL_EVENT_COLOR = {log.DEBUG: "magenta", log.INFO: "blue", log.NOTICE: "green",
+                        log.WARN: "yellow", log.ERR: "red"}
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
@@ -112,8 +112,8 @@ def expandEvents(eventAbbr):
   
   for flag in eventAbbr:
     if flag == "A":
-      armRunlevels = ["ARM_" + runlevel for runlevel in RUNLEVELS]
-      torctlRunlevels = ["TORCTL_" + runlevel for runlevel in RUNLEVELS]
+      armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel.values()]
+      torctlRunlevels = ["TORCTL_" + runlevel for runlevel in log.Runlevel.values()]
       expandedEvents = set(TOR_EVENT_TYPES.values() + armRunlevels + torctlRunlevels + ["UNKNOWN"])
       break
     elif flag == "X":
@@ -131,7 +131,7 @@ def expandEvents(eventAbbr):
       elif flag in "W49": runlevelIndex = 3
       elif flag in "E50": runlevelIndex = 4
       
-      runlevelSet = [typePrefix + runlevel for runlevel in RUNLEVELS[runlevelIndex:]]
+      runlevelSet = [typePrefix + runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
       expandedEvents = expandedEvents.union(set(runlevelSet))
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
@@ -210,16 +210,17 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
   
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
+  runlevels = log.Runlevel.values()
   loggingTypes = loggingTypes.upper()
   if addLimit and (not readLimit or readLimit > addLimit):
     if "-" in loggingTypes:
       divIndex = loggingTypes.find("-")
-      sIndex = RUNLEVELS.index(loggingTypes[:divIndex])
-      eIndex = RUNLEVELS.index(loggingTypes[divIndex+1:])
-      logFileRunlevels = RUNLEVELS[sIndex:eIndex+1]
+      sIndex = runlevels.index(loggingTypes[:divIndex])
+      eIndex = runlevels.index(loggingTypes[divIndex+1:])
+      logFileRunlevels = runlevels[sIndex:eIndex+1]
     else:
-      sIndex = RUNLEVELS.index(loggingTypes)
-      logFileRunlevels = RUNLEVELS[sIndex:]
+      sIndex = runlevels.index(loggingTypes)
+      logFileRunlevels = runlevels[sIndex:]
     
     # checks if runlevels we're reporting are a superset of the file's contents
     isFileSubset = True
@@ -570,7 +571,7 @@ class LogPanel(panel.Panel, threading.Thread):
     # fetches past tor events from log file, if available
     torEventBacklog = []
     if self._config["features.log.prepopulate"]:
-      setRunlevels = list(set.intersection(set(self.loggedEvents), set(RUNLEVELS)))
+      setRunlevels = list(set.intersection(set(self.loggedEvents), set(log.Runlevel.values())))
       readLimit = self._config["features.log.prepopulateReadLimit"]
       addLimit = self._config["cache.logPanel.size"]
       torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
@@ -584,13 +585,12 @@ class LogPanel(panel.Panel, threading.Thread):
       # gets the set of arm events we're logging
       setRunlevels = []
       for i in range(len(armRunlevels)):
-        if "ARM_" + RUNLEVELS[i] in self.loggedEvents:
+        if "ARM_" + log.Runlevel.values()[i] in self.loggedEvents:
           setRunlevels.append(armRunlevels[i])
       
       armEventBacklog = []
       for level, msg, eventTime in log._getEntries(setRunlevels):
-        runlevelStr = log.RUNLEVEL_STR[level]
-        armEventEntry = LogEntry(eventTime, "ARM_" + runlevelStr, msg, RUNLEVEL_EVENT_COLOR[runlevelStr])
+        armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
         armEventBacklog.insert(0, armEventEntry)
       
       # joins armEventBacklog and torEventBacklog chronologically into msgLog
@@ -879,7 +879,7 @@ class LogPanel(panel.Panel, threading.Thread):
             if lineOffset == maxEntriesPerLine - 1:
               msg = uiTools.cropStr(msg, maxMsgSize)
             else:
-              msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.END_WITH_HYPHEN, True)
+              msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.Ending.HYPHEN, True)
               displayQueue.insert(0, (remainder.strip(), format, includeBreak))
             
             includeBreak = True
@@ -1019,7 +1019,7 @@ class LogPanel(panel.Panel, threading.Thread):
       runlevelRanges = [] # tuple of type, startLevel, endLevel for ranges to be consensed
       
       # reverses runlevels and types so they're appended in the right order
-      reversedRunlevels = list(RUNLEVELS)
+      reversedRunlevels = log.Runlevel.values()
       reversedRunlevels.reverse()
       for prefix in ("TORCTL_", "ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end

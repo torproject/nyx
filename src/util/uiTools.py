@@ -9,7 +9,7 @@ import sys
 import curses
 
 from curses.ascii import isprint
-from util import log
+from util import enum, log
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -32,7 +32,7 @@ SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, 
 TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
               (60.0, "m", " minute"), (1.0, "s", " second")]
 
-END_WITH_ELLIPSE, END_WITH_HYPHEN = range(1, 3)
+Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True,
           "log.cursesColorSupport": log.INFO}
@@ -117,7 +117,7 @@ def getColor(color):
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
 
-def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, getRemainder = False):
+def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, getRemainder = False):
   """
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
@@ -143,8 +143,8 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
     minCrop      - minimum characters that must be dropped if a word's cropped
     endType      - type of ending used when truncating:
                    None - blank ending
-                   END_WITH_ELLIPSE - includes an ellipse
-                   END_WITH_HYPHEN - adds hyphen when breaking words
+                   Ending.ELLIPSE - includes an ellipse
+                   Ending.HYPHEN - adds hyphen when breaking words
     getRemainder - returns a tuple instead, with the second part being the
                    cropped portion of the message
   """
@@ -161,8 +161,8 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   
   # since we're cropping, the effective space available is less with an
   # ellipse, and cropping words requires an extra space for hyphens
-  if endType == END_WITH_ELLIPSE: size -= 3
-  elif endType == END_WITH_HYPHEN and minWordLen != None: minWordLen += 1
+  if endType == Ending.ELLIPSE: size -= 3
+  elif endType == Ending.HYPHEN and minWordLen != None: minWordLen += 1
   
   # checks if there isn't the minimum space needed to include anything
   lastWordbreak = msg.rfind(" ", 0, size + 1)
@@ -181,7 +181,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   
   if includeCrop:
     returnMsg, remainder = msg[:size], msg[size:]
-    if endType == END_WITH_HYPHEN:
+    if endType == Ending.HYPHEN:
       remainder = returnMsg[-1] + remainder
       returnMsg = returnMsg[:-1] + "-"
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
@@ -189,7 +189,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   # if this is ending with a comma or period then strip it off
   if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
   
-  if endType == END_WITH_ELLIPSE: returnMsg += "..."
+  if endType == Ending.ELLIPSE: returnMsg += "..."
   
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg

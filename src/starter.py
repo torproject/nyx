@@ -36,8 +36,9 @@ CONFIG = {"startup.controlPassword": None,
           "startup.interface.port": 9051,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
-          "data.cache.path": "~/.arm/cache",
+          "startup.dataDirectory": "~/.arm",
           "features.config.descriptions.enabled": True,
+          "features.config.descriptions.persist": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
           "log.configDescriptions.readManPageFailed": util.log.NOTICE,
           "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
@@ -102,12 +103,13 @@ def _loadConfigurationDescriptions(pathPrefix):
     isConfigDescriptionsLoaded = False
     
     # determines the path where cached descriptions should be persisted (left
-    # undefined of arm caching is disabled)
-    cachePath, descriptorPath = CONFIG["data.cache.path"], None
-    
-    if cachePath:
-      if not cachePath.endswith("/"): cachePath += "/"
-      descriptorPath = os.path.expanduser(cachePath) + CONFIG_DESC_FILENAME
+    # undefined if caching is disabled)
+    descriptorPath = None
+    if CONFIG["features.config.descriptions.persist"]:
+      dataDir = CONFIG["startup.dataDirectory"]
+      if not dataDir.endswith("/"): dataDir += "/"
+      
+      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
     
     # attempts to load configuration descriptions cached in the data directory
     if descriptorPath:

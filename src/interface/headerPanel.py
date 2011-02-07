@@ -239,7 +239,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   
   def run(self):
     """
-    Keeps stats updated, querying new information at a set rate.
+    Keeps stats updated, checking for new information at a set rate.
     """
     
     lastDraw = time.time() - 1
@@ -288,14 +288,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    if eventType == torTools.TOR_INIT:
+    if eventType == torTools.State.INIT:
       self._isTorConnected = True
       if self._isPaused: self._haltTime = time.time()
       else: self._haltTime = None
       
       self._update(True)
       self.redraw(True)
-    elif eventType == torTools.TOR_CLOSED:
+    elif eventType == torTools.State.CLOSED:
       self._isTorConnected = False
       self._haltTime = time.time()
       self._update()

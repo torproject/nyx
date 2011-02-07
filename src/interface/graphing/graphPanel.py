@@ -20,7 +20,7 @@ import copy
 import curses
 from TorCtl import TorCtl
 
-from util import panel, uiTools
+from util import enum, panel, uiTools
 
 # time intervals at which graphs can be updated
 UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
@@ -32,11 +32,10 @@ DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = "green", "cyan"
 MIN_GRAPH_HEIGHT = 1
 
 # enums for graph bounds:
-#   BOUNDS_GLOBAL_MAX - global maximum (highest value ever seen)
-#   BOUNDS_LOCAL_MAX - local maximum (highest value currently on the graph)
-#   BOUNDS_TIGHT - local maximum and minimum
-BOUNDS_GLOBAL_MAX, BOUNDS_LOCAL_MAX, BOUNDS_TIGHT = range(3)
-BOUND_LABELS = {BOUNDS_GLOBAL_MAX: "global max", BOUNDS_LOCAL_MAX: "local max", BOUNDS_TIGHT: "tight"}
+#   Bounds.GLOBAL_MAX - global maximum (highest value ever seen)
+#   Bounds.LOCAL_MAX - local maximum (highest value currently on the graph)
+#   Bounds.TIGHT - local maximum and minimum
+Bounds = enum.Enum("GLOBAL_MAX", "LOCAL_MAX", "TIGHT")
 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
@@ -248,7 +247,7 @@ class GraphPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "graph", 0)
     self.updateInterval = CONFIG["features.graph.interval"]
-    self.bounds = CONFIG["features.graph.bound"]
+    self.bounds = Bounds.values()[CONFIG["features.graph.bound"]]
     self.graphHeight = CONFIG["features.graph.height"]
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
@@ -294,11 +293,11 @@ class GraphPanel(panel.Panel):
       if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
       
       # determines max/min value on the graph
-      if self.bounds == BOUNDS_GLOBAL_MAX:
+      if self.bounds == Bounds.GLOBAL_MAX:
         primaryMaxBound = int(param.maxPrimary[self.updateInterval])
         secondaryMaxBound = int(param.maxSecondary[self.updateInterval])
       else:
-        # both BOUNDS_LOCAL_MAX and BOUNDS_TIGHT use local maxima
+        # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
         if graphCol < 2:
           # nothing being displayed
           primaryMaxBound, secondaryMaxBound = 0, 0
@@ -307,7 +306,7 @@ class GraphPanel(panel.Panel):
           secondaryMaxBound = int(max(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
       
       primaryMinBound = secondaryMinBound = 0
-      if self.bounds == BOUNDS_TIGHT:
+      if self.bounds == Bounds.TIGHT:
         primaryMinBound = int(min(param.primaryCounts[self.updateInterval][1:graphCol + 1]))
         secondaryMinBound = int(min(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
         

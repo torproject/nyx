@@ -47,7 +47,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # rate/burst and if tor's using accounting
     conn = torTools.getConn()
     self._titleStats, self.isAccounting = [], False
-    self.resetListener(conn, torTools.TOR_INIT) # initializes values
+    self.resetListener(conn, torTools.State.INIT) # initializes values
     conn.addStatusListener(self.resetListener)
   
   def resetListener(self, conn, eventType):
@@ -55,7 +55,7 @@ class BandwidthStats(graphPanel.GraphStats):
     self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
-    if eventType == torTools.TOR_INIT and self._config["features.graph.bw.accounting.show"]:
+    if eventType == torTools.State.INIT and self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
   
   def prepopulateFromState(self):
