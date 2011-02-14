@@ -53,9 +53,19 @@ CONTROLLER = None # singleton Controller instance
 # options (unchangable, even with a SETCONF) and other useful stats
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
-              "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid", "pathPrefix", "startTime",
-              "authorities")
+              "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
+              "bwObserved", "bwMeasured", "flags", "pid", "pathPrefix",
+              "startTime", "authorities")
+
+# Tor has a couple messages (in or/router.c) for when our ip address changes:
+# "Our IP Address has changed from <previous> to <current>; rebuilding
+#   descriptor (source: <source>)."
+# "Guessed our IP address as <current> (source: <source>)."
+# 
+# It would probably be preferable to use the EXTERNAL_ADDRESS event, but I'm
+# not quite sure why it's not provided by check_descriptor_ipaddress_changed
+# so erring on the side of inclusiveness by using the notice event instead.
+ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -1205,6 +1215,15 @@ class Controller(TorCtl.PostEventListener):
     
     # checks if TorCtl is providing a notice that control port is closed
     if TOR_CTL_CLOSE_MSG in msg: self.close()
+    
+    # if the message is informing us of our ip address changing then clear
+    # its cached value
+    isAddrChangeEvent = False
+    for prefix in ADDR_CHANGED_MSG_PREFIX:
+      isAddrChangeEvent |= msg.startswith(prefix)
+    
+    if isAddrChangeEvent and "address" in self._cachedParam:
+      del self._cachedParam["address"]
   
   def _updateHeartbeat(self):
     """

@@ -37,8 +37,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
     tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
-          exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
-          *address, *fingerprint, *flags, pid, startTime
+          exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
+          orListenAddr, *address, *fingerprint, *flags, pid, startTime
     sys/  hostname, os, version
     stat/ *%torCpu, *%armCpu, *rss, *%mem
   
@@ -127,10 +127,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # Line 2 / Line 2 Left (tor ip/port information)
     if self.vals["tor/orPort"]:
+      myAddress = "Unknown"
+      if self.vals["tor/orListenAddr"]: myAddress = self.vals["tor/orListenAddr"]
+      elif self.vals["tor/address"]: myAddress = self.vals["tor/address"]
+      
       # acting as a relay (we can assume certain parameters are set
       entry = ""
       dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
-      for label in (self.vals["tor/nickname"], " - " + self.vals["tor/address"], ":" + self.vals["tor/orPort"], dirPortLabel):
+      for label in (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel):
         if len(entry) + len(label) <= leftWidth: entry += label
         else: break
     else:
@@ -329,15 +333,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
       
       # overwrite address if ORListenAddress is set (and possibly orPort too)
-      self.vals["tor/address"] = "Unknown"
+      self.vals["tor/orListenAddr"] = ""
       listenAddr = conn.getOption("ORListenAddress")
       if listenAddr:
         if ":" in listenAddr:
           # both ip and port overwritten
-          self.vals["tor/address"] = listenAddr[:listenAddr.find(":")]
+          self.vals["tor/orListenAddr"] = listenAddr[:listenAddr.find(":")]
           self.vals["tor/orPort"] = listenAddr[listenAddr.find(":") + 1:]
         else:
-          self.vals["tor/address"] = listenAddr
+          self.vals["tor/orListenAddr"] = listenAddr
       
       # fetch exit policy (might span over multiple lines)
       policyEntries = []
@@ -368,8 +372,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # sets volatile parameters
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
     # events. Introduce caching via torTools?
-    if self.vals["tor/address"] == "Unknown":
-      self.vals["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
+    self.vals["tor/address"] = conn.getInfo("address", "")
     
     self.vals["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     self.vals["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
