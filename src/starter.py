@@ -145,7 +145,7 @@ def _loadConfigurationDescriptions(pathPrefix):
           
           msg = DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
           util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
-        except IOError, exc:
+        except (IOError, OSError), exc:
           msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
           util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
     

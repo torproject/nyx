@@ -244,7 +244,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
 def saveOptionDescriptions(path):
   """
   Preserves the current configuration descriptors to the given path. This
-  raises an IOError if unable to do so.
+  raises an IOError or OSError if unable to do so.
   
   Arguments:
     path - location to persist configuration descriptors

@@ -621,14 +621,14 @@ class LogPanel(panel.Panel, threading.Thread):
     if self._config["features.logFile"]:
       logPath = self._config["features.logFile"]
       
-      # make dir if the path doesn't already exist
-      baseDir = os.path.dirname(logPath)
-      if not os.path.exists(baseDir): os.makedirs(baseDir)
-      
       try:
+        # make dir if the path doesn't already exist
+        baseDir = os.path.dirname(logPath)
+        if not os.path.exists(baseDir): os.makedirs(baseDir)
+        
         self.logFile = open(logPath, "a")
         log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
-      except IOError, exc:
+      except (IOError, OSError), exc:
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
   
