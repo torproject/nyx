@@ -30,7 +30,7 @@ import graphing.bandwidthStats
 import graphing.connStats
 import graphing.resourceStats
 
-INCLUDE_CONNPANEL_2 = True
+INCLUDE_CONNPANEL_2 = False
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
