@@ -32,7 +32,7 @@ CATEGORY_COLOR = {torConfig.Category.GENERAL: "green",
 # attributes of a ConfigEntry
 Field = enum.Enum("CATEGORY", "OPTION", "VALUE", "TYPE", "ARG_USAGE",
                   "SUMMARY", "DESCRIPTION", "MAN_ENTRY", "IS_DEFAULT")
-DEFAULT_SORT_ORDER = (Field.CATEGORY, Field.MAN_ENTRY, Field.IS_DEFAULT)
+DEFAULT_SORT_ORDER = (Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT)
 FIELD_ATTR = {Field.CATEGORY: ("Category", "red"),
               Field.OPTION: ("Option Name", "blue"),
               Field.VALUE: ("Value", "cyan"),

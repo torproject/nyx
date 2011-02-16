@@ -86,7 +86,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.order 0, 7, 8
+features.config.order 7, 1, 8
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
