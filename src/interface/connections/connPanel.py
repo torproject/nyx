@@ -116,7 +116,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       entry = self._connections[lineNum]
       drawLine = lineNum + 1 - scrollLoc
       
-      lineFormat = uiTools.getColor(listings.CATEGORY_COLOR[entry.type])
+      entryType = entry.getType()
+      lineFormat = uiTools.getColor(listings.CATEGORY_COLOR[entryType])
       if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
       
       # Lines are split into three components (prefix, category, and suffix)
@@ -133,11 +134,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       xLoc += len(prefixLabel)
       
       # category
-      self.addstr(drawLine, xLoc, entry.type.upper(), lineFormat | curses.A_BOLD)
-      xLoc += len(entry.type)
+      self.addstr(drawLine, xLoc, entryType.upper(), lineFormat | curses.A_BOLD)
+      xLoc += len(entryType)
       
       # suffix (ending parentheses plus padding so lines are the same length)
-      self.addstr(drawLine, xLoc, ")" + " " * (9 - len(entry.type)), lineFormat)
+      self.addstr(drawLine, xLoc, ")" + " " * (9 - len(entryType)), lineFormat)
       
       if drawLine >= height: break
     
@@ -186,7 +187,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # counts the relays in each of the categories
       categoryTypes = listings.Category.values()
       typeCounts = dict((type, 0) for type in categoryTypes)
-      for conn in newConnections: typeCounts[conn.type] += 1
+      for conn in newConnections: typeCounts[conn.getType()] += 1
       
       # makes labels for all the categories with connections (ie,
       # "21 outbound", "1 control", etc)

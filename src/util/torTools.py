@@ -750,7 +750,10 @@ class Controller(TorCtl.PostEventListener):
       # query the policy if it isn't yet cached
       if not (ipAddress, port) in self._exitPolicyLookupCache:
         # If we allow any exiting then this could be relayed DNS queries,
-        # otherwise the policy is checked.
+        # otherwise the policy is checked. Tor still makes DNS connections to
+        # test when exiting isn't allowed, but nothing is relayed over them.
+        # I'm registering these as non-exiting to avoid likely user confusion:
+        # https://trac.torproject.org/projects/tor/ticket/965
         
         if self._isExitingAllowed and port == "53": isAccepted = True
         else: isAccepted = self._exitPolicyChecker.check(ipAddress, port)

@@ -826,9 +826,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # stops panel daemons
         panels["header"].stop()
+        panels["conn2"].stop()
         panels["log"].stop()
         
         panels["header"].join()
+        panels["conn2"].join()
         panels["log"].join()
         
         # joins on utility daemon threads - this might take a moment since

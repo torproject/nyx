@@ -79,10 +79,40 @@ CONFIG = {"queries.connections.minRate": 5,
           "log.connLookupFailed": log.INFO,
           "log.connLookupFailover": log.NOTICE,
           "log.connLookupAbandon": log.WARN,
-          "log.connLookupRateGrowing": None}
+          "log.connLookupRateGrowing": None,
+          "log.configEntryTypeError": log.NOTICE}
+
+PORT_USAGE = {}
 
 def loadConfig(config):
   config.update(CONFIG)
+  
+  for configKey in config.getKeys():
+    # fetches any port.label.* values
+    if configKey.startswith("port.label."):
+      portEntry = configKey[11:]
+      purpose = config.get(configKey)
+      
+      divIndex = portEntry.find("-")
+      if divIndex == -1:
+        # single port
+        if portEntry.isdigit():
+          PORT_USAGE[portEntry] = purpose
+        else:
+          msg = "Port value isn't numeric for entry: %s" % configKey
+          log.log(CONFIG["log.configEntryTypeError"], msg)
+      else:
+        try:
+          # range of ports (inclusive)
+          minPort = int(portEntry[:divIndex])
+          maxPort = int(portEntry[divIndex + 1:])
+          if minPort > maxPort: raise ValueError()
+          
+          for port in range(minPort, maxPort + 1):
+            PORT_USAGE[str(port)] = purpose
+        except ValueError:
+          msg = "Unable to parse port range for entry: %s" % configKey
+          log.log(CONFIG["log.configEntryTypeError"], msg)
 
 def isValidIpAddress(ipStr):
   """
@@ -122,6 +152,17 @@ def isIpAddressPrivate(ipAddr):
       return True
   
   return False
+
+def getPortUsage(port):
+  """
+  Provides the common use of a given port. If no useage is known then this
+  provides None.
+  
+  Arguments:
+    port - port number to look up
+  """
+  
+  return PORT_USAGE.get(port)
 
 def getResolverCommand(resolutionCmd, processName, processPid = ""):
   """

@@ -35,6 +35,7 @@ TODO
           myInternal --> myExternal --> foreign
           idea and initial patch by Fabian Keil
         - give a warning if family relays don't name us
+        - use SAVECONF instead when overwriting the current torrc
       * classify config options as useful (defaultly shown), standard, and
         deprecated (configured to be hidden by default)
       * check tor source for deprecated options like 'group' (are they
@@ -182,6 +183,8 @@ TODO
       instance 'SETEVENTS')
     * 'safe' option that restricts to read-only access (start with this)
     * issue sighup reset
+  * options for more deailed control of when bandwidth's contributed
+    https://trac.torproject.org/projects/tor/ticket/1730
   * make use of the new process/* GETINFO options
     They'll be available in the next tor release, as per:
     https://trac.torproject.org/projects/tor/ticket/2291

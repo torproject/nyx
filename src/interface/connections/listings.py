@@ -9,16 +9,16 @@ from util import connections, enum, hostnames, torTools, uiTools
 # Connection Categories:
 #   Inbound     Relay connection, coming to us.
 #   Outbound    Relay connection, leaving us.
-#   DNS         Relayed dns queries.
+#   Exit        Outbound relay connection leaving the Tor network.
 #   Socks       Application client connection.
 #   Client      Circuits for our client traffic.
 #   Directory   Fetching tor consensus information.
 #   Control     Tor controller (arm, vidalia, etc).
 
 # TODO: add recognizing of CLIENT connection type
-Category = enum.Enum("INBOUND", "OUTBOUND", "DNS", "SOCKS", "CLIENT", "DIRECTORY", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "SOCKS", "CLIENT", "DIRECTORY", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green", Category.OUTBOUND: "blue",
-                  Category.DNS: "blue",      Category.SOCKS: "cyan",
+                  Category.EXIT: "red",      Category.SOCKS: "cyan",
                   Category.CLIENT: "cyan",   Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
@@ -128,20 +128,37 @@ class ConnectionEntry:
       myOrPort = listenAddr[listenAddr.find(":") + 1:]
     
     if lPort in (myOrPort, myDirPort):
-      self.type = Category.INBOUND
+      self.baseType = Category.INBOUND
       self.local.isORPort = True
     elif lPort == mySocksPort:
-      self.type = Category.SOCKS
+      self.baseType = Category.SOCKS
     elif lPort == myCtlPort:
-      self.type = Category.CONTROL
+      self.baseType = Category.CONTROL
     elif (fIpAddr, fPort) in myAuthorities:
-      self.type = Category.DIRECTORY
-    elif fPort == "53":
-      # TODO: also check if this was a UDP connection (gonna take a bit more work...)
-      self.type = Category.DNS
+      self.baseType = Category.DIRECTORY
     else:
-      self.type = Category.OUTBOUND
+      self.baseType = Category.OUTBOUND
       self.foreign.isORPort = True
+  
+  def getType(self):
+    """
+    Provides the category this connection belongs to. This isn't always static
+    since it can rely on dynamic information (like the current consensus).
+    """
+    
+    if self.baseType == Category.OUTBOUND:
+      # Currently the only non-static categories are OUTBOUND vs EXIT (since
+      # this depends on the current consensus). The exitability and
+      # fingerprints are both cached by the torTools util making this a quick
+      # lookup.
+      
+      conn = torTools.getConn()
+      isKnownRelay = self.foreign.getFingerprint() != "UNKNOWN"
+      isExitingAllowed = conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort())
+      isExitConnection = isExitingAllowed and not isKnownRelay
+      
+      return Category.EXIT if isExitingAllowed else Category.OUTBOUND
+    else: return self.baseType
   
   def isPrivate(self):
     """
@@ -149,21 +166,25 @@ class ConnectionEntry:
     connection or exit traffic.
     """
     
-    if self.type == Category.INBOUND:
+    myType = self.getType()
+    
+    if myType == Category.INBOUND:
       # if the connection doesn't belong to a known relay then it might be
       # client traffic
       
       return self.foreign.getFingerprint() == "UNKNOWN"
-    elif self.type == Category.OUTBOUND:
-      # if it's both not a relay and obeys our exit policy then it may belong
-      # to exit traffic
+    elif myType == Category.EXIT:
+      # DNS connections exiting us aren't private (since they're hitting our
+      # resolvers). Everything else, however, is.
       
-      conn = torTools.getConn()
-      isExitingAllowed = conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort())
-      return self.foreign.getFingerprint() == "UNKNOWN" and isExitingAllowed
-    else:
-      # for control, application, and directory connections this isn't a concern
-      return False
+      # TODO: Ideally this would also double check that it's a UDP connection
+      # (since DNS is the only UDP connections Tor will relay), however this
+      # will take a bit more work to propagate the information up from the
+      # connection resolver.
+      return self.foreign.getPort() != "53"
+    
+    # for everything else this isn't a concern
+    return False
   
   def getLabel(self, listingType, width):
     """
@@ -206,15 +227,36 @@ class ConnectionEntry:
       return self._labelCache
     
     conn = torTools.getConn()
+    myType = self.getType()
     
     # destination of the connection
-    dstAddress = "<scrubbed>"
-    if not self.isPrivate():
+    if self.isPrivate():
+      dstAddress = "<scrubbed>:%s" % self.foreign.getPort()
+    else:
       dstAddress = "%s:%s" % (self.foreign.getIpAddr(), self.foreign.getPort())
+    
+    # Appends an extra field which could be...
+    # - the port's purpose for exits
+    # - locale for most other connections
+    # - blank if it's on the local network
+    
+    if myType == Category.EXIT:
+      purpose = connections.getPortUsage(self.foreign.getPort())
       
-      # if this isn't on the local network then also include the country
-      if not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
-        dstAddress += " (%s)" % self.foreign.getLocale()
+      if purpose:
+        spaceAvailable = 26 - len(dstAddress) - 3
+        
+        # BitTorrent is a common protocol to truncate, so just use "Torrent"
+        # if there's not enough room.
+        if len(purpose) > spaceAvailable and purpose == "BitTorrent":
+          purpose = "Torrent"
+        
+        # crops with a hyphen if too long
+        purpose = uiTools.cropStr(purpose, spaceAvailable, endType = uiTools.Ending.HYPHEN)
+        
+        dstAddress += " (%s)" % purpose
+    elif not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
+      dstAddress += " (%s)" % self.foreign.getLocale()
     
     src, dst, etc = "", "", ""
     if listingType == connPanel.Listing.IP:
@@ -279,7 +321,7 @@ class ConnectionEntry:
     elif listingType == connPanel.Listing.FINGERPRINT:
       # base data requires 75 characters
       src = "localhost"
-      if self.type == Category.CONTROL: dst = "localhost"
+      if myType == Category.CONTROL: dst = "localhost"
       else: dst = self.foreign.getFingerprint()
       dst = "%-40s" % dst
       
@@ -295,7 +337,7 @@ class ConnectionEntry:
     else:
       # base data uses whatever extra room's available (using minimun of 50 characters)
       src = self.local.getNickname()
-      if self.type == Category.CONTROL: dst = self.local.getNickname()
+      if myType == Category.CONTROL: dst = self.local.getNickname()
       else: dst = self.foreign.getNickname()
       
       # space available for foreign nickname
@@ -313,7 +355,7 @@ class ConnectionEntry:
       
       dst = ("%%-%is" % nicknameSpace) % dst
     
-    if self.type == Category.INBOUND: src, dst = dst, src
+    if myType == Category.INBOUND: src, dst = dst, src
     padding = width - len(src) - len(dst) - len(etc) - 27
     self._labelCache = "%s  -->  %s  %s%s" % (src, dst, etc, " " * padding)
     self._labelCacheArgs = (listingType, width)
