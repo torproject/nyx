@@ -252,6 +252,7 @@ class Controller(TorCtl.PostEventListener):
     self.lastHeartbeat = 0              # time of the last tor event
     
     self._exitPolicyChecker = None
+    self._isExitingAllowed = False
     self._exitPolicyLookupCache = {}    # mappings of ip/port tuples to if they were accepted by the policy or not
     
     # Logs issues and notices when fetching the path prefix if true. This is
@@ -300,6 +301,7 @@ class Controller(TorCtl.PostEventListener):
       self._nicknameLookupCache = {}
       
       self._exitPolicyChecker = self.getExitPolicy()
+      self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
       self._exitPolicyLookupCache = {}
       
       # sets the events listened for by the new controller (incompatible events
@@ -568,6 +570,7 @@ class Controller(TorCtl.PostEventListener):
         # special caches for the exit policy
         if param.lower() == "exitpolicy":
           self._exitPolicyChecker = self.getExitPolicy()
+          self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
           self._exitPolicyLookupCache = {}
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
@@ -746,7 +749,11 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the policy if it isn't yet cached
       if not (ipAddress, port) in self._exitPolicyLookupCache:
-        isAccepted = self._exitPolicyChecker.check(ipAddress, port)
+        # If we allow any exiting then this could be relayed DNS queries,
+        # otherwise the policy is checked.
+        
+        if self._isExitingAllowed and port == "53": isAccepted = True
+        else: isAccepted = self._exitPolicyChecker.check(ipAddress, port)
         self._exitPolicyLookupCache[(ipAddress, port)] = isAccepted
       
       result = self._exitPolicyLookupCache[(ipAddress, port)]
@@ -1615,6 +1622,16 @@ class ExitPolicy:
     # last entry so cut off the remaining chain
     if self.isIpWildcard and self.isPortWildcard:
       self.nextRule = None
+  
+  def isExitingAllowed(self):
+    """
+    Provides true if the policy allows exiting whatsoever, false otherwise.
+    """
+    
+    if self.isAccept: return True
+    elif self.isIpWildcard and self.isPortWildcard: return False
+    elif not self.nextRule: return False # fell off policy (shouldn't happen)
+    else: return self.nextRule.isExitingAllowed()
   
   def check(self, ipAddress, port):
     """
