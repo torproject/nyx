@@ -157,7 +157,7 @@ class ConnectionEntry:
       isExitingAllowed = conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort())
       isExitConnection = isExitingAllowed and not isKnownRelay
       
-      return Category.EXIT if isExitingAllowed else Category.OUTBOUND
+      return Category.EXIT if isExitConnection else Category.OUTBOUND
     else: return self.baseType
   
   def isPrivate(self):
