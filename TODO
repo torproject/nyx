@@ -68,6 +68,7 @@ TODO
     > 'GETINFO config-text' has been introduced in 0.2.2.7, while I am
     > running 0.2.1.28. Maybe a check in arm for the version-number for that
     > feature to be enabled might be an idea?
+    also: https://trac.torproject.org/projects/tor/ticket/2501
   * When saving the config the Log entry should be filtered out if unnecessary.
   * The config write dialog (ie, the one for saving the config) has its a
     misaligned border when it's smaller than the top detail section.

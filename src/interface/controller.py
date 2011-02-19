@@ -247,7 +247,7 @@ def showMenu(stdscr, popup, title, options, initialSelection):
       popup.recreate(stdscr, newWidth)
       
       key = 0
-      while key not in (curses.KEY_ENTER, 10, ord(' ')):
+      while not uiTools.isSelectionKey(key):
         popup.clear()
         popup.win.box()
         popup.addstr(0, 0, title, curses.A_STANDOUT)
@@ -348,7 +348,7 @@ def showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelec
       elif key == curses.KEY_RIGHT: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 1)
       elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
       elif key == curses.KEY_DOWN: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 4)
-      elif key in (curses.KEY_ENTER, 10, ord(' ')):
+      elif uiTools.isSelectionKey(key):
         # selected entry (the ord of '10' seems needed to pick up enter)
         selection = selectionOptions[cursorLoc]
         if selection == "Cancel": break
@@ -997,6 +997,12 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
+        elif page == 4:
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
+          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
+          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
+          popup.addfstr(3, 2, "<b>enter</b>: connection details")
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
@@ -1273,7 +1279,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       panels["control"].resolvingCounter = -1
       hostnames.setPaused(True)
       panels["conn"].sortConnections()
-    elif page == 1 and panels["conn"].isCursorEnabled and key in (curses.KEY_ENTER, 10, ord(' ')):
+    elif page == 1 and panels["conn"].isCursorEnabled and uiTools.isSelectionKey(key):
+      # TODO: deprecated when migrated to the new connection panel
       # provides details on selected connection
       panel.CURSES_LOCK.acquire()
       try:
@@ -1291,7 +1298,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         curses.cbreak() # wait indefinitely for key presses (no timeout)
         key = 0
         
-        while key not in (curses.KEY_ENTER, 10, ord(' ')):
+        while not uiTools.isSelectionKey(key):
           popup.clear()
           popup.win.box()
           popup.addstr(0, 0, "Connection Details:", curses.A_STANDOUT)
@@ -1617,7 +1624,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.recreate(stdscr)
         
         key, selection = 0, 2
-        while key not in (curses.KEY_ENTER, 10, ord(' ')):
+        while not uiTools.isSelectionKey(key):
           # if the popup has been resized then recreate it (needed for the
           # proper border height)
           newHeight, newWidth = panels["popup"].getPreferredSize()
@@ -1740,7 +1747,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["config"].setSortOrder(resultEnums)
       
       panels["config"].redraw(True)
-    elif page == 2 and key in (curses.KEY_ENTER, 10, ord(' ')):
+    elif page == 2 and uiTools.isSelectionKey(key):
       # let the user edit the configuration value, unchanged if left blank
       panel.CURSES_LOCK.acquire()
       try:

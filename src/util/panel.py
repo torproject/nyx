@@ -248,6 +248,44 @@ class Panel():
     finally:
       CURSES_LOCK.release()
   
+  def hline(self, y, x, length):
+    """
+    Draws a horizontal line. This should only be called from the context of a
+    panel's draw method.
+    
+    Arguments:
+      y      - vertical location
+      x      - horizontal location
+      length - length the line spans
+    """
+    
+    if self.win and self.maxX > x and self.maxY > y:
+      try:
+        drawLength = min(length, self.maxX - x)
+        self.win.hline(y, x, curses.ACS_HLINE, drawLength)
+      except:
+        # in edge cases drawing could cause a _curses.error
+        pass
+  
+  def vline(self, y, x, length):
+    """
+    Draws a vertical line. This should only be called from the context of a
+    panel's draw method.
+    
+    Arguments:
+      y      - vertical location
+      x      - horizontal location
+      length - length the line spans
+    """
+    
+    if self.win and self.maxX > x and self.maxY > y:
+      try:
+        drawLength = min(length, self.maxY - y)
+        self.win.vline(y, x, curses.ACS_VLINE, drawLength)
+      except:
+        # in edge cases drawing could cause a _curses.error
+        pass
+  
   def addstr(self, y, x, msg, attr=curses.A_NORMAL):
     """
     Writes string to subwindow if able. This takes into account screen bounds

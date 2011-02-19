@@ -194,10 +194,61 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
 
+def drawBox(panel, top, left, width, height):
+  """
+  Draws a box in the panel with the given bounds.
+  
+  Arguments:
+    panel  - panel in which to draw
+    top    - vertical position of the box's top
+    left   - horizontal position of the box's left side
+    width  - width of the drawn box
+    height - height of the drawn box
+  """
+  
+  panelHeight, panelWidth = panel.getPreferredSize()
+  
+  # checks if there's nothing to display
+  if left > panelWidth or top > panelHeight: return
+  
+  # draws the top and bottom
+  panel.hline(top, left + 1, width - 1)
+  panel.hline(top + height, left + 1, width - 1)
+  
+  # draws the left and right sides
+  panel.vline(top + 1, left, height - 1)
+  panel.vline(top + 1, left + width, height - 1)
+  
+  # draws the corners
+  corners = ((0, 0, curses.ACS_ULCORNER),
+             (0, 1, curses.ACS_URCORNER),
+             (1, 0, curses.ACS_LLCORNER),
+             (1, 1, curses.ACS_LRCORNER))
+  
+  for isBottom, isRight, cornerType in corners:
+    yLoc = top + height * isBottom
+    xLoc = left + width * isRight
+    
+    if yLoc < panelHeight and xLoc < panelWidth:
+      panel.win.addch(yLoc, xLoc, cornerType)
+
+def isSelectionKey(key):
+  """
+  Returns true if the keycode matches the enter or space keys.
+  
+  Argument:
+    key - keycode to be checked
+  """
+  
+  return key in (curses.KEY_ENTER, 10, ord(' '))
+
 def isScrollKey(key):
   """
   Returns true if the keycode is recognized by the getScrollPosition function
   for scrolling.
+  
+  Argument:
+    key - keycode to be checked
   """
   
   return key in SCROLL_KEYS

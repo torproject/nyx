@@ -255,9 +255,6 @@ class ConfigPanel(panel.Panel):
     configType = "Tor" if self.configType == State.TOR else "Arm"
     hiddenMsg = "press 'a' to hide most options" if self.showAll else "press 'a' to show all options"
     
-    titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
-    self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
-    
     # panel with details for the current selection
     detailPanelHeight = self._config["features.config.selectionDetails.height"]
     isScrollbarVisible = False
@@ -275,7 +272,10 @@ class ConfigPanel(panel.Panel):
       cursorSelection = self.getSelection()
       isScrollbarVisible = len(self._getConfigOptions()) > height - detailPanelHeight - 1
       
-      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, titleLabel, isScrollbarVisible)
+      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
+    
+    titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
+    self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 1
@@ -305,27 +305,15 @@ class ConfigPanel(panel.Panel):
   def _getConfigOptions(self):
     return self.confContents if self.showAll else self.confImportantContents
   
-  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, titleLabel, isScrollbarVisible):
+  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, isScrollbarVisible):
     """
     Renders a panel for the selected configuration option.
     """
     
-    # border (top)
-    if width >= len(titleLabel):
-      self.win.hline(0, len(titleLabel), curses.ACS_HLINE, width - len(titleLabel))
-      self.win.addch(0, width, curses.ACS_URCORNER)
-    
-    # border (sides)
-    self.win.vline(1, 0, curses.ACS_VLINE, detailPanelHeight - 1)
-    self.win.vline(1, width, curses.ACS_VLINE, detailPanelHeight - 1)
-    
-    # border (bottom)
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
-    self.win.addch(detailPanelHeight, 0, curses.ACS_LLCORNER)
-    if width >= 2: self.win.hline(detailPanelHeight, 1, curses.ACS_HLINE, width - 1)
+    uiTools.drawBox(self, 0, 0, width, detailPanelHeight)
     if width >= 2 and isScrollbarVisible: self.win.addch(detailPanelHeight, 1, curses.ACS_TTEE)
-    self.win.addch(detailPanelHeight, width, curses.ACS_LRCORNER)
     
     selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(Field.CATEGORY)])
     
