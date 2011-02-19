@@ -194,7 +194,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
 
-def drawBox(panel, top, left, width, height):
+def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   Draws a box in the panel with the given bounds.
   
@@ -204,33 +204,22 @@ def drawBox(panel, top, left, width, height):
     left   - horizontal position of the box's left side
     width  - width of the drawn box
     height - height of the drawn box
+    attr   - text attributes
   """
   
-  panelHeight, panelWidth = panel.getPreferredSize()
-  
-  # checks if there's nothing to display
-  if left > panelWidth or top > panelHeight: return
-  
   # draws the top and bottom
-  panel.hline(top, left + 1, width - 1)
-  panel.hline(top + height, left + 1, width - 1)
+  panel.hline(top, left + 1, width - 1, attr)
+  panel.hline(top + height, left + 1, width - 1, attr)
   
   # draws the left and right sides
-  panel.vline(top + 1, left, height - 1)
-  panel.vline(top + 1, left + width, height - 1)
+  panel.vline(top + 1, left, height - 1, attr)
+  panel.vline(top + 1, left + width, height - 1, attr)
   
   # draws the corners
-  corners = ((0, 0, curses.ACS_ULCORNER),
-             (0, 1, curses.ACS_URCORNER),
-             (1, 0, curses.ACS_LLCORNER),
-             (1, 1, curses.ACS_LRCORNER))
-  
-  for isBottom, isRight, cornerType in corners:
-    yLoc = top + height * isBottom
-    xLoc = left + width * isRight
-    
-    if yLoc < panelHeight and xLoc < panelWidth:
-      panel.win.addch(yLoc, xLoc, cornerType)
+  panel.addch(top, left, curses.ACS_ULCORNER, attr)
+  panel.addch(top, left + width, curses.ACS_URCORNER, attr)
+  panel.addch(top + height, left, curses.ACS_LLCORNER, attr)
+  panel.addch(top + height, left + width, curses.ACS_LRCORNER, attr)
 
 def isSelectionKey(key):
   """

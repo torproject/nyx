@@ -60,7 +60,7 @@ class TorrcPanel(panel.Panel):
     
     self.valsLock.release()
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     
     # If true, we assume that the cached value in self._lastContentHeight is

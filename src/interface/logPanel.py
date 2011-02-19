@@ -778,7 +778,7 @@ class LogPanel(panel.Panel, threading.Thread):
       self.redraw(True)
       self.valsLock.release()
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
@@ -831,23 +831,22 @@ class LogPanel(panel.Panel, threading.Thread):
         # bottom of the divider
         if seenFirstDateDivider:
           if lineCount >= 1 and lineCount < height and showDaybreaks:
-            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
-            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
-            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+            self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER,  dividerAttr)
+            self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
+            self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
           
           lineCount += 1
         
         # top of the divider
         if lineCount >= 1 and lineCount < height and showDaybreaks:
           timeLabel = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
-          self.win.vline(lineCount, dividerIndent, curses.ACS_ULCORNER | dividerAttr, 1)
-          self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, 1)
+          self.addch(lineCount, dividerIndent, curses.ACS_ULCORNER, dividerAttr)
+          self.addch(lineCount, dividerIndent + 1, curses.ACS_HLINE, dividerAttr)
           self.addstr(lineCount, dividerIndent + 2, timeLabel, curses.A_BOLD | dividerAttr)
           
-          if dividerIndent + len(timeLabel) + 2 <= width:
-            lineLength = width - dividerIndent - len(timeLabel) - 2
-            self.win.hline(lineCount, dividerIndent + len(timeLabel) + 2, curses.ACS_HLINE | dividerAttr, lineLength)
-            self.win.vline(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
+          lineLength = width - dividerIndent - len(timeLabel) - 2
+          self.hline(lineCount, dividerIndent + len(timeLabel) + 2, lineLength, dividerAttr)
+          self.addch(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER, dividerAttr)
         
         seenFirstDateDivider = True
         lineCount += 1
@@ -886,8 +885,8 @@ class LogPanel(panel.Panel, threading.Thread):
           
           if drawLine < height and drawLine >= 1:
             if seenFirstDateDivider and width - dividerIndent >= 3 and showDaybreaks:
-              self.win.vline(drawLine, dividerIndent, curses.ACS_VLINE | dividerAttr, 1)
-              self.win.vline(drawLine, width, curses.ACS_VLINE | dividerAttr, 1)
+              self.addch(drawLine, dividerIndent, curses.ACS_VLINE, dividerAttr)
+              self.addch(drawLine, width, curses.ACS_VLINE, dividerAttr)
             
             self.addstr(drawLine, cursorLoc, msg, format)
           
@@ -902,13 +901,9 @@ class LogPanel(panel.Panel, threading.Thread):
       # if this is the last line and there's room, then draw the bottom of the divider
       if not deduplicatedLog and seenFirstDateDivider:
         if lineCount < height and showDaybreaks:
-          # when resizing with a small width the following entries can be
-          # problematc (though I'm not sure why)
-          try:
-            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
-            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
-            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
-          except: pass
+          self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER, dividerAttr)
+          self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
+          self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
         
         lineCount += 1
     

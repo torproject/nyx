@@ -97,7 +97,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         self.redraw(True)
         lastDraw += 1
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     
     # title label with connection counts

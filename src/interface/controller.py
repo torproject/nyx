@@ -85,7 +85,7 @@ class ControlPanel(panel.Panel):
     self.msgText = msgText
     self.msgAttr = msgAttr
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     msgText = self.msgText
     msgAttr = self.msgAttr
     barTab = 2                # space between msgText and progress bar

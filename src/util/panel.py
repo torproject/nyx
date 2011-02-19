@@ -188,7 +188,7 @@ class Panel():
     if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     """
     Draws display's content. This is meant to be overwritten by 
     implementations and not called directly (use redraw() instead). The
@@ -196,10 +196,8 @@ class Panel():
     a column less than the actual space.
     
     Arguments:
-      sudwindow - panel's current subwindow instance, providing raw access to
-                  its curses functions
-      width     - horizontal space available for content
-      height    - vertical space available for content
+      width  - horizontal space available for content
+      height - vertical space available for content
     """
     
     pass
@@ -243,12 +241,12 @@ class Panel():
     try:
       if forceRedraw:
         self.win.erase() # clears any old contents
-        self.draw(self.win, self.maxX - 1, self.maxY)
+        self.draw(self.maxX - 1, self.maxY)
       self.win.refresh()
     finally:
       CURSES_LOCK.release()
   
-  def hline(self, y, x, length):
+  def hline(self, y, x, length, attr=curses.A_NORMAL):
     """
     Draws a horizontal line. This should only be called from the context of a
     panel's draw method.
@@ -257,17 +255,18 @@ class Panel():
       y      - vertical location
       x      - horizontal location
       length - length the line spans
+      attr   - text attributes
     """
     
     if self.win and self.maxX > x and self.maxY > y:
       try:
         drawLength = min(length, self.maxX - x)
-        self.win.hline(y, x, curses.ACS_HLINE, drawLength)
+        self.win.hline(y, x, curses.ACS_HLINE | attr, drawLength)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
   
-  def vline(self, y, x, length):
+  def vline(self, y, x, length, attr=curses.A_NORMAL):
     """
     Draws a vertical line. This should only be called from the context of a
     panel's draw method.
@@ -276,12 +275,32 @@ class Panel():
       y      - vertical location
       x      - horizontal location
       length - length the line spans
+      attr   - text attributes
     """
     
     if self.win and self.maxX > x and self.maxY > y:
       try:
         drawLength = min(length, self.maxY - y)
-        self.win.vline(y, x, curses.ACS_VLINE, drawLength)
+        self.win.vline(y, x, curses.ACS_VLINE | attr, drawLength)
+      except:
+        # in edge cases drawing could cause a _curses.error
+        pass
+  
+  def addch(self, y, x, char, attr=curses.A_NORMAL):
+    """
+    Draws a single character. This should only be called from the context of a
+    panel's draw method.
+    
+    Arguments:
+      y    - vertical location
+      x    - horizontal location
+      char - character to be drawn
+      attr - text attributes
+    """
+    
+    if self.win and self.maxX > x and self.maxY > y:
+      try:
+        self.win.addch(y, x, char, attr)
       except:
         # in edge cases drawing could cause a _curses.error
         pass

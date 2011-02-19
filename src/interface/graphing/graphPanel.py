@@ -275,7 +275,7 @@ class GraphPanel(panel.Panel):
     
     self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     """ Redraws graph panel """
     
     if self.currentDisplay:

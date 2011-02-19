@@ -95,7 +95,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/orPort"]: return 4 if isWide else 6
     else: return 3 if isWide else 4
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     isWide = width + 1 >= MIN_DUAL_COL_WIDTH
     

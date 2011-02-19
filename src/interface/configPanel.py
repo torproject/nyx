@@ -248,7 +248,7 @@ class ConfigPanel(panel.Panel):
       self.redraw(True)
     self.valsLock.release()
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     
     # draws the top label
@@ -313,7 +313,7 @@ class ConfigPanel(panel.Panel):
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
     uiTools.drawBox(self, 0, 0, width, detailPanelHeight)
-    if width >= 2 and isScrollbarVisible: self.win.addch(detailPanelHeight, 1, curses.ACS_TTEE)
+    if isScrollbarVisible: self.addch(detailPanelHeight, 1, curses.ACS_TTEE)
     
     selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(Field.CATEGORY)])
     
