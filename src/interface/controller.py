@@ -745,7 +745,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           isResize = lastSize != newSize
           lastSize = newSize
           
-          if panelKey in ("header", "graph", "log", "config", "torrc"):
+          if panelKey in ("header", "graph", "log", "config", "torrc", "conn2"):
             # revised panel (manages its own content refreshing)
             panels[panelKey].redraw(isResize)
           else:
@@ -1280,7 +1280,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       hostnames.setPaused(True)
       panels["conn"].sortConnections()
     elif page == 1 and panels["conn"].isCursorEnabled and uiTools.isSelectionKey(key):
-      # TODO: deprecated when migrated to the new connection panel
+      # TODO: deprecated when migrated to the new connection panel, thought as
+      # well keep around until there's a counterpart for hostname fetching
+      
       # provides details on selected connection
       panel.CURSES_LOCK.acquire()
       try:

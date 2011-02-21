@@ -305,40 +305,40 @@ class ConfigPanel(panel.Panel):
   def _getConfigOptions(self):
     return self.confContents if self.showAll else self.confImportantContents
   
-  def _drawSelectionPanel(self, cursorSelection, width, detailPanelHeight, isScrollbarVisible):
+  def _drawSelectionPanel(self, selection, width, detailPanelHeight, isScrollbarVisible):
     """
     Renders a panel for the selected configuration option.
     """
     
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
-    uiTools.drawBox(self, 0, 0, width, detailPanelHeight)
+    uiTools.drawBox(self, 0, 0, width, detailPanelHeight + 1)
     if isScrollbarVisible: self.addch(detailPanelHeight, 1, curses.ACS_TTEE)
     
-    selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[cursorSelection.get(Field.CATEGORY)])
+    selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
     
     # first entry:
     # <option> (<category> Option)
-    optionLabel =" (%s Option)" % cursorSelection.get(Field.CATEGORY)
-    self.addstr(1, 2, cursorSelection.get(Field.OPTION) + optionLabel, selectionFormat)
+    optionLabel =" (%s Option)" % selection.get(Field.CATEGORY)
+    self.addstr(1, 2, selection.get(Field.OPTION) + optionLabel, selectionFormat)
     
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
     if detailPanelHeight >= 3:
       valueAttr = []
-      valueAttr.append("default" if cursorSelection.get(Field.IS_DEFAULT) else "custom")
-      valueAttr.append(cursorSelection.get(Field.TYPE))
-      valueAttr.append("usage: %s" % (cursorSelection.get(Field.ARG_USAGE)))
+      valueAttr.append("default" if selection.get(Field.IS_DEFAULT) else "custom")
+      valueAttr.append(selection.get(Field.TYPE))
+      valueAttr.append("usage: %s" % (selection.get(Field.ARG_USAGE)))
       valueAttrLabel = ", ".join(valueAttr)
       
       valueLabelWidth = width - 12 - len(valueAttrLabel)
-      valueLabel = uiTools.cropStr(cursorSelection.get(Field.VALUE), valueLabelWidth)
+      valueLabel = uiTools.cropStr(selection.get(Field.VALUE), valueLabelWidth)
       
       self.addstr(2, 2, "Value: %s (%s)" % (valueLabel, valueAttrLabel), selectionFormat)
     
     # remainder is filled with the man page description
     descriptionHeight = max(0, detailPanelHeight - 3)
-    descriptionContent = "Description: " + cursorSelection.get(Field.DESCRIPTION)
+    descriptionContent = "Description: " + selection.get(Field.DESCRIPTION)
     
     for i in range(descriptionHeight):
       # checks if we're done writing the description

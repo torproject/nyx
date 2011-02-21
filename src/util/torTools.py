@@ -246,6 +246,8 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
+    self._consensusLookupCache = {}     # lookup cache with network status entries
+    self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
     self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
@@ -299,6 +301,8 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintLookupCache = {}
       self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
+      self._consensusLookupCache = {}
+      self._descriptorLookupCache = {}
       
       self._exitPolicyChecker = self.getExitPolicy()
       self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
@@ -805,7 +809,54 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
-  def getRelayFingerprint(self, relayAddress, relayPort = None):
+  def getConsensusEntry(self, relayFingerprint):
+    """
+    Provides the most recently available consensus information for the given
+    relay. This is none if no such information exists.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if not relayFingerprint in self._consensusLookupCache:
+        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+        self._consensusLookupCache[relayFingerprint] = nsEntry
+      
+      result = self._consensusLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getDescriptorEntry(self, relayFingerprint):
+    """
+    Provides the most recently available descriptor information for the given
+    relay. Unless FetchUselessDescriptors is set this may frequently be
+    unavailable. If no such descriptor is available then this returns None.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if not relayFingerprint in self._descriptorLookupCache:
+        descEntry = self.getInfo("desc/id/%s" % relayFingerprint)
+        self._descriptorLookupCache[relayFingerprint] = descEntry
+      
+      result = self._descriptorLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayFingerprint(self, relayAddress, relayPort = None, getAllMatches = False):
     """
     Provides the fingerprint associated with the given address. If there's
     multiple potential matches or the mapping is unknown then this returns
@@ -814,20 +865,32 @@ class Controller(TorCtl.PostEventListener):
     we have a connection with.
     
     Arguments:
-      relayAddress - address of relay to be returned
-      relayPort    - orport of relay (to further narrow the results)
+      relayAddress  - address of relay to be returned
+      relayPort     - orport of relay (to further narrow the results)
+      getAllMatches - ignores the relayPort and provides all of the
+                      (port, fingerprint) tuples matching the given
+                      address
     """
     
     self.connLock.acquire()
     
     result = None
     if self.isAlive():
-      # query the fingerprint if it isn't yet cached
-      if not (relayAddress, relayPort) in self._fingerprintLookupCache:
-        relayFingerprint = self._getRelayFingerprint(relayAddress, relayPort)
-        self._fingerprintLookupCache[(relayAddress, relayPort)] = relayFingerprint
-      
-      result = self._fingerprintLookupCache[(relayAddress, relayPort)]
+      if getAllMatches:
+        # populates the ip -> fingerprint mappings if not yet available
+        if self._fingerprintMappings == None:
+          self._fingerprintMappings = self._getFingerprintMappings()
+        
+        if relayAddress in self._fingerprintMappings:
+          result = self._fingerprintMappings[relayAddress]
+        else: result = []
+      else:
+        # query the fingerprint if it isn't yet cached
+        if not (relayAddress, relayPort) in self._fingerprintLookupCache:
+          relayFingerprint = self._getRelayFingerprint(relayAddress, relayPort)
+          self._fingerprintLookupCache[(relayAddress, relayPort)] = relayFingerprint
+        
+        result = self._fingerprintLookupCache[(relayAddress, relayPort)]
     
     self.connLock.release()
     
@@ -854,7 +917,7 @@ class Controller(TorCtl.PostEventListener):
           self._nicknameLookupCache[relayFingerprint] = myNickname
         else:
           # check the consensus for the relay
-          nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+          nsEntry = self.getConsensusEntry(relayFingerprint)
           
           if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
           else: relayNickname = None
@@ -1108,6 +1171,7 @@ class Controller(TorCtl.PostEventListener):
   
   def ns_event(self, event):
     self._updateHeartbeat()
+    self._consensusLookupCache = {}
     
     myFingerprint = self.getInfo("fingerprint")
     if myFingerprint:
@@ -1135,6 +1199,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintLookupCache = {}
     self._fingerprintsAttachedCache = None
     self._nicknameLookupCache = {}
+    self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
       self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
@@ -1155,6 +1220,7 @@ class Controller(TorCtl.PostEventListener):
     # the new relays.
     self._fingerprintLookupCache = {}
     self._fingerprintsAttachedCache = None
+    self._descriptorLookupCache = {}
     
     if self._fingerprintMappings != None:
       for fingerprint in event.idlist:

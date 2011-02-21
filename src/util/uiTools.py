@@ -166,6 +166,7 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   
   # checks if there isn't the minimum space needed to include anything
   lastWordbreak = msg.rfind(" ", 0, size + 1)
+  lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
   if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
     if getRemainder: return ("", msg)
     else: return ""
@@ -183,13 +184,14 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
     returnMsg, remainder = msg[:size], msg[size:]
     if endType == Ending.HYPHEN:
       remainder = returnMsg[-1] + remainder
-      returnMsg = returnMsg[:-1] + "-"
+      returnMsg = returnMsg[:-1].rstrip() + "-"
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
   if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
   
-  if endType == Ending.ELLIPSE: returnMsg += "..."
+  if endType == Ending.ELLIPSE:
+    returnMsg = returnMsg.rstrip() + "..."
   
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
@@ -209,17 +211,17 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   
   # draws the top and bottom
   panel.hline(top, left + 1, width - 1, attr)
-  panel.hline(top + height, left + 1, width - 1, attr)
+  panel.hline(top + height - 1, left + 1, width - 1, attr)
   
   # draws the left and right sides
-  panel.vline(top + 1, left, height - 1, attr)
-  panel.vline(top + 1, left + width, height - 1, attr)
+  panel.vline(top + 1, left, height - 2, attr)
+  panel.vline(top + 1, left + width, height - 2, attr)
   
   # draws the corners
   panel.addch(top, left, curses.ACS_ULCORNER, attr)
   panel.addch(top, left + width, curses.ACS_URCORNER, attr)
-  panel.addch(top + height, left, curses.ACS_LLCORNER, attr)
-  panel.addch(top + height, left + width, curses.ACS_LRCORNER, attr)
+  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
+  panel.addch(top + height - 1, left + width, curses.ACS_LRCORNER, attr)
 
 def isSelectionKey(key):
   """

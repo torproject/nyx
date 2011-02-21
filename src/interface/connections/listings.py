@@ -16,6 +16,7 @@ from util import connections, enum, hostnames, torTools, uiTools
 #   Control     Tor controller (arm, vidalia, etc).
 
 # TODO: add recognizing of CLIENT connection type
+DestAttr = enum.Enum("NONE", "LOCALE", "HOSTNAME")
 Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "SOCKS", "CLIENT", "DIRECTORY", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green", Category.OUTBOUND: "blue",
                   Category.EXIT: "red",      Category.SOCKS: "cyan",
@@ -160,6 +161,56 @@ class ConnectionEntry:
       return Category.EXIT if isExitConnection else Category.OUTBOUND
     else: return self.baseType
   
+  def getDestinationLabel(self, maxLength, extraAttr=DestAttr.NONE):
+    """
+    Provides a short description of the destination. This is made up of two
+    components, the base <ip addr>:<port> and an extra piece of information in
+    parentheses. The IP address is scrubbed from private connections.
+    
+    Extra information is...
+    - the port's purpose for exit connections
+    - the extraAttr if the address isn't private and isn't on the local network
+    - nothing otherwise
+    
+    Arguments:
+      maxLength - maximum length of the string returned
+    """
+    
+    # destination of the connection
+    if self.isPrivate():
+      dstAddress = "<scrubbed>:%s" % self.foreign.getPort()
+    else:
+      dstAddress = "%s:%s" % (self.foreign.getIpAddr(), self.foreign.getPort())
+    
+    # Only append the extra info if there's at least a couple characters of
+    # space (this is what's needed for the country codes).
+    if len(dstAddress) + 5 <= maxLength:
+      spaceAvailable = maxLength - len(dstAddress) - 3
+      
+      if self.getType() == Category.EXIT:
+        purpose = connections.getPortUsage(self.foreign.getPort())
+        
+        if purpose:
+          # BitTorrent is a common protocol to truncate, so just use "Torrent"
+          # if there's not enough room.
+          if len(purpose) > spaceAvailable and purpose == "BitTorrent":
+            purpose = "Torrent"
+          
+          # crops with a hyphen if too long
+          purpose = uiTools.cropStr(purpose, spaceAvailable, endType = uiTools.Ending.HYPHEN)
+          
+          dstAddress += " (%s)" % purpose
+      elif not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
+        if extraAttr == DestAttr.LOCALE:
+          dstAddress += " (%s)" % self.foreign.getLocale()
+        elif extraAttr == DestAttr.HOSTNAME:
+          dstHostname = self.foreign.getHostname()
+          
+          if dstHostname:
+            dstAddress += " (%s)" % uiTools.cropStr(dstHostname, spaceAvailable)
+    
+    return dstAddress[:maxLength]
+  
   def isPrivate(self):
     """
     Returns true if the endpoint is private, possibly belonging to a client
@@ -228,35 +279,7 @@ class ConnectionEntry:
     
     conn = torTools.getConn()
     myType = self.getType()
-    
-    # destination of the connection
-    if self.isPrivate():
-      dstAddress = "<scrubbed>:%s" % self.foreign.getPort()
-    else:
-      dstAddress = "%s:%s" % (self.foreign.getIpAddr(), self.foreign.getPort())
-    
-    # Appends an extra field which could be...
-    # - the port's purpose for exits
-    # - locale for most other connections
-    # - blank if it's on the local network
-    
-    if myType == Category.EXIT:
-      purpose = connections.getPortUsage(self.foreign.getPort())
-      
-      if purpose:
-        spaceAvailable = 26 - len(dstAddress) - 3
-        
-        # BitTorrent is a common protocol to truncate, so just use "Torrent"
-        # if there's not enough room.
-        if len(purpose) > spaceAvailable and purpose == "BitTorrent":
-          purpose = "Torrent"
-        
-        # crops with a hyphen if too long
-        purpose = uiTools.cropStr(purpose, spaceAvailable, endType = uiTools.Ending.HYPHEN)
-        
-        dstAddress += " (%s)" % purpose
-    elif not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
-      dstAddress += " (%s)" % self.foreign.getLocale()
+    dstAddress = self.getDestinationLabel(26, DestAttr.LOCALE)
     
     src, dst, etc = "", "", ""
     if listingType == connPanel.Listing.IP:
