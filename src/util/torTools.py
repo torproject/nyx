@@ -911,7 +911,7 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the nickname if it isn't yet cached
       if not relayFingerprint in self._nicknameLookupCache:
-        if relayFingerprint == getInfo("fingerprint"):
+        if relayFingerprint == self.getInfo("fingerprint"):
           # this is us, simply check the config
           myNickname = self.getOption("Nickname", "Unnamed")
           self._nicknameLookupCache[relayFingerprint] = myNickname

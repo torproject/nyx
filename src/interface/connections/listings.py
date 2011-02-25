@@ -23,6 +23,11 @@ CATEGORY_COLOR = {Category.INBOUND: "green", Category.OUTBOUND: "blue",
                   Category.CLIENT: "cyan",   Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
+# static data for listing format
+# <src>  -->  <dst>  <etc><padding>
+LABEL_FORMAT = "%s  -->  %s  %s%s"
+LABEL_MIN_PADDING = 2 # min space between listing label and following data
+
 class Endpoint:
   """
   Collection of attributes associated with a connection endpoint. This is a
@@ -281,9 +286,15 @@ class ConnectionEntry:
     myType = self.getType()
     dstAddress = self.getDestinationLabel(26, DestAttr.LOCALE)
     
+    # The required widths are the sum of the following:
+    # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
+    # - base data for the listing
+    # - that extra field plus any previous
+    
+    usedSpace = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
+    
     src, dst, etc = "", "", ""
     if listingType == connPanel.Listing.IP:
-      # base data requires 73 characters
       myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
       addrDiffer = myExternalIpAddr != self.local.getIpAddr()
       
@@ -291,44 +302,50 @@ class ConnectionEntry:
       src = "%-21s" % srcAddress # ip:port = max of 21 characters
       dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
       
-      if width > 115:
+      usedSpace += len(src) + len(dst) # base data requires 47 characters
+      
+      if width > usedSpace + 42:
         # show fingerprint (column width: 42 characters)
         etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
       
-      if addrDiffer and width > 143:
+      if addrDiffer and width > usedSpace + 28:
         # include the internal address in the src (extra 28 characters)
         internalAddress = "%s:%s" % (self.local.getIpAddr(), self.local.getPort())
         src = "%-21s  -->  %s" % (internalAddress, src)
+        usedSpace += 28
       
-      if (not addrDiffer and width > 143) or width > 155:
+      if width > usedSpace + 10:
         # show nickname (column width: remainder)
-        nicknameSpace = width - 146
+        nicknameSpace = width - usedSpace
         nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
         etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+        usedSpace += nicknameSpace + 2
     elif listingType == connPanel.Listing.HOSTNAME:
-      # base data requires 80 characters
+      # 15 characters for source, and a min of 40 reserved for the destination
       src = "localhost:%-5s" % self.local.getPort()
+      usedSpace += len(stc)
+      minHostnameSpace = 40
       
-      # space available for foreign hostname (stretched to claim any free space)
-      hostnameSpace = width - 42
-      
-      if width > 108:
+      if width > usedSpace + minHostnameSpace + 28:
         # show destination ip/port/locale (column width: 28 characters)
-        hostnameSpace -= 28
         etc += "%-26s  " % dstAddress
+        usedSpace += 28
       
-      if width > 134:
+      if width > usedSpace + minHostnameSpace + 42:
         # show fingerprint (column width: 42 characters)
-        hostnameSpace -= 42
         etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
       
-      if width > 151:
+      if width > usedSpace + minHostnameSpace + 17:
         # show nickname (column width: min 17 characters, uses half of the remainder)
-        nicknameSpace = 15 + (width - 151) / 2
-        hostnameSpace -= (nicknameSpace + 2)
+        nicknameSpace = 15 + (width - (usedSpace + minHostnameSpace + 17)) / 2
         nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
         etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+        usedSpace += (nicknameSpace + 2)
       
+      hostnameSpace = width - usedSpace
+      usedSpace = width
       if self.isPrivate():
         dst = ("%%-%is" % hostnameSpace) % "<scrubbed>"
       else:
@@ -342,45 +359,58 @@ class ConnectionEntry:
         hostname = uiTools.cropStr(hostname, hostnameSpace, 0)
         dst = ("%%-%is:%%-5s" % hostnameSpace) % (hostname, port)
     elif listingType == connPanel.Listing.FINGERPRINT:
-      # base data requires 75 characters
       src = "localhost"
       if myType == Category.CONTROL: dst = "localhost"
       else: dst = self.foreign.getFingerprint()
       dst = "%-40s" % dst
       
-      if width > 92:
-        # show nickname (column width: min 17 characters, uses remainder if extra room's available)
-        nicknameSpace = width - 78 if width < 126 else width - 106
+      usedSpace += len(src) + len(dst) # base data requires 49 characters
+      
+      if width > usedSpace + 17:
+        # show nickname (column width: min 17 characters, consumes any remaining space)
+        nicknameSpace = width - usedSpace
+        
+        # if there's room then also show a column with the destination
+        # ip/port/locale (column width: 28 characters)
+        isIpLocaleIncluded = width > usedSpace + 45
+        if isIpLocaleIncluded: nicknameSpace -= 28
+        
+        nicknameSpace = width - usedSpace - 28 if isIpLocaleVisible else width - usedSpace
         nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
         etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-      
-      if width > 125:
-        # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % dstAddress
+        usedSpace += nicknameSpace + 2
+        
+        if isIpLocaleIncluded:
+          etc += "%-26s  " % dstAddress
+          usedSpace += 28
     else:
-      # base data uses whatever extra room's available (using minimun of 50 characters)
+      # base data requires 50 min characters
       src = self.local.getNickname()
       if myType == Category.CONTROL: dst = self.local.getNickname()
       else: dst = self.foreign.getNickname()
+      minBaseSpace = 50
       
-      # space available for foreign nickname
-      nicknameSpace = width - len(src) - 27
-      
-      if width > 92:
+      if width > usedSpace + minBaseSpace + 42:
         # show fingerprint (column width: 42 characters)
-        nicknameSpace -= 42
         etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
       
-      if width > 120:
+      if width > usedSpace + minBaseSpace + 28:
         # show destination ip/port/locale (column width: 28 characters)
-        nicknameSpace -= 28
         etc += "%-26s  " % dstAddress
+        usedSpace += 28
       
-      dst = ("%%-%is" % nicknameSpace) % dst
+      baseSpace = width - usedSpace
+      if len(src) + len(dst) > baseSpace:
+        src = uiTools.cropStr(src, baseSpace / 3)
+        dst = uiTools.cropStr(dst, baseSpace - len(src))
+      
+      # pads dst entry to its max space
+      dst = ("%%-%is" % (baseSpace - len(src))) % dst
     
     if myType == Category.INBOUND: src, dst = dst, src
-    padding = width - len(src) - len(dst) - len(etc) - 27
-    self._labelCache = "%s  -->  %s  %s%s" % (src, dst, etc, " " * padding)
+    padding = " " * (width - usedSpace + LABEL_MIN_PADDING)
+    self._labelCache = LABEL_FORMAT % (src, dst, etc, padding)
     self._labelCacheArgs = (listingType, width)
     
     return self._labelCache

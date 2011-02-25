@@ -147,7 +147,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       xLoc = scrollOffset
       
       # prefix (entry data which is largely static, plus the time label)
-      entryLabel = entry.getLabel(Listing.IP, width - scrollOffset)
+      # the right content (time and type) takes seventeen columns
+      entryLabel = entry.getLabel(Listing.IP, width - scrollOffset - 17)
       timeLabel = uiTools.getTimeLabel(currentTime - entry.startTime, 1)
       prefixLabel = "%s%5s (" % (entryLabel, timeLabel)
       
