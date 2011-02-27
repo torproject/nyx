@@ -1,4 +1,19 @@
-TODO
+Contents:
+  1. Easy Bugs / Improvements
+  2. Known Bugs
+  3. Features
+    3a. Improvements
+    3b. Projects
+  4. Ideas (low priority or not yet really)
+  4. Investigational
+
+
+
+
+
+
+
+
 
 - Roadmap and completed work for next release (1.4.2)
   [ ] refactor panels
@@ -61,6 +76,8 @@ TODO
             - http://www.linuxjournal.com/article/5737
 
 - Bugs
+  * Config options with long names (ex. UpdateBridgesFromAuthority) are causing
+    the layout on the config panel to be shifted.
   * The default resolver isn't configurable.
   * Default config value checks don't work with older versions of tor. We need
     a version check for the feature. From Sjon:
@@ -140,6 +157,8 @@ TODO
       http://www.errorhelp.com/search/details/74034/importerror-no-module-named-setuptools
 
 - Future Features
+  * Option for the graph to move right to left (easy - feature request by
+    ioerror and rdegraaf)
   * client mode use cases
     * not sure what sort of information would be useful in the header (to
       replace the orport, fingerprint, flags, etc)
@@ -203,8 +222,11 @@ TODO
   * email alerts for changes to the relay's status, similar to tor-weather
     * simple alert if tor shuts down
     * accounting and alerts for if the bandwidth drops to zero
-    * daily/weekly/etc alerts for basic status (log output, bandwidth history,
-        etc), borrowing from the consensus tracker for some of the formatting
+    * daily/weekly/etc status reports
+      * log output, bandwidth history, etc
+      * graphic of the graphed bandwidth usage
+      * aggregated port usage for exits and country of origin for clients
+      * merge in and improve the consensus tracker
   * tab completion for input fields that expect a filesystem path
   * look through vidalia's tickets for more ideas
     https://trac.vidalia-project.net/
@@ -250,6 +272,16 @@ TODO
   * implement control-spec proposals:
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/172-circ-getinfo-option.txt
     * https://gitweb.torproject.org/tor.git/blob/HEAD:/doc/spec/proposals/173-getinfo-option-expansion.txt
+  * urwid improvements
+    Urwid (http://excess.org/urwid/) is an open source python library for
+    terminal applications. It provides a nicer interface, ideal for terminal
+    forms and some common UI elements.
+    
+    As I recall it isn't compatable with using curses directly, but checking
+    the library for interesting capabilities and code snippets could be very
+    helpful. For instance, the screenshots exemplify color support beyond the
+    8 colors (RGB + CMYK) available with curses... *very* curious how they do
+    this and how widely higher color support is available!
   * gui frontend (gtk?)
     Look into if the arm utilities and codebase would fit nicely for a gui
     controller like Vidalia and TorK.
