@@ -55,7 +55,7 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "pid", "pathPrefix",
-              "startTime", "authorities")
+              "startTime", "authorities", "usedGuards")
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
@@ -263,7 +263,7 @@ class Controller(TorCtl.PostEventListener):
     self._pathPrefixLogging = True
     
     # cached GETINFO parameters (None if unset or possibly changed)
-    self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
     
     # cached GETCONF parameters, entries consisting of:
     # (option, fetch_type) => value
@@ -691,6 +691,16 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("flags", default)
   
+  def getMyUsedGuards(self, default = None):
+    """
+    Provides the guards that we're currently using.
+    
+    Arguments:
+      default - results if the query fails
+    """
+    
+    return self._getRelayAttr("usedGuards", default)
+  
   def getMyPid(self):
     """
     Provides the pid of the attached tor process (None if no controller exists
@@ -716,10 +726,7 @@ class Controller(TorCtl.PostEventListener):
     jail's path.
     """
     
-    result = self._getRelayAttr("pathPrefix", "")
-    
-    if result == UNKNOWN: return ""
-    else: return result
+    return self._getRelayAttr("pathPrefix", "")
   
   def getStartTime(self):
     """
@@ -727,10 +734,7 @@ class Controller(TorCtl.PostEventListener):
     can't be determined then this provides None.
     """
     
-    result = self._getRelayAttr("startTime", None)
-    
-    if result == UNKNOWN: return None
-    else: return result
+    return self._getRelayAttr("startTime", None)
   
   def getStatus(self):
     """
@@ -1100,7 +1104,7 @@ class Controller(TorCtl.PostEventListener):
       if not issueSighup:
         try:
           self.conn.send_signal("RELOAD")
-          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
           self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
@@ -1145,7 +1149,7 @@ class Controller(TorCtl.PostEventListener):
             if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
             else: raise IOError("failed silently")
           
-          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
           self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
@@ -1258,6 +1262,8 @@ class Controller(TorCtl.PostEventListener):
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
     self._fingerprintsAttachedCache = None
+    
+    self._cachedParam["usedGuards"] = None
   
   def buildtimeout_set_event(self, event):
     self._updateHeartbeat()
@@ -1448,14 +1454,14 @@ class Controller(TorCtl.PostEventListener):
     """
     
     currentVal = self._cachedParam[key]
-    if currentVal:
+    if currentVal != None:
       if currentVal == UNKNOWN: return default
       else: return currentVal
     
     self.connLock.acquire()
     
     currentVal, result = self._cachedParam[key], None
-    if not currentVal and self.isAlive():
+    if currentVal == None and self.isAlive():
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
         myFingerprint = self.getInfo("fingerprint")
@@ -1580,16 +1586,30 @@ class Controller(TorCtl.PostEventListener):
             locationComp = entry.split()[-2] # address:port component
             result.append(tuple(locationComp.split(":", 1)))
         else: result = list(DIR_SERVERS)
+      elif key == "usedGuards":
+        # Checks our circuit-status entry and provides the first hops. Results
+        # tend to be one or three hops, for instance:
+        # 91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
+        circStatusResults = self.getInfo("circuit-status")
+        
+        if circStatusResults == "":
+          result = [] # we don't have any client circuits
+        elif circStatusResults != None:
+          for line in circStatusResults.split("\n"):
+            fpStart = line.find("$")
+            fpEnd = line.find("=", fpStart)
+            guardFp = line[fpStart + 1:fpEnd]
+            
+            if not guardFp in result: result.append(guardFp)
       
       # cache value
-      if result: self._cachedParam[key] = result
+      if result != None: self._cachedParam[key] = result
       elif cacheUndefined: self._cachedParam[key] = UNKNOWN
-    elif currentVal == UNKNOWN: result = currentVal
     
     self.connLock.release()
     
-    if result: return result
-    else: return default
+    if result == None or result == UNKNOWN: return default
+    else: return result
   
   def _notifyStatusListeners(self, eventType):
     """
@@ -1601,7 +1621,7 @@ class Controller(TorCtl.PostEventListener):
     """
     
     # resets cached GETINFO and GETCONF parameters
-    self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
     self._cachedConf = {}
     
     # gives a notice that the control port has closed
