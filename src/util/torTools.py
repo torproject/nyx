@@ -1595,6 +1595,8 @@ class Controller(TorCtl.PostEventListener):
         if circStatusResults == "":
           result = [] # we don't have any client circuits
         elif circStatusResults != None:
+          result = []
+          
           for line in circStatusResults.split("\n"):
             fpStart = line.find("$")
             fpEnd = line.find("=", fpStart)
