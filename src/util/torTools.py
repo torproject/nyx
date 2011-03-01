@@ -55,7 +55,7 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "pid", "pathPrefix",
-              "startTime", "authorities", "usedGuards")
+              "startTime", "authorities", "circuits")
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
@@ -603,6 +603,17 @@ class Controller(TorCtl.PostEventListener):
     
     if raisedExc: raise raisedExc
   
+  def getCircuits(self, default = []):
+    """
+    This provides a list with tuples of the form:
+    (status, purpose, (fingerprint1, fingerprint2...))
+    
+    Arguments:
+      default - value provided back if unable to query the circuit-status
+    """
+    
+    return self._getRelayAttr("circuits", default)
+  
   def getMyNetworkStatus(self, default = None):
     """
     Provides the network status entry for this relay if available. This is
@@ -690,16 +701,6 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("flags", default)
-  
-  def getMyUsedGuards(self, default = None):
-    """
-    Provides the guards that we're currently using.
-    
-    Arguments:
-      default - results if the query fails
-    """
-    
-    return self._getRelayAttr("usedGuards", default)
   
   def getMyPid(self):
     """
@@ -1263,7 +1264,7 @@ class Controller(TorCtl.PostEventListener):
     # since it uses circuit-status results.
     self._fingerprintsAttachedCache = None
     
-    self._cachedParam["usedGuards"] = None
+    self._cachedParam["circuits"] = None
   
   def buildtimeout_set_event(self, event):
     self._updateHeartbeat()
@@ -1586,23 +1587,28 @@ class Controller(TorCtl.PostEventListener):
             locationComp = entry.split()[-2] # address:port component
             result.append(tuple(locationComp.split(":", 1)))
         else: result = list(DIR_SERVERS)
-      elif key == "usedGuards":
-        # Checks our circuit-status entry and provides the first hops. Results
-        # tend to be one or three hops, for instance:
-        # 91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
+      elif key == "circuits":
+        # Parses our circuit-status results, for instance
+        #  91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
+        # would belong to a single hop circuit, most likely fetching the
+        # consensus via a directory mirror.
         circStatusResults = self.getInfo("circuit-status")
         
         if circStatusResults == "":
-          result = [] # we don't have any client circuits
+          result = [] # we don't have any circuits
         elif circStatusResults != None:
           result = []
           
           for line in circStatusResults.split("\n"):
-            fpStart = line.find("$")
-            fpEnd = line.find("=", fpStart)
-            guardFp = line[fpStart + 1:fpEnd]
+            # appends a tuple with the (status, purpose, path)
+            lineComp = line.split(" ")
             
-            if not guardFp in result: result.append(guardFp)
+            # skips blank lines and circuits without a path, for instance:
+            #  5 LAUNCHED PURPOSE=TESTING
+            if len(lineComp) < 4: continue
+            
+            path = tuple([hopEntry[1:41] for hopEntry in lineComp[2].split(",")])
+            result.append((lineComp[1], lineComp[3], path))
       
       # cache value
       if result != None: self._cachedParam[key] = result

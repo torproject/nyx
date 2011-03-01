@@ -17,10 +17,10 @@ from util import connections, enum, hostnames, torTools, uiTools
 
 # TODO: add recognizing of CLIENT connection type
 DestAttr = enum.Enum("NONE", "LOCALE", "HOSTNAME")
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "SOCKS", "CLIENT", "DIRECTORY", "CONTROL")
-CATEGORY_COLOR = {Category.INBOUND: "green", Category.OUTBOUND: "blue",
-                  Category.EXIT: "red",      Category.SOCKS: "cyan",
-                  Category.CLIENT: "cyan",   Category.DIRECTORY: "magenta",
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "APPLICATION", "DIRECTORY", "CONTROL")
+CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
+                  Category.EXIT: "red",           Category.CLIENT: "cyan",
+                  Category.APPLICATION: "yellow", Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
 # static data for listing format
@@ -121,6 +121,15 @@ class ConnectionEntry:
     self._labelCache = ""
     self._labelCacheArgs = (None, None)
     
+    # True if the connection has matched the properties of a client/directory
+    # connection every time we've checked. The criteria we check is...
+    #   client    - first hop in an established circuit
+    #   directory - matches an established single-hop circuit (probably a
+    #               directory mirror)
+    
+    self._possibleClient = True
+    self._possibleDirectory = True
+    
     conn = torTools.getConn()
     myOrPort = conn.getOption("ORPort")
     myDirPort = conn.getOption("DirPort")
@@ -137,7 +146,7 @@ class ConnectionEntry:
       self.baseType = Category.INBOUND
       self.local.isORPort = True
     elif lPort == mySocksPort:
-      self.baseType = Category.SOCKS
+      self.baseType = Category.APPLICATION
     elif lPort == myCtlPort:
       self.baseType = Category.CONTROL
     elif (fIpAddr, fPort) in myAuthorities:
@@ -153,18 +162,53 @@ class ConnectionEntry:
     """
     
     if self.baseType == Category.OUTBOUND:
-      # Currently the only non-static categories are OUTBOUND vs EXIT (since
-      # this depends on the current consensus). The exitability and
-      # fingerprints are both cached by the torTools util making this a quick
-      # lookup.
+      # Currently the only non-static categories are OUTBOUND vs...
+      # - EXIT since this depends on the current consensus
+      # - CLIENT if this is likely to belong to our guard usage
+      # - DIRECTORY if this is a single-hop circuit (directory mirror?)
+      # 
+      # The exitability, circuits, and fingerprints are all cached by the
+      # torTools util keeping this a quick lookup.
       
       conn = torTools.getConn()
-      isKnownRelay = self.foreign.getFingerprint() != "UNKNOWN"
-      isExitingAllowed = conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort())
-      isExitConnection = isExitingAllowed and not isKnownRelay
+      destFingerprint = self.foreign.getFingerprint()
       
-      return Category.EXIT if isExitConnection else Category.OUTBOUND
-    else: return self.baseType
+      if destFingerprint == "UNKNOWN":
+        # Not a known relay. This might be an exit connection.
+        
+        if conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort()):
+          return Category.EXIT
+      elif self._possibleClient or self._possibleDirectory:
+        # This belongs to a known relay. If we haven't eliminated ourselves as
+        # a possible client or directory connection then check if it still
+        # holds true.
+        
+        myCircuits = conn.getCircuits()
+        
+        if self._possibleClient:
+          # Checks that this belongs to the first hop in a circuit that's
+          # either unestablished or longer than a single hop (ie, anything but
+          # a built 1-hop connection since those are most likely a directory
+          # mirror).
+          
+          for status, _, path in myCircuits:
+            if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
+              return Category.CLIENT # matched a probable guard connection
+          
+          # fell through, we can eliminate ourselves as a guard in the future
+          self._possibleClient = False
+        
+        if self._possibleDirectory:
+          # Checks if we match a built, single hop circuit.
+          
+          for status, _, path in myCircuits:
+            if path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
+              return Category.DIRECTORY
+          
+          # fell through, eliminate ourselves as a directory connection
+          self._possibleDirectory = False
+    
+    return self.baseType
   
   def getDestinationLabel(self, maxLength, extraAttr=DestAttr.NONE):
     """

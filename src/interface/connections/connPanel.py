@@ -187,6 +187,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if self._lastResourceFetch != currentResolutionCount:
       self.valsLock.acquire()
       currentConnections = connResolver.getConnections()
+      
+      # Replacement listing of connections. We first populate it with any of
+      # our old entries in currentConnections, then add new ConnectionEntries
+      # for whatever remains.
       newConnections = []
       
       # preserves any ConnectionEntries they already exist
