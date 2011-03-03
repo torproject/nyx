@@ -155,6 +155,11 @@ features.graph.bw.accounting.isTimeLong false
 # ---------------------------------
 # oldPanel
 #   includes the old connection panel in the interface
+# refreshRate
+#   rate at which the connection panel contents is redrawn (if higher than the
+#   connection resolution rate then reducing this won't casue new data to
+#   appear more frequently - just increase the rate at which the uptime field
+#   is updated)
 # newPanel
 #   includes the new connection panel in the interface
 # showColumn.*
@@ -162,6 +167,7 @@ features.graph.bw.accounting.isTimeLong false
 
 features.connection.oldPanel true
 features.connection.newPanel false
+features.connection.refreshRate 10
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true
 features.connection.showColumn.destination true

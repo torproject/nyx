@@ -9,9 +9,7 @@ import threading
 from interface.connections import listings
 from util import connections, enum, log, panel, torTools, uiTools
 
-REDRAW_RATE = 10 # TODO: make a config option
-
-DEFAULT_CONFIG = {}
+DEFAULT_CONFIG = {"features.connection.refreshRate": 10}
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
@@ -33,7 +31,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     #self.sortOrdering = DEFAULT_SORT_ORDER
     self._config = dict(DEFAULT_CONFIG)
     if config:
-      config.update(self._config)
+      config.update(self._config, {
+        "features.connection.refreshRate": 1})
       
       # TODO: test and add to the sample armrc
       #self.sortOrdering = config.getIntCSV("features.connections.order", self.sortOrdering, 3, 0, 6)
@@ -99,7 +98,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     while not self._halt:
       currentTime = time.time()
       
-      if self._isPaused or currentTime - lastDraw < REDRAW_RATE:
+      if self._isPaused or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
         self._cond.release()
@@ -107,7 +106,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # updates content if their's new results, otherwise just redraws
         self._update()
         self.redraw(True)
-        lastDraw += REDRAW_RATE
+        lastDraw += self._config["features.connection.refreshRate"]
   
   def draw(self, width, height):
     self.valsLock.acquire()
