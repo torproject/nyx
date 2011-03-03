@@ -153,9 +153,15 @@ features.graph.bw.accounting.isTimeLong false
 
 # Parameters for connection display
 # ---------------------------------
-# features.connection.showColumn.*
+# oldPanel
+#   includes the old connection panel in the interface
+# newPanel
+#   includes the new connection panel in the interface
+# showColumn.*
 #   toggles the visability of the connection table columns
 
+features.connection.oldPanel true
+features.connection.newPanel false
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true
 features.connection.showColumn.destination true

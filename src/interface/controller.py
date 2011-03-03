@@ -31,8 +31,6 @@ import graphing.bandwidthStats
 import graphing.connStats
 import graphing.resourceStats
 
-INCLUDE_CONNPANEL_2 = False
-
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
 MAX_REGEX_FILTERS = 5   # maximum number of previous regex filters that'll be remembered
@@ -45,17 +43,17 @@ PAGE_S = ["header", "control", "popup"] # sticky (ie, always available) page
 PAGES = [
   ["graph", "log"],
   ["conn"],
+  ["conn2"],
   ["config"],
   ["torrc"]]
-
-if INCLUDE_CONNPANEL_2:
-  PAGES.append(["conn2"])
 
 PAUSEABLE = ["header", "graph", "log", "conn", "conn2"]
 
 CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.type": 1,
           "features.config.prepopulateEditValues": True,
+          "features.connection.oldPanel": True,
+          "features.connection.newPanel": False,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
@@ -560,8 +558,18 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   # before being positioned - the following is a quick hack til rewritten
   panels["log"].setPaused(True)
   
-  panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
-  panels["conn2"] = interface.connections.connPanel.ConnectionPanel(stdscr, config)
+  if CONFIG["features.connection.oldPanel"]:
+    panels["conn"] = connPanel.ConnPanel(stdscr, conn, isBlindMode)
+  else:
+    panels["conn"] = panel.Panel(stdscr, "blank", 0, 0, 0)
+    PAUSEABLE.remove("conn")
+  
+  if CONFIG["features.connection.newPanel"]:
+    panels["conn2"] = interface.connections.connPanel.ConnectionPanel(stdscr, config)
+  else:
+    panels["conn2"] = panel.Panel(stdscr, "blank", 0, 0, 0)
+    PAUSEABLE.remove("conn2")
+  
   panels["control"] = ControlPanel(stdscr, isBlindMode)
   panels["config"] = configPanel.ConfigPanel(stdscr, configPanel.State.TOR, config)
   panels["torrc"] = torrcPanel.TorrcPanel(stdscr, torrcPanel.Config.TORRC, config)
@@ -587,7 +595,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["graph"].stats["system resources"])
   if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
-  conn.add_event_listener(panels["conn"])
+  if CONFIG["features.connection.oldPanel"]:
+    conn.add_event_listener(panels["conn"])
   conn.add_event_listener(sighupTracker)
   
   # prepopulates bandwidth values from state file
@@ -614,7 +623,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   # tells revised panels to run as daemons
   panels["header"].start()
   panels["log"].start()
-  panels["conn2"].start()
+  if CONFIG["features.connection.newPanel"]:
+    panels["conn2"].start()
   
   # warns if tor isn't updating descriptors
   #try:
@@ -673,7 +683,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         #panels["header"]._updateParams(True)
         
         # other panels that use torrc data
-        panels["conn"].resetOptions()
+        if CONFIG["features.connection.oldPanel"]:
+          panels["conn"].resetOptions()
         #if not isBlindMode: panels["graph"].stats["connections"].resetOptions(conn)
         #panels["graph"].stats["bandwidth"].resetOptions()
         
@@ -734,7 +745,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           isUnresponsive = False
           log.log(log.NOTICE, "Relay resumed")
       
-      panels["conn"].reset()
+      if CONFIG["features.connection.oldPanel"]:
+        panels["conn"].reset()
       
       # TODO: part two of hack to prevent premature drawing by log panel
       if page == 0 and not isPaused: panels["log"].setPaused(False)
@@ -828,11 +840,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         # stops panel daemons
         panels["header"].stop()
-        panels["conn2"].stop()
+        if CONFIG["features.connection.newPanel"]: panels["conn2"].stop()
         panels["log"].stop()
         
         panels["header"].join()
-        panels["conn2"].join()
+        if CONFIG["features.connection.newPanel"]: panels["conn2"].join()
         panels["log"].join()
         
         # joins on utility daemon threads - this might take a moment since
@@ -855,10 +867,15 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
       else: page = (page + 1) % len(PAGES)
       
-      # skip connections listing if it's disabled
-      if page == 1 and isBlindMode:
-        if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
-        else: page = (page + 1) % len(PAGES)
+      # skip connections listings if it's disabled
+      while True:
+        if page == 1 and (isBlindMode or not CONFIG["features.connection.oldPanel"]):
+          if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
+          else: page = (page + 1) % len(PAGES)
+        elif page == 2 and (isBlindMode or not CONFIG["features.connection.newPanel"]):
+          if key == curses.KEY_LEFT: page = (page - 1) % len(PAGES)
+          else: page = (page + 1) % len(PAGES)
+        else: break
       
       # pauses panels that aren't visible to prevent events from accumilating
       # (otherwise they'll wait on the curses lock which might get demanding)
@@ -967,7 +984,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           if resolverUtil == None: resolverUtil = "auto"
           popup.addfstr(4, 41, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
           
-          allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
+          if CONFIG["features.connection.oldPanel"]:
+            allowDnsLabel = "allow" if panels["conn"].allowDNS else "disallow"
+          else: allowDnsLabel = "disallow"
           popup.addfstr(5, 2, "<b>r</b>: permit DNS resolution (<b>%s</b>)" % allowDnsLabel)
           
           popup.addfstr(5, 41, "<b>s</b>: sort ordering")
@@ -1275,7 +1294,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
+    elif CONFIG["features.connection.oldPanel"] and key == 27 and panels["conn"].listingType == connPanel.LIST_HOSTNAME and panels["control"].resolvingCounter != -1:
       # canceling hostname resolution (esc on any page)
       panels["conn"].listingType = connPanel.LIST_IP
       panels["control"].resolvingCounter = -1
@@ -1577,7 +1596,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 2 and (key == ord('c') or key == ord('C')) and False:
+    elif page == 3 and (key == ord('c') or key == ord('C')) and False:
       # TODO: disabled for now (probably gonna be going with separate pages
       # rather than popup menu)
       # provides menu to pick config being displayed
@@ -1600,7 +1619,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if selection != -1: panels["torrc"].setConfigType(selection)
       
       selectiveRefresh(panels, page)
-    elif page == 2 and (key == ord('w') or key == ord('W')):
+    elif page == 3 and (key == ord('w') or key == ord('W')):
       # display a popup for saving the current configuration
       panel.CURSES_LOCK.acquire()
       try:
@@ -1730,7 +1749,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
       
       panels["config"].redraw(True)
-    elif page == 2 and (key == ord('s') or key == ord('S')):
+    elif page == 3 and (key == ord('s') or key == ord('S')):
       # set ordering for config options
       titleLabel = "Config Option Ordering:"
       options = [configPanel.FIELD_ATTR[field][0] for field in configPanel.Field.values()]
@@ -1751,7 +1770,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["config"].setSortOrder(resultEnums)
       
       panels["config"].redraw(True)
-    elif page == 2 and uiTools.isSelectionKey(key):
+    elif page == 3 and uiTools.isSelectionKey(key):
       # let the user edit the configuration value, unchanged if left blank
       panel.CURSES_LOCK.acquire()
       try:
@@ -1807,7 +1826,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 3 and key == ord('r') or key == ord('R'):
+    elif page == 4 and key == ord('r') or key == ord('R'):
       # reloads torrc, providing a notice if successful or not
       loadedTorrc = torConfig.getTorrc()
       loadedTorrc.getLock().acquire()
@@ -1837,11 +1856,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 1:
       panels["conn"].handleKey(key)
     elif page == 2:
-      panels["config"].handleKey(key)
-    elif page == 3:
-      panels["torrc"].handleKey(key)
-    elif page == 4:
       panels["conn2"].handleKey(key)
+    elif page == 3:
+      panels["config"].handleKey(key)
+    elif page == 4:
+      panels["torrc"].handleKey(key)
 
 def startTorMonitor(startTime, loggedEvents, isBlindMode):
   try:
