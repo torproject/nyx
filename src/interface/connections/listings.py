@@ -7,15 +7,14 @@ import time
 from util import connections, enum, hostnames, torTools, uiTools
 
 # Connection Categories:
-#   Inbound     Relay connection, coming to us.
-#   Outbound    Relay connection, leaving us.
-#   Exit        Outbound relay connection leaving the Tor network.
-#   Socks       Application client connection.
-#   Client      Circuits for our client traffic.
-#   Directory   Fetching tor consensus information.
-#   Control     Tor controller (arm, vidalia, etc).
+#   Inbound      Relay connection, coming to us.
+#   Outbound     Relay connection, leaving us.
+#   Exit         Outbound relay connection leaving the Tor network.
+#   Client       Circuits for our client traffic.
+#   Application  Socks connections using Tor.
+#   Directory    Fetching tor consensus information.
+#   Control      Tor controller (arm, vidalia, etc).
 
-# TODO: add recognizing of CLIENT connection type
 DestAttr = enum.Enum("NONE", "LOCALE", "HOSTNAME")
 Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "APPLICATION", "DIRECTORY", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
@@ -27,6 +26,14 @@ CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
 # <src>  -->  <dst>  <etc><padding>
 LABEL_FORMAT = "%s  -->  %s  %s%s"
 LABEL_MIN_PADDING = 2 # min space between listing label and following data
+
+CONFIG = {"features.connection.showColumn.fingerprint": True,
+          "features.connection.showColumn.nickname": True,
+          "features.connection.showColumn.destination": True,
+          "features.connection.showColumn.expanedIp": True}
+
+def loadConfig(config):
+  config.update(CONFIG)
 
 class Endpoint:
   """
@@ -348,18 +355,18 @@ class ConnectionEntry:
       
       usedSpace += len(src) + len(dst) # base data requires 47 characters
       
-      if width > usedSpace + 42:
+      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
         # show fingerprint (column width: 42 characters)
         etc += "%-40s  " % self.foreign.getFingerprint()
         usedSpace += 42
       
-      if addrDiffer and width > usedSpace + 28:
+      if addrDiffer and width > usedSpace + 28 and CONFIG["features.connection.showColumn.expanedIp"]:
         # include the internal address in the src (extra 28 characters)
         internalAddress = "%s:%s" % (self.local.getIpAddr(), self.local.getPort())
         src = "%-21s  -->  %s" % (internalAddress, src)
         usedSpace += 28
       
-      if width > usedSpace + 10:
+      if width > usedSpace + 10 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: remainder)
         nicknameSpace = width - usedSpace
         nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
@@ -371,17 +378,17 @@ class ConnectionEntry:
       usedSpace += len(stc)
       minHostnameSpace = 40
       
-      if width > usedSpace + minHostnameSpace + 28:
+      if width > usedSpace + minHostnameSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
         # show destination ip/port/locale (column width: 28 characters)
         etc += "%-26s  " % dstAddress
         usedSpace += 28
       
-      if width > usedSpace + minHostnameSpace + 42:
+      if width > usedSpace + minHostnameSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
         # show fingerprint (column width: 42 characters)
         etc += "%-40s  " % self.foreign.getFingerprint()
         usedSpace += 42
       
-      if width > usedSpace + minHostnameSpace + 17:
+      if width > usedSpace + minHostnameSpace + 17 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: min 17 characters, uses half of the remainder)
         nicknameSpace = 15 + (width - (usedSpace + minHostnameSpace + 17)) / 2
         nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
@@ -417,12 +424,14 @@ class ConnectionEntry:
         # if there's room then also show a column with the destination
         # ip/port/locale (column width: 28 characters)
         isIpLocaleIncluded = width > usedSpace + 45
+        isIpLocaleIncluded &= CONFIG["features.connection.showColumn.destination"]
         if isIpLocaleIncluded: nicknameSpace -= 28
         
-        nicknameSpace = width - usedSpace - 28 if isIpLocaleVisible else width - usedSpace
-        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-        usedSpace += nicknameSpace + 2
+        if CONFIG["features.connection.showColumn.nickname"]:
+          nicknameSpace = width - usedSpace - 28 if isIpLocaleVisible else width - usedSpace
+          nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
+          etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+          usedSpace += nicknameSpace + 2
         
         if isIpLocaleIncluded:
           etc += "%-26s  " % dstAddress
@@ -434,12 +443,12 @@ class ConnectionEntry:
       else: dst = self.foreign.getNickname()
       minBaseSpace = 50
       
-      if width > usedSpace + minBaseSpace + 42:
+      if width > usedSpace + minBaseSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
         # show fingerprint (column width: 42 characters)
         etc += "%-40s  " % self.foreign.getFingerprint()
         usedSpace += 42
       
-      if width > usedSpace + minBaseSpace + 28:
+      if width > usedSpace + minBaseSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
         # show destination ip/port/locale (column width: 28 characters)
         etc += "%-26s  " % dstAddress
         usedSpace += 28

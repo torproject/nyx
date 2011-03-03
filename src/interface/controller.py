@@ -25,6 +25,7 @@ import descriptorPopup
 import fileDescriptorPopup
 
 import interface.connections.connPanel
+import interface.connections.listings
 from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
@@ -426,6 +427,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   config = conf.getConfig("arm")
   config.update(CONFIG)
   graphing.graphPanel.loadConfig(config)
+  interface.connections.listings.loadConfig(config)
   
   # adds events needed for arm functionality to the torTools REQ_EVENTS mapping
   # (they're then included with any setControllerEvents call, and log a more

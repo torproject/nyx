@@ -151,6 +151,16 @@ features.graph.bw.accounting.show true
 features.graph.bw.accounting.rate 10
 features.graph.bw.accounting.isTimeLong false
 
+# Parameters for connection display
+# ---------------------------------
+# features.connection.showColumn.*
+#   toggles the visability of the connection table columns
+
+features.connection.showColumn.fingerprint true
+features.connection.showColumn.nickname true
+features.connection.showColumn.destination true
+features.connection.showColumn.expanedIp true
+
 # Thread pool size for hostname resolutions
 # Determines the maximum number of concurrent requests. Upping this to around
 # thirty or so seems to be problematic, causing intermittently seizing.
