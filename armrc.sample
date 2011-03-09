@@ -155,18 +155,29 @@ features.graph.bw.accounting.isTimeLong false
 # ---------------------------------
 # oldPanel
 #   includes the old connection panel in the interface
+# newPanel
+#   includes the new connection panel in the interface
+# listingType
+#   the primary category of information shown by default, options including:
+#   0 -> IP Address / Port              1 -> Hostname
+#   2 -> Fingerprint                    3 -> Nickname
+# order
+#   three comma separated configuration attributes, options including:
+#   0 -> Category,  1 -> Uptime,        2 -> Listing,     3 -> IP Address,
+#   4 -> Port,      5 -> Hostname,      6 -> Fingerprint, 7 -> Nickname,
+#   8 -> Country
 # refreshRate
 #   rate at which the connection panel contents is redrawn (if higher than the
 #   connection resolution rate then reducing this won't casue new data to
 #   appear more frequently - just increase the rate at which the uptime field
 #   is updated)
-# newPanel
-#   includes the new connection panel in the interface
 # showColumn.*
 #   toggles the visability of the connection table columns
 
 features.connection.oldPanel true
 features.connection.newPanel false
+features.connection.listingType 0
+features.connection.order 0, 2, 1
 features.connection.refreshRate 10
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true

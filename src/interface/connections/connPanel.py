@@ -9,13 +9,16 @@ import threading
 from interface.connections import listings
 from util import connections, enum, log, panel, torTools, uiTools
 
-DEFAULT_CONFIG = {"features.connection.refreshRate": 10}
+DEFAULT_CONFIG = {"features.connection.listingType": 0,
+                  "features.connection.refreshRate": 10}
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
 
 # listing types
-Listing = enum.Enum(("IP", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
+Listing = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
+
+DEFAULT_SORT_ORDER = (listings.SortAttr.CATEGORY, listings.SortAttr.LISTING, listings.SortAttr.UPTIME)
 
 class ConnectionPanel(panel.Panel, threading.Thread):
   """
@@ -28,16 +31,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
-    #self.sortOrdering = DEFAULT_SORT_ORDER
+    self._sortOrdering = DEFAULT_SORT_ORDER
     self._config = dict(DEFAULT_CONFIG)
     if config:
       config.update(self._config, {
+        "features.connection.listingType": (0, len(Listing.values()) - 1),
         "features.connection.refreshRate": 1})
       
-      # TODO: test and add to the sample armrc
-      #self.sortOrdering = config.getIntCSV("features.connections.order", self.sortOrdering, 3, 0, 6)
+      sortFields = listings.SortAttr.values()
+      customOrdering = config.getIntCSV("features.connection.order", None, 3, 0, len(sortFields))
+      
+      if customOrdering:
+        self._sortOrdering = [sortFields[i] for i in customOrdering]
     
-    self.scroller = uiTools.Scroller(True)
+    self._listingType = Listing.values()[self._config["features.connection.listingType"]]
+    self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel
     self._connections = []      # last fetched connections
     self._showDetails = False   # presents the details panel if true
@@ -75,13 +83,44 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # and being paused
       self.redraw(True)
   
+  def setSortOrder(self, ordering = None):
+    """
+    Sets the connection attributes we're sorting by and resorts the contents.
+    
+    Arguments:
+      ordering - new ordering, if undefined then this resorts with the last
+                 set ordering
+    """
+    
+    self.valsLock.acquire()
+    if ordering: self._sortOrdering = ordering
+    self._connections.sort(key=lambda i: (i.getSortValues(self._sortOrdering, self._listingType)))
+    self.valsLock.release()
+  
+  def setListingType(self, listingType):
+    """
+    Sets the priority information presented by the panel.
+    
+    Arguments:
+      listingType - Listing instance for the primary information to be shown
+    """
+    
+    self.valsLock.acquire()
+    self._listingType = listingType
+    
+    # if we're sorting by the listing then we need to resort
+    if listings.SortAttr.LISTING in self._sortOrdering:
+      self.setSortOrder()
+    
+    self.valsLock.release()
+  
   def handleKey(self, key):
     self.valsLock.acquire()
     
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
-      isChanged = self.scroller.handleKey(key, self._connections, pageHeight)
+      isChanged = self._scroller.handleKey(key, self._connections, pageHeight)
       if isChanged: self.redraw(True)
     elif uiTools.isSelectionKey(key):
       self._showDetails = not self._showDetails
@@ -115,8 +154,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     detailPanelOffset = DETAILS_HEIGHT + 1 if self._showDetails else 0
     isScrollbarVisible = len(self._connections) > height - detailPanelOffset - 1
     
-    scrollLoc = self.scroller.getScrollLoc(self._connections, height - detailPanelOffset - 1)
-    cursorSelection = self.scroller.getCursorSelection(self._connections)
+    scrollLoc = self._scroller.getScrollLoc(self._connections, height - detailPanelOffset - 1)
+    cursorSelection = self._scroller.getCursorSelection(self._connections)
     
     # draws the detail panel if currently displaying it
     if self._showDetails:
@@ -147,7 +186,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       # prefix (entry data which is largely static, plus the time label)
       # the right content (time and type) takes seventeen columns
-      entryLabel = entry.getLabel(Listing.IP, width - scrollOffset - 17)
+      entryLabel = entry.getLabel(self._listingType, width - scrollOffset - 17)
       timeLabel = uiTools.getTimeLabel(currentTime - entry.startTime, 1)
       prefixLabel = "%s%5s (" % (entryLabel, timeLabel)
       
@@ -205,14 +244,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for lIp, lPort, fIp, fPort in currentConnections:
         newConnections.append(listings.ConnectionEntry(lIp, lPort, fIp, fPort))
       
-      # if it's changed then sort the results
-      #if newConnections != self._connections:
-      #  newConnections.sort(key=lambda i: (i.getAll(self.sortOrdering)))
+      # Counts the relays in each of the categories. This also flushes the
+      # type cache for all of the connections (in case its changed since last
+      # fetched).
       
-      # counts the relays in each of the categories
       categoryTypes = listings.Category.values()
       typeCounts = dict((type, 0) for type in categoryTypes)
-      for conn in newConnections: typeCounts[conn.getType()] += 1
+      for conn in newConnections: typeCounts[conn.getType(True)] += 1
       
       # makes labels for all the categories with connections (ie,
       # "21 outbound", "1 control", etc)
@@ -226,6 +264,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       else: self._title = "Connections:"
       
       self._connections = newConnections
+      self.setSortOrder()
       self._lastResourceFetch = currentResolutionCount
       self.valsLock.release()
   

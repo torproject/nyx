@@ -22,6 +22,14 @@ CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
                   Category.APPLICATION: "yellow", Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
+SortAttr = enum.Enum("CATEGORY", "UPTIME", "LISTING", "IP_ADDRESS", "PORT",
+                     "HOSTNAME", "FINGERPRINT", "NICKNAME", "COUNTRY")
+SORT_COLORS = {SortAttr.CATEGORY: "red",      SortAttr.UPTIME: "yellow",
+               SortAttr.LISTING: "green",     SortAttr.IP_ADDRESS: "blue",
+               SortAttr.PORT: "blue",         SortAttr.HOSTNAME: "magenta",
+               SortAttr.FINGERPRINT: "cyan",  SortAttr.NICKNAME: "cyan",
+               SortAttr.COUNTRY: "blue"}
+
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
 LABEL_FORMAT = "%s  -->  %s  %s%s"
@@ -74,9 +82,17 @@ class Endpoint:
       default - return value if no hostname is available
     """
     
-    myHostname = hostnames.resolve(self.ipAddr)
-    if not myHostname: return default
-    else: return myHostname
+    # TODO: skipping all hostname resolution to be safe for now
+    #try:
+    #  myHostname = hostnames.resolve(self.ipAddr)
+    #except:
+    #  # either a ValueError or IOError depending on the source of the lookup failure
+    #  myHostname = None
+    #
+    #if not myHostname: return default
+    #else: return myHostname
+    
+    return default
   
   def getLocale(self):
     """
@@ -161,61 +177,29 @@ class ConnectionEntry:
     else:
       self.baseType = Category.OUTBOUND
       self.foreign.isORPort = True
+    
+    self.cachedType = None
+    
+    # cached immutable values used for sorting
+    self.sortIpAddr = _ipToInt(self.foreign.getIpAddr())
+    self.sortPort = int(self.foreign.getPort())
   
-  def getType(self):
+  def getType(self, reset=False):
     """
     Provides the category this connection belongs to. This isn't always static
     since it can rely on dynamic information (like the current consensus).
+    
+    Arguments:
+      reset - determines if the type has changed if true, otherwise this
+              provides the same result as the last call
     """
     
-    if self.baseType == Category.OUTBOUND:
-      # Currently the only non-static categories are OUTBOUND vs...
-      # - EXIT since this depends on the current consensus
-      # - CLIENT if this is likely to belong to our guard usage
-      # - DIRECTORY if this is a single-hop circuit (directory mirror?)
-      # 
-      # The exitability, circuits, and fingerprints are all cached by the
-      # torTools util keeping this a quick lookup.
-      
-      conn = torTools.getConn()
-      destFingerprint = self.foreign.getFingerprint()
-      
-      if destFingerprint == "UNKNOWN":
-        # Not a known relay. This might be an exit connection.
-        
-        if conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort()):
-          return Category.EXIT
-      elif self._possibleClient or self._possibleDirectory:
-        # This belongs to a known relay. If we haven't eliminated ourselves as
-        # a possible client or directory connection then check if it still
-        # holds true.
-        
-        myCircuits = conn.getCircuits()
-        
-        if self._possibleClient:
-          # Checks that this belongs to the first hop in a circuit that's
-          # either unestablished or longer than a single hop (ie, anything but
-          # a built 1-hop connection since those are most likely a directory
-          # mirror).
-          
-          for status, _, path in myCircuits:
-            if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
-              return Category.CLIENT # matched a probable guard connection
-          
-          # fell through, we can eliminate ourselves as a guard in the future
-          self._possibleClient = False
-        
-        if self._possibleDirectory:
-          # Checks if we match a built, single hop circuit.
-          
-          for status, _, path in myCircuits:
-            if path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
-              return Category.DIRECTORY
-          
-          # fell through, eliminate ourselves as a directory connection
-          self._possibleDirectory = False
+    # caches both to simplify the calls and to keep the type consistent until
+    # we want to reflect changes
+    if reset or not self.cachedType:
+      self.cachedType = self._getType()
     
-    return self.baseType
+    return self.cachedType
   
   def getDestinationLabel(self, maxLength, extraAttr=DestAttr.NONE):
     """
@@ -293,6 +277,18 @@ class ConnectionEntry:
     # for everything else this isn't a concern
     return False
   
+  def getSortValues(self, sortAttrs, listingType):
+    """
+    Provides the value used in comparisons to sort based on the given
+    attribute.
+    
+    Arguments:
+      sortAttrs   - list of SortAttr values for the field being sorted on
+      listingType - primary attribute we're listing connections by
+    """
+    
+    return [self._getSortValue(attr, listingType) for attr in sortAttrs]
+  
   def getLabel(self, listingType, width):
     """
     Provides the formatted display string for this entry in the listing with
@@ -300,7 +296,7 @@ class ConnectionEntry:
       <src>  -->  <dst>     <etc>     <uptime> (<type>)
     this provides the first three components padded to fill up to the uptime.
     
-    Listing.IP:
+    Listing.IP_ADDRESS:
       src - <internal addr:port> --> <external addr:port>
       dst - <destination addr:port>
       etc - <fingerprint> <nickname>
@@ -345,7 +341,7 @@ class ConnectionEntry:
     usedSpace = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
     
     src, dst, etc = "", "", ""
-    if listingType == connPanel.Listing.IP:
+    if listingType == connPanel.Listing.IP_ADDRESS:
       myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
       addrDiffer = myExternalIpAddr != self.local.getIpAddr()
       
@@ -375,7 +371,7 @@ class ConnectionEntry:
     elif listingType == connPanel.Listing.HOSTNAME:
       # 15 characters for source, and a min of 40 reserved for the destination
       src = "localhost:%-5s" % self.local.getPort()
-      usedSpace += len(stc)
+      usedSpace += len(src)
       minHostnameSpace = 40
       
       if width > usedSpace + minHostnameSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
@@ -396,19 +392,17 @@ class ConnectionEntry:
         usedSpace += (nicknameSpace + 2)
       
       hostnameSpace = width - usedSpace
-      usedSpace = width
+      usedSpace = width # prevents padding at the end
       if self.isPrivate():
         dst = ("%%-%is" % hostnameSpace) % "<scrubbed>"
       else:
         hostname = self.foreign.getHostname(self.foreign.getIpAddr())
         port = self.foreign.getPort()
         
-        # exclude space needed for the ':<port>'
-        hostnameSpace -= len(port) + 1
-        
         # truncates long hostnames and sets dst to <hostname>:<port>
         hostname = uiTools.cropStr(hostname, hostnameSpace, 0)
-        dst = ("%%-%is:%%-5s" % hostnameSpace) % (hostname, port)
+        dst = "%s:%-5s" % (hostname, port)
+        dst = ("%%-%is" % hostnameSpace) % dst
     elif listingType == connPanel.Listing.FINGERPRINT:
       src = "localhost"
       if myType == Category.CONTROL: dst = "localhost"
@@ -428,7 +422,7 @@ class ConnectionEntry:
         if isIpLocaleIncluded: nicknameSpace -= 28
         
         if CONFIG["features.connection.showColumn.nickname"]:
-          nicknameSpace = width - usedSpace - 28 if isIpLocaleVisible else width - usedSpace
+          nicknameSpace = width - usedSpace - 28 if isIpLocaleIncluded else width - usedSpace
           nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
           etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
           usedSpace += nicknameSpace + 2
@@ -454,6 +448,8 @@ class ConnectionEntry:
         usedSpace += 28
       
       baseSpace = width - usedSpace
+      usedSpace = width # prevents padding at the end
+      
       if len(src) + len(dst) > baseSpace:
         src = uiTools.cropStr(src, baseSpace / 3)
         dst = uiTools.cropStr(dst, baseSpace - len(src))
@@ -467,4 +463,108 @@ class ConnectionEntry:
     self._labelCacheArgs = (listingType, width)
     
     return self._labelCache
+  
+  def _getType(self):
+    """
+    Provides our best guess at the current type of the connection. This
+    depends on consensus results, our current client circuts, etc.
+    """
+    
+    if self.baseType == Category.OUTBOUND:
+      # Currently the only non-static categories are OUTBOUND vs...
+      # - EXIT since this depends on the current consensus
+      # - CLIENT if this is likely to belong to our guard usage
+      # - DIRECTORY if this is a single-hop circuit (directory mirror?)
+      # 
+      # The exitability, circuits, and fingerprints are all cached by the
+      # torTools util keeping this a quick lookup.
+      
+      conn = torTools.getConn()
+      destFingerprint = self.foreign.getFingerprint()
+      
+      if destFingerprint == "UNKNOWN":
+        # Not a known relay. This might be an exit connection.
+        
+        if conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort()):
+          return Category.EXIT
+      elif self._possibleClient or self._possibleDirectory:
+        # This belongs to a known relay. If we haven't eliminated ourselves as
+        # a possible client or directory connection then check if it still
+        # holds true.
+        
+        myCircuits = conn.getCircuits()
+        
+        if self._possibleClient:
+          # Checks that this belongs to the first hop in a circuit that's
+          # either unestablished or longer than a single hop (ie, anything but
+          # a built 1-hop connection since those are most likely a directory
+          # mirror).
+          
+          for status, _, path in myCircuits:
+            if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
+              return Category.CLIENT # matched a probable guard connection
+          
+          # fell through, we can eliminate ourselves as a guard in the future
+          self._possibleClient = False
+        
+        if self._possibleDirectory:
+          # Checks if we match a built, single hop circuit.
+          
+          for status, _, path in myCircuits:
+            if path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
+              return Category.DIRECTORY
+          
+          # fell through, eliminate ourselves as a directory connection
+          self._possibleDirectory = False
+    
+    return self.baseType
+  
+  def _getSortValue(self, sortAttr, listingType):
+    """
+    Provides the value of a single attribute used for sorting purposes.
+    """
+    
+    from interface.connections import connPanel
+    
+    if sortAttr == SortAttr.IP_ADDRESS: return self.sortIpAddr
+    elif sortAttr == SortAttr.PORT: return self.sortPort
+    elif sortAttr == SortAttr.HOSTNAME: return self.foreign.getHostname("")
+    elif sortAttr == SortAttr.FINGERPRINT: return self.foreign.getFingerprint()
+    elif sortAttr == SortAttr.NICKNAME:
+      myNickname = self.foreign.getNickname()
+      
+      if myNickname == "UNKNOWN": return "z" * 20 # orders at the end
+      else: return myNickname.lower()
+    elif sortAttr == SortAttr.CATEGORY: return Category.indexOf(self.getType())
+    elif sortAttr == SortAttr.UPTIME: return self.startTime
+    elif sortAttr == SortAttr.COUNTRY:
+      if connections.isIpAddressPrivate(self.foreign.getIpAddr()): return ""
+      else: return self.foreign.getLocale()
+    elif sortAttr == SortAttr.LISTING:
+      if listingType == connPanel.Listing.IP_ADDRESS:
+        return self._getSortValue(SortAttr.IP_ADDRESS, listingType)
+      elif listingType == connPanel.Listing.HOSTNAME:
+        return self._getSortValue(SortAttr.HOSTNAME, listingType)
+      elif listingType == connPanel.Listing.FINGERPRINT:
+        return self._getSortValue(SortAttr.FINGERPRINT, listingType)
+      elif listingType == connPanel.Listing.NICKNAME:
+        return self._getSortValue(SortAttr.NICKNAME, listingType)
+    
+    return ""
+
+def _ipToInt(ipAddr):
+  """
+  Provides an integer representation of the ip address, suitable for sorting.
+  
+  Arguments:
+    ipAddr - ip address to be converted
+  """
+  
+  total = 0
+  
+  for comp in ipAddr.split("."):
+    total *= 255
+    total += int(comp)
+  
+  return total
 

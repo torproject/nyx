@@ -1003,7 +1003,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
           popup.addfstr(3, 41, "<b>w</b>: save current configuration")
-          popup.addfstr(4, 2, "<b>s</b>: sort ordering")
+          
+          listingType = panels["conn2"]._listingType.lower()
+          popup.addfstr(4, 2, "<b>l</b>: listed identity (<b>%s</b>)" % listingType)
+          
+          popup.addfstr(4, 41, "<b>s</b>: sort ordering")
         elif page == 3:
           popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
@@ -1596,6 +1600,39 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
+    elif page == 2 and (key == ord('l') or key == ord('L')):
+      # provides a menu to pick the primary information we list connections by
+      options = interface.connections.connPanel.Listing.values()
+      initialSelection = options.index(panels["conn2"]._listingType)
+      
+      # hides top label of connection panel and pauses the display
+      panelTitle = panels["conn2"]._title
+      panels["conn2"]._title = ""
+      panels["conn2"].redraw(True)
+      setPauseState(panels, isPaused, page, True)
+      
+      selection = showMenu(stdscr, panels["popup"], "List By:", options, initialSelection)
+      
+      # reverts changes made for popup
+      panels["conn2"]._title = panelTitle
+      setPauseState(panels, isPaused, page)
+      
+      # applies new setting
+      if selection != -1 and options[selection] != panels["conn2"]._listingType:
+        panels["conn2"].setListingType(options[selection])
+        panels["conn2"].redraw(True)
+    elif page == 2 and (key == ord('s') or key == ord('S')):
+      # set ordering for connection options
+      titleLabel = "Connection Ordering:"
+      options = interface.connections.listings.SortAttr.values()
+      oldSelection = panels["conn2"]._sortOrdering
+      optionColors = dict([(attr, interface.connections.listings.SORT_COLORS[attr]) for attr in options])
+      results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
+      
+      if results:
+        panels["conn2"].setSortOrder(results)
+      
+      panels["conn2"].redraw(True)
     elif page == 3 and (key == ord('c') or key == ord('C')) and False:
       # TODO: disabled for now (probably gonna be going with separate pages
       # rather than popup menu)

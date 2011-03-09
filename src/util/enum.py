@@ -62,6 +62,17 @@ class Enum:
     
     return list(self.orderedValues)
   
+  def indexOf(self, value):
+    """
+    Provides the index of the given value in the collection. This raises a
+    ValueError if no such element exists.
+    
+    Arguments:
+      value - entry to be looked up
+    """
+    
+    return self.orderedValues.index(value)
+  
   def next(self, value):
     """
     Provides the next enumeration after the given value, raising a ValueError
