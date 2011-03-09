@@ -174,8 +174,8 @@ features.graph.bw.accounting.isTimeLong false
 # showColumn.*
 #   toggles the visability of the connection table columns
 
-features.connection.oldPanel true
-features.connection.newPanel false
+features.connection.oldPanel false
+features.connection.newPanel true
 features.connection.listingType 0
 features.connection.order 0, 2, 1
 features.connection.refreshRate 10
