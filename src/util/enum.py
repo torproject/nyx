@@ -12,12 +12,12 @@ with overwritten string counterparts:
 >>> pets.DOG
 'Skippy'
 >>> pets.CAT
-"Cat"
+'Cat'
 
 or with entirely custom string components as an unordered enum with:
 >>> pets = LEnum(DOG="Skippy", CAT="Kitty", FISH="Nemo")
 >>> pets.CAT
-"Kitty"
+'Kitty'
 """
 
 def toCamelCase(label):

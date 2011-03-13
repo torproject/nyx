@@ -25,7 +25,8 @@ import descriptorPopup
 import fileDescriptorPopup
 
 import interface.connections.connPanel
-import interface.connections.listings
+import interface.connections.connEntry
+import interface.connections.entries
 from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
@@ -425,7 +426,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   config = conf.getConfig("arm")
   config.update(CONFIG)
   graphing.graphPanel.loadConfig(config)
-  interface.connections.listings.loadConfig(config)
+  interface.connections.connEntry.loadConfig(config)
   
   # adds events needed for arm functionality to the torTools REQ_EVENTS mapping
   # (they're then included with any setControllerEvents call, and log a more
@@ -1602,7 +1603,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif page == 2 and (key == ord('l') or key == ord('L')):
       # provides a menu to pick the primary information we list connections by
-      options = interface.connections.connPanel.Listing.values()
+      options = interface.connections.entries.ListingType.values()
       initialSelection = options.index(panels["conn2"]._listingType)
       
       # hides top label of connection panel and pauses the display
@@ -1624,9 +1625,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 2 and (key == ord('s') or key == ord('S')):
       # set ordering for connection options
       titleLabel = "Connection Ordering:"
-      options = interface.connections.listings.SortAttr.values()
+      options = interface.connections.entries.SortAttr.values()
       oldSelection = panels["conn2"]._sortOrdering
-      optionColors = dict([(attr, interface.connections.listings.SORT_COLORS[attr]) for attr in options])
+      optionColors = dict([(attr, interface.connections.entries.SORT_COLORS[attr]) for attr in options])
       results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
       
       if results:

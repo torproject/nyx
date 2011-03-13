@@ -6,8 +6,8 @@ import time
 import curses
 import threading
 
-from interface.connections import listings
-from util import connections, enum, log, panel, torTools, uiTools
+from interface.connections import entries, connEntry
+from util import connections, enum, panel, uiTools
 
 DEFAULT_CONFIG = {"features.connection.listingType": 0,
                   "features.connection.refreshRate": 10}
@@ -18,7 +18,7 @@ DETAILS_HEIGHT = 7
 # listing types
 Listing = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
 
-DEFAULT_SORT_ORDER = (listings.SortAttr.CATEGORY, listings.SortAttr.LISTING, listings.SortAttr.UPTIME)
+DEFAULT_SORT_ORDER = (entries.SortAttr.CATEGORY, entries.SortAttr.LISTING, entries.SortAttr.UPTIME)
 
 class ConnectionPanel(panel.Panel, threading.Thread):
   """
@@ -33,12 +33,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self._sortOrdering = DEFAULT_SORT_ORDER
     self._config = dict(DEFAULT_CONFIG)
+    
     if config:
       config.update(self._config, {
         "features.connection.listingType": (0, len(Listing.values()) - 1),
         "features.connection.refreshRate": 1})
       
-      sortFields = listings.SortAttr.values()
+      sortFields = entries.SortAttr.values()
       customOrdering = config.getIntCSV("features.connection.order", None, 3, 0, len(sortFields))
       
       if customOrdering:
@@ -48,6 +49,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel
     self._connections = []      # last fetched connections
+    self._connectionLines = []  # individual lines in the connection listing
     self._showDetails = False   # presents the details panel if true
     
     self._lastUpdate = -1       # time the content was last revised
@@ -55,12 +57,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._pauseTime = None      # time when the panel was paused
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
+    self.valsLock = threading.RLock()
     
     # Last sampling received from the ConnectionResolver, used to detect when
     # it changes.
     self._lastResourceFetch = -1
-    
-    self.valsLock = threading.RLock()
     
     self._update() # populates initial entries
     
@@ -95,6 +96,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.valsLock.acquire()
     if ordering: self._sortOrdering = ordering
     self._connections.sort(key=lambda i: (i.getSortValues(self._sortOrdering, self._listingType)))
+    
+    self._connectionLines = []
+    for entry in self._connections:
+      self._connectionLines += entry.getLines()
     self.valsLock.release()
   
   def setListingType(self, listingType):
@@ -109,7 +114,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._listingType = listingType
     
     # if we're sorting by the listing then we need to resort
-    if listings.SortAttr.LISTING in self._sortOrdering:
+    if entries.SortAttr.LISTING in self._sortOrdering:
       self.setSortOrder()
     
     self.valsLock.release()
@@ -120,7 +125,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
-      isChanged = self._scroller.handleKey(key, self._connections, pageHeight)
+      isChanged = self._scroller.handleKey(key, self._connectionLines, pageHeight)
       if isChanged: self.redraw(True)
     elif uiTools.isSelectionKey(key):
       self._showDetails = not self._showDetails
@@ -152,14 +157,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     # extra line when showing the detail panel is for the bottom border
     detailPanelOffset = DETAILS_HEIGHT + 1 if self._showDetails else 0
-    isScrollbarVisible = len(self._connections) > height - detailPanelOffset - 1
+    isScrollbarVisible = len(self._connectionLines) > height - detailPanelOffset - 1
     
-    scrollLoc = self._scroller.getScrollLoc(self._connections, height - detailPanelOffset - 1)
-    cursorSelection = self._scroller.getCursorSelection(self._connections)
+    scrollLoc = self._scroller.getScrollLoc(self._connectionLines, height - detailPanelOffset - 1)
+    cursorSelection = self._scroller.getCursorSelection(self._connectionLines)
     
     # draws the detail panel if currently displaying it
     if self._showDetails:
-      self._drawSelectionPanel(cursorSelection, width, isScrollbarVisible)
+      # This is a solid border unless the scrollbar is visible, in which case a
+      # 'T' pipe connects the border to the bar.
+      uiTools.drawBox(self, 0, 0, width, DETAILS_HEIGHT + 2)
+      if isScrollbarVisible: self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
+      
+      drawEntries = cursorSelection.getDetails(width)
+      for i in range(min(len(drawEntries), DETAILS_HEIGHT)):
+        drawEntries[i].render(self, 1 + i, 2)
     
     # title label with connection counts
     title = "Connection Details:" if self._showDetails else self._title
@@ -168,38 +180,18 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     scrollOffset = 0
     if isScrollbarVisible:
       scrollOffset = 3
-      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._connections), 1 + detailPanelOffset)
+      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._connectionLines), 1 + detailPanelOffset)
     
     currentTime = self._pauseTime if self._pauseTime else time.time()
-    for lineNum in range(scrollLoc, len(self._connections)):
-      entry = self._connections[lineNum]
+    for lineNum in range(scrollLoc, len(self._connectionLines)):
+      entryLine = self._connectionLines[lineNum]
+      
+      # hilighting if this is the selected line
+      extraFormat = curses.A_STANDOUT if entryLine == cursorSelection else curses.A_NORMAL
+      
+      drawEntry = entryLine.getListingEntry(width - scrollOffset, currentTime, self._listingType)
       drawLine = lineNum + detailPanelOffset + 1 - scrollLoc
-      
-      entryType = entry.getType()
-      lineFormat = uiTools.getColor(listings.CATEGORY_COLOR[entryType])
-      if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
-      
-      # Lines are split into three components (prefix, category, and suffix)
-      # since the category includes the bold attribute (otherwise, all use
-      # lineFormat).
-      xLoc = scrollOffset
-      
-      # prefix (entry data which is largely static, plus the time label)
-      # the right content (time and type) takes seventeen columns
-      entryLabel = entry.getLabel(self._listingType, width - scrollOffset - 17)
-      timeLabel = uiTools.getTimeLabel(currentTime - entry.startTime, 1)
-      prefixLabel = "%s%5s (" % (entryLabel, timeLabel)
-      
-      self.addstr(drawLine, xLoc, prefixLabel, lineFormat)
-      xLoc += len(prefixLabel)
-      
-      # category
-      self.addstr(drawLine, xLoc, entryType.upper(), lineFormat | curses.A_BOLD)
-      xLoc += len(entryType)
-      
-      # suffix (ending parentheses plus padding so lines are the same length)
-      self.addstr(drawLine, xLoc, ")" + " " * (9 - len(entryType)), lineFormat)
-      
+      drawEntry.render(self, drawLine, scrollOffset, extraFormat)
       if drawLine >= height: break
     
     self.valsLock.release()
@@ -232,25 +224,33 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       newConnections = []
       
       # preserves any ConnectionEntries they already exist
-      for conn in self._connections:
-        connAttr = (conn.local.getIpAddr(), conn.local.getPort(),
-                    conn.foreign.getIpAddr(), conn.foreign.getPort())
-        
-        if connAttr in currentConnections:
-          newConnections.append(conn)
-          currentConnections.remove(connAttr)
+      for entry in self._connections:
+        if isinstance(entry, connEntry.ConnectionEntry):
+          connLine = entry.getLines()[0]
+          connAttr = (connLine.local.getIpAddr(), connLine.local.getPort(),
+                      connLine.foreign.getIpAddr(), connLine.foreign.getPort())
+          
+          if connAttr in currentConnections:
+            newConnections.append(entry)
+            currentConnections.remove(connAttr)
+      
+      # reset any display attributes for the entries we're keeping
+      for entry in newConnections:
+        entry.resetDisplay()
       
       # add new entries for any additions
       for lIp, lPort, fIp, fPort in currentConnections:
-        newConnections.append(listings.ConnectionEntry(lIp, lPort, fIp, fPort))
+        newConnections.append(connEntry.ConnectionEntry(lIp, lPort, fIp, fPort))
       
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last
       # fetched).
       
-      categoryTypes = listings.Category.values()
+      categoryTypes = connEntry.Category.values()
       typeCounts = dict((type, 0) for type in categoryTypes)
-      for conn in newConnections: typeCounts[conn.getType(True)] += 1
+      for entry in newConnections:
+        if isinstance(entry, connEntry.ConnectionEntry):
+          typeCounts[entry.getLines()[0].getType()] += 1
       
       # makes labels for all the categories with connections (ie,
       # "21 outbound", "1 control", etc)
@@ -264,116 +264,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       else: self._title = "Connections:"
       
       self._connections = newConnections
+      
+      self._connectionLines = []
+      for entry in self._connections:
+        self._connectionLines += entry.getLines()
+      
       self.setSortOrder()
       self._lastResourceFetch = currentResolutionCount
       self.valsLock.release()
-  
-  def _drawSelectionPanel(self, selection, width, isScrollbarVisible):
-    """
-    Renders a panel for details on the selected connnection.
-    """
-    
-    # This is a solid border unless the scrollbar is visible, in which case a
-    # 'T' pipe connects the border to the bar.
-    uiTools.drawBox(self, 0, 0, width, DETAILS_HEIGHT + 2)
-    if isScrollbarVisible: self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
-    
-    selectionFormat = curses.A_BOLD | uiTools.getColor(listings.CATEGORY_COLOR[selection.getType()])
-    lines = [""] * 7
-    
-    lines[0] = "address: %s" % selection.getDestinationLabel(width - 11, listings.DestAttr.NONE)
-    lines[1] = "locale: %s" % ("??" if selection.isPrivate() else selection.foreign.getLocale())
-    
-    # Remaining data concerns the consensus results, with three possible cases:
-    # - if there's a single match then display its details
-    # - if there's multiple potenial relays then list all of the combinations
-    #   of ORPorts / Fingerprints
-    # - if no consensus data is available then say so (probably a client or
-    #   exit connection)
-    
-    fingerprint = selection.foreign.getFingerprint()
-    conn = torTools.getConn()
-    
-    if fingerprint != "UNKNOWN":
-      # single match - display information available about it
-      nsEntry = conn.getConsensusEntry(fingerprint)
-      descEntry = conn.getDescriptorEntry(fingerprint)
-      
-      # append the fingerprint to the second line
-      lines[1] = "%-13sfingerprint: %s" % (lines[1], fingerprint)
-      
-      if nsEntry:
-        # example consensus entry:
-        # r murble R8sCM1ar1sS2GulQYFVmvN95xsk RJr6q+wkTFG+ng5v2bdCbVVFfA4 2011-02-21 00:25:32 195.43.157.85 443 0
-        # s Exit Fast Guard Named Running Stable Valid
-        # w Bandwidth=2540
-        # p accept 20-23,43,53,79-81,88,110,143,194,443
-        
-        nsLines = nsEntry.split("\n")
-        
-        firstLineComp = nsLines[0].split(" ")
-        if len(firstLineComp) >= 9:
-          _, nickname, _, _, pubDate, pubTime, _, orPort, dirPort = firstLineComp[:9]
-        else: nickname, pubDate, pubTime, orPort, dirPort = "", "", "", "", ""
-        
-        flags = nsLines[1][2:]
-        microExit = nsLines[3][2:]
-        
-        dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort
-        lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, orPort, dirPortLabel)
-        lines[3] = "published: %s %s" % (pubDate, pubTime)
-        lines[4] = "flags: %s" % flags.replace(" ", ", ")
-        lines[5] = "exit policy: %s" % microExit.replace(",", ", ")
-      
-      if descEntry:
-        torVersion, patform, contact = "", "", ""
-        
-        for descLine in descEntry.split("\n"):
-          if descLine.startswith("platform"):
-            # has the tor version and platform, ex:
-            # platform Tor 0.2.1.29 (r318f470bc5f2ad43) on Linux x86_64
-            
-            torVersion = descLine[13:descLine.find(" ", 13)]
-            platform = descLine[descLine.rfind(" on ") + 4:]
-          elif descLine.startswith("contact"):
-            contact = descLine[8:]
-            
-            # clears up some highly common obscuring
-            for alias in (" at ", " AT "): contact = contact.replace(alias, "@")
-            for alias in (" dot ", " DOT "): contact = contact.replace(alias, ".")
-            
-            break # contact lines come after the platform
-        
-        lines[3] = "%-36s os: %-14s version: %s" % (lines[3], platform, torVersion)
-        
-        # contact information is an optional field
-        if contact: lines[6] = "contact: %s" % contact
-    else:
-      allMatches = conn.getRelayFingerprint(selection.foreign.getIpAddr(), getAllMatches = True)
-      
-      if allMatches:
-        # multiple matches
-        lines[2] = "Muliple matches, possible fingerprints are:"
-        
-        for i in range(len(allMatches)):
-          isLastLine = i == 3
-          
-          relayPort, relayFingerprint = allMatches[i]
-          lineText = "%i. or port: %-5s fingerprint: %s" % (i, relayPort, relayFingerprint)
-          
-          # if there's multiple lines remaining at the end then give a count
-          remainingRelays = len(allMatches) - i
-          if isLastLine and remainingRelays > 1:
-            lineText = "... %i more" % remainingRelays
-          
-          lines[3 + i] = lineText
-          
-          if isLastLine: break
-      else:
-        # no consensus entry for this ip address
-        lines[2] = "No consensus data found"
-    
-    for i in range(len(lines)):
-      lineText = uiTools.cropStr(lines[i], width - 2)
-      self.addstr(1 + i, 2, lineText, selectionFormat)
 

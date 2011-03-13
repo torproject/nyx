@@ -409,6 +409,53 @@ def parseShortTimeLabel(timeEntry):
   except ValueError:
     raise ValueError(errorMsg)
 
+class DrawEntry:
+  """
+  Renderable content, encapsulating the text and formatting. These can be
+  chained together to compose lines with multiple types of formatting.
+  """
+  
+  def __init__(self, text, format=curses.A_NORMAL, nextEntry=None):
+    self.text = text
+    self.format = format
+    self.nextEntry = nextEntry
+  
+  def getNext(self):
+    """
+    Provides the next DrawEntry in the chain.
+    """
+    
+    return self.nextEntry
+  
+  def setNext(self, nextEntry):
+    """
+    Sets additional content to be drawn after this entry. If None then
+    rendering is terminated after this entry.
+    
+    Arguments:
+      nextEntry - DrawEntry instance to be rendered after this one
+    """
+    
+    self.nextEntry = nextEntry
+  
+  def render(self, drawPanel, y, x, extraFormat=curses.A_NORMAL):
+    """
+    Draws this content at the given position.
+    
+    Arguments:
+      drawPanel   - context in which to be drawn
+      y           - vertical location
+      x           - horizontal location
+      extraFormat - additional formatting
+    """
+    
+    drawFormat = self.format | extraFormat
+    drawPanel.addstr(y, x, self.text, drawFormat)
+    
+    # if there's additional content to show then render it too
+    if self.nextEntry:
+      self.nextEntry.render(drawPanel, y, x + len(self.text), extraFormat)
+
 class Scroller:
   """
   Tracks the scrolling position when there might be a visible cursor. This
