@@ -299,7 +299,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # if the connection doesn't belong to a known relay then it might be
       # client traffic
       
-      return self.foreign.getFingerprint() == "UNKNOWN"
+      conn = torTools.getConn()
+      allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
+      return allMatches == []
     elif myType == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else, however, is.
