@@ -606,7 +606,7 @@ class Controller(TorCtl.PostEventListener):
   def getCircuits(self, default = []):
     """
     This provides a list with tuples of the form:
-    (status, purpose, (fingerprint1, fingerprint2...))
+    (circuitID, status, purpose, (fingerprint1, fingerprint2...))
     
     Arguments:
       default - value provided back if unable to query the circuit-status
@@ -1394,15 +1394,9 @@ class Controller(TorCtl.PostEventListener):
         for line in orconnResults.split("\n"):
           self._fingerprintsAttachedCache.append(line[1:line.find("=")])
       
-      # circuit-status has entries of the form:
-      # 7 BUILT $33173252B70A50FE3928C7453077936D71E45C52=shiven,...
-      circStatusResults = self.getInfo("circuit-status")
-      if circStatusResults:
-        for line in circStatusResults.split("\n"):
-          clientEntries = line.split(" ")[2].split(",")
-          
-          for entry in clientEntries:
-            self._fingerprintsAttachedCache.append(entry[1:entry.find("=")])
+      # circuit-status results (we only make connections to the first hop)
+      for _, _, _, path in self.getCircuits():
+        self._fingerprintsAttachedCache.append(path[0])
     
     # narrow to only relays we have a connection to
     attachedMatches = []
@@ -1608,7 +1602,7 @@ class Controller(TorCtl.PostEventListener):
             if len(lineComp) < 4: continue
             
             path = tuple([hopEntry[1:41] for hopEntry in lineComp[2].split(",")])
-            result.append((lineComp[1], lineComp[3], path))
+            result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], path))
       
       # cache value
       if result != None: self._cachedParam[key] = result

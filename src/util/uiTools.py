@@ -415,10 +415,23 @@ class DrawEntry:
   chained together to compose lines with multiple types of formatting.
   """
   
-  def __init__(self, text, format=curses.A_NORMAL, nextEntry=None):
+  def __init__(self, text, format=curses.A_NORMAL, nextEntry=None, lockFormat=False):
+    """
+    Constructor for prepared draw entries.
+    
+    Arguments:
+      text       - content to be drawn, this can either be a string or list of
+                   integer character codes
+      format     - properties to apply when drawing
+      nextEntry  - entry to be drawn after this one
+      lockFormat - prevents extra formatting attributes from being applied
+                   when rendered if true
+    """
+    
     self.text = text
     self.format = format
     self.nextEntry = nextEntry
+    self.lockFormat = lockFormat
   
   def getNext(self):
     """
@@ -449,8 +462,15 @@ class DrawEntry:
       extraFormat - additional formatting
     """
     
-    drawFormat = self.format | extraFormat
-    drawPanel.addstr(y, x, self.text, drawFormat)
+    if self.lockFormat: drawFormat = self.format
+    else: drawFormat = self.format | extraFormat
+    
+    if isinstance(self.text, str):
+      drawPanel.addstr(y, x, self.text, drawFormat)
+    else:
+      for i in range(len(self.text)):
+        drawChar = self.text[i]
+        drawPanel.addch(y, x + i, drawChar, drawFormat)
     
     # if there's additional content to show then render it too
     if self.nextEntry:

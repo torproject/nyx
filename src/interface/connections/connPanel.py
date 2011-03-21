@@ -6,8 +6,8 @@ import time
 import curses
 import threading
 
-from interface.connections import entries, connEntry
-from util import connections, enum, panel, uiTools
+from interface.connections import entries, connEntry, clientEntry
+from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.listingType": 0,
                   "features.connection.refreshRate": 10}
@@ -48,8 +48,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._listingType = Listing.values()[self._config["features.connection.listingType"]]
     self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel
-    self._connections = []      # last fetched connections
-    self._connectionLines = []  # individual lines in the connection listing
+    self._entries = []          # last fetched display entries
+    self._entryLines = []       # individual lines rendered from the entries listing
     self._showDetails = False   # presents the details panel if true
     
     self._lastUpdate = -1       # time the content was last revised
@@ -95,11 +95,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self.valsLock.acquire()
     if ordering: self._sortOrdering = ordering
-    self._connections.sort(key=lambda i: (i.getSortValues(self._sortOrdering, self._listingType)))
+    self._entries.sort(key=lambda i: (i.getSortValues(self._sortOrdering, self._listingType)))
     
-    self._connectionLines = []
-    for entry in self._connections:
-      self._connectionLines += entry.getLines()
+    self._entryLines = []
+    for entry in self._entries:
+      self._entryLines += entry.getLines()
     self.valsLock.release()
   
   def setListingType(self, listingType):
@@ -125,7 +125,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
-      isChanged = self._scroller.handleKey(key, self._connectionLines, pageHeight)
+      isChanged = self._scroller.handleKey(key, self._entryLines, pageHeight)
       if isChanged: self.redraw(True)
     elif uiTools.isSelectionKey(key):
       self._showDetails = not self._showDetails
@@ -157,10 +157,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     # extra line when showing the detail panel is for the bottom border
     detailPanelOffset = DETAILS_HEIGHT + 1 if self._showDetails else 0
-    isScrollbarVisible = len(self._connectionLines) > height - detailPanelOffset - 1
+    isScrollbarVisible = len(self._entryLines) > height - detailPanelOffset - 1
     
-    scrollLoc = self._scroller.getScrollLoc(self._connectionLines, height - detailPanelOffset - 1)
-    cursorSelection = self._scroller.getCursorSelection(self._connectionLines)
+    scrollLoc = self._scroller.getScrollLoc(self._entryLines, height - detailPanelOffset - 1)
+    cursorSelection = self._scroller.getCursorSelection(self._entryLines)
     
     # draws the detail panel if currently displaying it
     if self._showDetails:
@@ -177,14 +177,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     title = "Connection Details:" if self._showDetails else self._title
     self.addstr(0, 0, title, curses.A_STANDOUT)
     
-    scrollOffset = 0
+    scrollOffset = 1
     if isScrollbarVisible:
       scrollOffset = 3
-      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._connectionLines), 1 + detailPanelOffset)
+      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._entryLines), 1 + detailPanelOffset)
     
     currentTime = self._pauseTime if self._pauseTime else time.time()
-    for lineNum in range(scrollLoc, len(self._connectionLines)):
-      entryLine = self._connectionLines[lineNum]
+    for lineNum in range(scrollLoc, len(self._entryLines)):
+      entryLine = self._entryLines[lineNum]
       
       # hilighting if this is the selected line
       extraFormat = curses.A_STANDOUT if entryLine == cursorSelection else curses.A_NORMAL
@@ -216,31 +216,56 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     if self._lastResourceFetch != currentResolutionCount:
       self.valsLock.acquire()
-      currentConnections = connResolver.getConnections()
       
-      # Replacement listing of connections. We first populate it with any of
-      # our old entries in currentConnections, then add new ConnectionEntries
-      # for whatever remains.
-      newConnections = []
+      newEntries = [] # the new results we'll display
       
-      # preserves any ConnectionEntries they already exist
-      for entry in self._connections:
-        if isinstance(entry, connEntry.ConnectionEntry):
-          connLine = entry.getLines()[0]
+      # Fetches new connections and client circuits...
+      # newConnections  [(local ip, local port, foreign ip, foreign port)...]
+      # newCircuits     {circuitID => (status, purpose, path)...}
+      
+      newConnections = connResolver.getConnections()
+      newCircuits = {}
+      
+      for circuitID, status, purpose, path in torTools.getConn().getCircuits():
+        # Skips established single-hop circuits (these are for directory
+        # fetches, not client circuits)
+        if not (status == "BUILT" and len(path) == 1):
+          newCircuits[circuitID] = (status, purpose, path)
+      
+      # Populates newEntries with any of our old entries that still exist.
+      # This is both for performance and to keep from resetting the uptime
+      # attributes. Note that ClientEntries are a ConnectionEntry subclass so
+      # we need to check for them first.
+      
+      for oldEntry in self._entries:
+        if isinstance(oldEntry, clientEntry.ClientEntry):
+          newEntry = newCircuits.get(oldEntry.circuitID)
+          
+          if newEntry:
+            oldEntry.update(newEntry[0], newEntry[2])
+            newEntries.append(oldEntry)
+            del newCircuits[oldEntry.circuitID]
+        elif isinstance(oldEntry, connEntry.ConnectionEntry):
+          connLine = oldEntry.getLines()[0]
           connAttr = (connLine.local.getIpAddr(), connLine.local.getPort(),
                       connLine.foreign.getIpAddr(), connLine.foreign.getPort())
           
-          if connAttr in currentConnections:
-            newConnections.append(entry)
-            currentConnections.remove(connAttr)
+          if connAttr in newConnections:
+            newEntries.append(oldEntry)
+            newConnections.remove(connAttr)
       
-      # reset any display attributes for the entries we're keeping
-      for entry in newConnections:
-        entry.resetDisplay()
+      # Reset any display attributes for the entries we're keeping
+      for entry in newEntries: entry.resetDisplay()
       
-      # add new entries for any additions
-      for lIp, lPort, fIp, fPort in currentConnections:
-        newConnections.append(connEntry.ConnectionEntry(lIp, lPort, fIp, fPort))
+      # Adds any new connection and circuit entries.
+      for lIp, lPort, fIp, fPort in newConnections:
+        newConnEntry = connEntry.ConnectionEntry(lIp, lPort, fIp, fPort)
+        if newConnEntry.getLines()[0].getType() != connEntry.Category.CLIENT:
+          newEntries.append(newConnEntry)
+      
+      for circuitID in newCircuits:
+        status, purpose, path = newCircuits[circuitID]
+        newEntries.append(clientEntry.ClientEntry(circuitID, status, purpose, path))
       
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last
@@ -248,9 +273,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       categoryTypes = connEntry.Category.values()
       typeCounts = dict((type, 0) for type in categoryTypes)
-      for entry in newConnections:
+      for entry in newEntries:
         if isinstance(entry, connEntry.ConnectionEntry):
           typeCounts[entry.getLines()[0].getType()] += 1
+        elif isinstance(entry, clientEntry.ClientEntry):
+          typeCounts[connEntry.Category.CLIENT] += 1
       
       # makes labels for all the categories with connections (ie,
       # "21 outbound", "1 control", etc)
@@ -263,11 +290,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if countLabels: self._title = "Connections (%s):" % ", ".join(countLabels)
       else: self._title = "Connections:"
       
-      self._connections = newConnections
+      self._entries = newEntries
       
-      self._connectionLines = []
-      for entry in self._connections:
-        self._connectionLines += entry.getLines()
+      self._entryLines = []
+      for entry in self._entries:
+        self._entryLines += entry.getLines()
       
       self.setSortOrder()
       self._lastResourceFetch = currentResolutionCount

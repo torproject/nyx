@@ -182,7 +182,7 @@ features.connection.refreshRate 10
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true
 features.connection.showColumn.destination true
-features.connection.showColumn.expanedIp true
+features.connection.showColumn.expandedIp true
 
 # Thread pool size for hostname resolutions
 # Determines the maximum number of concurrent requests. Upping this to around

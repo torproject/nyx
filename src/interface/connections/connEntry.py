@@ -32,7 +32,7 @@ LABEL_MIN_PADDING = 2 # min space between listing label and following data
 CONFIG = {"features.connection.showColumn.fingerprint": True,
           "features.connection.showColumn.nickname": True,
           "features.connection.showColumn.destination": True,
-          "features.connection.showColumn.expanedIp": True}
+          "features.connection.showColumn.expandedIp": True}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -51,6 +51,9 @@ class Endpoint:
     # if true, we treat the port as an ORPort when searching for matching
     # fingerprints (otherwise the ORPort is assumed to be unknown)
     self.isORPort = False
+    
+    # if set then this overwrites fingerprint lookups
+    self.fingerprintOverwrite = None
   
   def getIpAddr(self):
     """
@@ -88,20 +91,25 @@ class Endpoint:
     
     return default
   
-  def getLocale(self):
+  def getLocale(self, default=None):
     """
-    Provides the two letter country code for the IP address' locale. This
-    proivdes None if it can't be determined.
+    Provides the two letter country code for the IP address' locale.
+    
+    Arguments:
+      default - return value if no locale information is available
     """
     
     conn = torTools.getConn()
-    return conn.getInfo("ip-to-country/%s" % self.ipAddr)
+    return conn.getInfo("ip-to-country/%s" % self.ipAddr, default)
   
   def getFingerprint(self):
     """
     Provides the fingerprint of the relay, returning "UNKNOWN" if it can't be
     determined.
     """
+    
+    if self.fingerprintOverwrite:
+      return self.fingerprintOverwrite
     
     conn = torTools.getConn()
     orPort = self.port if self.isORPort else None
@@ -157,7 +165,7 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
       return self.lines[0].startTime
     elif attr == entries.SortAttr.COUNTRY:
       if connections.isIpAddressPrivate(self.lines[0].foreign.getIpAddr()): return ""
-      else: return self.lines[0].foreign.getLocale()
+      else: return self.lines[0].foreign.getLocale("")
     else:
       return entries.ConnectionPanelEntry.getSortValue(self, attr, listingType)
 
@@ -166,7 +174,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
   Display component of the ConnectionEntry.
   """
   
-  def __init__(self, lIpAddr, lPort, fIpAddr, fPort):
+  def __init__(self, lIpAddr, lPort, fIpAddr, fPort, includePort=True, includeExpandedIpAddr=True):
     entries.ConnectionPanelLine.__init__(self)
     
     self.local = Endpoint(lIpAddr, lPort)
@@ -206,14 +214,19 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     self.cachedType = None
     
+    # includes the port or expanded ip address field when displaying listing
+    # information if true
+    self.includePort = includePort
+    self.includeExpandedIpAddr = includeExpandedIpAddr
+    
     # cached immutable values used for sorting
     self.sortIpAddr = connections.ipToInt(self.foreign.getIpAddr())
     self.sortPort = int(self.foreign.getPort())
   
   def getListingEntry(self, width, currentTime, listingType):
     """
-    Provides the DrawEntry for this connection's listing. The line is made up
-    of six components:
+    Provides the DrawEntry for this connection's listing. Lines are composed
+    of the following components:
       <src>  -->  <dst>     <etc>     <uptime> (<type>)
     
     ListingType.IP_ADDRESS:
@@ -355,7 +368,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # a built 1-hop connection since those are most likely a directory
             # mirror).
             
-            for status, _, path in myCircuits:
+            for _, status, _, path in myCircuits:
               if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
                 self.cachedType = Category.CLIENT # matched a probable guard connection
             
@@ -366,7 +379,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           if self._possibleDirectory:
             # Checks if we match a built, single hop circuit.
             
-            for status, _, path in myCircuits:
+            for _, status, _, path in myCircuits:
               if path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
                 self.cachedType = Category.DIRECTORY
             
@@ -379,6 +392,78 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     return self.cachedType
   
+  def getEtcContent(self, width, listingType):
+    """
+    Provides the optional content for the connection.
+    
+    Arguments:
+      width       - maximum length of the line
+      listingType - primary attribute we're listing connections by
+    """
+    
+    dstAddress = self.getDestinationLabel(26, includeLocale = True)
+    etc, usedSpace = "", 0
+    if listingType == entries.ListingType.IP_ADDRESS:
+      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+        # show fingerprint (column width: 42 characters)
+        etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
+      
+      if width > usedSpace + 10 and CONFIG["features.connection.showColumn.nickname"]:
+        # show nickname (column width: remainder)
+        nicknameSpace = width - usedSpace
+        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
+        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+        usedSpace += nicknameSpace + 2
+    elif listingType == entries.ListingType.HOSTNAME:
+      if width > usedSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
+        # show destination ip/port/locale (column width: 28 characters)
+        etc += "%-26s  " % dstAddress
+        usedSpace += 28
+      
+      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+        # show fingerprint (column width: 42 characters)
+        etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
+      
+      if width > usedSpace + 17 and CONFIG["features.connection.showColumn.nickname"]:
+        # show nickname (column width: min 17 characters, uses half of the remainder)
+        nicknameSpace = 15 + (width - (usedSpace + 17)) / 2
+        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
+        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+        usedSpace += (nicknameSpace + 2)
+    elif listingType == entries.ListingType.FINGERPRINT:
+      if width > usedSpace + 17:
+        # show nickname (column width: min 17 characters, consumes any remaining space)
+        nicknameSpace = width - usedSpace - 2
+        
+        # if there's room then also show a column with the destination
+        # ip/port/locale (column width: 28 characters)
+        isIpLocaleIncluded = width > usedSpace + 45
+        isIpLocaleIncluded &= CONFIG["features.connection.showColumn.destination"]
+        if isIpLocaleIncluded: nicknameSpace -= 28
+        
+        if CONFIG["features.connection.showColumn.nickname"]:
+          nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
+          etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
+          usedSpace += nicknameSpace + 2
+        
+        if isIpLocaleIncluded:
+          etc += "%-26s  " % dstAddress
+          usedSpace += 28
+    else:
+      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+        # show fingerprint (column width: 42 characters)
+        etc += "%-40s  " % self.foreign.getFingerprint()
+        usedSpace += 42
+      
+      if width > usedSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
+        # show destination ip/port/locale (column width: 28 characters)
+        etc += "%-26s  " % dstAddress
+        usedSpace += 28
+    
+    return etc
+  
   def _getListingContent(self, width, listingType):
     """
     Provides the source, destination, and extra info for our listing.
@@ -390,7 +475,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     conn = torTools.getConn()
     myType = self.getType()
-    dstAddress = self._getDestinationLabel(26, includeLocale = True)
+    dstAddress = self.getDestinationLabel(26, includeLocale = True)
     
     # The required widths are the sum of the following:
     # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
@@ -398,57 +483,43 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # - that extra field plus any previous
     
     usedSpace = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
+    localPort = ":%s" % self.local.getPort() if self.includePort else ""
     
     src, dst, etc = "", "", ""
     if listingType == entries.ListingType.IP_ADDRESS:
       myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
       addrDiffer = myExternalIpAddr != self.local.getIpAddr()
       
-      srcAddress = "%s:%s" % (myExternalIpAddr, self.local.getPort())
+      srcAddress = myExternalIpAddr + localPort
       src = "%-21s" % srcAddress # ip:port = max of 21 characters
       dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
       
       usedSpace += len(src) + len(dst) # base data requires 47 characters
       
-      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
-        # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
+      # Showing the fingerprint (which has the width of 42) has priority over
+      # an expanded address field. Hence check if we either have space for
+      # both or wouldn't be showing the fingerprint reguardless.
       
-      if addrDiffer and width > usedSpace + 28 and CONFIG["features.connection.showColumn.expanedIp"]:
+      isExpandedAddrVisible = width > usedSpace + 28
+      if isExpandedAddrVisible and CONFIG["features.connection.showColumn.fingerprint"]:
+        isExpandedAddrVisible = width < usedSpace + 42 or width > usedSpace + 70
+      
+      if addrDiffer and isExpandedAddrVisible and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
         # include the internal address in the src (extra 28 characters)
-        internalAddress = "%s:%s" % (self.local.getIpAddr(), self.local.getPort())
+        internalAddress = self.local.getIpAddr() + localPort
         src = "%-21s  -->  %s" % (internalAddress, src)
         usedSpace += 28
       
-      if width > usedSpace + 10 and CONFIG["features.connection.showColumn.nickname"]:
-        # show nickname (column width: remainder)
-        nicknameSpace = width - usedSpace
-        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-        usedSpace += nicknameSpace + 2
+      etc = self.getEtcContent(width - usedSpace, listingType)
+      usedSpace += len(etc)
     elif listingType == entries.ListingType.HOSTNAME:
       # 15 characters for source, and a min of 40 reserved for the destination
-      src = "localhost:%-5s" % self.local.getPort()
+      src = "localhost%-6s" % localPort
       usedSpace += len(src)
       minHostnameSpace = 40
       
-      if width > usedSpace + minHostnameSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
-        # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % dstAddress
-        usedSpace += 28
-      
-      if width > usedSpace + minHostnameSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
-        # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
-      
-      if width > usedSpace + minHostnameSpace + 17 and CONFIG["features.connection.showColumn.nickname"]:
-        # show nickname (column width: min 17 characters, uses half of the remainder)
-        nicknameSpace = 15 + (width - (usedSpace + minHostnameSpace + 17)) / 2
-        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-        usedSpace += (nicknameSpace + 2)
+      etc = self.getEtcContent(width - usedSpace - minHostnameSpace, listingType)
+      usedSpace += len(etc)
       
       hostnameSpace = width - usedSpace
       usedSpace = width # prevents padding at the end
@@ -456,12 +527,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
         dst = ("%%-%is" % hostnameSpace) % "<scrubbed>"
       else:
         hostname = self.foreign.getHostname(self.foreign.getIpAddr())
-        port = self.foreign.getPort()
+        portLabel = ":%-5s" % self.foreign.getPort() if self.includePort else ""
         
         # truncates long hostnames and sets dst to <hostname>:<port>
         hostname = uiTools.cropStr(hostname, hostnameSpace, 0)
-        dst = "%s:%-5s" % (hostname, port)
-        dst = ("%%-%is" % hostnameSpace) % dst
+        dst = ("%%-%is" % hostnameSpace) % (hostname + portLabel)
     elif listingType == entries.ListingType.FINGERPRINT:
       src = "localhost"
       if myType == Category.CONTROL: dst = "localhost"
@@ -470,25 +540,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       
       usedSpace += len(src) + len(dst) # base data requires 49 characters
       
-      if width > usedSpace + 17:
-        # show nickname (column width: min 17 characters, consumes any remaining space)
-        nicknameSpace = width - usedSpace
-        
-        # if there's room then also show a column with the destination
-        # ip/port/locale (column width: 28 characters)
-        isIpLocaleIncluded = width > usedSpace + 45
-        isIpLocaleIncluded &= CONFIG["features.connection.showColumn.destination"]
-        if isIpLocaleIncluded: nicknameSpace -= 28
-        
-        if CONFIG["features.connection.showColumn.nickname"]:
-          nicknameSpace = width - usedSpace - 28 if isIpLocaleIncluded else width - usedSpace
-          nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-          etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-          usedSpace += nicknameSpace + 2
-        
-        if isIpLocaleIncluded:
-          etc += "%-26s  " % dstAddress
-          usedSpace += 28
+      etc = self.getEtcContent(width - usedSpace, listingType)
+      usedSpace += len(etc)
     else:
       # base data requires 50 min characters
       src = self.local.getNickname()
@@ -496,15 +549,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       else: dst = self.foreign.getNickname()
       minBaseSpace = 50
       
-      if width > usedSpace + minBaseSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
-        # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
-      
-      if width > usedSpace + minBaseSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
-        # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % dstAddress
-        usedSpace += 28
+      etc = self.getEtcContent(width - usedSpace - minBaseSpace, listingType)
+      usedSpace += len(etc)
       
       baseSpace = width - usedSpace
       usedSpace = width # prevents padding at the end
@@ -529,8 +575,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     lines = [""] * 7
-    lines[0] = "address: %s" % self._getDestinationLabel(width - 11)
-    lines[1] = "locale: %s" % ("??" if self.isPrivate() else self.foreign.getLocale())
+    lines[0] = "address: %s" % self.getDestinationLabel(width - 11)
+    lines[1] = "locale: %s" % ("??" if self.isPrivate() else self.foreign.getLocale("??"))
     
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
@@ -627,7 +673,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     return lines
   
-  def _getDestinationLabel(self, maxLength, includeLocale=False, includeHostname=False):
+  def getDestinationLabel(self, maxLength, includeLocale=False, includeHostname=False):
     """
     Provides a short description of the destination. This is made up of two
     components, the base <ip addr>:<port> and an extra piece of information in
@@ -646,10 +692,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     # destination of the connection
-    if self.isPrivate():
-      dstAddress = "<scrubbed>:%s" % self.foreign.getPort()
-    else:
-      dstAddress = "%s:%s" % (self.foreign.getIpAddr(), self.foreign.getPort())
+    ipLabel = "<scrubbed>" if self.isPrivate() else self.foreign.getIpAddr()
+    portLabel = ":%s" % self.foreign.getPort() if self.includePort else ""
+    dstAddress = ipLabel + portLabel
     
     # Only append the extra info if there's at least a couple characters of
     # space (this is what's needed for the country codes).
@@ -673,7 +718,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         extraInfo = []
         
         if includeLocale:
-          foreignLocale = self.foreign.getLocale()
+          foreignLocale = self.foreign.getLocale("??")
           extraInfo.append(foreignLocale)
           spaceAvailable -= len(foreignLocale) + 2
         
