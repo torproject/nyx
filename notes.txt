@@ -8,7 +8,7 @@ builds -
   - dump /release/ChangeLog into /resources/build/debian/changelog
 
 TorCtl (dependency) -
-  Last Updated: 11/18/10 (https://gitweb.torproject.org/pytorctl.git):
+  Last Updated: 3/21/11 (https://gitweb.torproject.org/pytorctl.git):
   To update run the following:
     git clone git://git.torproject.org/pytorctl.git
     cd pytorctl
