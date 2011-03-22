@@ -20,7 +20,8 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
-DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False,
+DEFAULT_CONFIG = {"features.graph.bw.prepopulateTotal": False,
+                  "features.graph.bw.transferInBytes": False,
                   "features.graph.bw.accounting.show": True,
                   "features.graph.bw.accounting.rate": 10,
                   "features.graph.bw.accounting.isTimeLong": False,
@@ -38,6 +39,11 @@ class BandwidthStats(graphPanel.GraphStats):
     self._config = dict(DEFAULT_CONFIG)
     if config:
       config.update(self._config, {"features.graph.bw.accounting.rate": 1})
+    
+    # stats prepopulated from tor's state file
+    self.prepopulatePrimaryTotal = 0
+    self.prepopulateSecondaryTotal = 0
+    self.prepopulateTicks = 0
     
     # accounting data (set by _updateAccountingInfo method)
     self.accountingLastUpdated = 0
@@ -164,9 +170,10 @@ class BandwidthStats(graphPanel.GraphStats):
       readVal, writeVal = bwReadEntries[i], bwWriteEntries[i]
       
       self.lastPrimary, self.lastSecondary = readVal, writeVal
-      self.primaryTotal += readVal * 900
-      self.secondaryTotal += writeVal * 900
-      self.tick += 900
+      
+      self.prepopulatePrimaryTotal += readVal * 900
+      self.prepopulateSecondaryTotal += writeVal * 900
+      self.prepopulateTicks += 900
       
       self.primaryCounts[intervalIndex].insert(0, readVal)
       self.secondaryCounts[intervalIndex].insert(0, writeVal)
@@ -316,10 +323,15 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick)) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"])
+    total += self.prepopulatePrimaryTotal if isPrimary else self.prepopulateSecondaryTotal
+    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick + self.prepopulateTicks)) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"])
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
+    
+    if self._config["features.graph.bw.prepopulateTotal"]:
+      total += self.prepopulatePrimaryTotal if isPrimary else self.prepopulateSecondaryTotal
+    
     return "total: %s" % uiTools.getSizeLabel(total * 1024, 1)
   
   def _updateAccountingInfo(self):
