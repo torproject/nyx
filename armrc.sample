@@ -179,6 +179,7 @@ features.connection.newPanel true
 features.connection.listingType 0
 features.connection.order 0, 2, 1
 features.connection.refreshRate 10
+features.connection.showExitPort true
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true
 features.connection.showColumn.destination true

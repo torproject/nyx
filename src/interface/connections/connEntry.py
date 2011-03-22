@@ -29,7 +29,8 @@ CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
 LABEL_FORMAT = "%s  -->  %s  %s%s"
 LABEL_MIN_PADDING = 2 # min space between listing label and following data
 
-CONFIG = {"features.connection.showColumn.fingerprint": True,
+CONFIG = {"features.connection.showExitPort": True,
+          "features.connection.showColumn.fingerprint": True,
           "features.connection.showColumn.nickname": True,
           "features.connection.showColumn.destination": True,
           "features.connection.showColumn.expandedIp": True}
@@ -691,9 +692,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
       includeHostname - possibly includes the hostname
     """
     
+    # the port and port derived data can be hidden by config or without includePort
+    includePort = self.includePort and (CONFIG["features.connection.showExitPort"] or self.getType() != Category.EXIT)
+    
     # destination of the connection
     ipLabel = "<scrubbed>" if self.isPrivate() else self.foreign.getIpAddr()
-    portLabel = ":%s" % self.foreign.getPort() if self.includePort else ""
+    portLabel = ":%s" % self.foreign.getPort() if includePort else ""
     dstAddress = ipLabel + portLabel
     
     # Only append the extra info if there's at least a couple characters of
@@ -701,7 +705,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     if len(dstAddress) + 5 <= maxLength:
       spaceAvailable = maxLength - len(dstAddress) - 3
       
-      if self.getType() == Category.EXIT:
+      if self.getType() == Category.EXIT and includePort:
         purpose = connections.getPortUsage(self.foreign.getPort())
         
         if purpose:
