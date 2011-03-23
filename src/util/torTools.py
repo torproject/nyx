@@ -784,31 +784,35 @@ class Controller(TorCtl.PostEventListener):
     
     result = None
     if self.isAlive():
-      policyEntries = []
-      for exitPolicy in self.getOption("ExitPolicy", [], True):
-        policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
-      
-      # appends the default exit policy
-      defaultExitPolicy = self.getInfo("exit-policy/default")
-      
-      if defaultExitPolicy:
-        policyEntries += defaultExitPolicy.split(",")
-      
-      # construct the policy chain backwards
-      policyEntries.reverse()
-      
-      for entry in policyEntries:
-        result = ExitPolicy(entry, result)
-      
-      # Checks if we are rejecting private connections. If set, this appends
-      # 'reject private' and 'reject <my ip>' to the start of our policy chain.
-      isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
-      
-      if isPrivateRejected:
-        result = ExitPolicy("reject private", result)
+      if self.getOption("ORPort"):
+        policyEntries = []
+        for exitPolicy in self.getOption("ExitPolicy", [], True):
+          policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
         
-        myAddress = self.getInfo("address")
-        if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+        # appends the default exit policy
+        defaultExitPolicy = self.getInfo("exit-policy/default")
+        
+        if defaultExitPolicy:
+          policyEntries += defaultExitPolicy.split(",")
+        
+        # construct the policy chain backwards
+        policyEntries.reverse()
+        
+        for entry in policyEntries:
+          result = ExitPolicy(entry, result)
+        
+        # Checks if we are rejecting private connections. If set, this appends
+        # 'reject private' and 'reject <my ip>' to the start of our policy chain.
+        isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
+        
+        if isPrivateRejected:
+          result = ExitPolicy("reject private", result)
+          
+          myAddress = self.getInfo("address")
+          if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+      else:
+        # no ORPort is set so all relaying is disabled
+        result = ExitPolicy("reject *:*")
     
     self.connLock.release()
     

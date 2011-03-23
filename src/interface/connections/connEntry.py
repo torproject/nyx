@@ -14,14 +14,14 @@ from interface.connections import entries
 #   Outbound     Relay connection, leaving us.
 #   Exit         Outbound relay connection leaving the Tor network.
 #   Client       Circuits for our client traffic.
-#   Application  Socks connections using Tor.
+#   Program      Socks connections for applications using Tor.
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (arm, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "APPLICATION", "DIRECTORY", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "PROGRAM", "DIRECTORY", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
                   Category.EXIT: "red",           Category.CLIENT: "cyan",
-                  Category.APPLICATION: "yellow", Category.DIRECTORY: "magenta",
+                  Category.PROGRAM: "yellow",     Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
 # static data for listing format
@@ -208,7 +208,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       self.baseType = Category.INBOUND
       self.local.isORPort = True
     elif lPort == mySocksPort:
-      self.baseType = Category.APPLICATION
+      self.baseType = Category.PROGRAM
     elif lPort == myCtlPort:
       self.baseType = Category.CONTROL
     else:
@@ -498,6 +498,16 @@ class ConnectionLine(entries.ConnectionPanelLine):
       myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
       addrDiffer = myExternalIpAddr != self.local.getIpAddr()
       
+      # Expanding doesn't make sense, if the connection isn't actually
+      # going through Tor's external IP address. As there isn't a known
+      # method for checking if it is, we're checking the type instead.
+      #
+      # This isn't entirely correct. It might be a better idea to check if
+      # the source and destination addresses are both private, but that might
+      # not be perfectly reliable either.
+      
+      isExpansionType = not myType in (Category.PROGRAM, Category.CONTROL)
+      
       srcAddress = myExternalIpAddr + localPort
       src = "%-21s" % srcAddress # ip:port = max of 21 characters
       dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
@@ -512,7 +522,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if isExpandedAddrVisible and CONFIG["features.connection.showColumn.fingerprint"]:
         isExpandedAddrVisible = width < usedSpace + 42 or width > usedSpace + 70
       
-      if addrDiffer and isExpandedAddrVisible and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
+      if addrDiffer and isExpansionType and isExpandedAddrVisible and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
         # include the internal address in the src (extra 28 characters)
         internalAddress = self.local.getIpAddr() + localPort
         src = "%-21s  -->  %s" % (internalAddress, src)
@@ -570,7 +580,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # pads dst entry to its max space
       dst = ("%%-%is" % (baseSpace - len(src))) % dst
     
-    if myType == Category.INBOUND: src, dst = dst, src
+    if myType in (Category.INBOUND, Category.PROGRAM, Category.CONTROL): src, dst = dst, src
     padding = " " * (width - usedSpace + LABEL_MIN_PADDING)
     return LABEL_FORMAT % (src, dst, etc, padding)
   
