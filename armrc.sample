@@ -175,6 +175,12 @@ features.graph.bw.accounting.isTimeLong false
 #   connection resolution rate then reducing this won't casue new data to
 #   appear more frequently - just increase the rate at which the uptime field
 #   is updated)
+# markInitialConnections
+#   if true, the uptime of the initial connections when we start are marked
+#   with a '+' (these uptimes are estimates since arm can only track a
+#   connection's duration while it runs)
+# showExitPort
+#   shows port related information of exit connections we relay if true
 # showColumn.*
 #   toggles the visability of the connection table columns
 
@@ -183,6 +189,7 @@ features.connection.newPanel true
 features.connection.listingType 0
 features.connection.order 0, 2, 1
 features.connection.refreshRate 10
+features.connection.markInitialConnections true
 features.connection.showExitPort true
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true

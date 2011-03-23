@@ -65,6 +65,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self._update() # populates initial entries
     
+    # mark the initially exitsing connection uptimes as being estimates
+    for entry in self._entries:
+      if isinstance(entry, connEntry.ConnectionEntry):
+        entry.getLines()[0].isInitialConnection = True
+    
     # TODO: should listen for tor shutdown
     # TODO: hasn't yet had its pausing functionality tested (for instance, the
     # key handler still accepts events when paused)

@@ -29,7 +29,8 @@ CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
 LABEL_FORMAT = "%s  -->  %s  %s%s"
 LABEL_MIN_PADDING = 2 # min space between listing label and following data
 
-CONFIG = {"features.connection.showExitPort": True,
+CONFIG = {"features.connection.markInitialConnections": True,
+          "features.connection.showExitPort": True,
           "features.connection.showColumn.fingerprint": True,
           "features.connection.showColumn.nickname": True,
           "features.connection.showColumn.destination": True,
@@ -181,6 +182,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.local = Endpoint(lIpAddr, lPort)
     self.foreign = Endpoint(fIpAddr, fPort)
     self.startTime = time.time()
+    self.isInitialConnection = False
     
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -261,8 +263,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
     myListing = entries.ConnectionPanelLine.getListingEntry(self, width, currentTime, listingType)
     
     # fill in the current uptime and return the results
+    if CONFIG["features.connection.markInitialConnections"]:
+      timePrefix = "+" if self.isInitialConnection else " "
+    else: timePrefix = ""
+    
     timeEntry = myListing.getNext()
-    timeEntry.text = "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
+    timeEntry.text = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
     
     return myListing
   
@@ -277,12 +283,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # postType - ")   "
     
     lineFormat = uiTools.getColor(CATEGORY_COLOR[entryType])
+    timeWidth = 6 if CONFIG["features.connection.markInitialConnections"] else 5
     
     drawEntry = uiTools.DrawEntry(")" + " " * (9 - len(entryType)), lineFormat)
     drawEntry = uiTools.DrawEntry(entryType.upper(), lineFormat | curses.A_BOLD, drawEntry)
     drawEntry = uiTools.DrawEntry(" (", lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(" " * 5, lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(self._getListingContent(width - 17, listingType), lineFormat, drawEntry)
+    drawEntry = uiTools.DrawEntry(" " * timeWidth, lineFormat, drawEntry)
+    drawEntry = uiTools.DrawEntry(self._getListingContent(width - (12 + timeWidth), listingType), lineFormat, drawEntry)
     return drawEntry
   
   def _getDetails(self, width):
