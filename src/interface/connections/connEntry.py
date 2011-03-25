@@ -29,6 +29,9 @@ CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
 LABEL_FORMAT = "%s  -->  %s  %s%s"
 LABEL_MIN_PADDING = 2 # min space between listing label and following data
 
+# sort value for scrubbed ip addresses
+SCRUBBED_IP_VAL = 255 ** 4
+
 CONFIG = {"features.connection.markInitialConnections": True,
           "features.connection.showExitPort": True,
           "features.connection.showColumn.fingerprint": True,
@@ -149,25 +152,28 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
     Provides the value of a single attribute used for sorting purposes.
     """
     
+    connLine = self.lines[0]
     if attr == entries.SortAttr.IP_ADDRESS:
-      return self.lines[0].sortIpAddr
+      if connLine.isPrivate(): return SCRUBBED_IP_VAL # orders at the end
+      return connLine.sortIpAddr
     elif attr == entries.SortAttr.PORT:
-      return self.lines[0].sortPort
+      return connLine.sortPort
     elif attr == entries.SortAttr.HOSTNAME:
-      return self.lines[0].foreign.getHostname("")
+      if connLine.isPrivate(): return ""
+      return connLine.foreign.getHostname("")
     elif attr == entries.SortAttr.FINGERPRINT:
-      return self.lines[0].foreign.getFingerprint()
+      return connLine.foreign.getFingerprint()
     elif attr == entries.SortAttr.NICKNAME:
-      myNickname = self.lines[0].foreign.getNickname()
+      myNickname = connLine.foreign.getNickname()
       if myNickname == "UNKNOWN": return "z" * 20 # orders at the end
       else: return myNickname.lower()
     elif attr == entries.SortAttr.CATEGORY:
-      return Category.indexOf(self.lines[0].getType())
+      return Category.indexOf(connLine.getType())
     elif attr == entries.SortAttr.UPTIME:
-      return self.lines[0].startTime
+      return connLine.startTime
     elif attr == entries.SortAttr.COUNTRY:
       if connections.isIpAddressPrivate(self.lines[0].foreign.getIpAddr()): return ""
-      else: return self.lines[0].foreign.getLocale("")
+      else: return connLine.foreign.getLocale("")
     else:
       return entries.ConnectionPanelEntry.getSortValue(self, attr, listingType)
 
@@ -508,7 +514,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       
       isExpansionType = not myType in (Category.PROGRAM, Category.CONTROL)
       
-      srcAddress = myExternalIpAddr + localPort
+      if isExpansionType: srcAddress = myExternalIpAddr + localPort
+      else: srcAddress = self.local.getIpAddr() + localPort
       src = "%-21s" % srcAddress # ip:port = max of 21 characters
       dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
       
