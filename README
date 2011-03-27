@@ -25,6 +25,22 @@ Tor is running with an available control port. This means either...
   ... starting Tor with '--controlport <PORT>'
   ... or including 'ControlPort <PORT>' in your torrc
 
+It's also highly suggested for the control port to require authentication.
+This can be done either with a cookie or password:
+  * Cookie Authentication - Controllers authenticate to Tor by providing the
+    contents of the control_auth_cookie file. To set this up...
+    - add "CookieAuthentication 1" to your torrc
+    - either restart Tor or run "pkill -sighup tor"
+    - this method of authentication is automatically handled by arm, so you
+      can still start arm as you normally would
+  
+  * Password Authentication - Attaching to the control port requires a
+    password. To set this up...
+    - run "tor --hash-password <your password>"
+    - add "HashedControlPassword <hashed password>" to your torrc
+    - either restart Tor or run "pkill -sighup tor"
+    - when starting up arm will prompt you for this password
+
 For full functionality this also needs:
 - To be ran with the same user as tor to avoid permission issues with
   connection resolution and reading the torrc.
