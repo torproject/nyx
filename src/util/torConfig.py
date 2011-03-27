@@ -628,13 +628,23 @@ class Torrc():
     
     self.valsLock.acquire()
     
+    # The torrc validation relies on 'GETINFO config-text' which was
+    # introduced in tor 0.2.2.7-alpha so if we're using an earlier version
+    # (or configured to skip torrc validation) then this is a no-op. For more
+    # information see:
+    # https://trac.torproject.org/projects/tor/ticket/2501
+    
     if not self.isLoaded(): returnVal = None
-    elif not CONFIG["features.torrc.validate"]: returnVal = {}
     else:
-      if self.corrections == None:
-        self.corrections = validate(self.contents)
+      skipValidation = not CONFIG["features.torrc.validate"]
+      skipValidation |= not torTools.getConn().isVersion("0.2.2.7-alpha")
       
-      returnVal = list(self.corrections)
+      if skipValidation: returnVal = {}
+      else:
+        if self.corrections == None:
+          self.corrections = validate(self.contents)
+        
+        returnVal = list(self.corrections)
     
     self.valsLock.release()
     return returnVal

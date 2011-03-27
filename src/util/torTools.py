@@ -54,8 +54,8 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
-              "bwObserved", "bwMeasured", "flags", "pid", "pathPrefix",
-              "startTime", "authorities", "circuits")
+              "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
+              "pathPrefix", "startTime", "authorities", "circuits")
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
@@ -216,6 +216,41 @@ def getBsdJailId():
   
   log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
   return 0
+
+def parseVersion(versionStr):
+  """
+  Parses the given version string into its expected components, for instance...
+  '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)'
+  
+  would provide:
+  (0, 2, 2, 13, 'alpha')
+  
+  If the input isn't recognized then this returns None.
+  
+  Arguments:
+    versionStr - version string to be parsed
+  """
+  
+  # crops off extra arguments, for instance:
+  # '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)' -> '0.2.2.13-alpha'
+  versionStr = versionStr.split()[0]
+  
+  result = None
+  if versionStr.count(".") in (2, 3):
+    # parses the optional suffix ('alpha', 'release', etc)
+    if versionStr.count("-") == 1:
+      versionStr, versionSuffix = versionStr.split("-")
+    else: versionSuffix = ""
+    
+    # Parses the numeric portion of the version. This can have three or four
+    # entries depending on if an optional patch level was provided.
+    try:
+      versionComp = [int(entry) for entry in versionStr.split(".")]
+      if len(versionComp) == 3: versionComp += [0]
+      result = tuple(versionComp + [versionSuffix])
+    except ValueError: pass
+  
+  return result
 
 def getConn():
   """
@@ -701,6 +736,53 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("flags", default)
+  
+  def isVersion(self, minVersionStr):
+    """
+    Checks if we meet the given version. Recognized versions are of the form:
+    <major>.<minor>.<micro>[.<patch>][-<status_tag>]
+    
+    for instance, "0.2.2.13-alpha" or "0.2.1.5". This raises a ValueError if
+    the input isn't recognized, and returns False if unable to fetch our
+    instance's version.
+    
+    According to the spec the status_tag is purely informal, so it's ignored
+    in comparisons.
+    
+    Arguments:
+      minVersionStr - version to be compared against
+    """
+    
+    minVersion = parseVersion(minVersionStr)
+    
+    if minVersion == None:
+      raise ValueError("unrecognized version: %s" % minVersionStr)
+    
+    self.connLock.acquire()
+    
+    result = False
+    if self.isAlive():
+      myVersion = self._getRelayAttr("parsedVersion", None)
+      
+      if not myVersion:
+        result = False
+      elif myVersion[:4] == minVersion[:4]:
+        result = True # versions match
+      else:
+        # compares each of the numeric portions of the version
+        for i in range(4):
+          myVal, minVal = myVersion[i], minVersion[i]
+          
+          if myVal > minVal:
+            result = True
+            break
+          elif myVal < minVal:
+            result = False
+            break
+    
+    self.connLock.release()
+    
+    return result
   
   def getMyPid(self):
     """
@@ -1515,6 +1597,8 @@ class Controller(TorCtl.PostEventListener):
           if line.startswith("s "):
             result = line[2:].split()
             break
+      elif key == "parsedVersion":
+        result = parseVersion(self.getInfo("version", ""))
       elif key == "pid":
         result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
       elif key == "pathPrefix":
