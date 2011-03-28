@@ -18,10 +18,10 @@ from interface.connections import entries
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (arm, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "DIRECTORY", "PROGRAM", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CIRCUIT", "DIRECTORY", "SOCKS", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
-                  Category.EXIT: "red",           Category.CLIENT: "cyan",
-                  Category.PROGRAM: "yellow",     Category.DIRECTORY: "magenta",
+                  Category.EXIT: "red",           Category.CIRCUIT: "cyan",
+                  Category.SOCKS: "yellow",     Category.DIRECTORY: "magenta",
                   Category.CONTROL: "red"}
 
 # static data for listing format
@@ -199,7 +199,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self._possibleClient = True
     self._possibleDirectory = True
     
-    # attributes for PROGRAM and CONTROL connections
+    # attributes for SOCKS and CONTROL connections
     self.appName = None
     self.appPid = None
     self.isAppResolving = False
@@ -219,7 +219,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       self.baseType = Category.INBOUND
       self.local.isORPort = True
     elif lPort == mySocksPort:
-      self.baseType = Category.PROGRAM
+      self.baseType = Category.SOCKS
     elif lPort == myCtlPort:
       self.baseType = Category.CONTROL
     else:
@@ -288,7 +288,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     True if our display uses application information that hasn't yet been resolved.
     """
     
-    return self.appName == None and self.getType() in (Category.PROGRAM, Category.CONTROL)
+    return self.appName == None and self.getType() in (Category.SOCKS, Category.CONTROL)
   
   def _getListingEntry(self, width, currentTime, listingType):
     entryType = self.getType()
@@ -367,7 +367,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if self.baseType == Category.OUTBOUND:
         # Currently the only non-static categories are OUTBOUND vs...
         # - EXIT since this depends on the current consensus
-        # - CLIENT if this is likely to belong to our guard usage
+        # - CIRCUIT if this is likely to belong to our guard usage
         # - DIRECTORY if this is a single-hop circuit (directory mirror?)
         # 
         # The exitability, circuits, and fingerprints are all cached by the
@@ -396,7 +396,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             
             for _, status, _, path in myCircuits:
               if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
-                self.cachedType = Category.CLIENT # matched a probable guard connection
+                self.cachedType = Category.CIRCUIT # matched a probable guard connection
             
             # if we fell through, we can eliminate ourselves as a guard in the future
             if not self.cachedType:
@@ -428,7 +428,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     # for applications show the command/pid
-    if self.getType() in (Category.PROGRAM, Category.CONTROL):
+    if self.getType() in (Category.SOCKS, Category.CONTROL):
       displayLabel = ""
       
       if self.appName:
@@ -538,7 +538,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # the source and destination addresses are both private, but that might
       # not be perfectly reliable either.
       
-      isExpansionType = not myType in (Category.PROGRAM, Category.CONTROL)
+      isExpansionType = not myType in (Category.SOCKS, Category.CONTROL)
       
       if isExpansionType: srcAddress = myExternalIpAddr + localPort
       else: srcAddress = self.local.getIpAddr() + localPort
@@ -613,7 +613,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # pads dst entry to its max space
       dst = ("%%-%is" % (baseSpace - len(src))) % dst
     
-    if myType in (Category.INBOUND, Category.PROGRAM, Category.CONTROL): src, dst = dst, src
+    if myType in (Category.INBOUND, Category.SOCKS, Category.CONTROL): src, dst = dst, src
     padding = " " * (width - usedSpace + LABEL_MIN_PADDING)
     return LABEL_FORMAT % (src, dst, etc, padding)
   

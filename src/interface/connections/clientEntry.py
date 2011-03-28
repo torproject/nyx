@@ -2,7 +2,7 @@
 Connection panel entries for client circuits. This includes a header entry
 followed by an entry for each hop in the circuit. For instance:
 
-89.188.20.246:42667    -->  217.172.182.26 (de)       General / Built     8.6m (CLIENT)
+89.188.20.246:42667    -->  217.172.182.26 (de)       General / Built     8.6m (CIRCUIT)
 |  85.8.28.4 (se)               98FBC3B2B93897A78CDD797EF549E6B62C9A8523    1 / Guard
 |  91.121.204.76 (fr)           546387D93F8D40CFF8842BB9D3A8EC477CEDA984    2 / Middle
 +- 217.172.182.26 (de)          5CFA9EA136C0EA0AC096E5CEA7EB674F1207CF86    3 / Exit
@@ -55,7 +55,7 @@ class ClientEntry(connEntry.ConnectionEntry):
     # Overwrites attributes of the initial line to make it more fitting as the
     # header for our listing.
     
-    self.lines[0].baseType = connEntry.Category.CLIENT
+    self.lines[0].baseType = connEntry.Category.CIRCUIT
     
     self.update(status, path)
   
@@ -111,7 +111,7 @@ class ClientHeaderLine(connEntry.ConnectionLine):
     self.foreign.fingerprintOverwrite = exitFingerprint
   
   def getType(self):
-    return connEntry.Category.CLIENT
+    return connEntry.Category.CIRCUIT
   
   def getDestinationLabel(self, maxLength, includeLocale=False, includeHostname=False):
     if not self.isBuilt: return "Building..."
@@ -154,7 +154,7 @@ class ClientLine(connEntry.ConnectionLine):
     self.isLast = False
   
   def getType(self):
-    return connEntry.Category.CLIENT
+    return connEntry.Category.CIRCUIT
   
   def getListingEntry(self, width, currentTime, listingType):
     """

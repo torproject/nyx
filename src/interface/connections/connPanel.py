@@ -63,14 +63,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # it changes.
     self._lastResourceFetch = -1
     
-    # resolver for the command/pid associated with PROGRAM and CONTROL connections
+    # resolver for the command/pid associated with SOCKS and CONTROL connections
     self._appResolver = connections.AppResolver("arm")
     
     # rate limits appResolver queries to once per update
     self.appResolveSinceUpdate = False
     
     self._update()            # populates initial entries
-    self._resolveApps(False)  # resolves initial PROGRAM and CONTROL applications
+    self._resolveApps(False)  # resolves initial SOCKS and CONTROL applications
     
     # mark the initially exitsing connection uptimes as being estimates
     for entry in self._entries:
@@ -202,7 +202,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     for lineNum in range(scrollLoc, len(self._entryLines)):
       entryLine = self._entryLines[lineNum]
       
-      # if this is an unresolved PROGRAM or CONTROL entry then queue up
+      # if this is an unresolved SOCKS or CONTROL entry then queue up
       # resolution for the applicaitions they belong to
       if isinstance(entryLine, connEntry.ConnectionLine) and entryLine.isUnresolvedApp():
         self._resolveApps()
@@ -282,7 +282,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # Adds any new connection and circuit entries.
       for lIp, lPort, fIp, fPort in newConnections:
         newConnEntry = connEntry.ConnectionEntry(lIp, lPort, fIp, fPort)
-        if newConnEntry.getLines()[0].getType() != connEntry.Category.CLIENT:
+        if newConnEntry.getLines()[0].getType() != connEntry.Category.CIRCUIT:
           newEntries.append(newConnEntry)
       
       for circuitID in newCircuits:
@@ -299,7 +299,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if isinstance(entry, connEntry.ConnectionEntry):
           typeCounts[entry.getLines()[0].getType()] += 1
         elif isinstance(entry, clientEntry.ClientEntry):
-          typeCounts[connEntry.Category.CLIENT] += 1
+          typeCounts[connEntry.Category.CIRCUIT] += 1
       
       # makes labels for all the categories with connections (ie,
       # "21 outbound", "1 control", etc)
@@ -324,7 +324,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   
   def _resolveApps(self, flagQuery = True):
     """
-    Triggers an asynchronous query for all unresolved PROGRAM and CONTROL
+    Triggers an asynchronous query for all unresolved SOCKS and CONTROL
     entries.
     
     Arguments:
@@ -334,7 +334,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     if self.appResolveSinceUpdate: return
     
-    # fetch the unresolved PROGRAM and CONTROL lines
+    # fetch the unresolved SOCKS and CONTROL lines
     unresolvedLines = []
     
     for line in self._entryLines:
