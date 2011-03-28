@@ -356,7 +356,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     # Fetches results. If the query finishes quickly then this is what we just
     # asked for, otherwise these belong to the last resolution.
-    appResults = self._appResolver.getResults(0.02)
+    appResults = self._appResolver.getResults(0.2)
     
     for line in unresolvedLines:
       linePort = line.foreign.getPort()
