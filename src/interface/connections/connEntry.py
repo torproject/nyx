@@ -18,7 +18,7 @@ from interface.connections import entries
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (arm, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "PROGRAM", "DIRECTORY", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CLIENT", "DIRECTORY", "PROGRAM", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
                   Category.EXIT: "red",           Category.CLIENT: "cyan",
                   Category.PROGRAM: "yellow",     Category.DIRECTORY: "magenta",
@@ -199,6 +199,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self._possibleClient = True
     self._possibleDirectory = True
     
+    # attributes for PROGRAM and CONTROL connections
+    self.appName = None
+    self.appPid = None
+    self.isAppResolving = False
+    
     conn = torTools.getConn()
     myOrPort = conn.getOption("ORPort")
     myDirPort = conn.getOption("DirPort")
@@ -277,6 +282,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     timeEntry.text = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
     
     return myListing
+  
+  def isUnresolvedApp(self):
+    """
+    True if our display uses application information that hasn't yet been resolved.
+    """
+    
+    return self.appName == None and self.getType() in (Category.PROGRAM, Category.CONTROL)
   
   def _getListingEntry(self, width, currentTime, listingType):
     entryType = self.getType()
@@ -415,6 +427,20 @@ class ConnectionLine(entries.ConnectionPanelLine):
       listingType - primary attribute we're listing connections by
     """
     
+    # for applications show the command/pid
+    if self.getType() in (Category.PROGRAM, Category.CONTROL):
+      displayLabel = ""
+      
+      if self.appName:
+        if self.appPid: displayLabel = "%s (%s)" % (self.appName, self.appPid)
+        else: displayLabel = self.appName
+      elif self.isAppResolving:
+        displayLabel = "resolving..."
+      else: displayLabel = "UNKNOWN"
+      
+      return displayLabel
+    
+    # for everything else display connection/consensus information
     dstAddress = self.getDestinationLabel(26, includeLocale = True)
     etc, usedSpace = "", 0
     if listingType == entries.ListingType.IP_ADDRESS:

@@ -10,7 +10,7 @@ from interface.connections import entries, connEntry, clientEntry
 from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.listingType": 0,
-                  "features.connection.refreshRate": 10}
+                  "features.connection.refreshRate": 5}
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
@@ -63,7 +63,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # it changes.
     self._lastResourceFetch = -1
     
-    self._update() # populates initial entries
+    # resolver for the command/pid associated with PROGRAM and CONTROL connections
+    self._appResolver = connections.AppResolver("arm")
+    
+    # rate limits appResolver queries to once per update
+    self.appResolveSinceUpdate = False
+    
+    self._update()            # populates initial entries
+    self._resolveApps(False)  # resolves initial PROGRAM and CONTROL applications
     
     # mark the initially exitsing connection uptimes as being estimates
     for entry in self._entries:
@@ -155,7 +162,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # updates content if their's new results, otherwise just redraws
         self._update()
         self.redraw(True)
-        lastDraw += self._config["features.connection.refreshRate"]
+        
+        # we may have missed multiple updates due to being paused, showing
+        # another panel, etc so lastDraw might need to jump multiple ticks
+        drawTicks = (time.time() - lastDraw) / self._config["features.connection.refreshRate"]
+        lastDraw += self._config["features.connection.refreshRate"] * drawTicks
   
   def draw(self, width, height):
     self.valsLock.acquire()
@@ -191,6 +202,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     for lineNum in range(scrollLoc, len(self._entryLines)):
       entryLine = self._entryLines[lineNum]
       
+      # if this is an unresolved PROGRAM or CONTROL entry then queue up
+      # resolution for the applicaitions they belong to
+      if isinstance(entryLine, connEntry.ConnectionLine) and entryLine.isUnresolvedApp():
+        self._resolveApps()
+      
       # hilighting if this is the selected line
       extraFormat = curses.A_STANDOUT if entryLine == cursorSelection else curses.A_NORMAL
       
@@ -218,6 +234,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     connResolver = connections.getResolver("tor")
     currentResolutionCount = connResolver.getResolutionCount()
+    self.appResolveSinceUpdate = False
     
     if self._lastResourceFetch != currentResolutionCount:
       self.valsLock.acquire()
@@ -304,4 +321,55 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.setSortOrder()
       self._lastResourceFetch = currentResolutionCount
       self.valsLock.release()
+  
+  def _resolveApps(self, flagQuery = True):
+    """
+    Triggers an asynchronous query for all unresolved PROGRAM and CONTROL
+    entries.
+    
+    Arguments:
+      flagQuery - sets a flag to prevent further call from being respected
+                  until the next update if true
+    """
+    
+    if self.appResolveSinceUpdate: return
+    
+    # fetch the unresolved PROGRAM and CONTROL lines
+    unresolvedLines = []
+    
+    for line in self._entryLines:
+      if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
+        unresolvedLines.append(line)
+    
+    # Queue up resolution for the unresolved ports (skips if it's still working
+    # on the last query).
+    if not self._appResolver.isResolving:
+      self._appResolver.resolve([line.foreign.getPort() for line in unresolvedLines])
+    
+    # The application resolver might have given up querying (for instance, if
+    # the lsof lookups aren't working on this platform or lacks permissions).
+    # The isAppResolving flag lets the unresolved entries indicate if there's
+    # a lookup in progress for them or not.
+    
+    for line in unresolvedLines:
+      line.isAppResolving = self._appResolver.isResolving
+    
+    # Fetches results. If the query finishes quickly then this is what we just
+    # asked for, otherwise these belong to the last resolution.
+    appResults = self._appResolver.getResults(0.02)
+    
+    for line in unresolvedLines:
+      linePort = line.foreign.getPort()
+      
+      if linePort in appResults:
+        # sets application attributes if there's a result with this as the
+        # inbound port
+        for inboundPort, outboundPort, cmd, pid in appResults[linePort]:
+          if linePort == inboundPort:
+            line.appName = cmd
+            line.appPid = pid
+            line.isAppResolving = False
+    
+    if flagQuery:
+      self.appResolveSinceUpdate = True
 

@@ -188,7 +188,7 @@ features.connection.oldPanel false
 features.connection.newPanel true
 features.connection.listingType 0
 features.connection.order 0, 2, 1
-features.connection.refreshRate 10
+features.connection.refreshRate 5
 features.connection.markInitialConnections true
 features.connection.showExitPort true
 features.connection.showColumn.fingerprint true
