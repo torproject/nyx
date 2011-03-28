@@ -9,7 +9,8 @@ import threading
 from interface.connections import entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
-DEFAULT_CONFIG = {"features.connection.listingType": 0,
+DEFAULT_CONFIG = {"features.connection.resolveApps": True,
+                  "features.connection.listingType": 0,
                   "features.connection.refreshRate": 5}
 
 # height of the detail panel content, not counting top and bottom border
@@ -332,7 +333,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
                   until the next update if true
     """
     
-    if self.appResolveSinceUpdate: return
+    if self.appResolveSinceUpdate or not self._config["features.connection.resolveApps"]: return
     
     # fetch the unresolved SOCKS and CONTROL lines
     unresolvedLines = []
