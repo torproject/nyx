@@ -6,7 +6,7 @@ import time
 import curses
 import threading
 
-from interface.connections import entries, connEntry, clientEntry
+from interface.connections import entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.listingType": 0,
@@ -256,11 +256,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       # Populates newEntries with any of our old entries that still exist.
       # This is both for performance and to keep from resetting the uptime
-      # attributes. Note that ClientEntries are a ConnectionEntry subclass so
+      # attributes. Note that CircEntries are a ConnectionEntry subclass so
       # we need to check for them first.
       
       for oldEntry in self._entries:
-        if isinstance(oldEntry, clientEntry.ClientEntry):
+        if isinstance(oldEntry, circEntry.CircEntry):
           newEntry = newCircuits.get(oldEntry.circuitID)
           
           if newEntry:
@@ -287,7 +287,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       for circuitID in newCircuits:
         status, purpose, path = newCircuits[circuitID]
-        newEntries.append(clientEntry.ClientEntry(circuitID, status, purpose, path))
+        newEntries.append(circEntry.CircEntry(circuitID, status, purpose, path))
       
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last
@@ -298,7 +298,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for entry in newEntries:
         if isinstance(entry, connEntry.ConnectionEntry):
           typeCounts[entry.getLines()[0].getType()] += 1
-        elif isinstance(entry, clientEntry.ClientEntry):
+        elif isinstance(entry, circEntry.CircEntry):
           typeCounts[connEntry.Category.CIRCUIT] += 1
       
       # makes labels for all the categories with connections (ie,

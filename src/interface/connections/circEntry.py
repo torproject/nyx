@@ -39,7 +39,7 @@ def getRelayInfo(fingerprint):
   
   return RELAY_INFO[fingerprint]
 
-class ClientEntry(connEntry.ConnectionEntry):
+class CircEntry(connEntry.ConnectionEntry):
   def __init__(self, circuitID, status, purpose, path):
     connEntry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
     
@@ -50,7 +50,7 @@ class ClientEntry(connEntry.ConnectionEntry):
     if len(purpose) >= 2:
       purpose = purpose[0].upper() + purpose[1:].lower()
     
-    self.lines = [ClientHeaderLine(self.circuitID, purpose)]
+    self.lines = [CircHeaderLine(self.circuitID, purpose)]
     
     # Overwrites attributes of the initial line to make it more fitting as the
     # header for our listing.
@@ -89,11 +89,11 @@ class ClientEntry(connEntry.ConnectionEntry):
       
       placementLabel = "%i / %s" % (i + 1, placementType)
       
-      self.lines.append(ClientLine(relayIp, relayOrPort, relayFingerprint, placementLabel))
+      self.lines.append(CircLine(relayIp, relayOrPort, relayFingerprint, placementLabel))
     
     self.lines[-1].isLast = True
 
-class ClientHeaderLine(connEntry.ConnectionLine):
+class CircHeaderLine(connEntry.ConnectionLine):
   """
   Initial line of a client entry. This has the same basic format as connection
   lines except that its etc field has circuit attributes.
@@ -137,7 +137,7 @@ class ClientHeaderLine(connEntry.ConnectionLine):
       return [uiTools.DrawEntry("Building Circuit...", detailFormat)]
     else: return connEntry.ConnectionLine.getDetails(self, width)
 
-class ClientLine(connEntry.ConnectionLine):
+class CircLine(connEntry.ConnectionLine):
   """
   An inidividual hop in a circuit. This overwrites the displayed listing, but
   otherwise makes use of the ConnectionLine attributes (for the detail display,
