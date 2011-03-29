@@ -659,7 +659,7 @@ class AppResolver:
       else: lsofArgs.append("-i tcp:%s" % port)
     
     if lsofArgs:
-      lsofResults = sysTools.call("lsof " + " ".join(lsofArgs))
+      lsofResults = sysTools.call("lsof -n " + " ".join(lsofArgs))
     else: lsofResults = None
     
     if not lsofResults and self.failureCount != -1:
@@ -680,8 +680,8 @@ class AppResolver:
           
           if "->" in portMap:
             iPort, oPort = portMap.split("->")
-            iPort = iPort.replace("localhost:", "")
-            oPort = oPort.replace("localhost:", "")
+            iPort = iPort.split(":")[1]
+            oPort = oPort.split(":")[1]
             
             # entry belongs to our own process
             if pid == str(os.getpid()):
