@@ -55,7 +55,7 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
-              "pathPrefix", "startTime", "authorities", "circuits")
+              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
@@ -648,6 +648,16 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("circuits", default)
+  
+  def getHiddenServicePorts(self, default = []):
+    """
+    Provides the target ports hidden services are configured to use.
+    
+    Arguments:
+      default - value provided back if unable to query the hidden service ports
+    """
+    
+    return self._getRelayAttr("hsPorts", default)
   
   def getMyNetworkStatus(self, default = None):
     """
@@ -1691,6 +1701,31 @@ class Controller(TorCtl.PostEventListener):
             
             path = tuple([hopEntry[1:41] for hopEntry in lineComp[2].split(",")])
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], path))
+      elif key == "hsPorts":
+        result = []
+        hsOptions = self.getOptionMap("HiddenServiceOptions")
+        
+        if hsOptions and "HiddenServicePort" in hsOptions:
+          for hsEntry in hsOptions["HiddenServicePort"]:
+            # hidden service port entries are of the form:
+            # VIRTPORT [TARGET]
+            # with the TARGET being an IP, port, or IP:Port. If the target port
+            # isn't defined then uses the VIRTPORT.
+            
+            hsPort = None
+            
+            if " " in hsEntry:
+              # parses the target, checking if it's a port or IP:Port combination
+              hsTarget = hsEntry.split(" ")[1]
+              
+              if ":" in hsTarget:
+                hsPort = hsTarget.split(":")[1] # target is the IP:Port
+              elif hsTarget.isdigit():
+                hsPort = hsTarget # target is just the port
+            else: hsPort = hsEntry # just has the virtual port
+            
+            if hsPort.isdigit():
+              result.append(hsPort)
       
       # cache value
       if result != None: self._cachedParam[key] = result

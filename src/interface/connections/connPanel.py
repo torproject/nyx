@@ -64,14 +64,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # it changes.
     self._lastResourceFetch = -1
     
-    # resolver for the command/pid associated with SOCKS and CONTROL connections
+    # resolver for the command/pid associated with SOCKS, HIDDEN, and CONTROL connections
     self._appResolver = connections.AppResolver("arm")
     
     # rate limits appResolver queries to once per update
     self.appResolveSinceUpdate = False
     
     self._update()            # populates initial entries
-    self._resolveApps(False)  # resolves initial SOCKS and CONTROL applications
+    self._resolveApps(False)  # resolves initial applications
     
     # mark the initially exitsing connection uptimes as being estimates
     for entry in self._entries:
@@ -203,7 +203,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     for lineNum in range(scrollLoc, len(self._entryLines)):
       entryLine = self._entryLines[lineNum]
       
-      # if this is an unresolved SOCKS or CONTROL entry then queue up
+      # if this is an unresolved SOCKS, HIDDEN, or CONTROL entry then queue up
       # resolution for the applicaitions they belong to
       if isinstance(entryLine, connEntry.ConnectionLine) and entryLine.isUnresolvedApp():
         self._resolveApps()
@@ -325,8 +325,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   
   def _resolveApps(self, flagQuery = True):
     """
-    Triggers an asynchronous query for all unresolved SOCKS and CONTROL
-    entries.
+    Triggers an asynchronous query for all unresolved SOCKS, HIDDEN, and
+    CONTROL entries.
     
     Arguments:
       flagQuery - sets a flag to prevent further call from being respected
@@ -334,42 +334,46 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     if self.appResolveSinceUpdate or not self._config["features.connection.resolveApps"]: return
+    unresolvedLines = [l for l in self._entryLines if isinstance(l, connEntry.ConnectionLine) and l.isUnresolvedApp()]
     
-    # fetch the unresolved SOCKS and CONTROL lines
-    unresolvedLines = []
+    # get the ports used for unresolved applications
+    appPorts = []
     
-    for line in self._entryLines:
-      if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
-        unresolvedLines.append(line)
+    for line in unresolvedLines:
+      appConn = line.local if line.getType() == connEntry.Category.HIDDEN else line.foreign
+      appPorts.append(appConn.getPort())
     
     # Queue up resolution for the unresolved ports (skips if it's still working
     # on the last query).
-    if not self._appResolver.isResolving:
-      self._appResolver.resolve([line.foreign.getPort() for line in unresolvedLines])
+    if appPorts and not self._appResolver.isResolving:
+      self._appResolver.resolve(appPorts)
     
+    # Fetches results. If the query finishes quickly then this is what we just
+    # asked for, otherwise these belong to an earlier resolution.
+    #
     # The application resolver might have given up querying (for instance, if
     # the lsof lookups aren't working on this platform or lacks permissions).
     # The isAppResolving flag lets the unresolved entries indicate if there's
     # a lookup in progress for them or not.
     
-    for line in unresolvedLines:
-      line.isAppResolving = self._appResolver.isResolving
-    
-    # Fetches results. If the query finishes quickly then this is what we just
-    # asked for, otherwise these belong to the last resolution.
     appResults = self._appResolver.getResults(0.2)
     
     for line in unresolvedLines:
-      linePort = line.foreign.getPort()
+      isLocal = line.getType() == connEntry.Category.HIDDEN
+      linePort = line.local.getPort() if isLocal else line.foreign.getPort()
       
       if linePort in appResults:
         # sets application attributes if there's a result with this as the
         # inbound port
         for inboundPort, outboundPort, cmd, pid in appResults[linePort]:
-          if linePort == inboundPort:
+          appPort = outboundPort if isLocal else inboundPort
+          
+          if linePort == appPort:
             line.appName = cmd
             line.appPid = pid
             line.isAppResolving = False
+      else:
+        line.isAppResolving = self._appResolver.isResolving
     
     if flagQuery:
       self.appResolveSinceUpdate = True

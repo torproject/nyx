@@ -32,7 +32,8 @@ def toCamelCase(label):
   
   words = []
   for entry in label.split("_"):
-    if len(entry) == 1: words.append(entry.upper())
+    if len(entry) == 0: words.append("")
+    elif len(entry) == 1: words.append(entry.upper())
     else: words.append(entry[0].upper() + entry[1:].lower())
   
   return " ".join(words)

@@ -18,11 +18,11 @@ from interface.connections import entries
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (arm, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CIRCUIT", "DIRECTORY", "SOCKS", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CIRCUIT", "DIRECTORY", "SOCKS", "HIDDEN", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
                   Category.EXIT: "red",           Category.CIRCUIT: "cyan",
-                  Category.SOCKS: "yellow",     Category.DIRECTORY: "magenta",
-                  Category.CONTROL: "red"}
+                  Category.DIRECTORY: "magenta",  Category.SOCKS: "yellow",
+                  Category.HIDDEN: "magenta",     Category.CONTROL: "red"}
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
@@ -199,7 +199,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self._possibleClient = True
     self._possibleDirectory = True
     
-    # attributes for SOCKS and CONTROL connections
+    # attributes for SOCKS, HIDDEN, and CONTROL connections
     self.appName = None
     self.appPid = None
     self.isAppResolving = False
@@ -209,6 +209,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     myDirPort = conn.getOption("DirPort")
     mySocksPort = conn.getOption("SocksPort", "9050")
     myCtlPort = conn.getOption("ControlPort")
+    myHiddenServicePorts = conn.getHiddenServicePorts()
     
     # the ORListenAddress can overwrite the ORPort
     listenAddr = conn.getOption("ORListenAddress")
@@ -220,6 +221,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       self.local.isORPort = True
     elif lPort == mySocksPort:
       self.baseType = Category.SOCKS
+    elif fPort in myHiddenServicePorts:
+      self.baseType = Category.HIDDEN
     elif lPort == myCtlPort:
       self.baseType = Category.CONTROL
     else:
@@ -288,7 +291,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     True if our display uses application information that hasn't yet been resolved.
     """
     
-    return self.appName == None and self.getType() in (Category.SOCKS, Category.CONTROL)
+    return self.appName == None and self.getType() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
   
   def _getListingEntry(self, width, currentTime, listingType):
     entryType = self.getType()
@@ -428,7 +431,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     # for applications show the command/pid
-    if self.getType() in (Category.SOCKS, Category.CONTROL):
+    if self.getType() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
       displayLabel = ""
       
       if self.appName:
@@ -538,12 +541,22 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # the source and destination addresses are both private, but that might
       # not be perfectly reliable either.
       
-      isExpansionType = not myType in (Category.SOCKS, Category.CONTROL)
+      isExpansionType = not myType in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
       
       if isExpansionType: srcAddress = myExternalIpAddr + localPort
       else: srcAddress = self.local.getIpAddr() + localPort
-      src = "%-21s" % srcAddress # ip:port = max of 21 characters
-      dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
+      
+      if myType in (Category.SOCKS, Category.CONTROL):
+        # These categories are reordered later so the it's dst -> src rather
+        # than src -> dst. They are local connections so the dst lacks locale
+        # information, so swapping their respective widths to match column
+        # alignments.
+        
+        src = "%-26s" % srcAddress
+        dst = "%-21s" % dstAddress
+      else:
+        src = "%-21s" % srcAddress # ip:port = max of 21 characters
+        dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
       
       usedSpace += len(src) + len(dst) # base data requires 47 characters
       

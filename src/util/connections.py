@@ -659,7 +659,7 @@ class AppResolver:
       else: lsofArgs.append("-i tcp:%s" % port)
     
     if lsofArgs:
-      lsofResults = sysTools.call("lsof -n " + " ".join(lsofArgs))
+      lsofResults = sysTools.call("lsof -nP " + " ".join(lsofArgs))
     else: lsofResults = None
     
     if not lsofResults and self.failureCount != -1:
