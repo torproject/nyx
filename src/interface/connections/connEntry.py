@@ -13,16 +13,17 @@ from interface.connections import entries
 #   Inbound      Relay connection, coming to us.
 #   Outbound     Relay connection, leaving us.
 #   Exit         Outbound relay connection leaving the Tor network.
-#   Client       Circuits for our client traffic.
-#   Program      Socks connections for applications using Tor.
+#   Hidden       Connections to a hidden service we're providing.
+#   Socks        Socks connections for applications using Tor.
+#   Circuit      Circuits our tor client has created.
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (arm, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "CIRCUIT", "DIRECTORY", "SOCKS", "HIDDEN", "CONTROL")
+Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "HIDDEN", "SOCKS", "CIRCUIT", "DIRECTORY", "CONTROL")
 CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
-                  Category.EXIT: "red",           Category.CIRCUIT: "cyan",
-                  Category.DIRECTORY: "magenta",  Category.SOCKS: "yellow",
-                  Category.HIDDEN: "magenta",     Category.CONTROL: "red"}
+                  Category.EXIT: "red",           Category.HIDDEN: "magenta",
+                  Category.SOCKS: "yellow",       Category.CIRCUIT: "cyan",
+                  Category.DIRECTORY: "magenta",  Category.CONTROL: "red"}
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
