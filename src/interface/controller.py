@@ -1610,6 +1610,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 2 and (key == ord('l') or key == ord('L')):
       # provides a menu to pick the primary information we list connections by
       options = interface.connections.entries.ListingType.values()
+      
+      # dropping the HOSTNAME listing type until we support displaying that content
+      options.remove(interface.connections.entries.ListingType.HOSTNAME)
+      
       initialSelection = options.index(panels["conn2"]._listingType)
       
       # hides top label of connection panel and pauses the display
