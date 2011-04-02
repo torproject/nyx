@@ -56,7 +56,7 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
               "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
-CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/")
+CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
