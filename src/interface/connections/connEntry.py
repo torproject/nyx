@@ -335,6 +335,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
     connection or exit traffic.
     """
     
+    # This is used to scrub private information from the interface. Relaying
+    # etiquette (and wiretaping laws) say these are bad things to look at so
+    # DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
+    
     myType = self.getType()
     
     if myType == Category.INBOUND:

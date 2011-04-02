@@ -1003,12 +1003,16 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
           popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
-          popup.addfstr(3, 41, "<b>w</b>: save current configuration")
+          popup.addfstr(3, 41, "<b>d</b>: raw consensus descriptor")
           
           listingType = panels["conn2"]._listingType.lower()
           popup.addfstr(4, 2, "<b>l</b>: listed identity (<b>%s</b>)" % listingType)
           
           popup.addfstr(4, 41, "<b>s</b>: sort ordering")
+          
+          resolverUtil = connections.getResolver("tor").overwriteResolver
+          if resolverUtil == None: resolverUtil = "auto"
+          popup.addfstr(5, 2, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
         elif page == 3:
           popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
@@ -1512,7 +1516,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           hostnames.setPaused(True)
         
         panels["conn"].sortConnections()
-    elif page == 1 and (key == ord('u') or key == ord('U')):
+    elif page in (1, 2) and (key == ord('u') or key == ord('U')):
       # provides menu to pick identification resolving utility
       options = ["auto"] + connections.Resolver.values()
       

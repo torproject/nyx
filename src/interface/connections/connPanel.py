@@ -28,7 +28,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   """
   
   def __init__(self, stdscr, config=None):
-    panel.Panel.__init__(self, stdscr, "connections", 0)
+    panel.Panel.__init__(self, stdscr, "conn", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
     

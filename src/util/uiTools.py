@@ -503,10 +503,16 @@ class Scroller:
       if self.isCursorEnabled:
         self.getCursorSelection(content) # resets the cursor location
         
+        # makes sure the cursor is visible
         if self.cursorLoc < self.scrollLoc:
           self.scrollLoc = self.cursorLoc
         elif self.cursorLoc > self.scrollLoc + pageHeight - 1:
           self.scrollLoc = self.cursorLoc - pageHeight + 1
+      
+      # checks if the bottom would run off the content (this could be the
+      # case when the content's size is dynamic and entries are removed)
+      if len(content) > pageHeight:
+        self.scrollLoc = min(self.scrollLoc, len(content) - pageHeight)
     
     return self.scrollLoc
   
