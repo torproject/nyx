@@ -56,6 +56,7 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
               "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
+CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/")
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
 # "Our IP Address has changed from <previous> to <current>; rebuilding
@@ -298,8 +299,9 @@ class Controller(TorCtl.PostEventListener):
     # messages.
     self._pathPrefixLogging = True
     
-    # cached GETINFO parameters (None if unset or possibly changed)
-    self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
+    # cached parameters for GETINFO and custom getters (None if unset or
+    # possibly changed)
+    self._cachedParam = {}
     
     # cached GETCONF parameters, entries consisting of:
     # (option, fetch_type) => value
@@ -443,11 +445,22 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    # checks if this is an arg caching covers
+    isCacheArg = param in CACHE_ARGS
+    
+    if not isCacheArg:
+      for prefix in CACHE_GETINFO_PREFIX_ARGS:
+        if param.startswith(prefix):
+          isCacheArg = True
+          break
+    
     startTime = time.time()
     result, raisedExc, isFromCache = default, None, False
     if self.isAlive():
-      if param in CACHE_ARGS and self._cachedParam[param]:
-        result = self._cachedParam[param]
+      cachedValue = self._cachedParam.get(param)
+      
+      if isCacheArg and cachedValue:
+        result = cachedValue
         isFromCache = True
       else:
         try:
@@ -457,7 +470,7 @@ class Controller(TorCtl.PostEventListener):
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           raisedExc = exc
     
-    if not isFromCache and result and param in CACHE_ARGS:
+    if isCacheArg and result and not isFromCache:
       self._cachedParam[param] = result
     
     if isFromCache:
@@ -564,17 +577,17 @@ class Controller(TorCtl.PostEventListener):
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           result, raisedExc = default, exc
     
-    if not isFromCache and result:
+    if not isFromCache:
       cacheValue = result
       if fetchType == "list": cacheValue = list(result)
       elif fetchType == "map": cacheValue = dict(result)
       self._cachedConf[(param.lower(), fetchType)] = cacheValue
     
     if isFromCache:
-      msg = "GETINFO %s (cache fetch)" % param
+      msg = "GETCONF %s (cache fetch)" % param
       log.log(CONFIG["log.torGetConfCache"], msg)
     else:
-      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+      msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
       log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
@@ -1205,7 +1218,7 @@ class Controller(TorCtl.PostEventListener):
       if not issueSighup:
         try:
           self.conn.send_signal("RELOAD")
-          self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
+          self._cachedParam = {}
           self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
@@ -1250,7 +1263,7 @@ class Controller(TorCtl.PostEventListener):
             if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
             else: raise IOError("failed silently")
           
-          self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
+          self._cachedParam = {}
           self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
@@ -1401,12 +1414,10 @@ class Controller(TorCtl.PostEventListener):
     
     # if the message is informing us of our ip address changing then clear
     # its cached value
-    isAddrChangeEvent = False
     for prefix in ADDR_CHANGED_MSG_PREFIX:
-      isAddrChangeEvent |= msg.startswith(prefix)
-    
-    if isAddrChangeEvent and "address" in self._cachedParam:
-      del self._cachedParam["address"]
+      if msg.startswith(prefix):
+        self._cachedParam["address"] = None
+        break
   
   def _updateHeartbeat(self):
     """
@@ -1548,14 +1559,14 @@ class Controller(TorCtl.PostEventListener):
                        lookups if true
     """
     
-    currentVal = self._cachedParam[key]
+    currentVal = self._cachedParam.get(key)
     if currentVal != None:
       if currentVal == UNKNOWN: return default
       else: return currentVal
     
     self.connLock.acquire()
     
-    currentVal, result = self._cachedParam[key], None
+    currentVal, result = self._cachedParam.get(key), None
     if currentVal == None and self.isAlive():
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
@@ -1750,7 +1761,7 @@ class Controller(TorCtl.PostEventListener):
     """
     
     # resets cached GETINFO and GETCONF parameters
-    self._cachedParam = dict([(arg, None) for arg in CACHE_ARGS])
+    self._cachedParam = {}
     self._cachedConf = {}
     
     # gives a notice that the control port has closed
