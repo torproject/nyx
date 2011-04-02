@@ -127,7 +127,8 @@ class CircHeaderLine(connEntry.ConnectionLine):
     
     for i in range(len(etcAttr), -1, -1):
       etcLabel = ", ".join(etcAttr[:i])
-      if len(etcLabel) <= width: return etcLabel
+      if len(etcLabel) <= width:
+        return ("%%-%is" % width) % etcLabel
     
     return ""
   
@@ -202,8 +203,8 @@ class CircLine(connEntry.ConnectionLine):
       dst = "%-55s" % self.foreign.getFingerprint()
       etc = self.getEtcContent(width - baselineSpace - len(dst), listingType)
     else:
-      # min space for the nickname is 50 characters
-      etc = self.getEtcContent(width - baselineSpace - 50, listingType)
+      # min space for the nickname is 56 characters
+      etc = self.getEtcContent(width - baselineSpace - 56, listingType)
       dstLayout = "%%-%is" % (width - baselineSpace - len(etc))
       dst = dstLayout % self.foreign.getNickname()
     
