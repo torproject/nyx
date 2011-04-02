@@ -233,6 +233,7 @@ log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetInfoCache NONE
 log.torGetConf DEBUG
+log.torGetConfCache NONE
 log.torSetConf INFO
 log.torEventTypeUnrecognized NOTICE
 log.torPrefixPathInvalid NOTICE

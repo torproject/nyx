@@ -75,6 +75,7 @@ CONFIG = {"torrc.map": {},
           "log.torGetInfo": log.DEBUG,
           "log.torGetInfoCache": None,
           "log.torGetConf": log.DEBUG,
+          "log.torGetConfCache": None,
           "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
@@ -569,9 +570,12 @@ class Controller(TorCtl.PostEventListener):
       elif fetchType == "map": cacheValue = dict(result)
       self._cachedConf[(param.lower(), fetchType)] = cacheValue
     
-    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
-    msg = "GETCONF %s (%s)" % (param, runtimeLabel)
-    log.log(CONFIG["log.torGetConf"], msg)
+    if isFromCache:
+      msg = "GETINFO %s (cache fetch)" % param
+      log.log(CONFIG["log.torGetConfCache"], msg)
+    else:
+      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
+      log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
     
