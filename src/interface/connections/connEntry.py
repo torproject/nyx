@@ -463,7 +463,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
         displayLabel = "resolving..."
       else: displayLabel = "UNKNOWN"
       
-      return displayLabel
+      if len(displayLabel) < width:
+        return ("%%-%is" % width) % displayLabel
+      else: return ""
     
     # for everything else display connection/consensus information
     dstAddress = self.getDestinationLabel(26, includeLocale = True)
@@ -527,7 +529,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         etc += "%-26s  " % dstAddress
         usedSpace += 28
     
-    return etc
+    return ("%%-%is" % width) % etc
   
   def _getListingContent(self, width, listingType):
     """
@@ -569,13 +571,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
       else: srcAddress = self.local.getIpAddr() + localPort
       
       if myType in (Category.SOCKS, Category.CONTROL):
-        # These categories are reordered later so the it's dst -> src rather
-        # than src -> dst. They are local connections so the dst lacks locale
-        # information, so swapping their respective widths to match column
-        # alignments.
+        # Like inbound connections these need their source and destination to
+        # be swapped. However, this only applies when listing by IP or hostname
+        # (their fingerprint and nickname are both for us). Reversing the
+        # fields here to keep the same column alignments.
         
-        src = "%-26s" % srcAddress
-        dst = "%-21s" % dstAddress
+        src = "%-21s" % dstAddress
+        dst = "%-26s" % srcAddress
       else:
         src = "%-21s" % srcAddress # ip:port = max of 21 characters
         dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
@@ -600,6 +602,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       usedSpace += len(etc)
     elif listingType == entries.ListingType.HOSTNAME:
       # 15 characters for source, and a min of 40 reserved for the destination
+      # TODO: when actually functional the src and dst need to be swapped for
+      # SOCKS and CONTROL connections
       src = "localhost%-6s" % localPort
       usedSpace += len(src)
       minHostnameSpace = 40
@@ -648,7 +652,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # pads dst entry to its max space
       dst = ("%%-%is" % (baseSpace - len(src))) % dst
     
-    if myType in (Category.INBOUND, Category.SOCKS, Category.CONTROL): src, dst = dst, src
+    if myType == Category.INBOUND: src, dst = dst, src
     padding = " " * (width - usedSpace + LABEL_MIN_PADDING)
     return LABEL_FORMAT % (src, dst, etc, padding)
   
