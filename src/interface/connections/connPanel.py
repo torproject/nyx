@@ -54,6 +54,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._showDetails = False   # presents the details panel if true
     
     self._lastUpdate = -1       # time the content was last revised
+    self._isTorRunning = True   # indicates if tor is currently running or not
     self._isPaused = True       # prevents updates if true
     self._pauseTime = None      # time when the panel was paused
     self._halt = False          # terminates thread if true
@@ -77,6 +78,26 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     for entry in self._entries:
       if isinstance(entry, connEntry.ConnectionEntry):
         entry.getLines()[0].isInitialConnection = True
+    
+    # listens for when tor stops so we know to stop reflecting changes
+    torTools.getConn().addStatusListener(self.torStateListener)
+  
+  def torStateListener(self, conn, eventType):
+    """
+    Freezes the connection contents when Tor stops.
+    
+    Arguments:
+      conn      - tor controller
+      eventType - type of event detected
+    """
+    
+    self._isTorRunning = eventType == torTools.State.INIT
+    
+    if self._isPaused or not self._isTorRunning:
+      if not self._pauseTime: self._pauseTime = time.time()
+    else: self._pauseTime = None
+    
+    self.redraw(True)
   
   def setPaused(self, isPause):
     """
@@ -86,7 +107,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if not self._isPaused == isPause:
       self._isPaused = isPause
       
-      if isPause: self._pauseTime = time.time()
+      if isPause or not self._isTorRunning:
+        if not self._pauseTime: self._pauseTime = time.time()
       else: self._pauseTime = None
       
       # redraws so the display reflects any changes between the last update
@@ -151,7 +173,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     while not self._halt:
       currentTime = time.time()
       
-      if self._isPaused or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
+      if self._isPaused or not self._isTorRunning or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
         self._cond.release()
