@@ -129,11 +129,11 @@ class Endpoint:
     determined.
     """
     
-    conn = torTools.getConn()
-    orPort = self.port if self.isORPort else None
-    myFingerprint = conn.getRelayFingerprint(self.ipAddr, orPort)
+    myFingerprint = self.getFingerprint()
     
-    if myFingerprint: return conn.getRelayNickname(myFingerprint)
+    if myFingerprint != "UNKNOWN":
+      conn = torTools.getConn()
+      return conn.getRelayNickname(myFingerprint)
     else: return "UNKNOWN"
 
 class ConnectionEntry(entries.ConnectionPanelEntry):
@@ -190,6 +190,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.startTime = time.time()
     self.isInitialConnection = False
     
+    # overwrite the local fingerprint with ours
+    conn = torTools.getConn()
+    self.local.fingerprintOverwrite = conn.getInfo("fingerprint")
+    
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
     #   client    - first hop in an established circuit
@@ -204,7 +208,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.appPid = None
     self.isAppResolving = False
     
-    conn = torTools.getConn()
     myOrPort = conn.getOption("ORPort")
     myDirPort = conn.getOption("DirPort")
     mySocksPort = conn.getOption("SocksPort", "9050")
