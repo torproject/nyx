@@ -102,6 +102,9 @@ class ConnectionPanelLine:
     
     self._detailsCache = None
     self._detailsCacheArgs = None
+    
+    self._descriptorCache = None
+    self._descriptorCacheArgs = None
   
   def getListingEntry(self, width, currentTime, listingType):
     """
@@ -142,7 +145,26 @@ class ConnectionPanelLine:
     return self._detailsCache
   
   def _getDetails(self, width):
-    # implementation of getListing
+    # implementation of getDetails
+    return []
+  
+  def getDescriptor(self, width):
+    """
+    Provides a list of DrawEntry instances with descriptor informatoin for
+    this connection.
+    
+    Arguments:
+      width - available space to display in
+    """
+    
+    if self._descriptorCacheArgs != width:
+      self._descriptorCache = self._getDescriptor(width)
+      self._descriptorCacheArgs = width
+    
+    return self._descriptorCache
+  
+  def _getDescriptor(self, width):
+    # implementation of getDescriptor
     return []
   
   def resetDisplay(self):

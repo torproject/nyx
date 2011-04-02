@@ -325,6 +325,21 @@ class ConnectionLine(entries.ConnectionPanelLine):
     detailFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[self.getType()])
     return [uiTools.DrawEntry(line, detailFormat) for line in self._getDetailContent(width)]
   
+  def _getDescriptors(self, width):
+    """
+    Provides raw descriptor information for the relay.
+    
+    Arguments:
+      width - available space to display in
+    """
+    
+    # TODO: Porting and refactoring the descriptorPopup.py functionality is
+    # gonna take quite a bit of work. This is a very rarely used feature and
+    # not worth delaying the 1.4.2 release any further, so this will be a part
+    # of 1.4.3.
+    
+    return []
+  
   def resetDisplay(self):
     entries.ConnectionPanelLine.resetDisplay(self)
     self.cachedType = None
