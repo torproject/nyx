@@ -90,6 +90,10 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
+# number of sequential attempts before we decide that the Tor geoip database
+# is unavailable
+GEOIP_FAILURE_THRESHOLD = 5
+
 # provides int -> str mappings for torctl event runlevels
 TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
 
@@ -310,6 +314,9 @@ class Controller(TorCtl.PostEventListener):
     # directs TorCtl to notify us of events
     TorUtil.logger = self
     TorUtil.loglevel = "DEBUG"
+    
+    # tracks the number of sequential geoip lookup failures
+    self.geoipFailureCount = 0
   
   def init(self, conn=None):
     """
@@ -445,6 +452,8 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    isGeoipRequest = param.startswith("ip-to-country/")
+    
     # checks if this is an arg caching covers
     isCacheArg = param in CACHE_ARGS
     
@@ -462,13 +471,23 @@ class Controller(TorCtl.PostEventListener):
       if isCacheArg and cachedValue:
         result = cachedValue
         isFromCache = True
+      elif isGeoipRequest and self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
+        # the geoip database aleady looks to be unavailable - abort the request
+        raisedExc = TorCtl.ErrorReply("Tor geoip database is unavailable.")
       else:
         try:
           getInfoVal = self.conn.get_info(param)[param]
           if getInfoVal != None: result = getInfoVal
+          if isGeoipRequest: self.geoipFailureCount = 0
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           raisedExc = exc
+          
+          if isGeoipRequest:
+            self.geoipFailureCount += 1
+            
+            if self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
+              log.log(CONFIG["log.geoipUnavailable"], "Tor geoip database is unavailable.")
     
     if isCacheArg and result and not isFromCache:
       self._cachedParam[param] = result
