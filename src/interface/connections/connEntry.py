@@ -134,7 +134,10 @@ class Endpoint:
     
     if myFingerprint != "UNKNOWN":
       conn = torTools.getConn()
-      return conn.getRelayNickname(myFingerprint)
+      myNickname = conn.getRelayNickname(myFingerprint)
+      
+      if myNickname: return myNickname
+      else: return "UNKNOWN"
     else: return "UNKNOWN"
 
 class ConnectionEntry(entries.ConnectionPanelEntry):
