@@ -702,14 +702,32 @@ class ConnectionLine(entries.ConnectionPanelLine):
           _, nickname, _, _, pubDate, pubTime, _, orPort, dirPort = firstLineComp[:9]
         else: nickname, pubDate, pubTime, orPort, dirPort = "", "", "", "", ""
         
-        flags = nsLines[1][2:]
-        microExit = nsLines[3][2:]
+        flags = "unknown"
+        if len(nsLines) >= 2 and nsLines[1].startswith("s "):
+          flags = nsLines[1][2:]
+        
+        # The network status exit policy doesn't exist for older tor versions.
+        # If unavailble we'll need the full exit policy which is on the
+        # descriptor (if that's available).
+        
+        exitPolicy = "unknown"
+        if len(nsLines) >= 4 and nsLines[3].startswith("p "):
+          exitPolicy = nsLines[3][2:].replace(",", ", ")
+        elif descEntry:
+          # the descriptor has an individual line for each entry in the exit policy
+          exitPolicyEntries = []
+          
+          for line in descEntry.split("\n"):
+            if line.startswith("accept") or line.startswith("reject"):
+              exitPolicyEntries.append(line.strip())
+          
+          exitPolicy = ", ".join(exitPolicyEntries)
         
         dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort
         lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, orPort, dirPortLabel)
         lines[3] = "published: %s %s" % (pubDate, pubTime)
         lines[4] = "flags: %s" % flags.replace(" ", ", ")
-        lines[5] = "exit policy: %s" % microExit.replace(",", ", ")
+        lines[5] = "exit policy: %s" % exitPolicy
       
       if descEntry:
         torVersion, platform, contact = "", "", ""
