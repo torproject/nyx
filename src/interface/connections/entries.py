@@ -18,6 +18,9 @@ SORT_COLORS = {SortAttr.CATEGORY: "red",      SortAttr.UPTIME: "yellow",
                SortAttr.FINGERPRINT: "cyan",  SortAttr.NICKNAME: "cyan",
                SortAttr.COUNTRY: "blue"}
 
+# maximum number of ports a system can have
+PORT_COUNT = 65536
+
 class ConnectionPanelEntry:
   """
   Common parent for connection panel entries. This consists of a list of lines
@@ -73,7 +76,10 @@ class ConnectionPanelEntry:
     
     if attr == SortAttr.LISTING:
       if listingType == ListingType.IP_ADDRESS:
-        return self.getSortValue(SortAttr.IP_ADDRESS, listingType)
+        # uses the IP address as the primary value, and port as secondary
+        sortValue = self.getSortValue(SortAttr.IP_ADDRESS, listingType) * PORT_COUNT
+        sortValue += self.getSortValue(SortAttr.PORT, listingType)
+        return sortValue
       elif listingType == ListingType.HOSTNAME:
         return self.getSortValue(SortAttr.HOSTNAME, listingType)
       elif listingType == ListingType.FINGERPRINT:
