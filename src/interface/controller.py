@@ -1016,7 +1016,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           resolverUtil = connections.getResolver("tor").overwriteResolver
           if resolverUtil == None: resolverUtil = "auto"
-          popup.addfstr(5, 2, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
+          popup.addfstr(3, 41, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
           
           pageOverrideKeys = (ord('l'), ord('s'), ord('u'))
         elif page == 3:
