@@ -40,7 +40,7 @@ def toCamelCase(label):
 
 class Enum:
   """
-  Basic enumaration.
+  Basic enumeration.
   """
   
   def __init__(self, *args):

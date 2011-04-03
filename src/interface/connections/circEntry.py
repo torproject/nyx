@@ -62,7 +62,7 @@ class CircEntry(connEntry.ConnectionEntry):
   def update(self, status, path):
     """
     Our status and path can change over time if the circuit is still in the
-    process of being built. Updates these attributs of our relay.
+    process of being built. Updates these attributes of our relay.
     
     Arguments:
       status - new status of the circuit
@@ -140,7 +140,7 @@ class CircHeaderLine(connEntry.ConnectionLine):
 
 class CircLine(connEntry.ConnectionLine):
   """
-  An inidividual hop in a circuit. This overwrites the displayed listing, but
+  An individual hop in a circuit. This overwrites the displayed listing, but
   otherwise makes use of the ConnectionLine attributes (for the detail display,
   caching, etc).
   """

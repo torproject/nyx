@@ -156,7 +156,7 @@ class ConnectionPanelLine:
   
   def getDescriptor(self, width):
     """
-    Provides a list of DrawEntry instances with descriptor informatoin for
+    Provides a list of DrawEntry instances with descriptor information for
     this connection.
     
     Arguments:

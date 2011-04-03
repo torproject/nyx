@@ -355,7 +355,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     # This is used to scrub private information from the interface. Relaying
-    # etiquette (and wiretaping laws) say these are bad things to look at so
+    # etiquette (and wiretapping laws) say these are bad things to look at so
     # DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
     
     myType = self.getType()
@@ -384,7 +384,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
   def getType(self):
     """
     Provides our best guess at the current type of the connection. This
-    depends on consensus results, our current client circuts, etc. Results
+    depends on consensus results, our current client circuits, etc. Results
     are cached until this entry's display is reset.
     """
     
@@ -588,7 +588,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       
       # Showing the fingerprint (which has the width of 42) has priority over
       # an expanded address field. Hence check if we either have space for
-      # both or wouldn't be showing the fingerprint reguardless.
+      # both or wouldn't be showing the fingerprint regardless.
       
       isExpandedAddrVisible = width > usedSpace + 28
       if isExpandedAddrVisible and CONFIG["features.connection.showColumn.fingerprint"]:
@@ -667,7 +667,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
   
   def _getDetailContent(self, width):
     """
-    Provides a list with detailed information for this connectoin.
+    Provides a list with detailed information for this connection.
     
     Arguments:
       width - max length of lines
@@ -679,7 +679,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
-    # - if there's multiple potenial relays then list all of the combinations
+    # - if there's multiple potential relays then list all of the combinations
     #   of ORPorts / Fingerprints
     # - if no consensus data is available then say so (probably a client or
     #   exit connection)
@@ -714,7 +714,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           flags = nsLines[1][2:]
         
         # The network status exit policy doesn't exist for older tor versions.
-        # If unavailble we'll need the full exit policy which is on the
+        # If unavailable we'll need the full exit policy which is on the
         # descriptor (if that's available).
         
         exitPolicy = "unknown"
@@ -764,7 +764,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       
       if allMatches:
         # multiple matches
-        lines[2] = "Muliple matches, possible fingerprints are:"
+        lines[2] = "Multiple matches, possible fingerprints are:"
         
         for i in range(len(allMatches)):
           isLastLine = i == 3
@@ -846,8 +846,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
           dstHostname = self.foreign.getHostname()
           
           if dstHostname:
-            # determines the full space availabe, taking into account the ", "
-            # dividers if there's multipe pieces of extra data
+            # determines the full space available, taking into account the ", "
+            # dividers if there's multiple pieces of extra data
             
             maxHostnameSpace = spaceAvailable - 2 * len(extraInfo)
             dstHostname = uiTools.cropStr(dstHostname, maxHostnameSpace)

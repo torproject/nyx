@@ -664,7 +664,7 @@ class AppResolver:
     
     if not lsofResults and self.failureCount != -1:
       # lsof query failed and we aren't yet sure if it's possible to
-      # successfuly get results on this platform
+      # successfully get results on this platform
       self.failureCount += 1
       self.isResolving = False
       return
@@ -699,7 +699,7 @@ class AppResolver:
                     results[portMatch].append(newEntry)
                   else: results[portMatch] = [newEntry]
       
-      # making the lsof call generated an extranious sh entry for our own connection
+      # making the lsof call generated an extraneous sh entry for our own connection
       if ourConnection:
         for ourPort in ourConnection:
           if ourPort in results:
