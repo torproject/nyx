@@ -120,7 +120,11 @@ class ControlPanel(panel.Panel):
         currentPage = self.page
         pageCount = len(PAGES)
         
-        if self.isBlindMode:
+        if not CONFIG["features.connection.newPanel"]:
+          if currentPage >= 3: currentPage -= 1
+          pageCount -= 1
+        
+        if self.isBlindMode or not CONFIG["features.connection.oldPanel"]:
           if currentPage >= 2: currentPage -= 1
           pageCount -= 1
         
