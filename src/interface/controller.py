@@ -1675,7 +1675,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       # display a popup for saving the current configuration
       panel.CURSES_LOCK.acquire()
       try:
-        configLines = torConfig.getCustomOptions()
+        configLines = torConfig.getCustomOptions(True)
         
         # lists event types
         popup = panels["popup"]

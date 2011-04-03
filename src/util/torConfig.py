@@ -351,9 +351,13 @@ def getMultilineParameters():
   
   return tuple(MULTILINE_PARAM)
 
-def getCustomOptions():
+def getCustomOptions(includeValue = False):
   """
   Provides the torrc parameters that differ from their defaults.
+  
+  Arguments:
+    includeValue - provides the current value with results if true, otherwise
+                   this just contains the options
   """
   
   configText = torTools.getConn().getInfo("config-text", "").strip()
@@ -370,7 +374,8 @@ def getCustomOptions():
   try: configLines.remove("Log notice stdout")
   except ValueError: pass
   
-  return configLines
+  if includeValue: return configLines
+  else: return [line[:line.find(" ")] for line in configLines]
 
 def validate(contents = None):
   """
