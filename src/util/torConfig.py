@@ -353,17 +353,24 @@ def getMultilineParameters():
 
 def getCustomOptions():
   """
-  Provides the set of torrc parameters that differ from their defaults.
+  Provides the torrc parameters that differ from their defaults.
   """
   
-  customOptions, conn = set(), torTools.getConn()
-  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+  configText = torTools.getConn().getInfo("config-text", "").strip()
+  configLines = configText.split("\n")
   
-  for entry in configTextQuery:
-    # tor provides a Log entry even if it matches the default
-    if entry != "Log notice stdout":
-      customOptions.add(entry[:entry.find(" ")])
-  return customOptions
+  # removes any duplicates
+  configLines = list(set(configLines))
+  
+  # The "GETINFO config-text" query only provides options that differ
+  # from Tor's defaults with the exception of its Log entry which, even
+  # if undefined, returns "Log notice stdout" as per:
+  # https://trac.torproject.org/projects/tor/ticket/2362
+  
+  try: configLines.remove("Log notice stdout")
+  except ValueError: pass
+  
+  return configLines
 
 def validate(contents = None):
   """

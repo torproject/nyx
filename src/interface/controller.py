@@ -1675,8 +1675,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       # display a popup for saving the current configuration
       panel.CURSES_LOCK.acquire()
       try:
-        configText = torTools.getConn().getInfo("config-text", "").strip()
-        configLines = configText.split("\n")
+        configLines = torConfig.getCustomOptions()
         
         # lists event types
         popup = panels["popup"]
@@ -1774,7 +1773,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
               
               # saves the configuration to the file
               configFile = open(configLocation, "w")
-              configFile.write(configText)
+              configFile.write("\n".join(configLines))
               configFile.close()
               
               # reloads the cached torrc if overwriting it
