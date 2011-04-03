@@ -110,6 +110,7 @@ class LEnum(Enum):
   """
   
   def __init__(self, **args):
+    Enum.__init__(self)
     self.__dict__.update(args)
     self.orderedValues = sorted(args.values())
 
