@@ -597,7 +597,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if addrDiffer and isExpansionType and isExpandedAddrVisible and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
         # include the internal address in the src (extra 28 characters)
         internalAddress = self.local.getIpAddr() + localPort
-        src = "%-21s  -->  %s" % (internalAddress, src)
+        
+        # If this is an inbound connection then reverse ordering so it's:
+        # <foreign> --> <external> --> <internal>
+        # when the src and dst are swapped later
+        
+        if myType == Category.INBOUND: src = "%-21s  -->  %s" % (src, internalAddress)
+        else: src = "%-21s  -->  %s" % (internalAddress, src)
+        
         usedSpace += 28
       
       etc = self.getEtcContent(width - usedSpace, listingType)
