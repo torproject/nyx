@@ -361,12 +361,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     myType = self.getType()
     
     if myType == Category.INBOUND:
-      # if the connection doesn't belong to a known relay then it might be
-      # client traffic
+      # if we're a guard or bridge and the connection doesn't belong to a
+      # known relay then it might be client traffic
       
       conn = torTools.getConn()
-      allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
-      return allMatches == []
+      if "Guard" in conn.getMyFlags() or conn.getOption("BridgeRelay") == "1":
+        allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
+        return allMatches == []
     elif myType == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else, however, is.
