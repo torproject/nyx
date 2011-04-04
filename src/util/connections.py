@@ -21,17 +21,16 @@ import os
 import time
 import threading
 
-from util import log, procTools, sysTools
+from util import enum, log, procTools, sysTools
 
 # enums for connection resolution utilities
-CMD_PROC, CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS, CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT = range(1, 8)
-CMD_STR = {CMD_PROC: "proc",
-           CMD_NETSTAT: "netstat",
-           CMD_SS: "ss",
-           CMD_LSOF: "lsof",
-           CMD_SOCKSTAT: "sockstat",
-           CMD_BSD_SOCKSTAT: "sockstat (bsd)",
-           CMD_BSD_PROCSTAT: "procstat (bsd)"}
+Resolver = enum.Enum(("PROC", "proc"),
+                     ("NETSTAT", "netstat"),
+                     ("SS", "ss"),
+                     ("LSOF", "lsof"),
+                     ("SOCKSTAT", "sockstat"),
+                     ("BSD_SOCKSTAT", "sockstat (bsd)"),
+                     ("BSD_PROCSTAT", "procstat (bsd)"))
 
 # If true this provides new instantiations for resolvers if the old one has
 # been stopped. This can make it difficult ensure all threads are terminated
@@ -80,10 +79,106 @@ CONFIG = {"queries.connections.minRate": 5,
           "log.connLookupFailed": log.INFO,
           "log.connLookupFailover": log.NOTICE,
           "log.connLookupAbandon": log.WARN,
-          "log.connLookupRateGrowing": None}
+          "log.connLookupRateGrowing": None,
+          "log.configEntryTypeError": log.NOTICE}
+
+PORT_USAGE = {}
 
 def loadConfig(config):
   config.update(CONFIG)
+  
+  for configKey in config.getKeys():
+    # fetches any port.label.* values
+    if configKey.startswith("port.label."):
+      portEntry = configKey[11:]
+      purpose = config.get(configKey)
+      
+      divIndex = portEntry.find("-")
+      if divIndex == -1:
+        # single port
+        if portEntry.isdigit():
+          PORT_USAGE[portEntry] = purpose
+        else:
+          msg = "Port value isn't numeric for entry: %s" % configKey
+          log.log(CONFIG["log.configEntryTypeError"], msg)
+      else:
+        try:
+          # range of ports (inclusive)
+          minPort = int(portEntry[:divIndex])
+          maxPort = int(portEntry[divIndex + 1:])
+          if minPort > maxPort: raise ValueError()
+          
+          for port in range(minPort, maxPort + 1):
+            PORT_USAGE[str(port)] = purpose
+        except ValueError:
+          msg = "Unable to parse port range for entry: %s" % configKey
+          log.log(CONFIG["log.configEntryTypeError"], msg)
+
+def isValidIpAddress(ipStr):
+  """
+  Returns true if input is a valid IPv4 address, false otherwise.
+  """
+  
+  # checks if theres four period separated values
+  if not ipStr.count(".") == 3: return False
+  
+  # checks that each value in the octet are decimal values between 0-255
+  for ipComp in ipStr.split("."):
+    if not ipComp.isdigit() or int(ipComp) < 0 or int(ipComp) > 255:
+      return False
+  
+  return True
+
+def isIpAddressPrivate(ipAddr):
+  """
+  Provides true if the IP address belongs on the local network or belongs to
+  loopback, false otherwise. These include:
+  Private ranges: 10.*, 172.16.* - 172.31.*, 192.168.*
+  Loopback: 127.*
+  
+  Arguments:
+    ipAddr - IP address to be checked
+  """
+  
+  # checks for any of the simple wildcard ranges
+  if ipAddr.startswith("10.") or ipAddr.startswith("192.168.") or ipAddr.startswith("127."):
+    return True
+  
+  # checks for the 172.16.* - 172.31.* range
+  if ipAddr.startswith("172.") and ipAddr.count(".") == 3:
+    secondOctet = ipAddr[4:ipAddr.find(".", 4)]
+    
+    if secondOctet.isdigit() and int(secondOctet) >= 16 and int(secondOctet) <= 31:
+      return True
+  
+  return False
+
+def ipToInt(ipAddr):
+  """
+  Provides an integer representation of the ip address, suitable for sorting.
+  
+  Arguments:
+    ipAddr - ip address to be converted
+  """
+  
+  total = 0
+  
+  for comp in ipAddr.split("."):
+    total *= 255
+    total += int(comp)
+  
+  return total
+
+def getPortUsage(port):
+  """
+  Provides the common use of a given port. If no useage is known then this
+  provides None.
+  
+  Arguments:
+    port - port number to look up
+  """
+  
+  return PORT_USAGE.get(port)
 
 def getResolverCommand(resolutionCmd, processName, processPid = ""):
   """
@@ -99,19 +194,19 @@ def getResolverCommand(resolutionCmd, processName, processPid = ""):
   
   if not processPid:
     # the pid is required for procstat resolution
-    if resolutionCmd == CMD_BSD_PROCSTAT:
+    if resolutionCmd == Resolver.BSD_PROCSTAT:
       raise ValueError("procstat resolution requires a pid")
     
     # if the pid was undefined then match any in that field
     processPid = "[0-9]*"
   
-  if resolutionCmd == CMD_PROC: return ""
-  elif resolutionCmd == CMD_NETSTAT: return RUN_NETSTAT % (processPid, processName)
-  elif resolutionCmd == CMD_SS: return RUN_SS % (processName, processPid)
-  elif resolutionCmd == CMD_LSOF: return RUN_LSOF % (processName, processPid)
-  elif resolutionCmd == CMD_SOCKSTAT: return RUN_SOCKSTAT % (processName, processPid)
-  elif resolutionCmd == CMD_BSD_SOCKSTAT: return RUN_BSD_SOCKSTAT % (processName, processPid)
-  elif resolutionCmd == CMD_BSD_PROCSTAT: return RUN_BSD_PROCSTAT % processPid
+  if resolutionCmd == Resolver.PROC: return ""
+  elif resolutionCmd == Resolver.NETSTAT: return RUN_NETSTAT % (processPid, processName)
+  elif resolutionCmd == Resolver.SS: return RUN_SS % (processName, processPid)
+  elif resolutionCmd == Resolver.LSOF: return RUN_LSOF % (processName, processPid)
+  elif resolutionCmd == Resolver.SOCKSTAT: return RUN_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == Resolver.BSD_SOCKSTAT: return RUN_BSD_SOCKSTAT % (processName, processPid)
+  elif resolutionCmd == Resolver.BSD_PROCSTAT: return RUN_BSD_PROCSTAT % processPid
   else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
 
 def getConnections(resolutionCmd, processName, processPid = ""):
@@ -131,7 +226,7 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     processPid    - process ID (this helps improve accuracy)
   """
   
-  if resolutionCmd == CMD_PROC:
+  if resolutionCmd == Resolver.PROC:
     # Attempts resolution via checking the proc contents.
     if not processPid:
       raise ValueError("proc resolution requires a pid")
@@ -151,30 +246,30 @@ def getConnections(resolutionCmd, processName, processPid = ""):
     # parses results for the resolution command
     conn = []
     for line in results:
-      if resolutionCmd == CMD_LSOF:
+      if resolutionCmd == Resolver.LSOF:
         # Different versions of lsof have different numbers of columns, so
         # stripping off the optional 'established' entry so we can just use
         # the last one.
         comp = line.replace("(ESTABLISHED)", "").strip().split()
       else: comp = line.split()
       
-      if resolutionCmd == CMD_NETSTAT:
+      if resolutionCmd == Resolver.NETSTAT:
         localIp, localPort = comp[3].split(":")
         foreignIp, foreignPort = comp[4].split(":")
-      elif resolutionCmd == CMD_SS:
+      elif resolutionCmd == Resolver.SS:
         localIp, localPort = comp[4].split(":")
         foreignIp, foreignPort = comp[5].split(":")
-      elif resolutionCmd == CMD_LSOF:
+      elif resolutionCmd == Resolver.LSOF:
         local, foreign = comp[-1].split("->")
         localIp, localPort = local.split(":")
         foreignIp, foreignPort = foreign.split(":")
-      elif resolutionCmd == CMD_SOCKSTAT:
+      elif resolutionCmd == Resolver.SOCKSTAT:
         localIp, localPort = comp[4].split(":")
         foreignIp, foreignPort = comp[5].split(":")
-      elif resolutionCmd == CMD_BSD_SOCKSTAT:
+      elif resolutionCmd == Resolver.BSD_SOCKSTAT:
         localIp, localPort = comp[5].split(":")
         foreignIp, foreignPort = comp[6].split(":")
-      elif resolutionCmd == CMD_BSD_PROCSTAT:
+      elif resolutionCmd == Resolver.BSD_PROCSTAT:
         localIp, localPort = comp[9].split(":")
         foreignIp, foreignPort = comp[10].split(":")
       
@@ -241,13 +336,13 @@ def getSystemResolvers(osType = None):
   if osType == None: osType = os.uname()[0]
   
   if osType == "FreeBSD":
-    resolvers = [CMD_BSD_SOCKSTAT, CMD_BSD_PROCSTAT, CMD_LSOF]
+    resolvers = [Resolver.BSD_SOCKSTAT, Resolver.BSD_PROCSTAT, Resolver.LSOF]
   else:
-    resolvers = [CMD_NETSTAT, CMD_SOCKSTAT, CMD_LSOF, CMD_SS]
+    resolvers = [Resolver.NETSTAT, Resolver.SOCKSTAT, Resolver.LSOF, Resolver.SS]
   
   # proc resolution, by far, outperforms the others so defaults to this is able
   if procTools.isProcAvailable():
-    resolvers = [CMD_PROC] + resolvers
+    resolvers = [Resolver.PROC] + resolvers
   
   return resolvers
 
@@ -317,22 +412,26 @@ class ConnectionResolver(threading.Thread):
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
-    self.defaultResolver = CMD_PROC
+    self.defaultResolver = Resolver.PROC
     
     osType = os.uname()[0]
     self.resolverOptions = getSystemResolvers(osType)
     
-    resolverLabels = ", ".join([CMD_STR[option] for option in self.resolverOptions])
-    log.log(CONFIG["log.connResolverOptions"], "Operating System: %s, Connection Resolvers: %s" % (osType, resolverLabels))
+    log.log(CONFIG["log.connResolverOptions"], "Operating System: %s, Connection Resolvers: %s" % (osType, ", ".join(self.resolverOptions)))
     
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
     for resolver in self.resolverOptions:
-      if resolver == CMD_PROC or sysTools.isAvailable(CMD_STR[resolver]):
+      # Resolver strings correspond to their command with the exception of bsd
+      # resolvers.
+      resolverCmd = resolver.replace(" (bsd)", "")
+      
+      if resolver == Resolver.PROC or sysTools.isAvailable(resolverCmd):
         self.defaultResolver = resolver
         break
     
     self._connections = []        # connection cache (latest results)
+    self._resolutionCounter = 0   # number of successful connection resolutions
     self._isPaused = False
     self._halt = False            # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -371,6 +470,7 @@ class ConnectionResolver(threading.Thread):
         lookupTime = time.time() - resolveStart
         
         self._connections = connResults
+        self._resolutionCounter += 1
         
         newMinDefaultRate = 100 * lookupTime
         if self.defaultRate < newMinDefaultRate:
@@ -409,7 +509,7 @@ class ConnectionResolver(threading.Thread):
             
             if newResolver:
               # provide notice that failures have occurred and resolver is changing
-              msg = RESOLVER_SERIAL_FAILURE_MSG % (CMD_STR[resolver], CMD_STR[newResolver])
+              msg = RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver)
               log.log(CONFIG["log.connLookupFailover"], msg)
             else:
               # exhausted all resolvers, give warning
@@ -427,6 +527,14 @@ class ConnectionResolver(threading.Thread):
     
     if self._halt: return []
     else: return list(self._connections)
+  
+  def getResolutionCount(self):
+    """
+    Provides the number of successful resolutions so far. This can be used to
+    determine if the connection results are new for the caller or not.
+    """
+    
+    return self._resolutionCounter
   
   def setPaused(self, isPause):
     """
@@ -448,6 +556,171 @@ class ConnectionResolver(threading.Thread):
     
     self._cond.acquire()
     self._halt = True
+    self._cond.notifyAll()
+    self._cond.release()
+
+class AppResolver:
+  """
+  Provides the names and pids of appliations attached to the given ports. This
+  stops attempting to query if it fails three times without successfully
+  getting lsof results.
+  """
+  
+  def __init__(self, scriptName = "python"):
+    """
+    Constructs a resolver instance.
+    
+    Arguments:
+      scriptName - name by which to all our own entries
+    """
+    
+    self.scriptName = scriptName
+    self.queryResults = {}
+    self.resultsLock = threading.RLock()
+    self._cond = threading.Condition()  # used for pausing when waiting for results
+    self.isResolving = False  # flag set if we're in the process of making a query
+    self.failureCount = 0     # -1 if we've made a successful query
+  
+  def getResults(self, maxWait=0):
+    """
+    Provides the last queried results. If we're in the process of making a
+    query then we can optionally block for a time to see if it finishes.
+    
+    Arguments:
+      maxWait - maximum second duration to block on getting results before
+                returning
+    """
+    
+    self._cond.acquire()
+    if self.isResolving and maxWait > 0:
+      self._cond.wait(maxWait)
+    self._cond.release()
+    
+    self.resultsLock.acquire()
+    results = dict(self.queryResults)
+    self.resultsLock.release()
+    
+    return results
+  
+  def resolve(self, ports):
+    """
+    Queues the given listing of ports to be resolved. This clears the last set
+    of results when completed.
+    
+    Arguments:
+      ports - list of ports to be resolved to applications
+    """
+    
+    if self.failureCount < 3:
+      self.isResolving = True
+      t = threading.Thread(target = self._queryApplications, kwargs = {"ports": ports})
+      t.setDaemon(True)
+      t.start()
+  
+  def _queryApplications(self, ports=[]):
+    """
+    Performs an lsof lookup on the given ports to get the command/pid tuples.
+    
+    Arguments:
+      ports - list of ports to be resolved to applications
+    """
+    
+    # atagar@fenrir:~/Desktop/arm$ lsof -i tcp:51849 -i tcp:37277
+    # COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+    # tor     2001 atagar   14u  IPv4  14048      0t0  TCP localhost:9051->localhost:37277 (ESTABLISHED)
+    # tor     2001 atagar   15u  IPv4  22024      0t0  TCP localhost:9051->localhost:51849 (ESTABLISHED)
+    # python  2462 atagar    3u  IPv4  14047      0t0  TCP localhost:37277->localhost:9051 (ESTABLISHED)
+    # python  3444 atagar    3u  IPv4  22023      0t0  TCP localhost:51849->localhost:9051 (ESTABLISHED)
+    
+    if not ports:
+      self.resultsLock.acquire()
+      self.queryResults = {}
+      self.isResolving = False
+      self.resultsLock.release()
+      
+      # wakes threads waiting on results
+      self._cond.acquire()
+      self._cond.notifyAll()
+      self._cond.release()
+      
+      return
+    
+    results = {}
+    lsofArgs = []
+    
+    # Uses results from the last query if we have any, otherwise appends the
+    # port to the lsof command. This has the potential for persisting dirty
+    # results but if we're querying by the dynamic port on the local tcp
+    # connections then this should be very rare (and definitely worth the
+    # chance of being able to skip an lsof query altogether).
+    for port in ports:
+      if port in self.queryResults:
+        results[port] = self.queryResults[port]
+      else: lsofArgs.append("-i tcp:%s" % port)
+    
+    if lsofArgs:
+      lsofResults = sysTools.call("lsof -nP " + " ".join(lsofArgs))
+    else: lsofResults = None
+    
+    if not lsofResults and self.failureCount != -1:
+      # lsof query failed and we aren't yet sure if it's possible to
+      # successfully get results on this platform
+      self.failureCount += 1
+      self.isResolving = False
+      return
+    elif lsofResults:
+      # (iPort, oPort) tuple for our own process, if it was fetched
+      ourConnection = None
+      
+      for line in lsofResults:
+        lineComp = line.split()
+        
+        if len(lineComp) == 10 and lineComp[9] == "(ESTABLISHED)":
+          cmd, pid, _, _, _, _, _, _, portMap, _ = lineComp
+          
+          if "->" in portMap:
+            iPort, oPort = portMap.split("->")
+            iPort = iPort.split(":")[1]
+            oPort = oPort.split(":")[1]
+            
+            # entry belongs to our own process
+            if pid == str(os.getpid()):
+              cmd = self.scriptName
+              ourConnection = (iPort, oPort)
+            
+            if iPort.isdigit() and oPort.isdigit():
+              newEntry = (iPort, oPort, cmd, pid)
+              
+              # adds the entry under the key of whatever we queried it with
+              # (this might be both the inbound _and_ outbound ports)
+              for portMatch in (iPort, oPort):
+                if portMatch in ports:
+                  if portMatch in results:
+                    results[portMatch].append(newEntry)
+                  else: results[portMatch] = [newEntry]
+      
+      # making the lsof call generated an extraneous sh entry for our own connection
+      if ourConnection:
+        for ourPort in ourConnection:
+          if ourPort in results:
+            shIndex = None
+            
+            for i in range(len(results[ourPort])):
+              if results[ourPort][i][2] == "sh":
+                shIndex = i
+                break
+            
+            if shIndex != None:
+              del results[ourPort][shIndex]
+    
+    self.resultsLock.acquire()
+    self.failureCount = -1
+    self.queryResults = results
+    self.isResolving = False
+    self.resultsLock.release()
+    
+    # wakes threads waiting on results
+    self._cond.acquire()
     self._cond.notifyAll()
     self._cond.release()
 

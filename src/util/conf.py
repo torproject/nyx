@@ -105,36 +105,35 @@ class Config():
       default  - value provided if no such key exists
     """
     
-    callDefault = log.runlevelToStr(default) if key.startswith("log.") else default
     isMultivalue = isinstance(default, list) or isinstance(default, dict)
-    val = self.getValue(key, callDefault, isMultivalue)
+    val = self.getValue(key, default, isMultivalue)
     if val == default: return val
     
     if key.startswith("log."):
-      if val.lower() in ("none", "debug", "info", "notice", "warn", "err"):
-        val = log.strToRunlevel(val)
+      if val.upper() == "NONE": val = None
+      elif val.upper() in log.Runlevel.values(): val = val.upper()
       else:
-        msg = "config entry '%s' is expected to be a runlevel" % key
-        if default != None: msg += ", defaulting to '%s'" % callDefault
+        msg = "Config entry '%s' is expected to be a runlevel" % key
+        if default != None: msg += ", defaulting to '%s'" % default
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, bool):
       if val.lower() == "true": val = True
       elif val.lower() == "false": val = False
       else:
-        msg = "config entry '%s' is expected to be a boolean, defaulting to '%s'" % (key, str(default))
+        msg = "Config entry '%s' is expected to be a boolean, defaulting to '%s'" % (key, str(default))
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, int):
       try: val = int(val)
       except ValueError:
-        msg = "config entry '%s' is expected to be an integer, defaulting to '%i'" % (key, default)
+        msg = "Config entry '%s' is expected to be an integer, defaulting to '%i'" % (key, default)
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, float):
       try: val = float(val)
       except ValueError:
-        msg = "config entry '%s' is expected to be a float, defaulting to '%f'" % (key, default)
+        msg = "Config entry '%s' is expected to be a float, defaulting to '%f'" % (key, default)
         log.log(CONFIG["log.configEntryTypeError"], msg)
         val = default
     elif isinstance(default, list):
@@ -146,7 +145,7 @@ class Config():
           entryKey, entryVal = entry.split("=>", 1)
           valMap[entryKey.strip()] = entryVal.strip()
         else:
-          msg = "ignoring invalid %s config entry (expected a mapping, but \"%s\" was missing \"=>\")" % (key, entry)
+          msg = "Ignoring invalid %s config entry (expected a mapping, but \"%s\" was missing \"=>\")" % (key, entry)
           log.log(CONFIG["log.configEntryTypeError"], msg)
       val = valMap
     
@@ -171,7 +170,7 @@ class Config():
       
       # check if the count doesn't match
       if count != None and len(confComp) != count:
-        msg = "config entry '%s' is expected to be %i comma separated values" % (key, count)
+        msg = "Config entry '%s' is expected to be %i comma separated values" % (key, count)
         if default != None and (isinstance(default, list) or isinstance(default, tuple)):
           defaultStr = ", ".join([str(i) for i in default])
           msg += ", defaulting to '%s'" % defaultStr
@@ -201,7 +200,7 @@ class Config():
     
     # validates the input, setting the errorMsg if there's a problem
     errorMsg = None
-    baseErrorMsg = "config entry '%s' is expected to %%s" % key
+    baseErrorMsg = "Config entry '%s' is expected to %%s" % key
     if default != None and (isinstance(default, list) or isinstance(default, tuple)):
       defaultStr = ", ".join([str(i) for i in default])
       baseErrorMsg += ", defaulting to '%s'" % defaultStr

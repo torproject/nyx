@@ -508,7 +508,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     else: return # skip following redraw
     self.redraw(True)
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.connectionsLock.acquire()
     try:
       # hostnames frequently get updated so frequent sorting needed
@@ -529,7 +529,7 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
         if self.showingDetails:
           listingHeight -= 8
           isScrollBarVisible = len(self.connections) > height - 9
-          if width > 80: subwindow.hline(8, 80, curses.ACS_HLINE, width - 81)
+          if width > 80: self.win.hline(8, 80, curses.ACS_HLINE, width - 81)
         else:
           isScrollBarVisible = len(self.connections) > height - 1
         xOffset = 3 if isScrollBarVisible else 0 # content offset for scroll bar
@@ -878,6 +878,8 @@ class ConnPanel(TorCtl.PostEventListener, panel.Panel):
     self.familyFingerprints = {}
     
     for familyEntry in self.family:
+      if not familyEntry: continue
+      
       if familyEntry[0] == "$":
         # relay identified by fingerprint
         self.familyFingerprints[familyEntry] = familyEntry[1:]

@@ -6,14 +6,14 @@ import math
 import curses
 import threading
 
-from util import conf, panel, torConfig, uiTools
+from util import conf, enum, panel, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
                   "features.config.file.maxLinesPerEntry": 8}
 
 # TODO: The armrc use case is incomplete. There should be equivilant reloading
 # and validation capabilities to the torrc.
-TORRC, ARMRC = range(1, 3) # configuration file types that can be displayed
+Config = enum.Enum("TORRC", "ARMRC") # configuration file types that can be displayed
 
 class TorrcPanel(panel.Panel):
   """
@@ -60,7 +60,7 @@ class TorrcPanel(panel.Panel):
     
     self.valsLock.release()
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     
     # If true, we assume that the cached value in self._lastContentHeight is
@@ -74,7 +74,7 @@ class TorrcPanel(panel.Panel):
     self.scroll = max(0, min(self.scroll, self._lastContentHeight - height + 1))
     
     renderedContents, corrections, confLocation = None, {}, None
-    if self.configType == TORRC:
+    if self.configType == Config.TORRC:
       loadedTorrc = torConfig.getTorrc()
       loadedTorrc.getLock().acquire()
       confLocation = loadedTorrc.getConfigLocation()
@@ -109,7 +109,7 @@ class TorrcPanel(panel.Panel):
     
     # draws the top label
     if self.showLabel:
-      sourceLabel = "Tor" if self.configType == TORRC else "Arm"
+      sourceLabel = "Tor" if self.configType == Config.TORRC else "Arm"
       locationLabel = " (%s)" % confLocation if confLocation else ""
       self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
     
@@ -157,10 +157,10 @@ class TorrcPanel(panel.Panel):
       if lineNumber in corrections:
         lineIssue, lineIssueMsg = corrections[lineNumber]
         
-        if lineIssue in (torConfig.VAL_DUPLICATE, torConfig.VAL_IS_DEFAULT):
+        if lineIssue in (torConfig.ValidationError.DUPLICATE, torConfig.ValidationError.IS_DEFAULT):
           lineComp["option"][1] = curses.A_BOLD | uiTools.getColor("blue")
           lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("blue")
-        elif lineIssue == torConfig.VAL_MISMATCH:
+        elif lineIssue == torConfig.ValidationError.MISMATCH:
           lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("red")
           lineComp["correction"][0] = " (%s)" % lineIssueMsg
         else:
@@ -189,7 +189,7 @@ class TorrcPanel(panel.Panel):
             msg = uiTools.cropStr(msg, maxMsgSize)
           else:
             includeBreak = True
-            msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.END_WITH_HYPHEN, True)
+            msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.Ending.HYPHEN, True)
             displayQueue.insert(0, (remainder.strip(), format))
         
         drawLine = displayLine + lineOffset

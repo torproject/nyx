@@ -36,8 +36,9 @@ CONFIG = {"startup.controlPassword": None,
           "startup.interface.port": 9051,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
-          "data.cache.path": "~/.arm/cache",
+          "startup.dataDirectory": "~/.arm",
           "features.config.descriptions.enabled": True,
+          "features.config.descriptions.persist": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
           "log.configDescriptions.readManPageFailed": util.log.NOTICE,
           "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
@@ -88,29 +89,6 @@ STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
-def isValidIpAddr(ipStr):
-  """
-  Returns true if input is a valid IPv4 address, false otherwise.
-  """
-  
-  for i in range(4):
-    if i < 3:
-      divIndex = ipStr.find(".")
-      if divIndex == -1: return False # expected a period to be valid
-      octetStr = ipStr[:divIndex]
-      ipStr = ipStr[divIndex + 1:]
-    else:
-      octetStr = ipStr
-    
-    try:
-      octet = int(octetStr)
-      if not octet >= 0 or not octet <= 255: return False
-    except ValueError:
-      # address value isn't an integer
-      return False
-  
-  return True
-
 def _loadConfigurationDescriptions(pathPrefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
@@ -125,12 +103,13 @@ def _loadConfigurationDescriptions(pathPrefix):
     isConfigDescriptionsLoaded = False
     
     # determines the path where cached descriptions should be persisted (left
-    # undefined of arm caching is disabled)
-    cachePath, descriptorPath = CONFIG["data.cache.path"], None
-    
-    if cachePath:
-      if not cachePath.endswith("/"): cachePath += "/"
-      descriptorPath = os.path.expanduser(cachePath) + CONFIG_DESC_FILENAME
+    # undefined if caching is disabled)
+    descriptorPath = None
+    if CONFIG["features.config.descriptions.persist"]:
+      dataDir = CONFIG["startup.dataDirectory"]
+      if not dataDir.endswith("/"): dataDir += "/"
+      
+      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
     
     # attempts to load configuration descriptions cached in the data directory
     if descriptorPath:
@@ -166,7 +145,7 @@ def _loadConfigurationDescriptions(pathPrefix):
           
           msg = DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
           util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
-        except IOError, exc:
+        except (IOError, OSError), exc:
           msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
           util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
     
@@ -324,7 +303,7 @@ if __name__ == '__main__':
   controlAddr = param["startup.interface.ipAddress"]
   controlPort = param["startup.interface.port"]
   
-  if not isValidIpAddr(controlAddr):
+  if not util.connections.isValidIpAddress(controlAddr):
     print "'%s' isn't a valid IP address" % controlAddr
     sys.exit()
   elif controlPort < 0 or controlPort > 65535:
@@ -409,5 +388,4 @@ if __name__ == '__main__':
     _dumpConfig()
   
   interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
-  conn.close()
 

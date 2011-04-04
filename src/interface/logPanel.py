@@ -32,8 +32,8 @@ EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s ST
           12345 arm runlevel+            X No Events
           67890 torctl runlevel+         U Unknown Events"""
 
-RUNLEVELS = ["DEBUG", "INFO", "NOTICE", "WARN", "ERR"]
-RUNLEVEL_EVENT_COLOR = {"DEBUG": "magenta", "INFO": "blue", "NOTICE": "green", "WARN": "yellow", "ERR": "red"}
+RUNLEVEL_EVENT_COLOR = {log.DEBUG: "magenta", log.INFO: "blue", log.NOTICE: "green",
+                        log.WARN: "yellow", log.ERR: "red"}
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
@@ -112,8 +112,8 @@ def expandEvents(eventAbbr):
   
   for flag in eventAbbr:
     if flag == "A":
-      armRunlevels = ["ARM_" + runlevel for runlevel in RUNLEVELS]
-      torctlRunlevels = ["TORCTL_" + runlevel for runlevel in RUNLEVELS]
+      armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel.values()]
+      torctlRunlevels = ["TORCTL_" + runlevel for runlevel in log.Runlevel.values()]
       expandedEvents = set(TOR_EVENT_TYPES.values() + armRunlevels + torctlRunlevels + ["UNKNOWN"])
       break
     elif flag == "X":
@@ -131,7 +131,7 @@ def expandEvents(eventAbbr):
       elif flag in "W49": runlevelIndex = 3
       elif flag in "E50": runlevelIndex = 4
       
-      runlevelSet = [typePrefix + runlevel for runlevel in RUNLEVELS[runlevelIndex:]]
+      runlevelSet = [typePrefix + runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
       expandedEvents = expandedEvents.union(set(runlevelSet))
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
@@ -210,16 +210,17 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
   
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
+  runlevels = log.Runlevel.values()
   loggingTypes = loggingTypes.upper()
   if addLimit and (not readLimit or readLimit > addLimit):
     if "-" in loggingTypes:
       divIndex = loggingTypes.find("-")
-      sIndex = RUNLEVELS.index(loggingTypes[:divIndex])
-      eIndex = RUNLEVELS.index(loggingTypes[divIndex+1:])
-      logFileRunlevels = RUNLEVELS[sIndex:eIndex+1]
+      sIndex = runlevels.index(loggingTypes[:divIndex])
+      eIndex = runlevels.index(loggingTypes[divIndex+1:])
+      logFileRunlevels = runlevels[sIndex:eIndex+1]
     else:
-      sIndex = RUNLEVELS.index(loggingTypes)
-      logFileRunlevels = RUNLEVELS[sIndex:]
+      sIndex = runlevels.index(loggingTypes)
+      logFileRunlevels = runlevels[sIndex:]
     
     # checks if runlevels we're reporting are a superset of the file's contents
     isFileSubset = True
@@ -570,7 +571,7 @@ class LogPanel(panel.Panel, threading.Thread):
     # fetches past tor events from log file, if available
     torEventBacklog = []
     if self._config["features.log.prepopulate"]:
-      setRunlevels = list(set.intersection(set(self.loggedEvents), set(RUNLEVELS)))
+      setRunlevels = list(set.intersection(set(self.loggedEvents), set(log.Runlevel.values())))
       readLimit = self._config["features.log.prepopulateReadLimit"]
       addLimit = self._config["cache.logPanel.size"]
       torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
@@ -584,13 +585,12 @@ class LogPanel(panel.Panel, threading.Thread):
       # gets the set of arm events we're logging
       setRunlevels = []
       for i in range(len(armRunlevels)):
-        if "ARM_" + RUNLEVELS[i] in self.loggedEvents:
+        if "ARM_" + log.Runlevel.values()[i] in self.loggedEvents:
           setRunlevels.append(armRunlevels[i])
       
       armEventBacklog = []
       for level, msg, eventTime in log._getEntries(setRunlevels):
-        runlevelStr = log.RUNLEVEL_STR[level]
-        armEventEntry = LogEntry(eventTime, "ARM_" + runlevelStr, msg, RUNLEVEL_EVENT_COLOR[runlevelStr])
+        armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
         armEventBacklog.insert(0, armEventEntry)
       
       # joins armEventBacklog and torEventBacklog chronologically into msgLog
@@ -621,14 +621,14 @@ class LogPanel(panel.Panel, threading.Thread):
     if self._config["features.logFile"]:
       logPath = self._config["features.logFile"]
       
-      # make dir if the path doesn't already exist
-      baseDir = os.path.dirname(logPath)
-      if not os.path.exists(baseDir): os.makedirs(baseDir)
-      
       try:
+        # make dir if the path doesn't already exist
+        baseDir = os.path.dirname(logPath)
+        if not os.path.exists(baseDir): os.makedirs(baseDir)
+        
         self.logFile = open(logPath, "a")
         log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
-      except IOError, exc:
+      except (IOError, OSError), exc:
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
   
@@ -778,7 +778,7 @@ class LogPanel(panel.Panel, threading.Thread):
       self.redraw(True)
       self.valsLock.release()
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
@@ -831,23 +831,22 @@ class LogPanel(panel.Panel, threading.Thread):
         # bottom of the divider
         if seenFirstDateDivider:
           if lineCount >= 1 and lineCount < height and showDaybreaks:
-            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
-            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
-            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
+            self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER,  dividerAttr)
+            self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
+            self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
           
           lineCount += 1
         
         # top of the divider
         if lineCount >= 1 and lineCount < height and showDaybreaks:
           timeLabel = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
-          self.win.vline(lineCount, dividerIndent, curses.ACS_ULCORNER | dividerAttr, 1)
-          self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, 1)
+          self.addch(lineCount, dividerIndent, curses.ACS_ULCORNER, dividerAttr)
+          self.addch(lineCount, dividerIndent + 1, curses.ACS_HLINE, dividerAttr)
           self.addstr(lineCount, dividerIndent + 2, timeLabel, curses.A_BOLD | dividerAttr)
           
-          if dividerIndent + len(timeLabel) + 2 <= width:
-            lineLength = width - dividerIndent - len(timeLabel) - 2
-            self.win.hline(lineCount, dividerIndent + len(timeLabel) + 2, curses.ACS_HLINE | dividerAttr, lineLength)
-            self.win.vline(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER | dividerAttr, 1)
+          lineLength = width - dividerIndent - len(timeLabel) - 2
+          self.hline(lineCount, dividerIndent + len(timeLabel) + 2, lineLength, dividerAttr)
+          self.addch(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER, dividerAttr)
         
         seenFirstDateDivider = True
         lineCount += 1
@@ -879,15 +878,15 @@ class LogPanel(panel.Panel, threading.Thread):
             if lineOffset == maxEntriesPerLine - 1:
               msg = uiTools.cropStr(msg, maxMsgSize)
             else:
-              msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.END_WITH_HYPHEN, True)
+              msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.Ending.HYPHEN, True)
               displayQueue.insert(0, (remainder.strip(), format, includeBreak))
             
             includeBreak = True
           
           if drawLine < height and drawLine >= 1:
             if seenFirstDateDivider and width - dividerIndent >= 3 and showDaybreaks:
-              self.win.vline(drawLine, dividerIndent, curses.ACS_VLINE | dividerAttr, 1)
-              self.win.vline(drawLine, width, curses.ACS_VLINE | dividerAttr, 1)
+              self.addch(drawLine, dividerIndent, curses.ACS_VLINE, dividerAttr)
+              self.addch(drawLine, width, curses.ACS_VLINE, dividerAttr)
             
             self.addstr(drawLine, cursorLoc, msg, format)
           
@@ -902,13 +901,9 @@ class LogPanel(panel.Panel, threading.Thread):
       # if this is the last line and there's room, then draw the bottom of the divider
       if not deduplicatedLog and seenFirstDateDivider:
         if lineCount < height and showDaybreaks:
-          # when resizing with a small width the following entries can be
-          # problematc (though I'm not sure why)
-          try:
-            self.win.vline(lineCount, dividerIndent, curses.ACS_LLCORNER | dividerAttr, 1)
-            self.win.hline(lineCount, dividerIndent + 1, curses.ACS_HLINE | dividerAttr, width - dividerIndent - 1)
-            self.win.vline(lineCount, width, curses.ACS_LRCORNER | dividerAttr, 1)
-          except: pass
+          self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER, dividerAttr)
+          self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
+          self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
         
         lineCount += 1
     
@@ -1019,7 +1014,7 @@ class LogPanel(panel.Panel, threading.Thread):
       runlevelRanges = [] # tuple of type, startLevel, endLevel for ranges to be consensed
       
       # reverses runlevels and types so they're appended in the right order
-      reversedRunlevels = list(RUNLEVELS)
+      reversedRunlevels = log.Runlevel.values()
       reversedRunlevels.reverse()
       for prefix in ("TORCTL_", "ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end

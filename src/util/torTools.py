@@ -17,12 +17,24 @@ import threading
 
 from TorCtl import TorCtl, TorUtil
 
-from util import log, procTools, sysTools, uiTools
+from util import enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
-# TOR_INIT - attached to a new controller or restart/sighup signal received
-# TOR_CLOSED - control port closed
-TOR_INIT, TOR_CLOSED = range(1, 3)
+# INIT - attached to a new controller or restart/sighup signal received
+# CLOSED - control port closed
+State = enum.Enum("INIT", "CLOSED")
+
+# Addresses of the default directory authorities for tor version 0.2.3.0-alpha
+# (this comes from the dirservers array in src/or/config.c).
+DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
+               ("128.31.0.39", "9031"),       # moria1
+               ("216.224.124.114", "9030"),   # ides
+               ("212.112.245.170", "80"),     # gabelmoo
+               ("194.109.206.212", "80"),     # dizum
+               ("193.23.244.244", "80"),      # dannenberg
+               ("208.83.223.34", "443"),      # urras
+               ("213.115.239.118", "443"),    # maatuska
+               ("82.94.251.203", "80")]       # Tonga
 
 # message logged by default when a controller can't set an event type
 DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
@@ -41,8 +53,20 @@ CONTROLLER = None # singleton Controller instance
 # options (unchangable, even with a SETCONF) and other useful stats
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
-              "nsEntry", "descEntry", "bwRate", "bwBurst", "bwObserved",
-              "bwMeasured", "flags", "pid", "pathPrefix", "startTime")
+              "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
+              "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
+              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
+CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
+
+# Tor has a couple messages (in or/router.c) for when our ip address changes:
+# "Our IP Address has changed from <previous> to <current>; rebuilding
+#   descriptor (source: <source>)."
+# "Guessed our IP address as <current> (source: <source>)."
+# 
+# It would probably be preferable to use the EXTERNAL_ADDRESS event, but I'm
+# not quite sure why it's not provided by check_descriptor_ipaddress_changed
+# so erring on the side of inclusiveness by using the notice event instead.
+ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
 
 TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -52,6 +76,7 @@ CONFIG = {"torrc.map": {},
           "log.torGetInfo": log.DEBUG,
           "log.torGetInfoCache": None,
           "log.torGetConf": log.DEBUG,
+          "log.torGetConfCache": None,
           "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
@@ -65,8 +90,21 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
+# number of sequential attempts before we decide that the Tor geoip database
+# is unavailable
+GEOIP_FAILURE_THRESHOLD = 5
+
 # provides int -> str mappings for torctl event runlevels
 TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
+
+# ip address ranges substituted by the 'private' keyword
+PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
+
+# This prevents controllers from spawning worker threads (and by extension
+# notifying status listeners). This is important when shutting down to prevent
+# rogue threads from being alive during shutdown.
+
+NO_SPAWN = False
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -185,6 +223,41 @@ def getBsdJailId():
   log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
   return 0
 
+def parseVersion(versionStr):
+  """
+  Parses the given version string into its expected components, for instance...
+  '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)'
+  
+  would provide:
+  (0, 2, 2, 13, 'alpha')
+  
+  If the input isn't recognized then this returns None.
+  
+  Arguments:
+    versionStr - version string to be parsed
+  """
+  
+  # crops off extra arguments, for instance:
+  # '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)' -> '0.2.2.13-alpha'
+  versionStr = versionStr.split()[0]
+  
+  result = None
+  if versionStr.count(".") in (2, 3):
+    # parses the optional suffix ('alpha', 'release', etc)
+    if versionStr.count("-") == 1:
+      versionStr, versionSuffix = versionStr.split("-")
+    else: versionSuffix = ""
+    
+    # Parses the numeric portion of the version. This can have three or four
+    # entries depending on if an optional patch level was provided.
+    try:
+      versionComp = [int(entry) for entry in versionStr.split(".")]
+      if len(versionComp) == 3: versionComp += [0]
+      result = tuple(versionComp + [versionSuffix])
+    except ValueError: pass
+  
+  return result
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
@@ -210,18 +283,29 @@ class Controller(TorCtl.PostEventListener):
     self.torctlListeners = []           # callback functions for TorCtl events
     self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
+    self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
+    self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
+    self._fingerprintsAttachedCache = None # cache of relays we're connected to
+    self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
+    self._consensusLookupCache = {}     # lookup cache with network status entries
+    self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
-    self._status = TOR_CLOSED           # current status of the attached control port
+    self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self.lastHeartbeat = 0              # time of the last tor event
+    
+    self._exitPolicyChecker = None
+    self._isExitingAllowed = False
+    self._exitPolicyLookupCache = {}    # mappings of ip/port tuples to if they were accepted by the policy or not
     
     # Logs issues and notices when fetching the path prefix if true. This is
     # only done once for the duration of the application to avoid pointless
     # messages.
     self._pathPrefixLogging = True
     
-    # cached GETINFO parameters (None if unset or possibly changed)
-    self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    # cached parameters for GETINFO and custom getters (None if unset or
+    # possibly changed)
+    self._cachedParam = {}
     
     # cached GETCONF parameters, entries consisting of:
     # (option, fetch_type) => value
@@ -230,6 +314,9 @@ class Controller(TorCtl.PostEventListener):
     # directs TorCtl to notify us of events
     TorUtil.logger = self
     TorUtil.loglevel = "DEBUG"
+    
+    # tracks the number of sequential geoip lookup failures
+    self.geoipFailureCount = 0
   
   def init(self, conn=None):
     """
@@ -254,17 +341,30 @@ class Controller(TorCtl.PostEventListener):
       self.conn.add_event_listener(self)
       for listener in self.eventListeners: self.conn.add_event_listener(listener)
       
+      # reset caches for ip -> fingerprint lookups
+      self._fingerprintMappings = None
+      self._fingerprintLookupCache = {}
+      self._fingerprintsAttachedCache = None
+      self._nicknameLookupCache = {}
+      self._consensusLookupCache = {}
+      self._descriptorLookupCache = {}
+      
+      self._exitPolicyChecker = self.getExitPolicy()
+      self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+      self._exitPolicyLookupCache = {}
+      
       # sets the events listened for by the new controller (incompatible events
       # are dropped with a logged warning)
       self.setControllerEvents(self.controllerEvents)
       
       self.connLock.release()
       
-      self._status = TOR_INIT
+      self._status = State.INIT
       self._statusTime = time.time()
       
       # notifies listeners that a new controller is available
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (State.INIT,))
   
   def close(self):
     """
@@ -274,14 +374,29 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     if self.conn:
       self.conn.close()
+      
+      # If we're closing due to an event from TorCtl (for instance, tor was
+      # stopped) then TorCtl is shutting itself down and there's no need to
+      # join on its thread (actually, this *is* the TorCtl thread in that
+      # case so joining on it causes deadlock).
+      # 
+      # This poses a slight possability of shutting down with a live orphaned
+      # thread if Tor is shut down, then arm shuts down before TorCtl has a
+      # chance to terminate. However, I've never seen that occure so leaving
+      # that alone for now.
+      
+      if not threading.currentThread() == self.conn._thread:
+        self.conn._thread.join()
+      
       self.conn = None
       self.connLock.release()
       
-      self._status = TOR_CLOSED
+      self._status = State.CLOSED
       self._statusTime = time.time()
       
       # notifies listeners that the controller's been shut down
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_CLOSED,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (State.CLOSED,))
     else: self.connLock.release()
   
   def isAlive(self):
@@ -337,21 +452,44 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    isGeoipRequest = param.startswith("ip-to-country/")
+    
+    # checks if this is an arg caching covers
+    isCacheArg = param in CACHE_ARGS
+    
+    if not isCacheArg:
+      for prefix in CACHE_GETINFO_PREFIX_ARGS:
+        if param.startswith(prefix):
+          isCacheArg = True
+          break
+    
     startTime = time.time()
     result, raisedExc, isFromCache = default, None, False
     if self.isAlive():
-      if param in CACHE_ARGS and self._cachedParam[param]:
-        result = self._cachedParam[param]
+      cachedValue = self._cachedParam.get(param)
+      
+      if isCacheArg and cachedValue:
+        result = cachedValue
         isFromCache = True
+      elif isGeoipRequest and self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
+        # the geoip database aleady looks to be unavailable - abort the request
+        raisedExc = TorCtl.ErrorReply("Tor geoip database is unavailable.")
       else:
         try:
           getInfoVal = self.conn.get_info(param)[param]
           if getInfoVal != None: result = getInfoVal
+          if isGeoipRequest: self.geoipFailureCount = 0
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           raisedExc = exc
+          
+          if isGeoipRequest:
+            self.geoipFailureCount += 1
+            
+            if self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
+              log.log(CONFIG["log.geoipUnavailable"], "Tor geoip database is unavailable.")
     
-    if not isFromCache and result and param in CACHE_ARGS:
+    if isCacheArg and result and not isFromCache:
       self._cachedParam[param] = result
     
     if isFromCache:
@@ -439,9 +577,9 @@ class Controller(TorCtl.PostEventListener):
     result = {} if fetchType == "map" else []
     
     if self.isAlive():
-      if (param, fetchType) in self._cachedConf:
+      if (param.lower(), fetchType) in self._cachedConf:
         isFromCache = True
-        result = self._cachedConf[(param, fetchType)]
+        result = self._cachedConf[(param.lower(), fetchType)]
       else:
         try:
           if fetchType == "str":
@@ -458,15 +596,18 @@ class Controller(TorCtl.PostEventListener):
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           result, raisedExc = default, exc
     
-    if not isFromCache and result:
+    if not isFromCache:
       cacheValue = result
       if fetchType == "list": cacheValue = list(result)
       elif fetchType == "map": cacheValue = dict(result)
-      self._cachedConf[(param, fetchType)] = cacheValue
+      self._cachedConf[(param.lower(), fetchType)] = cacheValue
     
-    runtimeLabel = "cache fetch" if isFromCache else "runtime: %0.4f" % (time.time() - startTime)
-    msg = "GETCONF %s (%s)" % (param, runtimeLabel)
-    log.log(CONFIG["log.torGetConf"], msg)
+    if isFromCache:
+      msg = "GETCONF %s (cache fetch)" % param
+      log.log(CONFIG["log.torGetConfCache"], msg)
+    else:
+      msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
+      log.log(CONFIG["log.torGetConf"], msg)
     
     self.connLock.release()
     
@@ -496,10 +637,16 @@ class Controller(TorCtl.PostEventListener):
         
         # flushing cached values (needed until we can detect SETCONF calls)
         for fetchType in ("str", "list", "map"):
-          entry = (param, fetchType)
+          entry = (param.lower(), fetchType)
           
           if entry in self._cachedConf:
             del self._cachedConf[entry]
+        
+        # special caches for the exit policy
+        if param.lower() == "exitpolicy":
+          self._exitPolicyChecker = self.getExitPolicy()
+          self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+          self._exitPolicyLookupCache = {}
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         elif type(exc) == TorCtl.ErrorReply:
@@ -526,6 +673,27 @@ class Controller(TorCtl.PostEventListener):
     log.log(CONFIG["log.torSetConf"], msg)
     
     if raisedExc: raise raisedExc
+  
+  def getCircuits(self, default = []):
+    """
+    This provides a list with tuples of the form:
+    (circuitID, status, purpose, (fingerprint1, fingerprint2...))
+    
+    Arguments:
+      default - value provided back if unable to query the circuit-status
+    """
+    
+    return self._getRelayAttr("circuits", default)
+  
+  def getHiddenServicePorts(self, default = []):
+    """
+    Provides the target ports hidden services are configured to use.
+    
+    Arguments:
+      default - value provided back if unable to query the hidden service ports
+    """
+    
+    return self._getRelayAttr("hsPorts", default)
   
   def getMyNetworkStatus(self, default = None):
     """
@@ -615,6 +783,53 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("flags", default)
   
+  def isVersion(self, minVersionStr):
+    """
+    Checks if we meet the given version. Recognized versions are of the form:
+    <major>.<minor>.<micro>[.<patch>][-<status_tag>]
+    
+    for instance, "0.2.2.13-alpha" or "0.2.1.5". This raises a ValueError if
+    the input isn't recognized, and returns False if unable to fetch our
+    instance's version.
+    
+    According to the spec the status_tag is purely informal, so it's ignored
+    in comparisons.
+    
+    Arguments:
+      minVersionStr - version to be compared against
+    """
+    
+    minVersion = parseVersion(minVersionStr)
+    
+    if minVersion == None:
+      raise ValueError("unrecognized version: %s" % minVersionStr)
+    
+    self.connLock.acquire()
+    
+    result = False
+    if self.isAlive():
+      myVersion = self._getRelayAttr("parsedVersion", None)
+      
+      if not myVersion:
+        result = False
+      elif myVersion[:4] == minVersion[:4]:
+        result = True # versions match
+      else:
+        # compares each of the numeric portions of the version
+        for i in range(4):
+          myVal, minVal = myVersion[i], minVersion[i]
+          
+          if myVal > minVal:
+            result = True
+            break
+          elif myVal < minVal:
+            result = False
+            break
+    
+    self.connLock.release()
+    
+    return result
+  
   def getMyPid(self):
     """
     Provides the pid of the attached tor process (None if no controller exists
@@ -623,6 +838,16 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("pid", None)
   
+  def getMyDirAuthorities(self):
+    """
+    Provides a listing of IP/port tuples for the directory authorities we've
+    been configured to use. If set in the configuration then these are custom
+    authorities, otherwise its an estimate of what Tor has been hardcoded to
+    use (unfortunately, this might be out of date).
+    """
+    
+    return self._getRelayAttr("authorities", [])
+  
   def getPathPrefix(self):
     """
     Provides the path prefix that should be used for fetching tor resources.
@@ -630,10 +855,7 @@ class Controller(TorCtl.PostEventListener):
     jail's path.
     """
     
-    result = self._getRelayAttr("pathPrefix", "")
-    
-    if result == UNKNOWN: return ""
-    else: return result
+    return self._getRelayAttr("pathPrefix", "")
   
   def getStartTime(self):
     """
@@ -641,10 +863,7 @@ class Controller(TorCtl.PostEventListener):
     can't be determined then this provides None.
     """
     
-    result = self._getRelayAttr("startTime", None)
-    
-    if result == UNKNOWN: return None
-    else: return result
+    return self._getRelayAttr("startTime", None)
   
   def getStatus(self):
     """
@@ -654,6 +873,199 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return (self._status, self._statusTime)
+  
+  def isExitingAllowed(self, ipAddress, port):
+    """
+    Checks if the given destination can be exited to by this relay, returning
+    True if so and False otherwise.
+    """
+    
+    self.connLock.acquire()
+    
+    result = False
+    if self.isAlive():
+      # query the policy if it isn't yet cached
+      if not (ipAddress, port) in self._exitPolicyLookupCache:
+        # If we allow any exiting then this could be relayed DNS queries,
+        # otherwise the policy is checked. Tor still makes DNS connections to
+        # test when exiting isn't allowed, but nothing is relayed over them.
+        # I'm registering these as non-exiting to avoid likely user confusion:
+        # https://trac.torproject.org/projects/tor/ticket/965
+        
+        if self._isExitingAllowed and port == "53": isAccepted = True
+        else: isAccepted = self._exitPolicyChecker.check(ipAddress, port)
+        self._exitPolicyLookupCache[(ipAddress, port)] = isAccepted
+      
+      result = self._exitPolicyLookupCache[(ipAddress, port)]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getExitPolicy(self):
+    """
+    Provides an ExitPolicy instance for the head of this relay's exit policy
+    chain. If there's no active connection then this provides None.
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if self.getOption("ORPort"):
+        policyEntries = []
+        for exitPolicy in self.getOption("ExitPolicy", [], True):
+          policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
+        
+        # appends the default exit policy
+        defaultExitPolicy = self.getInfo("exit-policy/default")
+        
+        if defaultExitPolicy:
+          policyEntries += defaultExitPolicy.split(",")
+        
+        # construct the policy chain backwards
+        policyEntries.reverse()
+        
+        for entry in policyEntries:
+          result = ExitPolicy(entry, result)
+        
+        # Checks if we are rejecting private connections. If set, this appends
+        # 'reject private' and 'reject <my ip>' to the start of our policy chain.
+        isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
+        
+        if isPrivateRejected:
+          result = ExitPolicy("reject private", result)
+          
+          myAddress = self.getInfo("address")
+          if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+      else:
+        # no ORPort is set so all relaying is disabled
+        result = ExitPolicy("reject *:*")
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getConsensusEntry(self, relayFingerprint):
+    """
+    Provides the most recently available consensus information for the given
+    relay. This is none if no such information exists.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if not relayFingerprint in self._consensusLookupCache:
+        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+        self._consensusLookupCache[relayFingerprint] = nsEntry
+      
+      result = self._consensusLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getDescriptorEntry(self, relayFingerprint):
+    """
+    Provides the most recently available descriptor information for the given
+    relay. Unless FetchUselessDescriptors is set this may frequently be
+    unavailable. If no such descriptor is available then this returns None.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if not relayFingerprint in self._descriptorLookupCache:
+        descEntry = self.getInfo("desc/id/%s" % relayFingerprint)
+        self._descriptorLookupCache[relayFingerprint] = descEntry
+      
+      result = self._descriptorLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayFingerprint(self, relayAddress, relayPort = None, getAllMatches = False):
+    """
+    Provides the fingerprint associated with the given address. If there's
+    multiple potential matches or the mapping is unknown then this returns
+    None. This disambiguates the fingerprint if there's multiple relays on
+    the same ip address by several methods, one of them being to pick relays
+    we have a connection with.
+    
+    Arguments:
+      relayAddress  - address of relay to be returned
+      relayPort     - orport of relay (to further narrow the results)
+      getAllMatches - ignores the relayPort and provides all of the
+                      (port, fingerprint) tuples matching the given
+                      address
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      if getAllMatches:
+        # populates the ip -> fingerprint mappings if not yet available
+        if self._fingerprintMappings == None:
+          self._fingerprintMappings = self._getFingerprintMappings()
+        
+        if relayAddress in self._fingerprintMappings:
+          result = self._fingerprintMappings[relayAddress]
+        else: result = []
+      else:
+        # query the fingerprint if it isn't yet cached
+        if not (relayAddress, relayPort) in self._fingerprintLookupCache:
+          relayFingerprint = self._getRelayFingerprint(relayAddress, relayPort)
+          self._fingerprintLookupCache[(relayAddress, relayPort)] = relayFingerprint
+        
+        result = self._fingerprintLookupCache[(relayAddress, relayPort)]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayNickname(self, relayFingerprint):
+    """
+    Provides the nickname associated with the given relay. This provides None
+    if no such relay exists, and "Unnamed" if the name hasn't been set.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # query the nickname if it isn't yet cached
+      if not relayFingerprint in self._nicknameLookupCache:
+        if relayFingerprint == self.getInfo("fingerprint"):
+          # this is us, simply check the config
+          myNickname = self.getOption("Nickname", "Unnamed")
+          self._nicknameLookupCache[relayFingerprint] = myNickname
+        else:
+          # check the consensus for the relay
+          nsEntry = self.getConsensusEntry(relayFingerprint)
+          
+          if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
+          else: relayNickname = None
+          
+          self._nicknameLookupCache[relayFingerprint] = relayNickname
+      
+      result = self._nicknameLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
   
   def addEventListener(self, listener):
     """
@@ -825,7 +1237,7 @@ class Controller(TorCtl.PostEventListener):
       if not issueSighup:
         try:
           self.conn.send_signal("RELOAD")
-          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedParam = {}
           self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
@@ -870,7 +1282,7 @@ class Controller(TorCtl.PostEventListener):
             if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
             else: raise IOError("failed silently")
           
-          self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+          self._cachedParam = {}
           self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
@@ -888,13 +1300,15 @@ class Controller(TorCtl.PostEventListener):
     if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
       self._isReset = True
       
-      self._status = TOR_INIT
+      self._status = State.INIT
       self._statusTime = time.time()
       
-      thread.start_new_thread(self._notifyStatusListeners, (TOR_INIT,))
+      if not NO_SPAWN:
+        thread.start_new_thread(self._notifyStatusListeners, (State.INIT,))
   
   def ns_event(self, event):
     self._updateHeartbeat()
+    self._consensusLookupCache = {}
     
     myFingerprint = self.getInfo("fingerprint")
     if myFingerprint:
@@ -912,20 +1326,77 @@ class Controller(TorCtl.PostEventListener):
   def new_consensus_event(self, event):
     self._updateHeartbeat()
     
+    self.connLock.acquire()
+    
     self._cachedParam["nsEntry"] = None
     self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
+    
+    # reconstructs consensus based mappings
+    self._fingerprintLookupCache = {}
+    self._fingerprintsAttachedCache = None
+    self._nicknameLookupCache = {}
+    self._consensusLookupCache = {}
+    
+    if self._fingerprintMappings != None:
+      self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
+    
+    self.connLock.release()
   
   def new_desc_event(self, event):
     self._updateHeartbeat()
+    
+    self.connLock.acquire()
     
     myFingerprint = self.getInfo("fingerprint")
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
+    
+    # If we're tracking ip address -> fingerprint mappings then update with
+    # the new relays.
+    self._fingerprintLookupCache = {}
+    self._fingerprintsAttachedCache = None
+    self._descriptorLookupCache = {}
+    
+    if self._fingerprintMappings != None:
+      for fingerprint in event.idlist:
+        # gets consensus data for the new descriptor
+        try: nsLookup = self.conn.get_network_status("id/%s" % fingerprint)
+        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): continue
+        
+        if len(nsLookup) > 1:
+          # multiple records for fingerprint (shouldn't happen)
+          log.log(log.WARN, "Multiple consensus entries for fingerprint: %s" % fingerprint)
+          continue
+        
+        # updates fingerprintMappings with new data
+        newRelay = nsLookup[0]
+        if newRelay.ip in self._fingerprintMappings:
+          # if entry already exists with the same orport, remove it
+          orportMatch = None
+          for entryPort, entryFingerprint in self._fingerprintMappings[newRelay.ip]:
+            if entryPort == newRelay.orport:
+              orportMatch = (entryPort, entryFingerprint)
+              break
+          
+          if orportMatch: self._fingerprintMappings[newRelay.ip].remove(orportMatch)
+          
+          # add the new entry
+          self._fingerprintMappings[newRelay.ip].append((newRelay.orport, newRelay.idhex))
+        else:
+          self._fingerprintMappings[newRelay.ip] = [(newRelay.orport, newRelay.idhex)]
+    
+    self.connLock.release()
   
   def circ_status_event(self, event):
     self._updateHeartbeat()
+    
+    # CIRC events aren't required, but if one's received then flush this cache
+    # since it uses circuit-status results.
+    self._fingerprintsAttachedCache = None
+    
+    self._cachedParam["circuits"] = None
   
   def buildtimeout_set_event(self, event):
     self._updateHeartbeat()
@@ -959,6 +1430,13 @@ class Controller(TorCtl.PostEventListener):
     
     # checks if TorCtl is providing a notice that control port is closed
     if TOR_CTL_CLOSE_MSG in msg: self.close()
+    
+    # if the message is informing us of our ip address changing then clear
+    # its cached value
+    for prefix in ADDR_CHANGED_MSG_PREFIX:
+      if msg.startswith(prefix):
+        self._cachedParam["address"] = None
+        break
   
   def _updateHeartbeat(self):
     """
@@ -967,6 +1445,126 @@ class Controller(TorCtl.PostEventListener):
     
     # alternative is to use the event's timestamp (via event.arrived_at)
     self.lastHeartbeat = time.time()
+  
+  def _getFingerprintMappings(self, nsList = None):
+    """
+    Provides IP address to (port, fingerprint) tuple mappings for all of the
+    currently cached relays.
+    
+    Arguments:
+      nsList - network status listing (fetched if not provided)
+    """
+    
+    results = {}
+    if self.isAlive():
+      # fetch the current network status if not provided
+      if not nsList:
+        try: nsList = self.conn.get_network_status()
+        except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
+      
+      # construct mappings of ips to relay data
+      for relay in nsList:
+        if relay.ip in results: results[relay.ip].append((relay.orport, relay.idhex))
+        else: results[relay.ip] = [(relay.orport, relay.idhex)]
+    
+    return results
+  
+  def _getRelayFingerprint(self, relayAddress, relayPort):
+    """
+    Provides the fingerprint associated with the address/port combination.
+    
+    Arguments:
+      relayAddress - address of relay to be returned
+      relayPort    - orport of relay (to further narrow the results)
+    """
+    
+    # If we were provided with a string port then convert to an int (so
+    # lookups won't mismatch based on type).
+    if isinstance(relayPort, str): relayPort = int(relayPort)
+    
+    # checks if this matches us
+    if relayAddress == self.getInfo("address"):
+      if not relayPort or relayPort == self.getOption("ORPort"):
+        return self.getInfo("fingerprint")
+    
+    # if we haven't yet populated the ip -> fingerprint mappings then do so
+    if self._fingerprintMappings == None:
+      self._fingerprintMappings = self._getFingerprintMappings()
+    
+    potentialMatches = self._fingerprintMappings.get(relayAddress)
+    if not potentialMatches: return None # no relay matches this ip address
+    
+    if len(potentialMatches) == 1:
+      # There's only one relay belonging to this ip address. If the port
+      # matches then we're done.
+      match = potentialMatches[0]
+      
+      if relayPort and match[0] != relayPort: return None
+      else: return match[1]
+    elif relayPort:
+      # Multiple potential matches, so trying to match based on the port.
+      for entryPort, entryFingerprint in potentialMatches:
+        if entryPort == relayPort:
+          return entryFingerprint
+    
+    # Disambiguates based on our orconn-status and circuit-status results.
+    # This only includes relays we're connected to, so chances are pretty
+    # slim that we'll still have a problem narrowing this down. Note that we
+    # aren't necessarily checking for events that can create new client
+    # circuits (so this cache might be a little dirty).
+    
+    # populates the cache
+    if self._fingerprintsAttachedCache == None:
+      self._fingerprintsAttachedCache = []
+      
+      # orconn-status has entries of the form:
+      # $33173252B70A50FE3928C7453077936D71E45C52=shiven CONNECTED
+      orconnResults = self.getInfo("orconn-status")
+      if orconnResults:
+        for line in orconnResults.split("\n"):
+          self._fingerprintsAttachedCache.append(line[1:line.find("=")])
+      
+      # circuit-status results (we only make connections to the first hop)
+      for _, _, _, path in self.getCircuits():
+        self._fingerprintsAttachedCache.append(path[0])
+    
+    # narrow to only relays we have a connection to
+    attachedMatches = []
+    for _, entryFingerprint in potentialMatches:
+      if entryFingerprint in self._fingerprintsAttachedCache:
+        attachedMatches.append(entryFingerprint)
+    
+    if len(attachedMatches) == 1:
+      return attachedMatches[0]
+    
+    # Highly unlikely, but still haven't found it. Last we'll use some
+    # tricks from Mike's ConsensusTracker, excluding possiblities that
+    # have...
+    # - lost their Running flag
+    # - list a bandwidth of 0
+    # - have 'opt hibernating' set
+    # 
+    # This involves constructing a TorCtl Router and checking its 'down'
+    # flag (which is set by the three conditions above). This is the last
+    # resort since it involves a couple GETINFO queries.
+    
+    for entryPort, entryFingerprint in list(potentialMatches):
+      try:
+        nsCall = self.conn.get_network_status("id/%s" % entryFingerprint)
+        if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
+        nsEntry = nsCall[0]
+        
+        descEntry = self.getInfo("desc/id/%s" % entryFingerprint)
+        if not descEntry: raise TorCtl.ErrorReply() # relay descriptor couldn't be fetched
+        descLines = descEntry.split("\n")
+        
+        isDown = TorCtl.Router.build_from_desc(descLines, nsEntry).down
+        if isDown: potentialMatches.remove((entryPort, entryFingerprint))
+      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+    
+    if len(potentialMatches) == 1:
+      return potentialMatches[0][1]
+    else: return None
   
   def _getRelayAttr(self, key, default, cacheUndefined = True):
     """
@@ -980,15 +1578,15 @@ class Controller(TorCtl.PostEventListener):
                        lookups if true
     """
     
-    currentVal = self._cachedParam[key]
-    if currentVal:
+    currentVal = self._cachedParam.get(key)
+    if currentVal != None:
       if currentVal == UNKNOWN: return default
       else: return currentVal
     
     self.connLock.acquire()
     
-    currentVal, result = self._cachedParam[key], None
-    if not currentVal and self.isAlive():
+    currentVal, result = self._cachedParam.get(key), None
+    if currentVal == None and self.isAlive():
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
         myFingerprint = self.getInfo("fingerprint")
@@ -1043,6 +1641,8 @@ class Controller(TorCtl.PostEventListener):
           if line.startswith("s "):
             result = line[2:].split()
             break
+      elif key == "parsedVersion":
+        result = parseVersion(self.getInfo("version", ""))
       elif key == "pid":
         result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
       elif key == "pathPrefix":
@@ -1084,7 +1684,7 @@ class Controller(TorCtl.PostEventListener):
         if myPid:
           try:
             if procTools.isProcAvailable():
-              result = float(procTools.getStats(myPid, procTools.STAT_START_TIME)[0])
+              result = float(procTools.getStats(myPid, procTools.Stat.START_TIME)[0])
             else:
               psCall = sysTools.call("ps -p %s -o etime" % myPid)
               
@@ -1092,16 +1692,83 @@ class Controller(TorCtl.PostEventListener):
                 etimeEntry = psCall[1].strip()
                 result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
           except: pass
+      elif key == "authorities":
+        # There's two configuration options that can overwrite the default
+        # authorities: DirServer and AlternateDirAuthority.
+        
+        # TODO: Both options accept a set of flags to more precisely set what they
+        # overwrite. Ideally this would account for these flags to more accurately
+        # identify authority connections from relays.
+        
+        dirServerCfg = self.getOption("DirServer", [], True)
+        altDirAuthCfg = self.getOption("AlternateDirAuthority", [], True)
+        altAuthoritiesCfg = dirServerCfg + altDirAuthCfg
+        
+        if altAuthoritiesCfg:
+          result = []
+          
+          # entries are of the form:
+          # [nickname] [flags] address:port fingerprint
+          for entry in altAuthoritiesCfg:
+            locationComp = entry.split()[-2] # address:port component
+            result.append(tuple(locationComp.split(":", 1)))
+        else: result = list(DIR_SERVERS)
+      elif key == "circuits":
+        # Parses our circuit-status results, for instance
+        #  91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
+        # would belong to a single hop circuit, most likely fetching the
+        # consensus via a directory mirror.
+        circStatusResults = self.getInfo("circuit-status")
+        
+        if circStatusResults == "":
+          result = [] # we don't have any circuits
+        elif circStatusResults != None:
+          result = []
+          
+          for line in circStatusResults.split("\n"):
+            # appends a tuple with the (status, purpose, path)
+            lineComp = line.split(" ")
+            
+            # skips blank lines and circuits without a path, for instance:
+            #  5 LAUNCHED PURPOSE=TESTING
+            if len(lineComp) < 4: continue
+            
+            path = tuple([hopEntry[1:41] for hopEntry in lineComp[2].split(",")])
+            result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], path))
+      elif key == "hsPorts":
+        result = []
+        hsOptions = self.getOptionMap("HiddenServiceOptions")
+        
+        if hsOptions and "HiddenServicePort" in hsOptions:
+          for hsEntry in hsOptions["HiddenServicePort"]:
+            # hidden service port entries are of the form:
+            # VIRTPORT [TARGET]
+            # with the TARGET being an IP, port, or IP:Port. If the target port
+            # isn't defined then uses the VIRTPORT.
+            
+            hsPort = None
+            
+            if " " in hsEntry:
+              # parses the target, checking if it's a port or IP:Port combination
+              hsTarget = hsEntry.split(" ")[1]
+              
+              if ":" in hsTarget:
+                hsPort = hsTarget.split(":")[1] # target is the IP:Port
+              elif hsTarget.isdigit():
+                hsPort = hsTarget # target is just the port
+            else: hsPort = hsEntry # just has the virtual port
+            
+            if hsPort.isdigit():
+              result.append(hsPort)
       
       # cache value
-      if result: self._cachedParam[key] = result
+      if result != None: self._cachedParam[key] = result
       elif cacheUndefined: self._cachedParam[key] = UNKNOWN
-    elif currentVal == UNKNOWN: result = currentVal
     
     self.connLock.release()
     
-    if result: return result
-    else: return default
+    if result == None or result == UNKNOWN: return default
+    else: return result
   
   def _notifyStatusListeners(self, eventType):
     """
@@ -1113,13 +1780,156 @@ class Controller(TorCtl.PostEventListener):
     """
     
     # resets cached GETINFO and GETCONF parameters
-    self._cachedParam = dict([(arg, "") for arg in CACHE_ARGS])
+    self._cachedParam = {}
     self._cachedConf = {}
     
     # gives a notice that the control port has closed
-    if eventType == TOR_CLOSED:
+    if eventType == State.CLOSED:
       log.log(CONFIG["log.torCtlPortClosed"], "Tor control port closed")
     
     for callback in self.statusListeners:
       callback(self, eventType)
+
+class ExitPolicy:
+  """
+  Single rule from the user's exit policy. These are chained together to form
+  complete policies.
+  """
+  
+  def __init__(self, ruleEntry, nextRule):
+    """
+    Exit policy rule constructor.
+    
+    Arguments:
+      ruleEntry - tor exit policy rule (for instance, "reject *:135-139")
+      nextRule  - next rule to be checked when queries don't match this policy
+    """
+    
+    # sanitize the input a bit, cleaning up tabs and stripping quotes
+    ruleEntry = ruleEntry.replace("\\t", " ").replace("\"", "")
+    
+    self.ruleEntry = ruleEntry
+    self.nextRule = nextRule
+    self.isAccept = ruleEntry.startswith("accept")
+    
+    # strips off "accept " or "reject " and extra spaces
+    ruleEntry = ruleEntry[7:].replace(" ", "")
+    
+    # split ip address (with mask if provided) and port
+    if ":" in ruleEntry: entryIp, entryPort = ruleEntry.split(":", 1)
+    else: entryIp, entryPort = ruleEntry, "*"
+    
+    # sets the ip address component
+    self.isIpWildcard = entryIp == "*" or entryIp.endswith("/0")
+    
+    # checks for the private alias (which expands this to a chain of entries)
+    if entryIp.lower() == "private":
+      entryIp = PRIVATE_IP_RANGES[0]
+      
+      # constructs the chain backwards (last first)
+      lastHop = self.nextRule
+      prefix = "accept " if self.isAccept else "reject "
+      suffix = ":" + entryPort
+      for addr in PRIVATE_IP_RANGES[-1:0:-1]:
+        lastHop = ExitPolicy(prefix + addr + suffix, lastHop)
+      
+      self.nextRule = lastHop # our next hop is the start of the chain
+    
+    if "/" in entryIp:
+      ipComp = entryIp.split("/", 1)
+      self.ipAddress = ipComp[0]
+      self.ipMask = int(ipComp[1])
+    else:
+      self.ipAddress = entryIp
+      self.ipMask = 32
+    
+    # constructs the binary address just in case of comparison with a mask
+    if self.ipAddress != "*":
+      self.ipAddressBin = ""
+      for octet in self.ipAddress.split("."):
+        # Converts the int to a binary string, padded with zeros. Source:
+        # http://www.daniweb.com/code/snippet216539.html
+        self.ipAddressBin += "".join([str((int(octet) >> y) & 1) for y in range(7, -1, -1)])
+    else:
+      self.ipAddressBin = "0" * 32
+    
+    # sets the port component
+    self.minPort, self.maxPort = 0, 0
+    self.isPortWildcard = entryPort == "*"
+    
+    if entryPort != "*":
+      if "-" in entryPort:
+        portComp = entryPort.split("-", 1)
+        self.minPort = int(portComp[0])
+        self.maxPort = int(portComp[1])
+      else:
+        self.minPort = int(entryPort)
+        self.maxPort = int(entryPort)
+    
+    # if both the address and port are wildcards then we're effectively the
+    # last entry so cut off the remaining chain
+    if self.isIpWildcard and self.isPortWildcard:
+      self.nextRule = None
+  
+  def isExitingAllowed(self):
+    """
+    Provides true if the policy allows exiting whatsoever, false otherwise.
+    """
+    
+    if self.isAccept: return True
+    elif self.isIpWildcard and self.isPortWildcard: return False
+    elif not self.nextRule: return False # fell off policy (shouldn't happen)
+    else: return self.nextRule.isExitingAllowed()
+  
+  def check(self, ipAddress, port):
+    """
+    Checks if the rule chain allows exiting to this address, returning true if
+    so and false otherwise.
+    """
+    
+    port = int(port)
+    
+    # does the port check first since comparing ip masks is more work
+    isPortMatch = self.isPortWildcard or (port >= self.minPort and port <= self.maxPort)
+    
+    if isPortMatch:
+      isIpMatch = self.isIpWildcard or self.ipAddress == ipAddress
+      
+      # expands the check to include the mask if it has one
+      if not isIpMatch and self.ipMask != 32:
+        inputAddressBin = ""
+        for octet in ipAddress.split("."):
+          inputAddressBin += "".join([str((int(octet) >> y) & 1) for y in range(7, -1, -1)])
+        
+        isIpMatch = self.ipAddressBin[:self.ipMask] == inputAddressBin[:self.ipMask]
+      
+      if isIpMatch: return self.isAccept
+    
+    # our policy doesn't concern this address, move on to the next one
+    if self.nextRule: return self.nextRule.check(ipAddress, port)
+    else: return True # fell off the chain without a conclusion (shouldn't happen...)
+  
+  def __str__(self):
+    # This provides the actual policy rather than the entry used to construct
+    # it so the 'private' keyword is expanded.
+    
+    acceptanceLabel = "accept" if self.isAccept else "reject"
+    
+    if self.isIpWildcard:
+      ipLabel = "*"
+    elif self.ipMask != 32:
+      ipLabel = "%s/%i" % (self.ipAddress, self.ipMask)
+    else: ipLabel = self.ipAddress
+    
+    if self.isPortWildcard:
+      portLabel = "*"
+    elif self.minPort != self.maxPort:
+      portLabel = "%i-%i" % (self.minPort, self.maxPort)
+    else: portLabel = str(self.minPort)
+    
+    myPolicy = "%s %s:%s" % (acceptanceLabel, ipLabel, portLabel)
+    
+    if self.nextRule:
+      return myPolicy + ", " + str(self.nextRule)
+    else: return myPolicy
 

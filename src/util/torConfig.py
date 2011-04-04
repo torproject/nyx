@@ -5,9 +5,10 @@ Helper functions for working with tor's configuration file.
 import os
 import threading
 
-from util import log, sysTools, torTools, uiTools
+from util import enum, log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
+          "config.important": [],
           "torrc.alias": {},
           "torrc.label.size.b": [],
           "torrc.label.size.kb": [],
@@ -22,27 +23,23 @@ CONFIG = {"features.torrc.validate": True,
           "log.configDescriptions.unrecognizedCategory": log.NOTICE}
 
 # enums and values for numeric torrc entries
-UNRECOGNIZED, SIZE_VALUE, TIME_VALUE = range(1, 4)
+ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
 SIZE_MULT = {"b": 1, "kb": 1024, "mb": 1048576, "gb": 1073741824, "tb": 1099511627776}
 TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
 
 # enums for issues found during torrc validation:
-# VAL_DUPLICATE  - entry is ignored due to being a duplicate
-# VAL_MISMATCH   - the value doesn't match tor's current state
-# VAL_MISSING    - value differs from its default but is missing from the torrc
-# VAL_IS_DEFAULT - the configuration option matches tor's default
-VAL_DUPLICATE, VAL_MISMATCH, VAL_MISSING, VAL_IS_DEFAULT = range(1, 5)
+# DUPLICATE  - entry is ignored due to being a duplicate
+# MISMATCH   - the value doesn't match tor's current state
+# MISSING    - value differs from its default but is missing from the torrc
+# IS_DEFAULT - the configuration option matches tor's default
+ValidationError = enum.Enum("DUPLICATE", "MISMATCH", "MISSING", "IS_DEFAULT")
 
 # descriptions of tor's configuration options fetched from its man page
 CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
 CONFIG_DESCRIPTIONS = {}
 
 # categories for tor configuration options
-GENERAL, CLIENT, SERVER, DIRECTORY, AUTHORITY, HIDDEN_SERVICE, TESTING, UNKNOWN = range(1, 9)
-OPTION_CATEGORY_STR = {GENERAL: "General",     CLIENT: "Client",
-                       SERVER: "Relay",        DIRECTORY: "Directory",
-                       AUTHORITY: "Authority", HIDDEN_SERVICE: "Hidden Service",
-                       TESTING: "Testing",     UNKNOWN: "Unknown"}
+Category = enum.Enum("GENERAL", "CLIENT", "RELAY", "DIRECTORY", "AUTHORITY", "HIDDEN_SERVICE", "TESTING", "UNKNOWN")
 
 TORRC = None # singleton torrc instance
 MAN_OPT_INDENT = 7 # indentation before options in the man page
@@ -51,10 +48,13 @@ PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a
 MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
 def loadConfig(config):
-  CONFIG["torrc.alias"] = config.get("torrc.alias", {})
+  config.update(CONFIG)
   
-  # fetches any config.summary.* values
+  # stores lowercase entries to drop case sensitivity
+  CONFIG["config.important"] = [entry.lower() for entry in CONFIG["config.important"]]
+  
   for configKey in config.getKeys():
+    # fetches any config.summary.* values
     if configKey.startswith("config.summary."):
       CONFIG[configKey.lower()] = config.get(configKey)
   
@@ -119,9 +119,6 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
       inputFileContents = inputFile.readlines()
       inputFile.close()
       
-      # constructs a reverse mapping for categories
-      strToCat = dict([(OPTION_CATEGORY_STR[cat], cat) for cat in OPTION_CATEGORY_STR])
-      
       try:
         versionLine = inputFileContents.pop(0).rstrip()
         
@@ -138,10 +135,8 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         
         while inputFileContents:
           # gets category enum, failing if it doesn't exist
-          categoryStr = inputFileContents.pop(0).rstrip()
-          if categoryStr in strToCat:
-            category = strToCat[categoryStr]
-          else:
+          category = inputFileContents.pop(0).rstrip()
+          if not category in Category.values():
             baseMsg = "invalid category in input file: '%s'"
             raise IOError(baseMsg % categoryStr)
           
@@ -183,7 +178,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         validOptions = [line[:line.find(" ")].lower() for line in configOptionQuery]
       
       optionCount, lastOption, lastArg = 0, None, None
-      lastCategory, lastDescription = GENERAL, ""
+      lastCategory, lastDescription = Category.GENERAL, ""
       for line in manCallResults:
         line = uiTools.getPrintable(line)
         strippedLine = line.strip()
@@ -217,13 +212,13 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
           
           # if this is a category header then switch it
           if isCategoryLine:
-            if line.startswith("OPTIONS"): lastCategory = GENERAL
-            elif line.startswith("CLIENT"): lastCategory = CLIENT
-            elif line.startswith("SERVER"): lastCategory = SERVER
-            elif line.startswith("DIRECTORY SERVER"): lastCategory = DIRECTORY
-            elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = AUTHORITY
-            elif line.startswith("HIDDEN SERVICE"): lastCategory = HIDDEN_SERVICE
-            elif line.startswith("TESTING NETWORK"): lastCategory = TESTING
+            if line.startswith("OPTIONS"): lastCategory = Category.GENERAL
+            elif line.startswith("CLIENT"): lastCategory = Category.CLIENT
+            elif line.startswith("SERVER"): lastCategory = Category.RELAY
+            elif line.startswith("DIRECTORY SERVER"): lastCategory = Category.DIRECTORY
+            elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = Category.AUTHORITY
+            elif line.startswith("HIDDEN SERVICE"): lastCategory = Category.HIDDEN_SERVICE
+            elif line.startswith("TESTING NETWORK"): lastCategory = Category.TESTING
             else:
               msg = "Unrecognized category in the man page: %s" % line.strip()
               log.log(CONFIG["log.configDescriptions.unrecognizedCategory"], msg)
@@ -249,7 +244,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
 def saveOptionDescriptions(path):
   """
   Preserves the current configuration descriptors to the given path. This
-  raises an IOError if unable to do so.
+  raises an IOError or OSError if unable to do so.
   
   Arguments:
     path - location to persist configuration descriptors
@@ -269,7 +264,7 @@ def saveOptionDescriptions(path):
   for i in range(len(sortedOptions)):
     option = sortedOptions[i]
     manEntry = getConfigDescription(option)
-    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (OPTION_CATEGORY_STR[manEntry.category], manEntry.index, option, manEntry.argUsage, manEntry.description))
+    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (manEntry.category, manEntry.index, option, manEntry.argUsage, manEntry.description))
     if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
   
   outputFile.close()
@@ -285,6 +280,17 @@ def getConfigSummary(option):
   """
   
   return CONFIG.get("config.summary.%s" % option.lower())
+
+def isImportant(option):
+  """
+  Provides True if the option has the 'important' flag in the configuration,
+  False otherwise.
+  
+  Arguments:
+    option - tor config option
+  """
+  
+  return option.lower() in CONFIG["config.important"]
 
 def getConfigDescription(option):
   """
@@ -345,19 +351,31 @@ def getMultilineParameters():
   
   return tuple(MULTILINE_PARAM)
 
-def getCustomOptions():
+def getCustomOptions(includeValue = False):
   """
-  Provides the set of torrc parameters that differ from their defaults.
+  Provides the torrc parameters that differ from their defaults.
+  
+  Arguments:
+    includeValue - provides the current value with results if true, otherwise
+                   this just contains the options
   """
   
-  customOptions, conn = set(), torTools.getConn()
-  configTextQuery = conn.getInfo("config-text", "").strip().split("\n")
+  configText = torTools.getConn().getInfo("config-text", "").strip()
+  configLines = configText.split("\n")
   
-  for entry in configTextQuery:
-    # tor provides a Log entry even if it matches the default
-    if entry != "Log notice stdout":
-      customOptions.add(entry[:entry.find(" ")])
-  return customOptions
+  # removes any duplicates
+  configLines = list(set(configLines))
+  
+  # The "GETINFO config-text" query only provides options that differ
+  # from Tor's defaults with the exception of its Log entry which, even
+  # if undefined, returns "Log notice stdout" as per:
+  # https://trac.torproject.org/projects/tor/ticket/2362
+  
+  try: configLines.remove("Log notice stdout")
+  except ValueError: pass
+  
+  if includeValue: return configLines
+  else: return [line[:line.find(" ")] for line in configLines]
 
 def validate(contents = None):
   """
@@ -403,13 +421,13 @@ def validate(contents = None):
     
     # most parameters are overwritten if defined multiple times
     if option in seenOptions and not option in getMultilineParameters():
-      issuesFound.append((lineNumber, VAL_DUPLICATE, option))
+      issuesFound.append((lineNumber, ValidationError.DUPLICATE, option))
       continue
     else: seenOptions.append(option)
     
     # checks if the value isn't necessary due to matching the defaults
     if not option in customOptions:
-      issuesFound.append((lineNumber, VAL_IS_DEFAULT, option))
+      issuesFound.append((lineNumber, ValidationError.IS_DEFAULT, option))
     
     # replace aliases with their recognized representation
     if option in CONFIG["torrc.alias"]:
@@ -444,17 +462,17 @@ def validate(contents = None):
       if not isBlankMatch and not val in torValues:
         # converts corrections to reader friedly size values
         displayValues = torValues
-        if valueType == SIZE_VALUE:
+        if valueType == ValueType.SIZE:
           displayValues = [uiTools.getSizeLabel(int(val)) for val in torValues]
-        elif valueType == TIME_VALUE:
+        elif valueType == ValueType.TIME:
           displayValues = [uiTools.getTimeLabel(int(val)) for val in torValues]
         
-        issuesFound.append((lineNumber, VAL_MISMATCH, ", ".join(displayValues)))
+        issuesFound.append((lineNumber, ValidationError.MISMATCH, ", ".join(displayValues)))
   
   # checks if any custom options are missing from the torrc
   for option in customOptions:
     if not option in seenOptions:
-      issuesFound.append((None, VAL_MISSING, option))
+      issuesFound.append((None, ValidationError.MISSING, option))
   
   return issuesFound
 
@@ -470,13 +488,13 @@ def _parseConfValue(confArg):
   
   if confArg.count(" ") == 1:
     val, unit = confArg.lower().split(" ", 1)
-    if not val.isdigit(): return confArg, UNRECOGNIZED
+    if not val.isdigit(): return confArg, ValueType.UNRECOGNIZED
     mult, multType = _getUnitType(unit)
     
     if mult != None:
       return str(int(val) * mult), multType
   
-  return confArg, UNRECOGNIZED
+  return confArg, ValueType.UNRECOGNIZED
 
 def _getUnitType(unit):
   """
@@ -489,13 +507,13 @@ def _getUnitType(unit):
   
   for label in SIZE_MULT:
     if unit in CONFIG["torrc.label.size." + label]:
-      return SIZE_MULT[label], SIZE_VALUE
+      return SIZE_MULT[label], ValueType.SIZE
   
   for label in TIME_MULT:
     if unit in CONFIG["torrc.label.time." + label]:
-      return TIME_MULT[label], TIME_VALUE
+      return TIME_MULT[label], ValueType.TIME
   
-  return None, UNRECOGNIZED
+  return None, ValueType.UNRECOGNIZED
 
 def _stripComments(contents):
   """
@@ -622,13 +640,23 @@ class Torrc():
     
     self.valsLock.acquire()
     
+    # The torrc validation relies on 'GETINFO config-text' which was
+    # introduced in tor 0.2.2.7-alpha so if we're using an earlier version
+    # (or configured to skip torrc validation) then this is a no-op. For more
+    # information see:
+    # https://trac.torproject.org/projects/tor/ticket/2501
+    
     if not self.isLoaded(): returnVal = None
-    elif not CONFIG["features.torrc.validate"]: returnVal = {}
     else:
-      if self.corrections == None:
-        self.corrections = validate(self.contents)
+      skipValidation = not CONFIG["features.torrc.validate"]
+      skipValidation |= not torTools.getConn().isVersion("0.2.2.7-alpha")
       
-      returnVal = list(self.corrections)
+      if skipValidation: returnVal = {}
+      else:
+        if self.corrections == None:
+          self.corrections = validate(self.contents)
+        
+        returnVal = list(self.corrections)
     
     self.valsLock.release()
     return returnVal

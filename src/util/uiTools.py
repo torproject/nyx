@@ -9,7 +9,7 @@ import sys
 import curses
 
 from curses.ascii import isprint
-from util import log
+from util import enum, log
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -32,7 +32,7 @@ SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, 
 TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
               (60.0, "m", " minute"), (1.0, "s", " second")]
 
-END_WITH_ELLIPSE, END_WITH_HYPHEN = range(1, 3)
+Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True,
           "log.cursesColorSupport": log.INFO}
@@ -117,7 +117,7 @@ def getColor(color):
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
 
-def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, getRemainder = False):
+def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, getRemainder = False):
   """
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
@@ -143,8 +143,8 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
     minCrop      - minimum characters that must be dropped if a word's cropped
     endType      - type of ending used when truncating:
                    None - blank ending
-                   END_WITH_ELLIPSE - includes an ellipse
-                   END_WITH_HYPHEN - adds hyphen when breaking words
+                   Ending.ELLIPSE - includes an ellipse
+                   Ending.HYPHEN - adds hyphen when breaking words
     getRemainder - returns a tuple instead, with the second part being the
                    cropped portion of the message
   """
@@ -161,11 +161,12 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   
   # since we're cropping, the effective space available is less with an
   # ellipse, and cropping words requires an extra space for hyphens
-  if endType == END_WITH_ELLIPSE: size -= 3
-  elif endType == END_WITH_HYPHEN and minWordLen != None: minWordLen += 1
+  if endType == Ending.ELLIPSE: size -= 3
+  elif endType == Ending.HYPHEN and minWordLen != None: minWordLen += 1
   
   # checks if there isn't the minimum space needed to include anything
   lastWordbreak = msg.rfind(" ", 0, size + 1)
+  lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
   if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
     if getRemainder: return ("", msg)
     else: return ""
@@ -181,23 +182,64 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = END_WITH_ELLIPSE, 
   
   if includeCrop:
     returnMsg, remainder = msg[:size], msg[size:]
-    if endType == END_WITH_HYPHEN:
+    if endType == Ending.HYPHEN:
       remainder = returnMsg[-1] + remainder
-      returnMsg = returnMsg[:-1] + "-"
+      returnMsg = returnMsg[:-1].rstrip() + "-"
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
   if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
   
-  if endType == END_WITH_ELLIPSE: returnMsg += "..."
+  if endType == Ending.ELLIPSE:
+    returnMsg = returnMsg.rstrip() + "..."
   
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
+
+def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
+  """
+  Draws a box in the panel with the given bounds.
+  
+  Arguments:
+    panel  - panel in which to draw
+    top    - vertical position of the box's top
+    left   - horizontal position of the box's left side
+    width  - width of the drawn box
+    height - height of the drawn box
+    attr   - text attributes
+  """
+  
+  # draws the top and bottom
+  panel.hline(top, left + 1, width - 1, attr)
+  panel.hline(top + height - 1, left + 1, width - 1, attr)
+  
+  # draws the left and right sides
+  panel.vline(top + 1, left, height - 2, attr)
+  panel.vline(top + 1, left + width, height - 2, attr)
+  
+  # draws the corners
+  panel.addch(top, left, curses.ACS_ULCORNER, attr)
+  panel.addch(top, left + width, curses.ACS_URCORNER, attr)
+  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
+  panel.addch(top + height - 1, left + width, curses.ACS_LRCORNER, attr)
+
+def isSelectionKey(key):
+  """
+  Returns true if the keycode matches the enter or space keys.
+  
+  Argument:
+    key - keycode to be checked
+  """
+  
+  return key in (curses.KEY_ENTER, 10, ord(' '))
 
 def isScrollKey(key):
   """
   Returns true if the keycode is recognized by the getScrollPosition function
   for scrolling.
+  
+  Argument:
+    key - keycode to be checked
   """
   
   return key in SCROLL_KEYS
@@ -367,6 +409,73 @@ def parseShortTimeLabel(timeEntry):
   except ValueError:
     raise ValueError(errorMsg)
 
+class DrawEntry:
+  """
+  Renderable content, encapsulating the text and formatting. These can be
+  chained together to compose lines with multiple types of formatting.
+  """
+  
+  def __init__(self, text, format=curses.A_NORMAL, nextEntry=None, lockFormat=False):
+    """
+    Constructor for prepared draw entries.
+    
+    Arguments:
+      text       - content to be drawn, this can either be a string or list of
+                   integer character codes
+      format     - properties to apply when drawing
+      nextEntry  - entry to be drawn after this one
+      lockFormat - prevents extra formatting attributes from being applied
+                   when rendered if true
+    """
+    
+    self.text = text
+    self.format = format
+    self.nextEntry = nextEntry
+    self.lockFormat = lockFormat
+  
+  def getNext(self):
+    """
+    Provides the next DrawEntry in the chain.
+    """
+    
+    return self.nextEntry
+  
+  def setNext(self, nextEntry):
+    """
+    Sets additional content to be drawn after this entry. If None then
+    rendering is terminated after this entry.
+    
+    Arguments:
+      nextEntry - DrawEntry instance to be rendered after this one
+    """
+    
+    self.nextEntry = nextEntry
+  
+  def render(self, drawPanel, y, x, extraFormat=curses.A_NORMAL):
+    """
+    Draws this content at the given position.
+    
+    Arguments:
+      drawPanel   - context in which to be drawn
+      y           - vertical location
+      x           - horizontal location
+      extraFormat - additional formatting
+    """
+    
+    if self.lockFormat: drawFormat = self.format
+    else: drawFormat = self.format | extraFormat
+    
+    if isinstance(self.text, str):
+      drawPanel.addstr(y, x, self.text, drawFormat)
+    else:
+      for i in range(len(self.text)):
+        drawChar = self.text[i]
+        drawPanel.addch(y, x + i, drawChar, drawFormat)
+    
+    # if there's additional content to show then render it too
+    if self.nextEntry:
+      self.nextEntry.render(drawPanel, y, x + len(self.text), extraFormat)
+
 class Scroller:
   """
   Tracks the scrolling position when there might be a visible cursor. This
@@ -394,10 +503,16 @@ class Scroller:
       if self.isCursorEnabled:
         self.getCursorSelection(content) # resets the cursor location
         
+        # makes sure the cursor is visible
         if self.cursorLoc < self.scrollLoc:
           self.scrollLoc = self.cursorLoc
         elif self.cursorLoc > self.scrollLoc + pageHeight - 1:
           self.scrollLoc = self.cursorLoc - pageHeight + 1
+      
+      # checks if the bottom would run off the content (this could be the
+      # case when the content's size is dynamic and entries are removed)
+      if len(content) > pageHeight:
+        self.scrollLoc = min(self.scrollLoc, len(content) - pageHeight)
     
     return self.scrollLoc
   

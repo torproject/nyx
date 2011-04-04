@@ -11,19 +11,23 @@ import time
 from sys import maxint
 from threading import RLock
 
-# logging runlevels
-DEBUG, INFO, NOTICE, WARN, ERR = range(1, 6)
-RUNLEVEL_STR = {DEBUG: "DEBUG", INFO: "INFO", NOTICE: "NOTICE", WARN: "WARN", ERR: "ERR"}
+from util import enum
+
+# Logging runlevels. These are *very* commonly used so including shorter
+# aliases (so they can be referenced as log.DEBUG, log.WARN, etc).
+Runlevel = enum.Enum(("DEBUG", "DEBUG"), ("INFO", "INFO"), ("NOTICE", "NOTICE"),
+                     ("WARN", "WARN"), ("ERR", "ERR"))
+DEBUG, INFO, NOTICE, WARN, ERR = Runlevel.values()
 
 # provides thread safety for logging operations
 LOG_LOCK = RLock()
 
 # chronologically ordered records of events for each runlevel, stored as tuples
 # consisting of: (time, message)
-_backlog = dict([(level, []) for level in range(1, 6)])
+_backlog = dict([(level, []) for level in Runlevel.values()])
 
 # mapping of runlevels to the listeners interested in receiving events from it
-_listeners = dict([(level, []) for level in range(1, 6)])
+_listeners = dict([(level, []) for level in Runlevel.values()])
 
 CONFIG = {"cache.armLog.size": 1000,
           "cache.armLog.trimSize": 200}
@@ -54,36 +58,6 @@ def setDumpFile(logPath):
   if not os.path.exists(baseDir): os.makedirs(baseDir)
   
   DUMP_FILE = open(logPath, "w")
-
-def strToRunlevel(runlevelStr):
-  """
-  Converts runlevel strings ("DEBUG", "INFO", "NOTICE", etc) to their
-  corresponding enumeations. This isn't case sensitive and provides None if
-  unrecognized.
-  
-  Arguments:
-    runlevelStr - string to be converted to runlevel
-  """
-  
-  if not runlevelStr: return None
-  
-  runlevelStr = runlevelStr.upper()
-  for enum, level in RUNLEVEL_STR.items():
-    if level == runlevelStr: return enum
-  
-  return None
-
-def runlevelToStr(runlevelEnum):
-  """
-  Converts runlevel enumerations to corresponding string. If unrecognized then
-  this provides "NONE".
-  
-  Arguments:
-    runlevelEnum - enumeration to be converted to string
-  """
-  
-  if runlevelEnum in RUNLEVEL_STR: return RUNLEVEL_STR[runlevelEnum]
-  else: return "NONE"
 
 def log(level, msg, eventTime = None):
   """
@@ -128,7 +102,7 @@ def log(level, msg, eventTime = None):
       try:
         entryTime = time.localtime(eventTime)
         timeLabel = "%i/%i/%i %02i:%02i:%02i" % (entryTime[1], entryTime[2], entryTime[0], entryTime[3], entryTime[4], entryTime[5])
-        logEntry = "%s [%s] %s\n" % (timeLabel, runlevelToStr(level), msg)
+        logEntry = "%s [%s] %s\n" % (timeLabel, level, msg)
         DUMP_FILE.write(logEntry)
         DUMP_FILE.flush()
       except IOError, exc:
@@ -137,7 +111,7 @@ def log(level, msg, eventTime = None):
     
     # notifies listeners
     for callback in _listeners[level]:
-      callback(RUNLEVEL_STR[level], msg, eventTime)
+      callback(level, msg, eventTime)
   finally:
     LOG_LOCK.release()
 
@@ -175,7 +149,7 @@ def addListeners(levels, callback, dumpBacklog = False):
     
     if dumpBacklog:
       for level, msg, eventTime in _getEntries(levels):
-        callback(RUNLEVEL_STR[level], msg, eventTime)
+        callback(level, msg, eventTime)
   finally:
     LOG_LOCK.release()
 

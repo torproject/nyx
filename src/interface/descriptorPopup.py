@@ -106,7 +106,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
         draw(popup, properties)
         key = stdscr.getch()
         
-        if key in (curses.KEY_ENTER, 10, ord(' '), ord('d'), ord('D')):
+        if uiTools.isSelectionKey(key) or key in (ord('d'), ord('D')):
           # closes popup
           isVisible = False
         elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):

@@ -37,8 +37,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
     tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
-          exitPolicy, isAuthPassword (bool), isAuthCookie (bool)
-          *address, *fingerprint, *flags, pid, startTime
+          exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
+          orListenAddr, *address, *fingerprint, *flags, pid, startTime
     sys/  hostname, os, version
     stat/ *%torCpu, *%armCpu, *rss, *%mem
   
@@ -95,7 +95,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/orPort"]: return 4 if isWide else 6
     else: return 3 if isWide else 4
   
-  def draw(self, subwindow, width, height):
+  def draw(self, width, height):
     self.valsLock.acquire()
     isWide = width + 1 >= MIN_DUAL_COL_WIDTH
     
@@ -127,10 +127,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # Line 2 / Line 2 Left (tor ip/port information)
     if self.vals["tor/orPort"]:
+      myAddress = "Unknown"
+      if self.vals["tor/orListenAddr"]: myAddress = self.vals["tor/orListenAddr"]
+      elif self.vals["tor/address"]: myAddress = self.vals["tor/address"]
+      
       # acting as a relay (we can assume certain parameters are set
       entry = ""
       dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
-      for label in (self.vals["tor/nickname"], " - " + self.vals["tor/address"], ":" + self.vals["tor/orPort"], dirPortLabel):
+      for label in (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel):
         if len(entry) + len(label) <= leftWidth: entry += label
         else: break
     else:
@@ -239,7 +243,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   
   def run(self):
     """
-    Keeps stats updated, querying new information at a set rate.
+    Keeps stats updated, checking for new information at a set rate.
     """
     
     lastDraw = time.time() - 1
@@ -288,14 +292,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    if eventType == torTools.TOR_INIT:
+    if eventType == torTools.State.INIT:
       self._isTorConnected = True
       if self._isPaused: self._haltTime = time.time()
       else: self._haltTime = None
       
       self._update(True)
       self.redraw(True)
-    elif eventType == torTools.TOR_CLOSED:
+    elif eventType == torTools.State.CLOSED:
       self._isTorConnected = False
       self._haltTime = time.time()
       self._update()
@@ -329,15 +333,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
       
       # overwrite address if ORListenAddress is set (and possibly orPort too)
-      self.vals["tor/address"] = "Unknown"
+      self.vals["tor/orListenAddr"] = ""
       listenAddr = conn.getOption("ORListenAddress")
       if listenAddr:
         if ":" in listenAddr:
           # both ip and port overwritten
-          self.vals["tor/address"] = listenAddr[:listenAddr.find(":")]
+          self.vals["tor/orListenAddr"] = listenAddr[:listenAddr.find(":")]
           self.vals["tor/orPort"] = listenAddr[listenAddr.find(":") + 1:]
         else:
-          self.vals["tor/address"] = listenAddr
+          self.vals["tor/orListenAddr"] = listenAddr
       
       # fetch exit policy (might span over multiple lines)
       policyEntries = []
@@ -368,8 +372,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # sets volatile parameters
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
     # events. Introduce caching via torTools?
-    if self.vals["tor/address"] == "Unknown":
-      self.vals["tor/address"] = conn.getInfo("address", self.vals["tor/address"])
+    self.vals["tor/address"] = conn.getInfo("address", "")
     
     self.vals["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     self.vals["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])

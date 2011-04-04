@@ -126,7 +126,7 @@ def getProcessName(pid, default = None, cacheFailure = True):
   # fetch it from proc contents if available
   if procTools.isProcAvailable():
     try:
-      processName = procTools.getStats(pid, procTools.STAT_COMMAND)[0]
+      processName = procTools.getStats(pid, procTools.Stat.COMMAND)[0]
     except IOError, exc:
       raisedExc = exc
   
@@ -466,7 +466,7 @@ class ResourceTracker(threading.Thread):
       newValues = {}
       try:
         if self._useProc:
-          utime, stime, startTime = procTools.getStats(self.processPid, procTools.STAT_CPU_UTIME, procTools.STAT_CPU_STIME, procTools.STAT_START_TIME)
+          utime, stime, startTime = procTools.getStats(self.processPid, procTools.Stat.CPU_UTIME, procTools.Stat.CPU_STIME, procTools.Stat.START_TIME)
           totalCpuTime = float(utime) + float(stime)
           cpuDelta = totalCpuTime - self._lastCpuTotal
           newValues["cpuSampling"] = cpuDelta / timeSinceReset

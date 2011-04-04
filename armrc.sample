@@ -62,12 +62,11 @@ features.log.maxRefreshRate 300
 
 # Paremters for the config panel
 # ---------------------------
-# type
-#   0 -> tor state, 1 -> torrc, 2 -> arm state, 3 -> armrc
 # order
 #   three comma separated configuration attributes, options including:
-#   0 -> Category,  1 -> Option Name,   2 -> Value,     3 -> Arg Type,
-#   4 -> Arg Usage, 5 -> Description,   6 -> Man Entry, 7 -> Is Default
+#   0 -> Category,  1 -> Option Name,   2 -> Value,       3 -> Arg Type,
+#   4 -> Arg Usage, 5 -> Summary,       6 -> Description, 7 -> Man Entry,
+#   8 -> Is Default
 # selectionDetails.height
 #   rows of data for the panel showing details on the current selection, this
 #   is disabled entirely if zero
@@ -87,12 +86,11 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.type 0
-features.config.order 0, 6, 7
+features.config.order 7, 1, 8
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
-features.config.state.colWidth.value 10
+features.config.state.colWidth.value 15
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
 features.config.file.showScrollbars true
@@ -104,12 +102,11 @@ features.config.file.maxLinesPerEntry 8
 # ---------------------------
 # enabled
 #   allows the descriptions to be fetched from the man page if true
-# persistPath
-#   location descriptions should be loaded from and saved to (this feature is
-#   disabled if unset)
+# persist
+#   caches the descriptions (substantially saving on future startup times)
 
 features.config.descriptions.enabled true
-features.config.descriptions.persistPath /tmp/arm/torConfigDescriptions.txt
+features.config.descriptions.persist true
 
 # General graph parameters
 # ------------------------
@@ -139,6 +136,9 @@ features.graph.showIntermediateBounds true
 # prepopulate
 #   attempts to use tor's state file to prepopulate the bandwidth graph at the
 #   15-minute interval (this requires the minimum of a day's worth of uptime)
+# prepopulateTotal
+#   populates the total stat from the state file if true (this only contains
+#   the last day's worth of information, so this metric isn't the true total)
 # transferInBystes
 #   shows rate measurments in bytes if true, bits otherwise
 # accounting.show
@@ -149,10 +149,56 @@ features.graph.showIntermediateBounds true
 #   provides verbose measurements of time if true
 
 features.graph.bw.prepopulate true
+features.graph.bw.prepopulateTotal false
 features.graph.bw.transferInBytes false
 features.graph.bw.accounting.show true
 features.graph.bw.accounting.rate 10
 features.graph.bw.accounting.isTimeLong false
+
+# Parameters for connection display
+# ---------------------------------
+# oldPanel
+#   includes the old connection panel in the interface
+# newPanel
+#   includes the new connection panel in the interface
+# listingType
+#   the primary category of information shown by default, options including:
+#   0 -> IP Address / Port              1 -> Hostname
+#   2 -> Fingerprint                    3 -> Nickname
+# order
+#   three comma separated configuration attributes, options including:
+#   0 -> Category,  1 -> Uptime,        2 -> Listing,     3 -> IP Address,
+#   4 -> Port,      5 -> Hostname,      6 -> Fingerprint, 7 -> Nickname,
+#   8 -> Country
+# refreshRate
+#   rate at which the connection panel contents is redrawn (if higher than the
+#   connection resolution rate then reducing this won't casue new data to
+#   appear more frequently - just increase the rate at which the uptime field
+#   is updated)
+# resolveApps
+#   issues lsof queries to determining the applications involved in local
+#   SOCKS and CONTROL connections
+# markInitialConnections
+#   if true, the uptime of the initial connections when we start are marked
+#   with a '+' (these uptimes are estimates since arm can only track a
+#   connection's duration while it runs)
+# showExitPort
+#   shows port related information of exit connections we relay if true
+# showColumn.*
+#   toggles the visability of the connection table columns
+
+features.connection.oldPanel false
+features.connection.newPanel true
+features.connection.listingType 0
+features.connection.order 0, 2, 1
+features.connection.refreshRate 5
+features.connection.resolveApps true
+features.connection.markInitialConnections true
+features.connection.showExitPort true
+features.connection.showColumn.fingerprint true
+features.connection.showColumn.nickname true
+features.connection.showColumn.destination true
+features.connection.showColumn.expandedIp true
 
 # Thread pool size for hostname resolutions
 # Determines the maximum number of concurrent requests. Upping this to around
@@ -187,6 +233,7 @@ log.torCtlPortClosed NOTICE
 log.torGetInfo DEBUG
 log.torGetInfoCache NONE
 log.torGetConf DEBUG
+log.torGetConfCache NONE
 log.torSetConf INFO
 log.torEventTypeUnrecognized NOTICE
 log.torPrefixPathInvalid NOTICE
@@ -224,6 +271,7 @@ log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO
 log.bsdJailFound INFO
 log.unknownBsdJailId WARN
+log.geoipUnavailable WARN
 log.stats.failedProcResolution DEBUG
 log.stats.procResolutionFailover INFO
 log.stats.failedPsResolution INFO
