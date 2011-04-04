@@ -1,5 +1,53 @@
 CHANGE LOG
 
+4/4/11 - version 1.4.2
+This release chiefly consists of a fully reimplemented connection panel. Besides being a sane, maintainable implementation this includes numerous new features and improvements like full circuit paths, applications involved for local connections, and better type identification.
+
+    * added: full rewrite of the connection panel, providing:
+          o listing the full paths involved in active circuits
+          o identification of socks, hidden service, and controller applications (arm, vidalia, polipo, etc)
+          o identification of exit connections with the common usage for the port they're using
+          o display of the local -> internal -> external address when room is available (original patch by Fabian Keil)
+          o better accuracy and performance in identifying client and directory connections
+          o marking the uptimes for initial connections (arm only tracks connection uptimes since starting, so these entries are just minimum durations)
+          o lazily loading the initial IP -> fingerprint mappings to improve the startup time
+          o using the circuit-status to disambiguating multiple relays on the same IP address
+          o smarter space utilization, filling in smaller columns if there isn't room for higher priority but larger entries
+          o connection details popup changes:
+                + using the consensus exit policies rather than the longer descriptor versions when available
+                + displaying connection details no longer freezes the rest of the display
+                + detail panel uses the full screen width and is dynamically resizable
+                + more resilient to missing descriptors
+    * change: hiding most tor config values by default (idea by arma)
+    * change: dropping warning suggesting that users set the FetchUselessDescriptors option (suggestion by Sebastian and others)
+    * change: always starting the bandwidth field from zero rather than using the state file total, which only contains the last day's worth of data (thanks to guilhem)
+    * change: suggesting authentication and giving steps for it in the readme (suggestion by Sebastian)
+    * change: caching config display lines, which reduces the CPU usage when scrolling by around 40%
+    * change: added summaries for the remaining tor configuration options
+    * change: using a dedicated enum class rather than tuple sets
+    * fix: torrc validation requires 'GETINFO config-text' which was introduced in Tor verison 0.2.2.7 (caught by Sjon, talion, and torland, https://trac.torproject.org/projects/tor/ticket/2501)
+    * fix: off-by-one issue with the displayed line numbers for torrc errors (caught by Sjon)
+    * fix: bin function wasn't available before python 2.6 (caught by Paul Menzel)
+    * fix: mis-parsing family entries when there's no entry after the comma (caught by StrangeCharm, https://trac.torproject.org/projects/tor/ticket/2414)
+    * fix: preventing SOCKS and CONTROL connections from being expanded (patch by Fabian Keil)
+    * fix: disabling name resolution for application queries to avoid leaking to resolvers (patch by Fabian Keil)
+    * fix: reversing src and dst addresses of SOCKS and CONTROL connections (caught by Fabian Keil)
+    * fix: changing the 'APPLICATION' type to 'SOCKS' since the previous label was too long (caught by Fabian Keil)
+    * fix: crashing issue from unknown relay nicknames (caught by krkhan)
+    * fix: concurrency bug occasionally causing "syshook" stacktraces when shutting down
+    * fix: header panel displayed the wrong IP address if it changed since we first started (https://trac.torproject.org/projects/tor/ticket/2776)
+    * fix: unchecked OSError could cause us to crash when making directories (for instance if there was a permissions issue)
+    * fix: the availability check for bsd resolvers was broken, probably causing resolution to fail for a few seconds on that platform
+    * fix: dropping the pointless 'Log notice stdout' entry provided by config-text queries (https://trac.torproject.org/projects/tor/ticket/2362)
+    * fix: taking DirServer and AlternateDirAuthority into account when determining the directory authorities
+    * fix: consuming a little extra space in the connection panel when scrollbars aren't visible
+    * fix: dropping the deprecated 'features.config.descriptions.persistPath' config option
+    * fix: failed connection attempts to the control port were generating zombie connections (https://trac.torproject.org/projects/tor/ticket/2812)
+    * fix: concurrency bug in joining on the TorCtl thread when tor shut down
+    * fix: the 'startup.dataDirectory' config option was being ignored
+    * fix: recognizing the proper private ip ranges of the 172.* block
+    * fix: missing 'is default' option from config sort ordering
+
 1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
 
