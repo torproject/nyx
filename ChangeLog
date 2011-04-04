@@ -1,6 +1,6 @@
 CHANGE LOG
 
-4/4/11 - version 1.4.2
+4/4/11 - version 1.4.2 (r24555)
 This release chiefly consists of a fully reimplemented connection panel. Besides being a sane, maintainable implementation this includes numerous new features and improvements like full circuit paths, applications involved for local connections, and better type identification.
 
     * added: full rewrite of the connection panel, providing:
