@@ -1,6 +1,6 @@
 CHANGE LOG
 
-4/4/11 - version 1.4.2
+4/4/11 - version 1.4.2 (r24555)
 This release chiefly consists of a fully reimplemented connection panel. Besides being a sane, maintainable implementation this includes numerous new features and improvements like full circuit paths, applications involved for local connections, and better type identification.
 
     * added: full rewrite of the connection panel, providing:
@@ -47,6 +47,7 @@ This release chiefly consists of a fully reimplemented connection panel. Besides
     * fix: the 'startup.dataDirectory' config option was being ignored
     * fix: recognizing the proper private ip ranges of the 172.* block
     * fix: missing 'is default' option from config sort ordering
+    * fix (4/4/11): hidden service parsing issue when there's multiple spaces in the HiddenServicePort opition (caught by Nicolas Pouillard)
 
 1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
@@ -89,6 +90,11 @@ Platform specific enhancements including BSD compatibility and vastly improved p
     * fix: connection resolution wasn't finding results if tor was running under a different name
     * fix: brought all Linux connection resolvers into parity (established tcp connections only)
     * fix: commands with quoted pipes were being mis-parsed by the sysTools' call function
+    * fix (1/11/11, r24064): including platform, python version, and arm/tor configurations in debug dumps
+    * fix (1/11/11, r24064): properly parse the ps field when displaying decimal seconds (patch by Fabian)
+    * fix (1/11/11, r24064): error when initial resource lookups fail (caught by Trystero)
+    * fix (1/12/11, r24075): decimal seconds in the ps uptime field were being misparsed (patch by Fabian)
+    * fix (1/15/11, r24092): adding a --docPath argument to help Gentoo ebuilds (https://bugs.gentoo.org/349792)
 
 11/27/10 - version 1.4.0 (r23873)
 Introducing a new page for managing tor's configuration, along with several other improvements.
