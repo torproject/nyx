@@ -1750,7 +1750,7 @@ class Controller(TorCtl.PostEventListener):
             
             if " " in hsEntry:
               # parses the target, checking if it's a port or IP:Port combination
-              hsTarget = hsEntry.split(" ")[1]
+              hsTarget = hsEntry.split()[1]
               
               if ":" in hsTarget:
                 hsPort = hsTarget.split(":")[1] # target is the IP:Port
