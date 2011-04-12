@@ -1462,7 +1462,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           if key in (curses.KEY_DOWN, curses.KEY_UP, curses.KEY_PPAGE, curses.KEY_NPAGE):
             panels["conn"].handleKey(key)
           elif key in (ord('d'), ord('D')):
-            descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, conn, panels["conn"])
+            descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, panels["conn"])
             panels["conn"].redraw(True)
         
         panels["conn"].showLabel = True
@@ -1481,7 +1481,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["conn"].showLabel = False
         panels["conn"].redraw(True)
         
-        descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, conn, panels["conn"])
+        descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, panels["conn"])
         
         setPauseState(panels, isPaused, page)
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior

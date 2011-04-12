@@ -9,7 +9,7 @@ from TorCtl import TorCtl
 
 import controller
 import connPanel
-from util import panel, uiTools
+from util import panel, torTools, uiTools
 
 # field keywords used to identify areas for coloring
 LINE_NUM_COLOR = "yellow"
@@ -28,8 +28,7 @@ class PopupProperties:
   State attributes of popup window for consensus descriptions.
   """
   
-  def __init__(self, conn):
-    self.conn = conn
+  def __init__(self):
     self.fingerprint = ""
     self.entryColor = "white"
     self.text = []
@@ -47,18 +46,19 @@ class PopupProperties:
       self.showLineNum = False
       self.text.append(UNRESOLVED_MSG)
     else:
+      conn = torTools.getConn()
+      
       try:
         self.showLineNum = True
-        nsCommand = "ns/id/%s" % fingerprint
-        self.text.append(nsCommand)
-        self.text = self.text + self.conn.get_info(nsCommand)[nsCommand].split("\n")
+        self.text.append("ns/id/%s" % fingerprint)
+        self.text += conn.getConsensusEntry(fingerprint).split("\n")
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
         self.text = self.text + [ERROR_MSG, ""]
       
       try:
         descCommand = "desc/id/%s" % fingerprint
-        self.text.append(descCommand)
-        self.text = self.text + self.conn.get_info(descCommand)[descCommand].split("\n")
+        self.text.append("desc/id/%s" % fingerprint)
+        self.text += conn.getDescriptorEntry(fingerprint).split("\n")
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
         self.text = self.text + [ERROR_MSG]
   
@@ -68,7 +68,7 @@ class PopupProperties:
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - height, 0)
     elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + height, len(self.text) - height))
 
-def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
+def showDescriptorPopup(popup, stdscr, connectionPanel):
   """
   Presents consensus descriptor in popup window with the following controls:
   Up, Down, Page Up, Page Down - scroll descriptor
@@ -76,7 +76,7 @@ def showDescriptorPopup(popup, stdscr, conn, connectionPanel):
   Enter, Space, d, D - close popup
   """
   
-  properties = PopupProperties(conn)
+  properties = PopupProperties()
   isVisible = True
   
   if not panel.CURSES_LOCK.acquire(False): return
