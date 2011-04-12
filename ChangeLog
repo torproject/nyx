@@ -47,7 +47,7 @@ This release chiefly consists of a fully reimplemented connection panel. Besides
     * fix: the 'startup.dataDirectory' config option was being ignored
     * fix: recognizing the proper private ip ranges of the 172.* block
     * fix: missing 'is default' option from config sort ordering
-    * fix (4/4/11): hidden service parsing issue when there's multiple spaces in the HiddenServicePort opition (caught by Nicolas Pouillard)
+    * fix (4/4/11, r24562): hidden service parsing issue when there's multiple spaces in the HiddenServicePort opition (caught by Nicolas Pouillard)
 
 1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.

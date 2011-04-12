@@ -154,25 +154,6 @@ class ConnectionPanelLine:
     # implementation of getDetails
     return []
   
-  def getDescriptor(self, width):
-    """
-    Provides a list of DrawEntry instances with descriptor information for
-    this connection.
-    
-    Arguments:
-      width - available space to display in
-    """
-    
-    if self._descriptorCacheArgs != width:
-      self._descriptorCache = self._getDescriptor(width)
-      self._descriptorCacheArgs = width
-    
-    return self._descriptorCache
-  
-  def _getDescriptor(self, width):
-    # implementation of getDescriptor
-    return []
-  
   def resetDisplay(self):
     """
     Flushes cached display results.
