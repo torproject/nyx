@@ -353,7 +353,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # known relay then it might be client traffic
       
       conn = torTools.getConn()
-      if "Guard" in conn.getMyFlags() or conn.getOption("BridgeRelay") == "1":
+      if "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay") == "1":
         allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
         return allMatches == []
     elif myType == Category.EXIT:
