@@ -96,6 +96,31 @@ def getPwd(pid):
   _logProcRuntime("cwd", "/proc/%s/cwd" % pid, startTime)
   return cwd
 
+def getUid(pid):
+  """
+  Provides the user ID the given process is running under. This is None if it
+  can't be determined.
+  
+  Arguments:
+    pid - queried process
+  """
+  
+  startTime = time.time()
+  statusFile = open("/proc/%s/status" % pid)
+  statusFileLines = statusFile.readlines()
+  statusFile.close()
+  
+  result = None
+  for line in statusFileLines:
+    if line.startswith("Uid:"):
+      lineComp = line.split()
+      
+      if len(lineComp) >= 2 and lineComp[1].isdigit():
+        result = lineComp[1]
+  
+  _logProcRuntime("uid", "/proc/%s/status[Uid]" % pid, startTime)
+  return result
+
 def getMemoryUsage(pid):
   """
   Provides the memory usage in bytes for the given process of the form:

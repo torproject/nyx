@@ -10,6 +10,7 @@ fetch a TorCtl instance to experiment with use the following:
 """
 
 import os
+import pwd
 import time
 import socket
 import thread
@@ -55,7 +56,8 @@ CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
               "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
-              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
+              "user", "fdLimit", "pathPrefix", "startTime", "authorities",
+              "circuits", "hsPorts")
 CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
@@ -837,6 +839,52 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return self._getRelayAttr("pid", None)
+  
+  def getMyUser(self):
+    """
+    Provides the user this process is running under. If unavailable this
+    provides None.
+    """
+    
+    return self._getRelayAttr("user", None)
+  
+  def getMyFileDescriptorUsage(self):
+    """
+    Provides the number of file descriptors currently being used by this
+    process. This returns None if this can't be determined.
+    """
+    
+    # The file descriptor usage is the size of the '/proc/<pid>/fd' contents
+    # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
+    # I'm not sure about other platforms (like BSD) so erroring out there.
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive() and procTools.isProcAvailable():
+      myPid = self.getMyPid()
+      
+      if myPid:
+        try: result = len(os.listdir("/proc/%s/fd" % myPid))
+        except: pass
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getMyFileDescriptorLimit(self):
+    """
+    Provides the maximum number of file descriptors this process can have.
+    Only the Tor process itself reliably knows this value, and the option for
+    getting this was added in Tor 0.2.3.x-final. If that's unavailable then
+    we estimate the file descriptor limit based on other factors.
+    
+    The return result is a tuple of the form:
+    (fileDescLimit, isEstimate)
+    and if all methods fail then both values are None.
+    """
+    
+    return self._getRelayAttr("fdLimit", (None, True))
   
   def getMyDirAuthorities(self):
     """
@@ -1645,6 +1693,55 @@ class Controller(TorCtl.PostEventListener):
         result = parseVersion(self.getInfo("version", ""))
       elif key == "pid":
         result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+      elif key == "user":
+        # This was added in Tor 0.2.3.x-final so it's quite likely unavailable.
+        # Even if it is, it might fail and return an empty string.
+        queriedUser = self.getInfo("process/user")
+        
+        if queriedUser != None and queriedUser != "":
+          result = queriedUser
+        else:
+          myPid = self.getMyPid()
+          
+          if myPid:
+            # if proc contents are available then fetch the pid from there and
+            # convert it to the username
+            if procTools.isProcAvailable():
+              try:
+                myUid = procTools.getUid(myPid)
+                if myUid and myUid.isdigit():
+                  result = pwd.getpwuid(int(myUid)).pw_name
+              except: pass
+            
+            # fall back to querying via ps
+            if not result:
+              psResults = sysTools.call("ps -o user %s" % myPid)
+              if psResults and len(psResults) >= 2: result = psResults[1].strip()
+      elif key == "fdLimit":
+        # This was added in Tor 0.2.3.x-final so it's quite likely unavailable.
+        # Even if it is, it might fail and return -1.
+        
+        queriedLimit = self.getInfo("process/descriptor-limit")
+        
+        if queriedLimit != None and queriedLimit != "-1":
+          result = (int(queriedLimit), False)
+        else:
+          torUser = self.getMyUser()
+          
+          # This is guessing the open file limit. Unfortunately there's no way
+          # (other than "/usr/proc/bin/pfiles pid | grep rlimit" under Solaris)
+          # to get the file descriptor limit for an arbitrary process.
+          
+          if torUser == "debian-tor":
+            # probably loaded via /etc/init.d/tor which changes descriptor limit
+            result = (8192, True)
+          else:
+            # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
+            ulimitResults = sysTools.call("ulimit -Hn")
+            
+            if ulimitResults:
+              ulimit = ulimitResults[0].strip()
+              if ulimit.isdigit(): result = (int(ulimit), True)
       elif key == "pathPrefix":
         # make sure the path prefix is valid and exists (providing a notice if not)
         prefixPath = CONFIG["features.pathPrefix"].strip()

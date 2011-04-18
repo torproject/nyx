@@ -22,7 +22,6 @@ import connPanel
 import configPanel
 import torrcPanel
 import descriptorPopup
-import fileDescriptorPopup
 
 import interface.connections.connPanel
 import interface.connections.connEntry
@@ -551,7 +550,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
   
   panels = {
-    "header": headerPanel.HeaderPanel(stdscr, startTime),
+    "header": headerPanel.HeaderPanel(stdscr, startTime, config),
     "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
@@ -962,7 +961,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(3, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
           popup.addfstr(3, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % graphing.graphPanel.UPDATE_INTERVALS[panels["graph"].updateInterval][0])
           popup.addfstr(4, 2, "<b>b</b>: graph bounds (<b>%s</b>)" % panels["graph"].bounds.lower())
-          popup.addfstr(4, 41, "<b>d</b>: file descriptors")
+          popup.addfstr(4, 41, "<b>a</b>: save snapshot of the log")
           popup.addfstr(5, 2, "<b>e</b>: change logged events")
           
           regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
@@ -971,7 +970,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           hiddenEntryLabel = "visible" if panels["log"].showDuplicates else "hidden"
           popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
           popup.addfstr(6, 41, "<b>c</b>: clear event log")
-          popup.addfstr(7, 41, "<b>a</b>: save snapshot of the log")
           
           pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
         if page == 1:
@@ -1121,21 +1119,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       panels["graph"].bounds = graphing.graphPanel.Bounds.next(panels["graph"].bounds)
       
       selectiveRefresh(panels, page)
-    elif page == 0 and key in (ord('d'), ord('D')):
-      # provides popup with file descriptors
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        curses.cbreak() # wait indefinitely for key presses (no timeout)
-        
-        fileDescriptorPopup.showFileDescriptorPopup(panels["popup"], stdscr, torPid)
-        
-        setPauseState(panels, isPaused, page)
-        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-      finally:
-        panel.CURSES_LOCK.release()
-      
-      panels["graph"].redraw(True)
     elif page == 0 and (key == ord('a') or key == ord('A')):
       # allow user to enter a path to take a snapshot - abandons if left blank
       panel.CURSES_LOCK.acquire()

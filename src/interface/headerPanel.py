@@ -16,9 +16,10 @@ Example:
 
 import os
 import time
+import curses
 import threading
 
-from util import panel, sysTools, torTools, uiTools
+from util import log, panel, sysTools, torTools, uiTools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -32,23 +33,31 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
+DEFAULT_CONFIG = {"features.showFdUsage": False,
+                  "log.fdUsageSixtyPercent": log.NOTICE,
+                  "log.fdUsageNinetyPercent": log.WARN}
+
 class HeaderPanel(panel.Panel, threading.Thread):
   """
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
     tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
           exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
-          orListenAddr, *address, *fingerprint, *flags, pid, startTime
+          orListenAddr, *address, *fingerprint, *flags, pid, startTime,
+          *fdUsed, fdLimit, isFdLimitEstimate
     sys/  hostname, os, version
     stat/ *%torCpu, *%armCpu, *rss, *%mem
   
   * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr, startTime):
+  def __init__(self, stdscr, startTime, config = None):
     panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
+    
+    self._config = dict(DEFAULT_CONFIG)
+    if config: config.update(self._config)
     
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
@@ -77,6 +86,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # Last sampling received from the ResourceTracker, used to detect when it
     # changes.
     self._lastResourceFetch = -1
+    
+    # flag to indicate if we've already given file descriptor warnings
+    self._isFdSixtyPercentWarned = False
+    self._isFdNinetyPercentWarned = False
     
     self.vals = {}
     self.valsLock = threading.RLock()
@@ -177,10 +190,35 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else: break
     
     if self.vals["tor/orPort"]:
-      # Line 4 / Line 2 Right (fingerprint)
+      # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
       y, x = (1, leftWidth) if isWide else (3, 0)
+      
       fingerprintLabel = uiTools.cropStr("fingerprint: %s" % self.vals["tor/fingerprint"], width)
       self.addstr(y, x, fingerprintLabel)
+      
+      # if there's room and we're able to retrieve both the file descriptor
+      # usage and limit then it might be presented
+      if width - x - 59 >= 20 and self.vals["tor/fdUsed"] and self.vals["tor/fdLimit"]:
+        # display file descriptor usage if we're either configured to do so or
+        # running out
+        
+        fdPercent = 100 * self.vals["tor/fdUsed"] / self.vals["tor/fdLimit"]
+        
+        if fdPercent >= 60 or self._config["features.showFdUsage"]:
+          fdPercentLabel, fdPercentFormat = "%i%%" % fdPercent, curses.A_NORMAL
+          if fdPercent >= 95:
+            fdPercentFormat = curses.A_BOLD | uiTools.getColor("red")
+          elif fdPercent >= 90:
+            fdPercentFormat = uiTools.getColor("red")
+          elif fdPercent >= 60:
+            fdPercentFormat = uiTools.getColor("yellow")
+          
+          estimateChar = "?" if self.vals["tor/isFdLimitEstimate"] else ""
+          baseLabel = "file desc: %i / %i%s (" % (self.vals["tor/fdUsed"], self.vals["tor/fdLimit"], estimateChar)
+          
+          self.addstr(y, x + 59, baseLabel)
+          self.addstr(y, x + 59 + len(baseLabel), fdPercentLabel, fdPercentFormat)
+          self.addstr(y, x + 59 + len(baseLabel) + len(fdPercentLabel), ")")
       
       # Line 5 / Line 3 Left (flags)
       if self._isTorConnected:
@@ -349,6 +387,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
         policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
       self.vals["tor/exitPolicy"] = ", ".join(policyEntries)
       
+      # file descriptor limit for the process, if this can't be determined
+      # then the limit is None
+      fdLimit, fdIsEstimate = conn.getMyFileDescriptorLimit()
+      self.vals["tor/fdLimit"] = fdLimit
+      self.vals["tor/isFdLimitEstimate"] = fdIsEstimate
+      
       # system information
       unameVals = os.uname()
       self.vals["sys/hostname"] = unameVals[1]
@@ -364,6 +408,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # reverts volatile parameters to defaults
       self.vals["tor/fingerprint"] = "Unknown"
       self.vals["tor/flags"] = []
+      self.vals["tor/fdUsed"] = 0
       self.vals["stat/%torCpu"] = "0"
       self.vals["stat/%armCpu"] = "0"
       self.vals["stat/rss"] = "0"
@@ -376,6 +421,27 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     self.vals["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     self.vals["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
+    
+    # Updates file descriptor usage and logs if the usage is high. If we don't
+    # have a known limit or it's obviously faulty (being lower than our
+    # current usage) then omit file descriptor functionality.
+    if self.vals["tor/fdLimit"]:
+      fdUsed = conn.getMyFileDescriptorUsage()
+      if fdUsed and fdUsed <= self.vals["tor/fdLimit"]: self.vals["tor/fdUsed"] = fdUsed
+      else: self.vals["tor/fdUsed"] = 0
+    
+    if self.vals["tor/fdUsed"] and self.vals["tor/fdLimit"]:
+      fdPercent = 100 * self.vals["tor/fdUsed"] / self.vals["tor/fdLimit"]
+      estimatedLabel = " estimated" if self.vals["tor/isFdLimitEstimate"] else ""
+      msg = "Tor's%s file descriptor usage is at %i%%." % (estimatedLabel, fdPercent)
+      
+      if fdPercent >= 90 and not self._isFdNinetyPercentWarned:
+        self._isFdSixtyPercentWarned, self._isFdNinetyPercentWarned = True, True
+        msg += " If you run out Tor will be unable to continue functioning."
+        log.log(self._config["log.fdUsageNinetyPercent"], msg)
+      elif fdPercent >= 60 and not self._isFdSixtyPercentWarned:
+        self._isFdSixtyPercentWarned = True
+        log.log(self._config["log.fdUsageSixtyPercent"], msg)
     
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:

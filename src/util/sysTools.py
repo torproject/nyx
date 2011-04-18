@@ -8,8 +8,10 @@ import threading
 
 from util import log, procTools, uiTools
 
-# mapping of commands to if they're available or not
-CMD_AVAILABLE_CACHE = {}
+# Mapping of commands to if they're available or not. This isn't always
+# reliable, failing for some special commands. For these the cache is
+# prepopulated to skip lookups.
+CMD_AVAILABLE_CACHE = {"ulimit": True}
 
 # cached system call results, mapping the command issued to the (time, results) tuple
 CALL_CACHE = {}

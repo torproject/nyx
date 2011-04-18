@@ -157,13 +157,10 @@ Layout:
       __init__.py
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information
-      
-      logPanel.py            - (page 1) displays tor, arm, and torctl events
-      fileDescriptorPopup.py - (popup) displays file descriptors used by tor
-      
-      connPanel.py           - (page 2) deprecated counterpart for connections/*
       descriptorPopup.py     - (popup) displays connection descriptor data
       
+      logPanel.py            - (page 1) displays tor, arm, and torctl events
+      connPanel.py           - (page 2) deprecated counterpart for connections/*
       configPanel.py         - (page 3) editor panel for the tor configuration
       torrcPanel.py          - (page 4) displays torrc and validation
     

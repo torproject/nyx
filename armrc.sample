@@ -31,6 +31,10 @@ features.pathPrefix
 # events.
 features.logFile 
 
+# If true, the header panel always shows the file descriptor usage. Otherwise
+# this is only displayed when we're running out.
+features.showFdUsage false
+
 # Paremters for the log panel
 # ---------------------------
 # showDateDividers
@@ -276,4 +280,6 @@ log.stats.failedProcResolution DEBUG
 log.stats.procResolutionFailover INFO
 log.stats.failedPsResolution INFO
 log.savingDebugLog NOTICE
+log.fdUsageSixtyPercent NOTICE
+log.fdUsageNinetyPercent WARN
 

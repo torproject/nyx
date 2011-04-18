@@ -48,6 +48,8 @@ This release chiefly consists of a fully reimplemented connection panel. Besides
     * fix: recognizing the proper private ip ranges of the 172.* block
     * fix: missing 'is default' option from config sort ordering
     * fix (4/4/11, r24562): hidden service parsing issue when there's multiple spaces in the HiddenServicePort opition (caught by Nicolas Pouillard)
+    * fix (4/6/11, r24570): missing new connection components from installations (caught by Anthony Basile)
+    * fix (4/13/11, r24613): failed requests for our flags cause a syntax error (caught by qbi)
 
 1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
