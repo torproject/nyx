@@ -12,6 +12,8 @@ Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-torctl
 Suggests: tor
 XB-Python-Version: ${python:Versions}
+Vcs-Git: git://git.torproject.org/arm.git
+Vcs-Browser: https://gitweb.torproject.org/arm.git
 Description: terminal status monitor for tor
  The anonymizing relay monitor (arm) is a terminal status monitor for Tor
  relays, intended for command-line aficionados, ssh connections, and anyone
