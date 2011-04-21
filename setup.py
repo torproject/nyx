@@ -72,6 +72,12 @@ if "install" in sys.argv:
   except IOError, exc:
     print "Unable to compress man page: %s" % exc
 
+# When installing we include a bundled copy of TorCtl. However, when creating
+# a deb we have a dependency on the python-torctl package instead:
+# http://packages.debian.org/unstable/main/python-torctl
+installPackages = ['arm', 'arm.interface', 'arm.interface.graphing', 'arm.interface.connections', 'arm.util']
+if not isDebInstall: installPackages.append('arm.TorCtl')
+
 setup(name='arm',
       version=VERSION,
       description='Terminal tor status monitor',
@@ -79,7 +85,7 @@ setup(name='arm',
       author='Damian Johnson',
       author_email='atagar@torproject.org',
       url='http://www.atagar.com/arm/',
-      packages=['arm', 'arm.interface', 'arm.interface.graphing', 'arm.interface.connections', 'arm.util', 'arm.TorCtl'],
+      packages=installPackages,
       package_dir={'arm': 'src'},
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
