@@ -1,0 +1,9 @@
+To rebuild this deb run the following...
+
+git clone git://git.torproject.org/arm.git
+cd arm
+git checkout remotes/origin/packaging
+./deb-prep-sh
+cd release_deb
+./debian/make-deb
+
