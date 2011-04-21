@@ -20,6 +20,30 @@ def isTorCtlAvailable():
   except ImportError:
     return False
 
+def promptTorCtlInstall():
+  """
+  Asks the user to install TorCtl. This returns True if it was installed and
+  False otherwise (if it was either declined or failed to be fetched.
+  """
+  
+  userInput = raw_input("Arm requires TorCtl to run, but it's unavailable. Would you like to install it? (y/n): ")
+  
+  # if user says no then terminate
+  if not userInput.lower() in ("y", "yes"): return False
+  
+  # attempt to install TorCtl, printing the issue if unsuccessful
+  try:
+    installTorCtl()
+    
+    if not isTorCtlAvailable():
+      raise IOError("Unable to install TorCtl, sorry")
+    
+    print "TorCtl successfully installed"
+    return True
+  except IOError, exc:
+    print exc
+    return False
+
 def installTorCtl():
   """
   Checks out the current git head release for TorCtl and bundles it with arm.
@@ -65,19 +89,6 @@ if __name__ == '__main__':
     sys.exit(1)
   
   if not isTorCtlAvailable():
-    userInput = raw_input("Arm requires TorCtl to run, but it's unavailable. Would you like to install it? (y/n): ")
-    
-    # if user says no then terminate
-    if not userInput.lower() in ("y", "yes"):
-      sys.exit(1)
-    
-    # attempt to install TorCtl, printing the issue if unsuccessful
-    try:
-      installTorCtl()
-      
-      if not isTorCtlAvailable():
-        raise IOError("Unable to install TorCtl, sorry")
-    except IOError, exc:
-      print exc
-      sys.exit(1)
+    isInstalled = promptTorCtlInstall()
+    if not isInstalled: sys.exit(1)
 
