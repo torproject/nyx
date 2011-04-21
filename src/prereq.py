@@ -2,7 +2,50 @@
 Provides a warning and error code if python version isn't compatible.
 """
 
+import os
 import sys
+import shutil
+import tempfile
+
+TORCTL_REPO = "git://git.torproject.org/pytorctl.git"
+
+def isTorCtlAvailable():
+  """
+  True if TorCtl is already available on the platform, false otherwise.
+  """
+  
+  try:
+    import TorCtl
+    return True
+  except ImportError:
+    return False
+
+def installTorCtl():
+  """
+  Checks out the current git head release for TorCtl and bundles it with arm.
+  This raises an IOError if unsuccessful.
+  """
+  
+  if isTorCtlAvailable(): return
+  
+  # temporary destination for TorCtl's git clone, guarenteed to be unoccupied
+  # (to avoid conflicting with files that are already there)
+  tmpFilename = tempfile.mktemp("/torctl")
+  
+  # fetches TorCtl
+  exitStatus = os.system("git clone %s %s > /dev/null" % (TORCTL_REPO, tmpFilename))
+  if exitStatus: raise IOError("Unable to get TorCtl from %s. Is git installed?" % TORCTL_REPO)
+  
+  # the destination for TorCtl will be our directory
+  ourDir = os.path.dirname(os.path.realpath(__file__))
+  
+  # exports TorCtl to our location
+  exitStatus = os.system("(cd %s && git archive --format=tar --prefix=TorCtl/ master) | (cd %s && tar xf - 2> /dev/null)" % (tmpFilename, ourDir))
+  if exitStatus: raise IOError("Unable to install TorCtl to %s" % ourDir)
+  
+  # Clean up the temporary contents. This isn't vital so quietly fails in case
+  # of errors.
+  shutil.rmtree(tmpFilename, ignore_errors=True)
 
 if __name__ == '__main__':
   majorVersion = sys.version_info[0]
@@ -20,4 +63,21 @@ if __name__ == '__main__':
   except ImportError:
     print("arm requires curses - try installing the python-curses package\n")
     sys.exit(1)
+  
+  if not isTorCtlAvailable():
+    userInput = raw_input("Arm requires TorCtl to run, but it's unavailable. Would you like to install it? (y/n): ")
+    
+    # if user says no then terminate
+    if not userInput.lower() in ("y", "yes"):
+      sys.exit(1)
+    
+    # attempt to install TorCtl, printing the issue if unsuccessful
+    try:
+      installTorCtl()
+      
+      if not isTorCtlAvailable():
+        raise IOError("Unable to install TorCtl, sorry")
+    except IOError, exc:
+      print exc
+      sys.exit(1)
 
