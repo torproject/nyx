@@ -11,7 +11,7 @@ from distutils.core import setup
 
 isDebInstall = False
 for arg in sys.argv:
-  if "tor-arm" in arg:
+  if "tor-arm" in arg or "release_deb" in arg:
     isDebInstall = True
     break
 
