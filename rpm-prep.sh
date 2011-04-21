@@ -4,6 +4,7 @@
 # cd release_rpm
 # ./redhat/make-rpm
 
-svn export release release_rpm
-svn export resources/build/redhat release_rpm/redhat
+mkdir release_rpm
+git archive --format=tar release | (cd ./release_rpm && tar xf -)
+(cd build && git archive --format=tar packaging redhat) | (cd ./release_rpm && tar xf -)
 
