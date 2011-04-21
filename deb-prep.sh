@@ -1,6 +1,8 @@
 #!/bin/sh
 # Creates a release directory that's ready to make a debian build. From here
-# simply run:
+# simply:
+# update build/debian/changelog
+# ./deb-prep.sh
 # cd release_deb
 # ./debian/make-deb
 # 
