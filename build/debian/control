@@ -9,7 +9,7 @@ Homepage: http://www.atagar.com/arm/
 
 Package: tor-arm
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}
+Depends: ${misc:Depends}, ${python:Depends}, python-torctl
 Suggests: tor
 XB-Python-Version: ${python:Versions}
 Description: terminal status monitor for tor
