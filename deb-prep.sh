@@ -11,10 +11,10 @@
 # dpkg-source -x tor-arm_1.4.0.1-1.dsc
 # debuild -rfakeroot -uc -us -j3
 
-# alternate (works, but svn export is simpler):
+# alternate (works, but not sure if it'll miss resources like gitignore):
 # tar czf tor-arm_1.3.7.orig.tar.gz --exclude-vcs --exclude="*.pyc" -v release
 
-export DEB_VERSION="1.2.3.4"
+export DEB_VERSION="1.4.2.4"
 
 mkdir release_deb
 git archive --format=tar release | (cd ./release_deb && tar xf -)

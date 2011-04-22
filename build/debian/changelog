@@ -1,3 +1,9 @@
+tor-arm (1.4.2.4-1) unstable; urgency=low
+
+  * Upstream release 1.4.2.4.
+  
+ -- Damian Johnson <atagar@torproject.org>  Sat, 21 Apr 2011 1:30:43 -0700
+
 tor-arm (1.4.2.0-1) unstable; urgency=low
 
   * Upstream release 1.4.2.0.
