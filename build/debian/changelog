@@ -4,6 +4,14 @@ tor-arm (1.4.2.4-1) unstable; urgency=low
   
  -- Damian Johnson <atagar@torproject.org>  Sat, 21 Apr 2011 1:30:43 -0700
 
+tor-arm (1.4.1.2-2) unstable; urgency=low
+
+  * Stripping out bundle TorCtl library, added run-time dep on python-torctl.
+  * Temporarly patching setuptools scripts to use system-wide TorCtl lib.
+  * Adding myself as Uploader.
+
+ -- Ulises Vitulli <dererk@debian.org>  Wed, 20 Apr 2011 11:36:17 -0300
+
 tor-arm (1.4.2.0-1) unstable; urgency=low
 
   * Upstream release 1.4.2.0.
