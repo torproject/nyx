@@ -14,7 +14,12 @@
 # alternate (works, but not sure if it'll miss resources like gitignore):
 # tar czf tor-arm_1.3.7.orig.tar.gz --exclude-vcs --exclude="*.pyc" -v release
 
-export DEB_VERSION="1.4.2.4"
+if [ $# -lt 1 ]
+  then
+    echo "Usage: ./deb-prep.sh <arm version>"
+    exit 1
+  else debVersion=$1
+fi
 
 mkdir release_deb
 git archive --format=tar release | (cd ./release_deb && tar xf -)
@@ -24,7 +29,7 @@ git archive --format=tar release | (cd ./release_deb && tar xf -)
 # /usr/share/doc/arm/armrc.sample -> /usr/share/doc/tor-arm/armrc.sample.gz
 sed -i 's/\/usr\/share\/doc\/arm\/armrc.sample/\/usr\/share\/doc\/tor-arm\/armrc.sample.gz/g' release_deb/arm.1
 
-tar czf tor-arm_${DEB_VERSION}.orig.tar.gz release_deb
+tar czf tor-arm_${debVersion}.orig.tar.gz release_deb
 
 (cd build && git archive --format=tar packaging debian) | (cd ./release_deb && tar xf -)
 
