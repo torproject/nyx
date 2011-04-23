@@ -649,7 +649,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   # provides notice about any unused config keys
   for key in config.getUnusedKeys():
-    log.log(CONFIG["log.configEntryUndefined"], "unused configuration entry: %s" % key)
+    log.log(CONFIG["log.configEntryUndefined"], "Unused configuration entry: %s" % key)
   
   lastPerformanceLog = 0 # ensures we don't do performance logging too frequently
   redrawStartTime = time.time()
