@@ -1626,6 +1626,12 @@ class Controller(TorCtl.PostEventListener):
                        lookups if true
     """
     
+    # Several controller options were added in ticket 2291...
+    # https://trac.torproject.org/projects/tor/ticket/2291
+    # which is only available with newer tor versions (tested them against
+    # Tor v0.2.3.0-alpha-dev). When using these options we need to be
+    # especially careful to have good fallback logic.
+    
     currentVal = self._cachedParam.get(key)
     if currentVal != None:
       if currentVal == UNKNOWN: return default
@@ -1697,8 +1703,7 @@ class Controller(TorCtl.PostEventListener):
         if not result:
           result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
       elif key == "user":
-        # This was added in Tor 0.2.3.x-final so it's quite likely unavailable.
-        # Even if it is, it might fail and return an empty string.
+        # provides the empty string if the query fails
         queriedUser = self.getInfo("process/user")
         
         if queriedUser != None and queriedUser != "":
@@ -1721,9 +1726,7 @@ class Controller(TorCtl.PostEventListener):
               psResults = sysTools.call("ps -o user %s" % myPid)
               if psResults and len(psResults) >= 2: result = psResults[1].strip()
       elif key == "fdLimit":
-        # This was added in Tor 0.2.3.x-final so it's quite likely unavailable.
-        # Even if it is, it might fail and return -1.
-        
+        # provides -1 if the query fails
         queriedLimit = self.getInfo("process/descriptor-limit")
         
         if queriedLimit != None and queriedLimit != "-1":
