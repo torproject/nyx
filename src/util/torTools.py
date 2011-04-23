@@ -1692,7 +1692,10 @@ class Controller(TorCtl.PostEventListener):
       elif key == "parsedVersion":
         result = parseVersion(self.getInfo("version", ""))
       elif key == "pid":
-        result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+        result = self.getInfo("process/pid")
+        
+        if not result:
+          result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
       elif key == "user":
         # This was added in Tor 0.2.3.x-final so it's quite likely unavailable.
         # Even if it is, it might fail and return an empty string.
