@@ -1,14 +1,11 @@
 tor-arm (1.4.2.4-1) unstable; urgency=low
 
   * Upstream release 1.4.2.4.
+  * Updated Standard-version to 3.9.2.0 (no changes needed).
+  * Including pkg building instructions at README.source (closes: #623311).
+  * Adding Vcs-Git and Vcs-Browser control fields (closes: #623312).
   
  -- Damian Johnson <atagar@torproject.org>  Sat, 22 Apr 2011 1:30:43 -0700
-
-tor-arm (1.4.2.4-1) unstable; urgency=low
-
-  * Updated Standard-version to 3.9.2.0 (no changes needed).
-  
- -- Damian Johnson <atagar@torproject.org>  Sat, 22 Apr 2011 1:25:43 -0700
 
 tor-arm (1.4.1.2-2) unstable; urgency=low
 
