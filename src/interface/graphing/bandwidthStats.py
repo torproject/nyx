@@ -20,8 +20,7 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
-DEFAULT_CONFIG = {"features.graph.bw.prepopulateTotal": False,
-                  "features.graph.bw.transferInBytes": False,
+DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False,
                   "features.graph.bw.accounting.show": True,
                   "features.graph.bw.accounting.rate": 10,
                   "features.graph.bw.accounting.isTimeLong": False,
@@ -347,10 +346,6 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
-    
-    if self._config["features.graph.bw.prepopulateTotal"]:
-      total += self.prepopulatePrimaryTotal if isPrimary else self.prepopulateSecondaryTotal
-    
     return "total: %s" % uiTools.getSizeLabel(total * 1024, 1)
   
   def _updateAccountingInfo(self):
