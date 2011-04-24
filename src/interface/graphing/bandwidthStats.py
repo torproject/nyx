@@ -55,6 +55,25 @@ class BandwidthStats(graphPanel.GraphStats):
     self._titleStats, self.isAccounting = [], False
     self.resetListener(conn, torTools.State.INIT) # initializes values
     conn.addStatusListener(self.resetListener)
+    
+    # Initialized the bandwidth totals to the values reported by Tor. This
+    # uses a controller options introduced in ticket 2345:
+    # https://trac.torproject.org/projects/tor/ticket/2345
+    # 
+    # further updates are still handled via BW events to avoid unnecessary
+    # GETINFO requests. This needs to update the pause buffer too because
+    # instances start paused, causing the primary value to be clobbered once
+    # just after initalization.
+    
+    readTotal = conn.getInfo("traffic/read")
+    if readTotal and readTotal.isdigit():
+      self.primaryTotal = int(readTotal) / 1024 # Bytes -> KB
+      self._pauseBuffer.primaryTotal = int(readTotal) / 1024
+    
+    writeTotal = conn.getInfo("traffic/written")
+    if writeTotal and writeTotal.isdigit():
+      self.secondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
+      self._pauseBuffer.secondaryTotal = int(writeTotal) / 1024
   
   def resetListener(self, conn, eventType):
     # updates title parameters and accounting status if they changed
