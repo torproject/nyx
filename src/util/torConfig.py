@@ -3,6 +3,7 @@ Helper functions for working with tor's configuration file.
 """
 
 import os
+import socket
 import threading
 
 from util import enum, log, sysTools, torTools, uiTools
@@ -367,11 +368,14 @@ def getCustomOptions(includeValue = False):
   configLines = list(set(configLines))
   
   # The "GETINFO config-text" query only provides options that differ
-  # from Tor's defaults with the exception of its Log entry which, even
-  # if undefined, returns "Log notice stdout" as per:
+  # from Tor's defaults with the exception of its Log and Nickname entries
+  # which, even if undefined, returns "Log notice stdout" as per:
   # https://trac.torproject.org/projects/tor/ticket/2362
   
   try: configLines.remove("Log notice stdout")
+  except ValueError: pass
+  
+  try: configLines.remove("Nickname %s" % socket.gethostname())
   except ValueError: pass
   
   if includeValue: return configLines
