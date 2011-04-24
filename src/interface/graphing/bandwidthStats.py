@@ -60,19 +60,18 @@ class BandwidthStats(graphPanel.GraphStats):
     # https://trac.torproject.org/projects/tor/ticket/2345
     # 
     # further updates are still handled via BW events to avoid unnecessary
-    # GETINFO requests. This needs to update the pause buffer too because
-    # instances start paused, causing the primary value to be clobbered once
-    # just after initalization.
+    # GETINFO requests.
+    
+    self.initialPrimaryTotal = 0
+    self.initialSecondaryTotal = 0
     
     readTotal = conn.getInfo("traffic/read")
     if readTotal and readTotal.isdigit():
-      self.primaryTotal = int(readTotal) / 1024 # Bytes -> KB
-      self._pauseBuffer.primaryTotal = int(readTotal) / 1024
+      self.initialPrimaryTotal = int(readTotal) / 1024 # Bytes -> KB
     
     writeTotal = conn.getInfo("traffic/written")
     if writeTotal and writeTotal.isdigit():
-      self.secondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
-      self._pauseBuffer.secondaryTotal = int(writeTotal) / 1024
+      self.initialSecondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
   
   def resetListener(self, conn, eventType):
     # updates title parameters and accounting status if they changed
@@ -346,6 +345,7 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
+    total += self.initialPrimaryTotal if isPrimary else self.initialSecondaryTotal
     return "total: %s" % uiTools.getSizeLabel(total * 1024, 1)
   
   def _updateAccountingInfo(self):
