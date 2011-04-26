@@ -122,6 +122,8 @@ def getPid(controlPort=9051, pidFilePath=None):
   4. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
   5. "ps -o pid -C tor"
   6. "sockstat -4l -P tcp -p %i | grep tor" % <tor control port>
+  7. "ps axc | egrep \" tor$\""
+  8. "lsof -wnPi | egrep \"^tor.*:%i\"" % <tor control port>
   
   If pidof or ps provide multiple tor instances then their results are
   discarded (since only netstat can differentiate using the control port). This
@@ -198,6 +200,32 @@ def getPid(controlPort=9051, pidFilePath=None):
     results = sysTools.call("sockstat -4l -P tcp -p %i | grep tor" % controlPort)
     if len(results) == 1 and len(results[0].split()) == 7:
       pid = results[0].split()[2]
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  # attempts to resolve via a ps command that works on the mac (this and lsof
+  # are the only resolvers to work on that platform). This fails if:
+  # - tor's running under a different name
+  # - there's multiple instances of tor
+  
+  try:
+    results = sysTools.call("ps axc | egrep \" tor$\"")
+    if len(results) == 1 and len(results[0].split()) > 0:
+      pid = results[0].split()[0]
+      if pid.isdigit(): return pid
+  except IOError: pass
+  
+  # attempts to resolve via lsof - this should work on linux, mac, and bsd -
+  # this fails if:
+  # - tor's running under a different name
+  # - tor's being run as a different user due to permissions
+  # - there are multiple instances of Tor, using the
+  #   same control port on different addresses.
+  
+  try:
+    results = sysTools.call("lsof -wnPi | egrep \"^tor.*:%i\"" % controlPort)
+    if len(results) == 1 and len(results[0].split()) > 1:
+      pid = results[0].split()[1]
       if pid.isdigit(): return pid
   except IOError: pass
   
