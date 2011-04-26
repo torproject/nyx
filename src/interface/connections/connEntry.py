@@ -824,8 +824,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
           dstAddress += " (%s)" % purpose
       elif not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
         extraInfo = []
+        conn = torTools.getConn()
         
-        if includeLocale:
+        if includeLocale and not conn.isGeoipUnavailable():
           foreignLocale = self.foreign.getLocale("??")
           extraInfo.append(foreignLocale)
           spaceAvailable -= len(foreignLocale) + 2

@@ -474,19 +474,19 @@ class Controller(TorCtl.PostEventListener):
       if isCacheArg and cachedValue:
         result = cachedValue
         isFromCache = True
-      elif isGeoipRequest and self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
+      elif isGeoipRequest and self.isGeoipUnavailable():
         # the geoip database aleady looks to be unavailable - abort the request
         raisedExc = TorCtl.ErrorReply("Tor geoip database is unavailable.")
       else:
         try:
           getInfoVal = self.conn.get_info(param)[param]
           if getInfoVal != None: result = getInfoVal
-          if isGeoipRequest: self.geoipFailureCount = 0
+          if isGeoipRequest: self.geoipFailureCount = -1
         except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
           if type(exc) == TorCtl.TorCtlClosed: self.close()
           raisedExc = exc
           
-          if isGeoipRequest:
+          if isGeoipRequest and not self.geoipFailureCount == -1:
             self.geoipFailureCount += 1
             
             if self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
@@ -832,6 +832,14 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.release()
     
     return result
+  
+  def isGeoipUnavailable(self):
+    """
+    Provides true if we've concluded that our geoip database is unavailable,
+    false otherwise.
+    """
+    
+    return self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD
   
   def getMyPid(self):
     """
