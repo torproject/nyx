@@ -82,7 +82,8 @@ CONFIG = {"torrc.map": {},
           "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
-          "log.unknownBsdJailId": log.WARN}
+          "log.unknownBsdJailId": log.WARN,
+          "log.geoipUnavailable": log.WARN}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
