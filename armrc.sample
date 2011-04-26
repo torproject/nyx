@@ -157,10 +157,6 @@ features.graph.bw.accounting.isTimeLong false
 
 # Parameters for connection display
 # ---------------------------------
-# oldPanel
-#   includes the old connection panel in the interface
-# newPanel
-#   includes the new connection panel in the interface
 # listingType
 #   the primary category of information shown by default, options including:
 #   0 -> IP Address / Port              1 -> Hostname
@@ -187,8 +183,6 @@ features.graph.bw.accounting.isTimeLong false
 # showColumn.*
 #   toggles the visability of the connection table columns
 
-features.connection.oldPanel false
-features.connection.newPanel true
 features.connection.listingType 0
 features.connection.order 0, 2, 1
 features.connection.refreshRate 5

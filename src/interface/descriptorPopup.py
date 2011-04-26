@@ -8,7 +8,6 @@ import curses
 from TorCtl import TorCtl
 
 import controller
-import connPanel
 import connections.connEntry
 from util import panel, torTools, uiTools
 
@@ -69,7 +68,7 @@ class PopupProperties:
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - height, 0)
     elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + height, len(self.text) - height))
 
-def showDescriptorPopup(popup, stdscr, connectionPanel, isNewPanel=False):
+def showDescriptorPopup(popup, stdscr, connectionPanel):
   """
   Presents consensus descriptor in popup window with the following controls:
   Up, Down, Page Up, Page Down - scroll descriptor
@@ -83,18 +82,11 @@ def showDescriptorPopup(popup, stdscr, connectionPanel, isNewPanel=False):
   if not panel.CURSES_LOCK.acquire(False): return
   try:
     while isVisible:
-      if isNewPanel:
-        selection = connectionPanel._scroller.getCursorSelection(connectionPanel._entryLines)
-        if not selection: break
-        fingerprint = selection.foreign.getFingerprint()
-        entryColor = connections.connEntry.CATEGORY_COLOR[selection.getType()]
-        properties.reset(fingerprint, entryColor)
-      else:
-        selection = connectionPanel.cursorSelection
-        if not selection or not connectionPanel.connections: break
-        fingerprint = connectionPanel.getFingerprint(selection[connPanel.CONN_F_IP], selection[connPanel.CONN_F_PORT])
-        entryColor = connPanel.TYPE_COLORS[selection[connPanel.CONN_TYPE]]
-        properties.reset(fingerprint, entryColor)
+      selection = connectionPanel._scroller.getCursorSelection(connectionPanel._entryLines)
+      if not selection: break
+      fingerprint = selection.foreign.getFingerprint()
+      entryColor = connections.connEntry.CATEGORY_COLOR[selection.getType()]
+      properties.reset(fingerprint, entryColor)
       
       # constrains popup size to match text
       width, height = 0, 0
