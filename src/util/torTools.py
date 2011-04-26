@@ -225,8 +225,8 @@ def getPid(controlPort=9051, pidFilePath=None):
   try:
     results = sysTools.call("lsof -wnPi | egrep \"^tor.*:%i\"" % controlPort)
     
-    # This can result in multiple entries with the same pid (maybe from the
-    # query itself?). Checking all lines to see if they have the same pid.
+    # This can result in multiple entries with the same pid (from the query
+    # itself). Checking all lines to see if they're in agreement about the pid.
     
     if results:
       pid = ""
