@@ -224,8 +224,20 @@ def getPid(controlPort=9051, pidFilePath=None):
   
   try:
     results = sysTools.call("lsof -wnPi | egrep \"^tor.*:%i\"" % controlPort)
-    if len(results) == 1 and len(results[0].split()) > 1:
-      pid = results[0].split()[1]
+    
+    # This can result in multiple entries with the same pid (maybe from the
+    # query itself?). Checking all lines to see if they have the same pid.
+    
+    if results:
+      pid = ""
+      
+      for line in results:
+        lineComp = line.split()
+        
+        if len(lineComp) >= 2 and (not pid or lineComp[1] == pid):
+          pid = lineComp[1]
+        else: raise IOError
+      
       if pid.isdigit(): return pid
   except IOError: pass
   
