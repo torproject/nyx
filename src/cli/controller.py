@@ -1250,7 +1250,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       setPauseState(panels, isPaused, page, True)
       
       selection = showMenu(stdscr, panels["popup"], "Resolver Util:", options, initialSelection)
-      selectedOption = options[selection] if selection != "auto" else None
+      selectedOption = options[selection] if selection != 0 else None
       
       # reverts changes made for popup
       panels["conn"]._title = panelTitle
