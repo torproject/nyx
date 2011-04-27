@@ -486,7 +486,7 @@ class ConnectionResolver(threading.Thread):
         else: self._rateThresholdBroken = 0
         
         if isDefault: self._subsiquentFailures = 0
-      except IOError, exc:
+      except (ValueError, IOError), exc:
         # this logs in a couple of cases:
         # - special failures noted by getConnections (most cases are already
         # logged via sysTools)
