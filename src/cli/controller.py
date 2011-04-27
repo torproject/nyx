@@ -22,9 +22,9 @@ import configPanel
 import torrcPanel
 import descriptorPopup
 
-import interface.connections.connPanel
-import interface.connections.connEntry
-import interface.connections.entries
+import cli.connections.connPanel
+import cli.connections.connEntry
+import cli.connections.entries
 from util import conf, log, connections, hostnames, panel, sysTools, torConfig, torTools, uiTools
 import graphing.bandwidthStats
 import graphing.connStats
@@ -421,7 +421,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   config = conf.getConfig("arm")
   config.update(CONFIG)
   graphing.graphPanel.loadConfig(config)
-  interface.connections.connEntry.loadConfig(config)
+  cli.connections.connEntry.loadConfig(config)
   
   # adds events needed for arm functionality to the torTools REQ_EVENTS mapping
   # (they're then included with any setControllerEvents call, and log a more
@@ -554,7 +554,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   # before being positioned - the following is a quick hack til rewritten
   panels["log"].setPaused(True)
   
-  panels["conn"] = interface.connections.connPanel.ConnectionPanel(stdscr, config)
+  panels["conn"] = cli.connections.connPanel.ConnectionPanel(stdscr, config)
   
   panels["control"] = ControlPanel(stdscr, isBlindMode)
   panels["config"] = configPanel.ConfigPanel(stdscr, configPanel.State.TOR, config)
@@ -1278,10 +1278,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif page == 1 and (key == ord('l') or key == ord('L')):
       # provides a menu to pick the primary information we list connections by
-      options = interface.connections.entries.ListingType.values()
+      options = cli.connections.entries.ListingType.values()
       
       # dropping the HOSTNAME listing type until we support displaying that content
-      options.remove(interface.connections.entries.ListingType.HOSTNAME)
+      options.remove(cli.connections.entries.ListingType.HOSTNAME)
       
       initialSelection = options.index(panels["conn"]._listingType)
       
@@ -1304,9 +1304,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     elif page == 1 and (key == ord('s') or key == ord('S')):
       # set ordering for connection options
       titleLabel = "Connection Ordering:"
-      options = interface.connections.entries.SortAttr.values()
+      options = cli.connections.entries.SortAttr.values()
       oldSelection = panels["conn"]._sortOrdering
-      optionColors = dict([(attr, interface.connections.entries.SORT_COLORS[attr]) for attr in options])
+      optionColors = dict([(attr, cli.connections.entries.SORT_COLORS[attr]) for attr in options])
       results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
       
       if results:

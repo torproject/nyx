@@ -14,8 +14,8 @@ import socket
 import platform
 
 import version
-import interface.controller
-import interface.logPanel
+import cli.controller
+import cli.logPanel
 import util.conf
 import util.connections
 import util.hostnames
@@ -67,7 +67,7 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], interface.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -312,7 +312,7 @@ if __name__ == '__main__':
   
   # validates and expands log event flags
   try:
-    expandedEvents = interface.logPanel.expandEvents(param["startup.events"])
+    expandedEvents = cli.logPanel.expandEvents(param["startup.events"])
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
@@ -387,5 +387,5 @@ if __name__ == '__main__':
     util.log.log(CONFIG["log.savingDebugLog"], "Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
     _dumpConfig()
   
-  interface.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
+  cli.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
 

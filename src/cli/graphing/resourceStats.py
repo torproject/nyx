@@ -2,7 +2,7 @@
 Tracks the system resource usage (cpu and memory) of the tor process.
 """
 
-from interface.graphing import graphPanel
+from cli.graphing import graphPanel
 from util import sysTools, torTools, uiTools
 
 class ResourceStats(graphPanel.GraphStats):

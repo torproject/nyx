@@ -5,7 +5,7 @@ stats if they're set.
 
 import time
 
-from interface.graphing import graphPanel
+from cli.graphing import graphPanel
 from util import log, sysTools, torTools, uiTools
 
 DL_COLOR, UL_COLOR = "green", "cyan"

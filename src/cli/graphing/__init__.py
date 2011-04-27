@@ -1,5 +1,5 @@
 """
-Panels, popups, and handlers comprising the arm user interface.
+Graphing panel resources.
 """
 
 __all__ = ["graphPanel", "bandwidthStats", "connStats", "resourceStats"]

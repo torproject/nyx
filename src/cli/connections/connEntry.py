@@ -7,7 +7,7 @@ import time
 import curses
 
 from util import connections, enum, torTools, uiTools
-from interface.connections import entries
+from cli.connections import entries
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.

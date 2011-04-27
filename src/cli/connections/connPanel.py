@@ -6,7 +6,7 @@ import time
 import curses
 import threading
 
-from interface.connections import entries, connEntry, circEntry
+from cli.connections import entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.resolveApps": True,

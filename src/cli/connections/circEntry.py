@@ -10,7 +10,7 @@ followed by an entry for each hop in the circuit. For instance:
 
 import curses
 
-from interface.connections import entries, connEntry
+from cli.connections import entries, connEntry
 from util import torTools, uiTools
 
 # cached fingerprint -> (IP Address, ORPort) results

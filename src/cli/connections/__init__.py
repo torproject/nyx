@@ -1,5 +1,5 @@
 """
-Panels, popups, and handlers comprising the arm user interface.
+Connection panel related resources.
 """
 
 __all__ = ["circEntry", "connEntry", "connPanel", "entries"]
