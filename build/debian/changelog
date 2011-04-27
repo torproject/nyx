@@ -15,12 +15,6 @@ tor-arm (1.4.1.2-2) unstable; urgency=low
 
  -- Ulises Vitulli <dererk@debian.org>  Wed, 20 Apr 2011 11:36:17 -0300
 
-tor-arm (1.4.2.0-1) unstable; urgency=low
-
-  * Upstream release 1.4.2.0.
-  
- -- Damian Johnson <atagar@torproject.org>  Sat, 4 Apr 2011 1:30:43 -0700
-
 tor-arm (1.4.1.2-1) unstable; urgency=low
 
   * Upstream release 1.4.1.2.
