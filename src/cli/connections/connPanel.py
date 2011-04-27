@@ -71,9 +71,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # rate limits appResolver queries to once per update
     self.appResolveSinceUpdate = False
     
-    self._update()            # populates initial entries
-    self._resolveApps(False)  # resolves initial applications
-    
     # mark the initially exitsing connection uptimes as being estimates
     for entry in self._entries:
       if isinstance(entry, connEntry.ConnectionEntry):
@@ -170,6 +167,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     lastDraw = time.time() - 1
+    
+    # Fetches out initial connection results. The wait is so this doesn't
+    # run during arm's interface initialization (otherwise there's a
+    # noticeable pause before the first redraw).
+    self._cond.acquire()
+    self._cond.wait(0.2)
+    self._cond.release()
+    self._update()            # populates initial entries
+    self._resolveApps(False)  # resolves initial applications
+    
     while not self._halt:
       currentTime = time.time()
       
