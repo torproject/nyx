@@ -251,9 +251,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Fetches the newest resolved connections.
     """
     
+    self.appResolveSinceUpdate = False
+    
+    # if we don't have an initialized resolver then this is a no-op
+    if not connections.isResolverAlive("tor"): return
+    
     connResolver = connections.getResolver("tor")
     currentResolutionCount = connResolver.getResolutionCount()
-    self.appResolveSinceUpdate = False
     
     if self._lastResourceFetch != currentResolutionCount:
       self.valsLock.acquire()
