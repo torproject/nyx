@@ -330,6 +330,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
+    self._nicknameToFpLookupCache = {}  # lookup cache with nickname -> fingerprint mappings
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
@@ -389,6 +390,7 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintLookupCache = {}
       self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
+      self._nicknameToFpLookupCache = {}
       self._consensusLookupCache = {}
       self._descriptorLookupCache = {}
       
@@ -1164,6 +1166,44 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
+  def getNicknameFingerprint(self, relayNickname):
+    """
+    Provides the fingerprint associated with the given relay. This provides
+    None if no such relay exists.
+    
+    Arguments:
+      relayNickname - nickname of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # determine the nickname if it isn't yet cached
+      if not relayNickname in self._nicknameToFpLookupCache:
+        # Fingerprints are base64 encoded hex with an extra '='. For instance...
+        # GETINFO ns/name/torexp2 ->
+        #   r torexp2 NPfjt8Vjr+drcbbFLQONN3KapNo LxoHteGax7ZNYh/9g/FF8I617fY 2011-04-27 15:20:35 141.161.20.50 9001 0
+        # decode base64 of "NPfjt8Vjr+drcbbFLQONN3KapNo=" ->
+        #   "4\xf7\xe3\xb7\xc5c\xaf\xe7kq\xb6\xc5-\x03\x8d7r\x9a\xa4\xda"
+        # encode hex of the above ->
+        #   "34f7e3b7c563afe76b71b6c52d038d37729aa4da"
+        
+        relayFingerprint = None
+        consensusEntry = self.getInfo("ns/name/%s" % relayNickname)
+        if consensusEntry:
+          encodedFp = consensusEntry.split()[2]
+          decodedFp = (encodedFp + "=").decode('base64').encode('hex')
+          relayFingerprint = decodedFp.upper()
+        
+        self._nicknameToFpLookupCache[relayNickname] = relayFingerprint
+      
+      result = self._nicknameToFpLookupCache[relayNickname]
+    
+    self.connLock.release()
+    
+    return result
+  
   def addEventListener(self, listener):
     """
     Directs further tor controller events to callback functions of the
@@ -1433,6 +1473,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintLookupCache = {}
     self._fingerprintsAttachedCache = None
     self._nicknameLookupCache = {}
+    self._nicknameToFpLookupCache = {}
     self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
@@ -1870,6 +1911,12 @@ class Controller(TorCtl.PostEventListener):
         #  91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
         # would belong to a single hop circuit, most likely fetching the
         # consensus via a directory mirror.
+        # 
+        # The path is made up of "$<fingerprint>[=<nickname]" entries for new
+        # versions of Tor, but in versions prior to 0.2.2.1-alpha this was
+        # just "$<fingerprint>" OR <nickname>. The dolar sign can't be used in
+        # nicknames so this can be used to differentiate.
+        
         circStatusResults = self.getInfo("circuit-status")
         
         if circStatusResults == "":
@@ -1885,8 +1932,24 @@ class Controller(TorCtl.PostEventListener):
             #  5 LAUNCHED PURPOSE=TESTING
             if len(lineComp) < 4: continue
             
-            path = tuple([hopEntry[1:41] for hopEntry in lineComp[2].split(",")])
-            result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], path))
+            path = []
+            for hopEntry in lineComp[2].split(","):
+              if hopEntry[0] == "$": path.append(hopEntry[1:41])
+              else:
+                relayFingerprint = self.getNicknameFingerprint(hopEntry)
+                
+                # It shouldn't be possible for this lookup to fail, but we
+                # need to fill something (callers won't expect our own client
+                # paths to have unknown relays). If this turns out to be wrong
+                # then log a warning.
+                
+                if relayFingerprint: path.append(relayFingerprint)
+                else:
+                  msg = "Unable to determine the fingerprint for a relay in our own circuit: %s" % hopEntry
+                  log.log(log.WARN, msg)
+                  path.append("0" * 40)
+            
+            result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
       elif key == "hsPorts":
         result = []
         hsOptions = self.getOptionMap("HiddenServiceOptions")
