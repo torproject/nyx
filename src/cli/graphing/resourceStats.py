@@ -36,9 +36,9 @@ class ResourceStats(graphPanel.GraphStats):
     
     primary, secondary = 0, 0
     if self.queryPid:
-      resourceTracker = sysTools.getResourceTracker(self.queryPid)
+      resourceTracker = sysTools.getResourceTracker(self.queryPid, True)
       
-      if not resourceTracker.lastQueryFailed():
+      if resourceTracker and not resourceTracker.lastQueryFailed():
         primary, _, secondary, _ = resourceTracker.getResourceUsage()
         primary *= 100        # decimal percentage to whole numbers
         secondary /= 1048576  # translate size to MB so axis labels are short

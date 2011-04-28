@@ -347,27 +347,13 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
     
     return results
 
-def isTrackerAlive(pid):
-  """
-  Provides true if a running, singleton instance exists for the given pid,
-  false otherwise.
-  
-  Arguments:
-    pid - pid of the process being tracked
-  """
-  
-  if pid in RESOURCE_TRACKERS:
-    if RESOURCE_TRACKERS[pid].isAlive(): return True
-    else: del RESOURCE_TRACKERS[pid]
-  
-  return False
-
-def getResourceTracker(pid):
+def getResourceTracker(pid, noSpawn = False):
   """
   Provides a running singleton ResourceTracker instance for the given pid.
   
   Arguments:
-    pid - pid of the process being tracked
+    pid     - pid of the process being tracked
+    noSpawn - returns None rather than generating a singleton instance if True
   """
   
   if pid in RESOURCE_TRACKERS:
@@ -375,6 +361,7 @@ def getResourceTracker(pid):
     if tracker.isAlive(): return tracker
     else: del RESOURCE_TRACKERS[pid]
   
+  if noSpawn: return None
   tracker = ResourceTracker(pid, CONFIG["queries.resourceUsage.rate"])
   RESOURCE_TRACKERS[pid] = tracker
   tracker.start()

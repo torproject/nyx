@@ -825,20 +825,19 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["conn"].join()
         panels["log"].join()
         
+        conn = torTools.getConn()
+        conn.close() # joins on TorCtl event thread
+        
         # joins on utility daemon threads - this might take a moment since
         # the internal threadpools being joined might be sleeping
-        conn = torTools.getConn()
-        myPid = conn.getMyPid()
-        
-        resourceTracker = sysTools.getResourceTracker(myPid) if (myPid and sysTools.isTrackerAlive(myPid)) else None
+        resourceTrackers = sysTools.RESOURCE_TRACKERS.values()
         resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
-        if resourceTracker: resourceTracker.stop()
+        for tracker in resourceTrackers: tracker.stop()
         if resolver: resolver.stop()  # sets halt flag (returning immediately)
         hostnames.stop()              # halts and joins on hostname worker thread pool
-        if resourceTracker: resourceTracker.join()
+        for tracker in resourceTrackers: tracker.join()
         if resolver: resolver.join()  # joins on halted resolver
         
-        conn.close() # joins on TorCtl event thread
         break
     elif key == curses.KEY_LEFT or key == curses.KEY_RIGHT:
       # switch page
