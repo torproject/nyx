@@ -3,9 +3,7 @@
 # Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 import math
-import socket
 import curses
-from TorCtl import TorCtl
 
 import controller
 import connections.connEntry
@@ -47,20 +45,19 @@ class PopupProperties:
       self.text.append(UNRESOLVED_MSG)
     else:
       conn = torTools.getConn()
+      self.showLineNum = True
       
-      try:
-        self.showLineNum = True
-        self.text.append("ns/id/%s" % fingerprint)
-        self.text += conn.getConsensusEntry(fingerprint).split("\n")
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-        self.text = self.text + [ERROR_MSG, ""]
+      self.text.append("ns/id/%s" % fingerprint)
+      consensusEntry = conn.getConsensusEntry(fingerprint)
       
-      try:
-        descCommand = "desc/id/%s" % fingerprint
-        self.text.append("desc/id/%s" % fingerprint)
-        self.text += conn.getDescriptorEntry(fingerprint).split("\n")
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-        self.text = self.text + [ERROR_MSG]
+      if consensusEntry: self.text += consensusEntry.split("\n")
+      else: self.text = self.text + [ERROR_MSG, ""]
+      
+      self.text.append("desc/id/%s" % fingerprint)
+      descriptorEntry = conn.getDescriptorEntry(fingerprint)
+      
+      if descriptorEntry: self.text += descriptorEntry.split("\n")
+      else: self.text = self.text + [ERROR_MSG]
   
   def handleKey(self, key, height):
     if key == curses.KEY_UP: self.scroll = max(self.scroll - 1, 0)
