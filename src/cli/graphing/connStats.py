@@ -20,6 +20,10 @@ class ConnStats(graphPanel.GraphStats):
     self.resetListener(conn, torTools.State.INIT) # initialize port values
     conn.addStatusListener(self.resetListener)
   
+  def clone(self, newCopy=None):
+    if not newCopy: newCopy = ConnStats()
+    return graphPanel.GraphStats.clone(self, newCopy)
+  
   def resetListener(self, conn, eventType):
     if eventType == torTools.State.INIT:
       self.orPort = conn.getOption("ORPort", "0")

@@ -60,7 +60,7 @@ class GraphStats(TorCtl.PostEventListener):
   time and timescale parameters use the labels defined in UPDATE_INTERVALS.
   """
   
-  def __init__(self, isPauseBuffer=False):
+  def __init__(self):
     """
     Initializes parameters needed to present a graph.
     """
@@ -69,11 +69,7 @@ class GraphStats(TorCtl.PostEventListener):
     
     # panel to be redrawn when updated (set when added to GraphPanel)
     self._graphPanel = None
-    
-    # mirror instance used to track updates when paused
-    self.isPaused, self.isPauseBuffer = False, isPauseBuffer
-    if isPauseBuffer: self._pauseBuffer = None
-    else: self._pauseBuffer = GraphStats(True)
+    self.isSelected = False
     
     # tracked stats
     self.tick = 0                                 # number of processed events
@@ -95,6 +91,26 @@ class GraphStats(TorCtl.PostEventListener):
       self.primaryCounts[i] = (self.maxCol + 1) * [0]
       self.secondaryCounts[i] = (self.maxCol + 1) * [0]
   
+  def clone(self, newCopy=None):
+    """
+    Provides a deep copy of this instance.
+    
+    Arguments:
+      newCopy - base instance to build copy off of
+    """
+    
+    if not newCopy: newCopy = GraphStats()
+    newCopy.tick = self.tick
+    newCopy.lastPrimary = self.lastPrimary
+    newCopy.lastSecondary = self.lastSecondary
+    newCopy.primaryTotal = self.primaryTotal
+    newCopy.secondaryTotal = self.secondaryTotal
+    newCopy.maxPrimary = dict(self.maxPrimary)
+    newCopy.maxSecondary = dict(self.maxSecondary)
+    newCopy.primaryCounts = copy.deepcopy(self.primaryCounts)
+    newCopy.secondaryCounts = copy.deepcopy(self.secondaryCounts)
+    return newCopy
+  
   def eventTick(self):
     """
     Called when it's time to process another event. All graphs use tor BW
@@ -109,7 +125,7 @@ class GraphStats(TorCtl.PostEventListener):
     being redrawn.
     """
     
-    if self._graphPanel and not self.isPauseBuffer and not self.isPaused:
+    if self._graphPanel and self.isSelected and not self._graphPanel.isPaused():
       # use the minimum of the current refresh rate and the panel's
       updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
       return (self.tick + 1) % min(updateRate, self.getRefreshRate()) == 0
@@ -165,78 +181,40 @@ class GraphStats(TorCtl.PostEventListener):
     
     pass
   
-  def setPaused(self, isPause):
-    """
-    If true, prevents bandwidth updates from being presented. This is a no-op
-    if a pause buffer.
-    """
-    
-    if isPause == self.isPaused or self.isPauseBuffer: return
-    self.isPaused = isPause
-    
-    if self.isPaused: active, inactive = self._pauseBuffer, self
-    else: active, inactive = self, self._pauseBuffer
-    self._parameterSwap(active, inactive)
-  
   def bandwidth_event(self, event):
     self.eventTick()
-  
-  def _parameterSwap(self, active, inactive):
-    """
-    Either overwrites parameters of pauseBuffer or with the current values or
-    vice versa. This is a helper method for setPaused and should be overwritten
-    to append with additional parameters that need to be preserved when paused.
-    """
-    
-    # The pause buffer is constructed as a GraphStats instance which will
-    # become problematic if this is overridden by any implementations (which
-    # currently isn't the case). If this happens then the pause buffer will
-    # need to be of the requester's type (not quite sure how to do this
-    # gracefully...).
-    
-    active.tick = inactive.tick
-    active.lastPrimary = inactive.lastPrimary
-    active.lastSecondary = inactive.lastSecondary
-    active.primaryTotal = inactive.primaryTotal
-    active.secondaryTotal = inactive.secondaryTotal
-    active.maxPrimary = dict(inactive.maxPrimary)
-    active.maxSecondary = dict(inactive.maxSecondary)
-    active.primaryCounts = copy.deepcopy(inactive.primaryCounts)
-    active.secondaryCounts = copy.deepcopy(inactive.secondaryCounts)
   
   def _processEvent(self, primary, secondary):
     """
     Includes new stats in graphs and notifies associated GraphPanel of changes.
     """
     
-    if self.isPaused: self._pauseBuffer._processEvent(primary, secondary)
-    else:
-      isRedraw = self.isNextTickRedraw()
+    isRedraw = self.isNextTickRedraw()
+    
+    self.lastPrimary, self.lastSecondary = primary, secondary
+    self.primaryTotal += primary
+    self.secondaryTotal += secondary
+    
+    # updates for all time intervals
+    self.tick += 1
+    for i in range(len(UPDATE_INTERVALS)):
+      lable, timescale = UPDATE_INTERVALS[i]
       
-      self.lastPrimary, self.lastSecondary = primary, secondary
-      self.primaryTotal += primary
-      self.secondaryTotal += secondary
+      self.primaryCounts[i][0] += primary
+      self.secondaryCounts[i][0] += secondary
       
-      # updates for all time intervals
-      self.tick += 1
-      for i in range(len(UPDATE_INTERVALS)):
-        lable, timescale = UPDATE_INTERVALS[i]
+      if self.tick % timescale == 0:
+        self.maxPrimary[i] = max(self.maxPrimary[i], self.primaryCounts[i][0] / timescale)
+        self.primaryCounts[i][0] /= timescale
+        self.primaryCounts[i].insert(0, 0)
+        del self.primaryCounts[i][self.maxCol + 1:]
         
-        self.primaryCounts[i][0] += primary
-        self.secondaryCounts[i][0] += secondary
-        
-        if self.tick % timescale == 0:
-          self.maxPrimary[i] = max(self.maxPrimary[i], self.primaryCounts[i][0] / timescale)
-          self.primaryCounts[i][0] /= timescale
-          self.primaryCounts[i].insert(0, 0)
-          del self.primaryCounts[i][self.maxCol + 1:]
-          
-          self.maxSecondary[i] = max(self.maxSecondary[i], self.secondaryCounts[i][0] / timescale)
-          self.secondaryCounts[i][0] /= timescale
-          self.secondaryCounts[i].insert(0, 0)
-          del self.secondaryCounts[i][self.maxCol + 1:]
-      
-      if isRedraw: self._graphPanel.redraw(True)
+        self.maxSecondary[i] = max(self.maxSecondary[i], self.secondaryCounts[i][0] / timescale)
+        self.secondaryCounts[i][0] /= timescale
+        self.secondaryCounts[i].insert(0, 0)
+        del self.secondaryCounts[i][self.maxCol + 1:]
+    
+    if isRedraw: self._graphPanel.redraw(True)
 
 class GraphPanel(panel.Panel):
   """
@@ -252,7 +230,7 @@ class GraphPanel(panel.Panel):
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
     self.showLabel = True         # shows top label if true, hides otherwise
-    self.isPaused = False
+    self.setPauseAttr("stats")
   
   def getHeight(self):
     """
@@ -279,7 +257,7 @@ class GraphPanel(panel.Panel):
     """ Redraws graph panel """
     
     if self.currentDisplay:
-      param = self.stats[self.currentDisplay]
+      param = self.getAttr("stats")[self.currentDisplay]
       graphCol = min((width - 10) / 2, param.maxCol)
       
       primaryColor = uiTools.getColor(param.getColor(True))
@@ -387,21 +365,18 @@ class GraphPanel(panel.Panel):
     """
     
     if label != self.currentDisplay:
-      if self.currentDisplay: self.stats[self.currentDisplay].setPaused(True)
+      if self.currentDisplay: self.stats[self.currentDisplay].isSelected = False
       
       if not label:
         self.currentDisplay = None
       elif label in self.stats.keys():
         self.currentDisplay = label
-        self.stats[label].setPaused(self.isPaused)
+        self.stats[self.currentDisplay].isSelected = True
       else: raise ValueError("Unrecognized stats label: %s" % label)
   
-  def setPaused(self, isPause):
-    """
-    If true, prevents bandwidth updates from being presented.
-    """
-    
-    if isPause == self.isPaused: return
-    self.isPaused = isPause
-    if self.currentDisplay: self.stats[self.currentDisplay].setPaused(self.isPaused)
+  def copyAttr(self, attr):
+    if attr == "stats":
+      # uses custom clone method to copy GraphStats instances
+      return dict([(key, self.stats[key].clone()) for key in self.stats])
+    else: return panel.Panel.copyAttr(self, isPause)
 

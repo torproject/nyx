@@ -35,6 +35,7 @@ class BandwidthStats(graphPanel.GraphStats):
   def __init__(self, config=None):
     graphPanel.GraphStats.__init__(self)
     
+    self.inputConfig = config
     self._config = dict(DEFAULT_CONFIG)
     if config:
       config.update(self._config, {"features.graph.bw.accounting.rate": 1})
@@ -72,6 +73,10 @@ class BandwidthStats(graphPanel.GraphStats):
     writeTotal = conn.getInfo("traffic/written")
     if writeTotal and writeTotal.isdigit():
       self.initialSecondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
+  
+  def clone(self, newCopy=None):
+    if not newCopy: newCopy = BandwidthStats(self.inputConfig)
+    return graphPanel.GraphStats.clone(self, newCopy)
   
   def resetListener(self, conn, eventType):
     # updates title parameters and accounting status if they changed

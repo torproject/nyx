@@ -14,6 +14,10 @@ class ResourceStats(graphPanel.GraphStats):
     graphPanel.GraphStats.__init__(self)
     self.queryPid = torTools.getConn().getMyPid()
   
+  def clone(self, newCopy=None):
+    if not newCopy: newCopy = ResourceStats()
+    return graphPanel.GraphStats.clone(self, newCopy)
+  
   def getTitle(self, width):
     return "System Resources:"
   

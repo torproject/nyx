@@ -3,6 +3,8 @@ Wrapper for safely working with curses subwindows.
 """
 
 import sys
+import copy
+import time
 import traceback
 import curses
 from threading import RLock
@@ -59,6 +61,16 @@ class Panel():
     self.panelName = name
     self.parent = parent
     self.visible = True
+    
+    # Attributes for pausing. The pauseAttr contains variables our getAttr
+    # method is tracking, and the pause buffer has copies of the values from
+    # when we were last unpaused (unused unless we're paused).
+    
+    self.paused = False
+    self.pauseAttr = []
+    self.pauseBuffer = {}
+    self.pauseTime = -1
+    
     self.top = top
     self.height = height
     self.width = width
@@ -116,6 +128,96 @@ class Panel():
     """
     
     self.visible = isVisible
+  
+  def isPaused(self):
+    """
+    Provides if the panel's configured to be paused or not.
+    """
+    
+    return self.paused
+  
+  def setPauseAttr(self, attr):
+    """
+    Configures the panel to track the given attribute so that getAttr provides
+    the value when it was last unpaused (or its current value if we're
+    currently unpaused). For instance...
+    
+    > self.setPauseAttr("myVar")
+    > self.myVar = 5
+    > self.myVar = 6 # self.getAttr("myVar") -> 6
+    > self.setPaused(True)
+    > self.myVar = 7 # self.getAttr("myVar") -> 6
+    > self.setPaused(False)
+    > self.myVar = 7 # self.getAttr("myVar") -> 7
+    
+    Arguments:
+      attr - parameter to be tracked for getAttr
+    """
+    
+    self.pauseAttr.append(attr)
+    self.pauseBuffer[attr] = self.copyAttr(attr)
+  
+  def getAttr(self, attr):
+    """
+    Provides the value of the given attribute when we were last unpaused. If
+    we're currently unpaused then this is the current value. If untracked this
+    returns None.
+    
+    Arguments:
+      attr - local variable to be returned
+    """
+    
+    if not attr in self.pauseAttr: return None
+    elif self.isPaused(): return self.pauseBuffer[attr]
+    else: return self.__dict__.get(attr)
+  
+  def copyAttr(self, attr):
+    """
+    Provides a duplicate of the given configuration value, suitable for the
+    pause buffer.
+    
+    Arguments:
+      attr - parameter to be provided back
+    """
+    
+    currentValue = self.__dict__.get(attr)
+    return copy.copy(currentValue)
+  
+  def setPaused(self, isPause, suppressRedraw = False):
+    """
+    Toggles if the panel is paused or not. This causes the panel to be redrawn
+    when toggling is pause state unless told to do otherwise. This is
+    important when pausing since otherwise the panel's display could change
+    when redrawn for other reasons.
+    
+    This returns True if the panel's pause state was changed, False otherwise.
+    
+    Arguments:
+      isPause        - freezes the state of the pause attributes if true, makes
+                       them editable otherwise
+      suppressRedraw - if true then this will never redraw the panel
+    """
+    
+    if isPause != self.paused:
+      if isPause: self.pauseTime = time.time()
+      self.paused = isPause
+      
+      if isPause:
+        # copies tracked attributes so we know what they were before pausing
+        for attr in self.pauseAttr:
+          self.pauseBuffer[attr] = self.copyAttr(attr)
+      
+      if not suppressRedraw: self.redraw(True)
+      return True
+    else: return False
+  
+  def getPauseTime(self):
+    """
+    Provides the time that we were last paused, returning -1 if we've never
+    been paused.
+    """
+    
+    return self.pauseTime
   
   def getTop(self):
     """

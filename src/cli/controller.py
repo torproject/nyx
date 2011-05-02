@@ -45,8 +45,6 @@ PAGES = [
   ["config"],
   ["torrc"]]
 
-PAUSEABLE = ["header", "graph", "log", "conn"]
-
 CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.type": 1,
           "features.config.prepopulateEditValues": True,
@@ -142,6 +140,9 @@ class Popup(panel.Panel):
   def __init__(self, stdscr, height):
     panel.Panel.__init__(self, stdscr, "popup", 0, height)
   
+  def setPaused(self, isPause):
+    panel.Panel.setPaused(self, isPause, True)
+  
   # The following methods are to emulate old panel functionality (this was the
   # only implementations to use these methods and will require a complete
   # rewrite when refactoring gets here)
@@ -217,7 +218,11 @@ def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
   reguardless of the monitor is paused or not.
   """
   
-  for key in PAUSEABLE: panels[key].setPaused(overwrite or monitorIsPaused or (key not in PAGES[currentPage] and key not in PAGE_S))
+  allPanels = list(PAGE_S)
+  for pagePanels in PAGES:
+    allPanels += pagePanels
+  
+  for key in allPanels: panels[key].setPaused(overwrite or monitorIsPaused or (key not in PAGES[currentPage] and key not in PAGE_S))
 
 def showMenu(stdscr, popup, title, options, initialSelection):
   """

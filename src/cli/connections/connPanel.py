@@ -55,8 +55,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self._lastUpdate = -1       # time the content was last revised
     self._isTorRunning = True   # indicates if tor is currently running or not
-    self._isPaused = True       # prevents updates if true
-    self._pauseTime = None      # time when the panel was paused
+    self._haltTime = None       # time when tor was stopped
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
     self.valsLock = threading.RLock()
@@ -90,27 +89,19 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self._isTorRunning = eventType == torTools.State.INIT
     
-    if self._isPaused or not self._isTorRunning:
-      if not self._pauseTime: self._pauseTime = time.time()
-    else: self._pauseTime = None
+    if self._isTorRunning: self._haltTime = None
+    else: self._haltTime = time.time()
     
     self.redraw(True)
   
-  def setPaused(self, isPause):
+  def getPauseTime(self):
     """
-    If true, prevents the panel from updating.
+    Provides the time Tor stopped if it isn't running. Otherwise this is the
+    time we were last paused.
     """
     
-    if not self._isPaused == isPause:
-      self._isPaused = isPause
-      
-      if isPause or not self._isTorRunning:
-        if not self._pauseTime: self._pauseTime = time.time()
-      else: self._pauseTime = None
-      
-      # redraws so the display reflects any changes between the last update
-      # and being paused
-      self.redraw(True)
+    if self._haltTime: return self._haltTime
+    else: return panel.Panel.getPauseTime(self)
   
   def setSortOrder(self, ordering = None):
     """
@@ -180,7 +171,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     while not self._halt:
       currentTime = time.time()
       
-      if self._isPaused or not self._isTorRunning or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
+      if self.isPaused() or not self._isTorRunning or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
         self._cond.release()
@@ -224,7 +215,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       scrollOffset = 3
       self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._entryLines), 1 + detailPanelOffset)
     
-    currentTime = self._pauseTime if self._pauseTime else time.time()
+    if self.isPaused() or not self._isTorRunning:
+      currentTime = self.getPauseTime()
+    else: currentTime = time.time()
+    
     for lineNum in range(scrollLoc, len(self._entryLines)):
       entryLine = self._entryLines[lineNum]
       

@@ -61,7 +61,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     self._isTorConnected = True
     self._lastUpdate = -1       # time the content was last revised
-    self._isPaused = False      # prevents updates if true
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
     
@@ -174,9 +173,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     uptimeLabel = ""
     if self.vals["tor/startTime"]:
-      if self._haltTime:
+      if self.isPaused() or not self._isTorConnected:
         # freeze the uptime when paused or the tor process is stopped
-        uptimeLabel = uiTools.getShortTimeLabel(self._haltTime - self.vals["tor/startTime"])
+        uptimeLabel = uiTools.getShortTimeLabel(self.getPauseTime() - self.vals["tor/startTime"])
       else:
         uptimeLabel = uiTools.getShortTimeLabel(time.time() - self.vals["tor/startTime"])
     
@@ -263,21 +262,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     self.valsLock.release()
   
-  def setPaused(self, isPause):
+  def getPauseTime(self):
     """
-    If true, prevents updates from being presented.
+    Provides the time Tor stopped if it isn't running. Otherwise this is the
+    time we were last paused.
     """
     
-    if not self._isPaused == isPause:
-      self._isPaused = isPause
-      if self._isTorConnected:
-        if isPause: self._haltTime = time.time()
-        else: self._haltTime = None
-      
-      # Redraw now so we'll be displaying the state right when paused
-      # (otherwise the uptime might be off by a second, and change when
-      # the panel's redrawn for other reasons).
-      self.redraw(True)
+    if self._haltTime: return self._haltTime
+    else: return panel.Panel.getPauseTime(self)
   
   def run(self):
     """
@@ -288,7 +280,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     while not self._halt:
       currentTime = time.time()
       
-      if self._isPaused or currentTime - lastDraw < 1 or not self._isTorConnected:
+      if self.isPaused() or currentTime - lastDraw < 1 or not self._isTorConnected:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
         self._cond.release()
@@ -332,9 +324,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     if eventType == torTools.State.INIT:
       self._isTorConnected = True
-      if self._isPaused: self._haltTime = time.time()
-      else: self._haltTime = None
-      
+      self._haltTime = None
       self._update(True)
       self.redraw(True)
     elif eventType == torTools.State.CLOSED:

@@ -542,14 +542,13 @@ class LogPanel(panel.Panel, threading.Thread):
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
     
+    self.setPauseAttr("msgLog")         # tracks the message log when we're paused
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
     self.lastContentHeight = 0          # height of the rendered content when last drawn
     self.logFile = None                 # file log messages are saved to (skipped if None)
     self.scroll = 0
-    self._isPaused = False
-    self._pauseBuffer = []              # location where messages are buffered if paused
     
     self._lastUpdate = -1               # time the content was last revised
     self._halt = False                  # terminates thread if true
@@ -557,7 +556,7 @@ class LogPanel(panel.Panel, threading.Thread):
     
     # restricts concurrent write access to attributes used to draw the display
     # and pausing:
-    # msgLog, loggedEvents, regexFilter, scroll, _pauseBuffer
+    # msgLog, loggedEvents, regexFilter, scroll
     self.valsLock = threading.RLock()
     
     # cached parameters (invalidated if arguments for them change)
@@ -654,23 +653,17 @@ class LogPanel(panel.Panel, threading.Thread):
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
-    if self._isPaused:
-      self.valsLock.acquire()
-      self._pauseBuffer.insert(0, event)
-      self._trimEvents(self._pauseBuffer)
-      self.valsLock.release()
-    else:
-      self.valsLock.acquire()
-      self.msgLog.insert(0, event)
-      self._trimEvents(self.msgLog)
-      
-      # notifies the display that it has new content
-      if not self.regexFilter or self.regexFilter.search(event.getDisplayMessage()):
-        self._cond.acquire()
-        self._cond.notifyAll()
-        self._cond.release()
-      
-      self.valsLock.release()
+    self.valsLock.acquire()
+    self.msgLog.insert(0, event)
+    self._trimEvents(self.msgLog)
+    
+    # notifies the display that it has new content
+    if not self.regexFilter or self.regexFilter.search(event.getDisplayMessage()):
+      self._cond.acquire()
+      self._cond.notifyAll()
+      self._cond.release()
+    
+    self.valsLock.release()
   
   def _registerArmEvent(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]
@@ -763,29 +756,16 @@ class LogPanel(panel.Panel, threading.Thread):
       self.redraw(True)
       self.valsLock.release()
   
-  def setPaused(self, isPause):
-    """
-    If true, prevents message log from being updated with new events.
-    """
-    
-    if isPause == self._isPaused: return
-    
-    self._isPaused = isPause
-    if self._isPaused: self._pauseBuffer = []
-    else:
-      self.valsLock.acquire()
-      self.msgLog = (self._pauseBuffer + self.msgLog)[:self._config["cache.logPanel.size"]]
-      self.redraw(True)
-      self.valsLock.release()
-  
   def draw(self, width, height):
     """
     Redraws message log. Entries stretch to use available space and may
     contain up to two lines. Starts with newest entries.
     """
     
+    currentLog = self.getAttr("msgLog")
+    
     self.valsLock.acquire()
-    self._lastLoggedEvents, self._lastUpdate = list(self.msgLog), time.time()
+    self._lastLoggedEvents, self._lastUpdate = list(currentLog), time.time()
     
     # draws the top label
     self.addstr(0, 0, self._getTitle(width), curses.A_STANDOUT)
@@ -806,7 +786,7 @@ class LogPanel(panel.Panel, threading.Thread):
     dividerAttr, duplicateAttr = curses.A_BOLD | uiTools.getColor("yellow"), curses.A_BOLD | uiTools.getColor("green")
     
     isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
-    eventLog = getDaybreaks(self.msgLog, self._isPaused) if isDatesShown else list(self.msgLog)
+    eventLog = getDaybreaks(currentLog, self.isPaused()) if isDatesShown else list(currentLog)
     if not self.showDuplicates:
       deduplicatedLog = getDuplicates(eventLog)
       
@@ -950,7 +930,7 @@ class LogPanel(panel.Panel, threading.Thread):
       maxLogUpdateRate = self._config["features.log.maxRefreshRate"] / 1000.0
       
       sleepTime = 0
-      if (self.msgLog == self._lastLoggedEvents and lastDay == currentDay) or self._isPaused:
+      if (self.msgLog == self._lastLoggedEvents and lastDay == currentDay) or self.isPaused():
         sleepTime = 5
       elif timeSinceReset < maxLogUpdateRate:
         sleepTime = max(0.05, maxLogUpdateRate - timeSinceReset)

@@ -1179,7 +1179,7 @@ class Controller(TorCtl.PostEventListener):
     
     result = None
     if self.isAlive():
-      # determine the nickname if it isn't yet cached
+      # determine the fingerprint if it isn't yet cached
       if not relayNickname in self._nicknameToFpLookupCache:
         # Fingerprints are base64 encoded hex with an extra '='. For instance...
         # GETINFO ns/name/torexp2 ->
