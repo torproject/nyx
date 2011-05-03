@@ -9,12 +9,9 @@
 # argument replacement (ie, replace argv[0], argv[1], etc but with a string
 # the same size).
 
-import os
 import sys
 import ctypes
 import ctypes.util
-
-from util import sysTools
 
 # flag for setting the process name, found in '/usr/include/linux/prctl.h'
 PR_SET_NAME = 15
@@ -65,24 +62,21 @@ def _setArgv(processName):
   if currentProcessName == None:
     # Getting argv via...
     # currentProcessName = " ".join(["python"] + sys.argv)
-    #
+    # 
     # doesn't do the trick since this will miss interpretor arguments like...
     # python -W ignore::DeprecationWarning myScript.py
     # 
-    # hence simply getting an outside opinion of our command.
+    # Hence we're fetching this via our ctypes argv. Alternatively we could
+    # use ps, though this is less desirable:
+    # "ps -p %i -o args" % os.getpid()
     
-    psResults = sysTools.call("ps -p %i -o args" % os.getpid())
+    args = []
+    for i in range(100):
+      if argc[i] == None: break
+      args.append(str(argc[i]))
     
-    if len(psResults) == 2:
-      # output looks like:
-      # COMMAND
-      # python ./src/starter.py
-      
-      currentProcessName = psResults[1]
-      maxNameLength = len(currentProcessName)
-    
-    if not currentProcessName:
-      raise IOError("unable to determine our process name")
+    currentProcessName = " ".join(args)
+    maxNameLength = len(currentProcessName)
   
   if len(processName) > maxNameLength:
     msg = "can't rename process to something longer than our initial name since this would overwrite memory used for the env"
@@ -93,7 +87,7 @@ def _setArgv(processName):
   
   ctypes.memset(argc.contents, 0, zeroSize + 1) # null terminate the string's end
   ctypes.memmove(argc.contents, processName, len(processName))
-  currentProcessName = processName[:MAX_CHAR]
+  currentProcessName = processName
 
 def _setPrctlName(processName):
   """
