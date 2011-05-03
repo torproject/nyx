@@ -387,5 +387,13 @@ if __name__ == '__main__':
     util.log.log(CONFIG["log.savingDebugLog"], "Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
     _dumpConfig()
   
+  # Attempts to rename our process from "python setup.py <input args>" to
+  # "arm <input args>"
+  
+  try:
+    from util import procname
+    procname.renameProcess("arm %s" % " ".join(sys.argv[1:]))
+  except: pass
+  
   cli.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
 
