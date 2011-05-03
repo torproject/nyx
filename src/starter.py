@@ -392,7 +392,7 @@ if __name__ == '__main__':
   
   try:
     from util import procname
-    procname.renameProcess("arm %s" % " ".join(sys.argv[1:]))
+    procname.renameProcess("arm\0%s" % "\0".join(sys.argv[1:]))
   except: pass
   
   cli.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])

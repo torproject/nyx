@@ -19,10 +19,6 @@ from util import sysTools
 # flag for setting the process name, found in '/usr/include/linux/prctl.h'
 PR_SET_NAME = 15
 
-# Maximum number of characters we'll set the process name to. Evidently this
-# cap was simply chosen since it didn't cause a segfault for its author.
-MAX_CHAR = 1608
-
 argc_t = ctypes.POINTER(ctypes.c_char_p)
 
 Py_GetArgcArgv = ctypes.pythonapi.Py_GetArgcArgv
@@ -32,6 +28,7 @@ Py_GetArgcArgv.argtypes = [ctypes.POINTER(ctypes.c_int),
 
 # tracks the last name we've changed the process to
 currentProcessName = None
+maxNameLength = -1
 
 def renameProcess(processName):
   """
@@ -53,7 +50,7 @@ def _setArgv(processName):
   strcpy(argv[0], "new_name");
   """
   
-  global currentProcessName
+  global currentProcessName, maxNameLength
   
   argv = ctypes.c_int(0)
   argc = argc_t()
@@ -66,7 +63,7 @@ def _setArgv(processName):
   # for Jake's implementation on this.
   
   if currentProcessName == None:
-    # Using argv via...
+    # Getting argv via...
     # currentProcessName = " ".join(["python"] + sys.argv)
     #
     # doesn't do the trick since this will miss interpretor arguments like...
@@ -82,18 +79,20 @@ def _setArgv(processName):
       # python ./src/starter.py
       
       currentProcessName = psResults[1]
+      maxNameLength = len(currentProcessName)
     
     if not currentProcessName:
       raise IOError("unable to determine our process name")
   
-  # we need to fill extra space with null characters, otherwise the process
-  # will end with a '?' when you run ps against it
-  if len(currentProcessName) > len(processName):
-    processName += "\0" * (len(currentProcessName) - len(processName))
+  if len(processName) > maxNameLength:
+    msg = "can't rename process to something longer than our initial name since this would overwrite memory used for the env"
+    raise IOError(msg)
   
-  size = min(len(processName), MAX_CHAR)
-  ctypes.memset(argc.contents, 0, size + 1) # null terminate the string's end
-  ctypes.memmove(argc.contents, processName, size)
+  # space we need to clear
+  zeroSize = max(len(currentProcessName), len(processName))
+  
+  ctypes.memset(argc.contents, 0, zeroSize + 1) # null terminate the string's end
+  ctypes.memmove(argc.contents, processName, len(processName))
   currentProcessName = processName[:MAX_CHAR]
 
 def _setPrctlName(processName):
