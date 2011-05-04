@@ -969,6 +969,15 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
           popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
           popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
+          popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
+          popup.addfstr(3, 41, "<b>w</b>: save configuration")
+          popup.addfstr(4, 2, "<b>a</b>: toggle option filtering")
+          popup.addfstr(4, 41, "<b>s</b>: sort ordering")
+        elif page == 3:
+          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
+          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
+          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
+          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
           
           strippingLabel = "on" if panels["torrc"].stripComments else "off"
           popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
@@ -978,12 +987,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           
           popup.addfstr(4, 2, "<b>r</b>: reload torrc")
           popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
-        elif page == 3:
-          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
-          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
-          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
-          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
-          popup.addfstr(3, 2, "<b>enter</b>: connection details")
         
         popup.addstr(7, 2, "Press any key...")
         popup.refresh()
