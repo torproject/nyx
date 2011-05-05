@@ -530,6 +530,11 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
+    # Make sure that the msg.* messages are loaded. Lazy loading it later is
+    # fine, but this way we're sure it happens before warning about unused
+    # config options.
+    loadLogMessages()
+    
     self._config = dict(DEFAULT_CONFIG)
     
     if config:
