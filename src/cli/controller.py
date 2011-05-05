@@ -808,7 +808,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
           quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
           curses.halfdelay(REFRESH_RATE * 10)
           
-          panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
+          if not quitConfirmed:
+            panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
           setPauseState(panels, isPaused, page)
         finally:
           panel.CURSES_LOCK.release()
