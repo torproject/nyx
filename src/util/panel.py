@@ -60,7 +60,7 @@ class Panel():
     
     self.panelName = name
     self.parent = parent
-    self.visible = True
+    self.visible = False
     
     # Attributes for pausing. The pauseAttr contains variables our getAttr
     # method is tracking, and the pause buffer has copies of the values from

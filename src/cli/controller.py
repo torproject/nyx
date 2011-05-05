@@ -651,6 +651,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   lastSize = None
   
   # sets initial visiblity for the pages
+  for entry in PAGE_S: panels[entry].setVisible(True)
+  
   for i in range(len(PAGES)):
     isVisible = i == page
     for entry in PAGES[i]: panels[entry].setVisible(isVisible)
