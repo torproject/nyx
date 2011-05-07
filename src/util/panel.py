@@ -290,6 +290,15 @@ class Panel():
     if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
   
+  def getHelp(self):
+    """
+    Provides help information for the controls this page provides. This is a
+    list of tuples of the form...
+    (control, description, status)
+    """
+    
+    return []
+  
   def draw(self, width, height):
     """
     Draws display's content. This is meant to be overwritten by 

@@ -15,6 +15,7 @@ import curses.textpad
 import socket
 from TorCtl import TorCtl
 
+import popups
 import headerPanel
 import graphing.graphPanel
 import logPanel
@@ -29,6 +30,56 @@ from util import conf, log, connections, hostnames, panel, sysTools, torConfig, 
 import graphing.bandwidthStats
 import graphing.connStats
 import graphing.resourceStats
+
+# TODO: controller should be its own object that can be refreshed - until that
+# emulating via a 'refresh' flag
+REFRESH_FLAG = False
+
+def refresh():
+  global REFRESH_FLAG
+  REFRESH_FLAG = True
+
+# new panel params and accessors (this is part of the new controller apis)
+PANELS = {}
+STDSCR = None
+
+def getScreen():
+  return STDSCR
+
+def getPage():
+  """
+  Provides the number belonging to this page. Page numbers start at one.
+  """
+  
+  return PAGE + 1
+
+def getPanel(name):
+  """
+  Provides the panel with the given identifier.
+  
+  Arguments:
+    name - name of the panel to be fetched
+  """
+  
+  return PANELS[name]
+
+def getPanels(page = None):
+  """
+  Provides all panels or all panels from a given page.
+  
+  Arguments:
+    page - page number of the panels to be fetched, all panels if undefined
+  """
+  
+  panelSet = []
+  if page == None:
+    # fetches all panel names
+    panelSet = list(PAGE_S)
+    for pagePanels in PAGES:
+      panelSet += pagePanels
+  else: panelSet = PAGES[page - 1]
+  
+  return [getPanel(name) for name in panelSet]
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
@@ -422,6 +473,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     otherwise unrecognized events)
   """
   
+  global PANELS, STDSCR, REFRESH_FLAG, PAGE
+  STDSCR = stdscr
+  
   # loads config for various interface components
   config = conf.getConfig("arm")
   config.update(CONFIG)
@@ -609,6 +663,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     pluralLabel = "s" if len(missingEventTypes) > 1 else ""
     log.log(CONFIG["log.torEventTypeUnrecognized"], "arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (pluralLabel, ", ".join(missingEventTypes)))
   
+  PANELS = panels
+  
   # tells revised panels to run as daemons
   panels["header"].start()
   panels["log"].start()
@@ -630,6 +686,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   page = 0
   regexFilters = []             # previously used log regex filters
   panels["popup"].redraw(True)  # hack to make sure popup has a window instance (not entirely sure why...)
+  
+  PAGE = page
   
   # provides notice about any unused config keys
   for key in config.getUnusedKeys():
@@ -866,6 +924,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         isVisible = i == page
         for entry in PAGES[i]: panels[entry].setVisible(isVisible)
       
+      PAGE = page
+      
       panels["control"].page = page + 1
       
       # TODO: this redraw doesn't seem necessary (redraws anyway after this
@@ -914,96 +974,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       finally:
         panel.CURSES_LOCK.release()
     elif key == ord('h') or key == ord('H'):
-      # displays popup for current page's controls
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # lists commands
-        popup = panels["popup"]
-        popup.clear()
-        popup.win.box()
-        popup.addstr(0, 0, "Page %i Commands:" % (page + 1), curses.A_STANDOUT)
-        
-        pageOverrideKeys = ()
-        
-        if page == 0:
-          graphedStats = panels["graph"].currentDisplay
-          if not graphedStats: graphedStats = "none"
-          popup.addfstr(1, 2, "<b>up arrow</b>: scroll log up a line")
-          popup.addfstr(1, 41, "<b>down arrow</b>: scroll log down a line")
-          popup.addfstr(2, 2, "<b>m</b>: increase graph size")
-          popup.addfstr(2, 41, "<b>n</b>: decrease graph size")
-          popup.addfstr(3, 2, "<b>s</b>: graphed stats (<b>%s</b>)" % graphedStats)
-          popup.addfstr(3, 41, "<b>i</b>: graph update interval (<b>%s</b>)" % graphing.graphPanel.UPDATE_INTERVALS[panels["graph"].updateInterval][0])
-          popup.addfstr(4, 2, "<b>b</b>: graph bounds (<b>%s</b>)" % panels["graph"].bounds.lower())
-          popup.addfstr(4, 41, "<b>a</b>: save snapshot of the log")
-          popup.addfstr(5, 2, "<b>e</b>: change logged events")
-          
-          regexLabel = "enabled" if panels["log"].regexFilter else "disabled"
-          popup.addfstr(5, 41, "<b>f</b>: log regex filter (<b>%s</b>)" % regexLabel)
-          
-          hiddenEntryLabel = "visible" if panels["log"].showDuplicates else "hidden"
-          popup.addfstr(6, 2, "<b>u</b>: duplicate log entries (<b>%s</b>)" % hiddenEntryLabel)
-          popup.addfstr(6, 41, "<b>c</b>: clear event log")
-          
-          pageOverrideKeys = (ord('m'), ord('n'), ord('s'), ord('i'), ord('d'), ord('e'), ord('r'), ord('f'), ord('x'))
-        if page == 1:
-          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
-          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
-          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
-          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
-          
-          popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
-          popup.addfstr(3, 41, "<b>d</b>: raw consensus descriptor")
-          
-          listingType = panels["conn"]._listingType.lower()
-          popup.addfstr(4, 2, "<b>l</b>: listed identity (<b>%s</b>)" % listingType)
-          
-          popup.addfstr(4, 41, "<b>s</b>: sort ordering")
-          
-          resolverUtil = connections.getResolver("tor").overwriteResolver
-          if resolverUtil == None: resolverUtil = "auto"
-          popup.addfstr(5, 2, "<b>u</b>: resolving utility (<b>%s</b>)" % resolverUtil)
-          
-          pageOverrideKeys = (ord('d'), ord('l'), ord('s'), ord('u'))
-        elif page == 2:
-          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
-          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
-          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
-          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
-          popup.addfstr(3, 2, "<b>enter</b>: edit configuration option")
-          popup.addfstr(3, 41, "<b>w</b>: save configuration")
-          popup.addfstr(4, 2, "<b>a</b>: toggle option filtering")
-          popup.addfstr(4, 41, "<b>s</b>: sort ordering")
-        elif page == 3:
-          popup.addfstr(1, 2, "<b>up arrow</b>: scroll up a line")
-          popup.addfstr(1, 41, "<b>down arrow</b>: scroll down a line")
-          popup.addfstr(2, 2, "<b>page up</b>: scroll up a page")
-          popup.addfstr(2, 41, "<b>page down</b>: scroll down a page")
-          
-          strippingLabel = "on" if panels["torrc"].stripComments else "off"
-          popup.addfstr(3, 2, "<b>s</b>: comment stripping (<b>%s</b>)" % strippingLabel)
-          
-          lineNumLabel = "on" if panels["torrc"].showLineNum else "off"
-          popup.addfstr(3, 41, "<b>n</b>: line numbering (<b>%s</b>)" % lineNumLabel)
-          
-          popup.addfstr(4, 2, "<b>r</b>: reload torrc")
-          popup.addfstr(4, 41, "<b>x</b>: reset tor (issue sighup)")
-        
-        popup.addstr(7, 2, "Press any key...")
-        popup.refresh()
-        
-        # waits for user to hit a key, if it belongs to a command then executes it
-        curses.cbreak()
-        helpExitKey = stdscr.getch()
-        if helpExitKey in pageOverrideKeys: overrideKey = helpExitKey
-        curses.halfdelay(REFRESH_RATE * 10)
-        
-        setPauseState(panels, isPaused, page)
-        selectiveRefresh(panels, page)
-      finally:
-        panel.CURSES_LOCK.release()
+      overrideKey = popups.showHelpPopup()
     elif page == 0 and (key == ord('s') or key == ord('S')):
       # provides menu to pick stats to be graphed
       #options = ["None"] + [label for label in panels["graph"].stats.keys()]
@@ -1585,6 +1556,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       panels["config"].handleKey(key)
     elif page == 3:
       panels["torrc"].handleKey(key)
+    
+    if REFRESH_FLAG:
+      REFRESH_FLAG = False
+      selectiveRefresh(panels, page)
 
 def startTorMonitor(startTime, loggedEvents, isBlindMode):
   try:

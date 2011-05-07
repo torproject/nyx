@@ -157,7 +157,8 @@ Layout:
       __init__.py
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information
-      descriptorPopup.py     - (popup) displays connection descriptor data
+      descriptorPopup.py     - displays connection descriptor data
+      popups.py              - toolkit providing display popups
       
       logPanel.py            - (page 1) displays tor, arm, and torctl events
       configPanel.py         - (page 3) editor panel for the tor configuration

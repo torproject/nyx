@@ -185,6 +185,22 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         drawTicks = (time.time() - lastDraw) / self._config["features.connection.refreshRate"]
         lastDraw += self._config["features.connection.refreshRate"] * drawTicks
   
+  def getHelp(self):
+    resolverUtil = connections.getResolver("tor").overwriteResolver
+    if resolverUtil == None: resolverUtil = "auto"
+    
+    options = []
+    options.append(("up arrow", "scroll up a line", None))
+    options.append(("down arrow", "scroll down a line", None))
+    options.append(("page up", "scroll up a page", None))
+    options.append(("page down", "scroll down a page", None))
+    options.append(("enter", "edit configuration option", None))
+    options.append(("d", "raw consensus descriptor", None))
+    options.append(("l", "listed identity", self._listingType.lower()))
+    options.append(("s", "sort ordering", None))
+    options.append(("u", "resolving utility", resolverUtil))
+    return options
+  
   def draw(self, width, height):
     self.valsLock.acquire()
     

@@ -253,6 +253,18 @@ class GraphPanel(panel.Panel):
     
     self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
   
+  def getHelp(self):
+    if self.currentDisplay: graphedStats = self.currentDisplay
+    else: graphedStats = "none"
+    
+    options = []
+    options.append(("m", "increase graph size", None))
+    options.append(("n", "decrease graph size", None))
+    options.append(("s", "graphed stats", graphedStats))
+    options.append(("b", "graph bounds", self.bounds.lower()))
+    options.append(("i", "graph update interval", UPDATE_INTERVALS[self.updateInterval][0]))
+    return options
+  
   def draw(self, width, height):
     """ Redraws graph panel """
     

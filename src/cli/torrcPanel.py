@@ -60,6 +60,18 @@ class TorrcPanel(panel.Panel):
     
     self.valsLock.release()
   
+  def getHelp(self):
+    options = []
+    options.append(("up arrow", "scroll up a line", None))
+    options.append(("down arrow", "scroll down a line", None))
+    options.append(("page up", "scroll up a page", None))
+    options.append(("page down", "scroll down a page", None))
+    options.append(("s", "comment stripping", "on" if self.stripComments else "off"))
+    options.append(("n", "line numbering", "on" if self.showLineNum else "off"))
+    options.append(("r", "reload torrc", None))
+    options.append(("x", "reset tor (issue sighup)", None))
+    return options
+  
   def draw(self, width, height):
     self.valsLock.acquire()
     

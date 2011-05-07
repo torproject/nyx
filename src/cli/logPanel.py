@@ -761,6 +761,17 @@ class LogPanel(panel.Panel, threading.Thread):
       self.redraw(True)
       self.valsLock.release()
   
+  def getHelp(self):
+    options = []
+    options.append(("up arrow", "scroll log up a line", None))
+    options.append(("down arrow", "scroll log down a line", None))
+    options.append(("a", "save snapshot of the log", None))
+    options.append(("e", "change logged events", None))
+    options.append(("f", "log regex filter", "enabled" if self.regexFilter else "disabled"))
+    options.append(("u", "duplicate log entries", "visible" if self.showDuplicates else "hidden"))
+    options.append(("c", "clear event log", None))
+    return options
+  
   def draw(self, width, height):
     """
     Redraws message log. Entries stretch to use available space and may

@@ -248,6 +248,18 @@ class ConfigPanel(panel.Panel):
       self.redraw(True)
     self.valsLock.release()
   
+  def getHelp(self):
+    options = []
+    options.append(("up arrow", "scroll up a line", None))
+    options.append(("down arrow", "scroll down a line", None))
+    options.append(("page up", "scroll up a page", None))
+    options.append(("page down", "scroll down a page", None))
+    options.append(("enter", "edit configuration option", None))
+    options.append(("w", "save configuration", None))
+    options.append(("a", "toggle option filtering", None))
+    options.append(("s", "sort ordering", None))
+    return options
+  
   def draw(self, width, height):
     self.valsLock.acquire()
     
