@@ -6,6 +6,8 @@ and the resulting configuration files saved.
 import curses
 import threading
 
+import popups
+
 from util import conf, enum, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
@@ -42,6 +44,16 @@ FIELD_ATTR = {Field.CATEGORY: ("Category", "red"),
               Field.DESCRIPTION: ("Description", "white"),
               Field.MAN_ENTRY: ("Man Page Entry", "blue"),
               Field.IS_DEFAULT: ("Is Default", "magenta")}
+
+def getFieldFromLabel(fieldLabel):
+  """
+  Converts field labels back to their enumeration, raising a ValueError if it
+  doesn't exist.
+  """
+  
+  for entryEnum in FIELD_ATTR:
+    if fieldLabel == FIELD_ATTR[entryEnum][0]:
+      return entryEnum
 
 class ConfigEntry():
   """
@@ -246,6 +258,19 @@ class ConfigPanel(panel.Panel):
     elif key == ord('a') or key == ord('A'):
       self.showAll = not self.showAll
       self.redraw(True)
+    elif key == ord('s') or key == ord('S'):
+      # set ordering for config options
+      titleLabel = "Config Option Ordering:"
+      options = [FIELD_ATTR[field][0] for field in Field.values()]
+      oldSelection = [FIELD_ATTR[field][0] for field in self.sortOrdering]
+      optionColors = dict([FIELD_ATTR[field] for field in Field.values()])
+      results = popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
+      
+      if results:
+        # converts labels back to enums
+        resultEnums = [getFieldFromLabel(label) for label in results]
+        self.setSortOrder(resultEnums)
+    
     self.valsLock.release()
   
   def getHelp(self):

@@ -108,3 +108,109 @@ def showHelpPopup():
     return exitKey
   else: return None
 
+def showSortDialog(titleLabel, options, oldSelection, optionColors):
+  """
+  Displays a sorting dialog of the form:
+  
+    Current Order: <previous selection>
+    New Order: <selections made>
+    
+    <option 1>    <option 2>    <option 3>   Cancel
+  
+  Options are colored when among the "Current Order" or "New Order", but not
+  when an option below them. If cancel is selected or the user presses escape
+  then this returns None. Otherwise, the new ordering is provided.
+  
+  Arguments:
+    titleLabel   - title displayed for the popup window
+    options      - ordered listing of option labels
+    oldSelection - current ordering
+    optionColors - mappings of options to their color
+  """
+  
+  popup, width, height = init(9, 80)
+  if not popup: return
+  newSelections = []  # new ordering
+  
+  try:
+    cursorLoc = 0     # index of highlighted option
+    curses.cbreak()   # wait indefinitely for key presses (no timeout)
+    
+    selectionOptions = list(options)
+    selectionOptions.append("Cancel")
+    
+    while len(newSelections) < len(oldSelection):
+      popup.win.erase()
+      popup.win.box()
+      popup.addstr(0, 0, titleLabel, curses.A_STANDOUT)
+      
+      _drawSortSelection(popup, 1, 2, "Current Order: ", oldSelection, optionColors)
+      _drawSortSelection(popup, 2, 2, "New Order: ", newSelections, optionColors)
+      
+      # presents remaining options, each row having up to four options with
+      # spacing of nineteen cells
+      row, col = 4, 0
+      for i in range(len(selectionOptions)):
+        optionFormat = curses.A_STANDOUT if cursorLoc == i else curses.A_NORMAL
+        popup.addstr(row, col * 19 + 2, selectionOptions[i], optionFormat)
+        col += 1
+        if col == 4: row, col = row + 1, 0
+      
+      popup.win.refresh()
+      
+      key = controller.getScreen().getch()
+      if key == curses.KEY_LEFT:
+        cursorLoc = max(0, cursorLoc - 1)
+      elif key == curses.KEY_RIGHT:
+        cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 1)
+      elif key == curses.KEY_UP:
+        cursorLoc = max(0, cursorLoc - 4)
+      elif key == curses.KEY_DOWN:
+        cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 4)
+      elif uiTools.isSelectionKey(key):
+        selection = selectionOptions[cursorLoc]
+        
+        if selection == "Cancel": break
+        else:
+          newSelections.append(selection)
+          selectionOptions.remove(selection)
+          cursorLoc = min(cursorLoc, len(selectionOptions) - 1)
+      elif key == 27: break # esc - cancel
+      
+    curses.halfdelay(controller.REFRESH_RATE * 10) # reset normal pausing behavior
+  finally: finalize()
+  
+  if len(newSelections) == len(oldSelection):
+    return newSelections
+  else: return None
+
+def _drawSortSelection(popup, y, x, prefix, options, optionColors):
+  """
+  Draws a series of comma separated sort selections. The whole line is bold
+  and sort options also have their specified color. Example:
+  
+    Current Order: Man Page Entry, Option Name, Is Default
+  
+  Arguments:
+    popup        - panel in which to draw sort selection
+    y            - vertical location
+    x            - horizontal location
+    prefix       - initial string description
+    options      - sort options to be shown
+    optionColors - mappings of options to their color
+  """
+  
+  popup.addstr(y, x, prefix, curses.A_BOLD)
+  x += len(prefix)
+  
+  for i in range(len(options)):
+    sortType = options[i]
+    sortColor = uiTools.getColor(optionColors.get(sortType, "white"))
+    popup.addstr(y, x, sortType, sortColor | curses.A_BOLD)
+    x += len(sortType)
+    
+    # comma divider between options, if this isn't the last
+    if i < len(options) - 1:
+      popup.addstr(y, x, ", ", curses.A_BOLD)
+      x += 2
+

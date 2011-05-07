@@ -6,6 +6,8 @@ import time
 import curses
 import threading
 
+import cli.popups
+
 from cli.connections import entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
@@ -149,6 +151,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif uiTools.isSelectionKey(key):
       self._showDetails = not self._showDetails
       self.redraw(True)
+    elif key == ord('s') or key == ord('S'):
+      # set ordering for connection options
+      titleLabel = "Connection Ordering:"
+      options = entries.SortAttr.values()
+      oldSelection = self._sortOrdering
+      optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
+      results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
+      if results: self.setSortOrder(results)
     
     self.valsLock.release()
   

@@ -326,98 +326,6 @@ def showMenu(stdscr, popup, title, options, initialSelection):
   
   return selection
 
-def showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors):
-  """
-  Displays a sorting dialog of the form:
-  
-  Current Order: <previous selection>
-  New Order: <selections made>
-  
-  <option 1>    <option 2>    <option 3>   Cancel
-  
-  Options are colored when among the "Current Order" or "New Order", but not
-  when an option below them. If cancel is selected or the user presses escape
-  then this returns None. Otherwise, the new ordering is provided.
-  
-  Arguments:
-    stdscr, panels, isPaused, page - boiler plate arguments of the controller
-        (should be refactored away when rewriting)
-    
-    titleLabel   - title displayed for the popup window
-    options      - ordered listing of option labels
-    oldSelection - current ordering
-    optionColors - mappings of options to their color
-  
-  """
-  
-  panel.CURSES_LOCK.acquire()
-  newSelections = []  # new ordering
-  
-  try:
-    setPauseState(panels, isPaused, page, True)
-    curses.cbreak() # wait indefinitely for key presses (no timeout)
-    
-    popup = panels["popup"]
-    cursorLoc = 0       # index of highlighted option
-    
-    # label for the inital ordering
-    formattedPrevListing = []
-    for sortType in oldSelection:
-      colorStr = optionColors.get(sortType, "white")
-      formattedPrevListing.append("<%s>%s</%s>" % (colorStr, sortType, colorStr))
-    prevOrderingLabel = "<b>Current Order: %s</b>" % ", ".join(formattedPrevListing)
-    
-    selectionOptions = list(options)
-    selectionOptions.append("Cancel")
-    
-    while len(newSelections) < len(oldSelection):
-      popup.clear()
-      popup.win.box()
-      popup.addstr(0, 0, titleLabel, curses.A_STANDOUT)
-      popup.addfstr(1, 2, prevOrderingLabel)
-      
-      # provides new ordering
-      formattedNewListing = []
-      for sortType in newSelections:
-        colorStr = optionColors.get(sortType, "white")
-        formattedNewListing.append("<%s>%s</%s>" % (colorStr, sortType, colorStr))
-      newOrderingLabel = "<b>New Order: %s</b>" % ", ".join(formattedNewListing)
-      popup.addfstr(2, 2, newOrderingLabel)
-      
-      # presents remaining options, each row having up to four options with
-      # spacing of nineteen cells
-      row, col = 4, 0
-      for i in range(len(selectionOptions)):
-        popup.addstr(row, col * 19 + 2, selectionOptions[i], curses.A_STANDOUT if cursorLoc == i else curses.A_NORMAL)
-        col += 1
-        if col == 4: row, col = row + 1, 0
-      
-      popup.refresh()
-      
-      key = stdscr.getch()
-      if key == curses.KEY_LEFT: cursorLoc = max(0, cursorLoc - 1)
-      elif key == curses.KEY_RIGHT: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 1)
-      elif key == curses.KEY_UP: cursorLoc = max(0, cursorLoc - 4)
-      elif key == curses.KEY_DOWN: cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 4)
-      elif uiTools.isSelectionKey(key):
-        # selected entry (the ord of '10' seems needed to pick up enter)
-        selection = selectionOptions[cursorLoc]
-        if selection == "Cancel": break
-        else:
-          newSelections.append(selection)
-          selectionOptions.remove(selection)
-          cursorLoc = min(cursorLoc, len(selectionOptions) - 1)
-      elif key == 27: break # esc - cancel
-      
-    setPauseState(panels, isPaused, page)
-    curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-  finally:
-    panel.CURSES_LOCK.release()
-  
-  if len(newSelections) == len(oldSelection):
-    return newSelections
-  else: return None
-
 def setEventListening(selectedEvents, isBlindMode):
   # creates a local copy, note that a suspected python bug causes *very*
   # puzzling results otherwise when trying to discard entries (silently
@@ -1282,18 +1190,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if selection != -1 and options[selection] != panels["conn"]._listingType:
         panels["conn"].setListingType(options[selection])
         panels["conn"].redraw(True)
-    elif page == 1 and (key == ord('s') or key == ord('S')):
-      # set ordering for connection options
-      titleLabel = "Connection Ordering:"
-      options = cli.connections.entries.SortAttr.values()
-      oldSelection = panels["conn"]._sortOrdering
-      optionColors = dict([(attr, cli.connections.entries.SORT_COLORS[attr]) for attr in options])
-      results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
-      
-      if results:
-        panels["conn"].setSortOrder(results)
-      
-      panels["conn"].redraw(True)
     elif page == 2 and (key == ord('c') or key == ord('C')) and False:
       # TODO: disabled for now (probably gonna be going with separate pages
       # rather than popup menu)
@@ -1444,27 +1340,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         popup.recreate(stdscr, 80)
       finally:
         panel.CURSES_LOCK.release()
-      
-      panels["config"].redraw(True)
-    elif page == 2 and (key == ord('s') or key == ord('S')):
-      # set ordering for config options
-      titleLabel = "Config Option Ordering:"
-      options = [configPanel.FIELD_ATTR[field][0] for field in configPanel.Field.values()]
-      oldSelection = [configPanel.FIELD_ATTR[field][0] for field in panels["config"].sortOrdering]
-      optionColors = dict([configPanel.FIELD_ATTR[field] for field in configPanel.Field.values()])
-      results = showSortDialog(stdscr, panels, isPaused, page, titleLabel, options, oldSelection, optionColors)
-      
-      if results:
-        # converts labels back to enums
-        resultEnums = []
-        
-        for label in results:
-          for entryEnum in configPanel.FIELD_ATTR:
-            if label == configPanel.FIELD_ATTR[entryEnum][0]:
-              resultEnums.append(entryEnum)
-              break
-        
-        panels["config"].setSortOrder(resultEnums)
       
       panels["config"].redraw(True)
     elif page == 2 and uiTools.isSelectionKey(key):
