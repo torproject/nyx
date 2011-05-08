@@ -1190,29 +1190,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       if selection != -1 and options[selection] != panels["conn"]._listingType:
         panels["conn"].setListingType(options[selection])
         panels["conn"].redraw(True)
-    elif page == 2 and (key == ord('c') or key == ord('C')) and False:
-      # TODO: disabled for now (probably gonna be going with separate pages
-      # rather than popup menu)
-      # provides menu to pick config being displayed
-      #options = [confPanel.CONFIG_LABELS[confType] for confType in range(4)]
-      options = []
-      initialSelection = panels["torrc"].configType
-      
-      # hides top label of the graph panel and pauses panels
-      panels["torrc"].showLabel = False
-      panels["torrc"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Configuration:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["torrc"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1: panels["torrc"].setConfigType(selection)
-      
-      selectiveRefresh(panels, page)
     elif page == 2 and (key == ord('w') or key == ord('W')):
       # display a popup for saving the current configuration
       panel.CURSES_LOCK.acquire()
