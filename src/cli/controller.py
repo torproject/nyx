@@ -42,6 +42,7 @@ def refresh():
 # new panel params and accessors (this is part of the new controller apis)
 PANELS = {}
 STDSCR = None
+IS_PAUSED = False
 
 def getScreen():
   return STDSCR
@@ -83,7 +84,6 @@ def getPanels(page = None):
 
 CONFIRM_QUIT = True
 REFRESH_RATE = 5        # seconds between redrawing screen
-MAX_REGEX_FILTERS = 5   # maximum number of previous regex filters that'll be remembered
 
 # enums for message in control label
 CTL_HELP, CTL_PAUSED = range(2)
@@ -128,6 +128,9 @@ class ControlPanel(panel.Panel):
     
     self.msgText = msgText
     self.msgAttr = msgAttr
+  
+  def revertMsg(self):
+    self.setMsg(CTL_PAUSED if IS_PAUSED else CTL_HELP)
   
   def draw(self, width, height):
     msgText = self.msgText
@@ -275,57 +278,6 @@ def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
   
   for key in allPanels: panels[key].setPaused(overwrite or monitorIsPaused or (key not in PAGES[currentPage] and key not in PAGE_S))
 
-def showMenu(stdscr, popup, title, options, initialSelection):
-  """
-  Provides menu with options laid out in a single column. User can cancel
-  selection with the escape key, in which case this proives -1. Otherwise this
-  returns the index of the selection. If initialSelection is -1 then the first
-  option is used and the carrot indicating past selection is ommitted.
-  """
-  
-  selection = initialSelection if initialSelection != -1 else 0
-  
-  if popup.win:
-    if not panel.CURSES_LOCK.acquire(False): return -1
-    try:
-      # TODO: should pause interface (to avoid event accumilation)
-      curses.cbreak() # wait indefinitely for key presses (no timeout)
-      
-      # uses smaller dimentions more fitting for small content
-      popup.height = len(options) + 2
-      
-      newWidth = max([len(label) for label in options]) + 9
-      popup.recreate(stdscr, newWidth)
-      
-      key = 0
-      while not uiTools.isSelectionKey(key):
-        popup.clear()
-        popup.win.box()
-        popup.addstr(0, 0, title, curses.A_STANDOUT)
-        
-        for i in range(len(options)):
-          label = options[i]
-          format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-          tab = "> " if i == initialSelection else "  "
-          popup.addstr(i + 1, 2, tab)
-          popup.addstr(i + 1, 4, " %s " % label, format)
-        
-        popup.refresh()
-        key = stdscr.getch()
-        if key == curses.KEY_UP: selection = max(0, selection - 1)
-        elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
-        elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
-      
-      # reverts popup dimensions and conn panel label
-      popup.height = 9
-      popup.recreate(stdscr, 80)
-      
-      curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-    finally:
-      panel.CURSES_LOCK.release()
-  
-  return selection
-
 def setEventListening(selectedEvents, isBlindMode):
   # creates a local copy, note that a suspected python bug causes *very*
   # puzzling results otherwise when trying to discard entries (silently
@@ -381,7 +333,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     otherwise unrecognized events)
   """
   
-  global PANELS, STDSCR, REFRESH_FLAG, PAGE
+  global PANELS, STDSCR, REFRESH_FLAG, PAGE, IS_PAUSED
   STDSCR = stdscr
   
   # loads config for various interface components
@@ -592,7 +544,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   isPaused = False          # if true updates are frozen
   overrideKey = None        # immediately runs with this input rather than waiting for the user if set
   page = 0
-  regexFilters = []             # previously used log regex filters
   panels["popup"].redraw(True)  # hack to make sure popup has a window instance (not entirely sure why...)
   
   PAGE = page
@@ -846,6 +797,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       panel.CURSES_LOCK.acquire()
       try:
         isPaused = not isPaused
+        IS_PAUSED = isPaused
         setPauseState(panels, isPaused, page)
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
       finally:
@@ -883,69 +835,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif key == ord('h') or key == ord('H'):
       overrideKey = popups.showHelpPopup()
-    elif page == 0 and (key == ord('s') or key == ord('S')):
-      # provides menu to pick stats to be graphed
-      #options = ["None"] + [label for label in panels["graph"].stats.keys()]
-      options = ["None"]
-      
-      # appends stats labels with first letters of each word capitalized
-      initialSelection, i = -1, 1
-      if not panels["graph"].currentDisplay: initialSelection = 0
-      graphLabels = panels["graph"].stats.keys()
-      graphLabels.sort()
-      for label in graphLabels:
-        if label == panels["graph"].currentDisplay: initialSelection = i
-        words = label.split()
-        options.append(" ".join(word[0].upper() + word[1:] for word in words))
-        i += 1
-      
-      # hides top label of the graph panel and pauses panels
-      if panels["graph"].currentDisplay:
-        panels["graph"].showLabel = False
-        panels["graph"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Graphed Stats:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["graph"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1 and selection != initialSelection:
-        if selection == 0: panels["graph"].setStats(None)
-        else: panels["graph"].setStats(options[selection].lower())
-      
-      selectiveRefresh(panels, page)
-      
-      # TODO: this shouldn't be necessary with the above refresh, but doesn't seem responsive otherwise...
-      panels["graph"].redraw(True)
-    elif page == 0 and (key == ord('i') or key == ord('I')):
-      # provides menu to pick graph panel update interval
-      options = [label for (label, intervalTime) in graphing.graphPanel.UPDATE_INTERVALS]
-      
-      initialSelection = panels["graph"].updateInterval
-      
-      #initialSelection = -1
-      #for i in range(len(options)):
-      #  if options[i] == panels["graph"].updateInterval: initialSelection = i
-      
-      # hides top label of the graph panel and pauses panels
-      if panels["graph"].currentDisplay:
-        panels["graph"].showLabel = False
-        panels["graph"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Update Interval:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["graph"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1: panels["graph"].updateInterval = selection
-      
-      selectiveRefresh(panels, page)
     elif page == 0 and (key == ord('b') or key == ord('B')):
       # uses the next boundary type for graph
       panels["graph"].bounds = graphing.graphPanel.Bounds.next(panels["graph"].bounds)
@@ -1031,64 +920,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
       
       panels["graph"].redraw(True)
-    elif page == 0 and (key == ord('f') or key == ord('F')):
-      # provides menu to pick previous regular expression filters or to add a new one
-      # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
-      options = ["None"] + regexFilters + ["New..."]
-      initialSelection = 0 if not panels["log"].regexFilter else 1
-      
-      # hides top label of the graph panel and pauses panels
-      if panels["graph"].currentDisplay:
-        panels["graph"].showLabel = False
-        panels["graph"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Log Filter:", options, initialSelection)
-      
-      # applies new setting
-      if selection == 0:
-        panels["log"].setFilter(None)
-      elif selection == len(options) - 1:
-        # selected 'New...' option - prompt user to input regular expression
-        panel.CURSES_LOCK.acquire()
-        try:
-          # provides prompt
-          panels["control"].setMsg("Regular expression: ")
-          panels["control"].redraw(True)
-          
-          # gets user input (this blocks monitor updates)
-          regexInput = panels["control"].getstr(0, 20)
-          
-          if regexInput:
-            try:
-              panels["log"].setFilter(re.compile(regexInput))
-              if regexInput in regexFilters: regexFilters.remove(regexInput)
-              regexFilters = [regexInput] + regexFilters
-            except re.error, exc:
-              panels["control"].setMsg("Unable to compile expression: %s" % str(exc), curses.A_STANDOUT)
-              panels["control"].redraw(True)
-              time.sleep(2)
-          panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        finally:
-          panel.CURSES_LOCK.release()
-      elif selection != -1:
-        try:
-          panels["log"].setFilter(re.compile(regexFilters[selection - 1]))
-          
-          # move selection to top
-          regexFilters = [regexFilters[selection - 1]] + regexFilters
-          del regexFilters[selection]
-        except re.error, exc:
-          # shouldn't happen since we've already checked validity
-          log.log(log.WARN, "Invalid regular expression ('%s': %s) - removing from listing" % (regexFilters[selection - 1], str(exc)))
-          del regexFilters[selection - 1]
-      
-      if len(regexFilters) > MAX_REGEX_FILTERS: del regexFilters[MAX_REGEX_FILTERS:]
-      
-      # reverts changes made for popup
-      panels["graph"].showLabel = True
-      setPauseState(panels, isPaused, page)
-      panels["graph"].redraw(True)
     elif page == 0 and key in (ord('n'), ord('N'), ord('m'), ord('M')):
       # Unfortunately modifier keys don't work with the up/down arrows (sending
       # multiple keycodes. The only exception to this is shift + left/right,
@@ -1124,30 +955,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 1 and (key == ord('u') or key == ord('U')):
-      # provides menu to pick identification resolving utility
-      options = ["auto"] + connections.Resolver.values()
-      
-      currentOverwrite = connections.getResolver("tor").overwriteResolver # enums correspond to indices
-      if currentOverwrite == None: initialSelection = 0
-      else: initialSelection = options.index(currentOverwrite)
-      
-      # hides top label of conn panel and pauses panels
-      panelTitle = panels["conn"]._title
-      panels["conn"]._title = ""
-      panels["conn"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "Resolver Util:", options, initialSelection)
-      selectedOption = options[selection] if selection != 0 else None
-      
-      # reverts changes made for popup
-      panels["conn"]._title = panelTitle
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1 and selectedOption != connections.getResolver("tor").overwriteResolver:
-        connections.getResolver("tor").overwriteResolver = selectedOption
     elif page == 1 and key in (ord('d'), ord('D')):
       # presents popup for raw consensus data
       panel.CURSES_LOCK.acquire()
@@ -1165,31 +972,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 1 and (key == ord('l') or key == ord('L')):
-      # provides a menu to pick the primary information we list connections by
-      options = cli.connections.entries.ListingType.values()
-      
-      # dropping the HOSTNAME listing type until we support displaying that content
-      options.remove(cli.connections.entries.ListingType.HOSTNAME)
-      
-      initialSelection = options.index(panels["conn"]._listingType)
-      
-      # hides top label of connection panel and pauses the display
-      panelTitle = panels["conn"]._title
-      panels["conn"]._title = ""
-      panels["conn"].redraw(True)
-      setPauseState(panels, isPaused, page, True)
-      
-      selection = showMenu(stdscr, panels["popup"], "List By:", options, initialSelection)
-      
-      # reverts changes made for popup
-      panels["conn"]._title = panelTitle
-      setPauseState(panels, isPaused, page)
-      
-      # applies new setting
-      if selection != -1 and options[selection] != panels["conn"]._listingType:
-        panels["conn"].setListingType(options[selection])
-        panels["conn"].redraw(True)
     elif page == 2 and (key == ord('w') or key == ord('W')):
       # display a popup for saving the current configuration
       panel.CURSES_LOCK.acquire()
@@ -1400,14 +1182,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       time.sleep(1)
       
       panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-    elif page == 0:
-      panels["log"].handleKey(key)
-    elif page == 1:
-      panels["conn"].handleKey(key)
-    elif page == 2:
-      panels["config"].handleKey(key)
-    elif page == 3:
-      panels["torrc"].handleKey(key)
+    else:
+      for pagePanel in getPanels(page + 1):
+        isKeystrokeConsumed = pagePanel.handleKey(key)
+        if isKeystrokeConsumed: break
     
     if REFRESH_FLAG:
       REFRESH_FLAG = False

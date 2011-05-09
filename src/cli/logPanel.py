@@ -4,13 +4,15 @@ for. This provides prepopulation from the log file and supports filtering by
 regular expressions.
 """
 
-import time
+import re
 import os
+import time
 import curses
 import threading
 
 from TorCtl import TorCtl
 
+import popups
 from version import VERSION
 from util import conf, log, panel, sysTools, torTools, uiTools
 
@@ -74,6 +76,9 @@ CACHED_DUPLICATES_RESULT = None
 
 # duration we'll wait for the deduplication function before giving up (in ms)
 DEDUPLICATION_TIMEOUT = 100
+
+# maximum number of regex filters we'll remember
+MAX_REGEX_FILTERS = 5
 
 def daysSince(timestamp=None):
   """
@@ -551,6 +556,7 @@ class LogPanel(panel.Panel, threading.Thread):
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
+    self.filterOptions = []             # filters the user has input
     self.lastContentHeight = 0          # height of the rendered content when last drawn
     self.logFile = None                 # file log messages are saved to (skipped if None)
     self.scroll = 0
@@ -746,6 +752,7 @@ class LogPanel(panel.Panel, threading.Thread):
       raise exc
   
   def handleKey(self, key):
+    isKeystrokeConsumed = True
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, self.lastContentHeight)
@@ -760,6 +767,53 @@ class LogPanel(panel.Panel, threading.Thread):
       self.showDuplicates = not self.showDuplicates
       self.redraw(True)
       self.valsLock.release()
+    elif key == ord('f') or key == ord('F'):
+      # Provides menu to pick regular expression filters or adding new ones:
+      # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
+      options = ["None"] + self.filterOptions + ["New..."]
+      oldSelection = 0 if not self.regexFilter else 1
+      
+      # does all activity under a curses lock to prevent redraws when adding
+      # new filters
+      panel.CURSES_LOCK.acquire()
+      try:
+        selection = popups.showMenu("Log Filter:", options, oldSelection)
+        
+        # applies new setting
+        if selection == 0:
+          self.setFilter(None)
+        elif selection == len(options) - 1:
+          # selected 'New...' option - prompt user to input regular expression
+          regexInput = popups.inputPrompt("Regular expression: ")
+          
+          if regexInput:
+            try:
+              self.setFilter(re.compile(regexInput))
+              if regexInput in self.filterOptions: self.filterOptions.remove(regexInput)
+              self.filterOptions.insert(0, regexInput)
+            except re.error, exc:
+              popups.showMsg("Unable to compile expression: %s" % exc, 2)
+        elif selection != -1:
+          selectedOption = self.filterOptions[selection - 1]
+          
+          try:
+            self.setFilter(re.compile(selectedOption))
+            
+            # move selection to top
+            self.filterOptions.remove(selectedOption)
+            self.filterOptions.insert(0, selectedOption)
+          except re.error, exc:
+            # shouldn't happen since we've already checked validity
+            msg = "Invalid regular expression ('%s': %s) - removing from listing" % (selectedOption, exc)
+            log.log(log.WARN, msg)
+            self.filterOptions.remove(selectedOption)
+      finally:
+        panel.CURSES_LOCK.release()
+      
+      if len(self.filterOptions) > MAX_REGEX_FILTERS: del self.filterOptions[MAX_REGEX_FILTERS:]
+    else: isKeystrokeConsumed = False
+    
+    return isKeystrokeConsumed
   
   def getHelp(self):
     options = []
@@ -784,7 +838,8 @@ class LogPanel(panel.Panel, threading.Thread):
     self._lastLoggedEvents, self._lastUpdate = list(currentLog), time.time()
     
     # draws the top label
-    self.addstr(0, 0, self._getTitle(width), curses.A_STANDOUT)
+    if self.isTitleVisible():
+      self.addstr(0, 0, self._getTitle(width), curses.A_STANDOUT)
     
     # restricts scroll location to valid bounds
     self.scroll = max(0, min(self.scroll, self.lastContentHeight - height + 1))

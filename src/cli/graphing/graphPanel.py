@@ -20,6 +20,8 @@ import copy
 import curses
 from TorCtl import TorCtl
 
+import cli.popups
+
 from util import enum, panel, uiTools
 
 # time intervals at which graphs can be updated
@@ -229,7 +231,6 @@ class GraphPanel(panel.Panel):
     self.graphHeight = CONFIG["features.graph.height"]
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)
-    self.showLabel = True         # shows top label if true, hides otherwise
     self.setPauseAttr("stats")
   
   def getHeight(self):
@@ -253,6 +254,37 @@ class GraphPanel(panel.Panel):
     
     self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
   
+  def handleKey(self, key):
+    isKeystrokeConsumed = True
+    if key == ord('s') or key == ord('S'):
+      # provides a menu to pick the graphed stats
+      availableStats = self.stats.keys()
+      availableStats.sort()
+      
+      # uses sorted, camel cased labels for the options
+      options = ["None"]
+      for label in availableStats:
+        words = label.split()
+        options.append(" ".join(word[0].upper() + word[1:] for word in words))
+      
+      if self.currentDisplay:
+        initialSelection = availableStats.index(self.currentDisplay) + 1
+      else: initialSelection = 0
+      
+      selection = cli.popups.showMenu("Graphed Stats:", options, initialSelection)
+      
+      # applies new setting
+      if selection == 0: self.setStats(None)
+      elif selection != -1: self.setStats(options[selection].lower())
+    elif key == ord('i') or key == ord('I'):
+      # provides menu to pick graph panel update interval
+      options = [label for (label, _) in UPDATE_INTERVALS]
+      selection = cli.popups.showMenu("Update Interval:", options, self.updateInterval)
+      if selection != -1: self.updateInterval = selection
+    else: isKeystrokeConsumed = False
+    
+    return isKeystrokeConsumed
+  
   def getHelp(self):
     if self.currentDisplay: graphedStats = self.currentDisplay
     else: graphedStats = "none"
@@ -275,7 +307,7 @@ class GraphPanel(panel.Panel):
       primaryColor = uiTools.getColor(param.getColor(True))
       secondaryColor = uiTools.getColor(param.getColor(False))
       
-      if self.showLabel: self.addstr(0, 0, param.getTitle(width), curses.A_STANDOUT)
+      if self.isTitleVisible(): self.addstr(0, 0, param.getTitle(width), curses.A_STANDOUT)
       
       # top labels
       left, right = param.getHeaderLabel(width / 2, True), param.getHeaderLabel(width / 2, False)

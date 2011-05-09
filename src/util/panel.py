@@ -61,6 +61,7 @@ class Panel():
     self.panelName = name
     self.parent = parent
     self.visible = False
+    self.titleVisible = True
     
     # Attributes for pausing. The pauseAttr contains variables our getAttr
     # method is tracking, and the pause buffer has copies of the values from
@@ -92,6 +93,21 @@ class Panel():
     """
     
     return self.panelName
+  
+  def isTitleVisible(self):
+    """
+    True if the title is configured to be visible, False otherwise.
+    """
+    
+    return self.titleVisible
+  
+  def setTitleVisible(self, isVisible):
+    """
+    Configures the panel's title to be visible or not when it's next redrawn.
+    This is not guarenteed to be respected (not all panels have a title).
+    """
+    
+    self.titleVisible = isVisible
   
   def getParent(self):
     """
@@ -289,6 +305,17 @@ class Panel():
     if setHeight != -1: newHeight = min(newHeight, setHeight)
     if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
+  
+  def handleKey(self, key):
+    """
+    Handler for user input. This returns true if the key press was consumed,
+    false otherwise.
+    
+    Arguments:
+      key - keycode for the key pressed
+    """
+    
+    return False
   
   def getHelp(self):
     """

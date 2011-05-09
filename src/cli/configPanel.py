@@ -247,6 +247,7 @@ class ConfigPanel(panel.Panel):
   
   def handleKey(self, key):
     self.valsLock.acquire()
+    isKeystrokeConsumed = True
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       detailPanelHeight = self._config["features.config.selectionDetails.height"]
@@ -270,8 +271,10 @@ class ConfigPanel(panel.Panel):
         # converts labels back to enums
         resultEnums = [getFieldFromLabel(label) for label in results]
         self.setSortOrder(resultEnums)
+    else: isKeystrokeConsumed = False
     
     self.valsLock.release()
+    return isKeystrokeConsumed
   
   def getHelp(self):
     options = []
@@ -287,10 +290,6 @@ class ConfigPanel(panel.Panel):
   
   def draw(self, width, height):
     self.valsLock.acquire()
-    
-    # draws the top label
-    configType = "Tor" if self.configType == State.TOR else "Arm"
-    hiddenMsg = "press 'a' to hide most options" if self.showAll else "press 'a' to show all options"
     
     # panel with details for the current selection
     detailPanelHeight = self._config["features.config.selectionDetails.height"]
@@ -311,8 +310,12 @@ class ConfigPanel(panel.Panel):
       
       self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
     
-    titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
-    self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
+    # draws the top label
+    if self.isTitleVisible():
+      configType = "Tor" if self.configType == State.TOR else "Arm"
+      hiddenMsg = "press 'a' to hide most options" if self.showAll else "press 'a' to show all options"
+      titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
+      self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 1

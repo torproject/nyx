@@ -31,7 +31,6 @@ class TorrcPanel(panel.Panel):
     self.valsLock = threading.RLock()
     self.configType = configType
     self.scroll = 0
-    self.showLabel = True       # shows top label (hides otherwise)
     self.showLineNum = True     # shows left aligned line numbers
     self.stripComments = False  # drops comments and extra whitespace
     
@@ -42,6 +41,7 @@ class TorrcPanel(panel.Panel):
   
   def handleKey(self, key):
     self.valsLock.acquire()
+    isKeystrokeConsumed = True
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, self._lastContentHeight)
@@ -57,8 +57,10 @@ class TorrcPanel(panel.Panel):
       self.stripComments = not self.stripComments
       self._lastContentHeightArgs = None
       self.redraw(True)
+    else: isKeystrokeConsumed = False
     
     self.valsLock.release()
+    return isKeystrokeConsumed
   
   def getHelp(self):
     options = []
@@ -120,7 +122,7 @@ class TorrcPanel(panel.Panel):
     displayLine = -self.scroll + 1 # line we're drawing on
     
     # draws the top label
-    if self.showLabel:
+    if self.isTitleVisible():
       sourceLabel = "Tor" if self.configType == Config.TORRC else "Arm"
       locationLabel = " (%s)" % confLocation if confLocation else ""
       self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)

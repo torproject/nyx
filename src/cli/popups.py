@@ -44,6 +44,46 @@ def finalize():
   controller.refresh()
   panel.CURSES_LOCK.release()
 
+def inputPrompt(msg):
+  """
+  Prompts the user to enter a string on the control line (which usually
+  displays the page number and basic controls).
+  
+  Arguments:
+    msg - message to prompt the user for input with
+  """
+  
+  panel.CURSES_LOCK.acquire()
+  controlPanel = controller.getPanel("control")
+  controlPanel.setMsg(msg)
+  controlPanel.redraw(True)
+  userInput = controlPanel.getstr(0, len(msg))
+  controlPanel.revertMsg()
+  panel.CURSES_LOCK.release()
+  return userInput
+
+def showMsg(msg, maxWait, attr = curses.A_STANDOUT):
+  """
+  Displays a single line message on the control line for a set time. Pressing
+  any key will end the message.
+  
+  Arguments:
+    msg     - message to be displayed to the user
+    maxWait - time to show the message
+    attr    - attributes with which to draw the message
+  """
+  
+  panel.CURSES_LOCK.acquire()
+  controlPanel = controller.getPanel("control")
+  controlPanel.setMsg(msg, attr)
+  controlPanel.redraw(True)
+  
+  curses.halfdelay(maxWait * 10)
+  controller.getScreen().getch()
+  controlPanel.revertMsg()
+  curses.halfdelay(controller.REFRESH_RATE * 10)
+  panel.CURSES_LOCK.release()
+
 def showHelpPopup():
   """
   Presents a popup with instructions for the current page's hotkeys. This
@@ -108,7 +148,7 @@ def showHelpPopup():
     return exitKey
   else: return None
 
-def showSortDialog(titleLabel, options, oldSelection, optionColors):
+def showSortDialog(title, options, oldSelection, optionColors):
   """
   Displays a sorting dialog of the form:
   
@@ -122,7 +162,7 @@ def showSortDialog(titleLabel, options, oldSelection, optionColors):
   then this returns None. Otherwise, the new ordering is provided.
   
   Arguments:
-    titleLabel   - title displayed for the popup window
+    title   - title displayed for the popup window
     options      - ordered listing of option labels
     oldSelection - current ordering
     optionColors - mappings of options to their color
@@ -142,7 +182,7 @@ def showSortDialog(titleLabel, options, oldSelection, optionColors):
     while len(newSelections) < len(oldSelection):
       popup.win.erase()
       popup.win.box()
-      popup.addstr(0, 0, titleLabel, curses.A_STANDOUT)
+      popup.addstr(0, 0, title, curses.A_STANDOUT)
       
       _drawSortSelection(popup, 1, 2, "Current Order: ", oldSelection, optionColors)
       _drawSortSelection(popup, 2, 2, "New Order: ", newSelections, optionColors)
@@ -213,4 +253,55 @@ def _drawSortSelection(popup, y, x, prefix, options, optionColors):
     if i < len(options) - 1:
       popup.addstr(y, x, ", ", curses.A_BOLD)
       x += 2
+
+def showMenu(title, options, oldSelection):
+  """
+  Provides menu with options laid out in a single column. User can cancel
+  selection with the escape key, in which case this proives -1. Otherwise this
+  returns the index of the selection.
+  
+  Arguments:
+    title        - title displayed for the popup window
+    options      - ordered listing of options to display
+    oldSelection - index of the initially selected option (uses the first
+                   selection without a carrot if -1)
+  """
+  
+  maxWidth = max([len(label) for label in options]) + 9
+  popup, width, height = init(len(options) + 2, maxWidth)
+  if not popup: return
+  key, selection = 0, oldSelection if oldSelection != -1 else 0
+  
+  try:
+    # hides the title of the first panel on the page
+    topPanel = controller.getPanels(controller.getPage())[0]
+    topPanel.setTitleVisible(False)
+    topPanel.redraw(True)
+    
+    curses.cbreak()   # wait indefinitely for key presses (no timeout)
+    
+    while not uiTools.isSelectionKey(key):
+      popup.win.erase()
+      popup.win.box()
+      popup.addstr(0, 0, title, curses.A_STANDOUT)
+      
+      for i in range(len(options)):
+        label = options[i]
+        format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+        tab = "> " if i == oldSelection else "  "
+        popup.addstr(i + 1, 2, tab)
+        popup.addstr(i + 1, 4, " %s " % label, format)
+      
+      popup.win.refresh()
+      
+      key = controller.getScreen().getch()
+      if key == curses.KEY_UP: selection = max(0, selection - 1)
+      elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
+      elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
+      
+    topPanel.setTitleVisible(True)
+    curses.halfdelay(controller.REFRESH_RATE * 10) # reset normal pausing behavior
+  finally: finalize()
+  
+  return selection
 

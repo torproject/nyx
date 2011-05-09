@@ -131,6 +131,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       listingType - Listing instance for the primary information to be shown
     """
     
+    if self._listingType == listingType: return
+    
     self.valsLock.acquire()
     self._listingType = listingType
     
@@ -143,6 +145,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   def handleKey(self, key):
     self.valsLock.acquire()
     
+    isKeystrokeConsumed = True
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
@@ -159,8 +162,39 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
       results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
       if results: self.setSortOrder(results)
+    elif key == ord('u') or key == ord('U'):
+      # provides a menu to pick the connection resolver
+      title = "Resolver Util:"
+      options = ["auto"] + connections.Resolver.values()
+      connResolver = connections.getResolver("tor")
+      
+      currentOverwrite = connResolver.overwriteResolver
+      if currentOverwrite == None: oldSelection = 0
+      else: oldSelection = options.index(currentOverwrite)
+      
+      selection = cli.popups.showMenu(title, options, oldSelection)
+      
+      # applies new setting
+      if selection != -1:
+        selectedOption = options[selection] if selection != 0 else None
+        connResolver.overwriteResolver = selectedOption
+    elif key == ord('l') or key == ord('L'):
+      # provides a menu to pick the primary information we list connections by
+      title = "List By:"
+      options = entries.ListingType.values()
+      
+      # dropping the HOSTNAME listing type until we support displaying that content
+      options.remove(cli.connections.entries.ListingType.HOSTNAME)
+      
+      oldSelection = options.index(self._listingType)
+      selection = cli.popups.showMenu(title, options, oldSelection)
+      
+      # applies new setting
+      if selection != -1: self.setListingType(options[selection])
+    else: isKeystrokeConsumed = False
     
     self.valsLock.release()
+    return isKeystrokeConsumed
   
   def run(self):
     """
@@ -233,8 +267,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         drawEntries[i].render(self, 1 + i, 2)
     
     # title label with connection counts
-    title = "Connection Details:" if self._showDetails else self._title
-    self.addstr(0, 0, title, curses.A_STANDOUT)
+    if self.isTitleVisible():
+      title = "Connection Details:" if self._showDetails else self._title
+      self.addstr(0, 0, title, curses.A_STANDOUT)
     
     scrollOffset = 1
     if isScrollbarVisible:
