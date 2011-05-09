@@ -78,9 +78,9 @@ while True:
         printDivider()
         break
       
-      if userSelection.isdigit() and int(userSelection) in range(1, 8):
+      if userSelection.isdigit() and int(userSelection) in range(0, 7):
         try:
-          resolver = int(userSelection)
+          resolver = connections.Resolver.values()[int(userSelection)]
           startTime = time.time()
           
           print(connections.getResolverCommand(resolver, "tor", conn.getMyPid()))
@@ -93,7 +93,7 @@ while True:
             print("  %s:%s -> %s:%s" % (lIp, lPort, fIp, fPort))
           
           print("\n  Runtime: %0.4f seconds" % (time.time() - startTime))
-        except IOError, exc:
+        except (IOError, IndexError), exc:
           print exc
       else:
         print("'%s' isn't a valid selection\n" % userSelection)
