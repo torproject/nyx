@@ -151,7 +151,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
       isChanged = self._scroller.handleKey(key, self._entryLines, pageHeight)
       if isChanged: self.redraw(True)
-    elif uiTools.isSelectionKey(key):
+    elif uiTools.isSelectionKey(key) and self._entries:
       self._showDetails = not self._showDetails
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
@@ -256,7 +256,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     cursorSelection = self._scroller.getCursorSelection(self._entryLines)
     
     # draws the detail panel if currently displaying it
-    if self._showDetails:
+    if self._showDetails and cursorSelection:
       # This is a solid border unless the scrollbar is visible, in which case a
       # 'T' pipe connects the border to the bar.
       uiTools.drawBox(self, 0, 0, width, DETAILS_HEIGHT + 2)
