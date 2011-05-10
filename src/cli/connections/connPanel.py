@@ -151,7 +151,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if self._showDetails: pageHeight -= (DETAILS_HEIGHT + 1)
       isChanged = self._scroller.handleKey(key, self._entryLines, pageHeight)
       if isChanged: self.redraw(True)
-    elif uiTools.isSelectionKey(key) and self._entries:
+    elif uiTools.isSelectionKey(key):
       self._showDetails = not self._showDetails
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
@@ -247,6 +247,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   
   def draw(self, width, height):
     self.valsLock.acquire()
+    
+    # if we don't have any contents then refuse to show details
+    if not self._entries: self._showDetails = False
     
     # extra line when showing the detail panel is for the bottom border
     detailPanelOffset = DETAILS_HEIGHT + 1 if self._showDetails else 0
