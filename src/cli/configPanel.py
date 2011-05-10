@@ -3,9 +3,11 @@ Panel presenting the configuration state for tor or arm. Options can be edited
 and the resulting configuration files saved.
 """
 
+import os
 import curses
 import threading
 
+import controller
 import popups
 
 from util import conf, enum, panel, torTools, torConfig, uiTools
@@ -320,6 +322,121 @@ class ConfigPanel(panel.Panel):
         # converts labels back to enums
         resultEnums = [getFieldFromLabel(label) for label in results]
         self.setSortOrder(resultEnums)
+    elif key == ord('w') or key == ord('W'):
+      # display a popup for saving the current configuration
+      configLines = torConfig.getCustomOptions(True)
+      popup, width, height = popups.init(len(configLines) + 2)
+      if not popup: return
+      
+      try:
+        # displayed options (truncating the labels if there's limited room)
+        if width >= 30: selectionOptions = ("Save", "Save As...", "Cancel")
+        else: selectionOptions = ("Save", "Save As", "X")
+        
+        # checks if we can show options beside the last line of visible content
+        isOptionLineSeparate = False
+        lastIndex = min(height - 2, len(configLines) - 1)
+        
+        # if we don't have room to display the selection options and room to
+        # grow then display the selection options on its own line
+        if width < (30 + len(configLines[lastIndex])):
+          popup.setHeight(height + 1)
+          popup.redraw(True) # recreates the window instance
+          newHeight, _ = popup.getPreferredSize()
+          
+          if newHeight > height:
+            height = newHeight
+            isOptionLineSeparate = True
+        
+        key, selection = 0, 2
+        while not uiTools.isSelectionKey(key):
+          # if the popup has been resized then recreate it (needed for the
+          # proper border height)
+          newHeight, newWidth = popup.getPreferredSize()
+          if (height, width) != (newHeight, newWidth):
+            height, width = newHeight, newWidth
+            popup.redraw(True)
+          
+          # if there isn't room to display the popup then cancel it
+          if height <= 2:
+            selection = 2
+            break
+          
+          popup.win.erase()
+          popup.win.box()
+          popup.addstr(0, 0, "Configuration being saved:", curses.A_STANDOUT)
+          
+          visibleConfigLines = height - 3 if isOptionLineSeparate else height - 2
+          for i in range(visibleConfigLines):
+            line = uiTools.cropStr(configLines[i], width - 2)
+            
+            if " " in line:
+              option, arg = line.split(" ", 1)
+              popup.addstr(i + 1, 1, option, curses.A_BOLD | uiTools.getColor("green"))
+              popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | uiTools.getColor("cyan"))
+            else:
+              popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.getColor("green"))
+          
+          # draws 'T' between the lower left and the covered panel's scroll bar
+          if width > 1: popup.win.addch(height - 1, 1, curses.ACS_TTEE)
+          
+          # draws selection options (drawn right to left)
+          drawX = width - 1
+          for i in range(len(selectionOptions) - 1, -1, -1):
+            optionLabel = selectionOptions[i]
+            drawX -= (len(optionLabel) + 2)
+            
+            # if we've run out of room then drop the option (this will only
+            # occure on tiny displays)
+            if drawX < 1: break
+            
+            selectionFormat = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+            popup.addstr(height - 2, drawX, "[")
+            popup.addstr(height - 2, drawX + 1, optionLabel, selectionFormat | curses.A_BOLD)
+            popup.addstr(height - 2, drawX + len(optionLabel) + 1, "]")
+            
+            drawX -= 1 # space gap between the options
+          
+          popup.win.refresh()
+          
+          key = controller.getScreen().getch()
+          if key == curses.KEY_LEFT: selection = max(0, selection - 1)
+          elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
+        
+        if selection in (0, 1):
+          loadedTorrc = torConfig.getTorrc()
+          try: configLocation = loadedTorrc.getConfigLocation()
+          except IOError: configLocation = ""
+          
+          if selection == 1:
+            # prompts user for a configuration location
+            configLocation = popups.inputPrompt("Save to (esc to cancel): ", configLocation)
+            if configLocation: configLocation = os.path.abspath(configLocation)
+          
+          if configLocation:
+            try:
+              # make dir if the path doesn't already exist
+              baseDir = os.path.dirname(configLocation)
+              if not os.path.exists(baseDir): os.makedirs(baseDir)
+              
+              # saves the configuration to the file
+              configFile = open(configLocation, "w")
+              configFile.write("\n".join(configLines))
+              configFile.close()
+              
+              # reloads the cached torrc if overwriting it
+              if configLocation == loadedTorrc.getConfigLocation():
+                try:
+                  loadedTorrc.load()
+                  panels["torrc"]._lastContentHeightArgs = None
+                except IOError: pass
+              
+              msg = "Saved configuration to %s" % configLocation
+            except (IOError, OSError), exc:
+              msg = "Unable to save configuration (%s)" % sysTools.getFileErrorMsg(exc)
+            
+            popups.showMsg(msg, 2)
+      finally: popups.finalize()
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()
