@@ -293,6 +293,9 @@ class ConfigPanel(panel.Panel):
             
             torTools.getConn().setOption(configOption, newValue)
             
+            # forces the label to be remade with the new value
+            selection.labelCache = None
+            
             # resets the isDefault flag
             customOptions = torConfig.getCustomOptions()
             selection.fields[Field.IS_DEFAULT] = not configOption in customOptions
