@@ -377,9 +377,6 @@ class ConfigPanel(panel.Panel):
             else:
               popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.getColor("green"))
           
-          # draws 'T' between the lower left and the covered panel's scroll bar
-          if width > 1: popup.win.addch(height - 1, 1, curses.ACS_TTEE)
-          
           # draws selection options (drawn right to left)
           drawX = width - 1
           for i in range(len(selectionOptions) - 1, -1, -1):
