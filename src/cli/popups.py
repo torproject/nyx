@@ -44,32 +44,33 @@ def finalize():
   controller.refresh()
   panel.CURSES_LOCK.release()
 
-def inputPrompt(msg):
+def inputPrompt(msg, initialValue = ""):
   """
   Prompts the user to enter a string on the control line (which usually
   displays the page number and basic controls).
   
   Arguments:
-    msg - message to prompt the user for input with
+    msg          - message to prompt the user for input with
+    initialValue - initial value of the field
   """
   
   panel.CURSES_LOCK.acquire()
   controlPanel = controller.getPanel("control")
   controlPanel.setMsg(msg)
   controlPanel.redraw(True)
-  userInput = controlPanel.getstr(0, len(msg))
+  userInput = controlPanel.getstr(0, len(msg), initialValue)
   controlPanel.revertMsg()
   panel.CURSES_LOCK.release()
   return userInput
 
-def showMsg(msg, maxWait, attr = curses.A_STANDOUT):
+def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
   """
   Displays a single line message on the control line for a set time. Pressing
   any key will end the message.
   
   Arguments:
     msg     - message to be displayed to the user
-    maxWait - time to show the message
+    maxWait - time to show the message, indefinite if -1
     attr    - attributes with which to draw the message
   """
   
@@ -78,7 +79,8 @@ def showMsg(msg, maxWait, attr = curses.A_STANDOUT):
   controlPanel.setMsg(msg, attr)
   controlPanel.redraw(True)
   
-  curses.halfdelay(maxWait * 10)
+  if maxWait == -1: curses.cbreak()
+  else: curses.halfdelay(maxWait * 10)
   controller.getScreen().getch()
   controlPanel.revertMsg()
   curses.halfdelay(controller.REFRESH_RATE * 10)

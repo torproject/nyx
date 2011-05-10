@@ -98,7 +98,6 @@ PAGES = [
 
 CONFIG = {"log.torrc.readFailed": log.WARN,
           "features.graph.type": 1,
-          "features.config.prepopulateEditValues": True,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
@@ -1101,62 +1100,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
       
       panels["config"].redraw(True)
-    elif page == 2 and uiTools.isSelectionKey(key):
-      # let the user edit the configuration value, unchanged if left blank
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        selection = panels["config"].getSelection()
-        configOption = selection.get(configPanel.Field.OPTION)
-        titleMsg = "%s Value (esc to cancel): " % configOption
-        panels["control"].setMsg(titleMsg)
-        panels["control"].redraw(True)
-        
-        displayWidth = panels["control"].getPreferredSize()[1]
-        initialValue = selection.get(configPanel.Field.VALUE)
-        
-        # initial input for the text field
-        initialText = ""
-        if CONFIG["features.config.prepopulateEditValues"] and initialValue != "<none>":
-          initialText = initialValue
-        
-        newConfigValue = panels["control"].getstr(0, len(titleMsg), initialText)
-        
-        # it would be nice to quit on esc, but looks like this might not be possible...
-        if newConfigValue != None and newConfigValue != initialValue:
-          conn = torTools.getConn()
-          
-          # if the value's a boolean then allow for 'true' and 'false' inputs
-          if selection.get(configPanel.Field.TYPE) == "Boolean":
-            if newConfigValue.lower() == "true": newConfigValue = "1"
-            elif newConfigValue.lower() == "false": newConfigValue = "0"
-          
-          try:
-            if selection.get(configPanel.Field.TYPE) == "LineList":
-              newConfigValue = newConfigValue.split(",")
-            
-            conn.setOption(configOption, newConfigValue)
-            
-            # resets the isDefault flag
-            customOptions = torConfig.getCustomOptions()
-            selection.fields[configPanel.Field.IS_DEFAULT] = not configOption in customOptions
-            
-            panels["config"].redraw(True)
-          except Exception, exc:
-            errorMsg = "%s (press any key)" % exc
-            panels["control"].setMsg(uiTools.cropStr(errorMsg, displayWidth), curses.A_STANDOUT)
-            panels["control"].redraw(True)
-            
-            curses.cbreak() # wait indefinitely for key presses (no timeout)
-            stdscr.getch()
-            curses.halfdelay(REFRESH_RATE * 10)
-        
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

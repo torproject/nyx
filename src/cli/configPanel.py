@@ -11,6 +11,7 @@ import popups
 from util import conf, enum, panel, torTools, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
+                  "features.config.prepopulateEditValues": True,
                   "features.config.state.showPrivateOptions": False,
                   "features.config.state.showVirtualOptions": False,
                   "features.config.state.colWidth.option": 25,
@@ -135,6 +136,14 @@ class ConfigEntry():
     
     return self.labelCache
   
+  def isUnset(self):
+    """
+    True if we have no value, false otherwise.
+    """
+    
+    confValue = torTools.getConn().getOption(self.get(Field.OPTION), [], True)
+    return not bool(confValue)
+  
   def _getValue(self):
     """
     Provides the current value of the configuration entry, taking advantage of
@@ -256,6 +265,43 @@ class ConfigPanel(panel.Panel):
       
       isChanged = self.scroller.handleKey(key, self._getConfigOptions(), pageHeight)
       if isChanged: self.redraw(True)
+    elif uiTools.isSelectionKey(key):
+      # Prompts the user to edit the selected configuration value. The
+      # interface is locked to prevent updates between setting the value
+      # and showing any errors.
+      
+      panel.CURSES_LOCK.acquire()
+      try:
+        selection = self.getSelection()
+        configOption = selection.get(Field.OPTION)
+        if selection.isUnset(): initialValue = ""
+        else: initialValue = selection.get(Field.VALUE)
+        
+        promptMsg = "%s Value (esc to cancel): " % configOption
+        isPrepopulated = self._config["features.config.prepopulateEditValues"]
+        newValue = popups.inputPrompt(promptMsg, initialValue if isPrepopulated else "")
+        
+        if newValue != None and newValue != initialValue:
+          try:
+            if selection.get(Field.TYPE) == "Boolean":
+              # if the value's a boolean then allow for 'true' and 'false' inputs
+              if newValue.lower() == "true": newValue = "1"
+              elif newValue.lower() == "false": newValue = "0"
+            elif selection.get(Field.TYPE) == "LineList":
+              # setOption accepts list inputs when there's multiple values
+              newValue = newValue.split(",")
+            
+            torTools.getConn().setOption(configOption, newValue)
+            
+            # resets the isDefault flag
+            customOptions = torConfig.getCustomOptions()
+            selection.fields[Field.IS_DEFAULT] = not configOption in customOptions
+            
+            self.redraw(True)
+          except Exception, exc:
+            popups.showMsg("%s (press any key)" % exc)
+      finally:
+        panel.CURSES_LOCK.release()
     elif key == ord('a') or key == ord('A'):
       self.showAll = not self.showAll
       self.redraw(True)
