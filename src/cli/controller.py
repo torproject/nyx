@@ -1157,31 +1157,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 3 and key == ord('r') or key == ord('R'):
-      # reloads torrc, providing a notice if successful or not
-      loadedTorrc = torConfig.getTorrc()
-      loadedTorrc.getLock().acquire()
-      
-      try:
-        loadedTorrc.load()
-        isSuccessful = True
-      except IOError:
-        isSuccessful = False
-      
-      loadedTorrc.getLock().release()
-      
-      #isSuccessful = panels["torrc"].loadConfig(logErrors = False)
-      #confTypeLabel = confPanel.CONFIG_LABELS[panels["torrc"].configType]
-      resetMsg = "torrc reloaded" if isSuccessful else "failed to reload torrc"
-      if isSuccessful:
-        panels["torrc"]._lastContentHeightArgs = None
-        panels["torrc"].redraw(True)
-      
-      panels["control"].setMsg(resetMsg, curses.A_STANDOUT)
-      panels["control"].redraw(True)
-      time.sleep(1)
-      
-      panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

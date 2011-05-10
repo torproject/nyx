@@ -6,6 +6,8 @@ import math
 import curses
 import threading
 
+import popups
+
 from util import conf, enum, panel, torConfig, uiTools
 
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
@@ -57,6 +59,19 @@ class TorrcPanel(panel.Panel):
       self.stripComments = not self.stripComments
       self._lastContentHeightArgs = None
       self.redraw(True)
+    elif key == ord('r') or key == ord('R'):
+      # reloads torrc, providing a notice if successful or not
+      try:
+        torConfig.getTorrc().load()
+        self._lastContentHeightArgs = None
+        self.redraw(True)
+        resultMsg = "torrc reloaded"
+      except IOError:
+        resultMsg = "failed to reload torrc"
+      
+      self._lastContentHeightArgs = None
+      self.redraw(True)
+      popups.showMsg(resultMsg, 1)
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()
