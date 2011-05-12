@@ -77,6 +77,12 @@ class TorrcPanel(panel.Panel):
     self.valsLock.release()
     return isKeystrokeConsumed
   
+  def setVisible(self, isVisible):
+    if not isVisible:
+      self._lastContentHeightArgs = None # redraws when next displayed
+    
+    panel.Panel.setVisible(self, isVisible)
+  
   def getHelp(self):
     options = []
     options.append(("up arrow", "scroll up a line", None))
