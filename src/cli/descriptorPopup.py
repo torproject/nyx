@@ -7,6 +7,7 @@ import curses
 
 import controller
 import connections.connEntry
+import popups
 from util import panel, torTools, uiTools
 
 # field keywords used to identify areas for coloring
@@ -65,7 +66,7 @@ class PopupProperties:
     elif key == curses.KEY_PPAGE: self.scroll = max(self.scroll - height, 0)
     elif key == curses.KEY_NPAGE: self.scroll = max(0, min(self.scroll + height, len(self.text) - height))
 
-def showDescriptorPopup(popup, stdscr, connectionPanel):
+def showDescriptorPopup(connectionPanel):
   """
   Presents consensus descriptor in popup window with the following controls:
   Up, Down, Page Up, Page Down - scroll descriptor
@@ -73,10 +74,16 @@ def showDescriptorPopup(popup, stdscr, connectionPanel):
   Enter, Space, d, D - close popup
   """
   
+  # hides the title of the first panel on the page
+  topPanel = controller.getPanels(controller.getPage())[0]
+  topPanel.setTitleVisible(False)
+  topPanel.redraw(True)
+  
   properties = PopupProperties()
   isVisible = True
   
-  if not panel.CURSES_LOCK.acquire(False): return
+  panel.CURSES_LOCK.acquire()
+  
   try:
     while isVisible:
       selection = connectionPanel._scroller.getCursorSelection(connectionPanel._entryLines)
@@ -96,29 +103,30 @@ def showDescriptorPopup(popup, stdscr, connectionPanel):
         # tracks number of extra lines that will be taken due to text wrap
         height += (lineWidth - 2) / connectionPanel.maxX
       
-      popup.setHeight(min(len(properties.text) + height + 2, connectionPanel.maxY))
-      popup.recreate(stdscr, width)
-      
       while isVisible:
-        draw(popup, properties)
-        key = stdscr.getch()
+        popupHeight = min(len(properties.text) + height + 2, connectionPanel.maxY)
+        popup, _, _ = popups.init(popupHeight, width)
+        if not popup: break
         
-        if uiTools.isSelectionKey(key) or key in (ord('d'), ord('D')):
-          # closes popup
-          isVisible = False
-        elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):
-          # navigation - pass on to connPanel and recreate popup
-          connectionPanel.handleKey(curses.KEY_UP if key == curses.KEY_LEFT else curses.KEY_DOWN)
-          break
-        else: properties.handleKey(key, popup.height - 2)
-    
-    popup.setHeight(9)
-    popup.recreate(stdscr, 80)
-  finally:
-    panel.CURSES_LOCK.release()
+        try:
+          draw(popup, properties)
+          key = controller.getScreen().getch()
+          
+          if uiTools.isSelectionKey(key) or key in (ord('d'), ord('D')):
+            # closes popup
+            isVisible = False
+          elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):
+            # navigation - pass on to connPanel and recreate popup
+            connectionPanel.handleKey(curses.KEY_UP if key == curses.KEY_LEFT else curses.KEY_DOWN)
+            break
+          else: properties.handleKey(key, popup.height - 2)
+        finally: popups.finalize()
+  finally: panel.CURSES_LOCK.release()
+  
+  topPanel.setTitleVisible(True)
 
 def draw(popup, properties):
-  popup.clear()
+  popup.win.erase()
   popup.win.box()
   xOffset = 2
   
@@ -174,5 +182,5 @@ def draw(popup, properties):
       lineNum += 1
       if lineNum > pageHeight: break
       
-  popup.refresh()
+  popup.win.refresh()
 

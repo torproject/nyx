@@ -301,9 +301,10 @@ def showMenu(title, options, oldSelection):
       elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
       
-    topPanel.setTitleVisible(True)
     curses.halfdelay(controller.REFRESH_RATE * 10) # reset normal pausing behavior
-  finally: finalize()
+  finally:
+    topPanel.setTitleVisible(True)
+    finalize()
   
   return selection
 

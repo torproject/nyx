@@ -954,23 +954,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         setPauseState(panels, isPaused, page)
       finally:
         panel.CURSES_LOCK.release()
-    elif page == 1 and key in (ord('d'), ord('D')):
-      # presents popup for raw consensus data
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        curses.cbreak() # wait indefinitely for key presses (no timeout)
-        panelTitle = panels["conn"]._title
-        panels["conn"]._title = ""
-        panels["conn"].redraw(True)
-        
-        descriptorPopup.showDescriptorPopup(panels["popup"], stdscr, panels["conn"])
-        
-        panels["conn"]._title = panelTitle
-        setPauseState(panels, isPaused, page)
-        curses.halfdelay(REFRESH_RATE * 10) # reset normal pausing behavior
-      finally:
-        panel.CURSES_LOCK.release()
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

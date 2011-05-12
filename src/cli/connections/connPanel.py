@@ -6,6 +6,7 @@ import time
 import curses
 import threading
 
+import cli.descriptorPopup
 import cli.popups
 
 from cli.connections import entries, connEntry, circEntry
@@ -191,6 +192,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       # applies new setting
       if selection != -1: self.setListingType(options[selection])
+    elif key == ord('d') or key == ord('D'):
+      # presents popup for raw consensus data
+      cli.descriptorPopup.showDescriptorPopup(self)
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()
