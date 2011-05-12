@@ -3,14 +3,13 @@ Panel presenting the configuration state for tor or arm. Options can be edited
 and the resulting configuration files saved.
 """
 
-import os
 import curses
 import threading
 
 import controller
 import popups
 
-from util import conf, enum, panel, torTools, torConfig, uiTools
+from util import conf, enum, panel, sysTools, torConfig, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
                   "features.config.prepopulateEditValues": True,
@@ -401,35 +400,20 @@ class ConfigPanel(panel.Panel):
           elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
         
         if selection in (0, 1):
-          loadedTorrc = torConfig.getTorrc()
+          loadedTorrc, promptCanceled = torConfig.getTorrc(), False
           try: configLocation = loadedTorrc.getConfigLocation()
           except IOError: configLocation = ""
           
           if selection == 1:
             # prompts user for a configuration location
             configLocation = popups.inputPrompt("Save to (esc to cancel): ", configLocation)
-            if configLocation: configLocation = os.path.abspath(configLocation)
+            if not configLocation: promptCanceled = True
           
-          if configLocation:
+          if not promptCanceled:
             try:
-              # make dir if the path doesn't already exist
-              baseDir = os.path.dirname(configLocation)
-              if not os.path.exists(baseDir): os.makedirs(baseDir)
-              
-              # saves the configuration to the file
-              configFile = open(configLocation, "w")
-              configFile.write("\n".join(configLines))
-              configFile.close()
-              
-              # reloads the cached torrc if overwriting it
-              if configLocation == loadedTorrc.getConfigLocation():
-                try:
-                  loadedTorrc.load()
-                  panels["torrc"]._lastContentHeightArgs = None
-                except IOError: pass
-              
+              torConfig.saveConf(configLocation, configLines)
               msg = "Saved configuration to %s" % configLocation
-            except (IOError, OSError), exc:
+            except IOError, exc:
               msg = "Unable to save configuration (%s)" % sysTools.getFileErrorMsg(exc)
             
             popups.showMsg(msg, 2)

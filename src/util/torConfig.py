@@ -3,6 +3,7 @@ Helper functions for working with tor's configuration file.
 """
 
 import os
+import time
 import socket
 import threading
 
@@ -380,6 +381,74 @@ def getCustomOptions(includeValue = False):
   
   if includeValue: return configLines
   else: return [line[:line.find(" ")] for line in configLines]
+
+def saveConf(destination = None, contents = None):
+  """
+  Saves the configuration to the given path. If this is equivilant to
+  issuing a SAVECONF (the contents and destination match what tor's using)
+  then that's done. Otherwise, this writes the contents directly. This raises
+  an IOError if unsuccessful.
+  
+  Arguments:
+    destination - path to be saved to, the current config location if None
+    contents    - configuration to be saved, the current config if None
+  """
+  
+  if destination:
+    destination = os.path.abspath(destination)
+  
+  # fills default config values, and sets isSaveconf to false if they differ
+  # from the arguments
+  isSaveconf, startTime = True, time.time()
+  
+  currentConfig = getCustomOptions(True)
+  if not contents: contents = currentConfig
+  else: isSaveconf &= contents == currentConfig
+  
+  currentLocation = None
+  try:
+    currentLocation = getConfigLocation()
+    if not destination: destination = currentLocation
+    else: isSaveconf &= destination == currentLocation
+  except IOError: pass
+  
+  if not destination: raise IOError("unable to determine the torrc's path")
+  logMsg = "Saved config by %%s to %s (runtime: %%0.4f)" % destination
+  
+  # attempts SAVECONF if we're updating our torrc with the current state
+  if isSaveconf:
+    try:
+      torTools.getConn().getTorCtl().save_conf()
+      
+      try: getTorrc().load()
+      except IOError: pass
+      
+      log.log(log.DEBUG, logMsg % ("SAVECONF", time.time() - startTime))
+      return # if successful then we're done
+    except:
+      # example error:
+      # TorCtl.TorCtl.ErrorReply: 551 Unable to write configuration to disk.
+      pass
+  
+  # if the SAVECONF fails or this is a custom save then write contents directly
+  try:
+    # make dir if the path doesn't already exist
+    baseDir = os.path.dirname(destination)
+    if not os.path.exists(baseDir): os.makedirs(baseDir)
+    
+    # saves the configuration to the file
+    configFile = open(destination, "w")
+    configFile.write("\n".join(contents))
+    configFile.close()
+  except (IOError, OSError), exc:
+    raise IOError(exc)
+  
+  # reloads the cached torrc if overwriting it
+  if destination == currentLocation:
+    try: getTorrc().load()
+    except IOError: pass
+  
+  log.log(log.DEBUG, logMsg % ("directly writing", time.time() - startTime))
 
 def validate(contents = None):
   """
