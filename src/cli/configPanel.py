@@ -203,9 +203,12 @@ class ConfigPanel(panel.Panel):
       configOptionLines = conn.getInfo("config/names", "").strip().split("\n")
       
       for line in configOptionLines:
-        # lines are of the form "<option> <type>", like:
+        # lines are of the form "<option> <type>[ <documentation>]", like:
         # UseEntryGuards Boolean
-        confOption, confType = line.strip().split(" ", 1)
+        # documentation is aparently only in older versions (for instance,
+        # 0.2.1.25)
+        lineComp = line.strip().split(" ")
+        confOption, confType = lineComp[0], lineComp[1]
         
         # skips private and virtual entries if not configured to show them
         if not self._config["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
