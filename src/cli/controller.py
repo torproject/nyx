@@ -807,11 +807,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
     elif key == ord('h') or key == ord('H'):
       overrideKey = popups.showHelpPopup()
-    elif page == 0 and (key == ord('b') or key == ord('B')):
-      # uses the next boundary type for graph
-      panels["graph"].bounds = graphing.graphPanel.Bounds.next(panels["graph"].bounds)
-      
-      selectiveRefresh(panels, page)
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

@@ -271,6 +271,10 @@ class GraphPanel(panel.Panel):
         
         if currentHeight < maxHeight + 1:
           self.setGraphHeight(self.graphHeight + 1)
+    elif key == ord('b') or key == ord('B'):
+      # uses the next boundary type
+      self.bounds = Bounds.next(self.bounds)
+      self.redraw(True)
     elif key == ord('s') or key == ord('S'):
       # provides a menu to pick the graphed stats
       availableStats = self.stats.keys()
