@@ -163,6 +163,28 @@ def getMissingEventTypes():
     return [event for event in torEventTypes if not event in armEventTypes]
   else: return None # GETINFO call failed
 
+def setEventListening(events):
+  """
+  Configures the events Tor listens for, filtering non-tor events from what we
+  request from the controller. This returns a sorted list of the events we
+  successfully set.
+  
+  Arguments:
+    events - event types to attempt to set
+  """
+  
+  events = set(events) # drops duplicates
+  torEvents = events.intersection(set(TOR_EVENT_TYPES.values()))
+  
+  # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
+  if "UNKNOWN" in events:
+    torEvents.update(set(getMissingEventTypes()))
+  
+  setEvents = torTools.getConn().setControllerEvents(list(torEvents))
+  
+  # provides back the input set minus events we failed to set
+  return sorted(events.difference(torTools.FAILED_EVENTS))
+
 def loadLogMessages():
   """
   Fetches a mapping of common log messages to their runlevels from the config.
@@ -552,6 +574,10 @@ class LogPanel(panel.Panel, threading.Thread):
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
     
+    # restricts the input to the set of events we can listen to, and
+    # configures the controller to liten to them
+    loggedEvents = setEventListening(loggedEvents)
+    
     self.setPauseAttr("msgLog")         # tracks the message log when we're paused
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
@@ -693,9 +719,12 @@ class LogPanel(panel.Panel, threading.Thread):
     """
     
     if eventTypes == self.loggedEvents: return
-    
     self.valsLock.acquire()
-    self.loggedEvents = eventTypes
+    
+    # configures the controller to listen for these tor events, and provides
+    # back a subset without anything we're failing to listen to
+    setTypes = setEventListening(eventTypes)
+    self.loggedEvents = setTypes
     self.redraw(True)
     self.valsLock.release()
   
@@ -815,6 +844,29 @@ class LogPanel(panel.Panel, threading.Thread):
         panel.CURSES_LOCK.release()
       
       if len(self.filterOptions) > MAX_REGEX_FILTERS: del self.filterOptions[MAX_REGEX_FILTERS:]
+    elif key == ord('e') or key == ord('E'):
+      # allow user to enter new types of events to log - unchanged if left blank
+      popup, width, height = popups.init(11, 80)
+      
+      if popup:
+        try:
+          # displays the available flags
+          popup.win.box()
+          popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
+          eventLines = EVENT_LISTING.split("\n")
+          
+          for i in range(len(eventLines)):
+            popup.addstr(i + 1, 1, eventLines[i][6:])
+          
+          popup.win.refresh()
+          
+          userInput = popups.inputPrompt("Events to log: ")
+          if userInput:
+            userInput = userInput.replace(' ', '') # strips spaces
+            try: self.setLoggedEvents(expandEvents(userInput))
+            except ValueError, exc:
+              popups.showMsg("Invalid flags: %s" % str(exc), 2)
+        finally: popups.finalize()
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed

@@ -277,32 +277,6 @@ def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
   
   for key in allPanels: panels[key].setPaused(overwrite or monitorIsPaused or (key not in PAGES[currentPage] and key not in PAGE_S))
 
-def setEventListening(selectedEvents, isBlindMode):
-  # creates a local copy, note that a suspected python bug causes *very*
-  # puzzling results otherwise when trying to discard entries (silently
-  # returning out of this function!)
-  events = set(selectedEvents)
-  isLoggingUnknown = "UNKNOWN" in events
-  
-  # removes special types only used in arm (UNKNOWN, TORCTL, ARM_DEBUG, etc)
-  toDiscard = []
-  for eventType in events:
-    if eventType not in logPanel.TOR_EVENT_TYPES.values(): toDiscard += [eventType]
-  
-  for eventType in list(toDiscard): events.discard(eventType)
-  
-  # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
-  if isLoggingUnknown:
-    events.update(set(logPanel.getMissingEventTypes()))
-  
-  setEvents = torTools.getConn().setControllerEvents(list(events))
-  
-  # temporary hack for providing user selected events minus those that failed
-  # (wouldn't be a problem if I wasn't storing tor and non-tor events together...)
-  returnVal = list(selectedEvents.difference(torTools.FAILED_EVENTS))
-  returnVal.sort() # alphabetizes
-  return returnVal
-
 def connResetListener(conn, eventType):
   """
   Pauses connection resolution when tor's shut down, and resumes if started
@@ -507,7 +481,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     if isSuccessful: panels["graph"].updateInterval = 4
   
   # tells Tor to listen to the events we're interested
-  loggedEvents = setEventListening(loggedEvents, isBlindMode)
   #panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   panels["log"].setLoggedEvents(loggedEvents) # strips any that couldn't be set
   
@@ -862,56 +835,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
             panels["control"].setMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), curses.A_STANDOUT)
             panels["control"].redraw(True)
             time.sleep(2)
-        
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
-      
-      panels["graph"].redraw(True)
-    elif page == 0 and (key == ord('e') or key == ord('E')):
-      # allow user to enter new types of events to log - unchanged if left blank
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("Events to log: ")
-        panels["control"].redraw(True)
-        
-        # lists event types
-        popup = panels["popup"]
-        popup.height = 11
-        popup.recreate(stdscr, 80)
-        
-        popup.clear()
-        popup.win.box()
-        popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
-        lineNum = 1
-        for line in logPanel.EVENT_LISTING.split("\n"):
-          line = line[6:]
-          popup.addstr(lineNum, 1, line)
-          lineNum += 1
-        popup.refresh()
-        
-        # gets user input (this blocks monitor updates)
-        eventsInput = panels["control"].getstr(0, 15)
-        if eventsInput: eventsInput = eventsInput.replace(' ', '') # strips spaces
-        
-        # it would be nice to quit on esc, but looks like this might not be possible...
-        if eventsInput:
-          try:
-            expandedEvents = logPanel.expandEvents(eventsInput)
-            loggedEvents = setEventListening(expandedEvents, isBlindMode)
-            panels["log"].setLoggedEvents(loggedEvents)
-          except ValueError, exc:
-            panels["control"].setMsg("Invalid flags: %s" % str(exc), curses.A_STANDOUT)
-            panels["control"].redraw(True)
-            time.sleep(2)
-        
-        # reverts popup dimensions
-        popup.height = 9
-        popup.recreate(stdscr, 80)
         
         panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
         setPauseState(panels, isPaused, page)
