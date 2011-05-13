@@ -256,7 +256,22 @@ class GraphPanel(panel.Panel):
   
   def handleKey(self, key):
     isKeystrokeConsumed = True
-    if key == ord('s') or key == ord('S'):
+    if key in (ord('n'), ord('N'), ord('m'), ord('M')):
+      # Unfortunately modifier keys don't work with the up/down arrows (sending
+      # multiple keycodes). The only exception to this is shift + left/right,
+      # but for now just gonna use standard characters.
+      
+      if key in (ord('n'), ord('N')):
+        self.setGraphHeight(self.graphHeight - 1)
+      else:
+        # don't grow the graph if it's already consuming the whole display
+        # (plus an extra line for the graph/log gap)
+        maxHeight = self.parent.getmaxyx()[0] - self.top
+        currentHeight = self.getHeight()
+        
+        if currentHeight < maxHeight + 1:
+          self.setGraphHeight(self.graphHeight + 1)
+    elif key == ord('s') or key == ord('S'):
       # provides a menu to pick the graphed stats
       availableStats = self.stats.keys()
       availableStats.sort()

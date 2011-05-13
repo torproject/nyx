@@ -919,21 +919,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panel.CURSES_LOCK.release()
       
       panels["graph"].redraw(True)
-    elif page == 0 and key in (ord('n'), ord('N'), ord('m'), ord('M')):
-      # Unfortunately modifier keys don't work with the up/down arrows (sending
-      # multiple keycodes. The only exception to this is shift + left/right,
-      # but for now just gonna use standard characters.
-      
-      if key in (ord('n'), ord('N')):
-        panels["graph"].setGraphHeight(panels["graph"].graphHeight - 1)
-      else:
-        # don't grow the graph if it's already consuming the whole display
-        # (plus an extra line for the graph/log gap)
-        maxHeight = panels["graph"].parent.getmaxyx()[0] - panels["graph"].top
-        currentHeight = panels["graph"].getHeight()
-        
-        if currentHeight < maxHeight + 1:
-          panels["graph"].setGraphHeight(panels["graph"].graphHeight + 1)
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)
