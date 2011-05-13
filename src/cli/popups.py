@@ -95,7 +95,7 @@ def showHelpPopup():
   properly, this is an arrow, enter, or scroll key then this returns None.
   """
   
-  popup, width, height = init(9, 80)
+  popup, _, height = init(9, 80)
   if not popup: return
   
   exitKey = None
@@ -172,7 +172,7 @@ def showSortDialog(title, options, oldSelection, optionColors):
     optionColors - mappings of options to their color
   """
   
-  popup, width, height = init(9, 80)
+  popup, _, _ = init(9, 80)
   if not popup: return
   newSelections = []  # new ordering
   
@@ -272,7 +272,7 @@ def showMenu(title, options, oldSelection):
   """
   
   maxWidth = max([len(label) for label in options]) + 9
-  popup, width, height = init(len(options) + 2, maxWidth)
+  popup, _, _ = init(len(options) + 2, maxWidth)
   if not popup: return
   key, selection = 0, oldSelection if oldSelection != -1 else 0
   
