@@ -778,33 +778,13 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       selectiveRefresh(panels, page)
     elif key == ord('x') or key == ord('X'):
       # provides prompt to confirm that arm should issue a sighup
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("This will reset Tor's internal state. Are you sure (x again to confirm)?", curses.A_BOLD)
-        panels["control"].redraw(True)
-        
-        curses.cbreak()
-        confirmationKey = stdscr.getch()
-        if confirmationKey in (ord('x'), ord('X')):
-          try:
-            torTools.getConn().reload()
-          except IOError, exc:
-            log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
-            
-            #errorMsg = " (%s)" % str(err) if str(err) else ""
-            #panels["control"].setMsg("Sighup failed%s" % errorMsg, curses.A_STANDOUT)
-            #panels["control"].redraw(True)
-            #time.sleep(2)
-        
-        # reverts display settings
-        curses.halfdelay(REFRESH_RATE * 10)
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
+      msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
+      confirmationKey = popups.showMsg(msg, attr = curses.A_BOLD)
+      
+      if confirmationKey in (ord('x'), ord('X')):
+        try: torTools.getConn().reload()
+        except IOError, exc:
+          log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
       overrideKey = popups.showHelpPopup()
     else:
