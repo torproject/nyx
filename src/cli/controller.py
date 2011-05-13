@@ -812,36 +812,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       panels["graph"].bounds = graphing.graphPanel.Bounds.next(panels["graph"].bounds)
       
       selectiveRefresh(panels, page)
-    elif page == 0 and (key == ord('a') or key == ord('A')):
-      # allow user to enter a path to take a snapshot - abandons if left blank
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("Path to save log snapshot: ")
-        panels["control"].redraw(True)
-        
-        # gets user input (this blocks monitor updates)
-        pathInput = panels["control"].getstr(0, 27)
-        
-        if pathInput:
-          try:
-            panels["log"].saveSnapshot(pathInput)
-            panels["control"].setMsg("Saved: %s" % pathInput, curses.A_STANDOUT)
-            panels["control"].redraw(True)
-            time.sleep(2)
-          except IOError, exc:
-            panels["control"].setMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), curses.A_STANDOUT)
-            panels["control"].redraw(True)
-            time.sleep(2)
-        
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
-      
-      panels["graph"].redraw(True)
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

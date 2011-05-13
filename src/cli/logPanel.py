@@ -867,6 +867,16 @@ class LogPanel(panel.Panel, threading.Thread):
             except ValueError, exc:
               popups.showMsg("Invalid flags: %s" % str(exc), 2)
         finally: popups.finalize()
+    elif key == ord('a') or key == ord('A'):
+      # lets user enter a path to take a snapshot, canceling if left blank
+      pathInput = popups.inputPrompt("Path to save log snapshot: ")
+      
+      if pathInput:
+        try:
+          self.saveSnapshot(pathInput)
+          popups.showMsg("Saved: %s" % pathInput, 2)
+        except IOError, exc:
+          popups.showMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), 2)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
