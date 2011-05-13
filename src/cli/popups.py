@@ -66,7 +66,7 @@ def inputPrompt(msg, initialValue = ""):
 def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
   """
   Displays a single line message on the control line for a set time. Pressing
-  any key will end the message.
+  any key will end the message. This returns the key pressed.
   
   Arguments:
     msg     - message to be displayed to the user
@@ -81,10 +81,12 @@ def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
   
   if maxWait == -1: curses.cbreak()
   else: curses.halfdelay(maxWait * 10)
-  controller.getScreen().getch()
+  keyPress = controller.getScreen().getch()
   controlPanel.revertMsg()
   curses.halfdelay(controller.REFRESH_RATE * 10)
   panel.CURSES_LOCK.release()
+  
+  return keyPress
 
 def showHelpPopup():
   """

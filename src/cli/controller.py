@@ -934,26 +934,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         
         if currentHeight < maxHeight + 1:
           panels["graph"].setGraphHeight(panels["graph"].graphHeight + 1)
-    elif page == 0 and (key == ord('c') or key == ord('C')):
-      # provides prompt to confirm that arm should clear the log
-      panel.CURSES_LOCK.acquire()
-      try:
-        setPauseState(panels, isPaused, page, True)
-        
-        # provides prompt
-        panels["control"].setMsg("This will clear the log. Are you sure (c again to confirm)?", curses.A_BOLD)
-        panels["control"].redraw(True)
-        
-        curses.cbreak()
-        confirmationKey = stdscr.getch()
-        if confirmationKey in (ord('c'), ord('C')): panels["log"].clear()
-        
-        # reverts display settings
-        curses.halfdelay(REFRESH_RATE * 10)
-        panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-        setPauseState(panels, isPaused, page)
-      finally:
-        panel.CURSES_LOCK.release()
     else:
       for pagePanel in getPanels(page + 1):
         isKeystrokeConsumed = pagePanel.handleKey(key)

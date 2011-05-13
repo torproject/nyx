@@ -767,6 +767,10 @@ class LogPanel(panel.Panel, threading.Thread):
       self.showDuplicates = not self.showDuplicates
       self.redraw(True)
       self.valsLock.release()
+    elif key == ord('c') or key == ord('C'):
+      msg = "This will clear the log. Are you sure (c again to confirm)?"
+      keyPress = popups.showMsg(msg, attr = curses.A_BOLD)
+      if keyPress in (ord('c'), ord('C')): self.clear()
     elif key == ord('f') or key == ord('F'):
       # Provides menu to pick regular expression filters or adding new ones:
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
