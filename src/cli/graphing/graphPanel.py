@@ -367,11 +367,11 @@ class GraphPanel(panel.Panel):
           if self.graphHeight % 2 == 0 and i >= (ticks / 2): row -= 1
           
           if primaryMinBound != primaryMaxBound:
-            primaryVal = (primaryMaxBound - primaryMinBound) / (self.graphHeight - 1) * (self.graphHeight - row - 1)
+            primaryVal = (primaryMaxBound - primaryMinBound) * (self.graphHeight - row - 1) / (self.graphHeight - 1)
             if not primaryVal in (primaryMinBound, primaryMaxBound): self.addstr(row + 2, 0, "%4i" % primaryVal, primaryColor)
           
           if secondaryMinBound != secondaryMaxBound:
-            secondaryVal = (secondaryMaxBound - secondaryMinBound) / (self.graphHeight - 1) * (self.graphHeight - row - 1)
+            secondaryVal = (secondaryMaxBound - secondaryMinBound) * (self.graphHeight - row - 1) / (self.graphHeight - 1)
             if not secondaryVal in (secondaryMinBound, secondaryMaxBound): self.addstr(row + 2, graphCol + 5, "%4i" % secondaryVal, secondaryColor)
       
       # creates bar graph (both primary and secondary)
