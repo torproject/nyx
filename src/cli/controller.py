@@ -89,7 +89,7 @@ REFRESH_RATE = 5        # seconds between redrawing screen
 CTL_HELP, CTL_PAUSED = range(2)
 
 # panel order per page
-PAGE_S = ["header", "control", "popup"] # sticky (ie, always available) page
+PAGE_S = ["header", "control"] # sticky (ie, always available) page
 PAGES = [
   ["graph", "log"],
   ["conn"],
@@ -181,46 +181,6 @@ class ControlPanel(panel.Panel):
       self.addstr(0, xLoc, "[", curses.A_BOLD)
       self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | uiTools.getColor("red"))
       self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
-
-class Popup(panel.Panel):
-  """
-  Temporarily providing old panel methods until permanent workaround for popup
-  can be derrived (this passive drawing method is horrible - I'll need to
-  provide a version using the more active repaint design later in the
-  revision).
-  """
-  
-  def __init__(self, stdscr, height):
-    panel.Panel.__init__(self, stdscr, "popup", 0, height)
-  
-  def setPaused(self, isPause):
-    panel.Panel.setPaused(self, isPause, True)
-  
-  # The following methods are to emulate old panel functionality (this was the
-  # only implementations to use these methods and will require a complete
-  # rewrite when refactoring gets here)
-  def clear(self):
-    if self.win:
-      self.isDisplaced = self.top > self.win.getparyx()[0]
-      if not self.isDisplaced: self.win.erase()
-  
-  def refresh(self):
-    if self.win and not self.isDisplaced: self.win.refresh()
-  
-  def recreate(self, stdscr, newWidth=-1, newTop=None):
-    self.setParent(stdscr)
-    self.setWidth(newWidth)
-    if newTop != None: self.setTop(newTop)
-    
-    newHeight, newWidth = self.getPreferredSize()
-    if newHeight > 0:
-      self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
-    elif self.win == None:
-      # don't want to leave the window as none (in very edge cases could cause
-      # problems) - rather, create a displaced instance
-      self.win = self.parent.subwin(1, newWidth, 0, 0)
-    
-    self.maxY, self.maxX = self.win.getmaxyx()
 
 def addstr_wrap(panel, y, x, text, formatting, startX = 0, endX = -1, maxY = -1):
   """
@@ -435,7 +395,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   panels = {
     "header": headerPanel.HeaderPanel(stdscr, startTime, config),
-    "popup": Popup(stdscr, 9),
     "graph": graphing.graphPanel.GraphPanel(stdscr),
     "log": logPanel.LogPanel(stdscr, loggedEvents, config)}
   
@@ -516,7 +475,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   isPaused = False          # if true updates are frozen
   overrideKey = None        # immediately runs with this input rather than waiting for the user if set
   page = 0
-  panels["popup"].redraw(True)  # hack to make sure popup has a window instance (not entirely sure why...)
   
   PAGE = page
   
@@ -599,8 +557,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels[panelKey].setTop(startY)
         startY += panels[panelKey].getHeight()
       
-      panels["popup"].recreate(stdscr, 80, startY)
-      
       for panelSet in PAGES:
         tmpStartY = startY
         
@@ -627,17 +583,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       # I haven't the foggiest why, but doesn't work if redrawn out of order...
       for panelKey in (PAGE_S + PAGES[page]):
-        # redrawing popup can result in display flicker when it should be hidden
-        if panelKey != "popup":
-          newSize = stdscr.getmaxyx()
-          isResize = lastSize != newSize
-          lastSize = newSize
-          
-          if panelKey in ("header", "graph", "log", "config", "torrc", "conn2"):
-            # revised panel (manages its own content refreshing)
-            panels[panelKey].redraw(isResize)
-          else:
-            panels[panelKey].redraw(True)
+        newSize = stdscr.getmaxyx()
+        isResize = lastSize != newSize
+        lastSize = newSize
+        panels[panelKey].redraw(isResize)
       
       stdscr.refresh()
       
