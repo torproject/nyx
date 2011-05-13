@@ -1079,6 +1079,10 @@ class LogPanel(panel.Panel, threading.Thread):
       else:
         lastDay = currentDay
         self.redraw(True)
+        
+        # makes sure that we register this as an update, otherwise lacking the
+        # curses lock can cause a busy wait here
+        self._lastUpdate = time.time()
   
   def stop(self):
     """
