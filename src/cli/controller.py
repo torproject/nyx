@@ -586,7 +586,11 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         newSize = stdscr.getmaxyx()
         isResize = lastSize != newSize
         lastSize = newSize
-        panels[panelKey].redraw(isResize)
+        
+        if panelKey != "control":
+          panels[panelKey].redraw(isResize)
+        else:
+          panels[panelKey].redraw(True)
       
       stdscr.refresh()
       

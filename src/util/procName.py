@@ -1,13 +1,15 @@
-# Module to allow for arbitrary renaming of our python process. This is mostly
-# based on:
-# http://www.rhinocerus.net/forum/lang-python/569677-setting-program-name-like-0-perl.html#post2272369
-# and an adaptation by Jake: https://github.com/ioerror/chameleon
-# 
-# A cleaner implementation is available at:
-# https://github.com/cream/libs/blob/b38970e2a6f6d2620724c828808235be0445b799/cream/util/procname.py
-# but I'm not quite clear on their implementation, and it only does targeted
-# argument replacement (ie, replace argv[0], argv[1], etc but with a string
-# the same size).
+"""
+Module to allow for arbitrary renaming of our python process. This is mostly
+based on:
+http://www.rhinocerus.net/forum/lang-python/569677-setting-program-name-like-0-perl.html#post2272369
+and an adaptation by Jake: https://github.com/ioerror/chameleon
+
+A cleaner implementation is available at:
+https://github.com/cream/libs/blob/b38970e2a6f6d2620724c828808235be0445b799/cream/util/procname.py
+but I'm not quite clear on their implementation, and it only does targeted
+argument replacement (ie, replace argv[0], argv[1], etc but with a string
+the same size).
+"""
 
 import sys
 import ctypes
