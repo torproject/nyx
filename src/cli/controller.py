@@ -686,24 +686,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
       
       # provides prompt to confirm that arm should exit
       if CONFIRM_QUIT:
-        panel.CURSES_LOCK.acquire()
-        try:
-          setPauseState(panels, isPaused, page, True)
-          
-          # provides prompt
-          panels["control"].setMsg("Are you sure (q again to confirm)?", curses.A_BOLD)
-          panels["control"].redraw(True)
-          
-          curses.cbreak()
-          confirmationKey = stdscr.getch()
-          quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
-          curses.halfdelay(REFRESH_RATE * 10)
-          
-          if not quitConfirmed:
-            panels["control"].setMsg(CTL_PAUSED if isPaused else CTL_HELP)
-          setPauseState(panels, isPaused, page)
-        finally:
-          panel.CURSES_LOCK.release()
+        msg = "Are you sure (q again to confirm)?"
+        confirmationKey = popups.showMsg(msg, attr = curses.A_BOLD)
+        quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
       
       if quitConfirmed:
         # quits arm
