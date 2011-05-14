@@ -23,7 +23,7 @@ def isTorCtlAvailable():
 def promptTorCtlInstall():
   """
   Asks the user to install TorCtl. This returns True if it was installed and
-  False otherwise (if it was either declined or failed to be fetched.
+  False otherwise (if it was either declined or failed to be fetched).
   """
   
   userInput = raw_input("Arm requires TorCtl to run, but it's unavailable. Would you like to install it? (y/n): ")
@@ -57,7 +57,7 @@ def installTorCtl():
   tmpFilename = tempfile.mktemp("/torctl")
   
   # fetches TorCtl
-  exitStatus = os.system("git clone %s %s > /dev/null" % (TORCTL_REPO, tmpFilename))
+  exitStatus = os.system("git clone --quiet %s %s > /dev/null" % (TORCTL_REPO, tmpFilename))
   if exitStatus: raise IOError("Unable to get TorCtl from %s. Is git installed?" % TORCTL_REPO)
   
   # the destination for TorCtl will be our directory
