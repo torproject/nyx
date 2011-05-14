@@ -278,9 +278,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       title = "Connection Details:" if self._showDetails else self._title
       self.addstr(0, 0, title, curses.A_STANDOUT)
     
-    scrollOffset = 1
+    scrollOffset = 0
     if isScrollbarVisible:
-      scrollOffset = 3
+      scrollOffset = 2
       self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelOffset - 1, len(self._entryLines), 1 + detailPanelOffset)
     
     if self.isPaused() or not self._isTorRunning:

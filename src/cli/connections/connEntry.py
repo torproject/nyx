@@ -288,7 +288,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       timePrefix = "+" if self.isInitialConnection else " "
     else: timePrefix = ""
     
-    timeEntry = myListing.getNext()
+    timeEntry = myListing.getNext().getNext()
     timeEntry.text = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
     
     return myListing
@@ -304,6 +304,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     entryType = self.getType()
     
     # Lines are split into the following components in reverse:
+    # init gap - " "
     # content  - "<src>  -->  <dst>     <etc>     "
     # time     - "<uptime>"
     # preType  - " ("
@@ -317,7 +318,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
     drawEntry = uiTools.DrawEntry(entryType.upper(), lineFormat | curses.A_BOLD, drawEntry)
     drawEntry = uiTools.DrawEntry(" (", lineFormat, drawEntry)
     drawEntry = uiTools.DrawEntry(" " * timeWidth, lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(self._getListingContent(width - (12 + timeWidth), listingType), lineFormat, drawEntry)
+    drawEntry = uiTools.DrawEntry(self._getListingContent(width - (12 + timeWidth) - 1, listingType), lineFormat, drawEntry)
+    drawEntry = uiTools.DrawEntry(" ", lineFormat, drawEntry)
     return drawEntry
   
   def _getDetails(self, width):

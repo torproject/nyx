@@ -177,13 +177,14 @@ class CircLine(connEntry.ConnectionLine):
     lineFormat = uiTools.getColor(connEntry.CATEGORY_COLOR[self.getType()])
     
     # The required widths are the sum of the following:
+    # initial space (1 character)
     # bracketing (3 characters)
     # placementLabel (14 characters)
     # gap between etc and placement label (5 characters)
     
     if self.isLast: bracket = (curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
     else: bracket = (curses.ACS_VLINE, ord(' '), ord(' '))
-    baselineSpace = len(bracket) + 14 + 5
+    baselineSpace = len(bracket) + 14 + 5 + 1
     
     dst, etc = "", ""
     if listingType == entries.ListingType.IP_ADDRESS:
@@ -212,5 +213,6 @@ class CircLine(connEntry.ConnectionLine):
     drawEntry = uiTools.DrawEntry(" " * (width - baselineSpace - len(dst) - len(etc) + 5), lineFormat, drawEntry)
     drawEntry = uiTools.DrawEntry(dst + etc, lineFormat, drawEntry)
     drawEntry = uiTools.DrawEntry(bracket, curses.A_NORMAL, drawEntry, lockFormat = True)
+    drawEntry = uiTools.DrawEntry(" ", curses.A_NORMAL, drawEntry, lockFormat = True)
     return drawEntry
 
