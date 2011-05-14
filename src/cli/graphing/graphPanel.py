@@ -22,7 +22,7 @@ from TorCtl import TorCtl
 
 import cli.popups
 
-from util import enum, panel, uiTools
+from util import enum, panel, torTools, uiTools
 
 # time intervals at which graphs can be updated
 UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
@@ -92,6 +92,9 @@ class GraphStats(TorCtl.PostEventListener):
       # iterative insert needed to avoid making shallow copies (nasty, nasty gotcha)
       self.primaryCounts[i] = (self.maxCol + 1) * [0]
       self.secondaryCounts[i] = (self.maxCol + 1) * [0]
+    
+    # tracks BW events
+    torTools.getConn().addEventListener(self)
   
   def clone(self, newCopy=None):
     """

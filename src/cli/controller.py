@@ -7,13 +7,9 @@ Curses (terminal) interface for the arm relay status monitor.
 """
 
 import os
-import re
 import math
 import time
 import curses
-import curses.textpad
-import socket
-from TorCtl import TorCtl
 
 import popups
 import headerPanel
@@ -21,7 +17,6 @@ import graphing.graphPanel
 import logPanel
 import configPanel
 import torrcPanel
-import descriptorPopup
 
 import cli.connections.connPanel
 import cli.connections.connEntry
@@ -43,6 +38,7 @@ def refresh():
 PANELS = {}
 STDSCR = None
 IS_PAUSED = False
+PAGE = 0
 
 def getScreen():
   return STDSCR
@@ -214,10 +210,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   """
   Starts arm interface reflecting information on provided control port.
   
-  stdscr - curses window
-  conn - active Tor control port connection
-  loggedEvents - types of events to be logged (plus an optional "UNKNOWN" for
-    otherwise unrecognized events)
+  stdscr       - curses window
+  startTime    - unix time for when arm was started
+  loggedEvents - event types we've been configured to log
+  isBlindMode  - flag to indicate if the user's turned off connection lookups
   """
   
   global PANELS, STDSCR, REFRESH_FLAG, PAGE, IS_PAUSED
@@ -240,9 +236,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   # pauses/unpauses connection resolution according to if tor's connected or not
   torTools.getConn().addStatusListener(connResetListener)
   
-  # TODO: incrementally drop this requirement until everything's using the singleton
-  conn = torTools.getConn().getTorCtl()
-  
   curses.halfdelay(REFRESH_RATE * 10)   # uses getch call as timer for REFRESH_RATE seconds
   try: curses.use_default_colors()      # allows things like semi-transparent backgrounds (call can fail with ERR)
   except curses.error: pass
@@ -253,17 +246,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   
   # attempts to determine tor's current pid (left as None if unresolveable, logging an error later)
   torPid = torTools.getConn().getMyPid()
-  
-  #try:
-  #  confLocation = conn.get_info("config-file")["config-file"]
-  #  if confLocation[0] != "/":
-  #    # relative path - attempt to add process pwd
-  #    try:
-  #      results = sysTools.call("pwdx %s" % torPid)
-  #      if len(results) == 1 and len(results[0].split()) == 2: confLocation = "%s/%s" % (results[0].split()[1], confLocation)
-  #    except IOError: pass # pwdx call failed
-  #except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed):
-  #  confLocation = ""
   
   # loads the torrc and provides warnings in case of validation errors
   try:
@@ -317,12 +299,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   elif graphType == 2 and not isBlindMode: panels["graph"].setStats("connections")
   elif graphType == 3: panels["graph"].setStats("system resources")
   
-  # listeners that update bandwidth and log panels with Tor status
-  #conn.add_event_listener(panels["log"])
-  conn.add_event_listener(panels["graph"].stats["bandwidth"])
-  conn.add_event_listener(panels["graph"].stats["system resources"])
-  if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
-  
   # prepopulates bandwidth values from state file
   if CONFIG["features.graph.bw.prepopulate"]:
     isSuccessful = panels["graph"].stats["bandwidth"].prepopulateFromState()
@@ -331,11 +307,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   # tells Tor to listen to the events we're interested
   #panels["log"].loggedEvents = loggedEvents # strips any that couldn't be set
   panels["log"].setLoggedEvents(loggedEvents) # strips any that couldn't be set
-  
-  # directs logged TorCtl events to log panel
-  #TorUtil.loglevel = "DEBUG"
-  #TorUtil.logfile = panels["log"]
-  #torTools.getConn().addTorCtlListener(panels["log"].tor_ctl_event)
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = logPanel.getMissingEventTypes()
@@ -349,16 +320,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   panels["header"].start()
   panels["log"].start()
   panels["conn"].start()
-  
-  # warns if tor isn't updating descriptors
-  #try:
-  #  if conn.get_option("FetchUselessDescriptors")[0][1] == "0" and conn.get_option("DirPort")[0][1] == "0":
-  #    warning = """Descriptors won't be updated (causing some connection information to be stale) unless:
-  #a. 'FetchUselessDescriptors 1' is set in your torrc
-  #b. the directory service is provided ('DirPort' defined)
-  #c. or tor is used as a client"""
-  #    log.log(log.WARN, warning)
-  #except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
   
   isUnresponsive = False    # true if it's been over ten seconds since the last BW event (probably due to Tor closing)
   isPaused = False          # if true updates are frozen
@@ -523,8 +484,7 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         panels["conn"].join()
         panels["log"].join()
         
-        conn = torTools.getConn()
-        conn.close() # joins on TorCtl event thread
+        torTools.getConn().close() # joins on TorCtl event thread
         
         # joins on utility daemon threads - this might take a moment since
         # the internal threadpools being joined might be sleeping
