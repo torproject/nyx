@@ -22,6 +22,7 @@ CONFIG = {"features.torrc.validate": True,
           "torrc.label.time.hour": [],
           "torrc.label.time.day": [],
           "torrc.label.time.week": [],
+          "log.torrc.readFailed": log.WARN,
           "log.configDescriptions.unrecognizedCategory": log.NOTICE}
 
 # enums and values for numeric torrc entries
@@ -616,11 +617,18 @@ class Torrc():
     self.displayableContents = None
     self.strippedContents = None
     self.corrections = None
+    
+    # flag to indicate if we've given a load failure warning before
+    self.isLoadFailWarned = False
   
-  def load(self):
+  def load(self, logFailure = False):
     """
     Loads or reloads the torrc contents, raising an IOError if there's a
     problem.
+    
+    Arguments:
+      logFailure - if the torrc fails to load and we've never provided a
+                   warning for this before then logs a warning
     """
     
     self.valsLock.acquire()
@@ -637,6 +645,11 @@ class Torrc():
       self.contents = configFile.readlines()
       configFile.close()
     except IOError, exc:
+      if logFailure and not self.isLoadFailWarned:
+        msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
+        log.log(CONFIG["log.torrc.readFailed"], msg)
+        self.isLoadFailWarned = True
+      
       self.valsLock.release()
       raise exc
     

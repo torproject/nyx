@@ -96,8 +96,7 @@ PAGES = [
   ["config"],
   ["torrc"]]
 
-CONFIG = {"log.torrc.readFailed": log.WARN,
-          "features.graph.type": 1,
+CONFIG = {"features.graph.type": 1,
           "queries.refreshRate.rate": 5,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "features.graph.bw.prepopulate": True,
@@ -286,11 +285,8 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   loadedTorrc = torConfig.getTorrc()
   loadedTorrc.getLock().acquire()
   
-  try:
-    loadedTorrc.load()
-  except IOError, exc:
-    msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
-    log.log(CONFIG["log.torrc.readFailed"], msg)
+  try: loadedTorrc.load(True)
+  except: pass
   
   if loadedTorrc.isLoaded():
     corrections = loadedTorrc.getCorrections()
@@ -504,11 +500,9 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         # reload the torrc if it's previously been loaded
         if loadedTorrc.isLoaded():
           try:
-            loadedTorrc.load()
+            loadedTorrc.load(True)
             if page == 3: panels["torrc"].redraw(True)
-          except IOError, exc:
-            msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
-            log.log(CONFIG["log.torrc.readFailed"], msg)
+          except: pass
         
         sighupTracker.isReset = False
       
