@@ -23,7 +23,9 @@ CONFIG = {"features.torrc.validate": True,
           "torrc.label.time.day": [],
           "torrc.label.time.week": [],
           "log.torrc.readFailed": log.WARN,
-          "log.configDescriptions.unrecognizedCategory": log.NOTICE}
+          "log.configDescriptions.unrecognizedCategory": log.NOTICE,
+          "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE,
+          "log.torrc.validation.torStateDiffers": log.WARN}
 
 # enums and values for numeric torrc entries
 ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
@@ -753,6 +755,71 @@ class Torrc():
     """
     
     return self.valsLock
+  
+  def logValidationIssues(self):
+    """
+    Performs validation on the loaded contents, and logs warnings for issues
+    that are found.
+    """
+    
+    corrections = self.getCorrections()
+    
+    if corrections:
+      duplicateOptions, defaultOptions, mismatchLines, missingOptions = [], [], [], []
+      
+      for lineNum, issue, msg in corrections:
+        if issue == ValidationError.DUPLICATE:
+          duplicateOptions.append("%s (line %i)" % (msg, lineNum + 1))
+        elif issue == ValidationError.IS_DEFAULT:
+          defaultOptions.append("%s (line %i)" % (msg, lineNum + 1))
+        elif issue == ValidationError.MISMATCH: mismatchLines.append(lineNum + 1)
+        elif issue == ValidationError.MISSING: missingOptions.append(msg)
+      
+      if duplicateOptions or defaultOptions:
+        msg = "Unneeded torrc entries found. They've been highlighted in blue on the torrc page."
+        
+        if duplicateOptions:
+          if len(duplicateOptions) > 1:
+            msg += "\n- entries ignored due to having duplicates: "
+          else:
+            msg += "\n- entry ignored due to having a duplicate: "
+          
+          duplicateOptions.sort()
+          msg += ", ".join(duplicateOptions)
+        
+        if defaultOptions:
+          if len(defaultOptions) > 1:
+            msg += "\n- entries match their default values: "
+          else:
+            msg += "\n- entry matches its default value: "
+          
+          defaultOptions.sort()
+          msg += ", ".join(defaultOptions)
+        
+        log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], msg)
+      
+      if mismatchLines or missingOptions:
+        msg = "The torrc differ from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
+        
+        if mismatchLines:
+          if len(mismatchLines) > 1:
+            msg += "\n- torrc values differ on lines: "
+          else:
+            msg += "\n- torrc value differs on line: "
+          
+          mismatchLines.sort()
+          msg += ", ".join([str(val + 1) for val in mismatchLines])
+          
+        if missingOptions:
+          if len(missingOptions) > 1:
+            msg += "\n- configuration values are missing from the torrc: "
+          else:
+            msg += "\n- configuration value is missing from the torrc: "
+          
+          missingOptions.sort()
+          msg += ", ".join(missingOptions)
+        
+        log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
 
 def _testConfigDescriptions():
   """
