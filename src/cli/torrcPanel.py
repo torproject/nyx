@@ -8,7 +8,7 @@ import threading
 
 import popups
 
-from util import conf, enum, panel, torConfig, uiTools
+from util import conf, enum, panel, torConfig, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
                   "features.config.file.maxLinesPerEntry": 8}
@@ -40,6 +40,24 @@ class TorrcPanel(panel.Panel):
     # _lastContentHeightArgs is None or differs from the current dimensions)
     self._lastContentHeight = 1
     self._lastContentHeightArgs = None
+    
+    # listens for tor reload (sighup) events
+    torTools.getConn().addStatusListener(self.resetListener)
+  
+  def resetListener(self, conn, eventType):
+    """
+    Reloads and displays the torrc on tor reload (sighup) events.
+    
+    Arguments:
+      conn      - tor controller
+      eventType - type of event detected
+    """
+    
+    if eventType == torTools.State.INIT:
+      try:
+        torConfig.getTorrc().load(True)
+        self.redraw(True)
+      except: pass
   
   def handleKey(self, key):
     self.valsLock.acquire()

@@ -432,15 +432,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
         if panels["graph"].currentDisplay == "bandwidth":
           panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
         
-        # TODO: should redraw the torrcPanel
-        #panels["torrc"].loadConfig()
-        
-        # reload the torrc if it's previously been loaded
-        if loadedTorrc.isLoaded():
-          try:
-            loadedTorrc.load(True)
-            if page == 3: panels["torrc"].redraw(True)
-          except: pass
         
         sighupTracker.isReset = False
       
