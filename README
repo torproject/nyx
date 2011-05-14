@@ -88,22 +88,13 @@ share and it should be fine.
 
 > Is there any chance that arm will leak data?
 
-Not by default, arm is a passive listener with one exception. The second page
-(connections) provides the hostnames of Tor relays you're connected to. This
-means reverse DNS lookups which, if monitored, could leak your current
-connections to an eavesdropper. However, this is disabled by default and
-lookups are only made upon request (when showing connection details or listing
-connections by hostname). See the page's help for how to enable lookups.
-
-That said, this is not a terribly big whoop. ISPs and anyone sniffing your
-connection already have this data - the only difference is that instead of
-saying "I am talking to x" you're saying "I'm talking to x, who's x?", meaning
-the resolver's also aware of who they are.
+No. Arm is a completely passive listener, fetching all information from either
+Tor or the local system.
 
 > When arm starts it gives "Unable to resolve tor pid, abandoning connection 
 listing"... why?
 
-If you're running multiple instances of tor then arm needs to figure out which
+If you're running multiple instances of Tor then arm needs to figure out which
 pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
 Arm still runs, just no connection listing or ps stats.
@@ -113,6 +104,37 @@ Arm still runs, just no connection listing or ps stats.
 Some terminals, most notably screen sessions on Gentoo, appear to have a bug
 where highlighted spaces aren't rendered. A reported workaround is to set:
   TERM="rxvt-unicode"
+
+> When I press enter in the connection panel to get details some of the
+information is either missing or outdated. Why is this?
+
+There are two sources of information about Tor relays: their consensus and
+descriptor entries.
+
+The consensus entry is provided on an hourly basis by the Tor directory
+authorities (special relays that keep track of all the relays in the network).
+The consensus has information like the nickname, flags, and in newer Tor
+versions a summarized exit policy.
+
+The descriptor entry, however, is published by the relays themselves and has
+information like their platform, contact information, family, public keys,
+exit policy, etc. These are much larger than the consensus entries and don't
+change unless the relay changes their configuration.
+
+Everyone in the Tor network (both relays and users) need the consensus entries
+to operate. However, only users (not relays) need the descriptor entries.
+
+Tor will fetch both the consensus and descriptors for all of the currently
+active relays when it first starts. But to save bandwidth only the consensus
+entries are updated after this unless...
+a. 'FetchUselessDescriptors 1' is set in your torrc
+b. the directory service is provided ('DirPort' defined)
+c. you use Tor as a client
+
+This means that some of the information on the connection page (like the
+platform and contact information) might be missing or stale due to missing
+descriptors. This isn't important to most users, but if you need this
+information then this is simple to fix with the above.
 
 -------------------------------------------------------------------------------
 
