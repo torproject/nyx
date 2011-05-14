@@ -179,20 +179,6 @@ class ControlPanel(panel.Panel):
       self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | uiTools.getColor("red"))
       self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
 
-class sighupListener(TorCtl.PostEventListener):
-  """
-  Listens for reload signal (hup), which is produced by:
-  pkill -sighup tor
-  causing the torrc and internal state to be reset.
-  """
-  
-  def __init__(self):
-    TorCtl.PostEventListener.__init__(self)
-    self.isReset = False
-  
-  def msg_event(self, event):
-    self.isReset |= event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)")
-
 def setPauseState(panels, monitorIsPaused, currentPage, overwrite=False):
   """
   Resets the isPaused state of panels. If overwrite is True then this pauses
@@ -332,12 +318,10 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
   elif graphType == 3: panels["graph"].setStats("system resources")
   
   # listeners that update bandwidth and log panels with Tor status
-  sighupTracker = sighupListener()
   #conn.add_event_listener(panels["log"])
   conn.add_event_listener(panels["graph"].stats["bandwidth"])
   conn.add_event_listener(panels["graph"].stats["system resources"])
   if not isBlindMode: conn.add_event_listener(panels["graph"].stats["connections"])
-  conn.add_event_listener(sighupTracker)
   
   # prepopulates bandwidth values from state file
   if CONFIG["features.graph.bw.prepopulate"]:
@@ -419,21 +403,6 @@ def drawTorMonitor(stdscr, startTime, loggedEvents, isBlindMode):
     panel.CURSES_LOCK.acquire()
     try:
       redrawStartTime = time.time()
-      
-      # if sighup received then reload related information
-      if sighupTracker.isReset:
-        #panels["header"]._updateParams(True)
-        
-        # other panels that use torrc data
-        #if not isBlindMode: panels["graph"].stats["connections"].resetOptions(conn)
-        #panels["graph"].stats["bandwidth"].resetOptions()
-        
-        # if bandwidth graph is being shown then height might have changed
-        if panels["graph"].currentDisplay == "bandwidth":
-          panels["graph"].setHeight(panels["graph"].stats["bandwidth"].getContentHeight())
-        
-        
-        sighupTracker.isReset = False
       
       # gives panels a chance to take advantage of the maximum bounds
       # originally this checked in the bounds changed but 'recreate' is a no-op
