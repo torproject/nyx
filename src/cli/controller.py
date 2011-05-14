@@ -182,35 +182,6 @@ class ControlPanel(panel.Panel):
       self.addstr(0, xLoc + 1, " " * barProgress, curses.A_STANDOUT | uiTools.getColor("red"))
       self.addstr(0, xLoc + barWidth + 1, "]", curses.A_BOLD)
 
-def addstr_wrap(panel, y, x, text, formatting, startX = 0, endX = -1, maxY = -1):
-  """
-  Writes text with word wrapping, returning the ending y/x coordinate.
-  y: starting write line
-  x: column offset from startX
-  text / formatting: content to be written
-  startX / endX: column bounds in which text may be written
-  """
-  
-  # moved out of panel (trying not to polute new code!)
-  # TODO: unpleaseantly complex usage - replace with something else when
-  # rewriting confPanel and descriptorPopup (the only places this is used)
-  if not text: return (y, x)          # nothing to write
-  if endX == -1: endX = panel.maxX     # defaults to writing to end of panel
-  if maxY == -1: maxY = panel.maxY + 1 # defaults to writing to bottom of panel
-  lineWidth = endX - startX           # room for text
-  while True:
-    if len(text) > lineWidth - x - 1:
-      chunkSize = text.rfind(" ", 0, lineWidth - x)
-      writeText = text[:chunkSize]
-      text = text[chunkSize:].strip()
-      
-      panel.addstr(y, x + startX, writeText, formatting)
-      y, x = y + 1, 0
-      if y >= maxY: return (y, x)
-    else:
-      panel.addstr(y, x + startX, text, formatting)
-      return (y, x + len(text))
-
 class sighupListener(TorCtl.PostEventListener):
   """
   Listens for reload signal (hup), which is produced by:

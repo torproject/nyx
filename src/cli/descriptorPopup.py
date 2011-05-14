@@ -22,6 +22,35 @@ SIG_END_KEYS = ["-----END RSA PUBLIC KEY-----", "-----END SIGNATURE-----"]
 UNRESOLVED_MSG = "No consensus data available"
 ERROR_MSG = "Unable to retrieve data"
 
+def addstr_wrap(panel, y, x, text, formatting, startX = 0, endX = -1, maxY = -1):
+  """
+  Writes text with word wrapping, returning the ending y/x coordinate.
+  y: starting write line
+  x: column offset from startX
+  text / formatting: content to be written
+  startX / endX: column bounds in which text may be written
+  """
+  
+  # moved out of panel (trying not to polute new code!)
+  # TODO: unpleaseantly complex usage - replace with something else when
+  # rewriting confPanel and descriptorPopup (the only places this is used)
+  if not text: return (y, x)          # nothing to write
+  if endX == -1: endX = panel.maxX     # defaults to writing to end of panel
+  if maxY == -1: maxY = panel.maxY + 1 # defaults to writing to bottom of panel
+  lineWidth = endX - startX           # room for text
+  while True:
+    if len(text) > lineWidth - x - 1:
+      chunkSize = text.rfind(" ", 0, lineWidth - x)
+      writeText = text[:chunkSize]
+      text = text[chunkSize:].strip()
+      
+      panel.addstr(y, x + startX, writeText, formatting)
+      y, x = y + 1, 0
+      if y >= maxY: return (y, x)
+    else:
+      panel.addstr(y, x + startX, text, formatting)
+      return (y, x + len(text))
+
 class PopupProperties:
   """
   State attributes of popup window for consensus descriptions.
@@ -176,8 +205,8 @@ def draw(popup, properties):
           keyword, remainder = lineText, ""
           keywordFormat = uiTools.getColor(SIG_COLOR)
         
-        lineNum, xLoc = controller.addstr_wrap(popup, lineNum, 0, keyword, keywordFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
-        lineNum, xLoc = controller.addstr_wrap(popup, lineNum, xLoc, remainder, remainderFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
+        lineNum, xLoc = addstr_wrap(popup, lineNum, 0, keyword, keywordFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
+        lineNum, xLoc = addstr_wrap(popup, lineNum, xLoc, remainder, remainderFormat, xOffset + numOffset, popup.maxX - 1, popup.maxY - 1)
       
       lineNum += 1
       if lineNum > pageHeight: break
