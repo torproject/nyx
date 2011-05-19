@@ -7,6 +7,7 @@ import copy
 import time
 import traceback
 import curses
+import curses.textpad
 from threading import RLock
 
 from util import log, uiTools
