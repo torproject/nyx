@@ -297,7 +297,7 @@ class GraphPanel(panel.Panel):
       
       # applies new setting
       if selection == 0: self.setStats(None)
-      elif selection != -1: self.setStats(options[selection].lower())
+      elif selection != -1: self.setStats(availableStats[selection - 1])
     elif key == ord('i') or key == ord('I'):
       # provides menu to pick graph panel update interval
       options = [label for (label, _) in UPDATE_INTERVALS]
