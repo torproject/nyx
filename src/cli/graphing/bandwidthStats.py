@@ -76,6 +76,8 @@ class BandwidthStats(graphPanel.GraphStats):
   
   def clone(self, newCopy=None):
     if not newCopy: newCopy = BandwidthStats(self.inputConfig)
+    newCopy.accountingLastUpdated = self.accountingLastUpdated
+    newCopy.accountingInfo = self.accountingInfo
     return graphPanel.GraphStats.clone(self, newCopy)
   
   def resetListener(self, conn, eventType):
