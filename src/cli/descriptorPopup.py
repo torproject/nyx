@@ -104,7 +104,8 @@ def showDescriptorPopup(connectionPanel):
   """
   
   # hides the title of the first panel on the page
-  topPanel = controller.getPanels(controller.getPage())[0]
+  contorl = controller.getController()
+  topPanel = control.getDisplayPanels(False)[0]
   topPanel.setTitleVisible(False)
   topPanel.redraw(True)
   
@@ -139,7 +140,7 @@ def showDescriptorPopup(connectionPanel):
         
         try:
           draw(popup, properties)
-          key = controller.getScreen().getch()
+          key = control.getScreen().getch()
           
           if uiTools.isSelectionKey(key) or key in (ord('d'), ord('D')):
             # closes popup

@@ -295,9 +295,11 @@ if __name__ == '__main__':
   for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.procTools, util.sysTools, util.torConfig, util.torTools, util.uiTools):
     utilModule.loadConfig(config)
   
-  # overwrites undefined parameters with defaults
+  # snycs config and parameters, saving changed config options and overwriting
+  # undefined parameters with defaults
   for key in param.keys():
     if param[key] == None: param[key] = CONFIG[key]
+    else: config.set(key, str(param[key]))
   
   # validates that input has a valid ip address and port
   controlAddr = param["startup.interface.ipAddress"]
@@ -312,7 +314,7 @@ if __name__ == '__main__':
   
   # validates and expands log event flags
   try:
-    expandedEvents = cli.logPanel.expandEvents(param["startup.events"])
+    cli.logPanel.expandEvents(param["startup.events"])
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
@@ -395,5 +397,5 @@ if __name__ == '__main__':
     procName.renameProcess("arm\0%s" % "\0".join(sys.argv[1:]))
   except: pass
   
-  cli.controller.startTorMonitor(time.time() - initTime, expandedEvents, param["startup.blindModeEnabled"])
+  cli.controller.startTorMonitor(time.time() - initTime)
 

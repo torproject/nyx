@@ -4,7 +4,7 @@ Functions for displaying popups in the interface.
 
 import curses
 
-import controller
+import cli.controller
 
 from util import panel, uiTools
 
@@ -21,10 +21,10 @@ def init(height = -1, width = -1):
     width  - maximum width of the popup
   """
   
-  topSize = controller.getPanel("header").getHeight()
-  topSize += controller.getPanel("control").getHeight()
+  control = cli.controller.getController()
+  topSize = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
   
-  popup = panel.Panel(controller.getScreen(), "popup", topSize, height, width)
+  popup = panel.Panel(control.getScreen(), "popup", topSize, height, width)
   popup.setVisible(True)
   
   # Redraws the popup to prepare a subwindow instance. If none is spawned then
@@ -41,7 +41,7 @@ def finalize():
   the rest of the display.
   """
   
-  controller.refresh()
+  cli.controller.getController().requestRedraw()
   panel.CURSES_LOCK.release()
 
 def inputPrompt(msg, initialValue = ""):
@@ -55,11 +55,12 @@ def inputPrompt(msg, initialValue = ""):
   """
   
   panel.CURSES_LOCK.acquire()
-  controlPanel = controller.getPanel("control")
-  controlPanel.setMsg(msg)
-  controlPanel.redraw(True)
-  userInput = controlPanel.getstr(0, len(msg), initialValue)
-  controlPanel.revertMsg()
+  control = cli.controller.getController()
+  msgPanel = control.getPanel("msg")
+  msgPanel.setMessage(msg)
+  msgPanel.redraw(True)
+  userInput = msgPanel.getstr(0, len(msg), initialValue)
+  control.setMsg()
   panel.CURSES_LOCK.release()
   return userInput
 
@@ -75,15 +76,13 @@ def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
   """
   
   panel.CURSES_LOCK.acquire()
-  controlPanel = controller.getPanel("control")
-  controlPanel.setMsg(msg, attr)
-  controlPanel.redraw(True)
+  control = cli.controller.getController()
+  control.setMsg(msg, attr, True)
   
   if maxWait == -1: curses.cbreak()
   else: curses.halfdelay(maxWait * 10)
-  keyPress = controller.getScreen().getch()
-  controlPanel.revertMsg()
-  curses.halfdelay(controller.REFRESH_RATE * 10)
+  keyPress = control.getScreen().getch()
+  control.setMsg()
   panel.CURSES_LOCK.release()
   
   return keyPress
@@ -100,8 +99,8 @@ def showHelpPopup():
   
   exitKey = None
   try:
-    pageNum = controller.getPage()
-    pagePanels = controller.getPanels(pageNum)
+    control = cli.controller.getController()
+    pagePanels = control.getDisplayPanels()
     
     # the first page is the only one with multiple panels, and it looks better
     # with the log entries first, so reversing the order
@@ -113,7 +112,7 @@ def showHelpPopup():
     
     # test doing afterward in case of overwriting
     popup.win.box()
-    popup.addstr(0, 0, "Page %i Commands:" % pageNum, curses.A_STANDOUT)
+    popup.addstr(0, 0, "Page %i Commands:" % (control.getPage() + 1), curses.A_STANDOUT)
     
     for i in range(len(helpOptions)):
       if i / 2 >= height - 2: break
@@ -142,8 +141,7 @@ def showHelpPopup():
     
     popup.win.refresh()
     curses.cbreak()
-    exitKey = controller.getScreen().getch()
-    curses.halfdelay(controller.REFRESH_RATE * 10)
+    exitKey = control.getScreen().getch()
   finally: finalize()
   
   if not uiTools.isSelectionKey(exitKey) and \
@@ -202,7 +200,7 @@ def showSortDialog(title, options, oldSelection, optionColors):
       
       popup.win.refresh()
       
-      key = controller.getScreen().getch()
+      key = cli.controller.getController().getScreen().getch()
       if key == curses.KEY_LEFT:
         cursorLoc = max(0, cursorLoc - 1)
       elif key == curses.KEY_RIGHT:
@@ -220,8 +218,6 @@ def showSortDialog(title, options, oldSelection, optionColors):
           selectionOptions.remove(selection)
           cursorLoc = min(cursorLoc, len(selectionOptions) - 1)
       elif key == 27: break # esc - cancel
-      
-    curses.halfdelay(controller.REFRESH_RATE * 10) # reset normal pausing behavior
   finally: finalize()
   
   if len(newSelections) == len(oldSelection):
@@ -278,7 +274,8 @@ def showMenu(title, options, oldSelection):
   
   try:
     # hides the title of the first panel on the page
-    topPanel = controller.getPanels(controller.getPage())[0]
+    control = cli.controller.getController()
+    topPanel = control.getDisplayPanels(False)[0]
     topPanel.setTitleVisible(False)
     topPanel.redraw(True)
     
@@ -298,12 +295,10 @@ def showMenu(title, options, oldSelection):
       
       popup.win.refresh()
       
-      key = controller.getScreen().getch()
+      key = control.getScreen().getch()
       if key == curses.KEY_UP: selection = max(0, selection - 1)
       elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
-      
-    curses.halfdelay(controller.REFRESH_RATE * 10) # reset normal pausing behavior
   finally:
     topPanel.setTitleVisible(True)
     finalize()

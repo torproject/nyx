@@ -35,6 +35,12 @@ features.logFile
 # this is only displayed when we're running out.
 features.showFdUsage false
 
+# Seconds to wait on user input before refreshing content
+features.redrawRate 5
+
+# Confirms promt to confirm when quiting if true
+features.confirmQuit true
+
 # Paremters for the log panel
 # ---------------------------
 # showDateDividers
@@ -218,8 +224,6 @@ cache.armLog.trimSize 200
 
 # Runlevels at which arm logs its events
 log.startTime INFO
-log.refreshRate DEBUG
-log.highCpuUsage WARN
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
@@ -272,4 +276,5 @@ log.stats.failedPsResolution INFO
 log.savingDebugLog NOTICE
 log.fdUsageSixtyPercent NOTICE
 log.fdUsageNinetyPercent WARN
+log.unknownTorPid WARN
 

@@ -398,7 +398,7 @@ class ConfigPanel(panel.Panel):
           
           popup.win.refresh()
           
-          key = controller.getScreen().getch()
+          key = controller.getController().getScreen().getch()
           if key == curses.KEY_LEFT: selection = max(0, selection - 1)
           elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
         
