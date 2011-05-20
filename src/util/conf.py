@@ -268,7 +268,7 @@ class Config():
     """
     
     self.contentsLock.acquire()
-    self.contents[key] = value
+    self.contents[key] = [value]
     self.contentsLock.release()
   
   def clear(self):
