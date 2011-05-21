@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import getopt
+import locale
 import socket
 import platform
 
@@ -396,6 +397,12 @@ if __name__ == '__main__':
     from util import procName
     procName.renameProcess("arm\0%s" % "\0".join(sys.argv[1:]))
   except: pass
+  
+  # If using our LANG variable for rendering multi-byte characters lets us
+  # get unicode support then then use it. This needs to be done before
+  # initializing curses.
+  if util.uiTools.isUnicodeAvailable():
+    locale.setlocale(locale.LC_ALL, "")
   
   cli.controller.startTorMonitor(time.time() - initTime)
 
