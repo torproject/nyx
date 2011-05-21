@@ -72,6 +72,7 @@ class GraphStats(TorCtl.PostEventListener):
     # panel to be redrawn when updated (set when added to GraphPanel)
     self._graphPanel = None
     self.isSelected = False
+    self.isPauseBuffer = False
     
     # tracked stats
     self.tick = 0                                 # number of processed events
@@ -114,6 +115,7 @@ class GraphStats(TorCtl.PostEventListener):
     newCopy.maxSecondary = dict(self.maxSecondary)
     newCopy.primaryCounts = copy.deepcopy(self.primaryCounts)
     newCopy.secondaryCounts = copy.deepcopy(self.secondaryCounts)
+    newCopy.isPauseBuffer = True
     return newCopy
   
   def eventTick(self):
@@ -187,7 +189,7 @@ class GraphStats(TorCtl.PostEventListener):
     pass
   
   def bandwidth_event(self, event):
-    self.eventTick()
+    if not self.isPauseBuffer: self.eventTick()
   
   def _processEvent(self, primary, secondary):
     """
@@ -422,7 +424,6 @@ class GraphPanel(panel.Panel):
     """
     
     stats._graphPanel = self
-    stats.isPaused = True
     self.stats[label] = stats
   
   def setStats(self, label):
@@ -444,5 +445,5 @@ class GraphPanel(panel.Panel):
     if attr == "stats":
       # uses custom clone method to copy GraphStats instances
       return dict([(key, self.stats[key].clone()) for key in self.stats])
-    else: return panel.Panel.copyAttr(self, isPause)
+    else: return panel.Panel.copyAttr(self, attr)
 
