@@ -193,8 +193,9 @@ def _dumpConfig():
   # dumps tor's version and configuration
   torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version")
   
-  for line in conn.getInfo("config-text").split("\n"):
-    if " " in line: key, value = line.split(" ", 1)
+  for line in conn.getInfo("config-text", "").split("\n"):
+    if not line: continue
+    elif " " in line: key, value = line.split(" ", 1)
     else: key, value = line, ""
     
     if key in PRIVATE_TORRC_ENTRIES:
