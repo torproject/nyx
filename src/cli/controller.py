@@ -4,6 +4,7 @@ user input to the proper panels.
 """
 
 import time
+import locale
 import curses
 import threading
 
@@ -18,7 +19,7 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
-from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
+from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools, uiTools
 
 ARM_CONTROLLER = None
 
@@ -458,6 +459,11 @@ def drawTorMonitor(stdscr, startTime):
   # makes the cursor invisible
   try: curses.curs_set(0)
   except curses.error: pass
+  
+  # If using our LANG variable for rendering multi-byte characters lets us
+  # get unicode support then then use it.
+  if uiTools.isUnicodeAvailable():
+    locale.setlocale(locale.LC_ALL, "")
   
   # logs the initialization time
   msg = "arm started (initialization took %0.3f seconds)" % (time.time() - startTime)

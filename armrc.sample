@@ -19,6 +19,9 @@ queries.useProc true
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
+# Includes unicode characters in the interface.
+features.printUnicode true
+
 # Checks the torrc for issues, warning and hilighting problems if true
 features.torrc.validate true
 

@@ -5,6 +5,7 @@ easy method of providing the following interface components:
 - unit conversion for labels
 """
 
+import os
 import sys
 import curses
 
@@ -35,7 +36,12 @@ TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
 Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True,
+          "features.printUnicode": True,
           "log.cursesColorSupport": log.INFO}
+
+# Flag indicating if unicode is supported by curses. If None then this has yet
+# to be determined.
+IS_UNICODE_SUPPORTED = None
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -86,6 +92,29 @@ def _showGlyphs(stdscr):
       if y >= height: break
   
   stdscr.getch() # quit on keyboard input
+
+def isUnicodeAvailable():
+  """
+  True if curses has wide character support, false otherwise or if it can't be
+  determined.
+  """
+  
+  global IS_UNICODE_SUPPORTED
+  if IS_UNICODE_SUPPORTED == None:
+    import sysTools
+    
+    if CONFIG["features.printUnicode"]:
+      # Checks if our LANG variable is unicode. This is what will be respected
+      # when printing multi-byte characters after calling...
+      # locale.setlocale(locale.LC_ALL, '')
+      # 
+      # so if the LANG isn't unicode then setting this would be pointless.
+      
+      isLangUnicode = "utf-" in os.environ.get("LANG", "").lower()
+      IS_UNICODE_SUPPORTED = isLangUnicode and _isWideCharactersAvailable()
+    else: IS_UNICODE_SUPPORTED = False
+  
+  return IS_UNICODE_SUPPORTED
 
 def getPrintable(line, keepNewlines = True):
   """
@@ -605,6 +634,48 @@ def _getLabel(units, count, decimal, isLong):
         else: isPlural = count >= countPerUnit * 2
         return countLabel + longLabel + ("s" if isPlural else "")
       else: return countLabel + shortLabel
+
+def _isWideCharactersAvailable():
+  """
+  True if curses has wide character support (which is required to print
+  unicode). False otherwise.
+  """
+  
+  try:
+    # gets the dynamic library used by the interpretor for curses
+    
+    import _curses
+    cursesLib = _curses.__file__
+    
+    # Uses 'ldd' (Linux) or 'otool -L' (Mac) to determine the curses
+    # library dependencies.
+    # 
+    # atagar@fenrir:~/Desktop$ ldd /usr/lib/python2.6/lib-dynload/_curses.so
+    #   linux-gate.so.1 =>  (0x00a51000)
+    #   libncursesw.so.5 => /lib/libncursesw.so.5 (0x00faa000)
+    #   libpthread.so.0 => /lib/tls/i686/cmov/libpthread.so.0 (0x002f1000)
+    #   libc.so.6 => /lib/tls/i686/cmov/libc.so.6 (0x00158000)
+    #   libdl.so.2 => /lib/tls/i686/cmov/libdl.so.2 (0x00398000)
+    #   /lib/ld-linux.so.2 (0x00ca8000)
+    # 
+    # atagar$ otool -L /System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-dynload/_curses.so
+    # /System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-dynload/_curses.so:
+    #   /usr/lib/libncurses.5.4.dylib (compatibility version 5.4.0, current version 5.4.0)
+    #   /usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current version 1.0.0)
+    #   /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 111.1.6)
+    
+    libDependencyLines = None
+    if sysTools.isAvailable("ldd"):
+      libDependencyLines = sysTools.call("ldd %s" % cursesLib)
+    elif sysTools.isAvailable("otool"):
+      libDependencyLines = sysTools.call("otool -L %s" % cursesLib)
+    
+    if libDependencyLines:
+      for line in libDependencyLines:
+        if "libncursesw" in line: return True
+  except: pass
+  
+  return False
 
 def _initColors():
   """
