@@ -11,7 +11,6 @@ import sys
 import time
 import getopt
 import locale
-import socket
 import platform
 
 import version
@@ -327,7 +326,7 @@ if __name__ == '__main__':
   
   # sets up TorCtl connection, prompting for the passphrase if necessary and
   # sending problems to stdout if they arise
-  TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
+  TorCtl.TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
   conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
   if conn == None:
@@ -344,12 +343,9 @@ if __name__ == '__main__':
     # making this a much bigger hack).
     
     try:
-      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      s.connect((controlAddr, controlPort))
-      tmpConn = TorCtl.TorCtl.Connection(s)
+      tmpConn, authType, cookiePath = util.torTools.getConnectionComponents(controlAddr, controlPort)
       
-      if tmpConn.get_auth_type() == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
-        cookiePath = tmpConn.get_auth_cookie_path()
+      if authType == util.torTools.AUTH_TYPE.COOKIE:
         torPid = util.torTools.getPid(controlPort)
         
         if torPid and cookiePath[0] != "/":

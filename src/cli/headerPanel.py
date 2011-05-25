@@ -19,6 +19,8 @@ import time
 import curses
 import threading
 
+import cli.popups
+
 from util import log, panel, sysTools, torTools, uiTools
 
 # minimum width for which panel attempts to double up contents (two columns to
@@ -33,7 +35,9 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
-DEFAULT_CONFIG = {"features.showFdUsage": False,
+DEFAULT_CONFIG = {"startup.interface.ipAddress": "127.0.0.1",
+                  "startup.interface.port": 9051,
+                  "features.showFdUsage": False,
                   "log.fdUsageSixtyPercent": log.NOTICE,
                   "log.fdUsageNinetyPercent": log.WARN}
 
@@ -106,6 +110,29 @@ class HeaderPanel(panel.Panel, threading.Thread):
     isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
     if self.vals["tor/orPort"]: return 4 if isWide else 6
     else: return 3 if isWide else 4
+  
+  def handleKey(self, key):
+    isKeystrokeConsumed = True
+    
+    if key in (ord('r'), ord('R')) and not self._isTorConnected:
+      try:
+        ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
+        tmpConn, authType, authValue = torTools.getConnectionComponents(ctlAddr, ctlPort)
+        
+        if authType == torTools.AUTH_TYPE.PASSWORD:
+          authValue = cli.popups.inputPrompt("Controller Password: ")
+          if not authValue: raise IOError() # cancel reconnection
+        
+        tmpConn.authenticate(authValue)
+        torTools.getConn().init(tmpConn)
+        log.log(log.NOTICE, "Reconnected to Tor's control port")
+        cli.popups.showMsg("Tor reconnected", 1)
+      except Exception, exc:
+        # displays notice for failed connection attempt
+        if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+    else: isKeystrokeConsumed = False
+    
+    return isKeystrokeConsumed
   
   def draw(self, width, height):
     self.valsLock.acquire()
@@ -233,7 +260,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         statusTime = torTools.getConn().getStatus()[1]
         statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
-        self.addfstr(2 if isWide else 4, 0, "<b><red>Tor Disconnected</red></b> (%s)" % statusTimeLabel)
+        msg = "<b><red>Tor Disconnected</red></b> (%s) - press r to reconnect" % statusTimeLabel
+        self.addfstr(2 if isWide else 4, 0, msg)
       
       # Undisplayed / Line 3 Right (exit policy)
       if isWide:
@@ -313,7 +341,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._cond.notifyAll()
     self._cond.release()
   
-  def resetListener(self, conn, eventType):
+  def resetListener(self, _, eventType):
     """
     Updates static parameters on tor reload (sighup) events.
     

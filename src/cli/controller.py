@@ -18,7 +18,7 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
-from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools, uiTools
+from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
 
 ARM_CONTROLLER = None
 
@@ -346,7 +346,7 @@ def heartbeatCheck(isUnresponsive):
   
   conn = torTools.getConn()
   lastHeartbeat = conn.getHeartbeat()
-  if conn.isAlive() and "BW" in conn.getControllerEvents() and lastHeartbeat != 0:
+  if conn.isAlive() and "BW" in conn.getControllerEvents():
     if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
       isUnresponsive = True
       log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))
@@ -357,15 +357,21 @@ def heartbeatCheck(isUnresponsive):
   
   return isUnresponsive
 
-def connResetListener(_, eventType):
+def connResetListener(conn, eventType):
   """
-  Pauses connection resolution when tor's shut down, and resumes if started
-  again.
+  Pauses connection resolution when tor's shut down, and resumes with the new
+  pid if started again.
   """
   
   if connections.isResolverAlive("tor"):
     resolver = connections.getResolver("tor")
     resolver.setPaused(eventType == torTools.State.CLOSED)
+    
+    if eventType == torTools.State.INIT:
+      torPid = conn.getMyPid()
+      
+      if torPid and torPid != resolver.getPid():
+        resolver.setPid(torPid)
 
 def startTorMonitor(startTime):
   """

@@ -538,6 +538,24 @@ class ConnectionResolver(threading.Thread):
     
     return self._resolutionCounter
   
+  def getPid(self):
+    """
+    Provides the pid used to narrow down connection resolution. This is an
+    empty string if undefined.
+    """
+    
+    return self.processPid
+  
+  def setPid(self, processPid):
+    """
+    Sets the pid used to narrow down connection resultions.
+    
+    Arguments:
+      processPid - pid for the process we're fetching connections for
+    """
+    
+    self.processPid = processPid
+  
   def setPaused(self, isPause):
     """
     Allows or prevents further connection resolutions (this still makes use of
