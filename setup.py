@@ -90,7 +90,7 @@ setup(name='arm',
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm", ["src/settings.cfg"])],
+                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])],
      )
 
 # Cleans up the temporary compressed man page.
