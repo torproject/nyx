@@ -87,6 +87,10 @@ class BandwidthStats(graphPanel.GraphStats):
     
     if eventType == torTools.State.INIT and self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
+    
+    # redraws to reflect changes (this especially noticeable when we have
+    # accounting and shut down since it then gives notice of the shutdown)
+    if self._graphPanel and self.isSelected: self._graphPanel.redraw(True)
   
   def prepopulateFromState(self):
     """

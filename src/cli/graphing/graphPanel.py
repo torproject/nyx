@@ -221,7 +221,7 @@ class GraphStats(TorCtl.PostEventListener):
         self.secondaryCounts[i].insert(0, 0)
         del self.secondaryCounts[i][self.maxCol + 1:]
     
-    if isRedraw: self._graphPanel.redraw(True)
+    if isRedraw and self._graphPanel: self._graphPanel.redraw(True)
 
 class GraphPanel(panel.Panel):
   """
