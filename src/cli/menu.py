@@ -64,7 +64,7 @@ class Menu():
     titlewidth = max(map(lambda title: len(title), titles)) + 2
 
     # total number of titles that can be printed in current width
-    printable = (width - 2) / titlewidth
+    printable = width / titlewidth - 1
 
     top = 1
     left = 1
