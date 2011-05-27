@@ -17,6 +17,7 @@ import cli.graphing.bandwidthStats
 import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
+import cli.menu
 
 from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
 
@@ -76,8 +77,11 @@ def initController(stdscr, startTime):
   # fourth page: torrc
   pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
   
+  # top menu
+  menu = cli.menu.Menu()
+  
   # initializes the controller
-  ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
+  ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels, menu)
   
   # additional configuration for the graph panel
   graphPanel = ARM_CONTROLLER.getPanel("graph")
@@ -131,7 +135,7 @@ class Controller:
   Tracks the global state of the interface
   """
   
-  def __init__(self, stdscr, stickyPanels, pagePanels):
+  def __init__(self, stdscr, stickyPanels, pagePanels, menu):
     """
     Creates a new controller instance. Panel lists are ordered as they appear,
     top to bottom on the page.
@@ -140,11 +144,13 @@ class Controller:
       stdscr       - curses window
       stickyPanels - panels shown at the top of each page
       pagePanels   - list of pages, each being a list of the panels on it
+      menu         - popup drop-down menu
     """
     
     self._screen = stdscr
     self._stickyPanels = stickyPanels
     self._pagePanels = pagePanels
+    self._menu = menu
     self._page = 0
     self._isPaused = False
     self._forceRedraw = False
@@ -181,6 +187,9 @@ class Controller:
     self._page = (self._page - 1) % len(self._pagePanels)
     self._forceRedraw = True
     self.setMsg()
+  
+  def getMenu(self):
+    return self._menu
   
   def isPaused(self):
     """
@@ -299,7 +308,7 @@ class Controller:
       
       if attr == None:
         if not self._isPaused:
-          msg = "page %i / %i - q: quit, p: pause, h: page help" % (self._page + 1, len(self._pagePanels))
+          msg = "page %i / %i - m: menu, q: quit, p: pause, h: page help" % (self._page + 1, len(self._pagePanels))
           attr = curses.A_NORMAL
         else:
           msg = "Paused"
@@ -507,6 +516,9 @@ def drawTorMonitor(stdscr, startTime):
       control.prevPage()
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
+    elif key == ord('m') or key == ord('M'):
+      menu = control.getMenu()
+      menu.draw()
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:
