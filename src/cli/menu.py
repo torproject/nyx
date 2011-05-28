@@ -4,7 +4,6 @@ A drop-down menu for sending actions to panels.
 
 import curses
 from collections import namedtuple
-from operator import attrgetter
 
 import cli.controller
 import popups
@@ -25,16 +24,22 @@ class Menu():
       LeafEntry(title="Connections"   , callback=self._callbackDefault),
       LeafEntry(title="Configuration" , callback=self._callbackDefault)))
 
+    self._first = [0]
     self._selection = [0]
-    self._rootEntry = (entry and isinstance(entry, ParentEntry)) and entry or DEFAULT_ROOT
 
-  def draw(self):
+    if entry and isinstance(entry, ParentEntry):
+      self._rootEntry = entry
+    else:
+      self._rootEntry = DEFAULT_ROOT
+
+  def showMenu(self):
     popup, width, height = popups.init(height=3)
     if popup:
       try:
-        popup.win.box()
-
         while True:
+          popup.win.erase()
+          popup.win.box()
+
           self._drawTopLevel(popup, width, height)
 
           popup.win.refresh()
@@ -44,12 +49,10 @@ class Menu():
 
           if key == curses.KEY_RIGHT:
             if len(self._selection) == 1:
-              # selection is on top menu
-              self._selection[0] = (self._selection[0] + 1) % len(self._rootEntry.children)
+              self._moveTopLevelRight(width)
           elif key == curses.KEY_LEFT:
             if len(self._selection) == 1:
-              # selection is on top menu
-              self._selection[0] = (self._selection[0] - 1) % len(self._rootEntry.children)
+              self._moveTopLevelLeft(width)
           elif uiTools.isSelectionKey(key):
             self._handleEvent()
             break
@@ -57,40 +60,71 @@ class Menu():
       finally:
         popups.finalize()
 
-  def _drawTopLevel(self, popup, width, height):
-    titles = map(attrgetter('title'), self._rootEntry.children)
+  def _calculateTopLevelWidths(self, width):
+    titles = [menuItem.title for menuItem in self._rootEntry.children]
 
     # width per title is set according to the longest title
-    titlewidth = max(map(lambda title: len(title), titles)) + 2
+    titlewidth = max(map(len, titles)) + 2
 
     # total number of titles that can be printed in current width
-    printable = width / titlewidth - 1
+    printable = min(width / titlewidth - 1, len(self._rootEntry.children))
+
+    return (titlewidth, printable)
+
+  def _moveTopLevelRight(self, width):
+    _, printable = self._calculateTopLevelWidths(width)
+
+    if self._selection[0] < printable - 1:
+      self._selection[0] = self._selection[0] + 1
+    else:
+      self._selection[0] = 0
+      if printable < len(self._rootEntry.children):
+        self._first[0] = (self._first[0] + printable) % len(self._rootEntry.children)
+
+    if self._first[0] + self._selection[0] == len(self._rootEntry.children):
+      self._first[0] = 0
+      self._selection[0] = 0
+
+  def _moveTopLevelLeft(self, width):
+    _, printable = self._calculateTopLevelWidths(width)
+
+    if self._selection[0] > 0:
+      self._selection[0] = self._selection[0] - 1
+    else:
+      self._first[0] = abs(self._first[0] - printable) % len(self._rootEntry.children)
+      self._selection[0] = len(self._rootEntry.children) - self._first[0] - 1
+
+    if self._selection[0] > printable:
+      self._selection[0] = printable - 1
+
+  def _drawTopLevel(self, popup, width, height):
+    titlewidth, printable = self._calculateTopLevelWidths(width)
+    children = self._rootEntry.children[self._first[0]:self._first[0] + printable]
 
     top = 1
     left = 1
-    for (index, entry) in enumerate(self._rootEntry.children[:printable]):
-      titleformat = curses.A_NORMAL
+    for (index, entry) in enumerate(children):
+      titleformat = curses.A_STANDOUT if index == self._selection[0] else curses.A_NORMAL
 
-      if index == self._selection[0]:
-        titleformat = curses.A_STANDOUT
-
-      popup.win.addch(top, left, curses.ACS_VLINE)
+      popup.addch(top, left, curses.ACS_VLINE)
       left = left + 1
-      popup.win.addstr(top, left, entry.title.center(titlewidth), titleformat)
+      popup.addstr(top, left, entry.title.center(titlewidth), titleformat)
       left = left + titlewidth
 
-    popup.win.addch(top, left, curses.ACS_VLINE)
+    popup.addch(top, left, curses.ACS_VLINE)
     left = left + 1
 
   def _handleEvent(self):
     entry = self._rootEntry
+    sums = [sum(values) for values in zip(self._first, self._selection)]
 
-    for index in self._selection:
+    for index in sums:
       if isinstance(entry, ParentEntry):
         entry = entry.children[index]
       else:
         break
 
+        log.log(log.ERR, "first: %d" % self._first[0])
     if isinstance(entry, LeafEntry):
       entry.callback(entry)
 

@@ -81,7 +81,7 @@ def initController(stdscr, startTime):
   menu = cli.menu.Menu()
   
   # initializes the controller
-  ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels, menu)
+  ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
   
   # additional configuration for the graph panel
   graphPanel = ARM_CONTROLLER.getPanel("graph")
@@ -135,7 +135,7 @@ class Controller:
   Tracks the global state of the interface
   """
   
-  def __init__(self, stdscr, stickyPanels, pagePanels, menu):
+  def __init__(self, stdscr, stickyPanels, pagePanels):
     """
     Creates a new controller instance. Panel lists are ordered as they appear,
     top to bottom on the page.
@@ -150,7 +150,6 @@ class Controller:
     self._screen = stdscr
     self._stickyPanels = stickyPanels
     self._pagePanels = pagePanels
-    self._menu = menu
     self._page = 0
     self._isPaused = False
     self._forceRedraw = False
@@ -187,9 +186,6 @@ class Controller:
     self._page = (self._page - 1) % len(self._pagePanels)
     self._forceRedraw = True
     self.setMsg()
-  
-  def getMenu(self):
-    return self._menu
   
   def isPaused(self):
     """
@@ -517,8 +513,8 @@ def drawTorMonitor(stdscr, startTime):
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
     elif key == ord('m') or key == ord('M'):
-      menu = control.getMenu()
-      menu.draw()
+      menu = cli.menu.Menu()
+      menu.showMenu()
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:
