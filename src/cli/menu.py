@@ -3,34 +3,32 @@ A drop-down menu for sending actions to panels.
 """
 
 import curses
-from collections import namedtuple
 
 import cli.controller
 import popups
-from util import log, panel, uiTools
+from util import log, panel, uiTools, menuItem
 
-LeafEntry = namedtuple('LeafEntry', ['title', 'callback'])
-ParentEntry = namedtuple('ParentEntry', ['title', 'children'])
+TOPLEVEL = 0
 
 class Menu():
   """Displays a popup menu and sends keys to appropriate panels"""
 
-  def __init__(self, entry=None):
-    DEFAULT_ROOT = ParentEntry(title="Root", children=(
-      LeafEntry(title="File"          , callback=self._callbackDefault),
-      LeafEntry(title="Logs"          , callback=self._callbackDefault),
-      LeafEntry(title="View"          , callback=self._callbackDefault),
-      LeafEntry(title="Graph"         , callback=self._callbackDefault),
-      LeafEntry(title="Connections"   , callback=self._callbackDefault),
-      LeafEntry(title="Configuration" , callback=self._callbackDefault)))
+  def __init__(self, item=None):
+    DEFAULT_ROOT = menuItem.MenuItem(label="Root", children=(
+      menuItem.MenuItem(label="File"          , callback=self._callbackDefault),
+      menuItem.MenuItem(label="Logs"          , callback=self._callbackDefault),
+      menuItem.MenuItem(label="View"          , callback=self._callbackDefault),
+      menuItem.MenuItem(label="Graph"         , callback=self._callbackDefault),
+      menuItem.MenuItem(label="Connections"   , callback=self._callbackDefault),
+      menuItem.MenuItem(label="Configuration" , callback=self._callbackDefault)))
 
     self._first = [0]
     self._selection = [0]
 
-    if entry and isinstance(entry, ParentEntry):
-      self._rootEntry = entry
+    if item and item.isParent():
+      self._rootItem = item
     else:
-      self._rootEntry = DEFAULT_ROOT
+      self._rootItem = DEFAULT_ROOT
 
   def showMenu(self):
     popup, width, height = popups.init(height=3)
@@ -61,73 +59,75 @@ class Menu():
         popups.finalize()
 
   def _calculateTopLevelWidths(self, width):
-    titles = [menuItem.title for menuItem in self._rootEntry.children]
+    labels = [menuItem.getLabel() for menuItem in self._rootItem.getChildren()]
 
-    # width per title is set according to the longest title
-    titlewidth = max(map(len, titles)) + 2
+    # width per label is set according to the longest label
+    labelwidth = max(map(len, labels)) + 2
 
-    # total number of titles that can be printed in current width
-    printable = min(width / titlewidth - 1, len(self._rootEntry.children))
+    # total number of labels that can be printed in current width
+    printable = min(width / labelwidth - 1, self._rootItem.getChildrenCount())
 
-    return (titlewidth, printable)
+    return (labelwidth, printable)
 
   def _moveTopLevelRight(self, width):
     _, printable = self._calculateTopLevelWidths(width)
 
-    if self._selection[0] < printable - 1:
-      self._selection[0] = self._selection[0] + 1
+    if self._selection[TOPLEVEL] < printable - 1:
+      self._selection[TOPLEVEL] = self._selection[TOPLEVEL] + 1
     else:
-      self._selection[0] = 0
-      if printable < len(self._rootEntry.children):
-        self._first[0] = (self._first[0] + printable) % len(self._rootEntry.children)
+      self._selection[TOPLEVEL] = 0
+      if printable < self._rootItem.getChildrenCount():
+        self._first[TOPLEVEL] = (self._first[TOPLEVEL] + printable) % self._rootItem.getChildrenCount()
 
-    if self._first[0] + self._selection[0] == len(self._rootEntry.children):
-      self._first[0] = 0
-      self._selection[0] = 0
+    if self._first[TOPLEVEL] + self._selection[TOPLEVEL] == self._rootItem.getChildrenCount():
+      self._first[TOPLEVEL] = 0
+      self._selection[TOPLEVEL] = 0
 
   def _moveTopLevelLeft(self, width):
     _, printable = self._calculateTopLevelWidths(width)
 
-    if self._selection[0] > 0:
-      self._selection[0] = self._selection[0] - 1
+    if self._selection[TOPLEVEL] > 0:
+      self._selection[TOPLEVEL] = self._selection[TOPLEVEL] - 1
     else:
-      self._first[0] = abs(self._first[0] - printable) % len(self._rootEntry.children)
-      self._selection[0] = len(self._rootEntry.children) - self._first[0] - 1
+      if self._first[TOPLEVEL] == 0:
+        self._first[TOPLEVEL] = (self._rootItem.getChildrenCount() / printable) * printable
+      else:
+        self._first[TOPLEVEL] = abs(self._first[TOPLEVEL] - printable) % self._rootItem.getChildrenCount()
+      self._selection[TOPLEVEL] = self._rootItem.getChildrenCount() - self._first[TOPLEVEL] - 1
 
-    if self._selection[0] > printable:
-      self._selection[0] = printable - 1
+    if self._selection[TOPLEVEL] > printable:
+      self._selection[TOPLEVEL] = printable - 1
 
   def _drawTopLevel(self, popup, width, height):
-    titlewidth, printable = self._calculateTopLevelWidths(width)
-    children = self._rootEntry.children[self._first[0]:self._first[0] + printable]
+    labelwidth, printable = self._calculateTopLevelWidths(width)
+    children = self._rootItem.getChildren()[self._first[TOPLEVEL]:self._first[TOPLEVEL] + printable]
 
     top = 1
     left = 1
-    for (index, entry) in enumerate(children):
-      titleformat = curses.A_STANDOUT if index == self._selection[0] else curses.A_NORMAL
+    for (index, item) in enumerate(children):
+      labelformat = curses.A_STANDOUT if index == self._selection[TOPLEVEL] else curses.A_NORMAL
 
       popup.addch(top, left, curses.ACS_VLINE)
       left = left + 1
-      popup.addstr(top, left, entry.title.center(titlewidth), titleformat)
-      left = left + titlewidth
+      popup.addstr(top, left, item.getLabel().center(labelwidth), labelformat)
+      left = left + labelwidth
 
     popup.addch(top, left, curses.ACS_VLINE)
     left = left + 1
 
   def _handleEvent(self):
-    entry = self._rootEntry
+    item = self._rootItem
     sums = [sum(values) for values in zip(self._first, self._selection)]
 
     for index in sums:
-      if isinstance(entry, ParentEntry):
-        entry = entry.children[index]
+      if item.isParent():
+        item = item.getChildren()[index]
       else:
         break
 
-        log.log(log.ERR, "first: %d" % self._first[0])
-    if isinstance(entry, LeafEntry):
-      entry.callback(entry)
+    if item.isLeaf():
+      item.select()
 
-  def _callbackDefault(self, entry):
-    log.log(log.NOTICE, "%s selected" % entry.title)
+  def _callbackDefault(self, item):
+    log.log(log.NOTICE, "%s selected" % item.getLabel())
 
