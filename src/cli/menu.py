@@ -8,19 +8,40 @@ import cli.controller
 import popups
 from util import log, panel, uiTools, menuItem
 
-TOPLEVEL = 0
+TOPLEVEL, SECONDLEVEL = range(2)
 
 class Menu():
   """Displays a popup menu and sends keys to appropriate panels"""
 
   def __init__(self, item=None):
     DEFAULT_ROOT = menuItem.MenuItem(label="Root", children=(
-      menuItem.MenuItem(label="File"          , callback=self._callbackDefault),
-      menuItem.MenuItem(label="Logs"          , callback=self._callbackDefault),
-      menuItem.MenuItem(label="View"          , callback=self._callbackDefault),
-      menuItem.MenuItem(label="Graph"         , callback=self._callbackDefault),
-      menuItem.MenuItem(label="Connections"   , callback=self._callbackDefault),
-      menuItem.MenuItem(label="Configuration" , callback=self._callbackDefault)))
+      menuItem.MenuItem(label="File"          , children=(
+        menuItem.MenuItem(label="Exit"                , callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="Logs"          , children=(
+        menuItem.MenuItem(label="Events"              , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Clear"               , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Save"                , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Filter"              , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Duplicates"          , callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="View"          , children=(
+        menuItem.MenuItem(label="Graph"               , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Connections"         , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Configuration"       , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Configuration File"  , callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="Graph"         , children=(
+        menuItem.MenuItem(label="Stats"               , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Size"                , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Update Interval"     , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Bounds"              , callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="Connections"   , children=(
+        menuItem.MenuItem(label="Identity"            , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Resolver"            , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Sort Order"          , callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="Configuration" , children=(
+        menuItem.MenuItem(label="Comments"            , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Reload"              , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Reset Tor"           , callback=self._callbackDefault),))
+      ))
 
     self._first = [0]
     self._selection = [0]
@@ -51,6 +72,10 @@ class Menu():
           elif key == curses.KEY_LEFT:
             if len(self._selection) == 1:
               self._moveTopLevelLeft(width)
+          elif key == curses.KEY_DOWN:
+            if len(self._selection) == 1:
+              self._dropSecondLevel()
+              break
           elif uiTools.isSelectionKey(key):
             self._handleEvent()
             break
@@ -58,16 +83,41 @@ class Menu():
       finally:
         popups.finalize()
 
-  def _calculateTopLevelWidths(self, width):
+  def _getCurrentTopLevelItem(self):
+    index = self._first[TOPLEVEL] + self._selection[TOPLEVEL]
+    return self._rootItem.getChildren()[index]
+
+  def _calculateTopLevelWidths(self, width=0):
     labels = [menuItem.getLabel() for menuItem in self._rootItem.getChildren()]
 
     # width per label is set according to the longest label
     labelwidth = max(map(len, labels)) + 2
 
-    # total number of labels that can be printed in current width
+    # total number of labels that can be printed in supplied width
     printable = min(width / labelwidth - 1, self._rootItem.getChildrenCount())
 
     return (labelwidth, printable)
+
+  def _calculateSecondLevelWidths(self):
+    parent = self._getCurrentTopLevelItem()
+
+    labels = [menuItem.getLabel() for menuItem in parent.getChildren()]
+
+    labelwidth = max(map(len, labels))
+
+    return labelwidth
+
+  def _calculateSecondLevelHeights(self, height=0):
+    control = cli.controller.getController()
+    height, _ = control.getScreen().getmaxyx()
+    topSize = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
+    height = height - topSize
+
+    parent = self._getCurrentTopLevelItem()
+
+    printable = min(height - 4, parent.getChildrenCount())
+
+    return printable if printable else parent.getChildrenCount()
 
   def _moveTopLevelRight(self, width):
     _, printable = self._calculateTopLevelWidths(width)
@@ -90,7 +140,7 @@ class Menu():
       self._selection[TOPLEVEL] = self._selection[TOPLEVEL] - 1
     else:
       if self._first[TOPLEVEL] == 0:
-        self._first[TOPLEVEL] = (self._rootItem.getChildrenCount() / printable) * printable
+        self._first[TOPLEVEL] = ((self._rootItem.getChildrenCount() / printable) * printable) % self._rootItem.getChildrenCount()
       else:
         self._first[TOPLEVEL] = abs(self._first[TOPLEVEL] - printable) % self._rootItem.getChildrenCount()
       self._selection[TOPLEVEL] = self._rootItem.getChildrenCount() - self._first[TOPLEVEL] - 1
@@ -114,6 +164,90 @@ class Menu():
 
     popup.addch(top, left, curses.ACS_VLINE)
     left = left + 1
+
+  def _dropSecondLevel(self):
+    self._first.append(0)
+    self._selection.append(0)
+
+    labelwidth = self._calculateSecondLevelWidths()
+    printable = self._calculateSecondLevelHeights()
+
+    toplabelwidth, _ = self._calculateTopLevelWidths()
+    left = (toplabelwidth + 2) * self._selection[TOPLEVEL]
+
+    popup, width, height = popups.init(height=printable+2, width=labelwidth+2, top=2, left=left)
+
+    if popup.win:
+      try:
+        while True:
+          popup.win.erase()
+          popup.win.box()
+
+          self._drawSecondLevel(popup, width, height)
+
+          popup.win.refresh()
+
+          control = cli.controller.getController()
+          key = control.getScreen().getch()
+
+          if key == curses.KEY_DOWN:
+              self._moveSecondLevelDown(height)
+          elif key == curses.KEY_UP:
+              self._moveSecondLevelUp(height)
+          elif uiTools.isSelectionKey(key):
+            self._handleEvent()
+            self._first.pop()
+            self._selection.pop()
+            break
+
+      finally:
+        popups.finalize()
+
+  def _drawSecondLevel(self, popup, width, height):
+    printable = self._calculateSecondLevelHeights()
+    parent = self._getCurrentTopLevelItem()
+    children = parent.getChildren()[self._first[SECONDLEVEL]:self._first[SECONDLEVEL] + printable]
+
+    toplabelwidth, _ = self._calculateTopLevelWidths(width)
+
+    top = 1
+    left = 1
+    for (index, item) in enumerate(children):
+      labelformat = curses.A_STANDOUT if index == self._selection[SECONDLEVEL] else curses.A_NORMAL
+
+      popup.addstr(top, left, item.getLabel(), labelformat)
+      top = top + 1
+
+  def _moveSecondLevelDown(self, height):
+    printable = self._calculateSecondLevelHeights()
+    parent = self._getCurrentTopLevelItem()
+
+    if self._selection[SECONDLEVEL] < printable - 1:
+      self._selection[SECONDLEVEL] = self._selection[SECONDLEVEL] + 1
+    else:
+      self._selection[SECONDLEVEL] = 0
+      if printable < parent.getChildrenCount():
+        self._first[SECONDLEVEL] = (self._first[SECONDLEVEL] + printable) % parent.getChildrenCount()
+
+    if self._first[SECONDLEVEL] + self._selection[SECONDLEVEL] == parent.getChildrenCount():
+      self._first[SECONDLEVEL] = 0
+      self._selection[SECONDLEVEL] = 0
+
+  def _moveSecondLevelUp(self, height):
+    printable = self._calculateSecondLevelHeights()
+    parent = self._getCurrentTopLevelItem()
+
+    if self._selection[SECONDLEVEL] > 0:
+      self._selection[SECONDLEVEL] = self._selection[SECONDLEVEL] - 1
+    else:
+      if self._first[SECONDLEVEL] == 0:
+        self._first[SECONDLEVEL] = ((parent.getChildrenCount() / printable) * printable) % parent.getChildrenCount()
+      else:
+        self._first[SECONDLEVEL] = abs(self._first[SECONDLEVEL] - printable) % parent.getChildrenCount()
+      self._selection[SECONDLEVEL] = parent.getChildrenCount() - self._first[SECONDLEVEL] - 1
+
+    if self._selection[SECONDLEVEL] > printable:
+      self._selection[SECONDLEVEL] = printable - 1
 
   def _handleEvent(self):
     item = self._rootItem
