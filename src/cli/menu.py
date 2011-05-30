@@ -148,27 +148,6 @@ class Menu():
 
     return (labelwidth, printable)
 
-  def _calculateSecondLevelWidths(self):
-    parent = self._getCurrentTopLevelItem()
-
-    labels = [menuItem.getLabel() for menuItem in parent.getChildren()]
-
-    labelwidth = max(map(len, labels))
-
-    return labelwidth
-
-  def _calculateSecondLevelHeights(self, height=0):
-    control = cli.controller.getController()
-    height, _ = control.getScreen().getmaxyx()
-    topSize = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
-    height = height - topSize
-
-    parent = self._getCurrentTopLevelItem()
-
-    printable = min(height - 4, parent.getChildrenCount())
-
-    return printable if printable else parent.getChildrenCount()
-
   def _calculateNLevelWidths(self, level=0):
     parent = self._getCurrentItem(level)
 
@@ -317,7 +296,7 @@ class Menu():
       self._selection[PARENTLEVEL] = 0
 
   def _moveNLevelUp(self, height):
-    printable = self._calculateSecondLevelHeights()
+    printable = self._calculateNLevelHeights(level=PARENTLEVEL)
     parent = self._getCurrentItem(level=PARENTLEVEL)
 
     if self._selection[PARENTLEVEL] > 0:
