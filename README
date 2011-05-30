@@ -4,13 +4,13 @@ All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 Project page: www.atagar.com/arm
 
 Description:
-Command line application for monitoring Tor relays, providing real time status
+Command line application for monitoring Tor, providing real time status
 information such as the current configuration, bandwidth usage, message log,
 connections, etc. This uses a curses interface much like 'top' does for system
 usage. The application is intended for command-line aficionados, ssh
-connections, and anyone stuck with a tty terminal for checking their relay's
-status. Releases should be stable so if you manage to make it crash (or have a
-feature request) then please let me know!
+connections, and anyone with a tty terminal for checking their relay's status.
+Releases should be stable so if you manage to make it crash (or have a feature
+request) then please let me know!
 
 The project was originally proposed in 2008 by Jacob and Karsten:
   http://archives.seul.org/or/dev/Jan-2008/msg00005.html
