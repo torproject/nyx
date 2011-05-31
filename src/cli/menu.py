@@ -6,6 +6,8 @@ import curses
 
 import cli.controller
 import popups
+
+from cli.graphing.graphPanel import Bounds as GraphBounds
 from util import log, panel, uiTools, menuItem
 
 PARENTLEVEL, TOPLEVEL = (-1, 0)
@@ -15,70 +17,78 @@ class Menu():
 
   def __init__(self, item=None):
     DEFAULT_ROOT = menuItem.MenuItem(label="Root", children=(
-      menuItem.MenuItem(label="File"          , children=(
-        menuItem.MenuItem(label="Exit"                , callback=self._callbackDefault),)),
-      menuItem.MenuItem(label="Logs"          , children=(
-        menuItem.MenuItem(label="Events"              , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Clear"               , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Save"                , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Filter"              , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Duplicates"          , children=(
-          menuItem.MenuItem(label="Hidden"            , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Visible"           , callback=self._callbackDefault),))
+      menuItem.MenuItem(label="File", children=(
+        menuItem.MenuItem(label="Exit",
+                          callback=self._callbackDefault),)),
+      menuItem.MenuItem(label="Logs", children=(
+        menuItem.MenuItem(label="Events",
+                          callback=lambda item: self._callbackPressKey('log', ord('e'))),
+        menuItem.MenuItem(label="Clear",
+                          callback=lambda item: self._callbackPressKey('log', ord('c'))),
+        menuItem.MenuItem(label="Save",
+                          callback=lambda item: self._callbackPressKey('log', ord('a'))),
+        menuItem.MenuItem(label="Filter",
+                          callback=lambda item: self._callbackPressKey('log', ord('f'))),
+        menuItem.MenuItem(label="Duplicates", children=(
+          menuItem.MenuItem(label="Hidden",
+                            callback=lambda item: self._callbackSet('log', 'showDuplicates', False, ord('u')),
+                            enabled=lambda: self._getItemEnabled('log', 'showDuplicates', False)),
+          menuItem.MenuItem(label="Visible",
+                            callback=lambda item: self._callbackSet('log', 'showDuplicates', True, ord('u')),
+                            enabled=lambda: self._getItemEnabled('log', 'showDuplicates', True)),
+          )))),
+      menuItem.MenuItem(label="View", children=(
+        menuItem.MenuItem(label="Graph",
+                          callback=lambda item: self._callbackView('graph')),
+        menuItem.MenuItem(label="Connections",
+                          callback=lambda item: self._callbackView('conn')),
+        menuItem.MenuItem(label="Configuration",
+                          callback=lambda item: self._callbackView('configState')),
+        menuItem.MenuItem(label="Configuration File",
+                          callback=lambda item: self._callbackView('configFile')),)),
+      menuItem.MenuItem(label="Graph", children=(
+        menuItem.MenuItem(label="Stats",
+                          callback=lambda item: self._callbackPressKey('graph', ord('s'))),
+        menuItem.MenuItem(label="Size", children=(
+          menuItem.MenuItem(label="Increase",
+                            callback=lambda item: self._callbackPressKey('graph', ord('m'))),
+          menuItem.MenuItem(label="Decrease",
+                            callback=lambda item: self._callbackPressKey('graph', ord('n'))),
         )),
-      menuItem.MenuItem(label="View"          , children=(
-        menuItem.MenuItem(label="Graph"               , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Connections"         , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Configuration"       , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Configuration File"  , callback=self._callbackDefault),)),
-      menuItem.MenuItem(label="Graph"         , children=(
-        menuItem.MenuItem(label="Stats"               , children=(
-          menuItem.MenuItem(label="Bandwidth"         , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Connections"       , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Resources"         , callback=self._callbackDefault),
-        )),
-        menuItem.MenuItem(label="Size"                , children=(
-          menuItem.MenuItem(label="Increase"          , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Decrease"          , callback=self._callbackDefault),
-        )),
-        menuItem.MenuItem(label="Update Interval"     , children=(
-          menuItem.MenuItem(label="Each second"       , callback=self._callbackDefault),
-          menuItem.MenuItem(label="5 seconds"         , callback=self._callbackDefault),
-          menuItem.MenuItem(label="30 seconds"        , callback=self._callbackDefault),
-          menuItem.MenuItem(label="1 minute"          , callback=self._callbackDefault),
-          menuItem.MenuItem(label="30 minutes"        , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Hourly"            , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Daily"             , callback=self._callbackDefault),
-        )),
-        menuItem.MenuItem(label="Bounds"              , children=(
-          menuItem.MenuItem(label="Local Max"         , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Global Max"        , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Tight"             , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Update Interval",
+                            callback=lambda item: self._callbackPressKey('graph', ord('i'))),
+        menuItem.MenuItem(label="Bounds", children=(
+          menuItem.MenuItem(label="Local Max",
+                            callback=lambda item: self._callbackSet('graph', 'bounds', GraphBounds.LOCAL_MAX, ord('b')),
+                            enabled=lambda: self._getItemEnabled('graph', 'bounds', GraphBounds.LOCAL_MAX)),
+          menuItem.MenuItem(label="Global Max",
+                            callback=lambda item: self._callbackSet('graph', 'bounds', GraphBounds.GLOBAL_MAX, ord('b')),
+                            enabled=lambda: self._getItemEnabled('graph', 'bounds', GraphBounds.GLOBAL_MAX)),
+          menuItem.MenuItem(label="Tight",
+                            callback=lambda item: self._callbackSet('graph', 'bounds', GraphBounds.TIGHT, ord('b')),
+                            enabled=lambda: self._getItemEnabled('graph', 'bounds', GraphBounds.TIGHT)),
         )),)),
-      menuItem.MenuItem(label="Connections"   , children=(
-        menuItem.MenuItem(label="Identity"            , children=(
-          menuItem.MenuItem(label="IP"                , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Fingerprints"      , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Nicknames"             , callback=self._callbackDefault),
+      menuItem.MenuItem(label="Connections", children=(
+        menuItem.MenuItem(label="Identity",
+                            callback=lambda item: self._callbackPressKey('conn', ord('l'))),
+        menuItem.MenuItem(label="Resolver",
+                            callback=lambda item: self._callbackPressKey('conn', ord('u'))),
+        menuItem.MenuItem(label="Sort Order",
+                            callback=lambda item: self._callbackPressKey('conn', ord('s'))),
         )),
-        menuItem.MenuItem(label="Resolver"            , children=(
-          menuItem.MenuItem(label="auto"              , callback=self._callbackDefault),
-          menuItem.MenuItem(label="proc"              , callback=self._callbackDefault),
-          menuItem.MenuItem(label="netstat"           , callback=self._callbackDefault),
-          menuItem.MenuItem(label="ss"                , callback=self._callbackDefault),
-          menuItem.MenuItem(label="lsof"              , callback=self._callbackDefault),
-          menuItem.MenuItem(label="sockstat"          , callback=self._callbackDefault),
-          menuItem.MenuItem(label="sockstat (bsd)"    , callback=self._callbackDefault),
-          menuItem.MenuItem(label="procstat (bsd)"    , callback=self._callbackDefault),
-        )),
-        menuItem.MenuItem(label="Sort Order"          , callback=self._callbackDefault),)),
       menuItem.MenuItem(label="Configuration" , children=(
-        menuItem.MenuItem(label="Comments"            , children=(
-          menuItem.MenuItem(label="Hidden"            , callback=self._callbackDefault),
-          menuItem.MenuItem(label="Visible"           , callback=self._callbackDefault),
+        menuItem.MenuItem(label="Comments", children=(
+          menuItem.MenuItem(label="Hidden",
+                            callback=lambda item: self._callbackSet('configFile', 'stripComments', True, ord('s')),
+                            enabled=lambda: self._getItemEnabled('configFile', 'stripComments', True)),
+          menuItem.MenuItem(label="Visible",
+                            callback=lambda item: self._callbackSet('configFile', 'stripComments', False, ord('s')),
+                            enabled=lambda: self._getItemEnabled('configFile', 'stripComments', False)),
         )),
-        menuItem.MenuItem(label="Reload"              , callback=self._callbackDefault),
-        menuItem.MenuItem(label="Reset Tor"           , callback=self._callbackDefault),))
+        menuItem.MenuItem(label="Reload",
+                          callback=lambda item: self._callbackPressKey('configFile', ord('r'))),
+        menuItem.MenuItem(label="Reset Tor",
+                          callback=self._callbackDefault),))
       ))
 
     self._first = [0]
@@ -110,6 +120,8 @@ class Menu():
             self._moveTopLevelLeft(width)
           elif key == curses.KEY_DOWN:
             self._showNLevel()
+            break
+          elif key == 27:
             break
           elif uiTools.isSelectionKey(key):
             self._handleEvent()
@@ -238,6 +250,9 @@ class Menu():
 
     popup, width, height = popups.init(height=printable+2, width=labelwidth+2, top=2, left=left)
 
+    while self._getCurrentItem().isEnabled() == False:
+      self._moveNLevelDown(height)
+
     if popup.win:
       try:
         while True:
@@ -258,6 +273,10 @@ class Menu():
           elif key == curses.KEY_RIGHT:
             self._showNLevel()
             break
+          elif key == 27:
+            self._first.pop()
+            self._selection.pop()
+            break
           elif uiTools.isSelectionKey(key):
             self._handleEvent()
             self._first.pop()
@@ -277,6 +296,9 @@ class Menu():
     for (index, item) in enumerate(children):
       labelformat = curses.A_STANDOUT if index == self._selection[PARENTLEVEL] else curses.A_NORMAL
 
+      if not item.isEnabled():
+        labelformat = labelformat | uiTools.getColor('yellow')
+
       popup.addstr(top, left, item.getLabel(), labelformat)
       top = top + 1
 
@@ -295,6 +317,9 @@ class Menu():
       self._first[PARENTLEVEL] = 0
       self._selection[PARENTLEVEL] = 0
 
+    while self._getCurrentItem().isEnabled() == False:
+      self._moveNLevelDown(height)
+
   def _moveNLevelUp(self, height):
     printable = self._calculateNLevelHeights(level=PARENTLEVEL)
     parent = self._getCurrentItem(level=PARENTLEVEL)
@@ -311,6 +336,9 @@ class Menu():
     if self._selection[PARENTLEVEL] > printable:
       self._selection[PARENTLEVEL] = printable - 1
 
+    while self._getCurrentItem().isEnabled() == False:
+      self._moveNLevelUp(height)
+
   def _handleEvent(self):
     item = self._getCurrentItem()
 
@@ -321,4 +349,56 @@ class Menu():
 
   def _callbackDefault(self, item):
     log.log(log.NOTICE, "%s selected" % item.getLabel())
+
+  def _callbackView(self, panelname):
+    control = cli.controller.getController()
+
+    start = control.getPage()
+    panels = control.getDisplayPanels(includeSticky=False)
+    panelnames = [panel.getName() for panel in panels]
+    while not panelname in panelnames:
+      control.nextPage()
+      panels = control.getDisplayPanels(includeSticky=False)
+      panelnames = [panel.getName() for panel in panels]
+
+      if control.getPage() == start:
+        log.log(log.ERR, "Panel %s not found" % panelname)
+        break
+
+  def _getItemEnabled(self, panel, attr, value):
+    control = cli.controller.getController()
+    if control:
+      panel = control.getPanel(panel)
+
+      if panel:
+        return getattr(panel, attr, None) != value
+
+      return False
+
+  def _callbackSet(self, panel, attr, value, key=None):
+    self._callbackView(panel)
+
+    control = cli.controller.getController()
+    panel = control.getPanel(panel)
+
+    panelattr = getattr(panel, attr, None)
+
+    if panelattr != None:
+      if hasattr(panelattr, '__call__'):
+        panelattr(value)
+      elif panelattr != value and key != None:
+        start = panelattr
+        while panelattr != value:
+          panel.handleKey(key)
+          panelattr = getattr(panel, attr, None)
+          if panelattr == start:
+            log.log(log.ERR, "Could not set %s.%s" % (panel, attr))
+            break
+
+  def _callbackPressKey(self, panel, key):
+    self._callbackView(panel)
+
+    control = cli.controller.getController()
+    panel = control.getPanel(panel)
+    panel.handleKey(key)
 
