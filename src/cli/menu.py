@@ -99,7 +99,10 @@ class Menu():
     else:
       self._rootItem = DEFAULT_ROOT
 
-  def showMenu(self):
+  def showMenu(self, keys=[]):
+    keys.reverse()
+    returnkeys = []
+
     popup, width, height = popups.init(height=3)
     if popup:
       try:
@@ -112,14 +115,18 @@ class Menu():
           popup.win.refresh()
 
           control = cli.controller.getController()
-          key = control.getScreen().getch()
+
+          if keys == []:
+            key = control.getScreen().getch()
+          else:
+            key = keys.pop()
 
           if key == curses.KEY_RIGHT:
             self._moveTopLevelRight(width)
           elif key == curses.KEY_LEFT:
             self._moveTopLevelLeft(width)
           elif key == curses.KEY_DOWN:
-            self._cascadeNLevel()
+            cascaded, returnkeys = self._cascadeNLevel()
             break
           elif key == 27:
             break
@@ -129,6 +136,8 @@ class Menu():
 
       finally:
         popups.finalize()
+
+    return returnkeys
 
   def _appendLevel(self):
     self._first.append(0)
@@ -245,7 +254,7 @@ class Menu():
     parent = self._getCurrentItem()
 
     if parent.isLeaf():
-      return
+      return (False, [])
 
     self._appendLevel()
 
@@ -261,6 +270,7 @@ class Menu():
       self._moveNLevelDown(height)
 
     if popup.win:
+      returnkeys = []
       try:
         while True:
           popup.win.erase()
@@ -278,7 +288,19 @@ class Menu():
           elif key == curses.KEY_UP:
             self._moveNLevelUp(height)
           elif key == curses.KEY_RIGHT:
-            self._cascadeNLevel()
+            cascaded, returnkeys = self._cascadeNLevel()
+            if cascaded == False:
+              index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] + 1
+              for i in range(index):
+                returnkeys.append(curses.KEY_RIGHT)
+              returnkeys.append(curses.KEY_DOWN)
+            break
+          elif key == curses.KEY_LEFT:
+            index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] - 1
+            index = index % self._rootItem.getChildrenCount()
+            for i in range(index):
+              returnkeys.append(curses.KEY_RIGHT)
+            returnkeys.append(curses.KEY_DOWN)
             break
           elif key == 27:
             self._removeLevel()
@@ -290,6 +312,10 @@ class Menu():
 
       finally:
         popups.finalize()
+
+      return (True, returnkeys)
+
+    return (False, [])
 
   def _drawNLevel(self, popup, width, height):
     printable = self._calculateNLevelHeights(level=PARENTLEVEL)

@@ -477,6 +477,8 @@ def drawTorMonitor(stdscr, startTime):
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
+
+  menuKeys = []
   
   while True:
     displayPanels = control.getDisplayPanels()
@@ -514,7 +516,9 @@ def drawTorMonitor(stdscr, startTime):
       control.setPaused(not control.isPaused())
     elif key == ord('m') or key == ord('M'):
       menu = cli.menu.Menu()
-      menu.showMenu()
+      menuKeys = menu.showMenu(keys=menuKeys)
+      if menuKeys != []:
+        overrideKey = ord('m')
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:
