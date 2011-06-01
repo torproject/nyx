@@ -119,7 +119,7 @@ class Menu():
           elif key == curses.KEY_LEFT:
             self._moveTopLevelLeft(width)
           elif key == curses.KEY_DOWN:
-            self._showNLevel()
+            self._cascadeNLevel()
             break
           elif key == 27:
             break
@@ -129,6 +129,14 @@ class Menu():
 
       finally:
         popups.finalize()
+
+  def _appendLevel(self):
+    self._first.append(0)
+    self._selection.append(0)
+
+  def _removeLevel(self):
+    self._first.pop()
+    self._selection.pop()
 
   def _getCurrentTopLevelItem(self):
     index = self._first[TOPLEVEL] + self._selection[TOPLEVEL]
@@ -233,14 +241,13 @@ class Menu():
     popup.addch(top, left, curses.ACS_VLINE)
     left = left + 1
 
-  def _showNLevel(self):
-    self._first.append(0)
-    self._selection.append(0)
-
-    parent = self._getCurrentItem(level=PARENTLEVEL)
+  def _cascadeNLevel(self):
+    parent = self._getCurrentItem()
 
     if parent.isLeaf():
       return
+
+    self._appendLevel()
 
     labelwidth = self._calculateNLevelWidths(level=PARENTLEVEL)
     printable = self._calculateNLevelHeights(level=PARENTLEVEL)
@@ -271,16 +278,14 @@ class Menu():
           elif key == curses.KEY_UP:
             self._moveNLevelUp(height)
           elif key == curses.KEY_RIGHT:
-            self._showNLevel()
+            self._cascadeNLevel()
             break
           elif key == 27:
-            self._first.pop()
-            self._selection.pop()
+            self._removeLevel()
             break
           elif uiTools.isSelectionKey(key):
             self._handleEvent()
-            self._first.pop()
-            self._selection.pop()
+            self._removeLevel()
             break
 
       finally:
@@ -345,7 +350,7 @@ class Menu():
     if item.isLeaf():
       item.select()
     else:
-      self._showNLevel()
+      self._cascadeNLevel()
 
   def _callbackDefault(self, item):
     log.log(log.NOTICE, "%s selected" % item.getLabel())
