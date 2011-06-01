@@ -43,7 +43,7 @@ class Panel():
   redraw().
   """
   
-  def __init__(self, parent, name, top, height=-1, width=-1):
+  def __init__(self, parent, name, top, left=0, height=-1, width=-1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
     
@@ -51,6 +51,7 @@ class Panel():
       parent - parent curses window
       name   - identifier for the panel
       top    - positioning of top within parent
+      left   - positioning of the left edge within the parent
       height - maximum height of panel (uses all available space if -1)
       width  - maximum width of panel (uses all available space if -1)
     """
@@ -74,7 +75,7 @@ class Panel():
     self.pauseTime = -1
     
     self.top = top
-    self.left = 0
+    self.left = left
     self.height = height
     self.width = width
     
@@ -256,24 +257,32 @@ class Panel():
       self.top = top
       self.win = None
   
+  def getLeft(self):
+    """
+    Provides the left position where this subwindow is placed within its
+    parent.
+    """
+    
+    return self.left
+  
+  def setLeft(self, left):
+    """
+    Changes the left position where this subwindow is placed within its parent.
+    
+    Arguments:
+      left - positioning of top within parent
+    """
+    
+    if self.left != left:
+      self.left = left
+      self.win = None
+  
   def getHeight(self):
     """
     Provides the height used for subwindows (-1 if it isn't limited).
     """
     
     return self.height
-
-  def setLeft(self, left):
-    """
-    Changes the position where subwindows are placed within its parent.
-    
-    Arguments:
-      top - positioning of top within parent
-    """
-    
-    if self.left != left:
-      self.left = left
-      self.win = None
   
   def setHeight(self, height):
     """

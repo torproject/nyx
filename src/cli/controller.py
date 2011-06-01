@@ -7,6 +7,7 @@ import time
 import curses
 import threading
 
+import cli.menu
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -17,7 +18,6 @@ import cli.graphing.bandwidthStats
 import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
-import cli.menu
 
 from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
 
@@ -77,9 +77,6 @@ def initController(stdscr, startTime):
   # fourth page: torrc
   pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
   
-  # top menu
-  menu = cli.menu.Menu()
-  
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
   
@@ -110,7 +107,7 @@ class LabelPanel(panel.Panel):
   """
   
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, "msg", 0, 1)
+    panel.Panel.__init__(self, stdscr, "msg", 0, height=1)
     self.msgText = ""
     self.msgAttr = curses.A_NORMAL
   
@@ -144,7 +141,6 @@ class Controller:
       stdscr       - curses window
       stickyPanels - panels shown at the top of each page
       pagePanels   - list of pages, each being a list of the panels on it
-      menu         - popup drop-down menu
     """
     
     self._screen = stdscr
@@ -304,7 +300,7 @@ class Controller:
       
       if attr == None:
         if not self._isPaused:
-          msg = "page %i / %i - m: menu, q: quit, p: pause, h: page help" % (self._page + 1, len(self._pagePanels))
+          msg = "page %i / %i - m: menu, p: pause, h: page help, q: quit" % (self._page + 1, len(self._pagePanels))
           attr = curses.A_NORMAL
         else:
           msg = "Paused"
