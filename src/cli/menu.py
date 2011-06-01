@@ -407,8 +407,6 @@ class Menu():
       return False
 
   def _callbackSet(self, panel, attr, value, key=None):
-    self._callbackView(panel)
-
     control = cli.controller.getController()
     panel = control.getPanel(panel)
 
@@ -427,8 +425,6 @@ class Menu():
             break
 
   def _callbackPressKey(self, panel, key):
-    self._callbackView(panel)
-
     control = cli.controller.getController()
     panel = control.getPanel(panel)
     panel.handleKey(key)
