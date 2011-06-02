@@ -74,6 +74,7 @@ class Panel():
     self.pauseTime = -1
     
     self.top = top
+    self.left = 0
     self.height = height
     self.width = width
     
@@ -261,6 +262,18 @@ class Panel():
     """
     
     return self.height
+
+  def setLeft(self, left):
+    """
+    Changes the position where subwindows are placed within its parent.
+    
+    Arguments:
+      top - positioning of top within parent
+    """
+    
+    if self.left != left:
+      self.left = left
+      self.win = None
   
   def setHeight(self, height):
     """
@@ -303,6 +316,7 @@ class Panel():
     newHeight, newWidth = self.parent.getmaxyx()
     setHeight, setWidth = self.getHeight(), self.getWidth()
     newHeight = max(0, newHeight - self.top)
+    newWidth = max(0, newWidth - self.left)
     if setHeight != -1: newHeight = min(newHeight, setHeight)
     if setWidth != -1: newWidth = min(newWidth, setWidth)
     return (newHeight, newWidth)
@@ -569,7 +583,7 @@ class Panel():
     
     # temporary subwindow for user input
     displayWidth = self.getPreferredSize()[1]
-    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, x)
+    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, self.left + x)
     
     # prepopulates the initial text
     if initialText: inputSubwindow.addstr(0, 0, initialText)
@@ -682,7 +696,7 @@ class Panel():
     # would mean far more complicated code and no more selective refreshing)
     
     if recreate:
-      self.win = self.parent.subwin(newHeight, newWidth, self.top, 0)
+      self.win = self.parent.subwin(newHeight, newWidth, self.top, self.left)
       
       # note: doing this log before setting win produces an infinite loop
       msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)

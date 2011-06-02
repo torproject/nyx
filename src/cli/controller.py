@@ -17,6 +17,7 @@ import cli.graphing.bandwidthStats
 import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
+import cli.menu
 
 from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
 
@@ -75,6 +76,9 @@ def initController(stdscr, startTime):
   
   # fourth page: torrc
   pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
+  
+  # top menu
+  menu = cli.menu.Menu()
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
@@ -140,6 +144,7 @@ class Controller:
       stdscr       - curses window
       stickyPanels - panels shown at the top of each page
       pagePanels   - list of pages, each being a list of the panels on it
+      menu         - popup drop-down menu
     """
     
     self._screen = stdscr
@@ -299,7 +304,7 @@ class Controller:
       
       if attr == None:
         if not self._isPaused:
-          msg = "page %i / %i - q: quit, p: pause, h: page help" % (self._page + 1, len(self._pagePanels))
+          msg = "page %i / %i - m: menu, q: quit, p: pause, h: page help" % (self._page + 1, len(self._pagePanels))
           attr = curses.A_NORMAL
         else:
           msg = "Paused"
@@ -472,6 +477,8 @@ def drawTorMonitor(stdscr, startTime):
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
+
+  menuKeys = []
   
   while True:
     displayPanels = control.getDisplayPanels()
@@ -507,6 +514,14 @@ def drawTorMonitor(stdscr, startTime):
       control.prevPage()
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
+    elif key == ord('m') or key == ord('M'):
+      menu = cli.menu.Menu()
+      menuKeys = menu.showMenu(keys=menuKeys)
+      if menuKeys != []:
+        for key in (ord('m'), ord('q'), ord('x')):
+          if key in menuKeys:
+            menuKeys.remove(key)
+            overrideKey = key
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:
