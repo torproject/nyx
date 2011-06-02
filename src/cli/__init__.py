@@ -2,5 +2,5 @@
 Panels, popups, and handlers comprising the arm user interface.
 """
 
-__all__ = ["configPanel", "controller", "descriptorPopup", "headerPanel", "logPanel", "popups", "torrcPanel"]
+__all__ = ["configPanel", "controller", "descriptorPopup", "headerPanel", "logPanel", "menu", "popups", "torrcPanel"]
 

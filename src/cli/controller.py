@@ -518,7 +518,10 @@ def drawTorMonitor(stdscr, startTime):
       menu = cli.menu.Menu()
       menuKeys = menu.showMenu(keys=menuKeys)
       if menuKeys != []:
-        overrideKey = ord('m')
+        for key in (ord('m'), ord('q'), ord('x')):
+          if key in menuKeys:
+            menuKeys.remove(key)
+            overrideKey = key
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:

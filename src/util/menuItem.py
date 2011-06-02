@@ -35,5 +35,5 @@ class MenuItem():
     return len(self._children)
 
   def select(self):
-    self._callback(self)
+    return self._callback(self)
 

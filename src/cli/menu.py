@@ -19,7 +19,7 @@ class Menu():
     DEFAULT_ROOT = menuItem.MenuItem(label="Root", children=(
       menuItem.MenuItem(label="File", children=(
         menuItem.MenuItem(label="Exit",
-                          callback=self._callbackDefault),)),
+                          callback=lambda item: self._callbackReturnKey(ord('q'))),)),
       menuItem.MenuItem(label="Logs", children=(
         menuItem.MenuItem(label="Events",
                           callback=lambda item: self._callbackPressKey('log', ord('e'))),
@@ -88,7 +88,7 @@ class Menu():
         menuItem.MenuItem(label="Reload",
                           callback=lambda item: self._callbackPressKey('configFile', ord('r'))),
         menuItem.MenuItem(label="Reset Tor",
-                          callback=self._callbackDefault),))
+                          callback=lambda item: self._callbackReturnKey(ord('x'))),))
       ))
 
     self._first = [0]
@@ -291,6 +291,7 @@ class Menu():
             cascaded, returnkeys = self._cascadeNLevel()
             if cascaded == False:
               index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] + 1
+              returnkeys.append(ord('m'))
               for i in range(index):
                 returnkeys.append(curses.KEY_RIGHT)
               returnkeys.append(curses.KEY_DOWN)
@@ -298,6 +299,7 @@ class Menu():
           elif key == curses.KEY_LEFT:
             index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] - 1
             index = index % self._rootItem.getChildrenCount()
+            returnkeys.append(ord('m'))
             for i in range(index):
               returnkeys.append(curses.KEY_RIGHT)
             returnkeys.append(curses.KEY_DOWN)
@@ -306,7 +308,9 @@ class Menu():
             self._removeLevel()
             break
           elif uiTools.isSelectionKey(key):
-            self._handleEvent()
+            returnkey = self._handleEvent()
+            if returnkey:
+                returnkeys.append(returnkey)
             self._removeLevel()
             break
 
@@ -374,7 +378,7 @@ class Menu():
     item = self._getCurrentItem()
 
     if item.isLeaf():
-      item.select()
+      return item.select()
     else:
       self._cascadeNLevel()
 
@@ -428,4 +432,7 @@ class Menu():
     control = cli.controller.getController()
     panel = control.getPanel(panel)
     panel.handleKey(key)
+
+  def _callbackReturnKey(self, key):
+    return key
 
