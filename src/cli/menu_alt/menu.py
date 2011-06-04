@@ -5,10 +5,11 @@ A drop-down menu for sending actions to panels.
 import curses
 
 import cli.controller
-import popups
+import cli.menu_alt.menuItem as menuItem
+import cli.popups
 
 from cli.graphing.graphPanel import Bounds as GraphBounds
-from util import log, panel, uiTools, menuItem
+from util import log, panel, uiTools
 
 PARENTLEVEL, TOPLEVEL = (-1, 0)
 
@@ -103,7 +104,7 @@ class Menu():
     keys.reverse()
     returnkeys = []
 
-    popup, width, height = popups.init(height=3)
+    popup, width, height = cli.popups.init(height=3)
     if popup:
       try:
         while True:
@@ -135,7 +136,7 @@ class Menu():
             break
 
       finally:
-        popups.finalize()
+        cli.popups.finalize()
 
     return returnkeys
 
@@ -264,7 +265,7 @@ class Menu():
     toplabelwidth, _ = self._calculateTopLevelWidths()
     left = (toplabelwidth + 2) * self._selection[TOPLEVEL]
 
-    popup, width, height = popups.init(height=printable+2, width=labelwidth+2, top=2, left=left)
+    popup, width, height = cli.popups.init(height=printable+2, width=labelwidth+2, top=2, left=left)
 
     while self._getCurrentItem().isEnabled() == False:
       self._moveNLevelDown(height)
@@ -291,7 +292,7 @@ class Menu():
             cascaded, returnkeys = self._cascadeNLevel()
             if cascaded == False:
               index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] + 1
-              returnkeys.append(ord('m'))
+              returnkeys.append(ord('n'))
               for i in range(index):
                 returnkeys.append(curses.KEY_RIGHT)
               returnkeys.append(curses.KEY_DOWN)
@@ -299,7 +300,7 @@ class Menu():
           elif key == curses.KEY_LEFT:
             index = self._first[TOPLEVEL] + self._selection[TOPLEVEL] - 1
             index = index % self._rootItem.getChildrenCount()
-            returnkeys.append(ord('m'))
+            returnkeys.append(ord('n'))
             for i in range(index):
               returnkeys.append(curses.KEY_RIGHT)
             returnkeys.append(curses.KEY_DOWN)
@@ -315,7 +316,7 @@ class Menu():
             break
 
       finally:
-        popups.finalize()
+        cli.popups.finalize()
 
       return (True, returnkeys)
 

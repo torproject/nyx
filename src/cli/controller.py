@@ -7,8 +7,8 @@ import time
 import curses
 import threading
 
-import cli.menu
 import cli.menu.menu
+import cli.menu_alt.menu
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -512,10 +512,10 @@ def drawTorMonitor(stdscr, startTime):
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
     elif key == ord('n') or key == ord('N'):
-      menu = cli.menu.Menu()
+      menu = cli.menu_alt.menu.Menu()
       menuKeys = menu.showMenu(keys=menuKeys)
       if menuKeys != []:
-        for key in (ord('m'), ord('q'), ord('x')):
+        for key in (ord('n'), ord('q'), ord('x')):
           if key in menuKeys:
             menuKeys.remove(key)
             overrideKey = key
