@@ -176,6 +176,11 @@ Layout:
         connEntry.py      - individual connections to or from the system
         entries.py        - common parent for connPanel display entries
       
+      menu/
+        __init__.py
+        menu.py           - provides an interactive menu
+        item.py           - individual items within the menu
+      
       __init__.py
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information

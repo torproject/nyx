@@ -8,7 +8,7 @@ import cli.controller
 
 from util import panel, uiTools
 
-def init(height = -1, width = -1, top = 0, left = 0):
+def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
   """
   Preparation for displaying a popup. This creates a popup with a valid
   subwindow instance. If that's successful then the curses lock is acquired
@@ -17,14 +17,17 @@ def init(height = -1, width = -1, top = 0, left = 0):
   Otherwise this leaves curses unlocked and returns None.
   
   Arguments:
-    height - maximum height of the popup
-    width  - maximum width of the popup
-    top    - top position, relative to the sticky content
-    left   - left position from the screen
+    height      - maximum height of the popup
+    width       - maximum width of the popup
+    top         - top position, relative to the sticky content
+    left        - left position from the screen
+    belowStatic - positions popup below static content if true
   """
   
   control = cli.controller.getController()
-  stickyHeight = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
+  if belowStatic:
+    stickyHeight = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
+  else: stickyHeight = 0
   
   popup = panel.Panel(control.getScreen(), "popup", top + stickyHeight, left, height, width)
   popup.setVisible(True)

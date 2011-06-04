@@ -8,6 +8,7 @@ import curses
 import threading
 
 import cli.menu
+import cli.menu.menu
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -510,7 +511,7 @@ def drawTorMonitor(stdscr, startTime):
       control.prevPage()
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
-    elif key == ord('m') or key == ord('M'):
+    elif key == ord('n') or key == ord('N'):
       menu = cli.menu.Menu()
       menuKeys = menu.showMenu(keys=menuKeys)
       if menuKeys != []:
@@ -518,6 +519,8 @@ def drawTorMonitor(stdscr, startTime):
           if key in menuKeys:
             menuKeys.remove(key)
             overrideKey = key
+    elif key == ord('m') or key == ord('M'):
+      cli.menu.menu.showMenu()
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:

@@ -484,7 +484,7 @@ class Panel():
     # direction) from actual content to prevent crash when shrank
     if self.win and self.maxX > x and self.maxY > y:
       try:
-        self.win.addstr(y, x, msg[:self.maxX - x - 1], attr)
+        self.win.addstr(y, x, msg[:self.maxX - x], attr)
       except:
         # this might produce a _curses.error during edge cases, for instance
         # when resizing with visible popups
