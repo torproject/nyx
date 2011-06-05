@@ -16,6 +16,7 @@ import platform
 import version
 import cli.controller
 import cli.logPanel
+import gui.controller
 import util.conf
 import util.connections
 import util.hostnames
@@ -49,11 +50,12 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-OPT = "i:c:dbe:vh"
-OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gi:c:dbe:vh"
+OPT_EXPANDED = ["gtk", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
+  -g, --gtk                       launch the Gtk+ interface
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
                                     defaults to: %s
@@ -208,6 +210,7 @@ def _dumpConfig():
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
+  launchGui = False
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
@@ -236,6 +239,7 @@ if __name__ == '__main__':
       
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
+    elif opt in ("-g", "--gtk"): launchGui = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
@@ -401,5 +405,8 @@ if __name__ == '__main__':
   if util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  cli.controller.startTorMonitor(time.time() - initTime)
+  if launchGui == True:
+    gui.controller.startGui()
+  else:
+    cli.controller.startTorMonitor(time.time() - initTime)
 
