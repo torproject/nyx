@@ -148,6 +148,9 @@ def showMenu():
       popup.win.bkgd(' ', curses.A_STANDOUT | uiTools.getColor("red"))
       selectionHierarchy = cursor.getSelection().getHierarchy()
       
+      # provide a message saying how to close the menu
+      control.setMsg("Press m or esc to close the menu.", curses.A_BOLD, True)
+      
       # renders the menu bar, noting where the open submenu is positioned
       drawLeft, selectionLeft = 0, 0
       
@@ -175,7 +178,9 @@ def showMenu():
       if not cursor.isDone():
         for panelImpl in control.getDisplayPanels():
           panelImpl.redraw(True)
-  finally: cli.popups.finalize()
+  finally:
+    control.setMsg()
+    cli.popups.finalize()
 
 def _drawSubmenu(cursor, level, top, left):
   selectionHierarchy = cursor.getSelection().getHierarchy()
