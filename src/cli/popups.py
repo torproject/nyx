@@ -26,7 +26,7 @@ def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
   
   control = cli.controller.getController()
   if belowStatic:
-    stickyHeight = sum(map(getHeight, control.getStickyPanels()))
+    stickyHeight = sum([stickyPanel.getHeight() for stickyPanel in control.getStickyPanels()])
   else: stickyHeight = 0
   
   popup = panel.Panel(control.getScreen(), "popup", top + stickyHeight, left, height, width)
