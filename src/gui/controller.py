@@ -8,62 +8,10 @@ class GuiController:
     self.builder = gtk.Builder()
     self.builder.add_from_file(filename)
     self.builder.connect_signals(self)
+    self._pack_formatted_cells_into_cols()
 
   def run(self):
     window = self.builder.get_object('window_main')
-
-    col = self.builder.get_object('treeview_sticky').get_column(0)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'text', 0)
-
-    col = self.builder.get_object('treeview_sticky').get_column(1)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 1)
-    col.add_attribute(cell, 'foreground', 2)
-
-    col = self.builder.get_object('treeview_conn').get_column(0)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 0)
-    col.add_attribute(cell, 'foreground', 4)
-
-    col = self.builder.get_object('treeview_conn').get_column(1)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 1)
-    col.add_attribute(cell, 'foreground', 4)
-
-    col = self.builder.get_object('treeview_conn').get_column(2)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 2)
-    col.add_attribute(cell, 'foreground', 4)
-
-    col = self.builder.get_object('treeview_conn').get_column(3)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 3)
-    col.add_attribute(cell, 'foreground', 4)
-
-    col = self.builder.get_object('treeview_config').get_column(0)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 0)
-    col.add_attribute(cell, 'foreground', 3)
-
-    col = self.builder.get_object('treeview_config').get_column(1)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 1)
-    col.add_attribute(cell, 'foreground', 3)
-
-    col = self.builder.get_object('treeview_config').get_column(2)
-    cell = gtk.CellRendererText()
-    col.pack_start(cell)
-    col.add_attribute(cell, 'markup', 2)
-    col.add_attribute(cell, 'foreground', 3)
 
     textview = self.builder.get_object('textview_log')
     textbuffer = self.builder.get_object('textbuffer_log')
@@ -78,6 +26,27 @@ class GuiController:
 
   def on_window_main_delete_event(self, widget, data=None):
     gtk.main_quit()
+
+  def _pack_formatted_cells_into_cols(self):
+    self._pack_formatted_cell_into_col(treeview='treeview_sticky', col=0, markup=0)
+    self._pack_formatted_cell_into_col(treeview='treeview_sticky', col=1, markup=1, foreground=2)
+    self._pack_formatted_cell_into_col(treeview='treeview_conn', col=0, markup=0, foreground=4)
+    self._pack_formatted_cell_into_col(treeview='treeview_conn', col=1, markup=1, foreground=4)
+    self._pack_formatted_cell_into_col(treeview='treeview_conn', col=2, markup=2, foreground=4)
+    self._pack_formatted_cell_into_col(treeview='treeview_conn', col=3, markup=3, foreground=4)
+    self._pack_formatted_cell_into_col(treeview='treeview_config', col=0, markup=0, foreground=3)
+    self._pack_formatted_cell_into_col(treeview='treeview_config', col=1, markup=1, foreground=3)
+    self._pack_formatted_cell_into_col(treeview='treeview_config', col=2, markup=2, foreground=3)
+
+  def _pack_formatted_cell_into_col(self, treeview, col, markup, foreground=-1, background=-1):
+    col = self.builder.get_object(treeview).get_column(col)
+    cell = gtk.CellRendererText()
+    col.pack_start(cell)
+    col.add_attribute(cell, 'markup', markup)
+    if foreground != -1:
+      col.add_attribute(cell, 'foreground', foreground)
+    if background != -1:
+      col.add_attribute(cell, 'background', background)
 
 def startGui():
   controller = GuiController()
