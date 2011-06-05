@@ -381,7 +381,7 @@ class Panel():
     
     # if the panel's completely outside its parent then this is a no-op
     newHeight, newWidth = self.getPreferredSize()
-    if newHeight == 0:
+    if newHeight == 0 or newWidth == 0:
       self.win = None
       return
     

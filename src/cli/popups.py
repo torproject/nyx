@@ -38,7 +38,7 @@ def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
   if popup.win != None:
     panel.CURSES_LOCK.acquire()
     return (popup, popup.maxX - 1, popup.maxY)
-  else: return None
+  else: return (None, 0, 0)
 
 def finalize():
   """
