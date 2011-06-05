@@ -26,7 +26,7 @@ def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
   
   control = cli.controller.getController()
   if belowStatic:
-    stickyHeight = sum(stickyPanel.getHeight() for stickyPanel in control.getStickyPanels())
+    stickyHeight = sum(map(getHeight, control.getStickyPanels()))
   else: stickyHeight = 0
   
   popup = panel.Panel(control.getScreen(), "popup", top + stickyHeight, left, height, width)
@@ -272,7 +272,7 @@ def showMenu(title, options, oldSelection):
                    selection without a carrot if -1)
   """
   
-  maxWidth = max([len(label) for label in options]) + 9
+  maxWidth = max(map(len, options)) + 9
   popup, _, _ = init(len(options) + 2, maxWidth)
   if not popup: return
   key, selection = 0, oldSelection if oldSelection != -1 else 0
