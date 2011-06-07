@@ -8,6 +8,9 @@ import shutil
 import tempfile
 
 TORCTL_REPO = "git://git.torproject.org/pytorctl.git"
+CAGRAPH_TARBALL_URL = "http://cagraph.googlecode.com/files/cagraph-1.2.tar.gz"
+CAGRAPH_TARBALL_NAME = "cagraph-1.2.tar.gz"
+CAGRAPH_TARBALL_ROOT = "cagraph-1.2"
 
 def isTorCtlAvailable():
   """
@@ -16,6 +19,16 @@ def isTorCtlAvailable():
   
   try:
     import TorCtl
+    return True
+  except ImportError:
+    return False
+
+def isCagraphAvailable():
+  """
+  True if cagraph is already available on the platform, false otherwise.
+  """
+  try:
+    import cagraph
     return True
   except ImportError:
     return False
@@ -39,6 +52,30 @@ def promptTorCtlInstall():
       raise IOError("Unable to install TorCtl, sorry")
     
     print "TorCtl successfully installed"
+    return True
+  except IOError, exc:
+    print exc
+    return False
+
+def promptCagraphInstall():
+  """
+  Asks the user to install cagraph. This returns True if it was installed and
+  False otherwise (if it was either declined or failed to be fetched).
+  """
+  
+  userInput = raw_input("Arm requires cagraph to run, but it's unavailable. Would you like to install it? (y/n): ")
+  
+  # if user says no then terminate
+  if not userInput.lower() in ("y", "yes"): return False
+  
+  # attempt to install TorCtl, printing the issue if unsuccessful
+  try:
+    installCagraph()
+    
+    if not isCagraphAvailable():
+      raise IOError("Unable to install cagraph, sorry")
+    
+    print "cagraph successfully installed"
     return True
   except IOError, exc:
     print exc
@@ -71,6 +108,31 @@ def installTorCtl():
   # of errors.
   shutil.rmtree(tmpFilename, ignore_errors=True)
 
+def installCagraph():
+  """
+  Downloads and extracts the cagraph tarball.
+  This raises an IOError if unsuccessful.
+  """
+  
+  if isCagraphAvailable(): return
+  
+  tmpDir = tempfile.mkdtemp()
+  tmpFilename = os.path.join(tmpDir, CAGRAPH_TARBALL_NAME)
+  
+  exitStatus = os.system("wget -P %s %s" % (tmpDir, CAGRAPH_TARBALL_URL))
+  if exitStatus: raise IOError("Unable to fetch cagraph from %s. Is wget installed?" % CAGRAPH_TARBALL_URL)
+  
+  # the destination for TorCtl will be our directory
+  ourDir = os.path.dirname(os.path.realpath(__file__))
+  
+  # exports TorCtl to our location
+  exitStatus = os.system("(cd %s && tar --strip-components=1 -xzf %s %s/cagraph)" % (ourDir, tmpFilename, CAGRAPH_TARBALL_ROOT))
+  if exitStatus: raise IOError("Unable to extract cagraph to %s" % ourDir)
+  
+  # Clean up the temporary contents. This isn't vital so quietly fails in case
+  # of errors.
+  shutil.rmtree(tmpDir, ignore_errors=True)
+
 if __name__ == '__main__':
   majorVersion = sys.version_info[0]
   minorVersion = sys.version_info[1]
@@ -90,5 +152,9 @@ if __name__ == '__main__':
   
   if not isTorCtlAvailable():
     isInstalled = promptTorCtlInstall()
+    if not isInstalled: sys.exit(1)
+
+  if not isCagraphAvailable():
+    isInstalled = promptCagraphInstall()
     if not isInstalled: sys.exit(1)
 
