@@ -4,13 +4,11 @@
   <!-- interface-naming-policy project-wide -->
   <object class="GtkListStore" id="liststore_sticky">
     <columns>
-      <!-- column-name gchararray1 -->
+      <!-- column-name key -->
       <column type="gchararray"/>
-      <!-- column-name gchararray2 -->
+      <!-- column-name value -->
       <column type="gchararray"/>
-      <!-- column-name gchararray3 -->
-      <column type="gchararray"/>
-      <!-- column-name gchararray4 -->
+      <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
     <data>
@@ -18,71 +16,60 @@
         <col id="0" translatable="yes">arm</col>
         <col id="1" translatable="yes">orthanc (Linux 2.6.35.11-83.fc14)</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">Tor</col>
         <col id="1" translatable="yes">0.2.1.28 (obsolete)</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">black</col>
       </row>
       <row>
         <col id="0" translatable="yes">Relaying</col>
         <col id="1" translatable="yes">Disabled</col>
         <col id="2" translatable="yes">red</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">Control Port</col>
         <col id="1" translatable="yes">9051 (open)</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">CPU Tor</col>
         <col id="1" translatable="yes">0.0%</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">CPU arm</col>
         <col id="1" translatable="yes">0.0%</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">Memory</col>
         <col id="1" translatable="yes">20 MB (1.0%)</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">PID</col>
         <col id="1" translatable="yes">3980</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">Uptime</col>
         <col id="1" translatable="yes">01:01:34</col>
         <col id="2" translatable="yes">black</col>
-        <col id="3" translatable="yes">white</col>
       </row>
     </data>
   </object>
   <object class="GtkListStore" id="liststore_conn">
     <columns>
-      <!-- column-name gchararray1 -->
+      <!-- column-name origin -->
       <column type="gchararray"/>
-      <!-- column-name gchararray2 -->
+      <!-- column-name dest -->
       <column type="gchararray"/>
-      <!-- column-name gchararray3 -->
+      <!-- column-name time -->
       <column type="gchararray"/>
-      <!-- column-name gchararray4 -->
+      <!-- column-name type -->
       <column type="gchararray"/>
-      <!-- column-name gchararray5 -->
-      <column type="gchararray"/>
-      <!-- column-name gchararray6 -->
+      <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
     <data>
@@ -92,7 +79,6 @@
         <col id="2" translatable="yes">10.7m</col>
         <col id="3" translatable="yes">CLIENT</col>
         <col id="4" translatable="yes">blue</col>
-        <col id="5" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">115.167.31.237:44940</col>
@@ -100,7 +86,6 @@
         <col id="2" translatable="yes">28.3m</col>
         <col id="3" translatable="yes">CLIENT</col>
         <col id="4" translatable="yes">blue</col>
-        <col id="5" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">127.0.0.1:9051</col>
@@ -108,21 +93,18 @@
         <col id="2" translatable="yes">30.0m</col>
         <col id="3" translatable="yes">CONTROL</col>
         <col id="4" translatable="yes">red</col>
-        <col id="5" translatable="yes">white</col>
       </row>
     </data>
   </object>
   <object class="GtkListStore" id="liststore_config">
     <columns>
-      <!-- column-name gchararray1 -->
+      <!-- column-name key -->
       <column type="gchararray"/>
-      <!-- column-name gchararray2 -->
+      <!-- column-name value -->
       <column type="gchararray"/>
-      <!-- column-name gchararray3 -->
+      <!-- column-name desc -->
       <column type="gchararray"/>
-      <!-- column-name gchararray4 -->
-      <column type="gchararray"/>
-      <!-- column-name gchararray5 -->
+      <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
     <data>
@@ -131,28 +113,24 @@
         <col id="1" translatable="yes">5242880</col>
         <col id="2" translatable="yes">Average bandwidth usage limit</col>
         <col id="3" translatable="yes">#368918</col>
-        <col id="4" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">BandwidthBurst</col>
         <col id="1" translatable="yes">10485760</col>
         <col id="2" translatable="yes">Maximum bandwidth usage limit</col>
         <col id="3" translatable="yes">#368918</col>
-        <col id="4" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">RelayBandwidthBurst</col>
         <col id="1" translatable="yes">0 B</col>
         <col id="2" translatable="yes">Maximum bandwidth usage limit for relaying</col>
         <col id="3" translatable="yes">#368918</col>
-        <col id="4" translatable="yes">white</col>
       </row>
       <row>
         <col id="0" translatable="yes">ControlPort</col>
         <col id="1" translatable="yes">9051</col>
         <col id="2" translatable="yes">Port providing access to tor controllers (arm, vidalia, etc)</col>
         <col id="3" translatable="yes">#368918</col>
-        <col id="4" translatable="yes">white</col>
       </row>
     </data>
   </object>
@@ -344,7 +322,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCurve" id="curve_graph_a">
+                              <object class="GtkVBox" id="placeholder_graph_a">
                                 <property name="visible">True</property>
                               </object>
                               <packing>
@@ -383,7 +361,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCurve" id="curve_graph_b">
+                              <object class="GtkVBox" id="placeholder_graph_b">
                                 <property name="visible">True</property>
                               </object>
                               <packing>
@@ -446,21 +424,49 @@
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_origin">
                             <property name="title">column</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="cellrenderertext_conn_origin"/>
+                              <attributes>
+                                <attribute name="foreground">4</attribute>
+                                <attribute name="markup">0</attribute>
+                              </attributes>
+                            </child>
                           </object>
                         </child>
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_dest">
                             <property name="title">column</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="cellrenderertext_conn_dest"/>
+                              <attributes>
+                                <attribute name="foreground">4</attribute>
+                                <attribute name="markup">1</attribute>
+                              </attributes>
+                            </child>
                           </object>
                         </child>
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_time">
                             <property name="title">column</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="cellrenderertext_conn_time"/>
+                              <attributes>
+                                <attribute name="foreground">4</attribute>
+                                <attribute name="markup">2</attribute>
+                              </attributes>
+                            </child>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_alive">
+                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_type">
                             <property name="title">column</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="cellrenderertext_conn_type"/>
+                              <attributes>
+                                <attribute name="foreground">4</attribute>
+                                <attribute name="markup">3</attribute>
+                              </attributes>
+                            </child>
                           </object>
                         </child>
                       </object>
@@ -517,18 +523,39 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                             <property name="headers_visible">False</property>
                             <property name="search_column">0</property>
                             <child>
-                              <object class="GtkTreeViewColumn" id="treeviewcolumn_name">
+                              <object class="GtkTreeViewColumn" id="treeviewcolumn_key">
                                 <property name="title">column</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="cellrenderertext_config_key"/>
+                                  <attributes>
+                                    <attribute name="foreground">3</attribute>
+                                    <attribute name="markup">0</attribute>
+                                  </attributes>
+                                </child>
                               </object>
                             </child>
                             <child>
                               <object class="GtkTreeViewColumn" id="treeviewcolumn_value">
                                 <property name="title">column</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="cellrenderertext_config_value"/>
+                                  <attributes>
+                                    <attribute name="foreground">3</attribute>
+                                    <attribute name="markup">1</attribute>
+                                  </attributes>
+                                </child>
                               </object>
                             </child>
                             <child>
                               <object class="GtkTreeViewColumn" id="treeviewcolumn_desc">
                                 <property name="title">column</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="cellrenderertext_config_desc"/>
+                                  <attributes>
+                                    <attribute name="foreground">3</attribute>
+                                    <attribute name="markup">2</attribute>
+                                  </attributes>
+                                </child>
                               </object>
                             </child>
                           </object>
@@ -573,13 +600,26 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                     <property name="headers_clickable">False</property>
                     <property name="search_column">0</property>
                     <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_name">
+                      <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_key">
                         <property name="title">column</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="cellrenderertext_sticky_key"/>
+                          <attributes>
+                            <attribute name="markup">0</attribute>
+                          </attributes>
+                        </child>
                       </object>
                     </child>
                     <child>
                       <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_value">
                         <property name="title">column</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="cellrenderertext_sticky_value"/>
+                          <attributes>
+                            <attribute name="foreground">2</attribute>
+                            <attribute name="markup">1</attribute>
+                          </attributes>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -605,6 +645,7 @@ each direction. (Default: 0) &lt;/span&gt;</property>
               <object class="GtkTextView" id="textview_log">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="buffer">textbuffer_log</property>
               </object>
             </child>
           </object>
