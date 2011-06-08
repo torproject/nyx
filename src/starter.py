@@ -55,7 +55,7 @@ OPT_EXPANDED = ["gtk", "interface=", "config=", "debug", "blind", "event=", "ver
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
-  -g, --gtk                       launch the Gtk+ interface
+  -g, --gui                       launch the Gtk+ interface
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
                                     defaults to: %s
@@ -239,7 +239,7 @@ if __name__ == '__main__':
       
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
-    elif opt in ("-g", "--gtk"): launchGui = True
+    elif opt in ("-g", "--gui"): launchGui = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
