@@ -68,7 +68,7 @@ def promptCagraphInstall():
   # if user says no then terminate
   if not userInput.lower() in ("y", "yes"): return False
   
-  # attempt to install TorCtl, printing the issue if unsuccessful
+  # attempt to install cagraph, printing the issue if unsuccessful
   try:
     installCagraph()
     
@@ -122,10 +122,10 @@ def installCagraph():
   exitStatus = os.system("wget -P %s %s" % (tmpDir, CAGRAPH_TARBALL_URL))
   if exitStatus: raise IOError("Unable to fetch cagraph from %s. Is wget installed?" % CAGRAPH_TARBALL_URL)
   
-  # the destination for TorCtl will be our directory
+  # the destination for cagraph will be our directory
   ourDir = os.path.dirname(os.path.realpath(__file__))
   
-  # exports TorCtl to our location
+  # exports cagraph to our location
   exitStatus = os.system("(cd %s && tar --strip-components=1 -xzf %s %s/cagraph)" % (ourDir, tmpFilename, CAGRAPH_TARBALL_ROOT))
   if exitStatus: raise IOError("Unable to extract cagraph to %s" % ourDir)
   
