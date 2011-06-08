@@ -51,7 +51,7 @@ CONFIG = {"startup.controlPassword": None,
           "log.savingDebugLog": util.log.NOTICE}
 
 OPT = "gi:c:dbe:vh"
-OPT_EXPANDED = ["gtk", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
