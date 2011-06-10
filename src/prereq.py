@@ -133,7 +133,11 @@ def installCagraph():
   # of errors.
   shutil.rmtree(tmpDir, ignore_errors=True)
 
-if __name__ == '__main__':
+def allPrereq():
+  """
+  Requrements for both the cli and gui versions of arm.
+  """
+  
   majorVersion = sys.version_info[0]
   minorVersion = sys.version_info[1]
   
@@ -144,17 +148,42 @@ if __name__ == '__main__':
     print("arm requires python version 2.5 or greater\n")
     sys.exit(1)
   
+  if not isTorCtlAvailable():
+    isInstalled = promptTorCtlInstall()
+    if not isInstalled: sys.exit(1)
+
+def cliPrereq():
+  """
+  Requirements for the cli arm interface.
+  """
+  
+  allPrereq()
+  
   try:
     import curses
   except ImportError:
     print("arm requires curses - try installing the python-curses package\n")
     sys.exit(1)
-  
-  if not isTorCtlAvailable():
-    isInstalled = promptTorCtlInstall()
-    if not isInstalled: sys.exit(1)
 
+def guiPrereq():
+  """
+  Requirements for the gui arm interface.
+  """
+  
+  allPrereq()
+  
+  try:
+    import gtk
+  except ImportError:
+    print("arm requires gtk - try installing the python-gtk2 package\n")
+    sys.exit(1)
+  
   if not isCagraphAvailable():
     isInstalled = promptCagraphInstall()
     if not isInstalled: sys.exit(1)
+
+if __name__ == '__main__':
+  isGui = "-g" in sys.argv or "--gui" in sys.argv
+  if isGui: guiPrereq()
+  else: cliPrereq()
 
