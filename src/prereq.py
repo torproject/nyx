@@ -5,8 +5,19 @@ Provides a warning and error code if python version isn't compatible.
 import os
 import sys
 import shutil
+import urllib
+import hashlib
+import tarfile
 import tempfile
 
+# Library dependencies can be fetched on request. By default this is via
+# the following mirrors with their sha256 signatures checked.
+TORCTL_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-6-10/torctl.tar.gz"
+TORCTL_SIG = "be583e53b2bccf09a7126c5271f9af5682447903b6ac92cf1cf78ca5b35273ed"
+CAGRAPH_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-6-10/cagraph.tar.gz"
+CAGRAPH_SIG = "1439acd40ce016f4329deb216d86f36a749e4b8bf73a313a757396af6f95310d"
+
+# optionally we can do an unverified fetch from the library's sources
 TORCTL_REPO = "git://git.torproject.org/pytorctl.git"
 CAGRAPH_TARBALL_URL = "http://cagraph.googlecode.com/files/cagraph-1.2.tar.gz"
 CAGRAPH_TARBALL_NAME = "cagraph-1.2.tar.gz"
@@ -46,7 +57,7 @@ def promptTorCtlInstall():
   
   # attempt to install TorCtl, printing the issue if unsuccessful
   try:
-    installTorCtl()
+    fetchLibrary(TORCTL_ARCHIVE, TORCTL_SIG)
     
     if not isTorCtlAvailable():
       raise IOError("Unable to install TorCtl, sorry")
@@ -70,7 +81,7 @@ def promptCagraphInstall():
   
   # attempt to install cagraph, printing the issue if unsuccessful
   try:
-    installCagraph()
+    fetchLibrary(CAGRAPH_ARCHIVE, CAGRAPH_SIG)
     
     if not isCagraphAvailable():
       raise IOError("Unable to install cagraph, sorry")
@@ -80,6 +91,43 @@ def promptCagraphInstall():
   except IOError, exc:
     print exc
     return False
+
+def fetchLibrary(url, sig):
+  """
+  Downloads the given archive, verifies its signature, then installs the
+  library. This raises an IOError if any of these steps fail.
+  
+  Arguments:
+    url - url from which to fetch the gzipped tarball
+    sig - sha256 signature for the archive
+  """
+  
+  tmpDir = tempfile.mkdtemp()
+  destination = tmpDir + "/" + url.split("/")[-1]
+  urllib.urlretrieve(url, destination)
+  
+  # checks the signature, reading the archive in 256-byte chunks
+  m = hashlib.sha256()
+  fd = open(destination, "rb")
+  
+  while True:
+    data = fd.read(256)
+    if not data: break
+    m.update(data)
+  
+  fd.close()
+  actualSig = m.hexdigest()
+  
+  if sig != actualSig:
+    raise IOError("Signature of the library is incorrect (got '%s' rather than '%s')" % (actualSig, sig))
+  
+  # extracts the tarball
+  tarFd = tarfile.open(destination, 'r:gz')
+  tarFd.extractall("src/")
+  tarFd.close()
+  
+  # clean up the temporary contents (fails quietly if unsuccessful)
+  shutil.rmtree(destination, ignore_errors=True)
 
 def installTorCtl():
   """
@@ -110,8 +158,8 @@ def installTorCtl():
 
 def installCagraph():
   """
-  Downloads and extracts the cagraph tarball.
-  This raises an IOError if unsuccessful.
+  Downloads and extracts the cagraph tarball. This raises an IOError if
+  unsuccessful.
   """
   
   if isCagraphAvailable(): return
@@ -119,7 +167,7 @@ def installCagraph():
   tmpDir = tempfile.mkdtemp()
   tmpFilename = os.path.join(tmpDir, CAGRAPH_TARBALL_NAME)
   
-  exitStatus = os.system("wget -P %s %s" % (tmpDir, CAGRAPH_TARBALL_URL))
+  exitStatus = os.system("wget --quiet -P %s %s" % (tmpDir, CAGRAPH_TARBALL_URL))
   if exitStatus: raise IOError("Unable to fetch cagraph from %s. Is wget installed?" % CAGRAPH_TARBALL_URL)
   
   # the destination for cagraph will be our directory
