@@ -21,6 +21,7 @@ import curses
 from TorCtl import TorCtl
 
 import cli.popups
+import cli.controller
 
 from util import enum, panel, torTools, uiTools
 
@@ -261,21 +262,42 @@ class GraphPanel(panel.Panel):
   
   def handleKey(self, key):
     isKeystrokeConsumed = True
-    if key in (ord('n'), ord('N'), ord('m'), ord('M')):
-      # Unfortunately modifier keys don't work with the up/down arrows (sending
-      # multiple keycodes). The only exception to this is shift + left/right,
-      # but for now just gonna use standard characters.
+    if key == ord('r') or key == ord('R'):
+      control = cli.controller.getController()
       
-      if key in (ord('n'), ord('N')):
-        self.setGraphHeight(self.graphHeight - 1)
-      else:
-        # don't grow the graph if it's already consuming the whole display
-        # (plus an extra line for the graph/log gap)
-        maxHeight = self.parent.getmaxyx()[0] - self.top
-        currentHeight = self.getHeight()
-        
-        if currentHeight < maxHeight + 1:
-          self.setGraphHeight(self.graphHeight + 1)
+      panel.CURSES_LOCK.acquire()
+      try:
+        while True:
+          msg = "press the down/up to resize the graph, and enter when done"
+          control.setMsg(msg, curses.A_BOLD, True)
+          curses.cbreak()
+          key = control.getScreen().getch()
+          
+          if key == curses.KEY_DOWN:
+            # don't grow the graph if it's already consuming the whole display
+            # (plus an extra line for the graph/log gap)
+            maxHeight = self.parent.getmaxyx()[0] - self.top
+            currentHeight = self.getHeight()
+            
+            if currentHeight < maxHeight + 1:
+              self.setGraphHeight(self.graphHeight + 1)
+          elif key == curses.KEY_UP:
+            self.setGraphHeight(self.graphHeight - 1)
+          elif uiTools.isSelectionKey(key): break
+          
+          # redraws the resized panels
+          displayPanels = control.getDisplayPanels()
+          
+          occupiedContent = 0
+          for panelImpl in displayPanels:
+            panelImpl.setTop(occupiedContent)
+            occupiedContent += panelImpl.getHeight()
+          
+          for panelImpl in displayPanels:
+            panelImpl.redraw(True)
+      finally:
+        control.setMsg()
+        panel.CURSES_LOCK.release()
     elif key == ord('b') or key == ord('B'):
       # uses the next boundary type
       self.bounds = Bounds.next(self.bounds)
@@ -314,8 +336,7 @@ class GraphPanel(panel.Panel):
     else: graphedStats = "none"
     
     options = []
-    options.append(("m", "increase graph size", None))
-    options.append(("n", "decrease graph size", None))
+    options.append(("r", "resize graph", None))
     options.append(("s", "graphed stats", graphedStats))
     options.append(("b", "graph bounds", self.bounds.lower()))
     options.append(("i", "graph update interval", UPDATE_INTERVALS[self.updateInterval][0]))
