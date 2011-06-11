@@ -1,12 +1,6 @@
 """
 Helper for working with an active tor process. This both provides a wrapper for
-accessing TorCtl and notifications of state changes to subscribers. To quickly
-fetch a TorCtl instance to experiment with use the following:
-
->>> import util.torTools
->>> conn = util.torTools.connect()
->>> conn.get_info("version")["version"]
-'0.2.1.24'
+accessing TorCtl and notifications of state changes to subscribers.
 """
 
 import os
