@@ -37,7 +37,8 @@ Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True,
           "features.printUnicode": True,
-          "log.cursesColorSupport": log.INFO}
+          "log.cursesColorSupport": log.INFO,
+          "log.configEntryTypeError": log.NOTICE}
 
 # Flag indicating if unicode is supported by curses. If None then this has yet
 # to be determined.
@@ -45,6 +46,14 @@ IS_UNICODE_SUPPORTED = None
 
 def loadConfig(config):
   config.update(CONFIG)
+  
+  CONFIG["features.colorOverride"] = "none"
+  colorOverride = config.get("features.colorOverride", "none")
+  
+  if colorOverride != "none":
+    try: setColorOverride(colorOverride)
+    except ValueError, exc:
+      log.log(CONFIG["log.configEntryTypeError"], exc)
 
 def demoGlyphs():
   """
@@ -143,8 +152,35 @@ def getColor(color):
     color - name of the foreground color to be returned
   """
   
+  colorOverride = getColorOverride()
+  if colorOverride: color = colorOverride
   if not COLOR_ATTR_INITIALIZED: _initColors()
   return COLOR_ATTR[color]
+
+def setColorOverride(color = None):
+  """
+  Overwrites all requests for color with the given color instead. This raises
+  a ValueError if the color is invalid.
+  
+  Arguments:
+    color - name of the color to overwrite requests with, None to use normal
+            coloring
+  """
+  
+  if color == None:
+    CONFIG["features.colorOverride"] = "none"
+  elif color in COLOR_LIST.keys():
+    CONFIG["features.colorOverride"] = color
+  else: raise ValueError("\"%s\" isn't a valid color" % color)
+
+def getColorOverride():
+  """
+  Provides the override color used by the interface, None if it isn't set.
+  """
+  
+  colorOverride = CONFIG.get("features.colorOverride", "none")
+  if colorOverride == "none": return None
+  else: return colorOverride
 
 def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, getRemainder = False):
   """

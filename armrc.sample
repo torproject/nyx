@@ -19,6 +19,11 @@ queries.useProc true
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
+# Replaces all colored content (ie, anything that isn't white) with this
+# color. Valid options are:
+# none, red, green, yellow, blue, cyan, magenta, black, white
+features.colorOverride none
+
 # Includes unicode characters in the interface.
 features.printUnicode true
 
