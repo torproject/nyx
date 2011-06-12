@@ -13,6 +13,7 @@ import threading
 from TorCtl import TorCtl
 
 import popups
+import cli.controller
 from version import VERSION
 from util import conf, log, panel, sysTools, torTools, uiTools
 
@@ -668,6 +669,17 @@ class LogPanel(panel.Panel, threading.Thread):
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
   
+  def setDuplicateVisability(self, isVisible):
+    """
+    Sets if duplicate log entries are collaped or expanded.
+    
+    Arguments:
+      isVisible - if true all log entries are shown, otherwise they're
+                  deduplicated
+    """
+    
+    self.showDuplicates = isVisible
+  
   def registerEvent(self, event):
     """
     Notes event and redraws log. If paused it's held in a temporary buffer.
@@ -728,6 +740,13 @@ class LogPanel(panel.Panel, threading.Thread):
     self.redraw(True)
     self.valsLock.release()
   
+  def getFilter(self):
+    """
+    Provides our currently selected regex filter.
+    """
+    
+    return self.filterOptions[0] if self.regexFilter else None
+  
   def setFilter(self, logFilter):
     """
     Filters log entries according to the given regular expression.
@@ -743,6 +762,90 @@ class LogPanel(panel.Panel, threading.Thread):
     self.regexFilter = logFilter
     self.redraw(True)
     self.valsLock.release()
+  
+  def makeFilterSelection(self, selectedOption):
+    """
+    Makes the given filter selection, applying it to the log and reorganizing
+    our filter selection.
+    
+    Arguments:
+      selectedOption - regex filter we've already added, None if no filter
+                       should be applied
+    """
+    
+    if selectedOption:
+      try:
+        self.setFilter(re.compile(selectedOption))
+        
+        # move selection to top
+        self.filterOptions.remove(selectedOption)
+        self.filterOptions.insert(0, selectedOption)
+      except re.error, exc:
+        # shouldn't happen since we've already checked validity
+        msg = "Invalid regular expression ('%s': %s) - removing from listing" % (selectedOption, exc)
+        log.log(log.WARN, msg)
+        self.filterOptions.remove(selectedOption)
+    else: self.setFilter(None)
+  
+  def showFilterPrompt(self):
+    """
+    Prompts the user to add a new regex filter.
+    """
+    
+    cli.controller.getController().requestRedraw(True)
+    regexInput = popups.inputPrompt("Regular expression: ")
+    
+    if regexInput:
+      try:
+        self.setFilter(re.compile(regexInput))
+        if regexInput in self.filterOptions: self.filterOptions.remove(regexInput)
+        self.filterOptions.insert(0, regexInput)
+      except re.error, exc:
+        popups.showMsg("Unable to compile expression: %s" % exc, 2)
+  
+  def showEventSelectionPrompt(self):
+    """
+    Prompts the user to select the events being listened for.
+    """
+    
+    # allow user to enter new types of events to log - unchanged if left blank
+    cli.controller.getController().requestRedraw(True)
+    popup, width, height = popups.init(11, 80)
+    
+    if popup:
+      try:
+        # displays the available flags
+        popup.win.box()
+        popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
+        eventLines = EVENT_LISTING.split("\n")
+        
+        for i in range(len(eventLines)):
+          popup.addstr(i + 1, 1, eventLines[i][6:])
+        
+        popup.win.refresh()
+        
+        userInput = popups.inputPrompt("Events to log: ")
+        if userInput:
+          userInput = userInput.replace(' ', '') # strips spaces
+          try: self.setLoggedEvents(expandEvents(userInput))
+          except ValueError, exc:
+            popups.showMsg("Invalid flags: %s" % str(exc), 2)
+      finally: popups.finalize()
+  
+  def showSnapshotPrompt(self):
+    """
+    Lets user enter a path to take a snapshot, canceling if left blank.
+    """
+    
+    cli.controller.getController().requestRedraw(True)
+    pathInput = popups.inputPrompt("Path to save log snapshot: ")
+    
+    if pathInput:
+      try:
+        self.saveSnapshot(pathInput)
+        popups.showMsg("Saved: %s" % pathInput, 2)
+      except IOError, exc:
+        popups.showMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), 2)
   
   def clear(self):
     """
@@ -817,66 +920,17 @@ class LogPanel(panel.Panel, threading.Thread):
           self.setFilter(None)
         elif selection == len(options) - 1:
           # selected 'New...' option - prompt user to input regular expression
-          regexInput = popups.inputPrompt("Regular expression: ")
-          
-          if regexInput:
-            try:
-              self.setFilter(re.compile(regexInput))
-              if regexInput in self.filterOptions: self.filterOptions.remove(regexInput)
-              self.filterOptions.insert(0, regexInput)
-            except re.error, exc:
-              popups.showMsg("Unable to compile expression: %s" % exc, 2)
+          self.showFilterPrompt()
         elif selection != -1:
-          selectedOption = self.filterOptions[selection - 1]
-          
-          try:
-            self.setFilter(re.compile(selectedOption))
-            
-            # move selection to top
-            self.filterOptions.remove(selectedOption)
-            self.filterOptions.insert(0, selectedOption)
-          except re.error, exc:
-            # shouldn't happen since we've already checked validity
-            msg = "Invalid regular expression ('%s': %s) - removing from listing" % (selectedOption, exc)
-            log.log(log.WARN, msg)
-            self.filterOptions.remove(selectedOption)
+          self.makeFilterSelection(self.filterOptions[selection - 1])
       finally:
         panel.CURSES_LOCK.release()
       
       if len(self.filterOptions) > MAX_REGEX_FILTERS: del self.filterOptions[MAX_REGEX_FILTERS:]
     elif key == ord('e') or key == ord('E'):
-      # allow user to enter new types of events to log - unchanged if left blank
-      popup, width, height = popups.init(11, 80)
-      
-      if popup:
-        try:
-          # displays the available flags
-          popup.win.box()
-          popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
-          eventLines = EVENT_LISTING.split("\n")
-          
-          for i in range(len(eventLines)):
-            popup.addstr(i + 1, 1, eventLines[i][6:])
-          
-          popup.win.refresh()
-          
-          userInput = popups.inputPrompt("Events to log: ")
-          if userInput:
-            userInput = userInput.replace(' ', '') # strips spaces
-            try: self.setLoggedEvents(expandEvents(userInput))
-            except ValueError, exc:
-              popups.showMsg("Invalid flags: %s" % str(exc), 2)
-        finally: popups.finalize()
+      self.showEventSelectionPrompt()
     elif key == ord('a') or key == ord('A'):
-      # lets user enter a path to take a snapshot, canceling if left blank
-      pathInput = popups.inputPrompt("Path to save log snapshot: ")
-      
-      if pathInput:
-        try:
-          self.saveSnapshot(pathInput)
-          popups.showMsg("Saved: %s" % pathInput, 2)
-        except IOError, exc:
-          popups.showMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), 2)
+      self.showSnapshotPrompt()
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed

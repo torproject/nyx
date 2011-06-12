@@ -288,12 +288,27 @@ class Controller:
     
     return allPanels
   
-  def requestRedraw(self):
+  def requestRedraw(self, immediate = False):
     """
     Requests that all content is redrawn when the interface is next rendered.
+    
+    Arguments:
+      immediate - redraws now if true, otherwise waits for when next normally
+                  drawn
     """
     
-    self._forceRedraw = True
+    if immediate:
+      displayPanels = self.getDisplayPanels()
+      
+      occupiedContent = 0
+      for panelImpl in displayPanels:
+        panelImpl.setTop(occupiedContent)
+        occupiedContent += panelImpl.getHeight()
+      
+      for panelImpl in displayPanels:
+        panelImpl.redraw(True)
+    else:
+      self._forceRedraw = True
   
   def isRedrawRequested(self, clearFlag = False):
     """

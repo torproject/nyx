@@ -110,9 +110,7 @@ def showMenu():
       cursor.handleKey(key)
       
       # redraws the rest of the interface if we're rendering on it again
-      if not cursor.isDone():
-        for panelImpl in control.getDisplayPanels():
-          panelImpl.redraw(True)
+      if not cursor.isDone(): control.requestRedraw(True)
   finally:
     control.setMsg()
     cli.popups.finalize()

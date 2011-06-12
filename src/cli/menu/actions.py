@@ -24,18 +24,8 @@ def makeMenu():
   for pagePanel in control.getDisplayPanels(includeSticky = False):
     if pagePanel.getName() == "graph":
       baseMenu.add(makeGraphMenu(pagePanel))
-  
-  logsMenu = cli.menu.item.Submenu("Logs")
-  logsMenu.add(cli.menu.item.MenuItem("Events", None))
-  logsMenu.add(cli.menu.item.MenuItem("Clear", None))
-  logsMenu.add(cli.menu.item.MenuItem("Save", None))
-  logsMenu.add(cli.menu.item.MenuItem("Filter", None))
-  
-  duplicatesSubmenu = cli.menu.item.Submenu("Duplicates")
-  duplicatesSubmenu.add(cli.menu.item.MenuItem("Hidden", None))
-  duplicatesSubmenu.add(cli.menu.item.MenuItem("Visible", None))
-  logsMenu.add(duplicatesSubmenu)
-  baseMenu.add(logsMenu)
+    elif pagePanel.getName() == "log":
+      baseMenu.add(makeLogMenu(pagePanel))
   
   connectionsMenu = cli.menu.item.Submenu("Connections")
   connectionsMenu.add(cli.menu.item.MenuItem("Identity", None))
@@ -117,7 +107,7 @@ def makeGraphMenu(graphPanel):
     [X] <Stat 1>
     [ ] <Stat 2>
     [ ] <Stat 2>
-        Resize
+        Resize...
         Interval (Submenu)
         Bounds (Submenu)
   
@@ -138,7 +128,7 @@ def makeGraphMenu(graphPanel):
     graphMenu.add(cli.menu.item.SelectionMenuItem(label, statGroup, statKey))
   
   # resizing option
-  graphMenu.add(cli.menu.item.MenuItem("Resize", graphPanel.resizeGraph))
+  graphMenu.add(cli.menu.item.MenuItem("Resize...", graphPanel.resizeGraph))
   
   # interval submenu
   intervalMenu = cli.menu.item.Submenu("Interval")
@@ -161,4 +151,42 @@ def makeGraphMenu(graphPanel):
   graphMenu.add(boundsMenu)
   
   return graphMenu
+
+def makeLogMenu(logPanel):
+  """
+  Submenu for the log panel, consisting of...
+    Events...
+    Snapshot...
+    Clear
+    Show / Hide Duplicates
+    Filter (Submenu)
+  
+  Arguments:
+    logPanel - instance of the log panel
+  """
+  
+  logMenu = cli.menu.item.Submenu("Log")
+  
+  logMenu.add(cli.menu.item.MenuItem("Events...", logPanel.showEventSelectionPrompt))
+  logMenu.add(cli.menu.item.MenuItem("Snapshot...", logPanel.showSnapshotPrompt))
+  logMenu.add(cli.menu.item.MenuItem("Clear", logPanel.clear))
+  
+  if logPanel.showDuplicates: label, arg = "Hide", False
+  else: label, arg = "Show", True
+  logMenu.add(cli.menu.item.MenuItem("%s Duplicates" % label, functools.partial(logPanel.setDuplicateVisability, arg)))
+  
+  # filter submenu
+  filterMenu = cli.menu.item.Submenu("Filter")
+  filterGroup = cli.menu.item.SelectionGroup(logPanel.makeFilterSelection, logPanel.getFilter())
+  
+  filterMenu.add(cli.menu.item.SelectionMenuItem("None", filterGroup, None))
+  
+  for option in logPanel.filterOptions:
+    filterMenu.add(cli.menu.item.SelectionMenuItem(option, filterGroup, option))
+  
+  filterMenu.add(cli.menu.item.MenuItem("New...", logPanel.showFilterPrompt))
+  logMenu.add(filterMenu)
+  
+  return logMenu
+  
 

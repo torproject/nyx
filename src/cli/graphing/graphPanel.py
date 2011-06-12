@@ -307,16 +307,7 @@ class GraphPanel(panel.Panel):
     panel.CURSES_LOCK.acquire()
     try:
       while True:
-        # redraws the resized panels
-        displayPanels = control.getDisplayPanels()
-        
-        occupiedContent = 0
-        for panelImpl in displayPanels:
-          panelImpl.setTop(occupiedContent)
-          occupiedContent += panelImpl.getHeight()
-        
-        for panelImpl in displayPanels:
-          panelImpl.redraw(True)
+        control.requestRedraw(True)
         
         msg = "press the down/up to resize the graph, and enter when done"
         control.setMsg(msg, curses.A_BOLD, True)
