@@ -28,17 +28,8 @@ def makeMenu():
       baseMenu.add(makeLogMenu(pagePanel))
     elif pagePanel.getName() == "connections":
       baseMenu.add(makeConnectionsMenu(pagePanel))
-  
-  configurationMenu = cli.menu.item.Submenu("Configuration")
-  
-  commentsSubmenu = cli.menu.item.Submenu("Comments")
-  commentsSubmenu.add(cli.menu.item.MenuItem("Hidden", None))
-  commentsSubmenu.add(cli.menu.item.MenuItem("Visible", None))
-  configurationMenu.add(commentsSubmenu)
-  
-  configurationMenu.add(cli.menu.item.MenuItem("Reload", None))
-  configurationMenu.add(cli.menu.item.MenuItem("Reset Tor", None))
-  baseMenu.add(configurationMenu)
+    elif pagePanel.getName() == "configuration":
+      baseMenu.add(makeConfigurationMenu(pagePanel))
   
   return baseMenu
 
@@ -225,4 +216,25 @@ def makeConnectionsMenu(connPanel):
   connectionsMenu.add(resolverMenu)
   
   return connectionsMenu
+
+def makeConfigurationMenu(configPanel):
+  """
+  Submenu for the configuration panel, consisting of...
+    Save Config...
+    Sorting...
+    Filter / Unfilter Options
+  
+  Arguments:
+    configPanel - instance of the configuration panel
+  """
+  
+  configMenu = cli.menu.item.Submenu("Configuration")
+  configMenu.add(cli.menu.item.MenuItem("Save Config...", configPanel.showWriteDialog))
+  configMenu.add(cli.menu.item.MenuItem("Sorting...", configPanel.showSortDialog))
+  
+  if configPanel.showAll: label, arg = "Filter", True
+  else: label, arg = "Unfilter", False
+  configMenu.add(cli.menu.item.MenuItem("%s Options" % label, functools.partial(configPanel.setFiltering, arg)))
+  
+  return configMenu
 
