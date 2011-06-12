@@ -6,6 +6,7 @@ import functools
 
 import cli.controller
 import cli.menu.item
+import cli.graphing.graphPanel
 
 from util import torTools, uiTools
 
@@ -18,6 +19,12 @@ def makeMenu():
   baseMenu.add(makeActionsMenu())
   baseMenu.add(makeViewMenu())
   
+  control = cli.controller.getController()
+  
+  for pagePanel in control.getDisplayPanels(includeSticky = False):
+    if pagePanel.getName() == "graph":
+      baseMenu.add(makeGraphMenu(pagePanel))
+  
   logsMenu = cli.menu.item.Submenu("Logs")
   logsMenu.add(cli.menu.item.MenuItem("Events", None))
   logsMenu.add(cli.menu.item.MenuItem("Clear", None))
@@ -29,23 +36,6 @@ def makeMenu():
   duplicatesSubmenu.add(cli.menu.item.MenuItem("Visible", None))
   logsMenu.add(duplicatesSubmenu)
   baseMenu.add(logsMenu)
-  
-  graphMenu = cli.menu.item.Submenu("Graph")
-  graphMenu.add(cli.menu.item.MenuItem("Stats", None))
-  
-  sizeSubmenu = cli.menu.item.Submenu("Size")
-  sizeSubmenu.add(cli.menu.item.MenuItem("Increase", None))
-  sizeSubmenu.add(cli.menu.item.MenuItem("Decrease", None))
-  graphMenu.add(sizeSubmenu)
-  
-  graphMenu.add(cli.menu.item.MenuItem("Update Interval", None))
-  
-  boundsSubmenu = cli.menu.item.Submenu("Bounds")
-  boundsSubmenu.add(cli.menu.item.MenuItem("Local Max", None))
-  boundsSubmenu.add(cli.menu.item.MenuItem("Global Max", None))
-  boundsSubmenu.add(cli.menu.item.MenuItem("Tight", None))
-  graphMenu.add(boundsSubmenu)
-  baseMenu.add(graphMenu)
   
   connectionsMenu = cli.menu.item.Submenu("Connections")
   connectionsMenu.add(cli.menu.item.MenuItem("Identity", None))
@@ -120,4 +110,55 @@ def makeViewMenu():
     viewMenu.add(colorMenu)
   
   return viewMenu
+
+def makeGraphMenu(graphPanel):
+  """
+  Submenu for the graph panel, consisting of...
+    [X] <Stat 1>
+    [ ] <Stat 2>
+    [ ] <Stat 2>
+        Resize
+        Interval (Submenu)
+        Bounds (Submenu)
+  
+  Arguments:
+    graphPanel - instance of the graph panel
+  """
+  
+  graphMenu = cli.menu.item.Submenu("Graph")
+  
+  # stats options
+  statGroup = cli.menu.item.SelectionGroup(graphPanel.setStats, graphPanel.getStats())
+  availableStats = graphPanel.stats.keys()
+  availableStats.sort()
+  
+  for statKey in ["None"] + availableStats:
+    label = uiTools.camelCase(statKey, divider = " ")
+    statKey = None if statKey == "None" else statKey
+    graphMenu.add(cli.menu.item.SelectionMenuItem(label, statGroup, statKey))
+  
+  # resizing option
+  graphMenu.add(cli.menu.item.MenuItem("Resize", graphPanel.resizeGraph))
+  
+  # interval submenu
+  intervalMenu = cli.menu.item.Submenu("Interval")
+  intervalGroup = cli.menu.item.SelectionGroup(graphPanel.setUpdateInterval, graphPanel.getUpdateInterval())
+  
+  for i in range(len(cli.graphing.graphPanel.UPDATE_INTERVALS)):
+    label = cli.graphing.graphPanel.UPDATE_INTERVALS[i][0]
+    label = uiTools.camelCase(label, divider = " ")
+    intervalMenu.add(cli.menu.item.SelectionMenuItem(label, intervalGroup, i))
+  
+  graphMenu.add(intervalMenu)
+  
+  # bounds submenu
+  boundsMenu = cli.menu.item.Submenu("Bounds")
+  boundsGroup = cli.menu.item.SelectionGroup(graphPanel.setBoundsType, graphPanel.getBoundsType())
+  
+  for boundsType in cli.graphing.graphPanel.Bounds.values():
+    boundsMenu.add(cli.menu.item.SelectionMenuItem(boundsType, boundsGroup, boundsType))
+  
+  graphMenu.add(boundsMenu)
+  
+  return graphMenu
 

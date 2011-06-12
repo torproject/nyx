@@ -272,23 +272,25 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
 
-def camelCase(label):
+def camelCase(label, divider = "_", joiner = " "):
   """
   Converts the given string to camel case, ie:
   >>> camelCase("I_LIKE_PEPPERJACK!")
   'I Like Pepperjack!'
   
   Arguments:
-    label - input string to be converted
+    label   - input string to be converted
+    divider - character to be used for word breaks
+    joiner  - character used to fill between word breaks
   """
   
   words = []
-  for entry in label.split("_"):
+  for entry in label.split(divider):
     if len(entry) == 0: words.append("")
     elif len(entry) == 1: words.append(entry.upper())
     else: words.append(entry[0].upper() + entry[1:].lower())
   
-  return " ".join(words)
+  return joiner.join(words)
 
 def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """

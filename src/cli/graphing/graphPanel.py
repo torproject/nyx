@@ -239,6 +239,40 @@ class GraphPanel(panel.Panel):
     self.stats = {}               # available stats (mappings of label -> instance)
     self.setPauseAttr("stats")
   
+  def getUpdateInterval(self):
+    """
+    Provides the rate that we update the graph at.
+    """
+    
+    return self.updateInterval
+  
+  def setUpdateInterval(self, updateInterval):
+    """
+    Sets the rate that we update the graph at.
+    
+    Arguments:
+      updateInterval - update time enum
+    """
+    
+    self.updateInterval = updateInterval
+  
+  def getBoundsType(self):
+    """
+    Provides the type of graph bounds used.
+    """
+    
+    return self.bounds
+  
+  def setBoundsType(self, boundsType):
+    """
+    Sets the type of graph boundaries we use.
+    
+    Arguments:
+      boundsType - graph bounds enum
+    """
+    
+    self.bounds = boundsType
+  
   def getHeight(self):
     """
     Provides the height requested by the currently displayed GraphStats (zero
@@ -260,44 +294,54 @@ class GraphPanel(panel.Panel):
     
     self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
   
+  def resizeGraph(self):
+    """
+    Prompts for user input to resize the graph panel. Options include...
+      down arrow - grow graph
+      up arrow - shrink graph
+      enter / space - set size
+    """
+    
+    control = cli.controller.getController()
+    
+    panel.CURSES_LOCK.acquire()
+    try:
+      while True:
+        # redraws the resized panels
+        displayPanels = control.getDisplayPanels()
+        
+        occupiedContent = 0
+        for panelImpl in displayPanels:
+          panelImpl.setTop(occupiedContent)
+          occupiedContent += panelImpl.getHeight()
+        
+        for panelImpl in displayPanels:
+          panelImpl.redraw(True)
+        
+        msg = "press the down/up to resize the graph, and enter when done"
+        control.setMsg(msg, curses.A_BOLD, True)
+        curses.cbreak()
+        key = control.getScreen().getch()
+        
+        if key == curses.KEY_DOWN:
+          # don't grow the graph if it's already consuming the whole display
+          # (plus an extra line for the graph/log gap)
+          maxHeight = self.parent.getmaxyx()[0] - self.top
+          currentHeight = self.getHeight()
+          
+          if currentHeight < maxHeight + 1:
+            self.setGraphHeight(self.graphHeight + 1)
+        elif key == curses.KEY_UP:
+          self.setGraphHeight(self.graphHeight - 1)
+        elif uiTools.isSelectionKey(key): break
+    finally:
+      control.setMsg()
+      panel.CURSES_LOCK.release()
+  
   def handleKey(self, key):
     isKeystrokeConsumed = True
     if key == ord('r') or key == ord('R'):
-      control = cli.controller.getController()
-      
-      panel.CURSES_LOCK.acquire()
-      try:
-        while True:
-          msg = "press the down/up to resize the graph, and enter when done"
-          control.setMsg(msg, curses.A_BOLD, True)
-          curses.cbreak()
-          key = control.getScreen().getch()
-          
-          if key == curses.KEY_DOWN:
-            # don't grow the graph if it's already consuming the whole display
-            # (plus an extra line for the graph/log gap)
-            maxHeight = self.parent.getmaxyx()[0] - self.top
-            currentHeight = self.getHeight()
-            
-            if currentHeight < maxHeight + 1:
-              self.setGraphHeight(self.graphHeight + 1)
-          elif key == curses.KEY_UP:
-            self.setGraphHeight(self.graphHeight - 1)
-          elif uiTools.isSelectionKey(key): break
-          
-          # redraws the resized panels
-          displayPanels = control.getDisplayPanels()
-          
-          occupiedContent = 0
-          for panelImpl in displayPanels:
-            panelImpl.setTop(occupiedContent)
-            occupiedContent += panelImpl.getHeight()
-          
-          for panelImpl in displayPanels:
-            panelImpl.redraw(True)
-      finally:
-        control.setMsg()
-        panel.CURSES_LOCK.release()
+      self.resizeGraph()
     elif key == ord('b') or key == ord('B'):
       # uses the next boundary type
       self.bounds = Bounds.next(self.bounds)
@@ -446,6 +490,13 @@ class GraphPanel(panel.Panel):
     
     stats._graphPanel = self
     self.stats[label] = stats
+  
+  def getStats(self):
+    """
+    Provides the currently selected stats label.
+    """
+    
+    return self.currentDisplay
   
   def setStats(self, label):
     """
