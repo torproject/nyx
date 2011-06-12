@@ -7,7 +7,7 @@ import functools
 import cli.controller
 import cli.menu.item
 
-from util import torTools
+from util import torTools, uiTools
 
 def makeMenu():
   """
@@ -16,6 +16,7 @@ def makeMenu():
   
   baseMenu = cli.menu.item.Submenu("")
   baseMenu.add(makeActionsMenu())
+  baseMenu.add(makeViewMenu())
   
   logsMenu = cli.menu.item.Submenu("Logs")
   logsMenu.add(cli.menu.item.MenuItem("Events", None))
@@ -28,13 +29,6 @@ def makeMenu():
   duplicatesSubmenu.add(cli.menu.item.MenuItem("Visible", None))
   logsMenu.add(duplicatesSubmenu)
   baseMenu.add(logsMenu)
-  
-  viewMenu = cli.menu.item.Submenu("View")
-  viewMenu.add(cli.menu.item.MenuItem("Graph", None))
-  viewMenu.add(cli.menu.item.MenuItem("Connections", None))
-  viewMenu.add(cli.menu.item.MenuItem("Configuration", None))
-  viewMenu.add(cli.menu.item.MenuItem("Configuration File", None))
-  baseMenu.add(viewMenu)
   
   graphMenu = cli.menu.item.Submenu("Graph")
   graphMenu.add(cli.menu.item.MenuItem("Stats", None))
@@ -92,4 +86,38 @@ def makeActionsMenu():
   actionsMenu.add(cli.menu.item.MenuItem("Reset Tor", torTools.getConn().reload))
   actionsMenu.add(cli.menu.item.MenuItem("Exit", control.quit))
   return actionsMenu
+
+def makeViewMenu():
+  """
+  Submenu consisting of...
+    [X] <Page 1>
+    [ ] <Page 2>
+    [ ] etc...
+        Color (Submenu)
+  """
+  
+  viewMenu = cli.menu.item.Submenu("View")
+  control = cli.controller.getController()
+  
+  if control.getPageCount() > 0:
+    pageGroup = cli.menu.item.SelectionGroup(control.setPage, control.getPage())
+    
+    for i in range(control.getPageCount()):
+      pagePanels = control.getDisplayPanels(pageNumber = i, includeSticky = False)
+      label = " / ".join([uiTools.camelCase(panel.getName()) for panel in pagePanels])
+      
+      viewMenu.add(cli.menu.item.SelectionMenuItem(label, pageGroup, i))
+  
+  if uiTools.isColorSupported():
+    colorMenu = cli.menu.item.Submenu("Color")
+    colorGroup = cli.menu.item.SelectionGroup(uiTools.setColorOverride, uiTools.getColorOverride())
+    
+    colorMenu.add(cli.menu.item.SelectionMenuItem("All", colorGroup, None))
+    
+    for color in uiTools.COLOR_LIST:
+      colorMenu.add(cli.menu.item.SelectionMenuItem(uiTools.camelCase(color), colorGroup, color))
+    
+    viewMenu.add(colorMenu)
+  
+  return viewMenu
 

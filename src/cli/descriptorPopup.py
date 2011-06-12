@@ -105,7 +105,7 @@ def showDescriptorPopup(connectionPanel):
   
   # hides the title of the first panel on the page
   control = controller.getController()
-  topPanel = control.getDisplayPanels(False)[0]
+  topPanel = control.getDisplayPanels(includeSticky = False)[0]
   topPanel.setTitleVisible(False)
   topPanel.redraw(True)
   

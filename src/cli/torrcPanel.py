@@ -24,7 +24,7 @@ class TorrcPanel(panel.Panel):
   """
   
   def __init__(self, stdscr, configType, config=None):
-    panel.Panel.__init__(self, stdscr, "configFile", 0)
+    panel.Panel.__init__(self, stdscr, "torrc", 0)
     
     self._config = dict(DEFAULT_CONFIG)
     if config:

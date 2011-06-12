@@ -160,6 +160,14 @@ class Controller:
     
     return self._screen
   
+  def getPageCount(self):
+    """
+    Provides the number of pages the interface has. This may be zero if all
+    page panels have been disabled.
+    """
+    
+    return len(self._pagePanels)
+  
   def getPage(self):
     """
     Provides the number belonging to this page. Page numbers start at zero.
@@ -167,23 +175,35 @@ class Controller:
     
     return self._page
   
+  def setPage(self, pageNumber):
+    """
+    Sets the selected page, raising a ValueError if the page number is invalid.
+    
+    Arguments:
+      pageNumber - page number to be selected
+    """
+    
+    if pageNumber < 0 or pageNumber >= self.getPageCount():
+      raise ValueError("Invalid page number: %i" % pageNumber)
+    
+    if pageNumber != self._page:
+      self._page = pageNumber
+      self._forceRedraw = True
+      self.setMsg()
+  
   def nextPage(self):
     """
     Increments the page number.
     """
     
-    self._page = (self._page + 1) % len(self._pagePanels)
-    self._forceRedraw = True
-    self.setMsg()
+    self.setPage((self._page + 1) % len(self._pagePanels))
   
   def prevPage(self):
     """
     Decrements the page number.
     """
     
-    self._page = (self._page - 1) % len(self._pagePanels)
-    self._forceRedraw = True
-    self.setMsg()
+    self.setPage((self._page - 1) % len(self._pagePanels))
   
   def isPaused(self):
     """
@@ -227,20 +247,22 @@ class Controller:
     
     return list(self._stickyPanels)
   
-  def getDisplayPanels(self, includeSticky = True):
+  def getDisplayPanels(self, pageNumber = None, includeSticky = True):
     """
-    Provides all panels belonging to the current page and sticky content above
-    it. This is ordered they way they are presented (top to bottom) on the
-    page.
+    Provides all panels belonging to a page and sticky content above it. This
+    is ordered they way they are presented (top to bottom) on the page.
     
     Arguments:
+      pageNumber    - page number of the panels to be returned, the current
+                      page if None
       includeSticky - includes sticky panels in the results if true
     """
     
+    returnPage = self._page if pageNumber == None else pageNumber
+    
     if includeSticky:
-      return self._stickyPanels + self._pagePanels[self._page]
-    else:
-      return list(self._pagePanels[self._page])
+      return self._stickyPanels + self._pagePanels[returnPage]
+    else: return list(self._pagePanels[returnPage])
   
   def getDaemonPanels(self):
     """

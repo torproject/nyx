@@ -172,7 +172,7 @@ class ConfigPanel(panel.Panel):
   """
   
   def __init__(self, stdscr, configType, config=None):
-    panel.Panel.__init__(self, stdscr, "configState", 0)
+    panel.Panel.__init__(self, stdscr, "configuration", 0)
     
     self.sortOrdering = DEFAULT_SORT_ORDER
     self._config = dict(DEFAULT_CONFIG)

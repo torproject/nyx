@@ -18,6 +18,9 @@ COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
               "cyan": curses.COLOR_CYAN,      "magenta": curses.COLOR_MAGENTA,
               "black": curses.COLOR_BLACK,    "white": curses.COLOR_WHITE}
 
+# boolean for if we have color support enabled, None not yet determined
+COLOR_IS_SUPPORTED = None
+
 # mappings for getColor() - this uses the default terminal color scheme if
 # color support is unavailable
 COLOR_ATTR_INITIALIZED = False
@@ -137,6 +140,14 @@ def getPrintable(line, keepNewlines = True):
   line = line.replace('\xc2', "'")
   line = "".join([char for char in line if (isprint(char) or (keepNewlines and char == "\n"))])
   return line
+
+def isColorSupported():
+  """
+  True if the display supports showing color, false otherwise.
+  """
+  
+  if COLOR_IS_SUPPORTED == None: _initColors()
+  return COLOR_IS_SUPPORTED
 
 def getColor(color):
   """
@@ -260,6 +271,24 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
+
+def camelCase(label):
+  """
+  Converts the given string to camel case, ie:
+  >>> camelCase("I_LIKE_PEPPERJACK!")
+  'I Like Pepperjack!'
+  
+  Arguments:
+    label - input string to be converted
+  """
+  
+  words = []
+  for entry in label.split("_"):
+    if len(entry) == 0: words.append("")
+    elif len(entry) == 1: words.append(entry.upper())
+    else: words.append(entry[0].upper() + entry[1:].lower())
+  
+  return " ".join(words)
 
 def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
@@ -719,16 +748,17 @@ def _initColors():
   calling curses.initscr().
   """
   
-  global COLOR_ATTR_INITIALIZED
+  global COLOR_ATTR_INITIALIZED, COLOR_IS_SUPPORTED
   if not COLOR_ATTR_INITIALIZED:
     COLOR_ATTR_INITIALIZED = True
+    COLOR_IS_SUPPORTED = False
     if not CONFIG["features.colorInterface"]: return
     
-    try: hasColorSupport = curses.has_colors()
+    try: COLOR_IS_SUPPORTED = curses.has_colors()
     except curses.error: return # initscr hasn't been called yet
     
     # initializes color mappings if color support is available
-    if hasColorSupport:
+    if COLOR_IS_SUPPORTED:
       colorpair = 0
       log.log(CONFIG["log.cursesColorSupport"], "Terminal color support detected and enabled")
       

@@ -147,3 +147,49 @@ class Submenu(MenuItem):
   def select(self):
     return False
 
+class SelectionGroup():
+  """
+  Radio button groups that SelectionMenuItems can belong to.
+  """
+  
+  def __init__(self, action, selectedArg):
+    self.action = action
+    self.selectedArg = selectedArg
+
+class SelectionMenuItem(MenuItem):
+  """
+  Menu item with an associated group which determines the selection. This is
+  for the common single argument getter/setter pattern.
+  """
+  
+  def __init__(self, label, group, arg):
+    MenuItem.__init__(self, label, None)
+    self._group = group
+    self._arg = arg
+  
+  def isSelected(self):
+    """
+    True if we're the selected item, false otherwise.
+    """
+    
+    return self._arg == self._group.selectedArg
+  
+  def getLabel(self):
+    """
+    Provides our label with a "[X]" prefix if selected and "[ ]" if not.
+    """
+    
+    myLabel = MenuItem.getLabel(self)[1]
+    myPrefix = "[X] " if self.isSelected() else "[ ] "
+    return (myPrefix, myLabel, "")
+  
+  def select(self):
+    """
+    Performs the group's setter action with our argument.
+    """
+    
+    if not self.isSelected():
+      self._group.action(self._arg)
+    
+    return True
+
