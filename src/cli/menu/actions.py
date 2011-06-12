@@ -2,7 +2,12 @@
 Generates the menu for arm, binding options with their related actions.
 """
 
+import functools
+
+import cli.controller
 import cli.menu.item
+
+from util import torTools
 
 def makeMenu():
   """
@@ -10,10 +15,7 @@ def makeMenu():
   """
   
   baseMenu = cli.menu.item.Submenu("")
-  
-  fileMenu = cli.menu.item.Submenu("File")
-  fileMenu.add(cli.menu.item.MenuItem("Exit", None))
-  baseMenu.add(fileMenu)
+  baseMenu.add(makeActionsMenu())
   
   logsMenu = cli.menu.item.Submenu("Logs")
   logsMenu.add(cli.menu.item.MenuItem("Events", None))
@@ -70,4 +72,24 @@ def makeMenu():
   
   return baseMenu
 
+def makeActionsMenu():
+  """
+  Submenu consisting of...
+    Close Menu
+    Pause / Unpause
+    Reset Tor
+    Exit
+  """
+  
+  control = cli.controller.getController()
+  actionsMenu = cli.menu.item.Submenu("Actions")
+  actionsMenu.add(cli.menu.item.MenuItem("Close Menu", None))
+  
+  if control.isPaused(): label, arg = "Unpause", False
+  else: label, arg = "Pause", True
+  actionsMenu.add(cli.menu.item.MenuItem(label, functools.partial(control.setPaused, arg)))
+  
+  actionsMenu.add(cli.menu.item.MenuItem("Reset Tor", torTools.getConn().reload))
+  actionsMenu.add(cli.menu.item.MenuItem("Exit", control.quit))
+  return actionsMenu
 

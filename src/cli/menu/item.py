@@ -53,8 +53,8 @@ class MenuItem():
     the menu and false otherwise.
     """
     
-    if self._callback: return self._callback()
-    else: return False
+    if self._callback: self._callback()
+    return True
   
   def next(self):
     """
@@ -143,4 +143,7 @@ class Submenu(MenuItem):
     """
     
     return not bool(self._children)
+  
+  def select(self):
+    return False
 

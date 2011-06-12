@@ -150,6 +150,7 @@ class Controller:
     self._page = 0
     self._isPaused = False
     self._forceRedraw = False
+    self._isDone = False
     self.setMsg() # initializes our control message
   
   def getScreen(self):
@@ -312,6 +313,20 @@ class Controller:
     
     if redraw: controlPanel.redraw(True)
     else: self._forceRedraw = True
+  
+  def isDone(self):
+    """
+    True if arm should be terminated, false otherwise.
+    """
+    
+    return self._isDone
+  
+  def quit(self):
+    """
+    Terminates arm after the input is processed.
+    """
+    
+    self._isDone = True
 
 def shutdownDaemons():
   """
@@ -477,7 +492,7 @@ def drawTorMonitor(stdscr, startTime):
 
   menuKeys = []
   
-  while True:
+  while not control.isDone():
     displayPanels = control.getDisplayPanels()
     isUnresponsive = heartbeatCheck(isUnresponsive)
     
@@ -529,9 +544,7 @@ def drawTorMonitor(stdscr, startTime):
         quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
       else: quitConfirmed = True
       
-      if quitConfirmed:
-        shutdownDaemons()
-        break
+      if quitConfirmed: control.quit()
     elif key == ord('x') or key == ord('X'):
       # provides prompt to confirm that arm should issue a sighup
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
@@ -547,4 +560,6 @@ def drawTorMonitor(stdscr, startTime):
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
+  
+  shutdownDaemons()
 
