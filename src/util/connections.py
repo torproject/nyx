@@ -444,6 +444,25 @@ class ConnectionResolver(threading.Thread):
     # avoid having stray spikes up the rate.
     self._rateThresholdBroken = 0
   
+  def getOverwriteResolver(self):
+    """
+    Provides the resolver connection resolution is forced to use. This returns
+    None if it's dynamically determined.
+    """
+    
+    return self.overwriteResolver
+     
+  def setOverwriteResolver(self, overwriteResolver):
+    """
+    Sets the resolver used for connection resolution, if None then this is
+    automatically determined based on what is available.
+    
+    Arguments:
+      overwriteResolver - connection resolver to be used
+    """
+    
+    self.overwriteResolver = overwriteResolver
+  
   def run(self):
     while not self._halt:
       minWait = self.resolveRate if self.resolveRate else self.defaultRate

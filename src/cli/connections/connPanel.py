@@ -6,6 +6,7 @@ import time
 import curses
 import threading
 
+import cli.controller
 import cli.descriptorPopup
 import cli.popups
 
@@ -124,6 +125,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._entryLines += entry.getLines()
     self.valsLock.release()
   
+  def getListingType(self):
+    """
+    Provides the priority content we list connections by.
+    """
+    
+    return self._listingType
+  
   def setListingType(self, listingType):
     """
     Sets the priority information presented by the panel.
@@ -143,6 +151,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self.valsLock.release()
   
+  def showSortDialog(self):
+    """
+    Provides the sort dialog for our connections.
+    """
+    
+    # set ordering for connection options
+    cli.controller.getController().requestRedraw(True)
+    titleLabel = "Connection Ordering:"
+    options = entries.SortAttr.values()
+    oldSelection = self._sortOrdering
+    optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
+    results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
+    if results: self.setSortOrder(results)
+  
   def handleKey(self, key):
     self.valsLock.acquire()
     
@@ -156,13 +178,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._showDetails = not self._showDetails
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
-      # set ordering for connection options
-      titleLabel = "Connection Ordering:"
-      options = entries.SortAttr.values()
-      oldSelection = self._sortOrdering
-      optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
-      results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
-      if results: self.setSortOrder(results)
+      self.showSortDialog()
     elif key == ord('u') or key == ord('U'):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"

@@ -8,7 +8,7 @@ import cli.controller
 import cli.menu.item
 import cli.graphing.graphPanel
 
-from util import torTools, uiTools
+from util import connections, torTools, uiTools
 
 def makeMenu():
   """
@@ -26,12 +26,8 @@ def makeMenu():
       baseMenu.add(makeGraphMenu(pagePanel))
     elif pagePanel.getName() == "log":
       baseMenu.add(makeLogMenu(pagePanel))
-  
-  connectionsMenu = cli.menu.item.Submenu("Connections")
-  connectionsMenu.add(cli.menu.item.MenuItem("Identity", None))
-  connectionsMenu.add(cli.menu.item.MenuItem("Resolver", None))
-  connectionsMenu.add(cli.menu.item.MenuItem("Sort Order", None))
-  baseMenu.add(connectionsMenu)
+    elif pagePanel.getName() == "connections":
+      baseMenu.add(makeConnectionsMenu(pagePanel))
   
   configurationMenu = cli.menu.item.Submenu("Configuration")
   
@@ -188,5 +184,45 @@ def makeLogMenu(logPanel):
   logMenu.add(filterMenu)
   
   return logMenu
+
+def makeConnectionsMenu(connPanel):
+  """
+  Submenu for the connections panel, consisting of...
+    [X] IP Address
+    [ ] Fingerprint
+    [ ] Nickname
+        Sorting...
+        Resolver (Submenu)
   
+  Arguments:
+    connPanel - instance of the connections panel
+  """
+  
+  connectionsMenu = cli.menu.item.Submenu("Connections")
+  
+  # listing options
+  listingGroup = cli.menu.item.SelectionGroup(connPanel.setListingType, connPanel.getListingType())
+  
+  listingOptions = cli.connections.entries.ListingType.values()
+  listingOptions.remove(cli.connections.entries.ListingType.HOSTNAME)
+  
+  for option in listingOptions:
+    connectionsMenu.add(cli.menu.item.SelectionMenuItem(option, listingGroup, option))
+  
+  # sorting option
+  connectionsMenu.add(cli.menu.item.MenuItem("Sorting...", connPanel.showSortDialog))
+  
+  # resolver submenu
+  connResolver = connections.getResolver("tor")
+  resolverMenu = cli.menu.item.Submenu("Resolver")
+  resolverGroup = cli.menu.item.SelectionGroup(connResolver.setOverwriteResolver, connResolver.getOverwriteResolver())
+  
+  resolverMenu.add(cli.menu.item.SelectionMenuItem("auto", resolverGroup, None))
+  
+  for option in connections.Resolver.values():
+    resolverMenu.add(cli.menu.item.SelectionMenuItem(option, resolverGroup, option))
+  
+  connectionsMenu.add(resolverMenu)
+  
+  return connectionsMenu
 
