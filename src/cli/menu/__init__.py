@@ -2,5 +2,5 @@
 Resources for displaying the menu.
 """
 
-__all__ = ["item", "menu"]
+__all__ = ["actions", "item", "menu"]
 
