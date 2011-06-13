@@ -282,108 +282,216 @@
           </packing>
         </child>
         <child>
-          <object class="GtkHBox" id="hbox_main">
+          <object class="GtkVPaned" id="vpaned_main">
             <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="orientation">vertical</property>
             <child>
-              <object class="GtkNotebook" id="notebook_main">
+              <object class="GtkHPaned" id="hpaned_main">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <child>
-                  <object class="GtkVBox" id="vbox_graph">
+                  <object class="GtkNotebook" id="notebook_main">
                     <property name="visible">True</property>
-                    <property name="orientation">vertical</property>
+                    <property name="can_focus">True</property>
                     <child>
-                      <object class="GtkLabel" id="label_graph_top">
+                      <object class="GtkVBox" id="vbox_graph">
                         <property name="visible">True</property>
-                        <property name="label" translatable="yes">Limit: 40 Mb/s, Burst: 80 Mb/s</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkHBox" id="hbox_graph">
-                        <property name="visible">True</property>
+                        <property name="orientation">vertical</property>
                         <child>
-                          <object class="GtkVBox" id="vbox_graph_primary">
+                          <object class="GtkLabel" id="label_graph_top">
                             <property name="visible">True</property>
-                            <property name="orientation">vertical</property>
-                            <child>
-                              <object class="GtkLabel" id="label_graph_primary_top">
-                                <property name="visible">True</property>
-                                <property name="label" translatable="yes">Download (0.0 b/sec)</property>
-                              </object>
-                              <packing>
-                                <property name="expand">False</property>
-                                <property name="fill">False</property>
-                                <property name="position">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkVBox" id="placeholder_graph_primary">
-                                <property name="visible">True</property>
-                                <child>
-                                  <placeholder/>
-                                </child>
-                              </object>
-                              <packing>
-                                <property name="position">1</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label_graph_primary_bottom">
-                                <property name="visible">True</property>
-                                <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
-                              </object>
-                              <packing>
-                                <property name="expand">False</property>
-                                <property name="fill">False</property>
-                                <property name="position">2</property>
-                              </packing>
-                            </child>
+                            <property name="label" translatable="yes">Limit: 40 Mb/s, Burst: 80 Mb/s</property>
                           </object>
                           <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
                             <property name="position">0</property>
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkVBox" id="vbox_graph_secondary">
+                          <object class="GtkHBox" id="hbox_graph">
                             <property name="visible">True</property>
-                            <property name="orientation">vertical</property>
                             <child>
-                              <object class="GtkLabel" id="label_graph_secondary_top">
+                              <object class="GtkVBox" id="vbox_graph_primary">
                                 <property name="visible">True</property>
-                                <property name="label" translatable="yes">Upload (0.0 b/sec)</property>
+                                <property name="orientation">vertical</property>
+                                <child>
+                                  <object class="GtkLabel" id="label_graph_primary_top">
+                                    <property name="visible">True</property>
+                                    <property name="label" translatable="yes">Download (0.0 b/sec)</property>
+                                  </object>
+                                  <packing>
+                                    <property name="expand">False</property>
+                                    <property name="fill">False</property>
+                                    <property name="position">0</property>
+                                  </packing>
+                                </child>
+                                <child>
+                                  <object class="GtkVBox" id="placeholder_graph_primary">
+                                    <property name="visible">True</property>
+                                    <property name="orientation">vertical</property>
+                                    <child>
+                                      <placeholder/>
+                                    </child>
+                                  </object>
+                                  <packing>
+                                    <property name="position">1</property>
+                                  </packing>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label_graph_primary_bottom">
+                                    <property name="visible">True</property>
+                                    <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
+                                  </object>
+                                  <packing>
+                                    <property name="expand">False</property>
+                                    <property name="fill">False</property>
+                                    <property name="position">2</property>
+                                  </packing>
+                                </child>
                               </object>
                               <packing>
-                                <property name="expand">False</property>
-                                <property name="fill">False</property>
                                 <property name="position">0</property>
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkVBox" id="placeholder_graph_secondary">
+                              <object class="GtkVBox" id="vbox_graph_secondary">
                                 <property name="visible">True</property>
+                                <property name="orientation">vertical</property>
                                 <child>
-                                  <placeholder/>
+                                  <object class="GtkLabel" id="label_graph_secondary_top">
+                                    <property name="visible">True</property>
+                                    <property name="label" translatable="yes">Upload (0.0 b/sec)</property>
+                                  </object>
+                                  <packing>
+                                    <property name="expand">False</property>
+                                    <property name="fill">False</property>
+                                    <property name="position">0</property>
+                                  </packing>
+                                </child>
+                                <child>
+                                  <object class="GtkVBox" id="placeholder_graph_secondary">
+                                    <property name="visible">True</property>
+                                    <property name="orientation">vertical</property>
+                                    <child>
+                                      <placeholder/>
+                                    </child>
+                                  </object>
+                                  <packing>
+                                    <property name="position">1</property>
+                                  </packing>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label_graph_secondary_bottom">
+                                    <property name="visible">True</property>
+                                    <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
+                                  </object>
+                                  <packing>
+                                    <property name="expand">False</property>
+                                    <property name="fill">False</property>
+                                    <property name="position">2</property>
+                                  </packing>
                                 </child>
                               </object>
                               <packing>
                                 <property name="position">1</property>
                               </packing>
                             </child>
+                          </object>
+                          <packing>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="tab">
+                      <object class="GtkLabel" id="label_notebook_graph">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Graphs</property>
+                      </object>
+                      <packing>
+                        <property name="tab_fill">False</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkVBox" id="vbox_conn">
+                        <property name="visible">True</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkLabel" id="label_conn_top">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">2 Clients, 1 Control</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow" id="scrolledwindow_conn">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="hscrollbar_policy">automatic</property>
+                            <property name="vscrollbar_policy">automatic</property>
                             <child>
-                              <object class="GtkLabel" id="label_graph_secondary_bottom">
+                              <object class="GtkTreeView" id="treeview_conn">
                                 <property name="visible">True</property>
-                                <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
+                                <property name="can_focus">True</property>
+                                <property name="model">liststore_conn</property>
+                                <property name="headers_visible">False</property>
+                                <property name="headers_clickable">False</property>
+                                <property name="search_column">0</property>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_origin">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_conn_origin"/>
+                                      <attributes>
+                                        <attribute name="foreground">4</attribute>
+                                        <attribute name="markup">0</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_dest">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_conn_dest"/>
+                                      <attributes>
+                                        <attribute name="foreground">4</attribute>
+                                        <attribute name="markup">1</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_time">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_conn_time"/>
+                                      <attributes>
+                                        <attribute name="foreground">4</attribute>
+                                        <attribute name="markup">2</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_type">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_conn_type"/>
+                                      <attributes>
+                                        <attribute name="foreground">4</attribute>
+                                        <attribute name="markup">3</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
                               </object>
-                              <packing>
-                                <property name="expand">False</property>
-                                <property name="fill">False</property>
-                                <property name="position">2</property>
-                              </packing>
                             </child>
                           </object>
                           <packing>
@@ -395,271 +503,187 @@
                         <property name="position">1</property>
                       </packing>
                     </child>
-                  </object>
-                </child>
-                <child type="tab">
-                  <object class="GtkLabel" id="label_notebook_graph">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Graphs</property>
-                  </object>
-                  <packing>
-                    <property name="tab_fill">False</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkVBox" id="vbox_conn">
-                    <property name="visible">True</property>
-                    <property name="orientation">vertical</property>
-                    <child>
-                      <object class="GtkLabel" id="label_conn_top">
+                    <child type="tab">
+                      <object class="GtkLabel" id="label_notebook_conn">
                         <property name="visible">True</property>
-                        <property name="label" translatable="yes">2 Clients, 1 Control</property>
+                        <property name="label" translatable="yes">Connections</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">0</property>
+                        <property name="position">1</property>
+                        <property name="tab_fill">False</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkTreeView" id="treeview_conn">
+                      <object class="GtkVBox" id="vbox_config">
+                        <property name="visible">True</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkLabel" id="label_config_top">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">&lt;span foreground="#368918"&gt;&lt;u&gt;RelayBandwidthBurst&lt;/u&gt; (General Option)
+&lt;b&gt;Value&lt;/b&gt;: 0 B (default, DataSize, usage: N bytes|KB|MB|GB|TB)
+&lt;b&gt;Description&lt;/b&gt;: Limit the maximum token bucket size (also known  as
+the  burst) for  &lt;i&gt;relayed  traffic&lt;/i&gt;  to  the  given  number of bytes in
+each direction. (Default: 0) &lt;/span&gt;</property>
+                            <property name="use_markup">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow" id="scrolledwindow_config">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="hscrollbar_policy">automatic</property>
+                            <property name="vscrollbar_policy">automatic</property>
+                            <child>
+                              <object class="GtkTreeView" id="treeview_config">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="model">liststore_config</property>
+                                <property name="headers_visible">False</property>
+                                <property name="headers_clickable">False</property>
+                                <property name="search_column">0</property>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_key">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_key"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="markup">0</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_value">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_value"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="markup">1</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_desc">
+                                    <property name="title">column</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_desc"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="markup">2</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="position">2</property>
+                      </packing>
+                    </child>
+                    <child type="tab">
+                      <object class="GtkLabel" id="label_notebook_config">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Configuration</property>
+                      </object>
+                      <packing>
+                        <property name="position">2</property>
+                        <property name="tab_fill">False</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="resize">False</property>
+                    <property name="shrink">True</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow" id="scrolledwindow_sticky">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="hscrollbar_policy">automatic</property>
+                    <property name="vscrollbar_policy">automatic</property>
+                    <child>
+                      <object class="GtkTreeView" id="treeview_sticky">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="model">liststore_conn</property>
+                        <property name="model">liststore_sticky</property>
                         <property name="headers_visible">False</property>
+                        <property name="headers_clickable">False</property>
+                        <property name="search_column">0</property>
                         <child>
-                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_origin">
+                          <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_key">
                             <property name="title">column</property>
                             <child>
-                              <object class="GtkCellRendererText" id="cellrenderertext_conn_origin"/>
+                              <object class="GtkCellRendererText" id="cellrenderertext_sticky_key"/>
                               <attributes>
-                                <attribute name="foreground">4</attribute>
                                 <attribute name="markup">0</attribute>
                               </attributes>
                             </child>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_dest">
+                          <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_value">
                             <property name="title">column</property>
                             <child>
-                              <object class="GtkCellRendererText" id="cellrenderertext_conn_dest"/>
+                              <object class="GtkCellRendererText" id="cellrenderertext_sticky_value"/>
                               <attributes>
-                                <attribute name="foreground">4</attribute>
+                                <attribute name="foreground">2</attribute>
                                 <attribute name="markup">1</attribute>
                               </attributes>
                             </child>
                           </object>
                         </child>
-                        <child>
-                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_time">
-                            <property name="title">column</property>
-                            <child>
-                              <object class="GtkCellRendererText" id="cellrenderertext_conn_time"/>
-                              <attributes>
-                                <attribute name="foreground">4</attribute>
-                                <attribute name="markup">2</attribute>
-                              </attributes>
-                            </child>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_type">
-                            <property name="title">column</property>
-                            <child>
-                              <object class="GtkCellRendererText" id="cellrenderertext_conn_type"/>
-                              <attributes>
-                                <attribute name="foreground">4</attribute>
-                                <attribute name="markup">3</attribute>
-                              </attributes>
-                            </child>
-                          </object>
-                        </child>
                       </object>
-                      <packing>
-                        <property name="position">1</property>
-                      </packing>
                     </child>
                   </object>
                   <packing>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-                <child type="tab">
-                  <object class="GtkLabel" id="label_notebook_conn">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Connections</property>
-                  </object>
-                  <packing>
-                    <property name="position">1</property>
-                    <property name="tab_fill">False</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkVBox" id="vbox_config">
-                    <property name="visible">True</property>
-                    <property name="orientation">vertical</property>
-                    <child>
-                      <object class="GtkLabel" id="label_config_top">
-                        <property name="visible">True</property>
-                        <property name="label" translatable="yes">&lt;span foreground="#368918"&gt;&lt;u&gt;RelayBandwidthBurst&lt;/u&gt; (General Option)
-&lt;b&gt;Value&lt;/b&gt;: 0 B (default, DataSize, usage: N bytes|KB|MB|GB|TB)
-&lt;b&gt;Description&lt;/b&gt;: Limit the maximum token bucket size (also known  as
-the  burst) for  &lt;i&gt;relayed  traffic&lt;/i&gt;  to  the  given  number of bytes in
-each direction. (Default: 0) &lt;/span&gt;</property>
-                        <property name="use_markup">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkScrolledWindow" id="scrolledwindow_config">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="hscrollbar_policy">automatic</property>
-                        <property name="vscrollbar_policy">automatic</property>
-                        <child>
-                          <object class="GtkTreeView" id="treeview_config">
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="model">liststore_config</property>
-                            <property name="headers_visible">False</property>
-                            <property name="search_column">0</property>
-                            <child>
-                              <object class="GtkTreeViewColumn" id="treeviewcolumn_key">
-                                <property name="title">column</property>
-                                <child>
-                                  <object class="GtkCellRendererText" id="cellrenderertext_config_key"/>
-                                  <attributes>
-                                    <attribute name="foreground">3</attribute>
-                                    <attribute name="markup">0</attribute>
-                                  </attributes>
-                                </child>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkTreeViewColumn" id="treeviewcolumn_value">
-                                <property name="title">column</property>
-                                <child>
-                                  <object class="GtkCellRendererText" id="cellrenderertext_config_value"/>
-                                  <attributes>
-                                    <attribute name="foreground">3</attribute>
-                                    <attribute name="markup">1</attribute>
-                                  </attributes>
-                                </child>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkTreeViewColumn" id="treeviewcolumn_desc">
-                                <property name="title">column</property>
-                                <child>
-                                  <object class="GtkCellRendererText" id="cellrenderertext_config_desc"/>
-                                  <attributes>
-                                    <attribute name="foreground">3</attribute>
-                                    <attribute name="markup">2</attribute>
-                                  </attributes>
-                                </child>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="position">1</property>
-                      </packing>
-                    </child>
-                  </object>
-                  <packing>
-                    <property name="position">2</property>
-                  </packing>
-                </child>
-                <child type="tab">
-                  <object class="GtkLabel" id="label_notebook_config">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Configuration</property>
-                  </object>
-                  <packing>
-                    <property name="position">2</property>
-                    <property name="tab_fill">False</property>
+                    <property name="resize">True</property>
+                    <property name="shrink">True</property>
                   </packing>
                 </child>
               </object>
               <packing>
-                <property name="position">0</property>
+                <property name="resize">False</property>
+                <property name="shrink">True</property>
               </packing>
             </child>
             <child>
-              <object class="GtkScrolledWindow" id="scrolledwindow_sticky">
+              <object class="GtkScrolledWindow" id="scrolledwindow_log">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="hscrollbar_policy">automatic</property>
                 <property name="vscrollbar_policy">automatic</property>
                 <child>
-                  <object class="GtkTreeView" id="treeview_sticky">
+                  <object class="GtkTextView" id="textview_log">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="model">liststore_sticky</property>
-                    <property name="headers_visible">False</property>
-                    <property name="headers_clickable">False</property>
-                    <property name="search_column">0</property>
-                    <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_key">
-                        <property name="title">column</property>
-                        <child>
-                          <object class="GtkCellRendererText" id="cellrenderertext_sticky_key"/>
-                          <attributes>
-                            <attribute name="markup">0</attribute>
-                          </attributes>
-                        </child>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_value">
-                        <property name="title">column</property>
-                        <child>
-                          <object class="GtkCellRendererText" id="cellrenderertext_sticky_value"/>
-                          <attributes>
-                            <attribute name="foreground">2</attribute>
-                            <attribute name="markup">1</attribute>
-                          </attributes>
-                        </child>
-                      </object>
-                    </child>
+                    <property name="buffer">textbuffer_log</property>
                   </object>
                 </child>
               </object>
               <packing>
-                <property name="padding">5</property>
-                <property name="position">1</property>
+                <property name="resize">True</property>
+                <property name="shrink">True</property>
               </packing>
             </child>
           </object>
           <packing>
             <property name="position">1</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkScrolledWindow" id="scrolledwindow_log">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="hscrollbar_policy">automatic</property>
-            <property name="vscrollbar_policy">automatic</property>
-            <child>
-              <object class="GtkTextView" id="textview_log">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="buffer">textbuffer_log</property>
-              </object>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">False</property>
-            <property name="padding">5</property>
-            <property name="position">2</property>
           </packing>
         </child>
       </object>
