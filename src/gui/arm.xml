@@ -307,11 +307,11 @@
                       <object class="GtkHBox" id="hbox_graph">
                         <property name="visible">True</property>
                         <child>
-                          <object class="GtkVBox" id="vbox_graph_a">
+                          <object class="GtkVBox" id="vbox_graph_primary">
                             <property name="visible">True</property>
                             <property name="orientation">vertical</property>
                             <child>
-                              <object class="GtkLabel" id="label_graph_a_top">
+                              <object class="GtkLabel" id="label_graph_primary_top">
                                 <property name="visible">True</property>
                                 <property name="label" translatable="yes">Download (0.0 b/sec)</property>
                               </object>
@@ -322,15 +322,18 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkVBox" id="placeholder_graph_a">
+                              <object class="GtkVBox" id="placeholder_graph_primary">
                                 <property name="visible">True</property>
+                                <child>
+                                  <placeholder/>
+                                </child>
                               </object>
                               <packing>
                                 <property name="position">1</property>
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel" id="label_graph_a_bottom">
+                              <object class="GtkLabel" id="label_graph_primary_bottom">
                                 <property name="visible">True</property>
                                 <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
                               </object>
@@ -346,11 +349,11 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkVBox" id="vbox_graph_b">
+                          <object class="GtkVBox" id="vbox_graph_secondary">
                             <property name="visible">True</property>
                             <property name="orientation">vertical</property>
                             <child>
-                              <object class="GtkLabel" id="label_graph_b_top">
+                              <object class="GtkLabel" id="label_graph_secondary_top">
                                 <property name="visible">True</property>
                                 <property name="label" translatable="yes">Upload (0.0 b/sec)</property>
                               </object>
@@ -361,15 +364,18 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkVBox" id="placeholder_graph_b">
+                              <object class="GtkVBox" id="placeholder_graph_secondary">
                                 <property name="visible">True</property>
+                                <child>
+                                  <placeholder/>
+                                </child>
                               </object>
                               <packing>
                                 <property name="position">1</property>
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel" id="label_graph_b_bottom">
+                              <object class="GtkLabel" id="label_graph_secondary_bottom">
                                 <property name="visible">True</property>
                                 <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
                               </object>
