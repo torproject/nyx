@@ -4,6 +4,7 @@ Generates the menu for arm, binding options with their related actions.
 
 import functools
 
+import cli.popups
 import cli.controller
 import cli.menu.item
 import cli.graphing.graphPanel
@@ -32,6 +33,8 @@ def makeMenu():
       baseMenu.add(makeConfigurationMenu(pagePanel))
     elif pagePanel.getName() == "torrc":
       baseMenu.add(makeTorrcMenu(pagePanel))
+  
+  baseMenu.add(makeHelpMenu())
   
   return baseMenu
 
@@ -89,6 +92,18 @@ def makeViewMenu():
     viewMenu.add(colorMenu)
   
   return viewMenu
+
+def makeHelpMenu():
+  """
+  Submenu consisting of...
+    Hotkeys
+    About
+  """
+  
+  helpMenu = cli.menu.item.Submenu("Help")
+  helpMenu.add(cli.menu.item.MenuItem("Hotkeys", cli.popups.showHelpPopup))
+  helpMenu.add(cli.menu.item.MenuItem("About", cli.popups.showAboutPopup))
+  return helpMenu
 
 def makeGraphMenu(graphPanel):
   """

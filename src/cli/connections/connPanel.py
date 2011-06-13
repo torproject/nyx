@@ -6,7 +6,6 @@ import time
 import curses
 import threading
 
-import cli.controller
 import cli.descriptorPopup
 import cli.popups
 
@@ -157,7 +156,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     # set ordering for connection options
-    cli.controller.getController().requestRedraw(True)
     titleLabel = "Connection Ordering:"
     options = entries.SortAttr.values()
     oldSelection = self._sortOrdering

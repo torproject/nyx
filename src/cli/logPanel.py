@@ -13,7 +13,6 @@ import threading
 from TorCtl import TorCtl
 
 import popups
-import cli.controller
 from version import VERSION
 from util import conf, log, panel, sysTools, torTools, uiTools
 
@@ -792,7 +791,6 @@ class LogPanel(panel.Panel, threading.Thread):
     Prompts the user to add a new regex filter.
     """
     
-    cli.controller.getController().requestRedraw(True)
     regexInput = popups.inputPrompt("Regular expression: ")
     
     if regexInput:
@@ -809,7 +807,6 @@ class LogPanel(panel.Panel, threading.Thread):
     """
     
     # allow user to enter new types of events to log - unchanged if left blank
-    cli.controller.getController().requestRedraw(True)
     popup, width, height = popups.init(11, 80)
     
     if popup:
@@ -837,7 +834,6 @@ class LogPanel(panel.Panel, threading.Thread):
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
     
-    cli.controller.getController().requestRedraw(True)
     pathInput = popups.inputPrompt("Path to save log snapshot: ")
     
     if pathInput:

@@ -6,7 +6,6 @@ import math
 import curses
 import threading
 
-import cli.controller
 import popups
 
 from util import conf, enum, panel, torConfig, torTools, uiTools
@@ -88,8 +87,6 @@ class TorrcPanel(panel.Panel):
     """
     Reloads the torrc, displaying an indicator of success or failure.
     """
-    
-    cli.controller.getController().requestRedraw(True)
     
     try:
       torConfig.getTorrc().load()

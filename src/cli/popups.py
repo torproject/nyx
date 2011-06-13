@@ -4,6 +4,7 @@ Functions for displaying popups in the interface.
 
 import curses
 
+import version
 import cli.controller
 
 from util import panel, uiTools
@@ -154,6 +155,30 @@ def showHelpPopup():
     not exitKey in (curses.KEY_LEFT, curses.KEY_RIGHT):
     return exitKey
   else: return None
+
+def showAboutPopup():
+  """
+  Presents a popup with author and version information.
+  """
+  
+  popup, _, height = init(9, 80)
+  if not popup: return
+  
+  try:
+    control = cli.controller.getController()
+    
+    popup.win.box()
+    popup.addstr(0, 0, "About:", curses.A_STANDOUT)
+    popup.addstr(1, 2, "arm, version %s (released %s)" % (version.VERSION, version.LAST_MODIFIED), curses.A_BOLD)
+    popup.addstr(2, 4, "Written by Damian Johnson (atagar1@gmail.com)")
+    popup.addstr(3, 4, "Project page: www.atagar.com/arm")
+    popup.addstr(5, 2, "Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)")
+    popup.addstr(7, 2, "Press any key...")
+    popup.win.refresh()
+    
+    curses.cbreak()
+    control.getScreen().getch()
+  finally: finalize()
 
 def showSortDialog(title, options, oldSelection, optionColors):
   """

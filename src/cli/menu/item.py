@@ -2,6 +2,8 @@
 Menu item, representing an option in the drop-down menu.
 """
 
+import cli.controller
+
 class MenuItem():
   """
   Option in a drop-down menu.
@@ -53,7 +55,11 @@ class MenuItem():
     the menu and false otherwise.
     """
     
-    if self._callback: self._callback()
+    if self._callback:
+      control = cli.controller.getController()
+      control.setMsg()
+      control.requestRedraw(True)
+      self._callback()
     return True
   
   def next(self):

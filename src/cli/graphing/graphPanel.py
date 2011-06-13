@@ -307,8 +307,6 @@ class GraphPanel(panel.Panel):
     panel.CURSES_LOCK.acquire()
     try:
       while True:
-        control.requestRedraw(True)
-        
         msg = "press the down/up to resize the graph, and enter when done"
         control.setMsg(msg, curses.A_BOLD, True)
         curses.cbreak()
@@ -325,6 +323,8 @@ class GraphPanel(panel.Panel):
         elif key == curses.KEY_UP:
           self.setGraphHeight(self.graphHeight - 1)
         elif uiTools.isSelectionKey(key): break
+        
+        control.requestRedraw(True)
     finally:
       control.setMsg()
       panel.CURSES_LOCK.release()

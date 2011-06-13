@@ -275,7 +275,6 @@ class ConfigPanel(panel.Panel):
     """
     
     # set ordering for config options
-    cli.controller.getController().requestRedraw(True)
     titleLabel = "Config Option Ordering:"
     options = [FIELD_ATTR[field][0] for field in Field.values()]
     oldSelection = [FIELD_ATTR[field][0] for field in self.sortOrdering]
@@ -357,7 +356,6 @@ class ConfigPanel(panel.Panel):
     """
     
     # display a popup for saving the current configuration
-    cli.controller.getController().requestRedraw(True)
     configLines = torConfig.getCustomOptions(True)
     popup, width, height = popups.init(len(configLines) + 2)
     if not popup: return
