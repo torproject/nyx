@@ -1,3 +1,6 @@
+"""
+Display logic for presenting the menu.
+"""
 
 import curses
 

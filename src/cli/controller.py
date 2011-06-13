@@ -8,7 +8,6 @@ import curses
 import threading
 
 import cli.menu.menu
-import cli.menu_alt.menu
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -527,8 +526,6 @@ def drawTorMonitor(stdscr, startTime):
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
 
-  menuKeys = []
-  
   while not control.isDone():
     displayPanels = control.getDisplayPanels()
     isUnresponsive = heartbeatCheck(isUnresponsive)
@@ -563,14 +560,6 @@ def drawTorMonitor(stdscr, startTime):
       control.prevPage()
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
-    elif key == ord('n') or key == ord('N'):
-      menu = cli.menu_alt.menu.Menu()
-      menuKeys = menu.showMenu(keys=menuKeys)
-      if menuKeys != []:
-        for key in (ord('n'), ord('q'), ord('x')):
-          if key in menuKeys:
-            menuKeys.remove(key)
-            overrideKey = key
     elif key == ord('m') or key == ord('M'):
       cli.menu.menu.showMenu()
     elif key == ord('q') or key == ord('Q'):
