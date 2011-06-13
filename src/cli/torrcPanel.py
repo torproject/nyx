@@ -6,6 +6,7 @@ import math
 import curses
 import threading
 
+import cli.controller
 import popups
 
 from util import conf, enum, panel, torConfig, torTools, uiTools
@@ -59,6 +60,49 @@ class TorrcPanel(panel.Panel):
         self.redraw(True)
       except: pass
   
+  def setCommentsVisible(self, isVisible):
+    """
+    Sets if comments and blank lines are shown or stripped.
+    
+    Arguments:
+      isVisible - displayed comments and blank lines if true, strips otherwise
+    """
+    
+    self.stripComments = not isVisible
+    self._lastContentHeightArgs = None
+    self.redraw(True)
+  
+  def setLineNumberVisible(self, isVisible):
+    """
+    Sets if line numbers are shown or hidden.
+    
+    Arguments:
+      isVisible - displays line numbers if true, hides otherwise
+    """
+    
+    self.showLineNum = isVisible
+    self._lastContentHeightArgs = None
+    self.redraw(True)
+  
+  def reloadTorrc(self):
+    """
+    Reloads the torrc, displaying an indicator of success or failure.
+    """
+    
+    cli.controller.getController().requestRedraw(True)
+    
+    try:
+      torConfig.getTorrc().load()
+      self._lastContentHeightArgs = None
+      self.redraw(True)
+      resultMsg = "torrc reloaded"
+    except IOError:
+      resultMsg = "failed to reload torrc"
+    
+    self._lastContentHeightArgs = None
+    self.redraw(True)
+    popups.showMsg(resultMsg, 1)
+  
   def handleKey(self, key):
     self.valsLock.acquire()
     isKeystrokeConsumed = True
@@ -70,26 +114,11 @@ class TorrcPanel(panel.Panel):
         self.scroll = newScroll
         self.redraw(True)
     elif key == ord('n') or key == ord('N'):
-      self.showLineNum = not self.showLineNum
-      self._lastContentHeightArgs = None
-      self.redraw(True)
+      self.setLineNumberVisible(not self.showLineNum)
     elif key == ord('s') or key == ord('S'):
-      self.stripComments = not self.stripComments
-      self._lastContentHeightArgs = None
-      self.redraw(True)
+      self.setCommentsVisible(self.stripComments)
     elif key == ord('r') or key == ord('R'):
-      # reloads torrc, providing a notice if successful or not
-      try:
-        torConfig.getTorrc().load()
-        self._lastContentHeightArgs = None
-        self.redraw(True)
-        resultMsg = "torrc reloaded"
-      except IOError:
-        resultMsg = "failed to reload torrc"
-      
-      self._lastContentHeightArgs = None
-      self.redraw(True)
-      popups.showMsg(resultMsg, 1)
+      self.reloadTorrc()
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()

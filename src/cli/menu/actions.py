@@ -30,6 +30,8 @@ def makeMenu():
       baseMenu.add(makeConnectionsMenu(pagePanel))
     elif pagePanel.getName() == "configuration":
       baseMenu.add(makeConfigurationMenu(pagePanel))
+    elif pagePanel.getName() == "torrc":
+      baseMenu.add(makeTorrcMenu(pagePanel))
   
   return baseMenu
 
@@ -237,4 +239,28 @@ def makeConfigurationMenu(configPanel):
   configMenu.add(cli.menu.item.MenuItem("%s Options" % label, functools.partial(configPanel.setFiltering, arg)))
   
   return configMenu
+
+def makeTorrcMenu(torrcPanel):
+  """
+  Submenu for the torrc panel, consisting of...
+    Reload
+    Show / Hide Comments
+    Show / Hide Line Numbers
+  
+  Arguments:
+    torrcPanel - instance of the torrc panel
+  """
+  
+  torrcMenu = cli.menu.item.Submenu("Torrc")
+  torrcMenu.add(cli.menu.item.MenuItem("Reload", torrcPanel.reloadTorrc))
+  
+  if torrcPanel.stripComments: label, arg = "Show", True
+  else: label, arg = "Hide", False
+  torrcMenu.add(cli.menu.item.MenuItem("%s Comments" % label, functools.partial(torrcPanel.setCommentsVisible, arg)))
+  
+  if torrcPanel.showLineNum: label, arg = "Hide", False
+  else: label, arg = "Show", True
+  torrcMenu.add(cli.menu.item.MenuItem("%s Line Numbers" % label, functools.partial(torrcPanel.setLineNumberVisible, arg)))
+  
+  return torrcMenu
 

@@ -180,6 +180,7 @@ Layout:
         __init__.py
         menu.py           - provides an interactive menu
         item.py           - individual items within the menu
+        actions.py        - handlers for menu selections
       
       __init__.py
       controller.py          - main display loop, handling input and layout
