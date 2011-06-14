@@ -67,7 +67,6 @@ CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
 # so erring on the side of inclusiveness by using the notice event instead.
 ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
 
-TOR_CTL_CLOSE_MSG = "Tor closed control connection. Exiting event thread."
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"torrc.map": {},
           "features.pathPrefix": "",
@@ -1604,9 +1603,6 @@ class Controller(TorCtl.PostEventListener):
     
     # notifies listeners of TorCtl events
     for callback in self.torctlListeners: callback(TORCTL_RUNLEVELS[level], msg)
-    
-    # checks if TorCtl is providing a notice that control port is closed
-    if TOR_CTL_CLOSE_MSG in msg: self.close()
     
     # if the message is informing us of our ip address changing then clear
     # its cached value
