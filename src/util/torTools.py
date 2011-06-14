@@ -457,20 +457,6 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     if self.conn:
       self.conn.close()
-      
-      # If we're closing due to an event from TorCtl (for instance, tor was
-      # stopped) then TorCtl is shutting itself down and there's no need to
-      # join on its thread (actually, this *is* the TorCtl thread in that
-      # case so joining on it causes deadlock).
-      # 
-      # This poses a slight possability of shutting down with a live orphaned
-      # thread if Tor is shut down, then arm shuts down before TorCtl has a
-      # chance to terminate. However, I've never seen that occure so leaving
-      # that alone for now.
-      
-      if not threading.currentThread() == self.conn._thread:
-        self.conn._thread.join()
-      
       self.conn = None
       self.connLock.release()
       
