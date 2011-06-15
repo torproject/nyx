@@ -380,7 +380,8 @@ class ResourceTracker(threading.Thread):
     
     Arguments:
       processPid  - pid of the process being tracked
-      resolveRate - time between resolving resource usage
+      resolveRate - time between resolving resource usage, resolution is
+                    disabled if zero
     """
     
     threading.Thread.__init__(self)
@@ -443,7 +444,13 @@ class ResourceTracker(threading.Thread):
     while not self._halt:
       timeSinceReset = time.time() - self.lastLookup
       
-      if timeSinceReset < self.resolveRate:
+      if self.resolveRate == 0:
+        self._cond.acquire()
+        if not self._halt: self._cond.wait(0.2)
+        self._cond.release()
+        
+        continue
+      elif timeSinceReset < self.resolveRate:
         sleepTime = max(0.2, self.resolveRate - timeSinceReset)
         
         self._cond.acquire()
