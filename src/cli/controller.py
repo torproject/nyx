@@ -25,6 +25,11 @@ ARM_CONTROLLER = None
 
 CONFIG = {"startup.events": "N3",
           "startup.blindModeEnabled": False,
+          "features.panels.show.graph": True,
+          "features.panels.show.log": True,
+          "features.panels.show.connection": True,
+          "features.panels.show.config": True,
+          "features.panels.show.torrc": True,
           "features.redrawRate": 5,
           "features.confirmQuit": True,
           "features.graph.type": 1,
@@ -60,22 +65,29 @@ def initController(stdscr, startTime):
   # initializes the panels
   stickyPanels = [cli.headerPanel.HeaderPanel(stdscr, startTime, config),
                   LabelPanel(stdscr)]
-  pagePanels = []
+  pagePanels, firstPagePanels = [], []
   
   # first page: graph and log
-  expandedEvents = cli.logPanel.expandEvents(CONFIG["startup.events"])
-  pagePanels.append([cli.graphing.graphPanel.GraphPanel(stdscr),
-                     cli.logPanel.LogPanel(stdscr, expandedEvents, config)])
+  if CONFIG["features.panels.show.graph"]:
+    firstPagePanels.append(cli.graphing.graphPanel.GraphPanel(stdscr))
+  
+  if CONFIG["features.panels.show.log"]:
+    expandedEvents = cli.logPanel.expandEvents(CONFIG["startup.events"])
+    firstPagePanels.append(cli.logPanel.LogPanel(stdscr, expandedEvents, config))
+  
+  if firstPagePanels: pagePanels.append(firstPagePanels)
   
   # second page: connections
-  if not CONFIG["startup.blindModeEnabled"]:
+  if not CONFIG["startup.blindModeEnabled"] and CONFIG["features.panels.show.connection"]:
     pagePanels.append([cli.connections.connPanel.ConnectionPanel(stdscr, config)])
   
   # third page: config
-  pagePanels.append([cli.configPanel.ConfigPanel(stdscr, cli.configPanel.State.TOR, config)])
+  if CONFIG["features.panels.show.config"]:
+    pagePanels.append([cli.configPanel.ConfigPanel(stdscr, cli.configPanel.State.TOR, config)])
   
   # fourth page: torrc
-  pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
+  if CONFIG["features.panels.show.torrc"]:
+    pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
@@ -83,23 +95,24 @@ def initController(stdscr, startTime):
   # additional configuration for the graph panel
   graphPanel = ARM_CONTROLLER.getPanel("graph")
   
-  # statistical monitors for graph
-  bwStats = cli.graphing.bandwidthStats.BandwidthStats(config)
-  graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
-  graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, cli.graphing.resourceStats.ResourceStats())
-  if not CONFIG["startup.blindModeEnabled"]:
-    graphPanel.addStats(GraphStat.CONNECTIONS, cli.graphing.connStats.ConnStats())
-  
-  # sets graph based on config parameter
-  try:
-    initialStats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
-    graphPanel.setStats(initialStats)
-  except ValueError: pass # invalid stats, maybe connections when in blind mode
-  
-  # prepopulates bandwidth values from state file
-  if CONFIG["features.graph.bw.prepopulate"]:
-    isSuccessful = bwStats.prepopulateFromState()
-    if isSuccessful: graphPanel.updateInterval = 4
+  if graphPanel:
+    # statistical monitors for graph
+    bwStats = cli.graphing.bandwidthStats.BandwidthStats(config)
+    graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
+    graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, cli.graphing.resourceStats.ResourceStats())
+    if not CONFIG["startup.blindModeEnabled"]:
+      graphPanel.addStats(GraphStat.CONNECTIONS, cli.graphing.connStats.ConnStats())
+    
+    # sets graph based on config parameter
+    try:
+      initialStats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
+      graphPanel.setStats(initialStats)
+    except ValueError: pass # invalid stats, maybe connections when in blind mode
+    
+    # prepopulates bandwidth values from state file
+    if CONFIG["features.graph.bw.prepopulate"]:
+      isSuccessful = bwStats.prepopulateFromState()
+      if isSuccessful: graphPanel.updateInterval = 4
 
 class LabelPanel(panel.Panel):
   """
@@ -259,9 +272,11 @@ class Controller:
     
     returnPage = self._page if pageNumber == None else pageNumber
     
-    if includeSticky:
-      return self._stickyPanels + self._pagePanels[returnPage]
-    else: return list(self._pagePanels[returnPage])
+    if self._pagePanels:
+      if includeSticky:
+        return self._stickyPanels + self._pagePanels[returnPage]
+      else: return list(self._pagePanels[returnPage])
+    else: return self._stickyPanels if includeSticky else []
   
   def getDaemonPanels(self):
     """

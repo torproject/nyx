@@ -11,6 +11,13 @@ queries.resourceUsage.rate 5
 queries.connections.minRate 5
 queries.refreshRate.rate 5
 
+# allows individual panels to be included/excluded
+features.panels.show.graph true
+features.panels.show.log true
+features.panels.show.connection true
+features.panels.show.config true
+features.panels.show.torrc true
+
 # Read the proc contents directly instead of calling ps, netstat, and other
 # resolvers. This provides very sizable performance benefits (around 90%
 # faster lookups) but this is only available on Linux.
