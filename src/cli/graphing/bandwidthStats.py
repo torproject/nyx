@@ -4,6 +4,7 @@ stats if they're set.
 """
 
 import time
+import curses
 
 from cli.graphing import graphPanel
 from util import log, sysTools, torTools, uiTools
@@ -254,7 +255,9 @@ class BandwidthStats(graphPanel.GraphStats):
           # failed to be queried
           status, hibernateColor = "unknown", "red"
         
-        panel.addfstr(labelingLine + 2, 0, "<b>Accounting (<%s>%s</%s>)</b>" % (hibernateColor, status, hibernateColor))
+        panel.addstr(labelingLine + 2, 0, "Accounting (", curses.A_BOLD)
+        panel.addstr(labelingLine + 2, 12, status, curses.A_BOLD | uiTools.getColor(hibernateColor))
+        panel.addstr(labelingLine + 2, 12 + len(status), ")", curses.A_BOLD)
         
         resetTime = self.accountingInfo["resetTime"]
         if not resetTime: resetTime = "unknown"
@@ -268,7 +271,8 @@ class BandwidthStats(graphPanel.GraphStats):
         if used and total:
           panel.addstr(labelingLine + 3, 37, "%s / %s" % (used, total), uiTools.getColor(self.getColor(False)))
       else:
-        panel.addfstr(labelingLine + 2, 0, "<b>Accounting:</b> Connection Closed...")
+        panel.addstr(labelingLine + 2, 0, "Accounting:", curses.A_BOLD)
+        panel.addstr(labelingLine + 2, 12, "Connection Closed...")
   
   def getTitle(self, width):
     stats = list(self._titleStats)

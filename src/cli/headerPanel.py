@@ -161,39 +161,44 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= contentSpace:
       versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
           self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
-      versionStatusMsg = "<%s>%s</%s>" % (versionColor, self.vals["tor/versionStatus"], versionColor)
-      self.addfstr(0, 43, "Tor %s (%s)" % (self.vals["tor/version"], versionStatusMsg))
+      labelPrefix = "Tor %s (" % self.vals["tor/version"]
+      self.addstr(0, 43, labelPrefix)
+      self.addstr(0, 43 + len(labelPrefix), self.vals["tor/versionStatus"], uiTools.getColor(versionColor))
+      self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
     elif 11 <= contentSpace:
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
     # Line 2 / Line 2 Left (tor ip/port information)
+    x = 0
     if self.vals["tor/orPort"]:
       myAddress = "Unknown"
       if self.vals["tor/orListenAddr"]: myAddress = self.vals["tor/orListenAddr"]
       elif self.vals["tor/address"]: myAddress = self.vals["tor/address"]
       
       # acting as a relay (we can assume certain parameters are set
-      entry = ""
       dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
       for label in (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel):
-        if len(entry) + len(label) <= leftWidth: entry += label
+        if x + len(label) <= leftWidth:
+          self.addstr(1, x, label)
+          x += len(label)
         else: break
     else:
       # non-relay (client only)
       # TODO: not sure what sort of stats to provide...
-      entry = "<red><b>Relaying Disabled</b></red>"
+      self.addstr(1, x, "Relaying Disabled", curses.A_BOLD | uiTools.getColor("red"))
+      x += 17
     
     if self.vals["tor/isAuthPassword"]: authType = "password"
     elif self.vals["tor/isAuthCookie"]: authType = "cookie"
     else: authType = "open"
     
-    if len(entry) + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
+    if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
       authColor = "red" if authType == "open" else "green"
-      authLabel = "<%s>%s</%s>" % (authColor, authType, authColor)
-      self.addfstr(1, 0, "%s, Control Port (%s): %s" % (entry, authLabel, self.vals["tor/controlPort"]))
-    elif len(entry) + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
-      self.addstr(1, 0, "%s, Control Port: %s" % (entry, self.vals["tor/controlPort"]))
-    else: self.addstr(1, 0, entry)
+      self.addstr(1, x, ", Control Port (")
+      self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
+      self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
+    elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
+      self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
@@ -250,20 +255,29 @@ class HeaderPanel(panel.Panel, threading.Thread):
       
       # Line 5 / Line 3 Left (flags)
       if self._isTorConnected:
-        flagLine = "flags: "
-        for flag in self.vals["tor/flags"]:
-          flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
-          flagLine += "<b><%s>%s</%s></b>, " % (flagColor, flag, flagColor)
+        y, x = (2 if isWide else 4, 0)
+        self.addstr(y, x, "flags: ")
+        x += 7
         
-        if len(self.vals["tor/flags"]) > 0: flagLine = flagLine[:-2]
-        else: flagLine += "<b><cyan>none</cyan></b>"
-        
-        self.addfstr(2 if isWide else 4, 0, flagLine)
+        if len(self.vals["tor/flags"]) > 0:
+          for i in range(len(self.vals["tor/flags"])):
+            flag = self.vals["tor/flags"][i]
+            flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
+            
+            self.addstr(y, x, flag, curses.A_BOLD | uiTools.getColor(flagColor))
+            x += len(flag)
+            
+            if i < len(self.vals["tor/flags"]) - 1:
+              self.addstr(y, x, ", ")
+              x += 2
+        else:
+          self.addstr(y, x, "none", curses.A_BOLD | uiTools.getColor("cyan"))
       else:
+        y = 2 if isWide else 4
         statusTime = torTools.getConn().getStatus()[1]
         statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
-        msg = "<b><red>Tor Disconnected</red></b> (%s) - press r to reconnect" % statusTimeLabel
-        self.addfstr(2 if isWide else 4, 0, msg)
+        self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
+        self.addstr(y, 16, " (%s) - press r to reconnect" % statusTimeLabel)
       
       # Undisplayed / Line 3 Right (exit policy)
       if isWide:
@@ -273,18 +287,27 @@ class HeaderPanel(panel.Panel, threading.Thread):
         if exitPolicy == "": exitPolicy = "<default>"
         elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
         
+        self.addstr(2, leftWidth, "exit policy: ")
+        x = leftWidth + 13
+        
         # color codes accepts to be green, rejects to be red, and default marker to be cyan
         isSimple = len(exitPolicy) > rightWidth - 13
         policies = exitPolicy.split(", ")
         for i in range(len(policies)):
           policy = policies[i].strip()
-          displayedPolicy = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
-          if policy.startswith("accept"): policy = "<green><b>%s</b></green>" % displayedPolicy
-          elif policy.startswith("reject"): policy = "<red><b>%s</b></red>" % displayedPolicy
-          elif policy.startswith("<default>"): policy = "<cyan><b>%s</b></cyan>" % displayedPolicy
-          policies[i] = policy
-        
-        self.addfstr(2, leftWidth, "exit policy: %s" % ", ".join(policies))
+          policyLabel = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
+          
+          policyColor = "white"
+          if policy.startswith("accept"): policyColor = "green"
+          elif policy.startswith("reject"): policyColor = "red"
+          elif policy.startswith("<default>"): policyColor = "cyan"
+          
+          self.addstr(2, x, policyLabel, curses.A_BOLD | uiTools.getColor(policyColor))
+          x += len(policyLabel)
+          
+          if i < len(policies) - 1:
+            self.addstr(2, x, ", ")
+            x += 2
     else:
       # Client only
       # TODO: not sure what information to provide here...
