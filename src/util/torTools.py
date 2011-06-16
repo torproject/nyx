@@ -20,9 +20,6 @@ from util import enum, log, procTools, sysTools, uiTools
 # CLOSED - control port closed
 State = enum.Enum("INIT", "CLOSED")
 
-# enums for authentication on the tor control port
-AUTH_TYPE = enum.Enum("NONE", "COOKIE", "PASSWORD")
-
 # Addresses of the default directory authorities for tor version 0.2.3.0-alpha
 # (this comes from the dirservers array in src/or/config.c).
 DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
@@ -297,45 +294,6 @@ def parseVersion(versionStr):
     except ValueError: pass
   
   return result
-
-def getConnectionComponents(controlAddr="127.0.0.1", controlPort=9051):
-  """
-  Provides an uninitiated torctl connection for the control port. This returns
-  a tuple with the...
-  (torctl connection, authType, authValue)
-  
-  The authValue corresponds to the cookie path if using an authentication
-  cookie. Otherwise this is the empty string. This raises an IOError if unable
-  to connect.
-  
-  Arguments:
-    controlAddr - ip address belonging to the controller
-    controlPort - port belonging to the controller
-  """
-  
-  try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = TorCtl.Connection(s)
-    authType, authValue = conn.get_auth_type(), ""
-    
-    if authType == TorCtl.AUTH_TYPE.COOKIE:
-      authValue = conn.get_auth_cookie_path()
-    
-    # converts to our enum type
-    if authType == TorCtl.AUTH_TYPE.NONE:
-      authType = AUTH_TYPE.NONE
-    elif authType == TorCtl.AUTH_TYPE.COOKIE:
-      authType = AUTH_TYPE.COOKIE
-    elif authType == TorCtl.AUTH_TYPE.PASSWORD:
-      authType = AUTH_TYPE.PASSWORD
-    
-    return (conn, authType, authValue)
-  except socket.error, exc:
-    if "Connection refused" in exc.args:
-      raise IOError("Connection refused. Is the ControlPort enabled?")
-    else: raise IOError("Failed to establish socket: %s" % exc)
-  except Exception, exc: raise IOError(exc)
 
 def getConn():
   """

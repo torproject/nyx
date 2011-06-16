@@ -19,6 +19,8 @@ import time
 import curses
 import threading
 
+import TorCtl.TorCtl
+
 import cli.popups
 
 from util import log, panel, sysTools, torTools, uiTools
@@ -117,9 +119,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('r'), ord('R')) and not self._isTorConnected:
       try:
         ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-        tmpConn, authType, authValue = torTools.getConnectionComponents(ctlAddr, ctlPort)
+        tmpConn, authType, authValue = TorCtl.TorCtl.connectionComp(ctlAddr, ctlPort)
         
-        if authType == torTools.AUTH_TYPE.PASSWORD:
+        if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
           authValue = cli.popups.inputPrompt("Controller Password: ")
           if not authValue: raise IOError() # cancel reconnection
         
