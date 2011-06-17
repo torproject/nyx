@@ -113,10 +113,24 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/orPort"]: return 4 if isWide else 6
     else: return 3 if isWide else 4
   
+  def sendNewnym(self):
+    """
+    Requests a new identity and provides a visual queue.
+    """
+    
+    torTools.getConn().sendNewnym()
+    
+    # If we're wide then the newnym label in this panel will give an
+    # indication that the signal was sent. Otherwise use a msg.
+    isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
+    if not isWide: cli.popups.showMsg("Requesting a new identity", 1)
+  
   def handleKey(self, key):
     isKeystrokeConsumed = True
     
-    if key in (ord('r'), ord('R')) and not self._isTorConnected:
+    if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
+      self.sendNewnym()
+    elif key in (ord('r'), ord('R')) and not self._isTorConnected:
       try:
         ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
         tmpConn, authType, authValue = TorCtl.TorCtl.connectionComp(ctlAddr, ctlPort)
@@ -309,9 +323,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
             self.addstr(2, x, ", ")
             x += 2
     else:
-      # Client only
-      # TODO: not sure what information to provide here...
-      pass
+      # (Client only) Undisplayed / Line 2 Right (new identity option)
+      if isWide:
+        conn = torTools.getConn()
+        newnymWait = conn.getNewnymWait()
+        
+        msg = "press 'n' for a new identity"
+        if newnymWait > 0:
+          pluralLabel = "s" if newnymWait > 1 else ""
+          msg = "building circuits, available again in %i second%s" % (newnymWait, pluralLabel)
+        
+        self.addstr(1, leftWidth, msg)
     
     self.valsLock.release()
   

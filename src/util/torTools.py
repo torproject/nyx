@@ -6,6 +6,7 @@ accessing TorCtl and notifications of state changes to subscribers.
 import os
 import pwd
 import time
+import math
 import socket
 import thread
 import threading
@@ -411,6 +412,9 @@ class Controller(TorCtl.PostEventListener):
       self._status = State.INIT
       self._statusTime = time.time()
       
+      # time that we sent our last newnym signal
+      self._lastNewnym = 0
+      
       # notifies listeners that a new controller is available
       if not NO_SPAWN:
         self._notificationQueue.put(State.INIT)
@@ -713,6 +717,36 @@ class Controller(TorCtl.PostEventListener):
     log.log(CONFIG["log.torSetConf"], msg)
     
     if raisedExc: raise raisedExc
+  
+  def sendNewnym(self):
+    """
+    Sends a newnym request to Tor. These are rate limited so if it occures
+    more than once within a ten second window then the second is delayed.
+    """
+    
+    self.connLock.acquire()
+    
+    if self.isAlive():
+      self._lastNewnym = time.time()
+      self.conn.send_signal("NEWNYM")
+    
+    self.connLock.release()
+  
+  def isNewnymAvailable(self):
+    """
+    True if Tor will immediately respect a newnym request, false otherwise.
+    """
+    
+    return self.getNewnymWait() == 0
+  
+  def getNewnymWait(self):
+    """
+    Provides the number of seconds until a newnym signal would be respected.
+    """
+    
+    # newnym signals can occure at the rate of one every ten seconds
+    # TODO: this can't take other controllers into account :(
+    return max(0, math.ceil(self._lastNewnym + 10 - time.time()))
   
   def getCircuits(self, default = []):
     """

@@ -42,14 +42,17 @@ def makeActionsMenu():
   """
   Submenu consisting of...
     Close Menu
+    New Identity
     Pause / Unpause
     Reset Tor
     Exit
   """
   
   control = cli.controller.getController()
+  headerPanel = control.getPanel("header")
   actionsMenu = cli.menu.item.Submenu("Actions")
   actionsMenu.add(cli.menu.item.MenuItem("Close Menu", None))
+  actionsMenu.add(cli.menu.item.MenuItem("New Identity", headerPanel.sendNewnym))
   
   if control.isPaused(): label, arg = "Unpause", False
   else: label, arg = "Pause", True
