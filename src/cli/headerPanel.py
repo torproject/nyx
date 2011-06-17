@@ -183,7 +183,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
     # Line 2 / Line 2 Left (tor ip/port information)
-    x = 0
+    x, includeControlPort = 0, True
     if self.vals["tor/orPort"]:
       myAddress = "Unknown"
       if self.vals["tor/orListenAddr"]: myAddress = self.vals["tor/orListenAddr"]
@@ -198,21 +198,29 @@ class HeaderPanel(panel.Panel, threading.Thread):
         else: break
     else:
       # non-relay (client only)
-      # TODO: not sure what sort of stats to provide...
-      self.addstr(1, x, "Relaying Disabled", curses.A_BOLD | uiTools.getColor("red"))
-      x += 17
+      if self._isTorConnected:
+        self.addstr(1, x, "Relaying Disabled", uiTools.getColor("cyan"))
+        x += 17
+      else:
+        statusTime = torTools.getConn().getStatus()[1]
+        statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
+        self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
+        self.addstr(1, x + 16, " (%s, press r to reconnect)" % statusTimeLabel)
+        x += 41 + len(statusTimeLabel)
+        includeControlPort = False
     
-    if self.vals["tor/isAuthPassword"]: authType = "password"
-    elif self.vals["tor/isAuthCookie"]: authType = "cookie"
-    else: authType = "open"
-    
-    if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
-      authColor = "red" if authType == "open" else "green"
-      self.addstr(1, x, ", Control Port (")
-      self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
-      self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
-    elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
-      self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
+    if includeControlPort:
+      if self.vals["tor/isAuthPassword"]: authType = "password"
+      elif self.vals["tor/isAuthCookie"]: authType = "cookie"
+      else: authType = "open"
+      
+      if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
+        authColor = "red" if authType == "open" else "green"
+        self.addstr(1, x, ", Control Port (")
+        self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
+        self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
+      elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
+        self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
