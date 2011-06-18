@@ -3,6 +3,7 @@
 # and provided with the tarball to avoid complicating the install process.
 # 
 # TorCtl (https://gitweb.torproject.org/pytorctl.git)
+#   6/18/11 - 5460adb1394c368ba492cc33d6681618b3d3062b3f5f70b2a87520fc291701c3
 #   6/10/11 - be583e53b2bccf09a7126c5271f9af5682447903b6ac92cf1cf78ca5b35273ed
 # 
 # cagraph (https://code.google.com/p/cagraph/)
