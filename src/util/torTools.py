@@ -1629,7 +1629,7 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # fetch the current network status if not provided
       if not nsList:
-        try: nsList = self.conn.get_network_status(getIterator=True)
+        try: nsList = self.conn.get_network_status(get_iterator=True)
         except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
       
       # construct mappings of ips to relay data

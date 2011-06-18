@@ -133,7 +133,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
       try:
         ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-        tmpConn, authType, authValue = TorCtl.TorCtl.connectionComp(ctlAddr, ctlPort)
+        tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
         
         if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
           authValue = cli.popups.inputPrompt("Controller Password: ")

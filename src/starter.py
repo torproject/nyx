@@ -358,7 +358,7 @@ if __name__ == '__main__':
     # making this a much bigger hack).
     
     try:
-      tmpConn, authType, cookiePath = TorCtl.TorCtl.connectionComp(controlAddr, controlPort)
+      tmpConn, authType, cookiePath = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
       
       if authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
         torPid = util.torTools.getPid(controlPort)
