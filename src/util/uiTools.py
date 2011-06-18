@@ -242,13 +242,22 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   
   # checks if there isn't the minimum space needed to include anything
   lastWordbreak = msg.rfind(" ", 0, size + 1)
-  lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
-  if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
-    if getRemainder: return ("", msg)
-    else: return ""
   
-  if minWordLen == None: minWordLen = sys.maxint
-  includeCrop = size - lastWordbreak - 1 >= minWordLen
+  if lastWordbreak == -1:
+    # we're splitting the first word
+    if minWordLen == None or size < minWordLen:
+      if getRemainder: return ("", msg)
+      else: return ""
+    
+    includeCrop = True
+  else:
+    lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
+    if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
+      if getRemainder: return ("", msg)
+      else: return ""
+    
+    if minWordLen == None: minWordLen = sys.maxint
+    includeCrop = size - lastWordbreak - 1 >= minWordLen
   
   # if there's a max crop size then make sure we're cropping at least that many characters
   if includeCrop and minCrop:
