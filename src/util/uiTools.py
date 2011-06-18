@@ -315,18 +315,18 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   
   # draws the top and bottom
-  panel.hline(top, left + 1, width - 1, attr)
-  panel.hline(top + height - 1, left + 1, width - 1, attr)
+  panel.hline(top, left + 1, width - 2, attr)
+  panel.hline(top + height - 1, left + 1, width - 2, attr)
   
   # draws the left and right sides
   panel.vline(top + 1, left, height - 2, attr)
-  panel.vline(top + 1, left + width, height - 2, attr)
+  panel.vline(top + 1, left + width - 1, height - 2, attr)
   
   # draws the corners
   panel.addch(top, left, curses.ACS_ULCORNER, attr)
-  panel.addch(top, left + width, curses.ACS_URCORNER, attr)
+  panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
   panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
-  panel.addch(top + height - 1, left + width, curses.ACS_LRCORNER, attr)
+  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, attr)
 
 def isSelectionKey(key):
   """

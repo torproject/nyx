@@ -403,7 +403,7 @@ class Panel():
     try:
       if forceRedraw:
         self.win.erase() # clears any old contents
-        self.draw(self.maxX - 1, self.maxY)
+        self.draw(self.maxX, self.maxY)
       self.win.refresh()
     finally:
       CURSES_LOCK.release()
