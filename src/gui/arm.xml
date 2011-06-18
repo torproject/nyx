@@ -303,7 +303,7 @@
                         <child>
                           <object class="GtkLabel" id="label_graph_top">
                             <property name="visible">True</property>
-                            <property name="label" translatable="yes">Limit: 40 Mb/s, Burst: 80 Mb/s</property>
+                            <property name="label" translatable="yes">Limit: 0 B/s, Burst: 0 B/s</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -321,7 +321,7 @@
                                 <child>
                                   <object class="GtkLabel" id="label_graph_primary_top">
                                     <property name="visible">True</property>
-                                    <property name="label" translatable="yes">Download (0.0 b/sec)</property>
+                                    <property name="label" translatable="yes">Download: 0.00 Kb/s</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -344,7 +344,7 @@
                                 <child>
                                   <object class="GtkLabel" id="label_graph_primary_bottom">
                                     <property name="visible">True</property>
-                                    <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
+                                    <property name="label" translatable="yes">avg: 0.00 b/s, total: 0.00 B</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -364,7 +364,7 @@
                                 <child>
                                   <object class="GtkLabel" id="label_graph_secondary_top">
                                     <property name="visible">True</property>
-                                    <property name="label" translatable="yes">Upload (0.0 b/sec)</property>
+                                    <property name="label" translatable="yes">Upload: 0.00 Kb/s</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -387,7 +387,7 @@
                                 <child>
                                   <object class="GtkLabel" id="label_graph_secondary_bottom">
                                     <property name="visible">True</property>
-                                    <property name="label" translatable="yes">avg: 3.5 Kb/sec, total: 2.0 MB</property>
+                                    <property name="label" translatable="yes">avg: 0.00 KB/s, total: 0.00 MB</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>

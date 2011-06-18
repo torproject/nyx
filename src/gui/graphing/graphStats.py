@@ -11,19 +11,23 @@ import gobject
 import gtk
 
 from TorCtl import TorCtl
-from util import torTools
+from util import uiTools, torTools
 
 GRAPH_INTERVAL = 30
 
 class GraphStats(TorCtl.PostEventListener):
-  def __init__(self, widgets):
+  def __init__(self, builder, widgets):
     TorCtl.PostEventListener.__init__(self)
 
+    self.builder = builder
     self.widgets = widgets
 
     self.data = {
-        'primary'   : deque([0] * GRAPH_INTERVAL),
-        'secondary' : deque([0] * GRAPH_INTERVAL)}
+        'primary'   : deque([0.0] * GRAPH_INTERVAL),
+        'secondary' : deque([0.0] * GRAPH_INTERVAL)}
+
+    self.total = {'primary': 0.0,  'secondary' : 0.0}
+    self.ticks = {'primary': 0,  'secondary' : 0}
 
   def get_graph_data(self, name):
     packed_data = []
@@ -51,11 +55,38 @@ class GraphStats(TorCtl.PostEventListener):
           graph.auto_set_yrange(index)
 
     graph.queue_draw()
+
     return True
 
+  def update_labels(self, name):
+    avg = 0
+
+    try:
+      avg = self.total[name] / float(self.ticks[name])
+    except ZeroDivisionError:
+      pass
+
+    msg = "avg: %s/s, total: %s" % (uiTools.getSizeLabel(avg, 2, isBytes=False),
+                                    uiTools.getSizeLabel(self.total[name], 2))
+    label = self.builder.get_object('label_graph_%s_bottom' % name)
+    label.set_text(msg)
+
+    return True
+
+  def update_header(self, name, msg):
+    label = self.builder.get_object('label_graph_%s_top' % name)
+    label.set_text(msg)
+
   def _processEvent(self, primary, secondary):
-    self.data['primary'].rotate(1)
-    self.data['primary'][0] = primary
-    self.data['secondary'].rotate(1)
-    self.data['secondary'][0] = secondary
+    values = {'primary' : primary, 'secondary' : secondary}
+
+    for name in ('primary', 'secondary'):
+      # right shift and store kbytes in left-most location
+      self.data[name].rotate(1)
+      self.data[name][0] = values[name] / 1024
+
+      self.total[name] = self.total[name] + values[name]
+
+      if values[name] > 0:
+        self.ticks[name] = self.ticks[name] + 1
 

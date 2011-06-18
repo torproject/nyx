@@ -26,10 +26,12 @@ class GuiController:
     self._pack_graph_widget('primary')
     self._pack_graph_widget('secondary')
 
-    self.bwStats = bandwidthStats.BandwidthStats(self.widgets)
+    self.bwStats = bandwidthStats.BandwidthStats(self.builder, self.widgets)
 
     gobject.timeout_add(1000, self.bwStats.draw_graph, 'primary')
     gobject.timeout_add(1000, self.bwStats.draw_graph, 'secondary')
+    gobject.timeout_add(1000, self.bwStats.update_labels, 'primary')
+    gobject.timeout_add(1000, self.bwStats.update_labels, 'secondary')
 
   def run(self):
     window = self.builder.get_object('window_main')
