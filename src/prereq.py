@@ -12,9 +12,9 @@ import tempfile
 
 # Library dependencies can be fetched on request. By default this is via
 # the following mirrors with their sha256 signatures checked.
-TORCTL_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-6-10/torctl.tar.gz"
-TORCTL_SIG = "be583e53b2bccf09a7126c5271f9af5682447903b6ac92cf1cf78ca5b35273ed"
-CAGRAPH_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-6-10/cagraph.tar.gz"
+TORCTL_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-06-16/torctl.tar.gz"
+TORCTL_SIG = "5460adb1394c368ba492cc33d6681618b3d3062b3f5f70b2a87520fc291701c3"
+CAGRAPH_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-06-10/cagraph.tar.gz"
 CAGRAPH_SIG = "1439acd40ce016f4329deb216d86f36a749e4b8bf73a313a757396af6f95310d"
 
 # optionally we can do an unverified fetch from the library's sources
