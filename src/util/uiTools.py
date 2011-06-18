@@ -273,7 +273,8 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
-  if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
+  if not getRemainder and returnMsg and returnMsg[-1] in (",", "."):
+    returnMsg = returnMsg[:-1]
   
   if endType == Ending.ELLIPSE:
     returnMsg = returnMsg.rstrip() + "..."
