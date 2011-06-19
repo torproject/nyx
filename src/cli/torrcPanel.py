@@ -42,7 +42,9 @@ class TorrcPanel(panel.Panel):
     self._lastContentHeightArgs = None
     
     # listens for tor reload (sighup) events
-    torTools.getConn().addStatusListener(self.resetListener)
+    conn = torTools.getConn()
+    conn.addStatusListener(self.resetListener)
+    if conn.isAlive(): self.resetListener(conn, torTools.State.INIT)
   
   def resetListener(self, conn, eventType):
     """
@@ -53,7 +55,15 @@ class TorrcPanel(panel.Panel):
       eventType - type of event detected
     """
     
-    if eventType in (torTools.State.INIT, torTools.State.RESET):
+    if eventType == torTools.State.INIT:
+      # loads the torrc and provides warnings in case of validation errors
+      try:
+        loadedTorrc = torConfig.getTorrc()
+        loadedTorrc.load(True)
+        loadedTorrc.logValidationIssues()
+        self.redraw(True)
+      except: pass
+    elif eventType == torTools.State.RESET:
       try:
         torConfig.getTorrc().load(True)
         self.redraw(True)

@@ -110,7 +110,7 @@ def initController(stdscr, startTime):
     except ValueError: pass # invalid stats, maybe connections when in blind mode
     
     # prepopulates bandwidth values from state file
-    if CONFIG["features.graph.bw.prepopulate"]:
+    if CONFIG["features.graph.bw.prepopulate"] and torTools.getConn().isAlive():
       isSuccessful = bwStats.prepopulateFromState()
       if isSuccessful: graphPanel.updateInterval = 4
 
@@ -461,7 +461,7 @@ def startTorMonitor(startTime):
   conn = torTools.getConn()
   torPid = conn.getMyPid()
   
-  if not torPid:
+  if not torPid and conn.isAlive():
     msg = "Unable to determine Tor's pid. Some information, like its resource usage will be unavailable."
     log.log(CONFIG["log.unknownTorPid"], msg)
   
@@ -489,13 +489,6 @@ def startTorMonitor(startTime):
     
     # hack to display a better (arm specific) notice if all resolvers fail
     connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
-  
-  # loads the torrc and provides warnings in case of validation errors
-  try:
-    loadedTorrc = torConfig.getTorrc()
-    loadedTorrc.load(True)
-    loadedTorrc.logValidationIssues()
-  except IOError: pass
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = cli.logPanel.getMissingEventTypes()

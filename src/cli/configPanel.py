@@ -201,9 +201,7 @@ class ConfigPanel(panel.Panel):
     # initializes config contents if we're connected
     conn = torTools.getConn()
     conn.addStatusListener(self.resetListener)
-    
-    if conn.isAlive():
-      self.resetListener(conn, torTools.State.INIT)
+    if conn.isAlive(): self.resetListener(conn, torTools.State.INIT)
   
   def resetListener(self, conn, eventType):
     # fetches configuration options if a new instance, otherewise keeps our
