@@ -105,6 +105,10 @@ PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/
 
 NO_SPAWN = False
 
+# Flag to indicate if we're handling our first init signal. This is for
+# startup performance so we don't introduce a sleep while initializing.
+IS_STARTUP_SIGNAL = True
+
 def loadConfig(config):
   config.update(CONFIG)
 
@@ -2027,11 +2031,15 @@ class Controller(TorCtl.PostEventListener):
       eventType - enum representing tor's new status
     """
     
+    global IS_STARTUP_SIGNAL
+    
     # If there's a quick race state (for instance a sighup causing both an init
     # and close event) then give them a moment to enqueue. This way we can
     # coles the events and discard the inaccurate one.
     
-    time.sleep(0.2)
+    if not IS_STARTUP_SIGNAL:
+      time.sleep(0.2)
+    else: IS_STARTUP_SIGNAL = False
     
     self.connLock.acquire()
     
