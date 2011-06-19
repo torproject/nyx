@@ -482,7 +482,10 @@ def startTorMonitor(startTime):
       # use the tor pid to help narrow connection results
       torCmdName = sysTools.getProcessName(torPid, "tor")
       connections.getResolver(torCmdName, torPid, "tor")
-    else: connections.getResolver("tor")
+    else:
+      # constructs singleton resolver and, if tor isn't connected, initizes
+      # it to be paused
+      connections.getResolver("tor").setPaused(not conn.isAlive())
     
     # hack to display a better (arm specific) notice if all resolvers fail
     connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
