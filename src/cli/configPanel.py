@@ -190,12 +190,35 @@ class ConfigPanel(panel.Panel):
     
     self.configType = configType
     self.confContents = []
+    self.confImportantContents = []
     self.scroller = uiTools.Scroller(True)
     self.valsLock = threading.RLock()
     
     # shows all configuration options if true, otherwise only the ones with
     # the 'important' flag are shown
     self.showAll = False
+    
+    # initializes config contents if we're connected
+    conn = torTools.getConn()
+    conn.addStatusListener(self.resetListener)
+    
+    if conn.isAlive():
+      self.resetListener(conn, torTools.State.INIT)
+  
+  def resetListener(self, conn, eventType):
+    # fetches configuration options if a new instance, otherewise keeps our
+    # current contents
+    
+    if eventType == torTools.State.INIT:
+      self._loadConfigOptions()
+  
+  def _loadConfigOptions(self):
+    """
+    Fetches the configuration options available from tor or arm.
+    """
+    
+    self.confContents = []
+    self.confImportantContents = []
     
     if self.configType == State.TOR:
       conn, configOptionLines = torTools.getConn(), []
