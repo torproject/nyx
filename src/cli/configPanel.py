@@ -198,9 +198,12 @@ class ConfigPanel(panel.Panel):
     self.showAll = False
     
     if self.configType == State.TOR:
-      conn = torTools.getConn()
+      conn, configOptionLines = torTools.getConn(), []
       customOptions = torConfig.getCustomOptions()
-      configOptionLines = conn.getInfo("config/names", "").strip().split("\n")
+      configOptionQuery = conn.getInfo("config/names")
+      
+      if configOptionQuery:
+        configOptionLines = configOptionQuery.strip().split("\n")
       
       for line in configOptionLines:
         # lines are of the form "<option> <type>[ <documentation>]", like:
@@ -484,7 +487,8 @@ class ConfigPanel(panel.Panel):
       cursorSelection = self.getSelection()
       isScrollbarVisible = len(self._getConfigOptions()) > height - detailPanelHeight - 1
       
-      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
+      if cursorSelection != None:
+        self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
     
     # draws the top label
     if self.isTitleVisible():

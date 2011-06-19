@@ -17,9 +17,10 @@ from TorCtl import TorCtl, TorUtil
 from util import enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
-# INIT - attached to a new controller or restart/sighup signal received
+# INIT - attached to a new controller
+# RESET - received a reset/sighup signal
 # CLOSED - control port closed
-State = enum.Enum("INIT", "CLOSED")
+State = enum.Enum("INIT", "RESET", "CLOSED")
 
 # Addresses of the default directory authorities for tor version 0.2.3.0-alpha
 # (this comes from the dirservers array in src/or/config.c).
@@ -1068,7 +1069,7 @@ class Controller(TorCtl.PostEventListener):
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
       else:
         # no ORPort is set so all relaying is disabled
-        result = ExitPolicy("reject *:*")
+        result = ExitPolicy("reject *:*", None)
     
     self.connLock.release()
     
@@ -1469,11 +1470,11 @@ class Controller(TorCtl.PostEventListener):
       if self.isAlive():
         self._isReset = True
         
-        self._status = State.INIT
+        self._status = State.RESET
         self._statusTime = time.time()
         
         if not NO_SPAWN:
-          self._notificationQueue.put(State.INIT)
+          self._notificationQueue.put(State.RESET)
           thread.start_new_thread(self._notifyStatusListeners, ())
       
       self.connLock.release()
@@ -2038,7 +2039,7 @@ class Controller(TorCtl.PostEventListener):
       eventType = self._notificationQueue.get(timeout=0)
       
       # checks that the notice is accurate for our current state
-      if self.isAlive() != (eventType == State.INIT):
+      if self.isAlive() != (eventType in (State.INIT, State.RESET)):
         eventType = None
     except Queue.Empty:
       eventType = None

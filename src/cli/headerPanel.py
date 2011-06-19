@@ -65,7 +65,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config)
     
-    self._isTorConnected = True
+    self._isTorConnected = torTools.getConn().isAlive()
     self._lastUpdate = -1       # time the content was last revised
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -405,7 +405,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       self._isTorConnected = True
       self._haltTime = None
       self._update(True)

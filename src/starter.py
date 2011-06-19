@@ -40,6 +40,7 @@ CONFIG = {"startup.controlPassword": None,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
+          "features.allowDetachedStartup": False,
           "features.config.descriptions.enabled": True,
           "features.config.descriptions.persist": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
@@ -216,7 +217,7 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       # again prompting for the user to enter it
       print incorrectPasswordMsg
       return _torCtlConnect(controlAddr, controlPort)
-    else:
+    elif not CONFIG["features.allowDetachedStartup"]:
       print exc
       return None
 
@@ -388,7 +389,7 @@ if __name__ == '__main__':
   authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
   incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
   conn = _torCtlConnect(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
-  if conn == None: sys.exit(1)
+  if conn == None and not CONFIG["features.allowDetachedStartup"]: sys.exit(1)
   
   # removing references to the controller password so the memory can be freed
   # (unfortunately python does allow for direct access to the memory so this
@@ -410,7 +411,7 @@ if __name__ == '__main__':
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
   controller = util.torTools.getConn()
-  controller.init(conn)
+  if conn: controller.init(conn)
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)

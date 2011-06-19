@@ -53,7 +53,7 @@ class TorrcPanel(panel.Panel):
       eventType - type of event detected
     """
     
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       try:
         torConfig.getTorrc().load(True)
         self.redraw(True)

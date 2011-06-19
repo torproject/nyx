@@ -56,6 +56,10 @@ features.redrawRate 5
 # Confirms promt to confirm when quiting if true
 features.confirmQuit true
 
+# Allows arm to start when there's no running tor instance if true, otherwise
+# we terminate right away.
+features.allowDetachedStartup false
+
 # Paremters for the log panel
 # ---------------------------
 # showDateDividers

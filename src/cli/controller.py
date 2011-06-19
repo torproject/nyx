@@ -435,7 +435,7 @@ def connResetListener(conn, eventType):
     resolver = connections.getResolver("tor")
     resolver.setPaused(eventType == torTools.State.CLOSED)
     
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       torPid = conn.getMyPid()
       
       if torPid and torPid != resolver.getPid():

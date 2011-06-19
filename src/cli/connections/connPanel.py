@@ -90,7 +90,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    self._isTorRunning = eventType == torTools.State.INIT
+    self._isTorRunning = eventType in (torTools.State.INIT, torTools.State.RESET)
     
     if self._isTorRunning: self._haltTime = None
     else: self._haltTime = time.time()
