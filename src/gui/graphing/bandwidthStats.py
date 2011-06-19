@@ -12,8 +12,8 @@ from gui.graphing import graphStats
 from util import uiTools, torTools
 
 class BandwidthStats(graphStats.GraphStats):
-  def __init__(self, builder, widgets):
-    graphStats.GraphStats.__init__(self, builder, widgets)
+  def __init__(self, builder):
+    graphStats.GraphStats.__init__(self, builder)
 
     conn = torTools.getConn()
     if not conn.isAlive():
