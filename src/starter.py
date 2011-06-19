@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import getopt
+import getpass
 import locale
 import platform
 
@@ -176,6 +177,49 @@ def _loadConfigurationDescriptions(pathPrefix):
         msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
+def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
+  """
+  Custom handler for establishing a TorCtl connection.
+  """
+  
+  conn = None
+  try:
+    conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
+    
+    if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
+      # password authentication, promting for the password if it wasn't provided
+      if passphrase: authValue = passphrase
+      else:
+        try: authValue = getpass.getpass("Controller password: ")
+        except KeyboardInterrupt: return None
+    elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE and authValue[0] != "/":
+      # Connecting to the control port will probably fail if it's using cookie
+      # authentication and the cookie path is relative (unfortunately this is
+      # the case for TBB). This is discussed in:
+      # https://trac.torproject.org/projects/tor/ticket/1101
+      #
+      # This is best effort. If we can't expand the path then it's still
+      # attempted since we might be running in tor's pwd.
+      
+      torPid = util.torTools.getPid(controlPort)
+      if torPid:
+        try: conn._cookiePath = util.sysTools.expandRelativePath(authValue, torPid)
+        except IOError: pass
+    
+    conn.authenticate(authValue)
+    return conn
+  except Exception, exc:
+    if conn: conn.close()
+    
+    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
+      # provide a warning that the provided password didn't work, then try
+      # again prompting for the user to enter it
+      print incorrectPasswordMsg
+      return _torCtlConnect(controlAddr, controlPort)
+    else:
+      print exc
+      return None
+
 def _dumpConfig():
   """
   Dumps the current arm and tor configurations at the DEBUG runlevel. This
@@ -341,36 +385,10 @@ if __name__ == '__main__':
   
   # sets up TorCtl connection, prompting for the passphrase if necessary and
   # sending problems to stdout if they arise
-  TorCtl.TorCtl.INCORRECT_PASSWORD_MSG = "Controller password found in '%s' was incorrect" % configPath
   authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
-  conn = TorCtl.TorCtl.connect(controlAddr, controlPort, authPassword)
-  if conn == None:
-    # Connecting to the control port will probably fail if it's using cookie
-    # authentication and the cookie path is relative (unfortunately this is
-    # the case for TBB). This is discussed in:
-    # https://trac.torproject.org/projects/tor/ticket/1101
-    #
-    # Until this is fixed including a hack to expand the relative path in
-    # these cases, setting conn to the established connection if successful
-    # and leaving it undefined otherwise. Even if successful this prints the
-    # error message saying that the auth cookie couldn't be found
-    # (unfortunately this is unavoidable without either changing TorCtl or
-    # making this a much bigger hack).
-    
-    try:
-      tmpConn, authType, cookiePath = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
-      
-      if authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
-        torPid = util.torTools.getPid(controlPort)
-        
-        if torPid and cookiePath[0] != "/":
-          # previous attempt to connect failed due to having a relative path - fix it
-          tmpConn._cookiePath = util.sysTools.expandRelativePath(cookiePath, torPid)
-          tmpConn.authenticate(cookiePath)
-          conn = tmpConn # success!
-    except: pass
-    
-    if conn == None: sys.exit(1)
+  incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
+  conn = _torCtlConnect(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
+  if conn == None: sys.exit(1)
   
   # removing references to the controller password so the memory can be freed
   # (unfortunately python does allow for direct access to the memory so this
