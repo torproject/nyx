@@ -173,12 +173,13 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     contentSpace = leftWidth - 43
     if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= contentSpace:
-      versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
-          self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
-      labelPrefix = "Tor %s (" % self.vals["tor/version"]
-      self.addstr(0, 43, labelPrefix)
-      self.addstr(0, 43 + len(labelPrefix), self.vals["tor/versionStatus"], uiTools.getColor(versionColor))
-      self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
+      if self.vals["tor/version"] != "Unknown":
+        versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
+            self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
+        labelPrefix = "Tor %s (" % self.vals["tor/version"]
+        self.addstr(0, 43, labelPrefix)
+        self.addstr(0, 43 + len(labelPrefix), self.vals["tor/versionStatus"], uiTools.getColor(versionColor))
+        self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
     elif 11 <= contentSpace:
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
