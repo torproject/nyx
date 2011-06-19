@@ -76,6 +76,8 @@ features.confirmQuit true
 # maxRefreshRate
 #   rate limiting (in milliseconds) for drawing the log if updates are made
 #   rapidly (for instance, when at the DEBUG runlevel)
+# regex
+#   preconfigured regular expression pattern, up to five will be loaded
 
 features.log.showDateDividers true
 features.log.showDuplicateEntries false
@@ -84,6 +86,8 @@ features.log.maxLinesPerEntry 4
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
+#features.log.regex My First Regex Pattern
+#features.log.regex ^My Second Regex Pattern$
 
 # Paremters for the config panel
 # ---------------------------
