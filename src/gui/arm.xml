@@ -134,6 +134,18 @@
       </row>
     </data>
   </object>
+  <object class="GtkListStore" id="liststore_log">
+    <columns>
+      <!-- column-name timestamp -->
+      <column type="gchararray"/>
+      <!-- column-name type -->
+      <column type="gchararray"/>
+      <!-- column-name msg -->
+      <column type="gchararray"/>
+      <!-- column-name foreground -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="window_main">
     <property name="title" translatable="yes">arm</property>
     <property name="default_width">640</property>
@@ -672,10 +684,46 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                 <property name="hscrollbar_policy">automatic</property>
                 <property name="vscrollbar_policy">automatic</property>
                 <child>
-                  <object class="GtkTextView" id="textview_log">
+                  <object class="GtkTreeView" id="treeview_log">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="buffer">textbuffer_log</property>
+                    <property name="model">liststore_log</property>
+                    <child>
+                      <object class="GtkTreeViewColumn" id="treeviewcolumn_log_timestamp">
+                        <property name="title">Time</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="cellrenderertext_log_timestamp"/>
+                          <attributes>
+                            <attribute name="foreground">3</attribute>
+                            <attribute name="markup">0</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkTreeViewColumn" id="treeviewcolumn_log_type">
+                        <property name="title">Type</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="cellrenderertext_log_type"/>
+                          <attributes>
+                            <attribute name="foreground">3</attribute>
+                            <attribute name="markup">1</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkTreeViewColumn" id="treeviewcolumn_msg">
+                        <property name="title">Message</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="cellrenderertext_log_msg"/>
+                          <attributes>
+                            <attribute name="foreground">3</attribute>
+                            <attribute name="markup">2</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>

@@ -4,6 +4,7 @@ Base class for implementing graphing functionality.
 
 import random
 import sys
+import time
 
 from collections import deque
 
@@ -28,24 +29,18 @@ class LogPanel:
     finally:
       log.LOG_LOCK.release()
 
-    textbuffer = self.builder.get_object('textbuffer_log')
-
-    for color in RUNLEVEL_EVENT_COLOR.values():
-      textbuffer.create_tag(color, foreground=color)
-
-    gobject.timeout_add(1000, self.print_log)
-
-  def print_log(self):
-    textbuffer = self.builder.get_object('textbuffer_log')
-    start, end = textbuffer.get_bounds()
-    textbuffer.delete(start, end)
+  def fill_log(self):
+    liststore = self.builder.get_object('liststore_log')
+    liststore.clear()
 
     for entry in self.msgLog:
-      iter = textbuffer.get_iter_at_mark(textbuffer.get_insert())
-      textbuffer.insert_with_tags_by_name(iter, entry.getDisplayMessage() + "\n", entry.color)
+      timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
+      row = (timeLabel, entry.type, entry.msg, entry.color)
+      liststore.append(row)
 
   def register_event(self, event):
     self.msgLog.appendleft(event)
+    self.fill_log()
 
   def pack_widgets(self):
     pass
