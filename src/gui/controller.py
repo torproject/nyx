@@ -1,7 +1,8 @@
 import gobject
 import gtk
 
-from util import torTools
+from util import log, torTools
+from gui import logPanel
 from gui.graphing import bandwidthStats
 
 gobject.threads_init()
@@ -17,13 +18,14 @@ class GuiController:
     self.bwStats = bandwidthStats.BandwidthStats(self.builder)
     self.bwStats.pack_widgets()
 
+    self.logPanel = logPanel.LogPanel(self.builder)
+    self.logPanel.pack_widgets()
+
+    log.log(log.DEBUG, "Hello World!")
+    log.log(log.ERR, "Hello Again!")
+
   def run(self):
     window = self.builder.get_object('window_main')
-
-    textbuffer = self.builder.get_object('textbuffer_log')
-    conn = torTools.getConn()
-    torPid = conn.getMyPid()
-    textbuffer.set_text("Tor pid: %s" % torPid)
 
     window.show_all()
     gtk.main()

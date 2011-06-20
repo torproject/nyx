@@ -692,11 +692,5 @@ each direction. (Default: 0) &lt;/span&gt;</property>
       </object>
     </child>
   </object>
-  <object class="GtkTextBuffer" id="textbuffer_log">
-    <property name="text" translatable="yes">16:09:20 [NOTICE] Bootstrapped 90%: Establishing a Tor circuit.
-16:09:23 [NOTICE] Tor has successfully opened a circuit. Looks like client functionality is working.
-16:09:23 [NOTICE] Tor has successfully opened a circuit. Looks like client functionality is working.
-16:09:24 [NOTICE] Bootstrapped 100%: Done.
-</property>
-  </object>
+  <object class="GtkTextBuffer" id="textbuffer_log"/>
 </interface>
