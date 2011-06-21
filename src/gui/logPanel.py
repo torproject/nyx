@@ -14,7 +14,7 @@ import gtk
 from TorCtl import TorCtl
 from util import log, uiTools, torTools
 
-from cli.logPanel import RUNLEVEL_EVENT_COLOR, LogEntry
+from cli.logPanel import RUNLEVEL_EVENT_COLOR, LogEntry, TorEventObserver
 
 class LogPanel:
   def __init__(self, builder):
@@ -22,12 +22,11 @@ class LogPanel:
 
     self.msgLog = deque()
 
-    log.LOG_LOCK.acquire()
-    try:
-      armRunlevels = [log.DEBUG, log.INFO, log.NOTICE, log.WARN, log.ERR]
-      log.addListeners(armRunlevels, self._register_arm_event)
-    finally:
-      log.LOG_LOCK.release()
+    armRunlevels = [log.DEBUG, log.INFO, log.NOTICE, log.WARN, log.ERR]
+    log.addListeners(armRunlevels, self._register_arm_event)
+
+    conn = torTools.getConn()
+    conn.addEventListener(TorEventObserver(self.register_event))
 
   def fill_log(self):
     liststore = self.builder.get_object('liststore_log')

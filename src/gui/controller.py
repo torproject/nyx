@@ -24,12 +24,7 @@ class GuiController:
     self.logPanel = logPanel.LogPanel(self.builder)
     self.logPanel.pack_widgets()
 
-    def random_entries():
-      while True:
-        log.log(log.DEBUG, "Hello World at %s" % time.asctime(time.localtime()))
-        time.sleep(5)
-
-    thread.start_new_thread(random_entries, ())
+    log.log(log.DEBUG, "Hello world!")
 
   def run(self):
     window = self.builder.get_object('window_main')
