@@ -35,7 +35,7 @@ class LogPanel:
 
     for entry in self.msgLog:
       timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
-      row = (timeLabel, entry.type, entry.msg, entry.color)
+      row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
       liststore.append(row)
 
   def register_event(self, event):
@@ -43,7 +43,16 @@ class LogPanel:
     self.fill_log()
 
   def pack_widgets(self):
-    pass
+    liststore = self.builder.get_object('liststore_log')
+
+    liststore.set_sort_func(1, self._compare_rows)
+    liststore.set_sort_column_id(1, gtk.SORT_DESCENDING)
+
+  def _compare_rows(self, treemodel, iter1, iter2, data=None):
+    timestamp_raw1 = treemodel.get(iter1, 0)
+    timestamp_raw2 = treemodel.get(iter2, 0)
+
+    return cmp(timestamp_raw1, timestamp_raw2)
 
   def _register_arm_event(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]

@@ -136,6 +136,8 @@
   </object>
   <object class="GtkListStore" id="liststore_log">
     <columns>
+      <!-- column-name timestamp_raw -->
+      <column type="gulong"/>
       <!-- column-name timestamp -->
       <column type="gchararray"/>
       <!-- column-name type -->
@@ -691,11 +693,14 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                     <child>
                       <object class="GtkTreeViewColumn" id="treeviewcolumn_log_timestamp">
                         <property name="title">Time</property>
+                        <property name="sort_indicator">True</property>
+                        <property name="sort_order">descending</property>
+                        <property name="sort_column_id">1</property>
                         <child>
                           <object class="GtkCellRendererText" id="cellrenderertext_log_timestamp"/>
                           <attributes>
-                            <attribute name="foreground">3</attribute>
-                            <attribute name="markup">0</attribute>
+                            <attribute name="foreground">4</attribute>
+                            <attribute name="markup">1</attribute>
                           </attributes>
                         </child>
                       </object>
@@ -706,8 +711,8 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                         <child>
                           <object class="GtkCellRendererText" id="cellrenderertext_log_type"/>
                           <attributes>
-                            <attribute name="foreground">3</attribute>
-                            <attribute name="markup">1</attribute>
+                            <attribute name="foreground">4</attribute>
+                            <attribute name="markup">2</attribute>
                           </attributes>
                         </child>
                       </object>
@@ -718,8 +723,8 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                         <child>
                           <object class="GtkCellRendererText" id="cellrenderertext_log_msg"/>
                           <attributes>
-                            <attribute name="foreground">3</attribute>
-                            <attribute name="markup">2</attribute>
+                            <attribute name="foreground">4</attribute>
+                            <attribute name="markup">3</attribute>
                           </attributes>
                         </child>
                       </object>
@@ -740,5 +745,4 @@ each direction. (Default: 0) &lt;/span&gt;</property>
       </object>
     </child>
   </object>
-  <object class="GtkTextBuffer" id="textbuffer_log"/>
 </interface>
