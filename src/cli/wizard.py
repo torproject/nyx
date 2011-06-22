@@ -11,7 +11,7 @@ import cli.controller
 from util import enum, uiTools
 
 # basic configuration types we can run as
-RunType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
+RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # other options provided in the prompts
 CANCEL, BACK = "Cancel", "Back"
@@ -24,16 +24,16 @@ def loadConfig(config):
   config.update(CONFIG)
 
 def showWizard():
-  myRole = promptRunType()
+  myRelayType = promptRelayType()
 
-def promptRunType():
+def promptRelayType():
   """
   Provides a prompt for selecting the general role we'd like Tor to run with.
-  This returns a RunType enumeration for the selection, or None if the dialog
-  was canceled.
+  This returns a RelayType enumeration for the selection, or None if the
+  dialog was canceled.
   """
   
-  popup, _, _ = cli.popups.init(23, 58)
+  popup, _, _ = cli.popups.init(24, 58)
   if not popup: return
   control = cli.controller.getController()
   key, selection = 0, 0
@@ -41,13 +41,13 @@ def promptRunType():
   # constructs (enum, label, [description lines]) tuples for our options
   options = []
   
-  for runType in RunType.values() + [CANCEL]:
+  for runType in RelayType.values() + [CANCEL]:
     label = CONFIG["wizard.role.option.label"].get(runType, "")
     descRemainder = CONFIG["wizard.role.option.description"].get(runType, "")
     descLines = []
     
     while descRemainder:
-      descLine, descRemainder = uiTools.cropStr(descRemainder, 54, None, endType = None, getRemainder = True)
+      descLine, descRemainder = uiTools.cropStr(descRemainder, 52, None, endType = None, getRemainder = True)
       descLines.append(descLine.strip())
     
     options.append((runType, label, descLines))
@@ -70,6 +70,10 @@ def promptRunType():
       for i in range(len(options)):
         _, label, lines = options[i]
         optionFormat = format | curses.A_STANDOUT if i == selection else format
+        
+        # appends an extra space to the start to provide nicer centering
+        label = " " + label
+        lines = [" " + line for line in lines]
         
         # Curses has a weird bug where there's a one-pixel alignment
         # difference between bold and regular text, so it looks better
