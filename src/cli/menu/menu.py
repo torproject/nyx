@@ -109,6 +109,7 @@ def showMenu():
       
       popup.win.refresh()
       
+      curses.cbreak()
       key = control.getScreen().getch()
       cursor.handleKey(key)
       

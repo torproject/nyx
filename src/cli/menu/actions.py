@@ -5,6 +5,7 @@ Generates the menu for arm, binding options with their related actions.
 import functools
 
 import cli.popups
+import cli.wizard
 import cli.controller
 import cli.menu.item
 import cli.graphing.graphPanel
@@ -53,6 +54,7 @@ def makeActionsMenu():
   actionsMenu = cli.menu.item.Submenu("Actions")
   actionsMenu.add(cli.menu.item.MenuItem("Close Menu", None))
   actionsMenu.add(cli.menu.item.MenuItem("New Identity", headerPanel.sendNewnym))
+  actionsMenu.add(cli.menu.item.MenuItem("Setup Wizard", cli.wizard.showWizard))
   
   if control.isPaused(): label, arg = "Unpause", False
   else: label, arg = "Pause", True

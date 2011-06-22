@@ -282,6 +282,17 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
 
+def padStr(msg, size):
+  """
+  Provides the string padded with whitespace to the given length.
+  
+  Arguments:
+    msg  - string to be padded
+    size - length to be padded to
+  """
+  
+  return ("%%-%is" % size) % msg
+
 def camelCase(label, divider = "_", joiner = " "):
   """
   Converts the given string to camel case, ie:

@@ -187,6 +187,7 @@ Layout:
       headerPanel.py         - top of all pages, providing general information
       descriptorPopup.py     - displays connection descriptor data
       popups.py              - toolkit providing display popups
+      wizard.py              - provides the relay setup wizard
       
       logPanel.py            - (page 1) displays tor, arm, and torctl events
       configPanel.py         - (page 3) editor panel for the tor configuration

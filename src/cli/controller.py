@@ -8,6 +8,7 @@ import curses
 import threading
 
 import cli.menu.menu
+import cli.wizard
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -455,6 +456,7 @@ def startTorMonitor(startTime):
   
   cli.graphing.graphPanel.loadConfig(config)
   cli.connections.connEntry.loadConfig(config)
+  cli.wizard.loadConfig(config)
   
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
@@ -536,7 +538,8 @@ def drawTorMonitor(stdscr, startTime):
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
-
+  if not torTools.getConn().isAlive(): overrideKey = ord('w') # shows wizard
+  
   while not control.isDone():
     displayPanels = control.getDisplayPanels()
     isUnresponsive = heartbeatCheck(isUnresponsive)
@@ -593,6 +596,8 @@ def drawTorMonitor(stdscr, startTime):
           log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
       overrideKey = cli.popups.showHelpPopup()
+    elif key == ord('w') or key == ord('W'):
+      cli.wizard.showWizard()
     else:
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
