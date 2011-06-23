@@ -573,18 +573,23 @@ class Panel():
         baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
         raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
   
-  def getstr(self, y, x, initialText = "", format = None):
+  def getstr(self, y, x, initialText = "", format = None, maxWidth = None):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
     this terminates and provides back None. This should only be called from
     the context of a panel's draw method.
     
+    This blanks any content within the space that the input field is rendered
+    (otherwise stray characters would be interpreted as part of the initial
+    input).
+    
     Arguments:
       y           - vertical location
       x           - horizontal location
       initialText - starting text in this field
       format      - format used for the text
+      maxWidth    - maximum width for the text field
     """
     
     if not format: format = curses.A_NORMAL
@@ -595,7 +600,12 @@ class Panel():
     
     # temporary subwindow for user input
     displayWidth = self.getPreferredSize()[1]
+    if maxWidth: displayWidth = min(displayWidth, maxWidth + x)
     inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top + y, self.left + x)
+    
+    # blanks the field's area, filling it with the font in case it's hilighting
+    inputSubwindow.clear()
+    inputSubwindow.bkgd(' ', format)
     
     # prepopulates the initial text
     if initialText:
