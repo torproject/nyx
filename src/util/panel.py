@@ -573,7 +573,7 @@ class Panel():
         baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
         raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
   
-  def getstr(self, y, x, initialText = ""):
+  def getstr(self, y, x, initialText = "", format = None):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
@@ -584,7 +584,10 @@ class Panel():
       y           - vertical location
       x           - horizontal location
       initialText - starting text in this field
+      format      - format used for the text
     """
+    
+    if not format: format = curses.A_NORMAL
     
     # makes cursor visible
     try: previousCursorState = curses.curs_set(1)
@@ -595,7 +598,8 @@ class Panel():
     inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top + y, self.left + x)
     
     # prepopulates the initial text
-    if initialText: inputSubwindow.addstr(0, 0, initialText[:displayWidth - x - 1])
+    if initialText:
+      inputSubwindow.addstr(0, 0, initialText[:displayWidth - x - 1], format)
     
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns userInput to the initial text if the user presses
@@ -609,7 +613,9 @@ class Panel():
     else:
       textbox = curses.textpad.Textbox(inputSubwindow)
     
+    textbox.win.attron(format)
     userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
+    textbox.win.attroff(format)
     if textbox.lastcmd == curses.ascii.BEL: userInput = None
     
     # reverts visability settings
