@@ -592,7 +592,7 @@ class Panel():
     
     # temporary subwindow for user input
     displayWidth = self.getPreferredSize()[1]
-    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, self.left + x)
+    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top + y, self.left + x)
     
     # prepopulates the initial text
     if initialText: inputSubwindow.addstr(0, 0, initialText[:displayWidth - x - 1])
