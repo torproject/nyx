@@ -595,7 +595,7 @@ class Panel():
     inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top, self.left + x)
     
     # prepopulates the initial text
-    if initialText: inputSubwindow.addstr(0, 0, initialText)
+    if initialText: inputSubwindow.addstr(0, 0, initialText[:displayWidth - x - 1])
     
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns userInput to the initial text if the user presses
