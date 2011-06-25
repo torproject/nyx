@@ -18,11 +18,11 @@ class GuiController:
     self.builder.add_from_file(filename)
     self.builder.connect_signals(self)
 
-    self.bwStats = bandwidthStats.BandwidthStats(self.builder)
-    self.bwStats.pack_widgets()
-
     self.logPanel = logPanel.LogPanel(self.builder)
     self.logPanel.pack_widgets()
+
+    self.bwStats = bandwidthStats.BandwidthStats(self.builder)
+    self.bwStats.pack_widgets()
 
   def run(self):
     window = self.builder.get_object('window_main')

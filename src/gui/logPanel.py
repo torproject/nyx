@@ -7,6 +7,7 @@ import sys
 import time
 
 from collections import deque
+from threading import RLock
 
 import gobject
 import gtk
@@ -16,8 +17,10 @@ from util import log, uiTools, torTools
 
 from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
                           LogEntry, TorEventObserver,
-                          DEFAULT_CONFIG, RUNLEVEL_EVENT_COLOR)
+                          DEFAULT_CONFIG)
 
+RUNLEVEL_EVENT_COLOR = {log.DEBUG: "#C73043", log.INFO: "#762A2A", log.NOTICE: "#222222",
+                        log.WARN: "#AB7814", log.ERR: "#EC131F"}
 STARTUP_EVENTS = 'N3'
 
 class LogPanel:
@@ -25,6 +28,7 @@ class LogPanel:
     self.builder = builder
 
     self._config = dict(DEFAULT_CONFIG)
+    self.lock = RLock()
     self.msgLog = deque()
     self.loggedEvents = setEventListening(expandEvents(STARTUP_EVENTS))
 
@@ -62,7 +66,7 @@ class LogPanel:
     conn.addEventListener(TorEventObserver(self.register_event))
     conn.addTorCtlListener(self._register_torctl_event)
 
-    self.fill_log()
+    gobject.timeout_add(1000, self.fill_log)
 
   def pack_widgets(self):
     liststore = self.builder.get_object('liststore_log')
@@ -74,14 +78,23 @@ class LogPanel:
     liststore = self.builder.get_object('liststore_log')
     liststore.clear()
 
-    for entry in self.msgLog:
-      timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
-      row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
-      liststore.append(row)
+    self.lock.acquire()
+    try:
+      for entry in self.msgLog:
+        timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
+        row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
+        liststore.append(row)
+    finally:
+      self.lock.release()
+
+    return True
 
   def register_event(self, event):
-    self.msgLog.appendleft(event)
-    self.fill_log()
+    self.lock.acquire()
+    try:
+      self.msgLog.appendleft(event)
+    finally:
+      self.lock.release()
 
   def _register_arm_event(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]
