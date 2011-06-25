@@ -62,6 +62,8 @@ class LogPanel:
     conn.addEventListener(TorEventObserver(self.register_event))
     conn.addTorCtlListener(self._register_torctl_event)
 
+    gobject.timeout_add(1000, self.fill_log)
+
   def pack_widgets(self):
     liststore = self.builder.get_object('liststore_log')
 
@@ -77,9 +79,10 @@ class LogPanel:
       row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
       liststore.append(row)
 
+    return True
+
   def register_event(self, event):
     self.msgLog.appendleft(event)
-    self.fill_log()
 
   def _register_arm_event(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]

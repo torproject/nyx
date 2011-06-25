@@ -24,8 +24,6 @@ class GuiController:
     self.logPanel = logPanel.LogPanel(self.builder)
     self.logPanel.pack_widgets()
 
-    log.log(log.DEBUG, "Hello world!")
-
   def run(self):
     window = self.builder.get_object('window_main')
 
