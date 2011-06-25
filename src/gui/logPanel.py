@@ -21,7 +21,7 @@ from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
 
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "#C73043", log.INFO: "#762A2A", log.NOTICE: "#222222",
                         log.WARN: "#AB7814", log.ERR: "#EC131F"}
-STARTUP_EVENTS = 'N3'
+STARTUP_EVENTS = 'A'
 
 class LogPanel:
   def __init__(self, builder):
@@ -66,7 +66,7 @@ class LogPanel:
     conn.addEventListener(TorEventObserver(self.register_event))
     conn.addTorCtlListener(self._register_torctl_event)
 
-    gobject.timeout_add(1000, self.fill_log)
+    gobject.idle_add(self.fill_log)
 
   def pack_widgets(self):
     liststore = self.builder.get_object('liststore_log')
@@ -95,6 +95,7 @@ class LogPanel:
       self.msgLog.appendleft(event)
     finally:
       self.lock.release()
+    gobject.idle_add(self.fill_log)
 
   def _register_arm_event(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]
