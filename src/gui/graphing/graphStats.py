@@ -90,10 +90,8 @@ class GraphStats(TorCtl.PostEventListener):
     graph = self.graphs[name]
     data = self.get_graph_data(name)
 
-    if self.is_graph_data_zero(name):
-      graph.seriess[0].data = []
-    else:
-      graph.seriess[0].data = data
+    graph.seriess[0].data = data
+    if not self.is_graph_data_zero(name):
 
       for (index, axis) in enumerate(graph.axiss):
         if axis.type != 'xaxis':
