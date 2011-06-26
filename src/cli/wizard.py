@@ -14,12 +14,20 @@ from util import enum, uiTools
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "STARTUP")
-RelayOptions = (Options.NICKNAME, Options.CONTACT, Options.NOTIFY, Options.BANDWIDTH, Options.LIMIT, Options.STARTUP)
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "STARTUP")
+RelayOptions = {RelayType.RELAY: (Options.NICKNAME,
+                                  Options.CONTACT,
+                                  Options.NOTIFY,
+                                  Options.BANDWIDTH,
+                                  Options.DIVIDER,
+                                  Options.DIVIDER,
+                                  Options.LIMIT,
+                                  Options.STARTUP)}
 
 # other options provided in the prompts
 CANCEL, NEXT, BACK = "Cancel", "Next", "Back"
 
+DESC_SIZE = 5 # height of the description field
 MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
 
@@ -97,6 +105,10 @@ def showWizard():
   relayType, config = None, {}
   
   for option in Options.values():
+    if option == Options.DIVIDER:
+      config[option] = option
+      continue
+    
     toggleValues = CONFIG["wizard.toggle"].get(option)
     default = CONFIG["wizard.default"].get(option, "")
     
@@ -116,13 +128,10 @@ def showWizard():
       if selection == CANCEL: break
       else: relayType = selection
     else:
-      if relayType == RelayType.RELAY:
-        selection = promptRelayOptions(config)
-        
-        if selection == BACK: relayType = None
-        elif selection == NEXT: break # TODO: implement next screen
-      else:
-        break # TODO: other catagories not yet implemented
+      selection = promptConfigOptions(relayType, config)
+      
+      if selection == BACK: relayType = None
+      elif selection == NEXT: break # TODO: implement next screen
     
     # redraws screen to clear away the dialog we just showed
     cli.controller.getController().requestRedraw(True)
@@ -134,7 +143,7 @@ def promptRelayType():
   dialog was canceled.
   """
   
-  popup, _, _ = cli.popups.init(24, 58)
+  popup, _, _ = cli.popups.init(25, 58)
   if not popup: return
   control = cli.controller.getController()
   key, selection = 0, 0
@@ -181,17 +190,25 @@ def promptRelayType():
   finally:
     cli.popups.finalize()
 
-def promptRelayOptions(config):
+def promptConfigOptions(relayType, config):
   """
   Prompts the user for the configuration of an internal relay.
   """
   
-  popup, _, _ = cli.popups.init(23, 58)
-  if not popup: return
-  control = cli.controller.getController()
-  options = [config[opt] for opt in RelayOptions]
+  # TODO: skipping section if it isn't ready yet
+  if not relayType in RelayOptions: return NEXT
+  
+  topContent = _splitStr(CONFIG.get("wizard.message.%s" % relayType.lower(), ""), 54)
+  
+  options = [config[opt] for opt in RelayOptions[relayType]]
+  options.append(Options.DIVIDER)
   options.append(ConfigOption(BACK, "general", "(to role selection)"))
   options.append(ConfigOption(NEXT, "general", "(to confirm options)"))
+  
+  popupHeight = len(topContent) + len(options) + DESC_SIZE + 5
+  popup, _, _ = cli.popups.init(popupHeight, 58)
+  if not popup: return
+  control = cli.controller.getController()
   key, selection = 0, 0
   
   try:
@@ -202,21 +219,21 @@ def promptRelayOptions(config):
       popup.win.box()
       
       # provides the description for internal relays
-      topContent = _splitStr(CONFIG["wizard.message.relay"], 54)
       for i in range(len(topContent)):
         popup.addstr(i + 1, 2, topContent[i], curses.A_BOLD | uiTools.getColor(MSG_COLOR))
       
       y, offset = len(topContent) + 1, 0
       for i in range(len(options)):
+        if options[i] == Options.DIVIDER:
+          offset += 1
+          continue
+        
         label = " %-30s%s" % (options[i].getLabel(), options[i].getDisplayValue())
         optionFormat = curses.A_BOLD | uiTools.getColor(OPTION_COLOR)
         if i == selection: optionFormat |= curses.A_STANDOUT
         
         offset += 1
         popup.addstr(y + offset, 2, uiTools.padStr(label, 54), optionFormat)
-        
-        # extra space to divide options/navigation
-        if i == len(options) - 3: offset += 1
       
       # divider between the options and description
       offset += 2
@@ -232,8 +249,13 @@ def promptRelayOptions(config):
       popup.win.refresh()
       key = control.getScreen().getch()
       
-      if key == curses.KEY_UP: selection = (selection - 1) % len(options)
-      elif key == curses.KEY_DOWN: selection = (selection + 1) % len(options)
+      if key in (curses.KEY_UP, curses.KEY_DOWN):
+        posOffset = -1 if key == curses.KEY_UP else 1
+        selection = (selection + posOffset) % len(options)
+        
+        # skips dividers
+        while options[selection] == Options.DIVIDER:
+          selection = (selection + posOffset) % len(options)
       elif uiTools.isSelectionKey(key):
         if selection == len(options) - 2: return BACK # selected back
         elif selection == len(options) - 1: return NEXT # selected next
