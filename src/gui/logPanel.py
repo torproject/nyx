@@ -22,12 +22,15 @@ from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "#C73043", log.INFO: "#762A2A", log.NOTICE: "#222222",
                         log.WARN: "#AB7814", log.ERR: "#EC131F"}
 STARTUP_EVENTS = 'A'
+REFRESH_RATE = 3
 
 class LogPanel:
   def __init__(self, builder):
     self.builder = builder
 
     self._config = dict(DEFAULT_CONFIG)
+    self._lastUpdate = 0
+
     self.lock = RLock()
     self.msgLog = deque()
     self.loggedEvents = setEventListening(expandEvents(STARTUP_EVENTS))
@@ -75,6 +78,9 @@ class LogPanel:
     liststore.set_sort_column_id(1, gtk.SORT_DESCENDING)
 
   def fill_log(self):
+    if time.time() - self._lastUpdate < REFRESH_RATE:
+      return
+
     liststore = self.builder.get_object('liststore_log')
     liststore.clear()
 
@@ -87,7 +93,7 @@ class LogPanel:
     finally:
       self.lock.release()
 
-    return True
+    self._lastUpdate = time.time()
 
   def register_event(self, event):
     self.lock.acquire()
