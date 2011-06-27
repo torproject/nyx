@@ -3,6 +3,7 @@ Provides user prompts for setting up a new relay. This autogenerates a torrc
 that's used by arm to run its own tor instance.
 """
 
+import functools
 import curses
 
 import cli.popups
@@ -14,15 +15,30 @@ from util import enum, uiTools
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "STARTUP")
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT")
 RelayOptions = {RelayType.RELAY: (Options.NICKNAME,
                                   Options.CONTACT,
                                   Options.NOTIFY,
                                   Options.BANDWIDTH,
-                                  Options.DIVIDER,
-                                  Options.DIVIDER,
                                   Options.LIMIT,
-                                  Options.STARTUP)}
+                                  Options.STARTUP),
+                RelayType.EXIT:  (Options.NICKNAME,
+                                  Options.CONTACT,
+                                  Options.NOTIFY,
+                                  Options.BANDWIDTH,
+                                  Options.LIMIT,
+                                  Options.STARTUP,
+                                  Options.DIVIDER,
+                                  Options.NOTICE,
+                                  Options.POLICY,
+                                  Options.WEBSITES,
+                                  Options.EMAIL,
+                                  Options.IM,
+                                  Options.MISC,
+                                  Options.PLAINTEXT)}
+
+# custom exit policy options
+CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
 
 # other options provided in the prompts
 CANCEL, NEXT, BACK = "Cancel", "Next", "Back"
@@ -30,10 +46,13 @@ CANCEL, NEXT, BACK = "Cancel", "Next", "Back"
 DESC_SIZE = 5 # height of the description field
 MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
+DISABLED_COLOR = "cyan"
 
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
+          "wizard.message.exit": "",
           "wizard.toggle": {},
+          "wizard.suboptions": [],
           "wizard.default": {},
           "wizard.label.general": {},
           "wizard.label.role": {},
@@ -65,6 +84,8 @@ class ConfigOption:
     self.descriptionCache = None
     self.descriptionCacheArg = None
     self.value = default
+    self.validator = None
+    self._isEnabled = True
   
   def getKey(self):
     return self.key
@@ -75,7 +96,39 @@ class ConfigOption:
   def getDisplayValue(self):
     return self.value
   
+  def getDisplayAttr(self):
+    myColor = OPTION_COLOR if self.isEnabled() else DISABLED_COLOR
+    return curses.A_BOLD | uiTools.getColor(myColor)
+  
+  def isEnabled(self):
+    return self._isEnabled
+  
+  def setEnabled(self, isEnabled):
+    self._isEnabled = isEnabled
+  
+  def setValidator(self, validator):
+    """
+    Custom function used to check that a value is valid before setting it.
+    This functor should accept two arguments: this option and the value we're
+    attempting to set. If its invalid then a ValueError with the reason is
+    expected.
+    
+    Arguments:
+      validator - functor for checking the validitiy of values we set
+    """
+    
+    self.validator = validator
+  
   def setValue(self, value):
+    """
+    Attempts to set our value. If a validator has been set then we first check
+    if it's alright, raising a ValueError with the reason if not.
+    
+    Arguments:
+      value - value we're attempting to set
+    """
+    
+    if self.validator: self.validator(self, value)
     self.value = value
   
   def getLabel(self, prefix = ""):
@@ -90,6 +143,10 @@ class ConfigOption:
     return [prefix + line for line in self.descriptionCache]
 
 class ToggleConfigOption(ConfigOption):
+  """
+  Configuration option representing a boolean.
+  """
+  
   def __init__(self, key, group, default, trueLabel, falseLabel):
     ConfigOption.__init__(self, key, group, default)
     self.trueLabel = trueLabel
@@ -99,11 +156,20 @@ class ToggleConfigOption(ConfigOption):
     return self.trueLabel if self.value else self.falseLabel
   
   def toggle(self):
+    # This isn't really here to validate the value (after all this is a
+    # boolean, the options are limited!), but rather give a method for functors
+    # to be triggered when selected.
+    
+    if self.validator: self.validator(self, not self.value)
     self.value = not self.value
 
 def showWizard():
-  relayType, config = None, {}
+  """
+  Provides a series of prompts, allowing the user to spawn a customized tor
+  instance.
+  """
   
+  relayType, config = None, {}
   for option in Options.values():
     if option == Options.DIVIDER:
       config[option] = option
@@ -121,12 +187,22 @@ def showWizard():
       config[option] = ToggleConfigOption(option, "opt", isSet, trueLabel.strip(), falseLabel.strip())
     else: config[option] = ConfigOption(option, "opt", default)
   
+  # sets input validators
+  
+  # enables custom policies when 'custom' is selected and disables otherwise
+  policyOpt = config[Options.POLICY]
+  policyOpt.setValidator(functools.partial(_exitPolicyAction, config))
+  _exitPolicyAction(config, policyOpt, policyOpt.getValue())
+  
+  # remembers the last selection made on the type prompt page
+  relaySelection = RelayType.RELAY
+  
   while True:
     if relayType == None:
-      selection = promptRelayType()
+      selection = promptRelayType(relaySelection)
       
       if selection == CANCEL: break
-      else: relayType = selection
+      else: relayType, relaySelection = selection, selection
     else:
       selection = promptConfigOptions(relayType, config)
       
@@ -136,7 +212,7 @@ def showWizard():
     # redraws screen to clear away the dialog we just showed
     cli.controller.getController().requestRedraw(True)
 
-def promptRelayType():
+def promptRelayType(initialSelection):
   """
   Provides a prompt for selecting the general role we'd like Tor to run with.
   This returns a RelayType enumeration for the selection, or CANCEL if the
@@ -146,9 +222,9 @@ def promptRelayType():
   popup, _, _ = cli.popups.init(25, 58)
   if not popup: return
   control = cli.controller.getController()
-  key, selection = 0, 0
   options = [ConfigOption(opt, "role", opt) for opt in RelayType.values()]
   options.append(ConfigOption(CANCEL, "general", CANCEL))
+  selection = RelayType.indexOf(initialSelection)
   
   try:
     popup.win.box()
@@ -162,21 +238,21 @@ def promptRelayType():
     while True:
       y, offset = len(topContent) + 1, 0
       
-      for i in range(len(options)):
+      for opt in options:
         optionFormat = uiTools.getColor(MSG_COLOR)
-        if i == selection: optionFormat |= curses.A_STANDOUT
+        if opt == options[selection]: optionFormat |= curses.A_STANDOUT
         
         # Curses has a weird bug where there's a one-pixel alignment
         # difference between bold and regular text, so it looks better
         # to render the whitespace here as not being bold.
         
         offset += 1
-        label = options[i].getLabel(" ")
+        label = opt.getLabel(" ")
         popup.addstr(y + offset, 2, label, optionFormat | curses.A_BOLD)
         popup.addstr(y + offset, 2 + len(label), " " * (54 - len(label)), optionFormat)
         offset += 1
         
-        for line in options[i].getDescription(52, " "):
+        for line in opt.getDescription(52, " "):
           popup.addstr(y + offset, 2, uiTools.padStr(line, 54), optionFormat)
           offset += 1
       
@@ -218,22 +294,42 @@ def promptConfigOptions(relayType, config):
       popup.win.erase()
       popup.win.box()
       
-      # provides the description for internal relays
+      # provides the description for the relay type
       for i in range(len(topContent)):
         popup.addstr(i + 1, 2, topContent[i], curses.A_BOLD | uiTools.getColor(MSG_COLOR))
       
       y, offset = len(topContent) + 1, 0
-      for i in range(len(options)):
-        if options[i] == Options.DIVIDER:
+      for opt in options:
+        if opt == Options.DIVIDER:
           offset += 1
           continue
         
-        label = " %-30s%s" % (options[i].getLabel(), options[i].getDisplayValue())
-        optionFormat = curses.A_BOLD | uiTools.getColor(OPTION_COLOR)
-        if i == selection: optionFormat |= curses.A_STANDOUT
+        optionFormat = opt.getDisplayAttr()
+        if opt == options[selection]: optionFormat |= curses.A_STANDOUT
         
-        offset += 1
-        popup.addstr(y + offset, 2, uiTools.padStr(label, 54), optionFormat)
+        offset, indent = offset + 1, 0
+        if opt.getKey() in CONFIG["wizard.suboptions"]:
+          # If the next entry is also a suboption then show a 'T', otherwise
+          # end the bracketing.
+          
+          bracketChar, nextIndex = curses.ACS_LLCORNER, options.index(opt) + 1
+          if nextIndex < len(options) and isinstance(options[nextIndex], ConfigOption):
+            if options[nextIndex].getKey() in CONFIG["wizard.suboptions"]:
+              bracketChar = curses.ACS_LTEE
+          
+          popup.addch(y + offset, 3, bracketChar, opt.getDisplayAttr())
+          popup.addch(y + offset, 4, curses.ACS_HLINE, opt.getDisplayAttr())
+          
+          indent = 3
+        
+        labelFormat = " %%-%is%%s" % (30 - indent)
+        label = labelFormat % (opt.getLabel(), opt.getDisplayValue())
+        popup.addstr(y + offset, 2 + indent, uiTools.padStr(label, 54 - indent), optionFormat)
+        
+        # little hack to make "Block" policies red
+        if opt != options[selection] and not opt.getValue() and opt.getKey() in CUSTOM_POLICIES:
+          optionFormat = curses.A_BOLD | uiTools.getColor("red")
+          popup.addstr(y + offset, 33, opt.getDisplayValue(), optionFormat)
       
       # divider between the options and description
       offset += 2
@@ -253,8 +349,8 @@ def promptConfigOptions(relayType, config):
         posOffset = -1 if key == curses.KEY_UP else 1
         selection = (selection + posOffset) % len(options)
         
-        # skips dividers
-        while options[selection] == Options.DIVIDER:
+        # skips disabled options and dividers
+        while options[selection] == Options.DIVIDER or not options[selection].isEnabled():
           selection = (selection + posOffset) % len(options)
       elif uiTools.isSelectionKey(key):
         if selection == len(options) - 2: return BACK # selected back
@@ -263,7 +359,9 @@ def promptConfigOptions(relayType, config):
           options[selection].toggle()
         else:
           newValue = popup.getstr(y + selection + 1, 33, options[selection].getValue(), curses.A_STANDOUT | uiTools.getColor(OPTION_COLOR), 23)
-          if newValue: options[selection].setValue(newValue.strip())
+          if newValue:
+            try: options[selection].setValue(newValue.strip())
+            except ValueError, exc: cli.popups.showMsg(str(exc), 3)
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
   finally:
     cli.popups.finalize()
@@ -280,7 +378,16 @@ def _splitStr(msg, width):
   results = []
   while msg:
     msgSegment, msg = uiTools.cropStr(msg, width, None, endType = None, getRemainder = True)
+    if not msgSegment: break # happens if the width is less than the first word
     results.append(msgSegment.strip())
   
   return results
+
+def _exitPolicyAction(config, option, value):
+  """
+  Enables or disables custom exit policy options based on our selection.
+  """
+  
+  for opt in CUSTOM_POLICIES:
+    config[opt].setEnabled(not value)
 
