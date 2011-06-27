@@ -15,18 +15,20 @@ from util import enum, uiTools
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT")
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT")
 RelayOptions = {RelayType.RELAY: (Options.NICKNAME,
                                   Options.CONTACT,
                                   Options.NOTIFY,
                                   Options.BANDWIDTH,
                                   Options.LIMIT,
+                                  Options.CLIENT,
                                   Options.STARTUP),
                 RelayType.EXIT:  (Options.NICKNAME,
                                   Options.CONTACT,
                                   Options.NOTIFY,
                                   Options.BANDWIDTH,
                                   Options.LIMIT,
+                                  Options.CLIENT,
                                   Options.STARTUP,
                                   Options.DIVIDER,
                                   Options.NOTICE,
