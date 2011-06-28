@@ -17,7 +17,6 @@ import platform
 import version
 import cli.controller
 import cli.logPanel
-import gui.controller
 import util.conf
 import util.connections
 import util.hostnames
@@ -436,6 +435,7 @@ if __name__ == '__main__':
     locale.setlocale(locale.LC_ALL, "")
   
   if launchGui == True:
+    import gui.controller
     gui.controller.startGui()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)
