@@ -15,31 +15,38 @@ from util import enum, uiTools
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT")
-RelayOptions = {RelayType.RELAY: (Options.NICKNAME,
-                                  Options.CONTACT,
-                                  Options.NOTIFY,
-                                  Options.BANDWIDTH,
-                                  Options.LIMIT,
-                                  Options.CLIENT,
-                                  Options.PORTFORWARD,
-                                  Options.STARTUP),
-                RelayType.EXIT:  (Options.NICKNAME,
-                                  Options.CONTACT,
-                                  Options.NOTIFY,
-                                  Options.BANDWIDTH,
-                                  Options.LIMIT,
-                                  Options.CLIENT,
-                                  Options.PORTFORWARD,
-                                  Options.STARTUP,
-                                  Options.DIVIDER,
-                                  Options.NOTICE,
-                                  Options.POLICY,
-                                  Options.WEBSITES,
-                                  Options.EMAIL,
-                                  Options.IM,
-                                  Options.MISC,
-                                  Options.PLAINTEXT)}
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE")
+RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
+                                    Options.CONTACT,
+                                    Options.NOTIFY,
+                                    Options.BANDWIDTH,
+                                    Options.LIMIT,
+                                    Options.CLIENT,
+                                    Options.PORTFORWARD,
+                                    Options.STARTUP),
+                RelayType.EXIT:    (Options.NICKNAME,
+                                    Options.CONTACT,
+                                    Options.NOTIFY,
+                                    Options.BANDWIDTH,
+                                    Options.LIMIT,
+                                    Options.CLIENT,
+                                    Options.PORTFORWARD,
+                                    Options.STARTUP,
+                                    Options.DIVIDER,
+                                    Options.NOTICE,
+                                    Options.POLICY,
+                                    Options.WEBSITES,
+                                    Options.EMAIL,
+                                    Options.IM,
+                                    Options.MISC,
+                                    Options.PLAINTEXT),
+                RelayType.BRIDGE:  (Options.DISTRIBUTE,
+                                    Options.BANDWIDTH,
+                                    Options.LIMIT,
+                                    Options.CLIENT,
+                                    Options.PORTFORWARD,
+                                    Options.STARTUP
+                                   )}
 
 # custom exit policy options
 CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
@@ -54,6 +61,7 @@ DISABLED_COLOR = "cyan"
 
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
+          "wizard.message.bridge": "",
           "wizard.message.exit": "",
           "wizard.toggle": {},
           "wizard.suboptions": [],
