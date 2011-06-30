@@ -2,10 +2,27 @@
 import os
 import sys
 import gzip
-import glob
 import tempfile
 from src.version import VERSION
 from distutils.core import setup
+
+def getResources(dst, sourceDir):
+  """
+  Provides a list of tuples of the form...
+  [(destination, (file1, file2...)), ...]
+  
+  for the given contents of the src directory (that's right, distutils isn't
+  smart enough to know how to copy directories).
+  """
+  
+  results = []
+  
+  for root, _, files in os.walk(os.path.join("src", sourceDir)):
+    if files:
+      fileListing = tuple([os.path.join(root, file) for file in files])
+      results.append((os.path.join(dst, root[4:]), fileListing))
+  
+  return results
 
 # Use 'tor-arm' instead of 'arm' in the path for the sample armrc if we're
 # building for debian.
@@ -91,8 +108,8 @@ setup(name='arm',
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"]),
-                  ("/usr/share/arm/resources", glob.glob("src/resources/*"))],
+                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])] + 
+                  getResources("/usr/share/arm", "resources"),
      )
 
 # Cleans up the temporary compressed man page.
