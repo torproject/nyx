@@ -336,6 +336,7 @@ class Controller(TorCtl.PostEventListener):
     self._isReset = False               # internal flag for tracking resets
     self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
+    self._lastNewnym = 0                # time we last sent a NEWNYM signal
     self.lastHeartbeat = 0              # time of the last tor event
     
     # Status signaling for when tor starts, stops, or is reset is done via
@@ -742,7 +743,9 @@ class Controller(TorCtl.PostEventListener):
     True if Tor will immediately respect a newnym request, false otherwise.
     """
     
-    return self.getNewnymWait() == 0
+    if self.isAlive():
+      return self.getNewnymWait() == 0
+    else: return False
   
   def getNewnymWait(self):
     """
