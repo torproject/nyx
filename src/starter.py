@@ -168,7 +168,7 @@ def _loadConfigurationDescriptions(pathPrefix):
     if not isConfigDescriptionsLoaded:
       try:
         loadStartTime = time.time()
-        loadedVersion = util.torConfig.loadOptionDescriptions(pathPrefix + CONFIG_DESC_FILENAME, False)
+        loadedVersion = util.torConfig.loadOptionDescriptions(pathPrefix + "/resources/"  + CONFIG_DESC_FILENAME, False)
         isConfigDescriptionsLoaded = True
         
         msg = DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion

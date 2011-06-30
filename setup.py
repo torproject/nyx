@@ -2,6 +2,7 @@
 import os
 import sys
 import gzip
+import glob
 import tempfile
 from src.version import VERSION
 from distutils.core import setup
@@ -41,7 +42,7 @@ except ValueError: pass # --docPath flag not found
 #   install-purelib=/usr/share
 # which would mean a bit more unnecessary clutter.
 
-manFilename = "arm.1"
+manFilename = "src/resoureces/arm.1"
 if "install" in sys.argv:
   sys.argv += ["--install-purelib", "/usr/share"]
   
@@ -50,7 +51,7 @@ if "install" in sys.argv:
   # page instead.
   
   try:
-    manInputFile = open('arm.1', 'r')
+    manInputFile = open('src/resources/arm.1', 'r')
     manContents = manInputFile.read()
     manInputFile.close()
     
@@ -90,11 +91,12 @@ setup(name='arm',
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall", "src/torConfigDesc.txt"])],
+                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"]),
+                  ("/usr/share/arm/resources", glob.glob("src/resources/*"))],
      )
 
 # Cleans up the temporary compressed man page.
-if manFilename != 'arm.1' and os.path.isfile(manFilename):
+if manFilename != 'src/resoureces/arm.1' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
 
