@@ -503,6 +503,7 @@ def startTorMonitor(startTime):
     curses.wrapper(drawTorMonitor, startTime)
   except KeyboardInterrupt:
     pass # skip printing stack trace in case of keyboard interrupt
+  finally: shutdownDaemons()
 
 def drawTorMonitor(stdscr, startTime):
   """
@@ -602,6 +603,4 @@ def drawTorMonitor(stdscr, startTime):
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
-  
-  shutdownDaemons()
 
