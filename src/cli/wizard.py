@@ -73,6 +73,7 @@ CONFIG = {"wizard.message.role": "",
           "wizard.toggle": {},
           "wizard.suboptions": [],
           "wizard.default": {},
+          "wizard.blankValue": {},
           "wizard.label.general": {},
           "wizard.label.role": {},
           "wizard.label.opt": {},
@@ -113,7 +114,9 @@ class ConfigOption:
     return self.value
   
   def getDisplayValue(self):
-    return self.value
+    if not self.value and self.key in CONFIG["wizard.blankValue"]:
+      return CONFIG["wizard.blankValue"][self.key]
+    else: return self.value
   
   def getDisplayAttr(self):
     myColor = OPTION_COLOR if self.isEnabled() else DISABLED_COLOR
