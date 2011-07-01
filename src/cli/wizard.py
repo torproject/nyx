@@ -15,7 +15,7 @@ from util import enum, uiTools
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE")
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -46,10 +46,16 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CLIENT,
                                     Options.PORTFORWARD,
                                     Options.STARTUP
-                                   )}
+                                   ),
+                RelayType.CLIENT:  (Options.BRIDGED,
+                                    Options.BRIDGE1,
+                                    Options.BRIDGE2,
+                                    Options.BRIDGE3,
+                                    Options.REUSE)}
 
-# custom exit policy options
+# option sets
 CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
+BRIDGE_ENTRIES = (Options.BRIDGE1, Options.BRIDGE2, Options.BRIDGE3)
 
 # other options provided in the prompts
 CANCEL, NEXT, BACK = "Cancel", "Next", "Back"
@@ -61,8 +67,9 @@ DISABLED_COLOR = "cyan"
 
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
-          "wizard.message.bridge": "",
           "wizard.message.exit": "",
+          "wizard.message.bridge": "",
+          "wizard.message.client": "",
           "wizard.toggle": {},
           "wizard.suboptions": [],
           "wizard.default": {},
@@ -203,8 +210,15 @@ def showWizard():
   
   # enables custom policies when 'custom' is selected and disables otherwise
   policyOpt = config[Options.POLICY]
-  policyOpt.setValidator(functools.partial(_exitPolicyAction, config))
-  _exitPolicyAction(config, policyOpt, policyOpt.getValue())
+  customPolicies = [config[opt] for opt in CUSTOM_POLICIES]
+  policyOpt.setValidator(functools.partial(_toggleEnabledAction, customPolicies))
+  _toggleEnabledAction(customPolicies, policyOpt, policyOpt.getValue())
+  
+  # enables bridge entries when "Use Bridges" is set and disables otherwise
+  useBridgeOpt = config[Options.BRIDGED]
+  bridgeEntries = [config[opt] for opt in BRIDGE_ENTRIES]
+  useBridgeOpt.setValidator(functools.partial(_toggleEnabledAction, bridgeEntries))
+  _toggleEnabledAction(bridgeEntries, useBridgeOpt, useBridgeOpt.getValue())
   
   # remembers the last selection made on the type prompt page
   relaySelection = RelayType.RELAY
@@ -282,9 +296,6 @@ def promptConfigOptions(relayType, config):
   """
   Prompts the user for the configuration of an internal relay.
   """
-  
-  # TODO: skipping section if it isn't ready yet
-  if not relayType in RelayOptions: return NEXT
   
   topContent = _splitStr(CONFIG.get("wizard.message.%s" % relayType.lower(), ""), 54)
   
@@ -395,11 +406,17 @@ def _splitStr(msg, width):
   
   return results
 
-def _exitPolicyAction(config, option, value):
+def _toggleEnabledAction(toggleOptions, option, value):
   """
   Enables or disables custom exit policy options based on our selection.
+  
+  Arguments:
+    toggleOptions - configuration options to be toggled to match our our
+                    selection (ie, true -> enabled, false -> disabled)
+    options       - our config option
+    value         - the value we're being set to
   """
   
-  for opt in CUSTOM_POLICIES:
-    config[opt].setEnabled(not value)
+  for opt in toggleOptions:
+    opt.setEnabled(value)
 
