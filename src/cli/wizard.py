@@ -9,7 +9,7 @@ import curses
 import cli.popups
 import cli.controller
 
-from util import enum, uiTools
+from util import enum, connections, uiTools
 
 # basic configuration types we can run as
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
@@ -210,6 +210,9 @@ def showWizard():
     else: config[option] = ConfigOption(option, "opt", default)
   
   # sets input validators
+  config[Options.BRIDGE1].setValidator(_bridgeDestinationValidator)
+  config[Options.BRIDGE2].setValidator(_bridgeDestinationValidator)
+  config[Options.BRIDGE3].setValidator(_bridgeDestinationValidator)
   
   # enables custom policies when 'custom' is selected and disables otherwise
   policyOpt = config[Options.POLICY]
@@ -387,7 +390,9 @@ def promptConfigOptions(relayType, config):
           newValue = popup.getstr(y + selection + 1, 33, options[selection].getValue(), curses.A_STANDOUT | uiTools.getColor(OPTION_COLOR), 23)
           if newValue:
             try: options[selection].setValue(newValue.strip())
-            except ValueError, exc: cli.popups.showMsg(str(exc), 3)
+            except ValueError, exc:
+              cli.popups.showMsg(str(exc), 2)
+              cli.controller.getController().requestRedraw(True)
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
   finally:
     cli.popups.finalize()
@@ -422,4 +427,14 @@ def _toggleEnabledAction(toggleOptions, option, value):
   
   for opt in toggleOptions:
     opt.setEnabled(value)
+
+def _bridgeDestinationValidator(option, value):
+  if value.count(":") != 1:
+    raise ValueError("Bridges are of the form '<ip address>:<port>'")
+  
+  ipAddr, port = value.split(":", 1)
+  if not connections.isValidIpAddress(ipAddr):
+    raise ValueError("'%s' is not a valid ip address" % ipAddr)
+  elif not port.isdigit() or int(port) < 0 or int(port) > 65535:
+    raise ValueError("'%s' isn't a valid port number" % port)
 
