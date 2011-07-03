@@ -2,11 +2,11 @@
 Wrapper for safely working with curses subwindows.
 """
 
-import sys
 import copy
 import time
 import traceback
 import curses
+import curses.ascii
 import curses.textpad
 from threading import RLock
 
@@ -613,15 +613,9 @@ class Panel():
     
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns userInput to the initial text if the user presses
-    # escape. Insert mode is available in Python 2.6+, before that the
-    # constructor only accepted a subwindow argument as per:
-    # https://trac.torproject.org/projects/tor/ticket/2354
+    # escape.
     
-    majorVersion, minorVersion = sys.version_info[:2]
-    if majorVersion == 2 and minorVersion >= 6:
-      textbox = curses.textpad.Textbox(inputSubwindow, True)
-    else:
-      textbox = curses.textpad.Textbox(inputSubwindow)
+    textbox = curses.textpad.Textbox(inputSubwindow)
     
     textbox.win.attron(format)
     userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
@@ -738,7 +732,22 @@ def _textboxValidate(textbox, key):
   """
   
   y, x = textbox.win.getyx()
-  if key == 27:
+  
+  if curses.ascii.isprint(key) and x < textbox.maxx:
+    # Shifts the existing text forward so input is an insert method rather
+    # than replacement. The curses.textpad accepts an insert mode flag but
+    # this has a couple issues...
+    # - The flag is only available for Python 2.6+, before that the
+    #   constructor only accepted a subwindow argument as per:
+    #   https://trac.torproject.org/projects/tor/ticket/2354
+    # - The textpad doesn't shift text that has text attributes. This is
+    #   because keycodes read by textbox.win.inch() includes formatting,
+    #   causing the curses.ascii.isprint() check it does to fail.
+    
+    currentInput = textbox.gather()
+    textbox.win.addstr(y, x + 1, currentInput[x:textbox.maxx - 1])
+    textbox.win.move(y, x) # reverts cursor movement during gather call
+  elif key == 27:
     # curses.ascii.BEL is a character codes that causes textpad to terminate
     return curses.ascii.BEL
   elif key == curses.KEY_HOME:
