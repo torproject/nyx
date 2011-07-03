@@ -210,6 +210,7 @@ def showWizard():
     else: config[option] = ConfigOption(option, "opt", default)
   
   # sets input validators
+  config[Options.BANDWIDTH].setValidator(_relayRateValidator)
   config[Options.BRIDGE1].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE2].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE3].setValidator(_bridgeDestinationValidator)
@@ -391,7 +392,7 @@ def promptConfigOptions(relayType, config):
           if newValue:
             try: options[selection].setValue(newValue.strip())
             except ValueError, exc:
-              cli.popups.showMsg(str(exc), 2)
+              cli.popups.showMsg(str(exc), 3)
               cli.controller.getController().requestRedraw(True)
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
   finally:
@@ -427,6 +428,21 @@ def _toggleEnabledAction(toggleOptions, option, value):
   
   for opt in toggleOptions:
     opt.setEnabled(value)
+
+def _relayRateValidator(option, value):
+  if value.count(" ") != 1:
+    msg = "This should be a measurement followed by the rate (for instance, \"5 MB/s\")"
+    raise ValueError(msg)
+  
+  rate, units = value.split(" ", 1)
+  acceptedUnits = ("KB/s", "MB/s", "GB/s")
+  if not rate.isdigit():
+    raise ValueError("'%s' isn't an integer" % rate)
+  elif not units in acceptedUnits:
+    msg = "'%s' is an invalid rate, options include \"%s\"" % (units, "\", \"".join(acceptedUnits))
+    raise ValueError(msg)
+  elif (int(rate) < 20 and units == "KB/s") or int(rate) < 1:
+    raise ValueError("To be usable as a relay the rate must be at least 20 KB/s")
 
 def _bridgeDestinationValidator(option, value):
   if value.count(":") != 1:
