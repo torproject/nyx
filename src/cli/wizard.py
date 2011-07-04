@@ -9,19 +9,20 @@ import curses
 import cli.popups
 import cli.controller
 
-from util import enum, connections, uiTools
+from util import connections, enum, uiTools
 
 # basic configuration types we can run as
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
+Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
                                     Options.BANDWIDTH,
                                     Options.LIMIT,
                                     Options.CLIENT,
+                                    Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP),
                 RelayType.EXIT:    (Options.NICKNAME,
@@ -30,6 +31,7 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.BANDWIDTH,
                                     Options.LIMIT,
                                     Options.CLIENT,
+                                    Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
                                     Options.DIVIDER,
@@ -44,9 +46,9 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.BANDWIDTH,
                                     Options.LIMIT,
                                     Options.CLIENT,
+                                    Options.LOWPORTS,
                                     Options.PORTFORWARD,
-                                    Options.STARTUP
-                                   ),
+                                    Options.STARTUP),
                 RelayType.CLIENT:  (Options.BRIDGED,
                                     Options.BRIDGE1,
                                     Options.BRIDGE2,
@@ -218,6 +220,11 @@ def showWizard():
   config[Options.REUSE].setValidator(_circDurationValidator)
   
   # enables custom policies when 'custom' is selected and disables otherwise
+  lowPortsOpt = config[Options.LOWPORTS]
+  disclaimerNotice = [config[Options.NOTICE]]
+  lowPortsOpt.setValidator(functools.partial(_toggleEnabledAction, disclaimerNotice))
+  _toggleEnabledAction(disclaimerNotice, lowPortsOpt, lowPortsOpt.getValue())
+  
   policyOpt = config[Options.POLICY]
   customPolicies = [config[opt] for opt in CUSTOM_POLICIES]
   policyOpt.setValidator(functools.partial(_toggleEnabledAction, customPolicies))
