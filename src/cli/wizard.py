@@ -211,6 +211,7 @@ def showWizard():
   
   # sets input validators
   config[Options.BANDWIDTH].setValidator(_relayRateValidator)
+  config[Options.LIMIT].setValidator(_monthlyLimitValidator)
   config[Options.BRIDGE1].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE2].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE3].setValidator(_bridgeDestinationValidator)
@@ -443,6 +444,19 @@ def _relayRateValidator(option, value):
     raise ValueError(msg)
   elif (int(rate) < 20 and units == "KB/s") or int(rate) < 1:
     raise ValueError("To be usable as a relay the rate must be at least 20 KB/s")
+
+def _monthlyLimitValidator(option, value):
+  if value.count(" ") != 1:
+    msg = "This should be a measurement followed by the units (for instance, \"5 MB\")"
+    raise ValueError(msg)
+  
+  rate, units = value.split(" ", 1)
+  acceptedUnits = ("MB", "GB", "TB")
+  if not rate.isdigit():
+    raise ValueError("'%s' isn't an integer" % rate)
+  elif not units in acceptedUnits:
+    msg = "'%s' is an invalid unit, options include \"%s\"" % (units, "\", \"".join(acceptedUnits))
+    raise ValueError(msg)
 
 def _bridgeDestinationValidator(option, value):
   if value.count(":") != 1:
