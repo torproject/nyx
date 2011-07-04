@@ -21,7 +21,7 @@ from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
 
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "#C73043", log.INFO: "#762A2A", log.NOTICE: "#222222",
                         log.WARN: "#AB7814", log.ERR: "#EC131F"}
-STARTUP_EVENTS = 'A'
+STARTUP_EVENTS = 'N3'
 REFRESH_RATE = 3
 
 class LogPanel:
@@ -96,6 +96,9 @@ class LogPanel:
     self._lastUpdate = time.time()
 
   def register_event(self, event):
+    if not event.type in self.loggedEvents:
+      return
+
     self.lock.acquire()
     try:
       self.msgLog.appendleft(event)
