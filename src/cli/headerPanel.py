@@ -204,10 +204,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         x += 17
       else:
         statusTime = torTools.getConn().getStatus()[1]
-        statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
+        
+        if statusTime:
+          statusTimeLabel = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(statusTime))
+        else: statusTimeLabel = "" # never connected to tor
+        
         self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
-        self.addstr(1, x + 16, " (%s, press r to reconnect)" % statusTimeLabel)
-        x += 41 + len(statusTimeLabel)
+        self.addstr(1, x + 16, " (%spress r to reconnect)" % statusTimeLabel)
+        x += 39 + len(statusTimeLabel)
         includeControlPort = False
     
     if includeControlPort:
