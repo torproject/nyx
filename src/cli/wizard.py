@@ -215,6 +215,7 @@ def showWizard():
   config[Options.BRIDGE1].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE2].setValidator(_bridgeDestinationValidator)
   config[Options.BRIDGE3].setValidator(_bridgeDestinationValidator)
+  config[Options.REUSE].setValidator(_circDurationValidator)
   
   # enables custom policies when 'custom' is selected and disables otherwise
   policyOpt = config[Options.POLICY]
@@ -432,7 +433,7 @@ def _toggleEnabledAction(toggleOptions, option, value):
 
 def _relayRateValidator(option, value):
   if value.count(" ") != 1:
-    msg = "This should be a measurement followed by the rate (for instance, \"5 MB/s\")"
+    msg = "This should be a rate measurement (for instance, \"5 MB/s\")"
     raise ValueError(msg)
   
   rate, units = value.split(" ", 1)
@@ -447,7 +448,7 @@ def _relayRateValidator(option, value):
 
 def _monthlyLimitValidator(option, value):
   if value.count(" ") != 1:
-    msg = "This should be a measurement followed by the units (for instance, \"5 MB\")"
+    msg = "This should be a traffic size (for instance, \"5 MB\")"
     raise ValueError(msg)
   
   rate, units = value.split(" ", 1)
@@ -457,6 +458,8 @@ def _monthlyLimitValidator(option, value):
   elif not units in acceptedUnits:
     msg = "'%s' is an invalid unit, options include \"%s\"" % (units, "\", \"".join(acceptedUnits))
     raise ValueError(msg)
+  elif (int(rate) < 50 and units == "MB") or int(rate) < 1:
+    raise ValueError("To be usable as a relay's monthly limit should be at least 50 MB")
 
 def _bridgeDestinationValidator(option, value):
   if value.count(":") != 1:
@@ -467,4 +470,19 @@ def _bridgeDestinationValidator(option, value):
     raise ValueError("'%s' is not a valid ip address" % ipAddr)
   elif not port.isdigit() or int(port) < 0 or int(port) > 65535:
     raise ValueError("'%s' isn't a valid port number" % port)
+
+def _circDurationValidator(option, value):
+  if value.count(" ") != 1:
+    msg = "This should be a time measurement (for instance, \"10 minutes\")"
+    raise ValueError(msg)
+  
+  rate, units = value.split(" ", 1)
+  acceptedUnits = ("minute", "minutes", "hour", "hours")
+  if not rate.isdigit():
+    raise ValueError("'%s' isn't an integer" % rate)
+  elif not units in acceptedUnits:
+    msg = "'%s' is an invalid rate, options include \"minutes\" or \"hours\""
+    raise ValueError(msg)
+  elif (int(rate) < 5 and units in ("minute", "minutes")) or int(rate) < 1:
+    raise ValueError("This would cause high network load, don't set this to less than five minutes")
 
