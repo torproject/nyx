@@ -36,10 +36,7 @@ CookieAuthentication 1       # method for controller authentication
   [IF BRIDGE]
     BridgeRelay 1            # makes us a bridge rather than a public relay
     
-    [IF DISTRIBUTE]
-      # TODO: drop this?
-      PublishServerDescriptor bridge # publishes to users looking for bridges
-    [ELSE]
+    [IF NOT DISTRIBUTE]
       PublishServerDescriptor 0 # keeps our bridge descriptor private
     [END IF]
   [END IF]
