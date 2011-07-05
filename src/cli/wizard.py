@@ -3,13 +3,18 @@ Provides user prompts for setting up a new relay. This autogenerates a torrc
 that's used by arm to run its own tor instance.
 """
 
+import os
+import sys
 import functools
 import curses
 
 import cli.popups
 import cli.controller
 
-from util import connections, enum, uiTools
+from util import connections, enum, log, torConfig, uiTools
+
+# template used to generate the torrc
+TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 
 # basic configuration types we can run as
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
@@ -249,7 +254,10 @@ def showWizard():
       selection = promptConfigOptions(relayType, config)
       
       if selection == BACK: relayType = None
-      elif selection == NEXT: break # TODO: implement next screen
+      elif selection == NEXT:
+        generatedTorrc = getTorrc(relayType, config)
+        log.log(log.NOTICE, "Resulting torrc:\n%s" % generatedTorrc)
+        break # TODO: implement next screen
     
     # redraws screen to clear away the dialog we just showed
     cli.controller.getController().requestRedraw(True)
@@ -406,6 +414,37 @@ def promptConfigOptions(relayType, config):
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
   finally:
     cli.popups.finalize()
+
+def getTorrc(relayType, config):
+  """
+  Provides the torrc generated for the given options.
+  """
+  
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+  
+  templateFile = open("%s%s" % (pathPrefix, TORRC_TEMPLATE), "r")
+  template = templateFile.readlines()
+  templateFile.close()
+  
+  # generates the options the template expects
+  templateOptions = {}
+  
+  for key, value in config.items():
+    if isinstance(value, ConfigOption):
+      value = value.getValue()
+    
+    templateOptions[key.upper()] = value
+  
+  #templateOptions = dict([(key.upper(), config[key].getValue()) for key in config])
+  templateOptions[relayType.upper()] = True
+  templateOptions["LOW_PORTS"] = config[Options.LOWPORTS]
+  #templateOptions["BURST"] = config[Options.BANDWIDTH] * 2 # TODO: implement
+  templateOptions["NOTICE_PATH"] = "/path/to/.arm/exit-notice.html" # TODO: actually prepend the right prefix
+  templateOptions["EXIT_POLICY"] = "" # TODO: fill in configured policy
+  
+  return torConfig.renderTorrc(template, templateOptions)
 
 def _splitStr(msg, width):
   """
