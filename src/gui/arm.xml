@@ -72,29 +72,6 @@
       <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">115.167.31.237:56835</col>
-        <col id="1" translatable="yes">188.120.245.249:9001 (ru)</col>
-        <col id="2" translatable="yes">10.7m</col>
-        <col id="3" translatable="yes">CLIENT</col>
-        <col id="4" translatable="yes">blue</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">115.167.31.237:44940</col>
-        <col id="1" translatable="yes">206.217.215.183:53 (us)</col>
-        <col id="2" translatable="yes">28.3m</col>
-        <col id="3" translatable="yes">CLIENT</col>
-        <col id="4" translatable="yes">blue</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">127.0.0.1:9051</col>
-        <col id="1" translatable="yes">127.0.0.1:51665</col>
-        <col id="2" translatable="yes">30.0m</col>
-        <col id="3" translatable="yes">CONTROL</col>
-        <col id="4" translatable="yes">red</col>
-      </row>
-    </data>
   </object>
   <object class="GtkListStore" id="liststore_config">
     <columns>
@@ -437,7 +414,7 @@
                         <child>
                           <object class="GtkLabel" id="label_conn_top">
                             <property name="visible">True</property>
-                            <property name="label" translatable="yes">2 Clients, 1 Control</property>
+                            <property name="label" translatable="yes">Connections:</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
