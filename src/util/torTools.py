@@ -17,9 +17,10 @@ from TorCtl import TorCtl, TorUtil
 from util import enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
-# INIT - attached to a new controller or restart/sighup signal received
+# INIT - attached to a new controller
+# RESET - received a reset/sighup signal
 # CLOSED - control port closed
-State = enum.Enum("INIT", "CLOSED")
+State = enum.Enum("INIT", "RESET", "CLOSED")
 
 # Addresses of the default directory authorities for tor version 0.2.3.0-alpha
 # (this comes from the dirservers array in src/or/config.c).
@@ -103,6 +104,10 @@ PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/
 # rogue threads from being alive during shutdown.
 
 NO_SPAWN = False
+
+# Flag to indicate if we're handling our first init signal. This is for
+# startup performance so we don't introduce a sleep while initializing.
+IS_STARTUP_SIGNAL = True
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -331,6 +336,7 @@ class Controller(TorCtl.PostEventListener):
     self._isReset = False               # internal flag for tracking resets
     self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
+    self._lastNewnym = 0                # time we last sent a NEWNYM signal
     self.lastHeartbeat = 0              # time of the last tor event
     
     # Status signaling for when tor starts, stops, or is reset is done via
@@ -737,7 +743,9 @@ class Controller(TorCtl.PostEventListener):
     True if Tor will immediately respect a newnym request, false otherwise.
     """
     
-    return self.getNewnymWait() == 0
+    if self.isAlive():
+      return self.getNewnymWait() == 0
+    else: return False
   
   def getNewnymWait(self):
     """
@@ -1068,7 +1076,7 @@ class Controller(TorCtl.PostEventListener):
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
       else:
         # no ORPort is set so all relaying is disabled
-        result = ExitPolicy("reject *:*")
+        result = ExitPolicy("reject *:*", None)
     
     self.connLock.release()
     
@@ -1469,11 +1477,11 @@ class Controller(TorCtl.PostEventListener):
       if self.isAlive():
         self._isReset = True
         
-        self._status = State.INIT
+        self._status = State.RESET
         self._statusTime = time.time()
         
         if not NO_SPAWN:
-          self._notificationQueue.put(State.INIT)
+          self._notificationQueue.put(State.RESET)
           thread.start_new_thread(self._notifyStatusListeners, ())
       
       self.connLock.release()
@@ -2026,11 +2034,15 @@ class Controller(TorCtl.PostEventListener):
       eventType - enum representing tor's new status
     """
     
+    global IS_STARTUP_SIGNAL
+    
     # If there's a quick race state (for instance a sighup causing both an init
     # and close event) then give them a moment to enqueue. This way we can
     # coles the events and discard the inaccurate one.
     
-    time.sleep(0.2)
+    if not IS_STARTUP_SIGNAL:
+      time.sleep(0.2)
+    else: IS_STARTUP_SIGNAL = False
     
     self.connLock.acquire()
     
@@ -2038,7 +2050,7 @@ class Controller(TorCtl.PostEventListener):
       eventType = self._notificationQueue.get(timeout=0)
       
       # checks that the notice is accurate for our current state
-      if self.isAlive() != (eventType == State.INIT):
+      if self.isAlive() != (eventType in (State.INIT, State.RESET)):
         eventType = None
     except Queue.Empty:
       eventType = None

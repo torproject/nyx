@@ -1,5 +1,5 @@
 arm (anonymizing relay monitor) - Terminal status monitor for Tor relays.
-Developed by Damian Johnson (www.atagar.com - atagar1@gmail.com)
+Developed by Damian Johnson (www.atagar.com - atagar@torproject.org)
 All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 Project page: www.atagar.com/arm
 
@@ -187,6 +187,7 @@ Layout:
       headerPanel.py         - top of all pages, providing general information
       descriptorPopup.py     - displays connection descriptor data
       popups.py              - toolkit providing display popups
+      wizard.py              - provides the relay setup wizard
       
       logPanel.py            - (page 1) displays tor, arm, and torctl events
       configPanel.py         - (page 3) editor panel for the tor configuration

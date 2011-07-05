@@ -192,6 +192,10 @@ class CircLine(connEntry.ConnectionLine):
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
       dst = "%-53s" % self.getDestinationLabel(53, includeLocale = True)
+      
+      # fills the nickname into the empty space here
+      dst = "%s%-25s   " % (dst[:25], uiTools.cropStr(self.foreign.getNickname(), 25, 0))
+      
       etc = self.getEtcContent(width - baselineSpace - len(dst), listingType)
     elif listingType == entries.ListingType.HOSTNAME:
       # min space for the hostname is 40 characters

@@ -6,6 +6,24 @@ import tempfile
 from src.version import VERSION
 from distutils.core import setup
 
+def getResources(dst, sourceDir):
+  """
+  Provides a list of tuples of the form...
+  [(destination, (file1, file2...)), ...]
+  
+  for the given contents of the src directory (that's right, distutils isn't
+  smart enough to know how to copy directories).
+  """
+  
+  results = []
+  
+  for root, _, files in os.walk(os.path.join("src", sourceDir)):
+    if files:
+      fileListing = tuple([os.path.join(root, file) for file in files])
+      results.append((os.path.join(dst, root[4:]), fileListing))
+  
+  return results
+
 # Use 'tor-arm' instead of 'arm' in the path for the sample armrc if we're
 # building for debian.
 
@@ -41,7 +59,7 @@ except ValueError: pass # --docPath flag not found
 #   install-purelib=/usr/share
 # which would mean a bit more unnecessary clutter.
 
-manFilename = "arm.1"
+manFilename = "src/resoureces/arm.1"
 if "install" in sys.argv:
   sys.argv += ["--install-purelib", "/usr/share"]
   
@@ -50,7 +68,7 @@ if "install" in sys.argv:
   # page instead.
   
   try:
-    manInputFile = open('arm.1', 'r')
+    manInputFile = open('src/resources/arm.1', 'r')
     manContents = manInputFile.read()
     manInputFile.close()
     
@@ -75,7 +93,7 @@ if "install" in sys.argv:
 # When installing we include a bundled copy of TorCtl. However, when creating
 # a deb we have a dependency on the python-torctl package instead:
 # http://packages.debian.org/unstable/main/python-torctl
-installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.util']
+installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.util']
 if not isDebInstall: installPackages.append('arm.TorCtl')
 
 setup(name='arm',
@@ -90,11 +108,12 @@ setup(name='arm',
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])],
+                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])] + 
+                  getResources("/usr/share/arm", "resources"),
      )
 
 # Cleans up the temporary compressed man page.
-if manFilename != 'arm.1' and os.path.isfile(manFilename):
+if manFilename != 'src/resoureces/arm.1' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
 

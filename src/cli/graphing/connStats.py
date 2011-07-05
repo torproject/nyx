@@ -25,7 +25,7 @@ class ConnStats(graphPanel.GraphStats):
     return graphPanel.GraphStats.clone(self, newCopy)
   
   def resetListener(self, conn, eventType):
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       self.orPort = conn.getOption("ORPort", "0")
       self.dirPort = conn.getOption("DirPort", "0")
       self.controlPort = conn.getOption("ControlPort", "0")

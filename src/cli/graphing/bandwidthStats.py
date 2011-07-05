@@ -86,7 +86,7 @@ class BandwidthStats(graphPanel.GraphStats):
     self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
-    if eventType == torTools.State.INIT and self._config["features.graph.bw.accounting.show"]:
+    if eventType in (torTools.State.INIT, torTools.State.RESET) and self._config["features.graph.bw.accounting.show"]:
       self.isAccounting = conn.getInfo('accounting/enabled') == '1'
     
     # redraws to reflect changes (this especially noticeable when we have

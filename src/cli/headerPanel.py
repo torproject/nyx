@@ -65,7 +65,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._config = dict(DEFAULT_CONFIG)
     if config: config.update(self._config)
     
-    self._isTorConnected = True
+    self._isTorConnected = torTools.getConn().isAlive()
     self._lastUpdate = -1       # time the content was last revised
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -133,7 +133,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
       try:
         ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-        tmpConn, authType, authValue = TorCtl.TorCtl.connectionComp(ctlAddr, ctlPort)
+        tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
         
         if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
           authValue = cli.popups.inputPrompt("Controller Password: ")
@@ -173,12 +173,13 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     contentSpace = leftWidth - 43
     if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= contentSpace:
-      versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
-          self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
-      labelPrefix = "Tor %s (" % self.vals["tor/version"]
-      self.addstr(0, 43, labelPrefix)
-      self.addstr(0, 43 + len(labelPrefix), self.vals["tor/versionStatus"], uiTools.getColor(versionColor))
-      self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
+      if self.vals["tor/version"] != "Unknown":
+        versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
+            self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
+        labelPrefix = "Tor %s (" % self.vals["tor/version"]
+        self.addstr(0, 43, labelPrefix)
+        self.addstr(0, 43 + len(labelPrefix), self.vals["tor/versionStatus"], uiTools.getColor(versionColor))
+        self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
     elif 11 <= contentSpace:
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
     
@@ -203,10 +204,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         x += 17
       else:
         statusTime = torTools.getConn().getStatus()[1]
-        statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
+        
+        if statusTime:
+          statusTimeLabel = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(statusTime))
+        else: statusTimeLabel = "" # never connected to tor
+        
         self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
-        self.addstr(1, x + 16, " (%s, press r to reconnect)" % statusTimeLabel)
-        x += 41 + len(statusTimeLabel)
+        self.addstr(1, x + 16, " (%spress r to reconnect)" % statusTimeLabel)
+        x += 39 + len(statusTimeLabel)
         includeControlPort = False
     
     if includeControlPort:
@@ -405,7 +410,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       eventType - type of event detected
     """
     
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       self._isTorConnected = True
       self._haltTime = None
       self._update(True)

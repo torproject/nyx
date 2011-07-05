@@ -170,7 +170,7 @@ def showAboutPopup():
     popup.win.box()
     popup.addstr(0, 0, "About:", curses.A_STANDOUT)
     popup.addstr(1, 2, "arm, version %s (released %s)" % (version.VERSION, version.LAST_MODIFIED), curses.A_BOLD)
-    popup.addstr(2, 4, "Written by Damian Johnson (atagar1@gmail.com)")
+    popup.addstr(2, 4, "Written by Damian Johnson (atagar@torproject.org)")
     popup.addstr(3, 4, "Project page: www.atagar.com/arm")
     popup.addstr(5, 2, "Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)")
     popup.addstr(7, 2, "Press any key...")

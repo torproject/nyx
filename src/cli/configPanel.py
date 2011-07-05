@@ -190,6 +190,7 @@ class ConfigPanel(panel.Panel):
     
     self.configType = configType
     self.confContents = []
+    self.confImportantContents = []
     self.scroller = uiTools.Scroller(True)
     self.valsLock = threading.RLock()
     
@@ -197,10 +198,33 @@ class ConfigPanel(panel.Panel):
     # the 'important' flag are shown
     self.showAll = False
     
+    # initializes config contents if we're connected
+    conn = torTools.getConn()
+    conn.addStatusListener(self.resetListener)
+    if conn.isAlive(): self.resetListener(conn, torTools.State.INIT)
+  
+  def resetListener(self, conn, eventType):
+    # fetches configuration options if a new instance, otherewise keeps our
+    # current contents
+    
+    if eventType == torTools.State.INIT:
+      self._loadConfigOptions()
+  
+  def _loadConfigOptions(self):
+    """
+    Fetches the configuration options available from tor or arm.
+    """
+    
+    self.confContents = []
+    self.confImportantContents = []
+    
     if self.configType == State.TOR:
-      conn = torTools.getConn()
+      conn, configOptionLines = torTools.getConn(), []
       customOptions = torConfig.getCustomOptions()
-      configOptionLines = conn.getInfo("config/names", "").strip().split("\n")
+      configOptionQuery = conn.getInfo("config/names")
+      
+      if configOptionQuery:
+        configOptionLines = configOptionQuery.strip().split("\n")
       
       for line in configOptionLines:
         # lines are of the form "<option> <type>[ <documentation>]", like:
@@ -484,7 +508,8 @@ class ConfigPanel(panel.Panel):
       cursorSelection = self.getSelection()
       isScrollbarVisible = len(self._getConfigOptions()) > height - detailPanelHeight - 1
       
-      self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
+      if cursorSelection != None:
+        self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
     
     # draws the top label
     if self.isTitleVisible():

@@ -48,12 +48,14 @@ DEFAULT_CONFIG = {"features.logFile": "",
                   "features.log.prepopulate": True,
                   "features.log.prepopulateReadLimit": 5000,
                   "features.log.maxRefreshRate": 300,
+                  "features.log.regex": [],
                   "cache.logPanel.size": 1000,
                   "log.logPanel.prepopulateSuccess": log.INFO,
                   "log.logPanel.prepopulateFailed": log.WARN,
                   "log.logPanel.logFileOpened": log.NOTICE,
                   "log.logPanel.logFileWriteFailed": log.ERR,
-                  "log.logPanel.forceDoubleRedraw": log.DEBUG}
+                  "log.logPanel.forceDoubleRedraw": log.DEBUG,
+                  "log.configEntryTypeError": log.NOTICE}
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
@@ -562,6 +564,9 @@ class LogPanel(panel.Panel, threading.Thread):
     # config options.
     loadLogMessages()
     
+    # regex filters the user has defined
+    self.filterOptions = []
+    
     self._config = dict(DEFAULT_CONFIG)
     
     if config:
@@ -570,6 +575,17 @@ class LogPanel(panel.Panel, threading.Thread):
         "features.log.prepopulateReadLimit": 0,
         "features.log.maxRefreshRate": 10,
         "cache.logPanel.size": 1000})
+      
+      for filter in self._config["features.log.regex"]:
+        # checks if we can't have more filters
+        if len(self.filterOptions) >= MAX_REGEX_FILTERS: break
+        
+        try:
+          re.compile(filter)
+          self.filterOptions.append(filter)
+        except re.error, exc:
+          msg = "Invalid regular expression pattern (%s): %s" % (exc, filter)
+          log.log(self._config["log.configEntryTypeError"], msg)
     
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
@@ -582,7 +598,6 @@ class LogPanel(panel.Panel, threading.Thread):
     self.msgLog = []                    # log entries, sorted by the timestamp
     self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
-    self.filterOptions = []             # filters the user has input
     self.lastContentHeight = 0          # height of the rendered content when last drawn
     self.logFile = None                 # file log messages are saved to (skipped if None)
     self.scroll = 0

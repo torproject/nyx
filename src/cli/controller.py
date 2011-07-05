@@ -8,6 +8,7 @@ import curses
 import threading
 
 import cli.menu.menu
+import cli.wizard
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -110,7 +111,7 @@ def initController(stdscr, startTime):
     except ValueError: pass # invalid stats, maybe connections when in blind mode
     
     # prepopulates bandwidth values from state file
-    if CONFIG["features.graph.bw.prepopulate"]:
+    if CONFIG["features.graph.bw.prepopulate"] and torTools.getConn().isAlive():
       isSuccessful = bwStats.prepopulateFromState()
       if isSuccessful: graphPanel.updateInterval = 4
 
@@ -435,7 +436,7 @@ def connResetListener(conn, eventType):
     resolver = connections.getResolver("tor")
     resolver.setPaused(eventType == torTools.State.CLOSED)
     
-    if eventType == torTools.State.INIT:
+    if eventType in (torTools.State.INIT, torTools.State.RESET):
       torPid = conn.getMyPid()
       
       if torPid and torPid != resolver.getPid():
@@ -455,13 +456,14 @@ def startTorMonitor(startTime):
   
   cli.graphing.graphPanel.loadConfig(config)
   cli.connections.connEntry.loadConfig(config)
+  cli.wizard.loadConfig(config)
   
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
   conn = torTools.getConn()
   torPid = conn.getMyPid()
   
-  if not torPid:
+  if not torPid and conn.isAlive():
     msg = "Unable to determine Tor's pid. Some information, like its resource usage will be unavailable."
     log.log(CONFIG["log.unknownTorPid"], msg)
   
@@ -482,17 +484,13 @@ def startTorMonitor(startTime):
       # use the tor pid to help narrow connection results
       torCmdName = sysTools.getProcessName(torPid, "tor")
       connections.getResolver(torCmdName, torPid, "tor")
-    else: connections.getResolver("tor")
+    else:
+      # constructs singleton resolver and, if tor isn't connected, initizes
+      # it to be paused
+      connections.getResolver("tor").setPaused(not conn.isAlive())
     
     # hack to display a better (arm specific) notice if all resolvers fail
     connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
-  
-  # loads the torrc and provides warnings in case of validation errors
-  try:
-    loadedTorrc = torConfig.getTorrc()
-    loadedTorrc.load(True)
-    loadedTorrc.logValidationIssues()
-  except IOError: pass
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = cli.logPanel.getMissingEventTypes()
@@ -505,6 +503,7 @@ def startTorMonitor(startTime):
     curses.wrapper(drawTorMonitor, startTime)
   except KeyboardInterrupt:
     pass # skip printing stack trace in case of keyboard interrupt
+  finally: shutdownDaemons()
 
 def drawTorMonitor(stdscr, startTime):
   """
@@ -540,7 +539,8 @@ def drawTorMonitor(stdscr, startTime):
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
-
+  if not torTools.getConn().isAlive(): overrideKey = ord('w') # shows wizard
+  
   while not control.isDone():
     displayPanels = control.getDisplayPanels()
     isUnresponsive = heartbeatCheck(isUnresponsive)
@@ -597,10 +597,10 @@ def drawTorMonitor(stdscr, startTime):
           log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
       overrideKey = cli.popups.showHelpPopup()
+    elif key == ord('w') or key == ord('W'):
+      cli.wizard.showWizard()
     else:
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
-  
-  shutdownDaemons()
 

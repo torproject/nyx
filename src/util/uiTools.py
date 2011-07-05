@@ -242,13 +242,22 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   
   # checks if there isn't the minimum space needed to include anything
   lastWordbreak = msg.rfind(" ", 0, size + 1)
-  lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
-  if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
-    if getRemainder: return ("", msg)
-    else: return ""
   
-  if minWordLen == None: minWordLen = sys.maxint
-  includeCrop = size - lastWordbreak - 1 >= minWordLen
+  if lastWordbreak == -1:
+    # we're splitting the first word
+    if minWordLen == None or size < minWordLen:
+      if getRemainder: return ("", msg)
+      else: return ""
+    
+    includeCrop = True
+  else:
+    lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
+    if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
+      if getRemainder: return ("", msg)
+      else: return ""
+    
+    if minWordLen == None: minWordLen = sys.maxint
+    includeCrop = size - lastWordbreak - 1 >= minWordLen
   
   # if there's a max crop size then make sure we're cropping at least that many characters
   if includeCrop and minCrop:
@@ -264,13 +273,27 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
   
   # if this is ending with a comma or period then strip it off
-  if not getRemainder and returnMsg[-1] in (",", "."): returnMsg = returnMsg[:-1]
+  if not getRemainder and returnMsg and returnMsg[-1] in (",", "."):
+    returnMsg = returnMsg[:-1]
   
   if endType == Ending.ELLIPSE:
     returnMsg = returnMsg.rstrip() + "..."
   
   if getRemainder: return (returnMsg, remainder)
   else: return returnMsg
+
+def padStr(msg, size, cropExtra = False):
+  """
+  Provides the string padded with whitespace to the given length.
+  
+  Arguments:
+    msg       - string to be padded
+    size      - length to be padded to
+    cropExtra - crops string if it's longer than the size if true
+  """
+  
+  if cropExtra: msg = msg[:size]
+  return ("%%-%is" % size) % msg
 
 def camelCase(label, divider = "_", joiner = " "):
   """
@@ -306,18 +329,18 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   
   # draws the top and bottom
-  panel.hline(top, left + 1, width - 1, attr)
-  panel.hline(top + height - 1, left + 1, width - 1, attr)
+  panel.hline(top, left + 1, width - 2, attr)
+  panel.hline(top + height - 1, left + 1, width - 2, attr)
   
   # draws the left and right sides
   panel.vline(top + 1, left, height - 2, attr)
-  panel.vline(top + 1, left + width, height - 2, attr)
+  panel.vline(top + 1, left + width - 1, height - 2, attr)
   
   # draws the corners
   panel.addch(top, left, curses.ACS_ULCORNER, attr)
-  panel.addch(top, left + width, curses.ACS_URCORNER, attr)
+  panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
   panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
-  panel.addch(top + height - 1, left + width, curses.ACS_LRCORNER, attr)
+  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, attr)
 
 def isSelectionKey(key):
   """

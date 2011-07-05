@@ -178,9 +178,10 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
       # Fetches all options available with this tor instance. This isn't
       # vital, and the validOptions are left empty if the call fails.
       conn, validOptions = torTools.getConn(), []
-      configOptionQuery = conn.getInfo("config/names").strip().split("\n")
+      configOptionQuery = conn.getInfo("config/names")
       if configOptionQuery:
-        validOptions = [line[:line.find(" ")].lower() for line in configOptionQuery]
+        for line in configOptionQuery.strip().split("\n"):
+          validOptions.append(line[:line.find(" ")].lower())
       
       optionCount, lastOption, lastArg = 0, None, None
       lastCategory, lastDescription = Category.GENERAL, ""
@@ -343,14 +344,17 @@ def getMultilineParameters():
   # 'Dependent'), and LINELIST_V (aka 'Virtual') types
   global MULTILINE_PARAM
   if MULTILINE_PARAM == None:
-    conn = torTools.getConn()
-    configOptionQuery = conn.getInfo("config/names", "").strip().split("\n")
+    conn, multilineEntries = torTools.getConn(), []
     
-    multilineEntries = []
-    for line in configOptionQuery:
-      confOption, confType = line.strip().split(" ", 1)
-      if confType in ("LineList", "Dependant", "Virtual"):
-        multilineEntries.append(confOption)
+    configOptionQuery = conn.getInfo("config/names")
+    if configOptionQuery:
+      for line in configOptionQuery.strip().split("\n"):
+        confOption, confType = line.strip().split(" ", 1)
+        if confType in ("LineList", "Dependant", "Virtual"):
+          multilineEntries.append(confOption)
+    else:
+      # unable to query tor connection, so not caching results
+      return ()
     
     MULTILINE_PARAM = multilineEntries
   
