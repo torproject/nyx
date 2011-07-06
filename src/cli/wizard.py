@@ -72,7 +72,8 @@ MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
 DISABLED_COLOR = "cyan"
 
-CONFIG = {"wizard.message.role": "",
+CONFIG = {"startup.dataDirectory": "~/.arm",
+          "wizard.message.role": "",
           "wizard.message.relay": "",
           "wizard.message.exit": "",
           "wizard.message.bridge": "",
@@ -86,7 +87,14 @@ CONFIG = {"wizard.message.role": "",
           "wizard.label.opt": {},
           "wizard.description.general": {},
           "wizard.description.role": {},
-          "wizard.description.opt": {}}
+          "wizard.description.opt": {},
+          "port.category": {},
+          "port.exit.all": [],
+          "port.exit.web": [],
+          "port.exit.mail": [],
+          "port.exit.im": [],
+          "port.exit.misc": [],
+          "port.encrypted": []}
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -437,12 +445,66 @@ def getTorrc(relayType, config):
     
     templateOptions[key.upper()] = value
   
-  #templateOptions = dict([(key.upper(), config[key].getValue()) for key in config])
   templateOptions[relayType.upper()] = True
   templateOptions["LOW_PORTS"] = config[Options.LOWPORTS]
-  #templateOptions["BURST"] = config[Options.BANDWIDTH] * 2 # TODO: implement
-  templateOptions["NOTICE_PATH"] = "/path/to/.arm/exit-notice.html" # TODO: actually prepend the right prefix
-  templateOptions["EXIT_POLICY"] = "" # TODO: fill in configured policy
+  
+  # uses double the relay rate for bursts
+  relayRateComp = config[Options.BANDWIDTH].getValue().split(" ")
+  templateOptions["BURST"] = "%i %s" % (int(relayRateComp[0]) * 2, " ".join(relayRateComp[1:]))
+  
+  # exit notice will be in our data directory
+  dataDir = CONFIG["startup.dataDirectory"]
+  if not dataDir.endswith("/"): dataDir += "/"
+  templateOptions["NOTICE_PATH"] = os.path.expanduser(dataDir) + "exit-notice.html"
+  
+  policyCategories = []
+  if not config[Options.POLICY].getValue():
+    policyCategories = ["web", "mail", "im", "misc"]
+  else:
+    if config[Options.WEBSITES].getValue(): policyCategories.append("web")
+    if config[Options.EMAIL].getValue(): policyCategories.append("mail")
+    if config[Options.IM].getValue(): policyCategories.append("im")
+    if config[Options.MISC].getValue(): policyCategories.append("misc")
+  
+  if policyCategories:
+    isEncryptedOnly = not config[Options.PLAINTEXT].getValue()
+    
+    policyLines = []
+    for category in ["all"] + policyCategories:
+      # shows a comment at the start of the section saying what it's for
+      topicComment = CONFIG["port.category"].get(category)
+      if topicComment:
+        while topicComment:
+          commentSegment, topicComment = uiTools.cropStr(topicComment, 78, None, endType = None, getRemainder = True)
+          policyLines.append("# " + commentSegment.strip())
+      
+      for portEntry in CONFIG.get("port.exit.%s" % category, []):
+        # port entry might be an individual port or a range
+        
+        if isEncryptedOnly and (not portEntry in CONFIG["port.encrypted"]):
+          continue # opting to not include plaintext port and ranges
+        
+        if "-" in portEntry:
+          # if this is a range then use the first port's description
+          comment = connections.PORT_USAGE.get(portEntry[:portEntry.find("-")])
+        else: comment = connections.PORT_USAGE.get(portEntry)
+        
+        entry = "ExitPolicy accept *:%s" % portEntry
+        if comment: policyLines.append("%-30s# %s" % (entry, comment))
+        else: policyLines.append(entry)
+      
+      if category != policyCategories[-1]:
+        policyLines.append("") # newline to split categories
+    
+    templateOptions["EXIT_POLICY"] = "\n".join(policyLines)
+  
+  # includes input bridges
+  bridgeLines = []
+  for bridgeOpt in [Options.BRIDGE1, Options.BRIDGE2, Options.BRIDGE3]:
+    bridgeValue = config[bridgeOpt].getValue()
+    if bridgeValue: bridgeLines.append("Bridge %s" % bridgeValue)
+  
+  templateOptions["BRIDGES"] = "\n".join(bridgeLines)
   
   return torConfig.renderTorrc(template, templateOptions)
 

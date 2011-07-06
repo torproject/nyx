@@ -60,7 +60,9 @@ CookieAuthentication 1       # method for controller authentication
       DirPortFrontPage [NOTICE_PATH] # disclaimer saying that this is an exit
     [END IF]
     
+    [NEWLINE]
     [EXIT_POLICY]
+    ExitPolicy reject *:*    # prevents any exit traffic not permitted above
   [END IF]
 [ELSE]
   ClientOnly 1               # prevents us from ever being used as a relay
