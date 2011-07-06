@@ -474,9 +474,8 @@ def getTorrc(relayType, config):
       # shows a comment at the start of the section saying what it's for
       topicComment = CONFIG["port.category"].get(category)
       if topicComment:
-        while topicComment:
-          commentSegment, topicComment = uiTools.cropStr(topicComment, 78, None, endType = None, getRemainder = True)
-          policyLines.append("# " + commentSegment.strip())
+        for topicComp in _splitStr(topicComment, 78):
+          policyLines.append("# " + topicComp)
       
       for portEntry in CONFIG.get("port.exit.%s" % category, []):
         # port entry might be an individual port or a range

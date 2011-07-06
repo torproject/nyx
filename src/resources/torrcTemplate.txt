@@ -7,34 +7,38 @@
 # Descriptions of all of these configuraiton attibutes (and many more) are
 # available in the tor man page.
 [NEWLINE]
-ControlPort 9052             # port controllers can connect to
-CookieAuthentication 1       # method for controller authentication
+ControlPort 9052              # port controllers can connect to
+CookieAuthentication 1        # method for controller authentication
 
 [IF RELAY | EXIT | BRIDGE]
-  RunAsDaemon 1              # runs as a background process
+  RunAsDaemon 1               # runs as a background process
+  
+  [IF LOWPORTS]
+    User tor-arm              # lowers our permissions to this user
+  [END IF]
 [END IF]
 [NEWLINE]
 
 [IF RELAY | EXIT | BRIDGE]
   [IF LOWPORTS]
-    ORPort 443               # port used for relaying traffic
+    ORPort 443                # port used for relaying traffic
   [ELSE]
-    ORPort 9001              # port used for relaying traffic
+    ORPort 9001               # port used for relaying traffic
   [END IF]
   
   [IF RELAY | EXIT]
     [IF LOWPORTS]
-      DirPort 80             # port used for mirroring directory information
+      DirPort 80              # port used for mirroring directory information
     [ELSE]
-      DirPort 9030           # port used for mirroring directory information
+      DirPort 9030            # port used for mirroring directory information
     [END IF]
     
-    Nickname [NICKNAME]      # name for this relay
-    ContactInfo [CONTACT]    # contact information in case there's an issue
+    Nickname [NICKNAME]       # name for this relay
+    ContactInfo [CONTACT]     # contact information in case there's an issue
   [END IF]
   
   [IF BRIDGE]
-    BridgeRelay 1            # makes us a bridge rather than a public relay
+    BridgeRelay 1             # makes us a bridge rather than a public relay
     
     [IF NOT DISTRIBUTE]
       PublishServerDescriptor 0 # keeps our bridge descriptor private
@@ -43,18 +47,18 @@ CookieAuthentication 1       # method for controller authentication
   
   RelayBandwidthRate [BANDWIDTH] # limit for the bandwidth we'll use to relay
   RelayBandwidthBurst [BURST] # maximum rate when relaying bursts of traffic
-  AccountingMax [LIMIT]      # maximum amount of traffic we'll relay per month
+  AccountingMax [LIMIT]       # maximum amount of traffic we'll relay per month
   
   [IF NOT CLIENT]
-    SocksPort 0              # prevents tor from being used as a client
+    SocksPort 0               # prevents tor from being used as a client
   [END IF]
   
   [IF PORTFORWARD]
-    PortForwarding 1         # negotiates UPnP and NAT-PMP if needed
+    PortForwarding 1          # negotiates UPnP and NAT-PMP if needed
   [END IF]
   
   [IF RELAY | BRIDGE]
-    ExitPolicy reject *:*    # prevents us from connecting to non-relays
+    ExitPolicy reject *:*     # prevents us from connecting to non-relays
   [ELSE]
     [IF NOTICE]
       DirPortFrontPage [NOTICE_PATH] # disclaimer saying that this is an exit
@@ -62,15 +66,16 @@ CookieAuthentication 1       # method for controller authentication
     
     [NEWLINE]
     [EXIT_POLICY]
-    ExitPolicy reject *:*    # prevents any exit traffic not permitted above
+    ExitPolicy reject *:*     # prevents any exit traffic not permitted above
   [END IF]
 [ELSE]
-  ClientOnly 1               # prevents us from ever being used as a relay
+  ClientOnly 1                # prevents us from ever being used as a relay
   MaxCircuitDirtiness [REUSE] # duration that circuits can be reused
   
   [IF BRIDGED]
-    UseBridges 1             # uses the following bridges to connect
+    UseBridges 1              # uses the following bridges to connect
     [BRIDGES]
   [END IF]
 [END IF]
+[NEWLINE]
 
