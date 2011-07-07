@@ -628,7 +628,7 @@ class Panel():
     
     return userInput
   
-  def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1):
+  def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1, drawLeft = 0):
     """
     Draws a left justified scroll bar reflecting position within a vertical
     listing. This is shorted if necessary, and left undrawn if no space is
@@ -649,6 +649,7 @@ class Panel():
       drawTop    - starting row where the scroll bar should be drawn
       drawBottom - ending row where the scroll bar should end, -1 if it should
                    span to the bottom of the panel
+      drawLeft   - left offset at which to draw the scroll bar
     """
     
     if (self.maxY - drawTop) < 2: return # not enough room
@@ -673,12 +674,12 @@ class Panel():
     # draws scrollbar slider
     for i in range(scrollbarHeight):
       if i >= sliderTop and i <= sliderTop + sliderSize:
-        self.addstr(i + drawTop, 0, " ", curses.A_STANDOUT)
+        self.addstr(i + drawTop, drawLeft, " ", curses.A_STANDOUT)
     
     # draws box around the scroll bar
-    self.win.vline(drawTop, 1, curses.ACS_VLINE, self.maxY - 2)
-    self.win.addch(drawBottom, 1, curses.ACS_LRCORNER)
-    self.win.addch(drawBottom, 0, curses.ACS_HLINE)
+    self.vline(drawTop, drawLeft + 1, drawBottom - 1)
+    self.addch(drawBottom, drawLeft + 1, curses.ACS_LRCORNER)
+    self.addch(drawBottom, drawLeft, curses.ACS_HLINE)
   
   def _resetSubwindow(self):
     """

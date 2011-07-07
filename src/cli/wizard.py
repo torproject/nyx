@@ -264,8 +264,19 @@ def showWizard():
       if selection == BACK: relayType = None
       elif selection == NEXT:
         generatedTorrc = getTorrc(relayType, config)
-        log.log(log.NOTICE, "Resulting torrc:\n%s" % generatedTorrc)
-        break # TODO: implement next screen
+        
+        dataDir = CONFIG["startup.dataDirectory"]
+        if not dataDir.endswith("/"): dataDir += "/"
+        torrcLocation = os.path.expanduser(dataDir) + "torrc"
+        
+        cli.controller.getController().requestRedraw(True)
+        confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
+        
+        if confirmationSelection == NEXT:
+          log.log(log.NOTICE, "Resulting torrc:\n%s" % generatedTorrc)
+          break # TODO: implement next screen
+        elif confirmationSelection == CANCEL:
+          break
     
     # redraws screen to clear away the dialog we just showed
     cli.controller.getController().requestRedraw(True)
@@ -506,6 +517,101 @@ def getTorrc(relayType, config):
   templateOptions["BRIDGES"] = "\n".join(bridgeLines)
   
   return torConfig.renderTorrc(template, templateOptions)
+
+def showConfirmationDialog(torrcContents, torrcLocation):
+  """
+  Shows a confirmation dialog with the given torrc contents, returning CANCEL,
+  NEXT, or BACK based on the selection.
+  
+  Arguments:
+    torrcContents - lines of torrc contents to be presented
+    torrcLocation - path where the torrc will be placed
+  """
+  
+  torrcLines = torrcContents.split("\n")
+  options = ["Cancel", "Back to Setup", "Start Tor"]
+  
+  control = cli.controller.getController()
+  screenHeight = control.getScreen().getmaxyx()[0]
+  stickyHeight = sum([stickyPanel.getHeight() for stickyPanel in control.getStickyPanels()])
+  isScrollbarVisible = len(torrcLines) + stickyHeight + 5 > screenHeight
+  
+  xOffset = 3 if isScrollbarVisible else 0
+  popup, width, height = cli.popups.init(len(torrcLines) + 5, 84 + xOffset)
+  if not popup: return False
+  
+  try:
+    scroll, selection = 0, 2
+    curses.cbreak()
+    
+    while True:
+      popup.win.erase()
+      popup.win.box()
+      
+      # renders the scrollbar
+      if isScrollbarVisible:
+        popup.addScrollBar(scroll, scroll + height - 5, len(torrcLines), 1, height - 4, 1)
+      
+      # shows the path where the torrc will be placed
+      titleMsg = "The following will be placed at '%s':" % torrcLocation
+      popup.addstr(0, 0, titleMsg, curses.A_STANDOUT)
+      
+      # renders the torrc contents
+      for i in range(scroll, min(len(torrcLines), height - 5 + scroll)):
+        # parses the argument and comment from options
+        option, arg, comment = uiTools.cropStr(torrcLines[i], width - 4 - xOffset), "", ""
+        
+        div = option.find("#")
+        if div != -1: option, comment = option[:div], option[div:]
+        
+        div = option.find(" ")
+        if div != -1: option, arg = option[:div], option[div:]
+        
+        drawX = 2 + xOffset
+        popup.addstr(i + 1 - scroll, drawX, option, curses.A_BOLD | uiTools.getColor("green"))
+        drawX += len(option)
+        popup.addstr(i + 1 - scroll, drawX, arg, curses.A_BOLD | uiTools.getColor("cyan"))
+        drawX += len(arg)
+        popup.addstr(i + 1 - scroll, drawX, comment, uiTools.getColor("white"))
+      
+      # divider between the torrc and the options
+      popup.addch(height - 4, 0, curses.ACS_LTEE)
+      popup.addch(height - 4, width, curses.ACS_RTEE)
+      popup.hline(height - 4, 1, width - 1)
+      if isScrollbarVisible: popup.addch(height - 4, 2, curses.ACS_BTEE)
+      
+      # renders the selection options
+      confirmationMsg = "Run tor with the above configuration?"
+      popup.addstr(height - 3, width - len(confirmationMsg) - 1, confirmationMsg, uiTools.getColor("green") | curses.A_BOLD)
+      
+      drawX = width - 1
+      for i in range(len(options) - 1, -1, -1):
+        optionLabel = " %s " % options[i]
+        drawX -= (len(optionLabel) + 4)
+        
+        selectionFormat = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+        popup.addstr(height - 2, drawX, "[", uiTools.getColor("green"))
+        popup.addstr(height - 2, drawX + 1, optionLabel, uiTools.getColor("green") | selectionFormat | curses.A_BOLD)
+        popup.addstr(height - 2, drawX + len(optionLabel) + 1, "]", uiTools.getColor("green"))
+        
+        drawX -= 1 # space gap between the options
+      
+      popup.win.refresh()
+      key = cli.controller.getController().getScreen().getch()
+      
+      if key == curses.KEY_LEFT:
+        selection = (selection - 1) % len(options)
+      elif key == curses.KEY_RIGHT:
+        selection = (selection + 1) % len(options)
+      elif uiTools.isScrollKey(key):
+        scroll = uiTools.getScrollPosition(key, scroll, height - 5, len(torrcLines))
+      elif uiTools.isSelectionKey(key):
+        if selection == 0: return CANCEL
+        elif selection == 1: return BACK
+        else: return NEXT
+      elif key == 27: return CANCEL
+  finally:
+    cli.popups.finalize()
 
 def _splitStr(msg, width):
   """
