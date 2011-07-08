@@ -9,6 +9,7 @@
 [NEWLINE]
 ControlPort 9052              # port controllers can connect to
 CookieAuthentication 1        # method for controller authentication
+Log [LOG_ENTRY]               # location to log notices, warnings, and errors
 
 [IF RELAY | EXIT | BRIDGE]
   RunAsDaemon 1               # runs as a background process

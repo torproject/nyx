@@ -5,13 +5,16 @@ that's used by arm to run its own tor instance.
 
 import os
 import sys
+import shutil
 import functools
 import curses
 
 import cli.popups
 import cli.controller
 
-from util import connections, enum, log, torConfig, uiTools
+from TorCtl import TorCtl
+
+from util import connections, enum, log, torConfig, torTools, uiTools
 
 # template used to generate the torrc
 TORRC_TEMPLATE = "resources/torrcTemplate.txt"
@@ -72,8 +75,7 @@ MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
 DISABLED_COLOR = "cyan"
 
-CONFIG = {"startup.dataDirectory": "~/.arm",
-          "wizard.message.role": "",
+CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
           "wizard.message.exit": "",
           "wizard.message.bridge": "",
@@ -251,6 +253,7 @@ def showWizard():
   
   # remembers the last selection made on the type prompt page
   relaySelection = RelayType.RELAY
+  controller = cli.controller.getController()
   
   while True:
     if relayType == None:
@@ -265,18 +268,36 @@ def showWizard():
       elif selection == NEXT:
         generatedTorrc = getTorrc(relayType, config)
         
-        dataDir = CONFIG["startup.dataDirectory"]
-        if not dataDir.endswith("/"): dataDir += "/"
-        torrcLocation = os.path.expanduser(dataDir) + "torrc"
-        
-        cli.controller.getController().requestRedraw(True)
+        torrcLocation = controller.getDataDirectory() + "torrc"
+        controller.requestRedraw(True)
         confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
         
         if confirmationSelection == NEXT:
-          log.log(log.NOTICE, "Resulting torrc:\n%s" % generatedTorrc)
-          break # TODO: implement next screen
-        elif confirmationSelection == CANCEL:
+          log.log(log.INFO, "Writing torrc to '%s':\n%s" % (torrcLocation, generatedTorrc))
+          
+          # if the torrc already exists then save it to a _bak file
+          if os.path.exists(torrcLocation):
+            shutil.copy(torrcLocation, torrcLocation + "_bak")
+          
+          # writes the torrc contents
+          torrcFile = open(torrcLocation, "w")
+          torrcFile.write(generatedTorrc)
+          torrcFile.close()
+          
+          try:
+            os.system("tor --quiet -f %s&" % torrcLocation)
+            torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = 9052)
+            
+            if authType == TorCtl.AUTH_TYPE.COOKIE:
+              torctlConn.authenticate(authValue)
+              torTools.getConn().init(torctlConn)
+            else:
+              raise IOError("unexpected authentication type '%s'" % authType)
+          except IOError, exc:
+            log.log(log.WARN, "Unable to start tor: %s" % exc)
+          
           break
+        elif confirmationSelection == CANCEL: break
     
     # redraws screen to clear away the dialog we just showed
     cli.controller.getController().requestRedraw(True)
@@ -464,9 +485,9 @@ def getTorrc(relayType, config):
   templateOptions["BURST"] = "%i %s" % (int(relayRateComp[0]) * 2, " ".join(relayRateComp[1:]))
   
   # exit notice will be in our data directory
-  dataDir = CONFIG["startup.dataDirectory"]
-  if not dataDir.endswith("/"): dataDir += "/"
-  templateOptions["NOTICE_PATH"] = os.path.expanduser(dataDir) + "exit-notice.html"
+  dataDir = cli.controller.getController().getDataDirectory()
+  templateOptions["NOTICE_PATH"] = dataDir + "exit-notice.html"
+  templateOptions["LOG_ENTRY"] = "notice file %stor-log" % dataDir
   
   policyCategories = []
   if not config[Options.POLICY].getValue():
@@ -564,7 +585,7 @@ def showConfirmationDialog(torrcContents, torrcLocation):
         div = option.find("#")
         if div != -1: option, comment = option[:div], option[div:]
         
-        div = option.find(" ")
+        div = option.strip().find(" ")
         if div != -1: option, arg = option[:div], option[div:]
         
         drawX = 2 + xOffset

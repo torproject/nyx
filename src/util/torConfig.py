@@ -930,7 +930,7 @@ def renderTorrc(template, options, commentIndent = 30):
           comment = "# %s" % comment.strip()
         
         # parses the argument from the option
-        if " " in parsedLine:
+        if " " in parsedLine.strip():
           option, arg = parsedLine.split(" ", 1)
           option = option.strip()
         else:

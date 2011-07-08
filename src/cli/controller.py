@@ -3,6 +3,7 @@ Main interface loop for arm, periodically redrawing the screen and issuing
 user input to the proper panels.
 """
 
+import os
 import time
 import curses
 import threading
@@ -25,6 +26,7 @@ from util import connections, conf, enum, log, panel, sysTools, torConfig, torTo
 ARM_CONTROLLER = None
 
 CONFIG = {"startup.events": "N3",
+          "startup.dataDirectory": "~/.arm",
           "startup.blindModeEnabled": False,
           "features.panels.show.graph": True,
           "features.panels.show.log": True,
@@ -365,6 +367,17 @@ class Controller:
     
     if redraw: controlPanel.redraw(True)
     else: self._forceRedraw = True
+  
+  def getDataDirectory(self):
+    """
+    Provides the path where arm's resources are being placed. The path ends
+    with a slash and is created if it doesn't already exist.
+    """
+    
+    dataDir = CONFIG["startup.dataDirectory"]
+    if not dataDir.endswith("/"): dataDir += "/"
+    if not os.path.exists(dataDir): os.makedirs(dataDir)
+    return os.path.expanduser(dataDir)
   
   def isDone(self):
     """
