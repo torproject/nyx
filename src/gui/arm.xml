@@ -59,7 +59,7 @@
       </row>
     </data>
   </object>
-  <object class="GtkListStore" id="liststore_conn">
+  <object class="GtkTreeStore" id="treestore_conn">
     <columns>
       <!-- column-name origin -->
       <column type="gchararray"/>
@@ -432,7 +432,7 @@
                               <object class="GtkTreeView" id="treeview_conn">
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
-                                <property name="model">liststore_conn</property>
+                                <property name="model">treestore_conn</property>
                                 <property name="headers_visible">False</property>
                                 <property name="headers_clickable">False</property>
                                 <property name="search_column">0</property>

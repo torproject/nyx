@@ -30,7 +30,7 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
-INCLUDE_GUI = False
+INCLUDE_GUI = True
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
