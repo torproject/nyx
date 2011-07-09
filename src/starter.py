@@ -39,6 +39,7 @@ CONFIG = {"startup.controlPassword": None,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
+          "wizard.default": {},
           "features.allowDetachedStartup": False,
           "features.config.descriptions.enabled": True,
           "features.config.descriptions.persist": True,
@@ -210,6 +211,21 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
     return conn
   except Exception, exc:
     if conn: conn.close()
+    
+    # attempts to connect with the default wizard address too
+    wizardPort = CONFIG["wizard.default"].get("Control")
+    
+    if wizardPort and wizardPort.isdigit():
+      wizardPort = int(wizardPort)
+      
+      # Attempt to connect to the wizard port. If the connection fails then
+      # don't print anything and continue with the error case for the initial
+      # connection failure. Otherwise, return the connection result.
+      
+      if controlPort != wizardPort:
+        connResult = _torCtlConnect(controlAddr, wizardPort)
+        if connResult != None: return connResult
+      else: return None # wizard connection attempt, don't print anything
     
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try

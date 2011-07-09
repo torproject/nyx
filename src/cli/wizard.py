@@ -23,7 +23,7 @@ TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
+Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -286,7 +286,7 @@ def showWizard():
           
           try:
             os.system("tor --quiet -f %s&" % torrcLocation)
-            torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = 9052)
+            torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"][Options.CONTROL]))
             
             if authType == TorCtl.AUTH_TYPE.COOKIE:
               torctlConn.authenticate(authValue)
