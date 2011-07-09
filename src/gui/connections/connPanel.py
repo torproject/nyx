@@ -89,10 +89,7 @@ class ConnectionPanel(CliConnectionPanel):
       if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
         self._resolveApps()
 
-      local = "%s:%s" % (line.local.ipAddr, line.local.port)
-      foreign = "%s:%s" % (line.foreign.ipAddr, line.foreign.port)
-      timeLabel = "%d s" % (time.time() - line.startTime)
-      row = (local, foreign, timeLabel, line.baseType, 'black')
+      row = line.getListingRow()
 
       if isinstance(line, circEntry.CircHeaderLine):
         currentiter = treestore.append(None, row)
