@@ -44,9 +44,11 @@ class ConnectionPanel(CliConnectionPanel):
     treestore = self.builder.get_object('treestore_conn')
 
     # first pass checks whether we have enough entries cached to not update the treeview
-    for (index, line) in enumerate(self._entryLines):
+    index = 0
+    for line in self._entryLines:
       local = "%s:%s" % (line.local.ipAddr, line.local.port)
       foreign = "%s:%s" % (line.foreign.ipAddr, line.foreign.port)
+
       cachekey = (local, foreign)
       if self.cache.has_key(cachekey):
         timeLabel = "%d s" % (time.time() - line.startTime)
@@ -54,7 +56,9 @@ class ConnectionPanel(CliConnectionPanel):
       else:
         break
 
-    if index == len(self._entryLines) - 1:
+      index = index + 1
+
+    if index == len(self._entryLines):
       return
 
     treestore.clear()
