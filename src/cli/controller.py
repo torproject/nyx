@@ -21,6 +21,8 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
+from TorCtl import TorCtl
+
 from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
 
 ARM_CONTROLLER = None
@@ -38,6 +40,7 @@ CONFIG = {"startup.events": "N3",
           "features.confirmQuit": True,
           "features.graph.type": 1,
           "features.graph.bw.prepopulate": True,
+          "wizard.default": {},
           "log.startTime": log.INFO,
           "log.torEventTypeUnrecognized": log.NOTICE,
           "log.configEntryUndefined": log.NOTICE,
@@ -167,6 +170,7 @@ class Controller:
     self._isPaused = False
     self._forceRedraw = False
     self._isDone = False
+    self._torManager = TorManager(self)
     self.setMsg() # initializes our control message
   
   def getScreen(self):
@@ -380,6 +384,13 @@ class Controller:
     if not os.path.exists(dataDir): os.makedirs(dataDir)
     return os.path.expanduser(dataDir)
   
+  def getTorManager(self):
+    """
+    Provides management utils for an arm managed tor instance.
+    """
+    
+    return self._torManager
+  
   def isDone(self):
     """
     True if arm should be terminated, false otherwise.
@@ -398,10 +409,8 @@ class Controller:
     
     if CONFIG["features.offerTorShutdownOnQuit"]:
       conn = torTools.getConn()
-      torrcLoc = conn.getInfo("config-file")
-      wizardTorrcLoc = self.getDataDirectory() + "torrc"
       
-      if torrcLoc == wizardTorrcLoc:
+      if self.getTorManager().isManaged(conn):
         while True:
           msg = "Shut down the Tor instance arm started (y/n)?"
           confirmationKey = cli.popups.showMsg(msg, attr = curses.A_BOLD)
@@ -415,6 +424,64 @@ class Controller:
             break
           elif confirmationKey in (ord('n'), ord('N')):
             break
+
+class TorManager:
+  """
+  Bundle of utils for starting and manipulating an arm generated tor instance.
+  """
+  
+  def __init__(self, controller):
+    self._controller = controller
+  
+  def getTorrcPath(self):
+    """
+    Provides the path to a wizard generated torrc.
+    """
+    
+    return self._controller.getDataDirectory() + "torrc"
+  
+  def isTorrcAvailable(self):
+    """
+    True if a wizard generated torrc exists, false otherwise.
+    """
+    
+    return os.path.exists(self.getTorrcPath())
+  
+  def isManaged(self, conn):
+    """
+    Returns true if the given tor instance is managed by us, false otherwise.
+    
+    Arguments:
+      conn - controller instance to be checked
+    """
+    
+    return conn.getInfo("config-file") == self.getTorrcPath()
+  
+  def startManagedInstance(self):
+    """
+    Starts a managed instance of tor, raising an IOError if unsuccessful.
+    """
+    
+    os.system("tor --quiet -f %s&" % self.getTorrcPath())
+    startTime = time.time()
+    
+    # attempts to connect for five seconds (tor might or might not be
+    # immediately available)
+    torctlConn, authType, authValue, raisedExc = None, None, None, None
+    while not torctlConn and time.time() - startTime < 5:
+      try:
+        torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
+      except IOError, exc:
+        raisedExc == exc
+        time.sleep(0.5)
+    
+    if not torctlConn: raise raisedExc
+    
+    if authType == TorCtl.AUTH_TYPE.COOKIE:
+      torctlConn.authenticate(authValue)
+      torTools.getConn().init(torctlConn)
+    else:
+      raise IOError("unexpected authentication type '%s'" % authType)
 
 def shutdownDaemons():
   """

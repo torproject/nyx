@@ -254,6 +254,7 @@ def showWizard():
   # remembers the last selection made on the type prompt page
   relaySelection = RelayType.RELAY
   controller = cli.controller.getController()
+  manager = controller.getTorManager()
   
   while True:
     if relayType == None:
@@ -268,7 +269,7 @@ def showWizard():
       elif selection == NEXT:
         generatedTorrc = getTorrc(relayType, config)
         
-        torrcLocation = controller.getDataDirectory() + "torrc"
+        torrcLocation = manager.getTorrcPath()
         controller.requestRedraw(True)
         confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
         
@@ -285,14 +286,14 @@ def showWizard():
           torrcFile.close()
           
           try:
-            os.system("tor --quiet -f %s&" % torrcLocation)
-            torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"][Options.CONTROL]))
+            conn = torTools.getConn()
             
-            if authType == TorCtl.AUTH_TYPE.COOKIE:
-              torctlConn.authenticate(authValue)
-              torTools.getConn().init(torctlConn)
-            else:
-              raise IOError("unexpected authentication type '%s'" % authType)
+            # If we're connected to a managed instance then just need to
+            # issue a sighup to pick up the new settings. Otherwise starts
+            # a new tor instance.
+            
+            if manager.isManaged(conn): conn.reset()
+            else: manager.startManagedInstance()
           except IOError, exc:
             log.log(log.WARN, "Unable to start tor: %s" % exc)
           
