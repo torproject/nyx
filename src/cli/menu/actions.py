@@ -50,17 +50,22 @@ def makeActionsMenu():
   """
   
   control = cli.controller.getController()
+  conn = torTools.getConn()
   headerPanel = control.getPanel("header")
   actionsMenu = cli.menu.item.Submenu("Actions")
   actionsMenu.add(cli.menu.item.MenuItem("Close Menu", None))
   actionsMenu.add(cli.menu.item.MenuItem("New Identity", headerPanel.sendNewnym))
+  
+  if conn.isAlive():
+    actionsMenu.add(cli.menu.item.MenuItem("Stop Tor", conn.shutdown))
+  
+  actionsMenu.add(cli.menu.item.MenuItem("Reset Tor", conn.reload))
   actionsMenu.add(cli.menu.item.MenuItem("Setup Wizard", cli.wizard.showWizard))
   
   if control.isPaused(): label, arg = "Unpause", False
   else: label, arg = "Pause", True
   actionsMenu.add(cli.menu.item.MenuItem(label, functools.partial(control.setPaused, arg)))
   
-  actionsMenu.add(cli.menu.item.MenuItem("Reset Tor", torTools.getConn().reload))
   actionsMenu.add(cli.menu.item.MenuItem("Exit", control.quit))
   return actionsMenu
 
