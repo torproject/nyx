@@ -22,5 +22,5 @@ class ConnectionLine(connEntry.ConnectionLine):
     foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
     timeLabel = "%d s" % (time.time() - self.startTime)
 
-    return (local, foreign, timeLabel, self.baseType, 'black')
+    return (local, foreign, timeLabel, self.baseType, 'red')
 
