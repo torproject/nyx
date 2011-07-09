@@ -49,7 +49,7 @@ class ConnectionPanel(CliConnectionPanel):
       local = "%s:%s" % (line.local.ipAddr, line.local.port)
       foreign = "%s:%s" % (line.foreign.ipAddr, line.foreign.port)
 
-      cachekey = (local, foreign)
+      cachekey = (local, foreign, isinstance(line, circEntry.CircHeaderLine))
       if self.cache.has_key(cachekey):
         timeLabel = "%d s" % (time.time() - line.startTime)
         treestore.set_value(self.cache[cachekey], 2, timeLabel)
@@ -82,7 +82,7 @@ class ConnectionPanel(CliConnectionPanel):
       else:
         currentiter = treestore.append(None, row)
 
-      cachekey = (local, foreign)
+      cachekey = (local, foreign, isinstance(line, circEntry.CircHeaderLine))
       self.cache[cachekey] = currentiter
 
     self.valsLock.release()
