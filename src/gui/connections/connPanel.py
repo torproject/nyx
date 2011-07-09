@@ -59,7 +59,7 @@ class ConnectionPanel(CliConnectionPanel):
       index = index + 1
 
     if index == len(self._entryLines):
-      return
+      return True
 
     treestore.clear()
 
