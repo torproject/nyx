@@ -1465,6 +1465,30 @@ class Controller(TorCtl.PostEventListener):
     
     if raisedException: raise raisedException
   
+  def shutdown(self, force = False):
+    """
+    Sends a shutdown signal to the attached tor instance. For relays the
+    actual shutdown is delayed for thirty seconds unless the force flag is
+    given. This raises an IOError if a signal is sent but fails.
+    
+    Arguments:
+      force - triggers an immediate shutdown for relays if True
+    """
+    
+    self.connLock.acquire()
+    
+    raisedException = None
+    if self.isAlive():
+      try:
+        signal = "HALT" if force else "SHUTDOWN"
+        self.conn.send_signal(signal)
+      except Exception, exc:
+        raisedException = IOError(str(exc))
+    
+    self.connLock.release()
+    
+    if raisedException: raise raisedException
+  
   def msg_event(self, event):
     """
     Listens for reload signal (hup), which is either produced by:

@@ -28,6 +28,7 @@ ARM_CONTROLLER = None
 CONFIG = {"startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
           "startup.blindModeEnabled": False,
+          "features.offerTorShutdownOnQuit": False,
           "features.panels.show.graph": True,
           "features.panels.show.log": True,
           "features.panels.show.connection": True,
@@ -388,10 +389,32 @@ class Controller:
   
   def quit(self):
     """
-    Terminates arm after the input is processed.
+    Terminates arm after the input is processed. Optionally if we're connected
+    to a arm generated tor instance then this may check if that should be shut
+    down too.
     """
     
     self._isDone = True
+    
+    if CONFIG["features.offerTorShutdownOnQuit"]:
+      conn = torTools.getConn()
+      torrcLoc = conn.getInfo("config-file")
+      wizardTorrcLoc = self.getDataDirectory() + "torrc"
+      
+      if torrcLoc == wizardTorrcLoc:
+        while True:
+          msg = "Shut down the Tor instance arm started (y/n)?"
+          confirmationKey = cli.popups.showMsg(msg, attr = curses.A_BOLD)
+          
+          if confirmationKey in (ord('y'), ord('Y')):
+            # attempts a graceful shutdown of tor, showing the issue if
+            # unsuccessful then continuing the shutdown
+            try: conn.shutdown()
+            except IOError, exc: cli.popups.showMsg(str(exc), 3, curses.A_BOLD)
+            
+            break
+          elif confirmationKey in (ord('n'), ord('N')):
+            break
 
 def shutdownDaemons():
   """
