@@ -77,6 +77,7 @@ class ConnectionPanel(CliConnectionPanel):
       index = index + 1
 
     if index == len(self._entryLines):
+      self.valsLock.release()
       return True
 
     # one of the entries was not found in cache, clear and repopulate the treestore
