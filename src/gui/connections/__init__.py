@@ -2,5 +2,5 @@
 Connections.
 """
 
-__all__ = ["connPanel"]
+__all__ = ["connPanel", "circEntry", "connEntry"]
 

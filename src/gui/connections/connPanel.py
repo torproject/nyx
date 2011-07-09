@@ -11,12 +11,31 @@ from collections import deque
 import gobject
 import gtk
 
-from cli.connections import circEntry, connEntry
+from cli.connections import (circEntry as cliCircEntry, connEntry as cliConnEntry)
 from cli.connections.connPanel import ConnectionPanel as CliConnectionPanel
+from gui.connections import circEntry, connEntry
 from TorCtl import TorCtl
 from util import connections, sysTools, uiTools, torTools
 
 REFRESH_RATE = 3
+
+def convertToGui(instance):
+  cliToGuiMap = [ (cliCircEntry.CircEntry, circEntry.CircEntry),
+                  (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
+                  (cliCircEntry.CircLine, circEntry.CircLine),
+                  (cliConnEntry.ConnectionEntry, connEntry.ConnectionEntry),
+                  (cliConnEntry.ConnectionLine, connEntry.ConnectionLine)]
+
+  for (cliClass, guiClass) in cliToGuiMap:
+    if isinstance(instance, cliClass):
+      guiClass.convertToGui(instance)
+      break
+
+def calculateCacheKey(entryLine):
+  local = (entryLine.local.ipAddr, entryLine.local.port)
+  foreign = (entryLine.foreign.ipAddr, entryLine.foreign.port)
+
+  return (entryLine.__class__, local, foreign)
 
 class ConnectionPanel(CliConnectionPanel):
   def __init__(self, builder):
@@ -46,13 +65,12 @@ class ConnectionPanel(CliConnectionPanel):
     # first pass checks whether we have enough entries cached to not update the treeview
     index = 0
     for line in self._entryLines:
-      local = "%s:%s" % (line.local.ipAddr, line.local.port)
-      foreign = "%s:%s" % (line.foreign.ipAddr, line.foreign.port)
+      convertToGui(line)
+      cacheKey = calculateCacheKey(line)
 
-      cachekey = (local, foreign, isinstance(line, circEntry.CircHeaderLine))
-      if self.cache.has_key(cachekey):
+      if self.cache.has_key(cacheKey):
         timeLabel = "%d s" % (time.time() - line.startTime)
-        treestore.set_value(self.cache[cachekey], 2, timeLabel)
+        treestore.set_value(self.cache[cacheKey], 2, timeLabel)
       else:
         break
 
@@ -61,11 +79,13 @@ class ConnectionPanel(CliConnectionPanel):
     if index == len(self._entryLines):
       return True
 
+    # one of the entries was not found in cache, clear and repopulate the treestore
     treestore.clear()
-
     headeriter = None
 
     for line in self._entryLines:
+      convertToGui(line)
+
       if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
         self._resolveApps()
 
@@ -82,8 +102,8 @@ class ConnectionPanel(CliConnectionPanel):
       else:
         currentiter = treestore.append(None, row)
 
-      cachekey = (local, foreign, isinstance(line, circEntry.CircHeaderLine))
-      self.cache[cachekey] = currentiter
+      cacheKey = calculateCacheKey(line)
+      self.cache[cacheKey] = currentiter
 
     self.valsLock.release()
 
