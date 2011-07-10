@@ -16,7 +16,7 @@ class CircHeaderLine(circEntry.CircHeaderLine):
   def convertToGui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self):
+  def getListingRow(self, listingType):
     local = "%s:%s" % (self.local.ipAddr, self.local.port)
     foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
     timeLabel = "%d s" % (time.time() - self.startTime)
@@ -28,7 +28,7 @@ class CircLine(circEntry.CircLine):
   def convertToGui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self):
+  def getListingRow(self, listingType):
     local = "%s:%s" % (self.local.ipAddr, self.local.port)
     foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
     timeLabel = "%d s" % (time.time() - self.startTime)

@@ -90,7 +90,7 @@ class ConnectionPanel(CliConnectionPanel):
       if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
         self._resolveApps()
 
-      row = line.getListingRow()
+      row = line.getListingRow(self._listingType)
 
       if isinstance(line, circEntry.CircHeaderLine):
         currentiter = treestore.append(None, row)

@@ -5,7 +5,9 @@ Connection panel entries related to actual connections to or from the system
 
 import time
 
-from cli.connections import connEntry
+from cli.connections import connEntry, entries
+from cli.connections.connEntry import CONFIG, Category
+from util import uiTools, torTools
 
 class ConnectionEntry(connEntry.ConnectionEntry):
   @classmethod
@@ -17,10 +19,42 @@ class ConnectionLine(connEntry.ConnectionLine):
   def convertToGui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self):
-    local = "%s:%s" % (self.local.ipAddr, self.local.port)
-    foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
-    timeLabel = "%d s" % (time.time() - self.startTime)
+  def getListingRow(self, listingType):
+    conn = torTools.getConn()
+    myType = self.getType()
+    dstAddress = self.getDestinationLabel(26, includeLocale = True)
+    localPort = ":%s" % self.local.getPort() if self.includePort else ""
 
-    return (local, foreign, timeLabel, self.baseType, 'red')
+    src, dst, etc = "", "", ""
+
+    if listingType == entries.ListingType.IP_ADDRESS:
+      myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
+      addrDiffer = myExternalIpAddr != self.local.getIpAddr()
+
+      isExpansionType = not myType in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
+
+      if isExpansionType: srcAddress = myExternalIpAddr + localPort
+      else: srcAddress = self.local.getIpAddr() + localPort
+
+      if myType in (Category.SOCKS, Category.CONTROL):
+        src = dstAddress
+        dst = srcAddress
+      else:
+        src = srcAddress
+        dst = dstAddress
+
+      if addrDiffer and isExpansionType and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
+        internalAddress = self.local.getIpAddr() + localPort
+
+        if myType == Category.INBOUND: (src, dst) =  (src, internalAddress)
+        else: (src, dst) =  (internalAddress, src)
+
+      etc = self.getEtcContent(100, listingType)
+    else:
+      src = "%s:%s" % (self.local.ipAddr, self.local.port)
+      dst = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
+
+    timeLabel = uiTools.getTimeLabel(time.time() - self.startTime)
+
+    return (src, dst, timeLabel, self.getType(), 'red')
 
