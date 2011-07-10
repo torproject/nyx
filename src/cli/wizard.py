@@ -20,7 +20,7 @@ from util import connections, enum, log, torConfig, torTools, uiTools
 TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 
 # basic configuration types we can run as
-RelayType = enum.Enum("RELAY", "EXIT", "BRIDGE", "CLIENT")
+RelayType = enum.Enum("RESUME", "RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
 Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
@@ -252,15 +252,20 @@ def showWizard():
   _toggleEnabledAction(bridgeEntries, useBridgeOpt, useBridgeOpt.getValue())
   
   # remembers the last selection made on the type prompt page
-  relaySelection = RelayType.RELAY
   controller = cli.controller.getController()
   manager = controller.getTorManager()
+  relaySelection = RelayType.RESUME if manager.isTorrcAvailable() else RelayType.RELAY
   
   while True:
     if relayType == None:
       selection = promptRelayType(relaySelection)
       
       if selection == CANCEL: break
+      elif selection == RelayType.RESUME:
+        if not manager.isManaged(torTools.getConn()):
+          manager.startManagedInstance()
+        
+        break
       else: relayType, relaySelection = selection, selection
     else:
       selection = promptConfigOptions(relayType, config)
@@ -310,12 +315,20 @@ def promptRelayType(initialSelection):
   dialog was canceled.
   """
   
-  popup, _, _ = cli.popups.init(25, 58)
-  if not popup: return
-  control = cli.controller.getController()
   options = [ConfigOption(opt, "role", opt) for opt in RelayType.values()]
   options.append(ConfigOption(CANCEL, "general", CANCEL))
   selection = RelayType.indexOf(initialSelection)
+  height = 28
+  
+  # drops the resume option if it isn't applicable
+  control = cli.controller.getController()
+  if not control.getTorManager().isTorrcAvailable():
+    options.pop(0)
+    height -= 3
+    selection -= 1
+  
+  popup, _, _ = cli.popups.init(height, 58)
+  if not popup: return
   
   try:
     popup.win.box()
