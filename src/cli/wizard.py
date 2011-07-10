@@ -85,6 +85,7 @@ CONFIG = {"wizard.message.role": "",
           "wizard.message.bridge": "",
           "wizard.message.client": "",
           "wizard.toggle": {},
+          "wizard.disabled": [],
           "wizard.suboptions": [],
           "wizard.default": {},
           "wizard.blankValue": {},
@@ -377,7 +378,7 @@ def promptConfigOptions(relayType, config):
   
   topContent = _splitStr(CONFIG.get("wizard.message.%s" % relayType.lower(), ""), 54)
   
-  options = [config[opt] for opt in RelayOptions[relayType]]
+  options = [config[opt] for opt in RelayOptions[relayType] if not opt in CONFIG["wizard.disabled"]]
   options.append(Options.DIVIDER)
   options.append(ConfigOption(BACK, "general", "(to role selection)"))
   options.append(ConfigOption(NEXT, "general", "(to confirm options)"))
