@@ -304,7 +304,7 @@ def showWizard():
             if manager.isManaged(conn): conn.reset()
             else: manager.startManagedInstance()
           except IOError, exc:
-            log.log(log.WARN, "Unable to start tor: %s" % exc)
+            log.log(log.WARN, "Unable to start tor, %s" % exc)
           
           break
         elif confirmationSelection == CANCEL: break
@@ -512,7 +512,7 @@ def getTorrc(relayType, config):
   # exit notice will be in our data directory
   dataDir = cli.controller.getController().getDataDirectory()
   templateOptions["NOTICE_PATH"] = dataDir + "exit-notice.html"
-  templateOptions["LOG_ENTRY"] = "notice file %stor-log" % dataDir
+  templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
   
   policyCategories = []
   if not config[Options.POLICY].getValue():

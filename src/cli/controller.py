@@ -462,20 +462,20 @@ class TorManager:
     Starts a managed instance of tor, raising an IOError if unsuccessful.
     """
     
-    os.system("tor --quiet -f %s&" % self.getTorrcPath())
+    torrcLoc = self.getTorrcPath()
+    os.system("tor --quiet -f %s&" % torrcLoc)
     startTime = time.time()
     
     # attempts to connect for five seconds (tor might or might not be
     # immediately available)
-    torctlConn, authType, authValue, raisedExc = None, None, None, None
+    torctlConn, authType, authValue = None, None, None
     while not torctlConn and time.time() - startTime < 5:
       try:
         torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
-      except IOError, exc:
-        raisedExc = exc
-        time.sleep(0.5)
+      except IOError, exc: time.sleep(0.5)
     
-    if not torctlConn: raise raisedExc
+    if not torctlConn:
+      raise IOError("try running \"tor -f %s\" for error output" % torrcLoc)
     
     if authType == TorCtl.AUTH_TYPE.COOKIE:
       torctlConn.authenticate(authValue)
