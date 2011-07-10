@@ -493,14 +493,21 @@ def getTorrc(relayType, config):
     if isinstance(value, ConfigOption):
       value = value.getValue()
     
+    # truncates "/s" from the rate for RelayBandwidthRate entry
+    if key == Options.BANDWIDTH and value.endswith("/s"):
+      value = value[:-2]
+    
     templateOptions[key.upper()] = value
   
   templateOptions[relayType.upper()] = True
   templateOptions["LOW_PORTS"] = config[Options.LOWPORTS]
   
   # uses double the relay rate for bursts
-  relayRateComp = config[Options.BANDWIDTH].getValue().split(" ")
-  templateOptions["BURST"] = "%i %s" % (int(relayRateComp[0]) * 2, " ".join(relayRateComp[1:]))
+  bwOpt = Options.BANDWIDTH.upper()
+  
+  if templateOptions[bwOpt] != TOR_DEFAULTS[Options.BANDWIDTH]:
+    relayRateComp = templateOptions[bwOpt].split(" ")
+    templateOptions["BURST"] = "%i %s" % (int(relayRateComp[0]) * 2, " ".join(relayRateComp[1:]))
   
   # exit notice will be in our data directory
   dataDir = cli.controller.getController().getDataDirectory()
