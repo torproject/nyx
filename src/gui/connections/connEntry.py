@@ -7,7 +7,7 @@ import time
 
 from cli.connections import connEntry, entries
 from cli.connections.connEntry import CONFIG, Category
-from util import uiTools, torTools
+from util import gtkTools, uiTools, torTools
 
 class ConnectionEntry(connEntry.ConnectionEntry):
   @classmethod
@@ -55,6 +55,7 @@ class ConnectionLine(connEntry.ConnectionLine):
       dst = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
 
     timeLabel = uiTools.getTimeLabel(time.time() - self.startTime)
+    theme = gtkTools.Theme()
 
-    return (src, dst, timeLabel, self.getType(), 'red')
+    return (src, dst, timeLabel, self.getType(), theme.colors['insensitive'])
 

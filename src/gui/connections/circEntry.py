@@ -5,6 +5,7 @@ Connection panel entries for client circuits.
 import time
 
 from cli.connections import circEntry
+from util import gtkTools
 
 class CircEntry(circEntry.CircEntry):
   @classmethod
@@ -20,8 +21,9 @@ class CircHeaderLine(circEntry.CircHeaderLine):
     local = "%s:%s" % (self.local.ipAddr, self.local.port)
     foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
     timeLabel = "%d s" % (time.time() - self.startTime)
+    theme = gtkTools.Theme()
 
-    return (local, foreign, timeLabel, self.baseType, 'blue')
+    return (local, foreign, timeLabel, self.baseType, theme.colors['active'])
 
 class CircLine(circEntry.CircLine):
   @classmethod
@@ -32,6 +34,7 @@ class CircLine(circEntry.CircLine):
     local = "%s:%s" % (self.local.ipAddr, self.local.port)
     foreign = "%s:%s" % (self.foreign.ipAddr, self.foreign.port)
     timeLabel = "%d s" % (time.time() - self.startTime)
+    theme = gtkTools.Theme()
 
-    return (local, foreign, timeLabel, self.baseType, 'black')
+    return (local, foreign, timeLabel, self.baseType, theme.colors['normal'])
 

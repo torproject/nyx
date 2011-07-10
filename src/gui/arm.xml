@@ -435,6 +435,7 @@
                                 <property name="model">treestore_conn</property>
                                 <property name="headers_visible">False</property>
                                 <property name="headers_clickable">False</property>
+                                <property name="rules_hint">True</property>
                                 <property name="search_column">0</property>
                                 <child>
                                   <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_origin">
@@ -617,6 +618,7 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                         <property name="model">liststore_sticky</property>
                         <property name="headers_visible">False</property>
                         <property name="headers_clickable">False</property>
+                        <property name="rules_hint">True</property>
                         <property name="search_column">0</property>
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_key">
@@ -667,6 +669,7 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="model">liststore_log</property>
+                    <property name="rules_hint">True</property>
                     <child>
                       <object class="GtkTreeViewColumn" id="treeviewcolumn_log_timestamp">
                         <property name="title">Time</property>
