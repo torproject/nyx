@@ -472,7 +472,7 @@ class TorManager:
       try:
         torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
       except IOError, exc:
-        raisedExc == exc
+        raisedExc = exc
         time.sleep(0.5)
     
     if not torctlConn: raise raisedExc
