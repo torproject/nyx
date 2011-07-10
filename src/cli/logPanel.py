@@ -1014,8 +1014,8 @@ class LogPanel(panel.Panel, threading.Thread):
         if seenFirstDateDivider:
           if lineCount >= 1 and lineCount < height and showDaybreaks:
             self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER,  dividerAttr)
-            self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
-            self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
+            self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 2, dividerAttr)
+            self.addch(lineCount, width - 1, curses.ACS_LRCORNER, dividerAttr)
           
           lineCount += 1
         
@@ -1026,7 +1026,7 @@ class LogPanel(panel.Panel, threading.Thread):
           self.addch(lineCount, dividerIndent + 1, curses.ACS_HLINE, dividerAttr)
           self.addstr(lineCount, dividerIndent + 2, timeLabel, curses.A_BOLD | dividerAttr)
           
-          lineLength = width - dividerIndent - len(timeLabel) - 2
+          lineLength = width - dividerIndent - len(timeLabel) - 3
           self.hline(lineCount, dividerIndent + len(timeLabel) + 2, lineLength, dividerAttr)
           self.addch(lineCount, dividerIndent + len(timeLabel) + 2 + lineLength, curses.ACS_URCORNER, dividerAttr)
         
@@ -1054,7 +1054,7 @@ class LogPanel(panel.Panel, threading.Thread):
           drawLine = lineCount + lineOffset
           if lineOffset == maxEntriesPerLine: break
           
-          maxMsgSize = width - cursorLoc
+          maxMsgSize = width - cursorLoc - 1
           if len(msg) > maxMsgSize:
             # message is too long - break it up
             if lineOffset == maxEntriesPerLine - 1:
@@ -1068,7 +1068,7 @@ class LogPanel(panel.Panel, threading.Thread):
           if drawLine < height and drawLine >= 1:
             if seenFirstDateDivider and width - dividerIndent >= 3 and showDaybreaks:
               self.addch(drawLine, dividerIndent, curses.ACS_VLINE, dividerAttr)
-              self.addch(drawLine, width, curses.ACS_VLINE, dividerAttr)
+              self.addch(drawLine, width - 1, curses.ACS_VLINE, dividerAttr)
             
             self.addstr(drawLine, cursorLoc, msg, format)
           
@@ -1084,8 +1084,8 @@ class LogPanel(panel.Panel, threading.Thread):
       if not deduplicatedLog and seenFirstDateDivider:
         if lineCount < height and showDaybreaks:
           self.addch(lineCount, dividerIndent, curses.ACS_LLCORNER, dividerAttr)
-          self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 1, dividerAttr)
-          self.addch(lineCount, width, curses.ACS_LRCORNER, dividerAttr)
+          self.hline(lineCount, dividerIndent + 1, width - dividerIndent - 2, dividerAttr)
+          self.addch(lineCount, width - 1, curses.ACS_LRCORNER, dividerAttr)
         
         lineCount += 1
     
