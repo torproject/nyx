@@ -75,6 +75,10 @@ MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
 DISABLED_COLOR = "cyan"
 
+# tor's defaults for config options, used to filter unneeded options
+TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
+                Options.REUSE: "10 minutes"}
+
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
           "wizard.message.exit": "",
@@ -550,6 +554,11 @@ def getTorrc(relayType, config):
     if bridgeValue: bridgeLines.append("Bridge %s" % bridgeValue)
   
   templateOptions["BRIDGES"] = "\n".join(bridgeLines)
+  
+  # removes options if they match the tor defaults
+  for opt in TOR_DEFAULTS:
+    if templateOptions[opt.upper()] == TOR_DEFAULTS[opt]:
+      del templateOptions[opt.upper()]
   
   return torConfig.renderTorrc(template, templateOptions)
 
