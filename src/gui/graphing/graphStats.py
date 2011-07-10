@@ -62,10 +62,14 @@ class GraphStats(TorCtl.PostEventListener):
 
     series = CaGraphSeriesArea(graph, 0, 1)
 
-    line_colors = {'primary' : (1.0, 0.0, 1.0, 1.0), 'secondary' : (0.0, 1.0, 0.0, 1.0)}
-    fill_colors = {'primary' : (1.0, 0.0, 1.0, 0.3), 'secondary' : (0.0, 1.0, 0.0, 0.3)}
-    series.style.line_color = line_colors[name]
-    series.style.fill_color = fill_colors[name]
+    primaryColor = placeholder.style.fg[gtk.STATE_NORMAL]
+    secondaryColor = placeholder.style.fg[gtk.STATE_INSENSITIVE]
+    colors = { 'primary' : (primaryColor.red_float, primaryColor.green_float, primaryColor.blue_float, 0.5),
+               'secondary' : (secondaryColor.red_float, secondaryColor.green_float, secondaryColor.blue_float, 0.7) }
+
+    series.style.point_radius = 0.0
+    series.style.line_color = colors[name]
+    series.style.fill_color = colors[name]
 
     graph.seriess.append(series)
     graph.grid = CaGraphGrid(graph, 0, 1)
