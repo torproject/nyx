@@ -1480,8 +1480,12 @@ class Controller(TorCtl.PostEventListener):
     raisedException = None
     if self.isAlive():
       try:
+        isRelay = self.getOption("ORPort") != None
         signal = "HALT" if force else "SHUTDOWN"
         self.conn.send_signal(signal)
+        
+        # shuts down control connection if we aren't making a delayed shutdown
+        if force or not isRelay: self.close()
       except Exception, exc:
         raisedException = IOError(str(exc))
     
