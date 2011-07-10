@@ -459,7 +459,8 @@ class TorManager:
   
   def startManagedInstance(self):
     """
-    Starts a managed instance of tor, raising an IOError if unsuccessful.
+    Starts a managed instance of tor, logging a warning if unsuccessful. This
+    returns True if successful and False otherwise.
     """
     
     torrcLoc = self.getTorrcPath()
@@ -472,16 +473,26 @@ class TorManager:
     while not torctlConn and time.time() - startTime < 5:
       try:
         torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
-      except IOError, exc: time.sleep(0.5)
+      except IOError: time.sleep(0.5)
     
     if not torctlConn:
-      raise IOError("try running \"tor -f %s\" for error output" % torrcLoc)
+      msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % torrcLoc
+      log.log(log.WARN, msg)
+      return False
     
     if authType == TorCtl.AUTH_TYPE.COOKIE:
-      torctlConn.authenticate(authValue)
-      torTools.getConn().init(torctlConn)
+      try:
+        torctlConn.authenticate(authValue)
+        torTools.getConn().init(torctlConn)
+        return True
+      except Exception, exc:
+        msg = "Unable to connect to Tor: %s" % exc
+        log.log(log.WARN, msg)
+        return False
     else:
-      raise IOError("unexpected authentication type '%s'" % authType)
+      msg = "Unable to connect to Tor, unexpected authentication type '%s'" % authType
+      log.log(log.WARN, msg)
+      return False
 
 def shutdownDaemons():
   """

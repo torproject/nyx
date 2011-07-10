@@ -294,17 +294,13 @@ def showWizard():
           torrcFile.write(generatedTorrc)
           torrcFile.close()
           
-          try:
-            conn = torTools.getConn()
-            
-            # If we're connected to a managed instance then just need to
-            # issue a sighup to pick up the new settings. Otherwise starts
-            # a new tor instance.
-            
-            if manager.isManaged(conn): conn.reset()
-            else: manager.startManagedInstance()
-          except IOError, exc:
-            log.log(log.WARN, "Unable to start tor, %s" % exc)
+          # If we're connected to a managed instance then just need to
+          # issue a sighup to pick up the new settings. Otherwise starts
+          # a new tor instance.
+          
+          conn = torTools.getConn()
+          if manager.isManaged(conn): conn.reset()
+          else: manager.startManagedInstance()
           
           break
         elif confirmationSelection == CANCEL: break
