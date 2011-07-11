@@ -16,7 +16,7 @@ import cli.controller
 
 from TorCtl import TorCtl
 
-from util import connections, enum, log, torConfig, torTools, uiTools
+from util import connections, enum, log, sysTools, torConfig, torTools, uiTools
 
 # template used to generate the torrc
 TORRC_TEMPLATE = "resources/torrcTemplate.txt"
@@ -226,6 +226,11 @@ def showWizard():
   Provides a series of prompts, allowing the user to spawn a customized tor
   instance.
   """
+  
+  if not sysTools.isAvailable("tor"):
+    msg = "Unable to run the setup wizard. Is tor installed?"
+    log.log(log.WARN, msg)
+    return
   
   relayType, config = None, {}
   for option in Options.values():
