@@ -295,12 +295,26 @@ def showWizard():
           torrcFile.write(generatedTorrc)
           torrcFile.close()
           
+          # copies exit notice into data directory if it's being used
+          if Options.NOTICE in RelayOptions[relayType] and config[Options.NOTICE].getValue() and config[Options.LOWPORTS].getValue():
+            dataDir = cli.controller.getController().getDataDirectory()
+            
+            pathPrefix = os.path.dirname(sys.argv[0])
+            if pathPrefix and not pathPrefix.endswith("/"):
+              pathPrefix = pathPrefix + "/"
+            
+            src = "%sresources/exitNotice" % pathPrefix
+            dst = "%sexitNotice" % dataDir
+            
+            if not os.path.exists(dst):
+              shutil.copytree(src, dst)
+          
           # If we're connected to a managed instance then just need to
           # issue a sighup to pick up the new settings. Otherwise starts
           # a new tor instance.
           
           conn = torTools.getConn()
-          if manager.isManaged(conn): conn.reset()
+          if manager.isManaged(conn): conn.reload()
           else: manager.startManagedInstance()
           
           break
@@ -490,9 +504,12 @@ def getTorrc(relayType, config):
     if isinstance(value, ConfigOption):
       value = value.getValue()
     
-    # truncates "/s" from the rate for RelayBandwidthRate entry
     if key == Options.BANDWIDTH and value.endswith("/s"):
+      # truncates "/s" from the rate for RelayBandwidthRate entry
       value = value[:-2]
+    elif key == Options.NOTICE:
+      # notice option is only applied if using low ports
+      value &= config[Options.LOWPORTS].getValue()
     
     templateOptions[key.upper()] = value
   
@@ -508,7 +525,7 @@ def getTorrc(relayType, config):
   
   # exit notice will be in our data directory
   dataDir = cli.controller.getController().getDataDirectory()
-  templateOptions["NOTICE_PATH"] = dataDir + "exit-notice.html"
+  templateOptions["NOTICE_PATH"] = dataDir + "exitNotice/exit-notice.html"
   templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
   
   policyCategories = []
