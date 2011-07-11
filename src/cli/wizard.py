@@ -600,6 +600,13 @@ def getTorrc(relayType, config, disabledOpt):
     if config[Options.IM].getValue(): policyCategories.append("im")
     if config[Options.MISC].getValue(): policyCategories.append("misc")
   
+  # uses the CSHUTDOWN or RSHUTDOWN option based on if we're running as a
+  # client or not
+  if relayType == RelayType.CLIENT:
+    templateOptions["SHUTDOWN"] = templateOptions[Options.CSHUTDOWN.upper()]
+  else:
+    templateOptions["SHUTDOWN"] = templateOptions[Options.RSHUTDOWN.upper()]
+  
   if policyCategories:
     isEncryptedOnly = not config[Options.PLAINTEXT].getValue()
     

@@ -7,7 +7,7 @@
 # Descriptions of all of these configuraiton attibutes (and many more) are
 # available in the tor man page.
 
-[IF RSHUTDOWN | CSHUTDOWN]
+[IF SHUTDOWN]
   [NEWLINE]
   # The following flag tells arm to shut down tor when it quits.
   # ARM_SHUTDOWN
