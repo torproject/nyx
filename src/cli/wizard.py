@@ -89,6 +89,9 @@ BRACKETS = ((' ', ' '),
             ('{', '}'),
             ('|', '|'))
 
+# version requirements for options
+VERSION_REQUIREMENTS = {Options.PORTFORWARD: "0.2.3.1-alpha"}
+
 # tor's defaults for config options, used to filter unneeded options
 TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
                 Options.REUSE: "10 minutes"}
@@ -232,6 +235,18 @@ def showWizard():
     log.log(log.WARN, msg)
     return
   
+  # gets tor's version
+  torVersion = None
+  try:
+    versionQuery = sysTools.call("tor --version")
+    
+    for line in versionQuery:
+      if line.startswith("Tor version "):
+        torVersion = torTools.parseVersion(line.split(" ")[2])
+        break
+  except IOError, exc:
+    log.log(log.INFO, "'tor --version' query failed: %s" % exc)
+  
   relayType, config = None, {}
   for option in Options.values():
     if option == Options.DIVIDER:
@@ -280,6 +295,18 @@ def showWizard():
   manager = controller.getTorManager()
   relaySelection = RelayType.RESUME if manager.isTorrcAvailable() else RelayType.RELAY
   
+  # excludes options that are either disabled or for a future tor version
+  disabledOpt = list(CONFIG["wizard.disabled"])
+  
+  for opt, optVersion in VERSION_REQUIREMENTS.items():
+    if not torVersion or not torTools.isVersion(torVersion, torTools.parseVersion(optVersion)):
+      disabledOpt.append(opt)
+  
+  # the port forwarding option would only work if tor-fw-helper is in the path
+  if not Options.PORTFORWARD in disabledOpt:
+    if not sysTools.isAvailable("tor-fw-helper"):
+      disabledOpt.append(Options.PORTFORWARD)
+  
   while True:
     if relayType == None:
       selection = promptRelayType(relaySelection)
@@ -292,11 +319,11 @@ def showWizard():
         break
       else: relayType, relaySelection = selection, selection
     else:
-      selection = promptConfigOptions(relayType, config)
+      selection = promptConfigOptions(relayType, config, disabledOpt)
       
       if selection == BACK: relayType = None
       elif selection == NEXT:
-        generatedTorrc = getTorrc(relayType, config)
+        generatedTorrc = getTorrc(relayType, config, disabledOpt)
         
         torrcLocation = manager.getTorrcPath()
         controller.requestRedraw(True)
@@ -404,14 +431,14 @@ def promptRelayType(initialSelection):
   finally:
     cli.popups.finalize()
 
-def promptConfigOptions(relayType, config):
+def promptConfigOptions(relayType, config, disabledOpt):
   """
   Prompts the user for the configuration of an internal relay.
   """
   
   topContent = _splitStr(CONFIG.get("wizard.message.%s" % relayType.lower(), ""), 54)
   
-  options = [config[opt] for opt in RelayOptions[relayType] if not opt in CONFIG["wizard.disabled"]]
+  options = [config[opt] for opt in RelayOptions[relayType] if not opt in disabledOpt]
   options.append(Options.DIVIDER)
   options.append(ConfigOption(BACK, "general", "(to role selection)"))
   options.append(ConfigOption(NEXT, "general", "(to confirm options)"))
@@ -503,7 +530,7 @@ def promptConfigOptions(relayType, config):
   finally:
     cli.popups.finalize()
 
-def getTorrc(relayType, config):
+def getTorrc(relayType, config, disabledOpt):
   """
   Provides the torrc generated for the given options.
   """
@@ -600,6 +627,11 @@ def getTorrc(relayType, config):
     if bridgeValue: bridgeLines.append("Bridge %s" % bridgeValue)
   
   templateOptions["BRIDGES"] = "\n".join(bridgeLines)
+  
+  # removes disabled options
+  for opt in disabledOpt:
+    if opt.upper() in templateOptions:
+      del templateOptions[opt.upper()]
   
   # removes options if they match the tor defaults
   for opt in TOR_DEFAULTS:
