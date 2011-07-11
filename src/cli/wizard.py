@@ -588,7 +588,7 @@ def getTorrc(relayType, config, disabledOpt):
   
   # exit notice will be in our data directory
   dataDir = cli.controller.getController().getDataDirectory()
-  templateOptions["NOTICE_PATH"] = dataDir + "exitNotice/exit-notice.html"
+  templateOptions["NOTICE_PATH"] = dataDir + "exitNotice/index.html"
   templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
   
   policyCategories = []
