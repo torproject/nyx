@@ -418,10 +418,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
     
     if eventType in (torTools.State.INIT, torTools.State.RESET):
+      initialHeight = self.getHeight()
       self._isTorConnected = True
       self._haltTime = None
       self._update(True)
-      self.redraw(True)
+      
+      if self.getHeight() != initialHeight:
+        # We're toggling between being a relay and client, causing the height
+        # of this panel to change. Redraw all content so we don't get
+        # overlapping content.
+        cli.controller.getController().requestRedraw(True)
+      else:
+        # just need to redraw ourselves
+        self.redraw(True)
     elif eventType == torTools.State.CLOSED:
       self._isTorConnected = False
       self._haltTime = time.time()
