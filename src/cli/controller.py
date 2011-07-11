@@ -407,6 +407,22 @@ class Controller:
     
     self._isDone = True
     
+    # check if the torrc has a "ARM_SHUTDOWN" comment flag, if so then shut
+    # down the instance
+    
+    isShutdownFlagPresent = False
+    torrcContents = torConfig.getTorrc().getContents()
+    
+    if torrcContents:
+      for line in torrcContents:
+        if "# ARM_SHUTDOWN" in line:
+          isShutdownFlagPresent = True
+          break
+    
+    if isShutdownFlagPresent:
+      try: torTools.getConn().shutdown()
+      except IOError, exc: cli.popups.showMsg(str(exc), 3, curses.A_BOLD)
+    
     if CONFIG["features.offerTorShutdownOnQuit"]:
       conn = torTools.getConn()
       
@@ -551,6 +567,13 @@ def connResetListener(conn, eventType):
     resolver.setPaused(eventType == torTools.State.CLOSED)
     
     if eventType in (torTools.State.INIT, torTools.State.RESET):
+      # Reload the torrc contents. If the torrc panel is present then it will
+      # do this instead since it wants to do validation and redraw _after_ the
+      # new contents are loaded.
+      
+      if getController().getPanel("torrc") == None:
+        torConfig.getTorrc().load(True)
+      
       torPid = conn.getMyPid()
       
       if torPid and torPid != resolver.getPid():

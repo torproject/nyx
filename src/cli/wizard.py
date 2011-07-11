@@ -23,7 +23,7 @@ TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 RelayType = enum.Enum("RESUME", "RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
+Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "RSHUTDOWN", "CSHUTDOWN", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -32,7 +32,8 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CLIENT,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
-                                    Options.STARTUP),
+                                    Options.STARTUP,
+                                    Options.RSHUTDOWN),
                 RelayType.EXIT:    (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -42,6 +43,7 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
+                                    Options.RSHUTDOWN,
                                     Options.DIVIDER,
                                     Options.NOTICE,
                                     Options.POLICY,
@@ -56,12 +58,14 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CLIENT,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
-                                    Options.STARTUP),
+                                    Options.STARTUP,
+                                    Options.RSHUTDOWN),
                 RelayType.CLIENT:  (Options.BRIDGED,
                                     Options.BRIDGE1,
                                     Options.BRIDGE2,
                                     Options.BRIDGE3,
-                                    Options.REUSE)}
+                                    Options.REUSE,
+                                    Options.CSHUTDOWN)}
 
 # option sets
 CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
@@ -488,6 +492,9 @@ def getTorrc(relayType, config):
   """
   Provides the torrc generated for the given options.
   """
+  
+  # TODO: When Robert's 'ownership' feature is available take advantage of it
+  # for the RSHUTDOWN and CSHUTDOWN options.
   
   pathPrefix = os.path.dirname(sys.argv[0])
   if pathPrefix and not pathPrefix.endswith("/"):
