@@ -341,27 +341,38 @@ def showWizard():
           torrcFile.write(generatedTorrc)
           torrcFile.close()
           
+          dataDir = cli.controller.getController().getDataDirectory()
+          
+          pathPrefix = os.path.dirname(sys.argv[0])
+          if pathPrefix and not pathPrefix.endswith("/"):
+            pathPrefix = pathPrefix + "/"
+          
           # copies exit notice into data directory if it's being used
           if Options.NOTICE in RelayOptions[relayType] and config[Options.NOTICE].getValue() and config[Options.LOWPORTS].getValue():
-            dataDir = cli.controller.getController().getDataDirectory()
-            
-            pathPrefix = os.path.dirname(sys.argv[0])
-            if pathPrefix and not pathPrefix.endswith("/"):
-              pathPrefix = pathPrefix + "/"
-            
             src = "%sresources/exitNotice" % pathPrefix
             dst = "%sexitNotice" % dataDir
             
             if not os.path.exists(dst):
               shutil.copytree(src, dst)
           
-          # If we're connected to a managed instance then just need to
-          # issue a sighup to pick up the new settings. Otherwise starts
-          # a new tor instance.
-          
-          conn = torTools.getConn()
-          if manager.isManaged(conn): conn.reload()
-          else: manager.startManagedInstance()
+          if manager.isTorrcAvailable():
+            # If we're connected to a managed instance then just need to
+            # issue a sighup to pick up the new settings. Otherwise starts
+            # a new tor instance.
+            
+            conn = torTools.getConn()
+            if manager.isManaged(conn): conn.reload()
+            else: manager.startManagedInstance()
+          else:
+            # If we don't have permissions to run the torrc we just made then
+            # makes a shell script they can run as root to start tor.
+            
+            src = "%sresources/startTor" % pathPrefix
+            dst = "%sstartTor" % dataDir
+            if not os.path.exists(dst): shutil.copy(src, dst)
+            
+            msg = "Tor needs root permissions to start with this configuration (it will drop itself to a 'tor-arm' user afterward). To continue...\n- open another terminal\n- run \"sudo %s\"\n- press 'r' here to tell arm to reconnect" % dst
+            log.log(log.NOTICE, msg)
           
           break
         elif confirmationSelection == CANCEL: break

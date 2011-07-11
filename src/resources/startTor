@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# When binding to privilaged ports the tor process needs to start with root
+# permissions, then lower the user it's running as afterward. This script
+# simply makes a "tor-arm" user if it doesn't already exist then starts the
+# tor process.
+
+# TODO: check if the user's running as root
+# TODO: check if the tor-arm user exists and if not, make it
+# TODO: run arm
+# TODO: bonus points: double check that the torrc in this directory has a
+#       "User tor-arm" entry - this would be a problem if they run the wizard
+#       without low ports, then use this script
+

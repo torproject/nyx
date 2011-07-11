@@ -52,6 +52,9 @@ MAN_EX_INDENT = 15 # indentation used for man page examples
 PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a file
 MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
+# torrc options that bind to ports
+PORT_OPT = ("SocksPort", "ORPort", "DirPort", "ControlPort", "TransPort")
+
 def loadConfig(config):
   config.update(CONFIG)
   
@@ -844,6 +847,39 @@ def _testConfigDescriptions():
     print "     %-45s %s" % (optLabel, argLabel)
     print "\"%s\"" % description
     if i != len(sortedOptions) - 1: print "-" * 80
+
+def isRootNeeded(torrcPath):
+  """
+  Returns True if the given torrc needs root permissions to be ran, False
+  otherwise. This raises an IOError if the torrc can't be read.
+  
+  Arguments:
+    torrcPath - torrc to be checked
+  """
+  
+  try:
+    torrcFile = open(torrcPath, "r")
+    torrcLines = torrcFile.readlines()
+    torrcFile.close()
+    
+    for line in torrcLines:
+      line = line.strip()
+      
+      isPortOpt = False
+      for opt in PORT_OPT:
+        if line.startswith(opt):
+          isPortOpt = True
+          break
+      
+      if isPortOpt and " " in line:
+        arg = line.split(" ")[1]
+        
+        if arg.isdigit() and int(arg) <= 1024 and int(arg) != 0:
+          return True
+    
+    return False
+  except Exception, exc:
+    raise IOError(exc)
 
 def renderTorrc(template, options, commentIndent = 30):
   """

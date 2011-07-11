@@ -379,10 +379,10 @@ class Controller:
     with a slash and is created if it doesn't already exist.
     """
     
-    dataDir = CONFIG["startup.dataDirectory"]
+    dataDir = os.path.expanduser(CONFIG["startup.dataDirectory"])
     if not dataDir.endswith("/"): dataDir += "/"
     if not os.path.exists(dataDir): os.makedirs(dataDir)
-    return os.path.expanduser(dataDir)
+    return dataDir
   
   def getTorManager(self):
     """
@@ -458,10 +458,26 @@ class TorManager:
   
   def isTorrcAvailable(self):
     """
-    True if a wizard generated torrc exists, false otherwise.
+    True if a wizard generated torrc exists and the user has permissions to
+    run it, false otherwise.
     """
     
-    return os.path.exists(self.getTorrcPath())
+    torrcLoc = self.getTorrcPath()
+    if os.path.exists(torrcLoc):
+      # If we aren't running as root and would be trying to bind to low ports
+      # then the startup will fail due to permissons. Attempts to check for
+      # this in the torrc. If unable to read the torrc then we probably
+      # wouldn't be able to use it anyway with our permissions.
+      
+      if os.getuid() != 0:
+        try:
+          return not torConfig.isRootNeeded(torrcLoc)
+        except IOError, exc:
+          log.log(log.INFO, "Failed to read torrc at '%s': %s" % (torrcLoc, exc))
+          return False
+      else: return True
+    
+    return False
   
   def isManaged(self, conn):
     """
@@ -485,30 +501,37 @@ class TorManager:
     
     # attempts to connect for five seconds (tor might or might not be
     # immediately available)
-    torctlConn, authType, authValue = None, None, None
-    while not torctlConn and time.time() - startTime < 5:
+    raisedExc = None
+    
+    while time.time() - startTime < 5:
       try:
-        torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
-      except IOError: time.sleep(0.5)
+        self.connectManagedInstance()
+        return True
+      except IOError, exc:
+        raisedExc = exc
+        time.sleep(0.5)
+    
+    if raisedExc: log.log(log.WARN, str(raisedExc))
+    return False
+  
+  def connectManagedInstance(self):
+    """
+    Attempts to connect to a managed tor instance, raising an IOError if
+    unsuccessful.
+    """
+    
+    torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
     
     if not torctlConn:
       msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % torrcLoc
-      log.log(log.WARN, msg)
-      return False
+      raise IOError(msg)
     
     if authType == TorCtl.AUTH_TYPE.COOKIE:
       try:
         torctlConn.authenticate(authValue)
         torTools.getConn().init(torctlConn)
-        return True
       except Exception, exc:
-        msg = "Unable to connect to Tor: %s" % exc
-        log.log(log.WARN, msg)
-        return False
-    else:
-      msg = "Unable to connect to Tor, unexpected authentication type '%s'" % authType
-      log.log(log.WARN, msg)
-      return False
+        raise IOError("Unable to connect to Tor: %s" % exc)
 
 def shutdownDaemons():
   """

@@ -22,6 +22,7 @@ import threading
 import TorCtl.TorCtl
 
 import cli.popups
+import cli.controller
 
 from util import log, panel, sysTools, torTools, uiTools
 
@@ -144,8 +145,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
       except Exception, exc:
-        # displays notice for failed connection attempt
-        if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+        # attempts to use the wizard port too
+        try:
+          cli.controller.getController().getTorManager().connectManagedInstance()
+          log.log(log.NOTICE, "Reconnected to Tor's control port")
+          cli.popups.showMsg("Tor reconnected", 1)
+        except:
+          # displays notice for the first failed connection attempt
+          if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
