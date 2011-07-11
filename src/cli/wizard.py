@@ -3,8 +3,10 @@ Provides user prompts for setting up a new relay. This autogenerates a torrc
 that's used by arm to run its own tor instance.
 """
 
+import re
 import os
 import sys
+import random
 import shutil
 import functools
 import curses
@@ -78,6 +80,14 @@ DESC_SIZE = 5 # height of the description field
 MSG_COLOR = "green"
 OPTION_COLOR = "yellow"
 DISABLED_COLOR = "cyan"
+
+# bracketing pairs used in email address obscuring
+BRACKETS = ((' ', ' '),
+            ('<', '>'),
+            ('[', ']'),
+            ('(', ')'),
+            ('{', '}'),
+            ('|', '|'))
 
 # tor's defaults for config options, used to filter unneeded options
 TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
@@ -517,6 +527,9 @@ def getTorrc(relayType, config):
     elif key == Options.NOTICE:
       # notice option is only applied if using low ports
       value &= config[Options.LOWPORTS].getValue()
+    elif key == Options.CONTACT and _isEmailAddress(value):
+      # obscures the email address
+      value = _obscureEmailAddress(value)
     
     templateOptions[key.upper()] = value
   
@@ -701,6 +714,64 @@ def _splitStr(msg, width):
     results.append(msgSegment.strip())
   
   return results
+
+def _isEmailAddress(address):
+  """
+  True if the input is an email address, false otherwise.
+  """
+  
+  # just checks if there's an '@' and '.' in the input w/o whitespace
+  emailMatcher = re.compile("\S*@\S*\.\S*")
+  return emailMatcher.match(address)
+
+def _obscureEmailAddress(address):
+  """
+  Makes some effort to obscure an email address while keeping it readable.
+  
+  Arguments:
+    address - actual email address
+  """
+  
+  address = _obscureChar(address, '@', (_randomCase("at"), ))
+  address = _obscureChar(address, '.', (_randomCase("dot"), ))
+  return address
+
+def _randomCase(word):
+  """
+  Provides a word back with the case of its letters randomized.
+  
+  Arguments:
+    word - word for which to randomize the case
+  """
+  
+  result = []
+  for letter in word:
+    result.append(random.choice((letter.lower(), letter.upper())))
+  
+  return "".join(result)
+
+def _obscureChar(inputText, target, options):
+  """
+  Obscures the given character from the input, replacing it with something
+  from a set of options and bracketing the selection.
+  
+  Arguments:
+    inputText - text to be obscured
+    target    - character to be replaced
+    options   - replacement options for the character
+  """
+  
+  leftSpace = random.randint(0, 3)
+  leftFill = random.choice((' ', '_', '-', '=', '<'))
+  
+  rightSpace = random.randint(0, 3)
+  rightFill = random.choice((' ', '_', '-', '=', '>'))
+  
+  bracketLeft, bracketRight = random.choice(BRACKETS)
+  optSelection = random.choice(options)
+  replacement = "".join((bracketLeft, leftFill * leftSpace, optSelection, rightFill * rightSpace, bracketRight))
+  
+  return inputText.replace(target, replacement)
 
 def _toggleEnabledAction(toggleOptions, option, value):
   """
