@@ -354,6 +354,10 @@ def showWizard():
             
             if not os.path.exists(dst):
               shutil.copytree(src, dst)
+            
+            # providing a notice that it has sections specific to us operators
+            msg = "Exit notice placed at '%s/index.html'. Some of the sections are specific to US relay operators so please change the \"FIXME\" sections if this is inappropriate." % dst
+            log.log(log.NOTICE, msg)
           
           if manager.isTorrcAvailable():
             # If we're connected to a managed instance then just need to
