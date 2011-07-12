@@ -619,46 +619,13 @@ class LogPanel(panel.Panel, threading.Thread):
     self._titleCache = None
     self._titleArgs = (None, None, None)
     
-    # fetches past tor events from log file, if available
-    torEventBacklog = []
-    if self._config["features.log.prepopulate"]:
-      setRunlevels = list(set.intersection(set(self.loggedEvents), set(log.Runlevel.values())))
-      readLimit = self._config["features.log.prepopulateReadLimit"]
-      addLimit = self._config["cache.logPanel.size"]
-      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
-    
-    # adds arm listener and fetches past events
+    # adds arm listener and prepopulates log with past tor/arm events
     log.LOG_LOCK.acquire()
     try:
-      armRunlevels = [log.DEBUG, log.INFO, log.NOTICE, log.WARN, log.ERR]
-      log.addListeners(armRunlevels, self._registerArmEvent)
-      
-      # gets the set of arm events we're logging
-      setRunlevels = []
-      for i in range(len(armRunlevels)):
-        if "ARM_" + log.Runlevel.values()[i] in self.loggedEvents:
-          setRunlevels.append(armRunlevels[i])
-      
-      armEventBacklog = []
-      for level, msg, eventTime in log._getEntries(setRunlevels):
-        armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
-        armEventBacklog.insert(0, armEventEntry)
-      
-      # joins armEventBacklog and torEventBacklog chronologically into msgLog
-      while armEventBacklog or torEventBacklog:
-        if not armEventBacklog:
-          self.msgLog.append(torEventBacklog.pop(0))
-        elif not torEventBacklog:
-          self.msgLog.append(armEventBacklog.pop(0))
-        elif armEventBacklog[0].timestamp < torEventBacklog[0].timestamp:
-          self.msgLog.append(torEventBacklog.pop(0))
-        else:
-          self.msgLog.append(armEventBacklog.pop(0))
+      log.addListeners(log.Runlevel.values(), self._registerArmEvent)
+      self.reprepopulateEvents()
     finally:
       log.LOG_LOCK.release()
-    
-    # crops events that are either too old, or more numerous than the caching size
-    self._trimEvents(self.msgLog)
     
     # leaving lastContentHeight as being too low causes initialization problems
     self.lastContentHeight = len(self.msgLog)
@@ -667,6 +634,7 @@ class LogPanel(panel.Panel, threading.Thread):
     conn = torTools.getConn()
     conn.addEventListener(TorEventObserver(self.registerEvent))
     conn.addTorCtlListener(self._registerTorCtlEvent)
+    conn.addStatusListener(self._resetListener)
     
     # opens log file if we'll be saving entries
     if self._config["features.logFile"]:
@@ -682,6 +650,52 @@ class LogPanel(panel.Panel, threading.Thread):
       except (IOError, OSError), exc:
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
+  
+  def reprepopulateEvents(self):
+    """
+    Clears the event log and repopulates it from the arm and tor backlogs.
+    """
+    
+    self.valsLock.acquire()
+    
+    # clears the event log
+    self.msgLog = []
+    
+    # fetches past tor events from log file, if available
+    torEventBacklog = []
+    if self._config["features.log.prepopulate"]:
+      setRunlevels = list(set.intersection(set(self.loggedEvents), set(log.Runlevel.values())))
+      readLimit = self._config["features.log.prepopulateReadLimit"]
+      addLimit = self._config["cache.logPanel.size"]
+      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
+    
+    # gets the set of arm events we're logging
+    setRunlevels = []
+    armRunlevels = log.Runlevel.values()
+    for i in range(len(armRunlevels)):
+      if "ARM_" + log.Runlevel.values()[i] in self.loggedEvents:
+        setRunlevels.append(armRunlevels[i])
+    
+    armEventBacklog = []
+    for level, msg, eventTime in log._getEntries(setRunlevels):
+      armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
+      armEventBacklog.insert(0, armEventEntry)
+    
+    # joins armEventBacklog and torEventBacklog chronologically into msgLog
+    while armEventBacklog or torEventBacklog:
+      if not armEventBacklog:
+        self.msgLog.append(torEventBacklog.pop(0))
+      elif not torEventBacklog:
+        self.msgLog.append(armEventBacklog.pop(0))
+      elif armEventBacklog[0].timestamp < torEventBacklog[0].timestamp:
+        self.msgLog.append(torEventBacklog.pop(0))
+      else:
+        self.msgLog.append(armEventBacklog.pop(0))
+    
+    # crops events that are either too old, or more numerous than the caching size
+    self._trimEvents(self.msgLog)
+    
+    self.valsLock.release()
   
   def setDuplicateVisability(self, isVisible):
     """
@@ -1158,6 +1172,14 @@ class LogPanel(panel.Panel, threading.Thread):
     self._halt = True
     self._cond.notifyAll()
     self._cond.release()
+  
+  def _resetListener(self, _, eventType):
+    # if we're attaching to a new tor instance then clears the log and
+    # prepopulates it with the content belonging to this instance
+    
+    if eventType == torTools.State.INIT:
+      self.reprepopulateEvents()
+      self.redraw(True)
   
   def _getTitle(self, width):
     """
