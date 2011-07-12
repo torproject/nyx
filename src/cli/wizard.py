@@ -333,13 +333,22 @@ def showWizard():
           log.log(log.INFO, "Writing torrc to '%s':\n%s" % (torrcLocation, generatedTorrc))
           
           # if the torrc already exists then save it to a _bak file
+          isBackedUp = False
           if os.path.exists(torrcLocation):
             shutil.copy(torrcLocation, torrcLocation + "_bak")
+            isBackedUp = True
           
           # writes the torrc contents
           torrcFile = open(torrcLocation, "w")
           torrcFile.write(generatedTorrc)
           torrcFile.close()
+          
+          # logs where we placed the torrc
+          msg = "Tor configuration placed at '%s'" % torrcLocation
+          if isBackedUp:
+            msg += " (the previous torrc was moved to 'torrc_bak')"
+          
+          log.log(log.NOTICE, msg)
           
           dataDir = cli.controller.getController().getDataDirectory()
           
