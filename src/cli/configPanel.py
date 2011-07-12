@@ -528,6 +528,12 @@ class ConfigPanel(panel.Panel):
     valueWidth = self._config["features.config.state.colWidth.value"]
     descriptionWidth = max(0, width - scrollOffset - optionWidth - valueWidth - 2)
     
+    # if the description column is overly long then use its space for the
+    # value instead
+    if descriptionWidth > 80:
+      valueWidth += descriptionWidth - 80
+      descriptionWidth = 80
+    
     for lineNum in range(scrollLoc, len(self._getConfigOptions())):
       entry = self._getConfigOptions()[lineNum]
       drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
