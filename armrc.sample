@@ -62,7 +62,7 @@ features.confirmQuit true
 
 # Allows arm to start when there's no running tor instance if true, otherwise
 # we terminate right away.
-features.allowDetachedStartup false
+features.allowDetachedStartup true
 
 # Paremters for the log panel
 # ---------------------------
