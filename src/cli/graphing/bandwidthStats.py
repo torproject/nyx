@@ -6,6 +6,8 @@ stats if they're set.
 import time
 import curses
 
+import cli.controller
+
 from cli.graphing import graphPanel
 from util import log, sysTools, torTools, uiTools
 
@@ -87,7 +89,13 @@ class BandwidthStats(graphPanel.GraphStats):
     self.new_desc_event(None) # updates title params
     
     if eventType in (torTools.State.INIT, torTools.State.RESET) and self._config["features.graph.bw.accounting.show"]:
-      self.isAccounting = conn.getInfo('accounting/enabled') == '1'
+      isAccountingEnabled = conn.getInfo('accounting/enabled') == '1'
+      
+      if isAccountingEnabled != self.isAccounting:
+        self.isAccounting = isAccountingEnabled
+        
+        # redraws the whole screen since our height changed
+        cli.controller.getController().requestRedraw(True)
     
     # redraws to reflect changes (this especially noticeable when we have
     # accounting and shut down since it then gives notice of the shutdown)
