@@ -211,6 +211,9 @@ features.graph.bw.accounting.isTimeLong false
 #   if true, the uptime of the initial connections when we start are marked
 #   with a '+' (these uptimes are estimates since arm can only track a
 #   connection's duration while it runs)
+# showIps
+#   shows ip addresses for other tor relays, dropping this information if
+#   false
 # showExitPort
 #   shows port related information of exit connections we relay if true
 # showColumn.*
@@ -221,6 +224,7 @@ features.connection.order 0, 2, 1
 features.connection.refreshRate 5
 features.connection.resolveApps true
 features.connection.markInitialConnections true
+features.connection.showIps true
 features.connection.showExitPort true
 features.connection.showColumn.fingerprint true
 features.connection.showColumn.nickname true
