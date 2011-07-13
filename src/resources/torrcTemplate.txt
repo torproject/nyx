@@ -4,7 +4,7 @@
 # - run 'pkill -sighup tor'
 # - restart tor
 #
-# Descriptions of all of these configuraiton attibutes (and many more) are
+# Descriptions of all of these configuration attributes (and many more) are
 # available in the tor man page.
 
 [IF SHUTDOWN]
@@ -14,15 +14,16 @@
 [END IF]
 
 [NEWLINE]
+DataDirectory [DATA_DIR]      # location to store runtime data
+Log [LOG_ENTRY]               # location to log notices, warnings, and errors
 ControlPort 9052              # port controllers can connect to
 CookieAuthentication 1        # method for controller authentication
-Log [LOG_ENTRY]               # location to log notices, warnings, and errors
 
 [IF RELAY | EXIT | BRIDGE]
   RunAsDaemon 1               # runs as a background process
   
   [IF LOWPORTS]
-    User tor-arm              # lowers our permissions to this user
+    User [USERNAME]           # lowers our permissions to this user
   [END IF]
 [END IF]
 [NEWLINE]

@@ -8,13 +8,12 @@ import os
 import sys
 import random
 import shutil
+import getpass
 import functools
 import curses
 
 import cli.popups
 import cli.controller
-
-from TorCtl import TorCtl
 
 from util import connections, enum, log, sysTools, torConfig, torTools, uiTools
 
@@ -384,7 +383,7 @@ def showWizard():
             dst = "%sstartTor" % dataDir
             if not os.path.exists(dst): shutil.copy(src, dst)
             
-            msg = "Tor needs root permissions to start with this configuration (it will drop itself to a 'tor-arm' user afterward). To continue...\n- open another terminal\n- run \"sudo %s\"\n- press 'r' here to tell arm to reconnect" % dst
+            msg = "Tor needs root permissions to start with this configuration (it will drop itself to the current user afterward). To continue...\n- open another terminal\n- run \"sudo %s\"\n- press 'r' here to tell arm to reconnect" % dst
             log.log(log.NOTICE, msg)
           
           break
@@ -590,7 +589,7 @@ def getTorrc(relayType, config, disabledOpt):
     templateOptions[key.upper()] = value
   
   templateOptions[relayType.upper()] = True
-  templateOptions["LOW_PORTS"] = config[Options.LOWPORTS]
+  templateOptions["LOW_PORTS"] = config[Options.LOWPORTS].getValue()
   
   # uses double the relay rate for bursts
   bwOpt = Options.BANDWIDTH.upper()
@@ -599,10 +598,13 @@ def getTorrc(relayType, config, disabledOpt):
     relayRateComp = templateOptions[bwOpt].split(" ")
     templateOptions["BURST"] = "%i %s" % (int(relayRateComp[0]) * 2, " ".join(relayRateComp[1:]))
   
-  # exit notice will be in our data directory
+  # paths for our tor related resources
+  
   dataDir = cli.controller.getController().getDataDirectory()
-  templateOptions["NOTICE_PATH"] = dataDir + "exitNotice/index.html"
+  templateOptions["NOTICE_PATH"] = "%sexitNotice/index.html" % dataDir
   templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
+  templateOptions["DATA_DIR"] = "%stor_data" % dataDir
+  templateOptions["USERNAME"] = getpass.getuser()
   
   policyCategories = []
   if not config[Options.POLICY].getValue():

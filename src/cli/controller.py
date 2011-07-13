@@ -523,7 +523,7 @@ class TorManager:
     torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
     
     if not torctlConn:
-      msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % torrcLoc
+      msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % self.getTorrcPath()
       raise IOError(msg)
     
     if authType == TorCtl.AUTH_TYPE.COOKIE:
