@@ -35,8 +35,7 @@ class CircLine(circEntry.CircLine, connEntry.ConnectionLine):
       dst = self.getDestinationLabel(100, includeLocale=True)
       etc = self.foreign.getNickname()
 
-    timeLabel = uiTools.getTimeLabel(time.time() - self.startTime)
     theme = gtkTools.Theme()
 
-    return (dst, etc, timeLabel, self.getType(), theme.colors['insensitive'])
+    return (dst, etc, self.placementLabel, self.getType(), theme.colors['insensitive'])
 

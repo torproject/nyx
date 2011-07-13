@@ -69,8 +69,9 @@ class ConnectionPanel(CliConnectionPanel):
       cacheKey = calculateCacheKey(line)
 
       if self.cache.has_key(cacheKey):
-        timeLabel = "%d s" % (time.time() - line.startTime)
-        treestore.set_value(self.cache[cacheKey], 2, timeLabel)
+        if not isinstance(line, circEntry.CircLine):
+          timeLabel = "%d s" % (time.time() - line.startTime)
+          treestore.set_value(self.cache[cacheKey], 2, timeLabel)
       else:
         break
 
