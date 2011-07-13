@@ -90,7 +90,7 @@ features.allowDetachedStartup true
 features.log.showDateDividers true
 features.log.showDuplicateEntries false
 features.log.entryDuration 7
-features.log.maxLinesPerEntry 4
+features.log.maxLinesPerEntry 6
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
