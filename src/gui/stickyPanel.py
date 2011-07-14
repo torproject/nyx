@@ -20,11 +20,18 @@ class StickyPanel(CliHeaderPanel):
     CliHeaderPanel.__init__(self, None, time.time())
 
     self.builder = builder
+    self.filled = False
 
-    gobject.timeout_add(3000, self._fill_entries)
+    gobject.idle_add(self._fill_entries)
+    gobject.timeout_add(3000, self._timeout_fill_entries)
 
   def pack_widgets(self):
     pass
+
+  def _timeout_fill_entries(self):
+    self._fill_entries()
+
+    return True
 
   def _fill_entries(self):
     self.valsLock.acquire()
@@ -113,6 +120,4 @@ class StickyPanel(CliHeaderPanel):
     liststore.append(row)
 
     self.valsLock.release()
-
-    return True
 
