@@ -11,53 +11,6 @@
       <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">arm</col>
-        <col id="1" translatable="yes">orthanc (Linux 2.6.35.11-83.fc14)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Tor</col>
-        <col id="1" translatable="yes">0.2.1.28 (obsolete)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Relaying</col>
-        <col id="1" translatable="yes">Disabled</col>
-        <col id="2" translatable="yes">red</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Control Port</col>
-        <col id="1" translatable="yes">9051 (open)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">CPU Tor</col>
-        <col id="1" translatable="yes">0.0%</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">CPU arm</col>
-        <col id="1" translatable="yes">0.0%</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Memory</col>
-        <col id="1" translatable="yes">20 MB (1.0%)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">PID</col>
-        <col id="1" translatable="yes">3980</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Uptime</col>
-        <col id="1" translatable="yes">01:01:34</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-    </data>
   </object>
   <object class="GtkTreeStore" id="treestore_conn">
     <columns>
