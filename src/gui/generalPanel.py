@@ -1,5 +1,5 @@
 """
-Sticky panel.
+General panel.
 """
 
 import random
@@ -15,7 +15,7 @@ from cli.headerPanel import (HeaderPanel as CliHeaderPanel, VERSION_STATUS_COLOR
 from TorCtl import TorCtl
 from util import connections, sysTools, gtkTools, uiTools, torTools
 
-class StickyPanel(CliHeaderPanel):
+class GeneralPanel(CliHeaderPanel):
   def __init__(self, builder):
     CliHeaderPanel.__init__(self, None, time.time())
 
@@ -36,7 +36,7 @@ class StickyPanel(CliHeaderPanel):
   def _fill_entries(self):
     self.valsLock.acquire()
 
-    liststore = self.builder.get_object('liststore_sticky')
+    liststore = self.builder.get_object('liststore_general')
     theme = gtkTools.Theme()
 
     liststore.clear()

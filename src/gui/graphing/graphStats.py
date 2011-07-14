@@ -46,6 +46,8 @@ class GraphStats(TorCtl.PostEventListener):
 
   def _pack_graph_widget(self, name):
     graph = CaGraph()
+    graph.set_size_request(200, 200)
+
     placeholder = self.builder.get_object('placeholder_graph_%s' % name)
     placeholder.pack_start(graph)
 
