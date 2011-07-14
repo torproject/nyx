@@ -2,7 +2,7 @@
 # edit this file then either...
 # - tell arm to reset tor by pressing 'x'
 # - run 'pkill -sighup tor'
-# - restart tor
+# - or restart tor
 #
 # Descriptions of all of these configuration attributes (and many more) are
 # available in the tor man page.
