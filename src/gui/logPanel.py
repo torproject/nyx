@@ -13,15 +13,15 @@ import gobject
 import gtk
 
 from TorCtl import TorCtl
-from util import log, uiTools, torTools
+from util import log, gtkTools, uiTools, torTools
 
 from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
                           LogEntry, TorEventObserver,
                           DEFAULT_CONFIG)
 
-RUNLEVEL_EVENT_COLOR = {log.DEBUG: "#C73043", log.INFO: "#762A2A", log.NOTICE: "#222222",
-                        log.WARN: "#AB7814", log.ERR: "#EC131F"}
-STARTUP_EVENTS = 'A'
+RUNLEVEL_EVENT_COLOR = {log.DEBUG: 'insensitive', log.INFO: 'normal', log.NOTICE: 'normal',
+                        log.WARN: 'active', log.ERR: 'active'}
+STARTUP_EVENTS = 'N3'
 REFRESH_RATE = 3
 
 class LogPanel:
@@ -52,7 +52,8 @@ class LogPanel:
 
     armEventBacklog = deque()
     for level, msg, eventTime in log._getEntries(setRunlevels):
-      armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
+      theme = gtkTools.Theme()
+      armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, theme.colors[RUNLEVEL_EVENT_COLOR[level]])
       armEventBacklog.appendleft(armEventEntry)
 
     while armEventBacklog or torEventBacklog:
@@ -88,6 +89,7 @@ class LogPanel:
     try:
       for entry in self.msgLog:
         timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
+
         row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
         liststore.append(row)
     finally:
@@ -96,6 +98,9 @@ class LogPanel:
     self._lastUpdate = time.time()
 
   def register_event(self, event):
+    if not event.type in self.loggedEvents:
+      return
+
     self.lock.acquire()
     try:
       self.msgLog.appendleft(event)
@@ -104,11 +109,13 @@ class LogPanel:
     gobject.idle_add(self.fill_log)
 
   def _register_arm_event(self, level, msg, eventTime):
-    eventColor = RUNLEVEL_EVENT_COLOR[level]
+    theme = gtkTools.Theme()
+    eventColor = theme.colors[RUNLEVEL_EVENT_COLOR[level]]
     self.register_event(LogEntry(eventTime, "ARM_%s" % level, msg, eventColor))
 
   def _register_torctl_event(self, level, msg):
-    eventColor = RUNLEVEL_EVENT_COLOR[level]
+    theme = gtkTools.Theme()
+    eventColor = theme.colors[RUNLEVEL_EVENT_COLOR[level]]
     self.register_event(LogEntry(time.time(), "TORCTL_%s" % level, msg, eventColor))
 
   def _compare_rows(self, treemodel, iter1, iter2, data=None):

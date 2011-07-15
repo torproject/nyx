@@ -11,7 +11,7 @@ import gobject
 import gtk
 
 from TorCtl import TorCtl
-from util import uiTools, torTools
+from util import gtkTools, uiTools, torTools
 
 from cagraph.ca_graph import CaGraph
 from cagraph.axis.xaxis import CaGraphXAxis
@@ -62,10 +62,15 @@ class GraphStats(TorCtl.PostEventListener):
 
     series = CaGraphSeriesArea(graph, 0, 1)
 
-    line_colors = {'primary' : (1.0, 0.0, 1.0, 1.0), 'secondary' : (0.0, 1.0, 0.0, 1.0)}
-    fill_colors = {'primary' : (1.0, 0.0, 1.0, 0.3), 'secondary' : (0.0, 1.0, 0.0, 0.3)}
-    series.style.line_color = line_colors[name]
-    series.style.fill_color = fill_colors[name]
+    theme = gtkTools.Theme()
+    primaryColor = theme.colors['normal']
+    secondaryColor = theme.colors['insensitive']
+    colors = { 'primary' : (primaryColor.red_float, primaryColor.green_float, primaryColor.blue_float, 0.5),
+               'secondary' : (secondaryColor.red_float, secondaryColor.green_float, secondaryColor.blue_float, 0.5) }
+
+    series.style.point_radius = 0.0
+    series.style.line_color = colors[name]
+    series.style.fill_color = colors[name]
 
     graph.seriess.append(series)
     graph.grid = CaGraphGrid(graph, 0, 1)

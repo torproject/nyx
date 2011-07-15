@@ -11,55 +11,8 @@
       <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">arm</col>
-        <col id="1" translatable="yes">orthanc (Linux 2.6.35.11-83.fc14)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Tor</col>
-        <col id="1" translatable="yes">0.2.1.28 (obsolete)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Relaying</col>
-        <col id="1" translatable="yes">Disabled</col>
-        <col id="2" translatable="yes">red</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Control Port</col>
-        <col id="1" translatable="yes">9051 (open)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">CPU Tor</col>
-        <col id="1" translatable="yes">0.0%</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">CPU arm</col>
-        <col id="1" translatable="yes">0.0%</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Memory</col>
-        <col id="1" translatable="yes">20 MB (1.0%)</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">PID</col>
-        <col id="1" translatable="yes">3980</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Uptime</col>
-        <col id="1" translatable="yes">01:01:34</col>
-        <col id="2" translatable="yes">black</col>
-      </row>
-    </data>
   </object>
-  <object class="GtkListStore" id="liststore_conn">
+  <object class="GtkTreeStore" id="treestore_conn">
     <columns>
       <!-- column-name origin -->
       <column type="gchararray"/>
@@ -72,29 +25,6 @@
       <!-- column-name foreground -->
       <column type="gchararray"/>
     </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">115.167.31.237:56835</col>
-        <col id="1" translatable="yes">188.120.245.249:9001 (ru)</col>
-        <col id="2" translatable="yes">10.7m</col>
-        <col id="3" translatable="yes">CLIENT</col>
-        <col id="4" translatable="yes">blue</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">115.167.31.237:44940</col>
-        <col id="1" translatable="yes">206.217.215.183:53 (us)</col>
-        <col id="2" translatable="yes">28.3m</col>
-        <col id="3" translatable="yes">CLIENT</col>
-        <col id="4" translatable="yes">blue</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">127.0.0.1:9051</col>
-        <col id="1" translatable="yes">127.0.0.1:51665</col>
-        <col id="2" translatable="yes">30.0m</col>
-        <col id="3" translatable="yes">CONTROL</col>
-        <col id="4" translatable="yes">red</col>
-      </row>
-    </data>
   </object>
   <object class="GtkListStore" id="liststore_config">
     <columns>
@@ -437,7 +367,7 @@
                         <child>
                           <object class="GtkLabel" id="label_conn_top">
                             <property name="visible">True</property>
-                            <property name="label" translatable="yes">2 Clients, 1 Control</property>
+                            <property name="label" translatable="yes">Connections:</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -455,9 +385,10 @@
                               <object class="GtkTreeView" id="treeview_conn">
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
-                                <property name="model">liststore_conn</property>
+                                <property name="model">treestore_conn</property>
                                 <property name="headers_visible">False</property>
                                 <property name="headers_clickable">False</property>
+                                <property name="rules_hint">True</property>
                                 <property name="search_column">0</property>
                                 <child>
                                   <object class="GtkTreeViewColumn" id="treeviewcolumn_conn_origin">
@@ -640,6 +571,7 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                         <property name="model">liststore_sticky</property>
                         <property name="headers_visible">False</property>
                         <property name="headers_clickable">False</property>
+                        <property name="rules_hint">True</property>
                         <property name="search_column">0</property>
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn_sticky_key">
@@ -690,6 +622,7 @@ each direction. (Default: 0) &lt;/span&gt;</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="model">liststore_log</property>
+                    <property name="rules_hint">True</property>
                     <child>
                       <object class="GtkTreeViewColumn" id="treeviewcolumn_log_timestamp">
                         <property name="title">Time</property>

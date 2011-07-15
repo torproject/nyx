@@ -5,7 +5,8 @@ import thread
 import time
 
 from util import log, torTools
-from gui import logPanel
+from connections import connPanel
+from gui import logPanel, stickyPanel
 from gui.graphing import bandwidthStats
 
 gobject.threads_init()
@@ -23,6 +24,13 @@ class GuiController:
 
     self.bwStats = bandwidthStats.BandwidthStats(self.builder)
     self.bwStats.pack_widgets()
+
+    self.connPanel = connPanel.ConnectionPanel(self.builder)
+    self.connPanel.pack_widgets()
+    self.connPanel.start()
+
+    self.stickyPanel = stickyPanel.StickyPanel(self.builder)
+    self.stickyPanel.pack_widgets()
 
   def run(self):
     window = self.builder.get_object('window_main')
