@@ -30,7 +30,6 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
-INCLUDE_GUI = True
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
@@ -53,12 +52,8 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-if INCLUDE_GUI:
-  OPT = "gi:c:dbe:vh"
-  OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
-else:
-  OPT = "i:c:dbe:vh"
-  OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gi:c:dbe:vh"
+OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
@@ -78,11 +73,6 @@ Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
 """ % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
-
-# icky and temporary hack to remove the gui help option if it's unavailbe
-if not INCLUDE_GUI:
-  helpComp = HELP_MSG.split("\n")
-  HELP_MSG = "\n".join(helpComp[:3] + helpComp[4:])
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -310,7 +300,7 @@ if __name__ == '__main__':
       
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
-    elif opt in ("-g", "--gui") and INCLUDE_GUI: launchGui = True
+    elif opt in ("-g", "--gui"): launchGui = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
