@@ -14,7 +14,8 @@ from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.resolveApps": True,
                   "features.connection.listingType": 0,
-                  "features.connection.refreshRate": 5}
+                  "features.connection.refreshRate": 5,
+                  "features.connection.showIps": True}
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
@@ -42,6 +43,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       config.update(self._config, {
         "features.connection.listingType": (0, len(Listing.values()) - 1),
         "features.connection.refreshRate": 1})
+      
+      # defaults our listing selection to fingerprints if ip address
+      # displaying is disabled
+      if not self._config["features.connection.showIps"] and self._config["features.connection.listingType"] == 0:
+        self._config["features.connection.listingType"] = 2
       
       sortFields = entries.SortAttr.values()
       customOrdering = config.getIntCSV("features.connection.order", None, 3, 0, len(sortFields))

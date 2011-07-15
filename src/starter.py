@@ -30,7 +30,6 @@ import util.uiTools
 import TorCtl.TorCtl
 import TorCtl.TorUtil
 
-INCLUDE_GUI = True
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
@@ -39,7 +38,8 @@ CONFIG = {"startup.controlPassword": None,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
-          "features.allowDetachedStartup": False,
+          "wizard.default": {},
+          "features.allowDetachedStartup": True,
           "features.config.descriptions.enabled": True,
           "features.config.descriptions.persist": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
@@ -52,12 +52,8 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-if INCLUDE_GUI:
-  OPT = "gi:c:dbe:vh"
-  OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
-else:
-  OPT = "i:c:dbe:vh"
-  OPT_EXPANDED = ["interface=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gi:c:dbe:vh"
+OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
@@ -77,11 +73,6 @@ Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
 """ % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
-
-# icky and temporary hack to remove the gui help option if it's unavailbe
-if not INCLUDE_GUI:
-  helpComp = HELP_MSG.split("\n")
-  HELP_MSG = "\n".join(helpComp[:3] + helpComp[4:])
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -168,7 +159,7 @@ def _loadConfigurationDescriptions(pathPrefix):
     if not isConfigDescriptionsLoaded:
       try:
         loadStartTime = time.time()
-        loadedVersion = util.torConfig.loadOptionDescriptions(pathPrefix + "/resources/"  + CONFIG_DESC_FILENAME, False)
+        loadedVersion = util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
         isConfigDescriptionsLoaded = True
         
         msg = DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion
@@ -210,6 +201,21 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
     return conn
   except Exception, exc:
     if conn: conn.close()
+    
+    # attempts to connect with the default wizard address too
+    wizardPort = CONFIG["wizard.default"].get("Control")
+    
+    if wizardPort and wizardPort.isdigit():
+      wizardPort = int(wizardPort)
+      
+      # Attempt to connect to the wizard port. If the connection fails then
+      # don't print anything and continue with the error case for the initial
+      # connection failure. Otherwise, return the connection result.
+      
+      if controlPort != wizardPort:
+        connResult = _torCtlConnect(controlAddr, wizardPort)
+        if connResult != None: return connResult
+      else: return None # wizard connection attempt, don't print anything
     
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try
@@ -294,7 +300,7 @@ if __name__ == '__main__':
       
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
-    elif opt in ("-g", "--gui") and INCLUDE_GUI: launchGui = True
+    elif opt in ("-g", "--gui"): launchGui = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):

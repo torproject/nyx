@@ -52,9 +52,8 @@ CONTROLLER = None # singleton Controller instance
 CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
               "config/names", "info/names", "features/names", "events/names",
               "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
-              "bwObserved", "bwMeasured", "flags", "parsedVersion", "pid",
-              "user", "fdLimit", "pathPrefix", "startTime", "authorities",
-              "circuits", "hsPorts")
+              "bwObserved", "bwMeasured", "flags", "pid", "user", "fdLimit",
+              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
 CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
 
 # Tor has a couple messages (in or/router.c) for when our ip address changes:
@@ -300,6 +299,29 @@ def parseVersion(versionStr):
     except ValueError: pass
   
   return result
+
+def isVersion(myVersion, minVersion):
+  """
+  Checks if the given version meets a given minimum. Both arguments are
+  expected to be version tuples. To get this from a version string use the
+  parseVersion function.
+  
+  Arguments:
+    myVersion  - tor version tuple
+    minVersion - version tuple to be checked against
+  """
+  
+  if myVersion[:4] == minVersion[:4]:
+    return True # versions match
+  else:
+    # compares each of the numeric portions of the version
+    for i in range(4):
+      myVal, minVal = myVersion[i], minVersion[i]
+      
+      if myVal > minVal: return True
+      elif myVal < minVal: return False
+    
+    return True # versions match (should have been caught above...)
 
 def getConn():
   """
@@ -890,23 +912,10 @@ class Controller(TorCtl.PostEventListener):
     
     result = False
     if self.isAlive():
-      myVersion = self._getRelayAttr("parsedVersion", None)
+      myVersion = parseVersion(self.getInfo("version", ""))
       
-      if not myVersion:
-        result = False
-      elif myVersion[:4] == minVersion[:4]:
-        result = True # versions match
-      else:
-        # compares each of the numeric portions of the version
-        for i in range(4):
-          myVal, minVal = myVersion[i], minVersion[i]
-          
-          if myVal > minVal:
-            result = True
-            break
-          elif myVal < minVal:
-            result = False
-            break
+      if not myVersion: result = False
+      else: result = isVersion(myVersion, minVersion)
     
     self.connLock.release()
     
@@ -1465,6 +1474,34 @@ class Controller(TorCtl.PostEventListener):
     
     if raisedException: raise raisedException
   
+  def shutdown(self, force = False):
+    """
+    Sends a shutdown signal to the attached tor instance. For relays the
+    actual shutdown is delayed for thirty seconds unless the force flag is
+    given. This raises an IOError if a signal is sent but fails.
+    
+    Arguments:
+      force - triggers an immediate shutdown for relays if True
+    """
+    
+    self.connLock.acquire()
+    
+    raisedException = None
+    if self.isAlive():
+      try:
+        isRelay = self.getOption("ORPort") != None
+        signal = "HALT" if force else "SHUTDOWN"
+        self.conn.send_signal(signal)
+        
+        # shuts down control connection if we aren't making a delayed shutdown
+        if force or not isRelay: self.close()
+      except Exception, exc:
+        raisedException = IOError(str(exc))
+    
+    self.connLock.release()
+    
+    if raisedException: raise raisedException
+  
   def msg_event(self, event):
     """
     Listens for reload signal (hup), which is either produced by:
@@ -1825,8 +1862,6 @@ class Controller(TorCtl.PostEventListener):
           if line.startswith("s "):
             result = line[2:].split()
             break
-      elif key == "parsedVersion":
-        result = parseVersion(self.getInfo("version", ""))
       elif key == "pid":
         result = self.getInfo("process/pid")
         

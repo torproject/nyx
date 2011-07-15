@@ -34,6 +34,7 @@ LABEL_MIN_PADDING = 2 # min space between listing label and following data
 SCRUBBED_IP_VAL = 255 ** 4
 
 CONFIG = {"features.connection.markInitialConnections": True,
+          "features.connection.showIps": True,
           "features.connection.showExitPort": True,
           "features.connection.showColumn.fingerprint": True,
           "features.connection.showColumn.nickname": True,
@@ -343,6 +344,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
     Returns true if the endpoint is private, possibly belonging to a client
     connection or exit traffic.
     """
+    
+    if not CONFIG["features.connection.showIps"]: return True
     
     # This is used to scrub private information from the interface. Relaying
     # etiquette (and wiretapping laws) say these are bad things to look at so

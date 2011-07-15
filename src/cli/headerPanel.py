@@ -22,6 +22,7 @@ import threading
 import TorCtl.TorCtl
 
 import cli.popups
+import cli.controller
 
 from util import log, panel, sysTools, torTools, uiTools
 
@@ -144,8 +145,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
       except Exception, exc:
-        # displays notice for failed connection attempt
-        if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+        # attempts to use the wizard port too
+        try:
+          cli.controller.getController().getTorManager().connectManagedInstance()
+          log.log(log.NOTICE, "Reconnected to Tor's control port")
+          cli.popups.showMsg("Tor reconnected", 1)
+        except:
+          # displays notice for the first failed connection attempt
+          if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
@@ -411,10 +418,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
     
     if eventType in (torTools.State.INIT, torTools.State.RESET):
+      initialHeight = self.getHeight()
       self._isTorConnected = True
       self._haltTime = None
       self._update(True)
-      self.redraw(True)
+      
+      if self.getHeight() != initialHeight:
+        # We're toggling between being a relay and client, causing the height
+        # of this panel to change. Redraw all content so we don't get
+        # overlapping content.
+        cli.controller.getController().requestRedraw(True)
+      else:
+        # just need to redraw ourselves
+        self.redraw(True)
     elif eventType == torTools.State.CLOSED:
       self._isTorConnected = False
       self._haltTime = time.time()

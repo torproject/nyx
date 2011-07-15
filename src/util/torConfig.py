@@ -52,6 +52,9 @@ MAN_EX_INDENT = 15 # indentation used for man page examples
 PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a file
 MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
+# torrc options that bind to ports
+PORT_OPT = ("SocksPort", "ORPort", "DirPort", "ControlPort", "TransPort")
+
 def loadConfig(config):
   config.update(CONFIG)
   
@@ -844,4 +847,143 @@ def _testConfigDescriptions():
     print "     %-45s %s" % (optLabel, argLabel)
     print "\"%s\"" % description
     if i != len(sortedOptions) - 1: print "-" * 80
+
+def isRootNeeded(torrcPath):
+  """
+  Returns True if the given torrc needs root permissions to be ran, False
+  otherwise. This raises an IOError if the torrc can't be read.
+  
+  Arguments:
+    torrcPath - torrc to be checked
+  """
+  
+  try:
+    torrcFile = open(torrcPath, "r")
+    torrcLines = torrcFile.readlines()
+    torrcFile.close()
+    
+    for line in torrcLines:
+      line = line.strip()
+      
+      isPortOpt = False
+      for opt in PORT_OPT:
+        if line.startswith(opt):
+          isPortOpt = True
+          break
+      
+      if isPortOpt and " " in line:
+        arg = line.split(" ")[1]
+        
+        if arg.isdigit() and int(arg) <= 1024 and int(arg) != 0:
+          return True
+    
+    return False
+  except Exception, exc:
+    raise IOError(exc)
+
+def renderTorrc(template, options, commentIndent = 30):
+  """
+  Uses the given template to generate a nicely formatted torrc with the given
+  options. The tempating language this recognizes is a simple one, recognizing
+  the following options:
+    [IF <option>]         # if <option> maps to true or a non-empty string
+    [IF NOT <option>]     # logical inverse
+    [IF <opt1> | <opt2>]  # logical or of the options
+    [ELSE]          # if the prior conditional evaluated to false
+    [END IF]        # ends the control block
+    
+    [<option>]      # inputs the option value, omitting the line if it maps
+                    # to a boolean or empty string
+    [NEWLINE]       # empty line, otherwise templating white space is ignored
+  
+  Arguments:
+    template      - torrc template lines used to generate the results
+    options       - mapping of keywords to their given values, with values
+                    being booleans or strings (possibly multi-line)
+    commentIndent - minimum column that comments align on
+  """
+  
+  results = []
+  templateIter = iter(template)
+  commentLineFormat = "%%-%is%%s" % commentIndent
+  
+  try:
+    while True:
+      line = templateIter.next().strip()
+      
+      if line.startswith("[IF ") and line.endswith("]"):
+        # checks if any of the conditional options are true or a non-empty string
+        evaluatesTrue = False
+        for cond in line[4:-1].split("|"):
+          isInverse = False
+          if cond.startswith("NOT "):
+            isInverse = True
+            cond = cond[4:]
+          
+          if isInverse != bool(options.get(cond.strip())):
+            evaluatesTrue = True
+            break
+        
+        if evaluatesTrue:
+          continue
+        else:
+          # skips lines until we come to an else or the end of the block
+          depth = 0
+          
+          while depth != -1:
+            line = templateIter.next().strip()
+            
+            if line.startswith("[IF ") and line.endswith("]"): depth += 1
+            elif line == "[END IF]": depth -= 1
+            elif depth == 0 and line == "[ELSE]": depth -= 1
+      elif line == "[ELSE]":
+        # an else block we aren't using - skip to the end of it
+        depth = 0
+        
+        while depth != -1:
+          line = templateIter.next().strip()
+          
+          if line.startswith("[IF "): depth += 1
+          elif line == "[END IF]": depth -= 1
+      elif line == "[NEWLINE]":
+        # explicit newline
+        results.append("")
+      elif line.startswith("#"):
+        # comment only
+        results.append(line)
+      elif line.startswith("[") and line.endswith("]"):
+        # completely dynamic entry
+        optValue = options.get(line[1:-1])
+        if optValue: results.append(optValue)
+      else:
+        # torrc option line
+        option, arg, comment = "", "", ""
+        parsedLine = line
+        
+        if "#" in parsedLine:
+          parsedLine, comment = parsedLine.split("#", 1)
+          parsedLine = parsedLine.strip()
+          comment = "# %s" % comment.strip()
+        
+        # parses the argument from the option
+        if " " in parsedLine.strip():
+          option, arg = parsedLine.split(" ", 1)
+          option = option.strip()
+        else:
+          log.log(log.INFO, "torrc template option lacks an argument: '%s'" % line)
+          continue
+        
+        # inputs dynamic arguments
+        if arg.startswith("[") and arg.endswith("]"):
+          arg = options.get(arg[1:-1])
+        
+        # skips argument if it's false or an empty string
+        if not arg: continue
+        
+        torrcEntry = "%s %s" % (option, arg)
+        if comment: results.append(commentLineFormat % (torrcEntry + " ", comment))
+        else: results.append(torrcEntry)
+  except StopIteration: pass
+  
+  return "\n".join(results)
 
