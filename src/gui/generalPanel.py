@@ -62,7 +62,7 @@ class GeneralPanel(CliHeaderPanel):
 
       dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
 
-      value = "%s%s%s" % (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel)
+      value = "%s%s%s%s" % (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel)
     else:
       if self._isTorConnected:
         value = "Disabled"
