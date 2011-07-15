@@ -21,6 +21,7 @@ class GeneralPanel(CliHeaderPanel):
 
     self.builder = builder
     self.filled = False
+    self._isTorConnected = torTools.getConn().isAlive()
 
     gobject.idle_add(self._fill_entries)
     gobject.timeout_add(3000, self._timeout_fill_entries)
@@ -93,6 +94,7 @@ class GeneralPanel(CliHeaderPanel):
     if self.vals["stat/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["stat/rss"]))
     else: memoryLabel = "0"
 
+    uptimeLabel = "N/A"
     if self.vals["tor/startTime"]:
       if self.isPaused() or not self._isTorConnected:
         uptimeLabel = uiTools.getShortTimeLabel(self.getPauseTime() - self.vals["tor/startTime"])
