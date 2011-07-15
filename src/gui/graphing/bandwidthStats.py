@@ -8,6 +8,7 @@ import gobject
 import gtk
 
 from TorCtl import TorCtl
+from starter import CONFIG
 from gui.graphing import graphStats
 from util import uiTools, torTools
 
@@ -17,7 +18,13 @@ class BandwidthStats(graphStats.GraphStats):
 
     conn = torTools.getConn()
     if not conn.isAlive():
-      conn.init()
+      try:
+        conn.init()
+      except ValueError:
+        if CONFIG['features.allowDetachedStartup']:
+          return
+        else:
+          raise
 
     conn.setControllerEvents(["BW", "NEWDESC"])
     conn.addEventListener(self)
