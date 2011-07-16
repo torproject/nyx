@@ -10,25 +10,25 @@ from util import gtkTools, uiTools
 
 class CircEntry(circEntry.CircEntry):
   @classmethod
-  def convertToGui(self, instance):
+  def convert_to_gui(self, instance):
     instance.__class__ = self
 
 class CircHeaderLine(circEntry.CircHeaderLine, connEntry.ConnectionLine):
   @classmethod
-  def convertToGui(self, instance):
+  def convert_to_gui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self, listingType):
-    row = connEntry.ConnectionLine.getListingRow(self, listingType)
+  def get_listing_row(self, listingType):
+    row = connEntry.ConnectionLine.get_listing_row(self, listingType)
     theme = gtkTools.Theme()
     return row[:-1] + (theme.colors['active'],)
 
 class CircLine(circEntry.CircLine, connEntry.ConnectionLine):
   @classmethod
-  def convertToGui(self, instance):
+  def convert_to_gui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self, listingType):
+  def get_listing_row(self, listingType):
     dst, etc = "", ""
 
     if listingType == entries.ListingType.IP_ADDRESS:

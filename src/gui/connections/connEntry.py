@@ -6,20 +6,20 @@ Connection panel entries related to actual connections to or from the system
 import time
 
 from cli.connections import connEntry, entries
-from cli.connections.connEntry import CONFIG, Category
-from util import gtkTools, uiTools, torTools
+from cli.connections.connEntry import Category, CONFIG
+from util import gtkTools, torTools, uiTools
 
 class ConnectionEntry(connEntry.ConnectionEntry):
   @classmethod
-  def convertToGui(self, instance):
+  def convert_to_gui(self, instance):
     instance.__class__ = self
 
 class ConnectionLine(connEntry.ConnectionLine):
   @classmethod
-  def convertToGui(self, instance):
+  def convert_to_gui(self, instance):
     instance.__class__ = self
 
-  def getListingRow(self, listingType):
+  def get_listing_row(self, listingType):
     conn = torTools.getConn()
     myType = self.getType()
     dstAddress = self.getDestinationLabel(26, includeLocale = True)

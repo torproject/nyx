@@ -442,7 +442,7 @@ if __name__ == '__main__':
   
   if launchGui == True:
     import gui.controller
-    gui.controller.startGui()
+    gui.controller.start_gui()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)
 

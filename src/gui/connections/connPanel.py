@@ -14,12 +14,12 @@ import gtk
 from cli.connections import (circEntry as cliCircEntry, connEntry as cliConnEntry)
 from cli.connections.connPanel import ConnectionPanel as CliConnectionPanel
 from gui.connections import circEntry, connEntry
-from TorCtl import TorCtl
 from util import connections, sysTools, uiTools, torTools
+from TorCtl import TorCtl
 
 REFRESH_RATE = 3
 
-def convertToGui(instance):
+def convert_to_gui(instance):
   cliToGuiMap = [ (cliCircEntry.CircEntry, circEntry.CircEntry),
                   (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
                   (cliCircEntry.CircLine, circEntry.CircLine),
@@ -28,10 +28,10 @@ def convertToGui(instance):
 
   for (cliClass, guiClass) in cliToGuiMap:
     if isinstance(instance, cliClass):
-      guiClass.convertToGui(instance)
+      guiClass.convert_to_gui(instance)
       break
 
-def calculateCacheKey(entryLine):
+def calculate_cache_key(entryLine):
   local = (entryLine.local.ipAddr, entryLine.local.port)
   foreign = (entryLine.foreign.ipAddr, entryLine.foreign.port)
 
@@ -53,7 +53,7 @@ class ConnectionPanel(CliConnectionPanel):
     gobject.timeout_add(3000, self._timeout_fill_entries)
 
   def pack_widgets(self):
-    pass
+    self.start()
 
   def _timeout_fill_entries(self):
     self._fill_entries()
@@ -66,18 +66,18 @@ class ConnectionPanel(CliConnectionPanel):
     label = self.builder.get_object('label_conn_top')
     label.set_text(self._title)
 
-    treestore = self.builder.get_object('treestore_conn')
+    treeStore = self.builder.get_object('treestore_conn')
 
     # first pass checks whether we have enough entries cached to not update the treeview
     index = 0
     for line in self._entryLines:
-      convertToGui(line)
-      cacheKey = calculateCacheKey(line)
+      convert_to_gui(line)
+      cacheKey = calculate_cache_key(line)
 
       if self.cache.has_key(cacheKey):
         if not isinstance(line, circEntry.CircLine):
           timeLabel = "%d s" % (time.time() - line.startTime)
-          treestore.set_value(self.cache[cacheKey], 2, timeLabel)
+          treeStore.set_value(self.cache[cacheKey], 2, timeLabel)
       else:
         break
 
@@ -87,28 +87,28 @@ class ConnectionPanel(CliConnectionPanel):
       self.valsLock.release()
       return True
 
-    # one of the entries was not found in cache, clear and repopulate the treestore
-    treestore.clear()
-    headeriter = None
+    # one of the entries was not found in cache, clear and repopulate the treeStore
+    treeStore.clear()
+    headerIter = None
 
     for line in self._entryLines:
-      convertToGui(line)
+      convert_to_gui(line)
 
       if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
         self._resolveApps()
 
-      row = line.getListingRow(self._listingType)
+      row = line.get_listing_row(self._listingType)
 
       if isinstance(line, circEntry.CircHeaderLine):
-        currentiter = treestore.append(None, row)
-        headeriter = currentiter
+        currentIter = treeStore.append(None, row)
+        headerIter = currentIter
       elif isinstance(line, circEntry.CircLine):
-        currentiter = treestore.append(headeriter, row)
+        currentIter = treeStore.append(headerIter, row)
       else:
-        currentiter = treestore.append(None, row)
+        currentIter = treeStore.append(None, row)
 
-      cacheKey = calculateCacheKey(line)
-      self.cache[cacheKey] = currentiter
+      cacheKey = calculate_cache_key(line)
+      self.cache[cacheKey] = currentIter
 
     self.valsLock.release()
 
