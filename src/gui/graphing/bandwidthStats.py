@@ -9,12 +9,12 @@ import gtk
 
 from TorCtl import TorCtl
 from starter import CONFIG
-from gui.graphing import graphStats
+from gui.graphing import graphPanel
 from util import uiTools, torTools
 
-class BandwidthStats(graphStats.GraphStats):
+class BandwidthStats(graphPanel.GraphPanel):
   def __init__(self, builder):
-    graphStats.GraphStats.__init__(self, builder)
+    graphPanel.GraphPanel.__init__(self, builder)
 
     conn = torTools.getConn()
     if not conn.isAlive():

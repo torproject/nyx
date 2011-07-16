@@ -2,5 +2,5 @@
 Graphs.
 """
 
-__all__ = ["graphStats", "bandwidthStats"]
+__all__ = ["graphPanel", "bandwidthStats"]
 

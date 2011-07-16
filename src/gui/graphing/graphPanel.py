@@ -21,7 +21,7 @@ from cagraph.series.area import CaGraphSeriesArea
 
 GRAPH_INTERVAL = 30
 
-class GraphStats(TorCtl.PostEventListener):
+class GraphPanel(TorCtl.PostEventListener):
   def __init__(self, builder):
     TorCtl.PostEventListener.__init__(self)
 
