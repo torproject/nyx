@@ -79,7 +79,7 @@
     </columns>
   </object>
   <object class="GtkWindow" id="window_main">
-    <property name="title" translatable="yes">arm</property>
+    <property name="title" translatable="yes">garm</property>
     <property name="default_width">640</property>
     <property name="default_height">480</property>
     <signal name="delete_event" handler="on_window_main_delete_event"/>
