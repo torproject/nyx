@@ -4,7 +4,6 @@ Wrapper for safely working with curses subwindows.
 
 import copy
 import time
-import traceback
 import curses
 import curses.ascii
 import curses.textpad
