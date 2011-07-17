@@ -146,7 +146,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
           category = inputFileContents.pop(0).rstrip()
           if not category in Category.values():
             baseMsg = "invalid category in input file: '%s'"
-            raise IOError(baseMsg % categoryStr)
+            raise IOError(baseMsg % category)
           
           # gets the position in the man page
           indexArg, indexStr = -1, inputFileContents.pop(0).rstrip()
