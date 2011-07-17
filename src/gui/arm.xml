@@ -1228,6 +1228,8 @@ the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 &lt;http://www.gnu.org/philosophy/why-not-lgpl.html&gt;.
 </property>
+    <property name="authors">Kamran Riaz Khan &lt;krkhan@inspirated.com&gt;
+Damian Johnson &lt;atagar1@gmail.com&gt;</property>
     <signal name="response" handler="on_aboutdialog_response"/>
     <child internal-child="vbox">
       <object class="GtkVBox" id="aboutdialog_vbox">
