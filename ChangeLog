@@ -1,6 +1,6 @@
 CHANGE LOG
 
-7/16/11 - version 1.4.3
+7/16/11 - version 1.4.3 (6cf4836)
 This completes the codebase refactoring project that's been a year in the works and provides numerous performance and usability improvements. Most notably this includes a setup wizard for new relays, menuing interface, gui prototype, substantial performance improvements, and support for Mac OSX.
 
     * added: relay setup wizard for autogenerating a torrc configuration

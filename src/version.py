@@ -2,6 +2,6 @@
 Provides arm's version and release date.
 """
 
-VERSION = '1.4.3_dev'
-LAST_MODIFIED = "April 4, 2011"
+VERSION = '1.4.4_dev'
+LAST_MODIFIED = "July 17, 2011"
 
