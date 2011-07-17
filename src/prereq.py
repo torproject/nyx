@@ -232,6 +232,8 @@ def guiPrereq():
 
 if __name__ == '__main__':
   isGui = "-g" in sys.argv or "--gui" in sys.argv
-  if isGui: guiPrereq()
-  else: cliPrereq()
+  isBoth = "--both" in sys.argv
+  
+  if isGui or isBoth: guiPrereq()
+  if not isGui or isBoth: cliPrereq()
 

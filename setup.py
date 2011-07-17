@@ -93,7 +93,7 @@ if "install" in sys.argv:
 # When installing we include a bundled copy of TorCtl. However, when creating
 # a deb we have a dependency on the python-torctl package instead:
 # http://packages.debian.org/unstable/main/python-torctl
-installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.util']
+installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.gui', 'arm.gui.connections', 'arm.gui.graphing', 'arm.util', 'arm.cagraph', 'arm.cagraph.axis', 'arm.cagraph.series']
 if not isDebInstall: installPackages.append('arm.TorCtl')
 
 setup(name='arm',
@@ -108,6 +108,7 @@ setup(name='arm',
       data_files=[("/usr/bin", ["arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
+                  ("/usr/share/arm/gui", ["src/gui/arm.xml"]),
                   ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])] + 
                   getResources("/usr/share/arm", "resources"),
      )

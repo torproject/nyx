@@ -13,10 +13,17 @@ gobject.threads_init()
 
 class GuiController:
   def __init__(self):
-    filename = 'src/gui/arm.xml'
-
     self.builder = gtk.Builder()
-    self.builder.add_from_file(filename)
+
+    try:
+      self.builder.add_from_file('src/gui/arm.xml')
+    except:
+      # when installed the above path doesn't work (the 'src' prefix doesn't
+      # exist and whichever path it's working off of doens't seem to exist),
+      # so using absolute path instead
+
+      self.builder.add_from_file('/usr/share/arm/gui/arm.xml')
+
     self.builder.connect_signals(self)
 
     self.logPanel = logPanel.LogPanel(self.builder)

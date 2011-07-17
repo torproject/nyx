@@ -1,5 +1,5 @@
 #!/bin/sh
-python src/prereq.py
+python src/prereq.py --both
 
 if [ $? = 0 ]; then
   python setup.py -q install
