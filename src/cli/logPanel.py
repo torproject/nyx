@@ -284,6 +284,13 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
     # entries look like:
     # Jul 15 18:29:48.806 [notice] Parsing GEOIP file.
     lineComp = line.split()
+    
+    # Checks that we have all the components we expect. This could happen if
+    # we're either not parsing a tor log or in weird edge cases (like being
+    # out of disk space)
+    
+    if len(lineComp) < 4: continue
+    
     eventType = lineComp[3][1:-1].upper()
     
     if eventType in runlevels:
