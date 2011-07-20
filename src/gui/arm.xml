@@ -12,20 +12,6 @@
       <column type="gchararray"/>
     </columns>
   </object>
-  <object class="GtkTreeStore" id="treestore_conn">
-    <columns>
-      <!-- column-name origin -->
-      <column type="gchararray"/>
-      <!-- column-name dest -->
-      <column type="gchararray"/>
-      <!-- column-name time -->
-      <column type="gchararray"/>
-      <!-- column-name type -->
-      <column type="gchararray"/>
-      <!-- column-name foreground -->
-      <column type="gchararray"/>
-    </columns>
-  </object>
   <object class="GtkListStore" id="liststore_log">
     <columns>
       <!-- column-name timestamp_raw -->
@@ -52,6 +38,22 @@
       <column type="gchararray"/>
       <!-- column-name desc -->
       <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkTreeStore" id="treestore_conn">
+    <columns>
+      <!-- column-name origin -->
+      <column type="gchararray"/>
+      <!-- column-name dest -->
+      <column type="gchararray"/>
+      <!-- column-name time -->
+      <column type="gchararray"/>
+      <!-- column-name type -->
+      <column type="gchararray"/>
+      <!-- column-name foreground -->
+      <column type="gchararray"/>
+      <!-- column-name entry_line -->
+      <column type="GObject"/>
     </columns>
   </object>
   <object class="GtkWindow" id="window_main">

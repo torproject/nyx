@@ -17,37 +17,48 @@ from gui.connections import circEntry, connEntry
 from util import connections, sysTools, uiTools, torTools
 from TorCtl import TorCtl
 
-REFRESH_RATE = 3
-
-def convert_to_gui(instance):
-  cliToGuiMap = [ (cliCircEntry.CircEntry, circEntry.CircEntry),
-                  (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
+class GuiConverter:
+  cliToGuiMap = [ (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
                   (cliCircEntry.CircLine, circEntry.CircLine),
-                  (cliConnEntry.ConnectionEntry, connEntry.ConnectionEntry),
                   (cliConnEntry.ConnectionLine, connEntry.ConnectionLine)]
 
-  for (cliClass, guiClass) in cliToGuiMap:
-    if isinstance(instance, cliClass):
-      guiClass.convert_to_gui(instance)
-      break
+  def __init__(self):
+    self._cache = {}
 
-def calculate_cache_key(entryLine):
-  local = (entryLine.local.ipAddr, entryLine.local.port)
-  foreign = (entryLine.foreign.ipAddr, entryLine.foreign.port)
+  def __call__(self, cliInstance):
+    cacheKey = self._calculate_cache_key(cliInstance)
 
-  return (entryLine.__class__, local, foreign)
+    if self._cache.has_key(cacheKey):
+      return self._cache[cacheKey]
+
+    line = None
+
+    for (cliClass, guiClass) in GuiConverter.cliToGuiMap:
+      if isinstance(cliInstance, cliClass):
+        line = guiClass(cliInstance)
+        self._cache[cacheKey] = line
+        break
+
+    return line
+
+  def _calculate_cache_key(self, entryLine):
+    local = (entryLine.local.ipAddr, entryLine.local.port)
+    foreign = (entryLine.foreign.ipAddr, entryLine.foreign.port)
+
+    return (entryLine.__class__, local, foreign)
+
+convert_to_gui = GuiConverter()
 
 class ConnectionPanel(CliConnectionPanel):
   def __init__(self, builder):
     CliConnectionPanel.__init__(self, None)
 
     self.builder = builder
-    self.cache = {}
 
     conn = torTools.getConn()
     torPid = conn.getMyPid()
-    torCmdName = sysTools.getProcessName(torPid, "tor")
-    connections.getResolver(torCmdName, torPid, "tor")
+    torCmdName = sysTools.getProcessName(torPid, 'tor')
+    connections.getResolver(torCmdName, torPid, 'tor')
 
     gobject.idle_add(self._fill_entries)
     gobject.timeout_add(3000, self._timeout_fill_entries)
@@ -70,14 +81,15 @@ class ConnectionPanel(CliConnectionPanel):
 
     # first pass checks whether we have enough entries cached to not update the treeview
     index = 0
-    for line in self._entryLines:
-      convert_to_gui(line)
-      cacheKey = calculate_cache_key(line)
+    for cliLine in self._entryLines:
+      line = convert_to_gui(cliLine)
 
-      if self.cache.has_key(cacheKey):
+      treeIter = self._treestore_get_iter(line)
+
+      if treeIter:
         if not isinstance(line, circEntry.CircLine):
-          timeLabel = "%d s" % (time.time() - line.startTime)
-          treeStore.set_value(self.cache[cacheKey], 2, timeLabel)
+          timeLabel = "%d s" % (time.time() - line.cliLine.startTime)
+          treeStore.set_value(treeIter, 2, timeLabel)
       else:
         break
 
@@ -91,10 +103,10 @@ class ConnectionPanel(CliConnectionPanel):
     treeStore.clear()
     headerIter = None
 
-    for line in self._entryLines:
-      convert_to_gui(line)
+    for cliLine in self._entryLines:
+      line = convert_to_gui(cliLine)
 
-      if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
+      if isinstance(line, connEntry.ConnectionLine) and line.cliLine.isUnresolvedApp():
         self._resolveApps()
 
       row = line.get_listing_row(self._listingType)
@@ -107,8 +119,25 @@ class ConnectionPanel(CliConnectionPanel):
       else:
         currentIter = treeStore.append(None, row)
 
-      cacheKey = calculate_cache_key(line)
-      self.cache[cacheKey] = currentIter
-
     self.valsLock.release()
+
+  def _treestore_get_iter(self, line):
+    def match_func(model, treeIter, data):
+      column, key = data
+      value = model.get_value(treeIter, column)
+      return value == key
+
+    def search(model, treeIter, func, data):
+      while treeIter:
+        if func(model, treeIter, data):
+          return treeIter
+        result = search(model, model.iter_children(treeIter), func, data)
+        if result: return result
+        treeIter = model.iter_next(treeIter)
+      return None
+
+    treeStore = self.builder.get_object('treestore_conn')
+    matchIter = search(treeStore, treeStore.iter_children(None), match_func, (5, line))
+
+    return matchIter
 
