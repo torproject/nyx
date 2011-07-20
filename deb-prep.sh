@@ -27,7 +27,7 @@ git archive --format=tar release | (cd ./release_deb && tar xf -)
 # edits the man page path for the sample armrc to reflect where it's located
 # on debian:
 # /usr/share/doc/arm/armrc.sample -> /usr/share/doc/tor-arm/armrc.sample.gz
-sed -i 's/\/usr\/share\/doc\/arm\/armrc.sample/\/usr\/share\/doc\/tor-arm\/armrc.sample.gz/g' release_deb/arm.1
+sed -i 's/\/usr\/share\/doc\/arm\/armrc.sample/\/usr\/share\/doc\/tor-arm\/armrc.sample.gz/g' release_deb/src/resources/arm.1
 
 tar czf tor-arm_${debVersion}.orig.tar.gz release_deb
 
