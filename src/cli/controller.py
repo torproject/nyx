@@ -661,9 +661,10 @@ def startTorMonitor(startTime):
   
   try:
     curses.wrapper(drawTorMonitor, startTime)
+    shutdownDaemons()
   except KeyboardInterrupt:
-    pass # skip printing stack trace in case of keyboard interrupt
-  finally: shutdownDaemons()
+    # skip printing stack trace in case of keyboard interrupt
+    shutdownDaemons()
 
 def drawTorMonitor(stdscr, startTime):
   """
