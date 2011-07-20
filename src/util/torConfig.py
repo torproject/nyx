@@ -415,6 +415,19 @@ def saveConf(destination = None, contents = None):
   if not contents: contents = currentConfig
   else: isSaveconf &= contents == currentConfig
   
+  # The "GETINFO config-text" option was introduced in Tor version 0.2.2.7. If
+  # we're writing custom contents then this is fine, but if we're trying to
+  # save the current configuration then we need to fail if it's unavailable.
+  # Otherwise we'd write a blank torrc as per...
+  # https://trac.torproject.org/projects/tor/ticket/3614
+  
+  if contents == ['']:
+    # double check that "GETINFO config-text" is unavailable rather than just
+    # giving an empty result
+    
+    if torTools.getConn().getInfo("config-text") == None:
+      raise IOError("determining the torrc requires Tor version 0.2.2.7")
+  
   currentLocation = None
   try:
     currentLocation = getConfigLocation()
