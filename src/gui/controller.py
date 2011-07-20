@@ -6,7 +6,7 @@ import gtk
 
 from connections import connPanel
 from gui.graphing import bandwidthStats
-from gui import generalPanel, logPanel
+from gui import configPanel, generalPanel, logPanel
 from util import log, torTools
 
 gobject.threads_init()
@@ -29,6 +29,7 @@ class GuiController:
     panelClasses = (logPanel.LogPanel,
               bandwidthStats.BandwidthStats,
               connPanel.ConnectionPanel,
+              configPanel.ConfigPanel,
               generalPanel.GeneralPanel)
     self.panels = {}
 
