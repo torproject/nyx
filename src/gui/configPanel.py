@@ -32,26 +32,23 @@ class ConfigPanel(object, CliConfigPanel):
     listStore = self.builder.get_object('liststore_config')
     self._confImportantContents = ConfContents(self.confImportantContents, listStore)
 
-    self.confImportantContents = self.confImportantContents[-5:]
+    self.confImportantContents += self.confImportantContents[-5:]
 
   @property
   def confImportantContents(self):
     if hasattr(self, '_confImportantContents'):
-      return self._confImportantContents
+      return self._confImportantContents.container
     else:
       return []
 
   @confImportantContents.setter
   def confImportantContents(self, value):
     if hasattr(self, '_confImportantContents'):
-      try:
-        self._confImportantContents.empty()
-      except AttributeError:
-        pass
+      self._confImportantContents.empty()
       for entry in value:
         self._confImportantContents.append(entry)
     else:
-      self._confImportantContents = value
+      self._confImportantContents = ConfContents(value)
 
   def pack_widgets(self):
     treeView = self.builder.get_object('treeview_config')

@@ -21,7 +21,7 @@ class Theme:
       self.colors[key] = getattr(widget.style, prop)[state]
 
 class ListWrapper(object):
-  def __init__(self, container, model):
+  def __init__(self, container, model=None):
     self.container = []
     self.model = model
 
@@ -63,17 +63,29 @@ class ListWrapper(object):
     gobject.idle_add(self.__model_set, key, entry)
 
   def __model_append(self, entry):
+    if not self.model:
+      return
+
     row = self._create_row_from_entry(entry)
     self.model.append(row)
 
   def __model_clear(self):
+    if not self.model:
+      return
+
     self.model.clear()
 
   def __model_del(self, key):
+    if not self.model:
+      return
+
     treeIter = self.model.get_iter(key)
     self.model.remove(treeIter)
 
   def __model_set(self, key, entry):
+    if not self.model:
+      return
+
     row = self._create_row_from_entry(entry)
     self.model[key] = row
 
