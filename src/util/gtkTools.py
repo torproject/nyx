@@ -32,6 +32,10 @@ class ListWrapper(object):
     self.container.append(entry)
     gobject.idle_add(self.__model_append, entry)
 
+  def empty(self):
+    self.container = []
+    gobject.idle_add(self.__model_clear)
+
   def __str__(self):
     return str(self.container)
 
@@ -61,6 +65,9 @@ class ListWrapper(object):
   def __model_append(self, entry):
     row = self._create_row_from_entry(entry)
     self.model.append(row)
+
+  def __model_clear(self):
+    self.model.clear()
 
   def __model_del(self, key):
     treeIter = self.model.get_iter(key)

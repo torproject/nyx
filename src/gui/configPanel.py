@@ -23,14 +23,35 @@ class ConfContents(gtkTools.ListWrapper):
 
     return row
 
-class ConfigPanel(CliConfigPanel):
+class ConfigPanel(object, CliConfigPanel):
   def __init__(self, builder):
     CliConfigPanel.__init__(self, None, State.TOR)
 
     self.builder = builder
 
     listStore = self.builder.get_object('liststore_config')
-    self.confImportantContents = ConfContents(self.confImportantContents, listStore)
+    self._confImportantContents = ConfContents(self.confImportantContents, listStore)
+
+    self.confImportantContents = self.confImportantContents[-5:]
+
+  @property
+  def confImportantContents(self):
+    if hasattr(self, '_confImportantContents'):
+      return self._confImportantContents
+    else:
+      return []
+
+  @confImportantContents.setter
+  def confImportantContents(self, value):
+    if hasattr(self, '_confImportantContents'):
+      try:
+        self._confImportantContents.empty()
+      except AttributeError:
+        pass
+      for entry in value:
+        self._confImportantContents.append(entry)
+    else:
+      self._confImportantContents = value
 
   def pack_widgets(self):
     treeView = self.builder.get_object('treeview_config')
