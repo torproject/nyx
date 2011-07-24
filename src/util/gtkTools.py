@@ -25,16 +25,16 @@ class ListWrapper(object):
     self.container = []
     self.model = model
 
-    for entry in container:
-      self.append(entry)
+    for value in container:
+      self.append(value)
 
-  def append(self, entry):
-    self.container.append(entry)
-    gobject.idle_add(self.__model_append, entry)
+  def append(self, value):
+    self.container.append(value)
+    gobject.idle_add(self._model_append, value)
 
   def empty(self):
     self.container = []
-    gobject.idle_add(self.__model_clear)
+    gobject.idle_add(self._model_clear)
 
   def __str__(self):
     return str(self.container)
@@ -46,49 +46,57 @@ class ListWrapper(object):
     return len(self.container)
 
   def __iadd__(self, other):
-    for entry in other:
-      self.append(entry)
+    for value in other:
+      self.append(value)
 
   def __delitem__(self, key):
     del self.container[key]
 
-    gobject.idle_add(self.__model_del, key)
+    gobject.idle_add(self._model_del, key)
 
   def __getitem__(self, key):
     return self.container[key]
 
-  def __setitem__(self, key, entry):
-    self.container[key] = entry
+  def __setitem__(self, key, value):
+    self.container[key] = value
 
-    gobject.idle_add(self.__model_set, key, entry)
+    gobject.idle_add(self._model_set, key, value)
 
-  def __model_append(self, entry):
+  def _model_append(self, value):
     if not self.model:
       return
 
-    row = self._create_row_from_entry(entry)
+    row = self._create_row_from_value(value)
     self.model.append(row)
 
-  def __model_clear(self):
+  def _model_clear(self):
     if not self.model:
       return
 
     self.model.clear()
 
-  def __model_del(self, key):
+  def _model_del(self, key):
     if not self.model:
       return
 
     treeIter = self.model.get_iter(key)
     self.model.remove(treeIter)
 
-  def __model_set(self, key, entry):
+  def _model_set(self, key, value):
     if not self.model:
       return
 
-    row = self._create_row_from_entry(entry)
+    row = self._create_row_from_value(value)
     self.model[key] = row
 
-  def _create_row_from_entry(self, entry):
+  def _create_row_from_value(self, value):
     raise NotImplementedError("Subclass must implement abstract method")
+
+class TreeWrapper(ListWrapper):
+  def _model_append(self, value):
+    if not self.model:
+      return
+
+    row = self._create_row_from_value(value)
+    self.model.append(None, row)
 

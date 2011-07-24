@@ -14,7 +14,7 @@ from util import connections, gtkTools, sysTools, torTools, uiTools
 from TorCtl import TorCtl
 
 class ConfContents(gtkTools.ListWrapper):
-  def _create_row_from_entry(self, entry):
+  def _create_row_from_value(self, entry):
     option = entry.get(Field.OPTION)
     value = entry.get(Field.VALUE)
     summary = entry.get(Field.SUMMARY)
@@ -30,25 +30,23 @@ class ConfigPanel(object, CliConfigPanel):
     self.builder = builder
 
     listStore = self.builder.get_object('liststore_config')
-    self._confImportantContents = ConfContents(self.confImportantContents, listStore)
-
-    self.confImportantContents += self.confImportantContents[-5:]
+    self._wrappedConfImportantContents = ConfContents(self.confImportantContents, listStore)
 
   @property
   def confImportantContents(self):
-    if hasattr(self, '_confImportantContents'):
-      return self._confImportantContents.container
+    if hasattr(self, '_wrappedConfImportantContents'):
+      return self._wrappedConfImportantContents.container
     else:
       return []
 
   @confImportantContents.setter
   def confImportantContents(self, value):
-    if hasattr(self, '_confImportantContents'):
-      self._confImportantContents.empty()
+    if hasattr(self, '_wrappedConfImportantContents'):
+      self._wrappedConfImportantContents.empty()
       for entry in value:
-        self._confImportantContents.append(entry)
+        self._wrappedConfImportantContents.append(entry)
     else:
-      self._confImportantContents = ConfContents(value)
+      self._wrappedConfImportantContents = ConfContents(value)
 
   def pack_widgets(self):
     treeView = self.builder.get_object('treeview_config')
