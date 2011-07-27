@@ -353,7 +353,7 @@ def showWizard():
           
           # if the torrc already exists then save it to a _bak file
           isBackedUp = False
-          if os.path.exists(torrcLocation):
+          if os.path.exists(torrcLocation) and not isSystemReplace:
             try:
               shutil.copy(torrcLocation, torrcLocation + "_bak")
               isBackedUp = True
