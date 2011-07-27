@@ -102,18 +102,19 @@ def remove():
   print "removing %s group..." % GROUP
   os.system("delgroup --quiet %s" % GROUP)
   
-  # might not exist since this is compiled and placed separately
-  try:
-    print "removing '/bin/torrc-override'..."
-    os.remove("/bin/torrc-override")
-  except OSError:
-    print "  no such path"
+  if os.path.exists("/bin/torrc-override"):
+    try:
+      print "removing '/bin/torrc-override'..."
+      os.remove("/bin/torrc-override")
+    except OSError, exc:
+      print "  unsuccessful: %s" % exc
   
-  try:
-    print "removing '/var/lib/tor-arm'..."
-    shutil.rmtree("/var/lib/tor-arm/")
-  except Exception, exc:
-    print "  unsuccessful: %s" % exc
+  if os.path.exists("/var/lib/tor-arm/"):
+    try:
+      print "removing '/var/lib/tor-arm'..."
+      shutil.rmtree("/var/lib/tor-arm/")
+    except Exception, exc:
+      print "  unsuccessful: %s" % exc
 
 def replaceTorrc():
   orig_uid = os.getuid()
