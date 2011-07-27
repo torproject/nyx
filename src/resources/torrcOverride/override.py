@@ -12,8 +12,8 @@ After that's done this is meant to either be used by arm automatically after
 writing a torrc to ARM_CONFIG_FILE or by users manually. For arm to use this
 automatically you'll either need to...
 
-- compile torrc-override.c, setuid on the binary, and move it to your path
-  cd /usr/share/arm/resources/torrc-override
+- compile override.c, setuid on the binary, and move it to your path
+  cd /usr/share/arm/resources/torrcOverride
   make
   chown root:tor-arm override
   chmod 04750 override
@@ -21,10 +21,10 @@ automatically you'll either need to...
 
 - allow passwordless sudo for this script
   edit /etc/sudoers and add a line with:
-  <arm user> ALL= NOPASSWD: /usr/share/arm/resources/torrc-override/override.py
+  <arm user> ALL= NOPASSWD: /usr/share/arm/resources/torrcOverride/override.py
 
 To perform this manually run:
-/usr/share/arm/resources/torrc-override/override.py
+/usr/share/arm/resources/torrcOverride/override.py
 pkill -sighup tor
 """
 
