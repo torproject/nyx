@@ -315,6 +315,17 @@ if __name__ == "__main__":
     print "This is a script specifically for configuring Linux"
     sys.exit(1)
   
+  if len(sys.argv) == 3 and sys.argv[1] == "--validate":
+    torrcFile = open(sys.argv[2])
+    torrcContents = torrcFile.readlines()
+    torrcFile.close()
+    
+    isValid = isWizardGenerated(torrcContents)
+    if isValid: print "torrc validated"
+    else: print "torrc invalid"
+    
+    sys.exit(0)
+  
   # check that we're running effectively as root
   if os.geteuid() != 0:
     print "This script needs to be run as root"
@@ -326,14 +337,6 @@ if __name__ == "__main__":
     init()
   elif len(sys.argv) == 2 and sys.argv[1] == "--remove":
     remove()
-  elif len(sys.argv) == 3 and sys.argv[1] == "--validate":
-    torrcFile = open(sys.argv[2])
-    torrcContents = torrcFile.readlines()
-    torrcFile.close()
-    
-    isValid = isWizardGenerated(torrcContents)
-    if isValid: print "torrc validated"
-    else: print "torrc invalid"
   else:
     print HELP_MSG
     sys.exit(1)
