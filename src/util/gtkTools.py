@@ -125,6 +125,37 @@ def inputText(prompt):
 
   return text if response == gtk.RESPONSE_OK else None
 
+def inputBoolean(prompt):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  hbox = gtk.HBox()
+  buttonTrue = gtk.RadioButton(None, "True")
+  buttonFalse = gtk.RadioButton(buttonTrue, "False")
+  hbox.pack_start(buttonTrue, True, True, 0)
+  hbox.pack_start(buttonFalse, True, True, 0)
+
+  dialog.vbox.pack_end(hbox, True, True, 0)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  choice = None
+
+  if buttonTrue.get_active():
+    choice = True
+  elif buttonFalse.get_active():
+    choice = False
+
+  dialog.destroy()
+
+  return choice if response == gtk.RESPONSE_OK else None
+
 def showError(msg):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,

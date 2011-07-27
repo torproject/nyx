@@ -17,6 +17,10 @@ def inputConfValueText(option):
   prompt = "Enter value for %s" % option
   return gtkTools.inputText(prompt)
 
+def inputConfValueBoolean(option):
+  prompt = "Select value for %s" % option
+  return "1" if gtkTools.inputBoolean(prompt) else "0"
+
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
     option = entry.get(Field.OPTION)
@@ -77,6 +81,8 @@ class ConfigPanel(object, CliConfigPanel):
 
     if configType == 'DataSize':
       newValue = inputConfValueText(configOption)
+    elif configType == 'Boolean':
+      newValue = inputConfValueBoolean(configOption)
 
     if newValue:
       try:
