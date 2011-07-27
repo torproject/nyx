@@ -13,6 +13,10 @@ from cli.configPanel import (ConfigPanel as CliConfigPanel, Field, State)
 from util import connections, gtkTools, sysTools, torTools, uiTools
 from TorCtl import TorCtl
 
+def inputConfValueText(option):
+  prompt = "Enter value for %s" % option
+  return gtkTools.inputText(prompt)
+
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
     option = entry.get(Field.OPTION)
@@ -50,14 +54,35 @@ class ConfigPanel(object, CliConfigPanel):
 
   def pack_widgets(self):
     treeView = self.builder.get_object('treeview_config')
-    treeView.connect('cursor-changed', self.on_treeview_config_cursor_changed)
 
-  def on_treeview_config_cursor_changed(self, widget, data=None):
-    treeSelection = widget.get_selection()
+    treeView.connect('cursor-changed', self.on_treeview_config_cursor_changed)
+    treeView.connect('row-activated', self.on_treeview_config_row_activated)
+
+  def on_treeview_config_cursor_changed(self, treeView, data=None):
+    treeSelection = treeView.get_selection()
 
     (model, iter) = treeSelection.get_selected()
     desc = model.get_value(iter, 4)
 
     textBuffer = self.builder.get_object('textbuffer_config_desc')
     textBuffer.set_text(desc)
+
+  def on_treeview_config_row_activated(self, treeView, path, column):
+    (index,) = path
+
+    entry = self._wrappedConfImportantContents[index]
+    configOption = entry.fields[Field.OPTION]
+    configType = entry.fields[Field.TYPE]
+    newValue = None
+
+    if configType == 'DataSize':
+      newValue = inputConfValueText(configOption)
+
+    if newValue:
+      try:
+        torTools.getConn().setOption(configOption, newValue)
+      except TorCtl.ErrorReply, err:
+        gtkTools.showError(str(err))
+
+    self._wrappedConfImportantContents[index] = entry
 

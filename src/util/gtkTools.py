@@ -100,3 +100,38 @@ class TreeWrapper(ListWrapper):
     row = self._create_row_from_value(value)
     self.model.append(None, row)
 
+def responseToDialog(entry, dialog, response):
+  dialog.response(response)
+
+def inputText(prompt):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  entry = gtk.Entry()
+  entry.connect("activate", responseToDialog, dialog, gtk.RESPONSE_OK)
+
+  dialog.vbox.pack_end(entry, True, True, 0)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  text = entry.get_text()
+  dialog.destroy()
+
+  return text if response == gtk.RESPONSE_OK else None
+
+def showError(msg):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_ERROR,
+      gtk.BUTTONS_OK,
+      msg)
+
+  dialog.run()
+  dialog.destroy()
+
