@@ -100,10 +100,56 @@ class TreeWrapper(ListWrapper):
     row = self._create_row_from_value(value)
     self.model.append(None, row)
 
-def responseToDialog(entry, dialog, response):
+def response_to_dialog(entry, dialog, response):
   dialog.response(response)
 
-def inputText(prompt):
+def input_size(prompt):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  hBox = gtk.HBox()
+
+  dialog.vbox.pack_end(hBox, True, True, 0)
+
+  spinButton = gtk.SpinButton(None)
+  spinButton.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
+
+  spinButton.set_increments(1, 10)
+  spinButton.set_range(0, 1024)
+
+  hBox.pack_start(spinButton, True, True, 0)
+
+  comboBox = gtk.combo_box_new_text()
+
+  comboBox.append_text("B")
+  comboBox.append_text("KB")
+  comboBox.append_text("MB")
+  comboBox.append_text("GB")
+  comboBox.append_text("TB")
+  comboBox.append_text("PB")
+  comboBox.set_active(0)
+
+  hBox.pack_end(comboBox, False, False, 0)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  value = spinButton.get_value_as_int()
+
+  model = comboBox.get_model()
+  active = comboBox.get_active()
+  (units,) = model[active]
+
+  dialog.destroy()
+
+  return "%d %s" % (value, units) if response == gtk.RESPONSE_OK else None
+
+def input_text(prompt):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -113,7 +159,7 @@ def inputText(prompt):
   dialog.set_markup(prompt)
 
   entry = gtk.Entry()
-  entry.connect("activate", responseToDialog, dialog, gtk.RESPONSE_OK)
+  entry.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
 
   dialog.vbox.pack_end(entry, True, True, 0)
 
@@ -125,7 +171,7 @@ def inputText(prompt):
 
   return text if response == gtk.RESPONSE_OK else None
 
-def inputBoolean(prompt):
+def input_boolean(prompt):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,

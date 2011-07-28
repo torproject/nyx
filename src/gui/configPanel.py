@@ -13,13 +13,17 @@ from cli.configPanel import (ConfigPanel as CliConfigPanel, Field, State)
 from util import connections, gtkTools, sysTools, torTools, uiTools
 from TorCtl import TorCtl
 
-def inputConfValueText(option):
+def input_conf_value_size(option):
   prompt = "Enter value for %s" % option
-  return gtkTools.inputText(prompt)
+  return gtkTools.input_size(prompt)
 
-def inputConfValueBoolean(option):
+def input_conf_value_text(option):
+  prompt = "Enter value for %s" % option
+  return gtkTools.input_text(prompt)
+
+def input_conf_value_boolean(option):
   prompt = "Select value for %s" % option
-  return "1" if gtkTools.inputBoolean(prompt) else "0"
+  return "1" if gtkTools.input_boolean(prompt) else "0"
 
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
@@ -80,9 +84,11 @@ class ConfigPanel(object, CliConfigPanel):
     newValue = None
 
     if configType == 'DataSize':
-      newValue = inputConfValueText(configOption)
+      newValue = input_conf_value_size(configOption)
     elif configType == 'Boolean':
-      newValue = inputConfValueBoolean(configOption)
+      newValue = input_conf_value_boolean(configOption)
+    else:
+      newValue = input_conf_value_text(configOption)
 
     if newValue:
       try:
