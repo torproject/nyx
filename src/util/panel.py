@@ -186,7 +186,7 @@ class Panel():
     """
     
     if not attr in self.pauseAttr: return None
-    elif self.isPaused(): return self.pauseBuffer[attr]
+    elif self.paused: return self.pauseBuffer[attr]
     else: return self.__dict__.get(attr)
   
   def copyAttr(self, attr):
