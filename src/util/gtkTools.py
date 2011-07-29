@@ -171,6 +171,66 @@ def input_text(prompt):
 
   return text if response == gtk.RESPONSE_OK else None
 
+def input_list(prompt):
+  def on_add_button_clicked(widget, listStore):
+    newValue = input_text("Enter new value:")
+
+    if newValue:
+      row = (newValue,)
+      listStore.append(row)
+
+  def on_delete_button_clicked(widget, treeView):
+    selection = treeView.get_selection()
+    model, selectionIter = selection.get_selected()
+
+    if (selectionIter):
+      model.remove(selectionIter)
+
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  hBox = gtk.HBox()
+
+  dialog.vbox.pack_start(hBox, False, False, 0)
+
+  addButton = gtk.Button(stock=gtk.STOCK_ADD)
+
+  hBox.pack_start(addButton, False, False, 0)
+
+  deleteButton = gtk.Button(stock=gtk.STOCK_DELETE)
+
+  hBox.pack_start(deleteButton, False, False, 0)
+
+  scrolledWindow = gtk.ScrolledWindow()
+
+  dialog.vbox.pack_end(scrolledWindow, True, True, 0)
+
+  listStore = gtk.ListStore(str)
+  treeView = gtk.TreeView(listStore)
+  treeViewColumn = gtk.TreeViewColumn("Value")
+  cellRenderer = gtk.CellRendererText()
+
+  treeViewColumn.pack_start(cellRenderer, True)
+  treeViewColumn.add_attribute(cellRenderer, 'text', 0)
+  treeView.append_column(treeViewColumn)
+
+  scrolledWindow.add(treeView)
+
+  addButton.connect('clicked', on_add_button_clicked, listStore)
+  deleteButton.connect('clicked', on_delete_button_clicked, treeView)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  dialog.destroy()
+
+  return None if len(listStore) == 0 else " ".join([row[0] for row in listStore])
+
 def input_boolean(prompt):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
