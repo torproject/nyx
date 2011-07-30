@@ -288,17 +288,39 @@ def input_boolean(prompt):
 
   return choice if response == gtk.RESPONSE_OK else None
 
-def input_filename(prompt):
-  dialog = gtk.FileSelection(prompt)
+def input_dir(prompt):
+  dialog = gtk.FileChooserDialog(prompt,
+                               None,
+                               gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                               (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+  dialog.set_default_response(gtk.RESPONSE_OK)
 
   dialog.show_all()
   response = dialog.run()
 
-  choice = dialog.get_filename()
+  filename = dialog.get_filename()
 
   dialog.destroy()
 
-  return choice if response == gtk.RESPONSE_OK else None
+  return filename if response == gtk.RESPONSE_OK else None
+
+def input_filename(prompt):
+  dialog = gtk.FileChooserDialog(prompt,
+                               None,
+                               gtk.FILE_CHOOSER_ACTION_SAVE,
+                               (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+  dialog.set_default_response(gtk.RESPONSE_OK)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  filename = dialog.get_filename()
+
+  dialog.destroy()
+
+  return filename if response == gtk.RESPONSE_OK else None
 
 def showError(msg):
   dialog = gtk.MessageDialog(None,

@@ -33,6 +33,10 @@ def input_conf_value_boolean(option):
   prompt = "Select value for %s" % option
   return "1" if gtkTools.input_boolean(prompt) else "0"
 
+def input_conf_value_dir(option):
+  prompt = "Select value for %s" % option
+  return gtkTools.input_dir(prompt)
+
 def input_conf_value_filename(option):
   prompt = "Select value for %s" % option
   return gtkTools.input_filename(prompt)
@@ -106,7 +110,10 @@ class ConfigPanel(object, CliConfigPanel):
     elif configType == 'Boolean':
       newValue = input_conf_value_boolean(configOption)
     elif configType == 'Filename':
-      newValue = input_conf_value_filename(configOption)
+      if 'Directory' in configOption:
+        newValue = input_conf_value_dir(configOption)
+      else:
+        newValue = input_conf_value_filename(configOption)
     else:
       newValue = input_conf_value_text(configOption)
 
