@@ -188,7 +188,7 @@ def input_int(prompt, default=None):
 
   return "%d" % (value) if response == gtk.RESPONSE_OK else None
 
-def input_text(prompt):
+def input_string(prompt, default=None):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -202,6 +202,9 @@ def input_text(prompt):
 
   dialog.vbox.pack_end(entry, True, True, 0)
 
+  if default:
+    entry.set_text(default)
+
   dialog.show_all()
   response = dialog.run()
 
@@ -212,7 +215,7 @@ def input_text(prompt):
 
 def input_list(prompt):
   def on_add_button_clicked(widget, listStore):
-    newValue = input_text("Enter new value:")
+    newValue = input_string("Enter new value:")
 
     if newValue:
       row = (newValue,)

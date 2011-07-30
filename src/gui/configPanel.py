@@ -25,9 +25,9 @@ def input_conf_value_list(option):
   prompt = "Enter value for %s" % option
   return gtkTools.input_list(prompt)
 
-def input_conf_value_text(option):
+def input_conf_value_string(option, oldValue):
   prompt = "Enter value for %s" % option
-  return gtkTools.input_text(prompt)
+  return gtkTools.input_string(prompt, oldValue)
 
 def input_conf_value_boolean(option):
   prompt = "Select value for %s" % option
@@ -105,7 +105,7 @@ class ConfigPanel(object, CliConfigPanel):
     elif configType == 'Integer':
       newValue = input_conf_value_int(configOption, oldValue)
     elif configType == 'String':
-      newValue = input_conf_value_text(configOption)
+      newValue = input_conf_value_string(configOption, oldValue)
     elif configType == 'LineList':
       newValue = input_conf_value_list(configOption)
     elif configType == 'Boolean':
