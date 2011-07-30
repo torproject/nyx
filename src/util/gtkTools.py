@@ -189,7 +189,7 @@ def input_time(prompt, default=None):
   hBox.pack_end(comboBox, False, False, 0)
 
   if default:
-    if default[:-1] != 's':
+    if default[-1:] != 's':
       default = default + 's'
 
     value, units = default.split()
