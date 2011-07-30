@@ -59,15 +59,19 @@ def input_conf_value_filename(option, oldValue):
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
     option = entry.get(Field.OPTION)
+    isDefault = entry.get(Field.IS_DEFAULT)
     value = entry.get(Field.VALUE)
+    configType = entry.get(Field.TYPE)
     summary = entry.get(Field.SUMMARY)
-    desc = entry.get(Field.DESCRIPTION)
+    desc = " ".join(entry.get(Field.DESCRIPTION).split())
+    argUsage = entry.get(Field.ARG_USAGE)
     category = entry.get(Field.CATEGORY)
 
-    # fix multiple spaces
-    desc = " ".join(desc.split())
+    descText = "%s (%s Option)" % (option, category)
+    descText += "\nValue: %s (%s%s, usage: %s)" % (value, "default, " if isDefault else "", configType, argUsage)
+    descText += "\nDescription: %s" % (desc)
 
-    row = (option, value, summary, CATEGORY_COLOR[category], desc)
+    row = (option, value, summary, CATEGORY_COLOR[category], descText)
 
     return row
 
@@ -117,6 +121,7 @@ class ConfigPanel(object, CliConfigPanel):
     entry = self._wrappedConfImportantContents[index]
     configOption = entry.get(Field.OPTION)
     configType = entry.get(Field.TYPE)
+    argUsage = entry.get(Field.ARG_USAGE)
     oldValue = entry.get(Field.VALUE) if entry.get(Field.VALUE) != '<none>' else None
     newValue = None
 
@@ -131,7 +136,7 @@ class ConfigPanel(object, CliConfigPanel):
     elif configType == 'Boolean':
       newValue = input_conf_value_bool(configOption, oldValue)
     elif configType == 'Filename':
-      if 'Directory' in configOption:
+      if 'DIR' in argUsage:
         newValue = input_conf_value_dir(configOption, oldValue)
       else:
         newValue = input_conf_value_filename(configOption, oldValue)
