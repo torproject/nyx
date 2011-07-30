@@ -17,6 +17,10 @@ def input_conf_value_size(option):
   prompt = "Enter value for %s" % option
   return gtkTools.input_size(prompt)
 
+def input_conf_value_int(option):
+  prompt = "Enter value for %s" % option
+  return gtkTools.input_int(prompt)
+
 def input_conf_value_list(option):
   prompt = "Enter value for %s" % option
   return gtkTools.input_list(prompt)
@@ -31,6 +35,8 @@ def input_conf_value_boolean(option):
 
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
+    print entry.get(Field.OPTION), ":", entry.get(Field.TYPE)
+  
     option = entry.get(Field.OPTION)
     value = entry.get(Field.VALUE)
     summary = entry.get(Field.SUMMARY)
@@ -89,6 +95,8 @@ class ConfigPanel(object, CliConfigPanel):
 
     if configType == 'DataSize':
       newValue = input_conf_value_size(configOption)
+    elif configType == 'Integer':
+      newValue = input_conf_value_int(configOption)
     elif configType == 'LineList':
       newValue = input_conf_value_list(configOption)
     elif configType == 'Boolean':

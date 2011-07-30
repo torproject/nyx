@@ -149,6 +149,32 @@ def input_size(prompt):
 
   return "%d %s" % (value, units) if response == gtk.RESPONSE_OK else None
 
+def input_int(prompt):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  spinButton = gtk.SpinButton(None)
+  spinButton.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
+
+  spinButton.set_increments(1, 10)
+  spinButton.set_range(0, 65535)
+
+  dialog.vbox.pack_end(spinButton, True, True, 0)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  value = spinButton.get_value_as_int()
+
+  dialog.destroy()
+
+  return "%d" % (value) if response == gtk.RESPONSE_OK else None
+
 def input_text(prompt):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
