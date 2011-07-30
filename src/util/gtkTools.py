@@ -159,7 +159,7 @@ def input_size(prompt, default=None):
 
   return "%d %s" % (value, units) if response == gtk.RESPONSE_OK else None
 
-def input_int(prompt):
+def input_int(prompt, default=None):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -175,6 +175,9 @@ def input_int(prompt):
   spinButton.set_range(0, 65535)
 
   dialog.vbox.pack_end(spinButton, True, True, 0)
+
+  if default:
+    spinButton.set_value(float(default))
 
   dialog.show_all()
   response = dialog.run()

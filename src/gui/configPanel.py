@@ -17,9 +17,9 @@ def input_conf_value_size(option, oldValue):
   prompt = "Enter value for %s" % option
   return gtkTools.input_size(prompt, oldValue)
 
-def input_conf_value_int(option):
+def input_conf_value_int(option, oldValue):
   prompt = "Enter value for %s" % option
-  return gtkTools.input_int(prompt)
+  return gtkTools.input_int(prompt, oldValue)
 
 def input_conf_value_list(option):
   prompt = "Enter value for %s" % option
@@ -103,7 +103,7 @@ class ConfigPanel(object, CliConfigPanel):
     if configType == 'DataSize':
       newValue = input_conf_value_size(configOption, oldValue)
     elif configType == 'Integer':
-      newValue = input_conf_value_int(configOption)
+      newValue = input_conf_value_int(configOption, oldValue)
     elif configType == 'String':
       newValue = input_conf_value_text(configOption)
     elif configType == 'LineList':
