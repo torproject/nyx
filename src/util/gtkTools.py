@@ -213,7 +213,7 @@ def input_string(prompt, default=None):
 
   return text if response == gtk.RESPONSE_OK else None
 
-def input_list(prompt):
+def input_list(prompt, default):
   def on_add_button_clicked(widget, listStore):
     newValue = input_string("Enter new value:")
 
@@ -266,10 +266,18 @@ def input_list(prompt):
   addButton.connect('clicked', on_add_button_clicked, listStore)
   deleteButton.connect('clicked', on_delete_button_clicked, treeView)
 
+  if default:
+    for value in default.split():
+      row = (value,)
+      listStore.append(row)
+
   dialog.show_all()
   response = dialog.run()
 
   dialog.destroy()
+
+  if not response == gtk.RESPONSE_OK:
+    return
 
   return None if len(listStore) == 0 else " ".join([row[0] for row in listStore])
 
