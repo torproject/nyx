@@ -29,9 +29,15 @@ def input_conf_value_string(option, oldValue):
   prompt = "Enter value for %s" % option
   return gtkTools.input_string(prompt, oldValue)
 
-def input_conf_value_boolean(option):
+def input_conf_value_bool(option, oldValue):
   prompt = "Select value for %s" % option
-  return "1" if gtkTools.input_boolean(prompt) else "0"
+
+  newValue = gtkTools.input_bool(prompt, oldValue)
+
+  if newValue == None:
+    return
+
+  return "1" if newValue else "0"
 
 def input_conf_value_dir(option):
   prompt = "Select value for %s" % option
@@ -109,7 +115,7 @@ class ConfigPanel(object, CliConfigPanel):
     elif configType == 'LineList':
       newValue = input_conf_value_list(configOption)
     elif configType == 'Boolean':
-      newValue = input_conf_value_boolean(configOption)
+      newValue = input_conf_value_bool(configOption, oldValue)
     elif configType == 'Filename':
       if 'Directory' in configOption:
         newValue = input_conf_value_dir(configOption)

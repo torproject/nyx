@@ -273,7 +273,7 @@ def input_list(prompt):
 
   return None if len(listStore) == 0 else " ".join([row[0] for row in listStore])
 
-def input_boolean(prompt):
+def input_bool(prompt, default=None):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -289,6 +289,12 @@ def input_boolean(prompt):
   hbox.pack_start(buttonFalse, True, True, 0)
 
   dialog.vbox.pack_end(hbox, True, True, 0)
+
+  if not default == None:
+    if default == 'True':
+      buttonTrue.set_active(True)
+    elif default == 'False':
+      buttonFalse.set_active(True)
 
   dialog.show_all()
   response = dialog.run()
