@@ -132,11 +132,66 @@ def input_size(prompt, default=None):
   comboBox.append_text("GB")
   comboBox.append_text("TB")
   comboBox.append_text("PB")
-  comboBox.set_active(0)
 
   hBox.pack_end(comboBox, False, False, 0)
 
   if default:
+    value, units = default.split()
+
+    spinButton.set_value(float(value))
+
+    model = comboBox.get_model()
+    modelUnits = [row[0] for row in model]
+    index = modelUnits.index(units)
+    comboBox.set_active(index)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  value = spinButton.get_value_as_int()
+
+  model = comboBox.get_model()
+  active = comboBox.get_active()
+  (units,) = model[active]
+
+  dialog.destroy()
+
+  return "%d %s" % (value, units) if response == gtk.RESPONSE_OK else None
+
+def input_time(prompt, default=None):
+  dialog = gtk.MessageDialog(None,
+      gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+      gtk.MESSAGE_QUESTION,
+      gtk.BUTTONS_OK_CANCEL,
+      None)
+
+  dialog.set_markup(prompt)
+
+  hBox = gtk.HBox()
+
+  dialog.vbox.pack_end(hBox, True, True, 0)
+
+  spinButton = gtk.SpinButton(None)
+  spinButton.connect('activate', response_to_dialog, dialog, gtk.RESPONSE_OK)
+
+  spinButton.set_increments(1, 10)
+  spinButton.set_range(0, 1024)
+
+  hBox.pack_start(spinButton, True, True, 0)
+
+  comboBox = gtk.combo_box_new_text()
+
+  comboBox.append_text("seconds")
+  comboBox.append_text("minutes")
+  comboBox.append_text("hours")
+  comboBox.append_text("days")
+
+  hBox.pack_end(comboBox, False, False, 0)
+
+  if default:
+    if default[:-1] != 's':
+      default = default + 's'
+
     value, units = default.split()
 
     spinButton.set_value(float(value))

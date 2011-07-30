@@ -26,6 +26,10 @@ def input_conf_value_size(option, oldValue):
   prompt = "Enter value for %s" % option
   return gtkTools.input_size(prompt, oldValue)
 
+def input_conf_value_time(option, oldValue):
+  prompt = "Enter value for %s" % option
+  return gtkTools.input_time(prompt, oldValue)
+
 def input_conf_value_int(option, oldValue):
   prompt = "Enter value for %s" % option
   return gtkTools.input_int(prompt, oldValue)
@@ -127,6 +131,8 @@ class ConfigPanel(object, CliConfigPanel):
 
     if configType == 'DataSize':
       newValue = input_conf_value_size(configOption, oldValue)
+    elif configType == 'TimeInterval':
+      newValue = input_conf_value_time(configOption, oldValue)
     elif configType == 'Integer':
       newValue = input_conf_value_int(configOption, oldValue)
     elif configType == 'String':
