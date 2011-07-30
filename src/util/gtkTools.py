@@ -318,13 +318,16 @@ def input_bool(prompt, default=None):
 
   return choice if response == gtk.RESPONSE_OK else None
 
-def input_dir(prompt):
+def input_dir(prompt, default):
   dialog = gtk.FileChooserDialog(prompt,
                                None,
                                gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
                                (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                 gtk.STOCK_OPEN, gtk.RESPONSE_OK))
   dialog.set_default_response(gtk.RESPONSE_OK)
+
+  if default:
+    dialog.set_filename(default)
 
   dialog.show_all()
   response = dialog.run()
@@ -335,13 +338,16 @@ def input_dir(prompt):
 
   return filename if response == gtk.RESPONSE_OK else None
 
-def input_filename(prompt):
+def input_filename(prompt, default):
   dialog = gtk.FileChooserDialog(prompt,
                                None,
                                gtk.FILE_CHOOSER_ACTION_SAVE,
                                (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                 gtk.STOCK_OPEN, gtk.RESPONSE_OK))
   dialog.set_default_response(gtk.RESPONSE_OK)
+
+  if default:
+    dialog.set_filename(default)
 
   dialog.show_all()
   response = dialog.run()

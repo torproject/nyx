@@ -39,13 +39,13 @@ def input_conf_value_bool(option, oldValue):
 
   return "1" if newValue else "0"
 
-def input_conf_value_dir(option):
+def input_conf_value_dir(option, oldValue):
   prompt = "Select value for %s" % option
-  return gtkTools.input_dir(prompt)
+  return gtkTools.input_dir(prompt, oldValue)
 
-def input_conf_value_filename(option):
+def input_conf_value_filename(option, oldValue):
   prompt = "Select value for %s" % option
-  return gtkTools.input_filename(prompt)
+  return gtkTools.input_filename(prompt, oldValue)
 
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
@@ -118,11 +118,11 @@ class ConfigPanel(object, CliConfigPanel):
       newValue = input_conf_value_bool(configOption, oldValue)
     elif configType == 'Filename':
       if 'Directory' in configOption:
-        newValue = input_conf_value_dir(configOption)
+        newValue = input_conf_value_dir(configOption, oldValue)
       else:
-        newValue = input_conf_value_filename(configOption)
+        newValue = input_conf_value_filename(configOption, oldValue)
     else:
-      newValue = input_conf_value_text(configOption)
+      newValue = input_conf_value_string(configOption, oldValue)
 
     if newValue:
       try:
