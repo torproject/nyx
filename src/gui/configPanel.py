@@ -33,10 +33,12 @@ def input_conf_value_boolean(option):
   prompt = "Select value for %s" % option
   return "1" if gtkTools.input_boolean(prompt) else "0"
 
+def input_conf_value_filename(option):
+  prompt = "Select value for %s" % option
+  return gtkTools.input_filename(prompt)
+
 class ConfContents(gtkTools.ListWrapper):
   def _create_row_from_value(self, entry):
-    print entry.get(Field.OPTION), ":", entry.get(Field.TYPE)
-  
     option = entry.get(Field.OPTION)
     value = entry.get(Field.VALUE)
     summary = entry.get(Field.SUMMARY)
@@ -97,10 +99,14 @@ class ConfigPanel(object, CliConfigPanel):
       newValue = input_conf_value_size(configOption)
     elif configType == 'Integer':
       newValue = input_conf_value_int(configOption)
+    elif configType == 'String':
+      newValue = input_conf_value_text(configOption)
     elif configType == 'LineList':
       newValue = input_conf_value_list(configOption)
     elif configType == 'Boolean':
       newValue = input_conf_value_boolean(configOption)
+    elif configType == 'Filename':
+      newValue = input_conf_value_filename(configOption)
     else:
       newValue = input_conf_value_text(configOption)
 

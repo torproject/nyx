@@ -288,6 +288,18 @@ def input_boolean(prompt):
 
   return choice if response == gtk.RESPONSE_OK else None
 
+def input_filename(prompt):
+  dialog = gtk.FileSelection(prompt)
+
+  dialog.show_all()
+  response = dialog.run()
+
+  choice = dialog.get_filename()
+
+  dialog.destroy()
+
+  return choice if response == gtk.RESPONSE_OK else None
+
 def showError(msg):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
