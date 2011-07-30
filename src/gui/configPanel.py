@@ -10,8 +10,17 @@ import gobject
 import gtk
 
 from cli.configPanel import (ConfigPanel as CliConfigPanel, Field, State)
-from util import connections, gtkTools, sysTools, torTools, uiTools
+from util import connections, gtkTools, sysTools, torConfig, torTools, uiTools
 from TorCtl import TorCtl
+
+CATEGORY_COLOR = {torConfig.Category.GENERAL: "#307809",
+                  torConfig.Category.CLIENT: "#2F305C",
+                  torConfig.Category.RELAY: "#848144",
+                  torConfig.Category.DIRECTORY: "#9F2254",
+                  torConfig.Category.AUTHORITY: "#B3141B",
+                  torConfig.Category.HIDDEN_SERVICE: "#3A8427",
+                  torConfig.Category.TESTING: "#222222",
+                  torConfig.Category.UNKNOWN: "#111111"}
 
 def input_conf_value_size(option, oldValue):
   prompt = "Enter value for %s" % option
@@ -53,7 +62,12 @@ class ConfContents(gtkTools.ListWrapper):
     value = entry.get(Field.VALUE)
     summary = entry.get(Field.SUMMARY)
     desc = entry.get(Field.DESCRIPTION)
-    row = (option, value, summary, '#368918', desc)
+    category = entry.get(Field.CATEGORY)
+
+    # fix multiple spaces
+    desc = " ".join(desc.split())
+
+    row = (option, value, summary, CATEGORY_COLOR[category], desc)
 
     return row
 
@@ -103,7 +117,7 @@ class ConfigPanel(object, CliConfigPanel):
     entry = self._wrappedConfImportantContents[index]
     configOption = entry.get(Field.OPTION)
     configType = entry.get(Field.TYPE)
-    oldValue = entry.get(Field.VALUE)
+    oldValue = entry.get(Field.VALUE) if entry.get(Field.VALUE) != '<none>' else None
     newValue = None
 
     if configType == 'DataSize':
@@ -124,7 +138,7 @@ class ConfigPanel(object, CliConfigPanel):
     else:
       newValue = input_conf_value_string(configOption, oldValue)
 
-    if newValue:
+    if newValue and newValue != oldValue:
       try:
         torTools.getConn().setOption(configOption, newValue)
       except TorCtl.ErrorReply, err:
