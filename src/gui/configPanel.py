@@ -13,9 +13,9 @@ from cli.configPanel import (ConfigPanel as CliConfigPanel, Field, State)
 from util import connections, gtkTools, sysTools, torTools, uiTools
 from TorCtl import TorCtl
 
-def input_conf_value_size(option):
+def input_conf_value_size(option, oldValue):
   prompt = "Enter value for %s" % option
-  return gtkTools.input_size(prompt)
+  return gtkTools.input_size(prompt, oldValue)
 
 def input_conf_value_int(option):
   prompt = "Enter value for %s" % option
@@ -95,12 +95,13 @@ class ConfigPanel(object, CliConfigPanel):
     (index,) = path
 
     entry = self._wrappedConfImportantContents[index]
-    configOption = entry.fields[Field.OPTION]
-    configType = entry.fields[Field.TYPE]
+    configOption = entry.get(Field.OPTION)
+    configType = entry.get(Field.TYPE)
+    oldValue = entry.get(Field.VALUE)
     newValue = None
 
     if configType == 'DataSize':
-      newValue = input_conf_value_size(configOption)
+      newValue = input_conf_value_size(configOption, oldValue)
     elif configType == 'Integer':
       newValue = input_conf_value_int(configOption)
     elif configType == 'String':

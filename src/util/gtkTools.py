@@ -103,7 +103,7 @@ class TreeWrapper(ListWrapper):
 def response_to_dialog(entry, dialog, response):
   dialog.response(response)
 
-def input_size(prompt):
+def input_size(prompt, default=None):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -117,7 +117,7 @@ def input_size(prompt):
   dialog.vbox.pack_end(hBox, True, True, 0)
 
   spinButton = gtk.SpinButton(None)
-  spinButton.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
+  spinButton.connect('activate', response_to_dialog, dialog, gtk.RESPONSE_OK)
 
   spinButton.set_increments(1, 10)
   spinButton.set_range(0, 1024)
@@ -135,6 +135,16 @@ def input_size(prompt):
   comboBox.set_active(0)
 
   hBox.pack_end(comboBox, False, False, 0)
+
+  if default:
+    value, units = default.split()
+
+    spinButton.set_value(float(value))
+
+    model = comboBox.get_model()
+    modelUnits = [row[0] for row in model]
+    index = modelUnits.index(units)
+    comboBox.set_active(index)
 
   dialog.show_all()
   response = dialog.run()
@@ -159,7 +169,7 @@ def input_int(prompt):
   dialog.set_markup(prompt)
 
   spinButton = gtk.SpinButton(None)
-  spinButton.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
+  spinButton.connect('activate', response_to_dialog, dialog, gtk.RESPONSE_OK)
 
   spinButton.set_increments(1, 10)
   spinButton.set_range(0, 65535)
@@ -185,7 +195,7 @@ def input_text(prompt):
   dialog.set_markup(prompt)
 
   entry = gtk.Entry()
-  entry.connect("activate", response_to_dialog, dialog, gtk.RESPONSE_OK)
+  entry.connect('activate', response_to_dialog, dialog, gtk.RESPONSE_OK)
 
   dialog.vbox.pack_end(entry, True, True, 0)
 
