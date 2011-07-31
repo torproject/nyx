@@ -34,9 +34,9 @@ def input_conf_value_int(option, oldValue):
   prompt = "Enter value for %s" % option
   return gtkTools.input_int(prompt, oldValue)
 
-def input_conf_value_list(option, oldValue):
+def input_conf_value_list(option, oldValue, csv=False):
   prompt = "Enter value for %s" % option
-  return gtkTools.input_list(prompt, oldValue)
+  return gtkTools.input_list(prompt, oldValue, csv)
 
 def input_conf_value_string(option, oldValue):
   prompt = "Enter value for %s" % option
@@ -138,7 +138,9 @@ class ConfigPanel(object, CliConfigPanel):
     elif configType == 'String':
       newValue = input_conf_value_string(configOption, oldValue)
     elif configType == 'LineList':
-      newValue = input_conf_value_list(configOption, oldValue)
+      newValue = input_conf_value_list(configOption, oldValue, csv=False)
+    elif configType == 'RouterList':
+      newValue = input_conf_value_list(configOption, oldValue, csv=True)
     elif configType == 'Boolean':
       newValue = input_conf_value_bool(configOption, oldValue)
     elif configType == 'Filename':

@@ -214,7 +214,7 @@ def input_time(prompt, default=None):
 
   return "%d %s" % (value, units) if response == gtk.RESPONSE_OK else None
 
-def input_int(prompt, default=None):
+def input_int(prompt, default=None, csvResponse=False):
   dialog = gtk.MessageDialog(None,
       gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
       gtk.MESSAGE_QUESTION,
@@ -268,7 +268,7 @@ def input_string(prompt, default=None):
 
   return text if response == gtk.RESPONSE_OK else None
 
-def input_list(prompt, default):
+def input_list(prompt, default, csv=False):
   def on_add_button_clicked(widget, listStore):
     newValue = input_string("Enter new value:")
 
@@ -321,8 +321,9 @@ def input_list(prompt, default):
   addButton.connect('clicked', on_add_button_clicked, listStore)
   deleteButton.connect('clicked', on_delete_button_clicked, treeView)
 
+  separator = "," if csv else " "
   if default:
-    for value in default.split():
+    for value in default.split(separator):
       row = (value,)
       listStore.append(row)
 
@@ -334,7 +335,7 @@ def input_list(prompt, default):
   if not response == gtk.RESPONSE_OK:
     return
 
-  return None if len(listStore) == 0 else " ".join([row[0] for row in listStore])
+  return None if len(listStore) == 0 else separator.join([row[0] for row in listStore])
 
 def input_bool(prompt, default=None):
   dialog = gtk.MessageDialog(None,
