@@ -86,23 +86,23 @@ class ConfigPanel(object, CliConfigPanel):
     self.builder = builder
 
     listStore = self.builder.get_object('liststore_config')
-    self._wrappedConfImportantContents = ConfContents(self.confImportantContents, listStore)
+    self._wrappedConfContents = ConfContents(self.confContents, listStore)
 
   @property
-  def confImportantContents(self):
-    if hasattr(self, '_wrappedConfImportantContents'):
-      return self._wrappedConfImportantContents.container
+  def confContents(self):
+    if hasattr(self, '_wrappedConfContents'):
+      return self._wrappedConfContents.container
     else:
       return []
 
-  @confImportantContents.setter
-  def confImportantContents(self, value):
-    if hasattr(self, '_wrappedConfImportantContents'):
-      self._wrappedConfImportantContents.empty()
+  @confContents.setter
+  def confContents(self, value):
+    if hasattr(self, '_wrappedConfContents'):
+      self._wrappedConfContents.empty()
       for entry in value:
-        self._wrappedConfImportantContents.append(entry)
+        self._wrappedConfContents.append(entry)
     else:
-      self._wrappedConfImportantContents = ConfContents(value)
+      self._wrappedConfContents = ConfContents(value)
 
   def pack_widgets(self):
     treeView = self.builder.get_object('treeview_config')
@@ -122,7 +122,7 @@ class ConfigPanel(object, CliConfigPanel):
   def on_treeview_config_row_activated(self, treeView, path, column):
     (index,) = path
 
-    entry = self._wrappedConfImportantContents[index]
+    entry = self._wrappedConfContents[index]
     configOption = entry.get(Field.OPTION)
     configType = entry.get(Field.TYPE)
     argUsage = entry.get(Field.ARG_USAGE)
@@ -157,5 +157,5 @@ class ConfigPanel(object, CliConfigPanel):
       except TorCtl.ErrorReply, err:
         gtkTools.showError(str(err))
 
-    self._wrappedConfImportantContents[index] = entry
+    self._wrappedConfContents[index] = entry
 
