@@ -139,7 +139,7 @@ class ConfigPanel(object, CliConfigPanel):
       newValue = input_conf_value_string(configOption, oldValue)
     elif configType == 'LineList':
       newValue = input_conf_value_list(configOption, oldValue, csv=False)
-    elif configType == 'RouterList':
+    elif configType == 'RouterList' or configType == 'CommaList':
       newValue = input_conf_value_list(configOption, oldValue, csv=True)
     elif configType == 'Boolean':
       newValue = input_conf_value_bool(configOption, oldValue)
