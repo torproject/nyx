@@ -515,9 +515,6 @@ class TorEventObserver(TorCtl.PostEventListener):
   
   def or_conn_status_event(self, event):
     msg = "STATUS: %-10s ENDPOINT: %-20s" % (event.status, event.endpoint)
-    if event.age: msg += " AGE: %-3s" % event.age
-    if event.read_bytes: msg += " READ: %-4i" % event.read_bytes
-    if event.wrote_bytes: msg += " WRITTEN: %-4i" % event.wrote_bytes
     if event.reason: msg += " REASON: %-6s" % event.reason
     if event.ncircs: msg += " NCIRCS: %i" % event.ncircs
     self._notify(event, msg)
