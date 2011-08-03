@@ -250,7 +250,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
   
   def getListingEntry(self, width, currentTime, listingType):
     """
-    Provides the DrawEntry for this connection's listing. Lines are composed
+    Provides the tuple list for this connection's listing. Lines are composed
     of the following components:
       <src>  -->  <dst>     <etc>     <uptime> (<type>)
     
@@ -289,8 +289,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       timePrefix = "+" if self.isInitialConnection else " "
     else: timePrefix = ""
     
-    timeEntry = myListing.getNext().getNext()
-    timeEntry.text = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
+    timeLabel = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
+    myListing[2] = (timeLabel, myListing[2][1])
     
     return myListing
   
@@ -315,12 +315,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
     lineFormat = uiTools.getColor(CATEGORY_COLOR[entryType])
     timeWidth = 6 if CONFIG["features.connection.markInitialConnections"] else 5
     
-    drawEntry = uiTools.DrawEntry(")" + " " * (9 - len(entryType)), lineFormat)
-    drawEntry = uiTools.DrawEntry(entryType.upper(), lineFormat | curses.A_BOLD, drawEntry)
-    drawEntry = uiTools.DrawEntry(" (", lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(" " * timeWidth, lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(self._getListingContent(width - (12 + timeWidth) - 1, listingType), lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(" ", lineFormat, drawEntry)
+    drawEntry = [(" ", lineFormat),
+                 (self._getListingContent(width - (12 + timeWidth) - 1, listingType), lineFormat),
+                 (" " * timeWidth, lineFormat),
+                 (" (", lineFormat),
+                 (entryType.upper(), lineFormat | curses.A_BOLD),
+                 (")" + " " * (9 - len(entryType)), lineFormat)]
     return drawEntry
   
   def _getDetails(self, width):
@@ -333,7 +333,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
     
     detailFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[self.getType()])
-    return [uiTools.DrawEntry(line, detailFormat) for line in self._getDetailContent(width)]
+    return [(line, detailFormat) for line in self._getDetailContent(width)]
   
   def resetDisplay(self):
     entries.ConnectionPanelLine.resetDisplay(self)

@@ -291,7 +291,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       
       drawEntries = cursorSelection.getDetails(width)
       for i in range(min(len(drawEntries), DETAILS_HEIGHT)):
-        drawEntries[i].render(self, 1 + i, 2)
+        self.addstr(1 + i, 2, drawEntries[i][0], drawEntries[i][1])
     
     # title label with connection counts
     if self.isTitleVisible():
@@ -318,9 +318,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # hilighting if this is the selected line
       extraFormat = curses.A_STANDOUT if entryLine == cursorSelection else curses.A_NORMAL
       
-      drawEntry = entryLine.getListingEntry(width - scrollOffset, currentTime, self._listingType)
       drawLine = lineNum + detailPanelOffset + 1 - scrollLoc
-      drawEntry.render(self, drawLine, scrollOffset, extraFormat)
+      
+      prefix = entryLine.getListingPrefix()
+      for i in range(len(prefix)):
+        self.addch(drawLine, scrollOffset + i, prefix[i])
+      
+      xOffset = scrollOffset + len(prefix)
+      drawEntry = entryLine.getListingEntry(width - scrollOffset - len(prefix), currentTime, self._listingType)
+      
+      for msg, attr in drawEntry:
+        attr |= extraFormat
+        self.addstr(drawLine, xOffset, msg, attr)
+        xOffset += len(msg)
+      
       if drawLine >= height: break
     
     self.valsLock.release()
