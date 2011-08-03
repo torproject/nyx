@@ -533,7 +533,18 @@ class TorEventObserver(TorCtl.PostEventListener):
     self._notify(event, ", ".join(idlistStr))
   
   def address_mapped_event(self, event):
-    self._notify(event, "%s, %s -> %s" % (event.when, event.from_addr, event.to_addr))
+    whenLabel, gmtExpiryLabel = "", ""
+    
+    if event.when:
+      whenLabel = time.strftime("%H:%M %m/%d/%Y", event.when)
+    
+    # TODO: torctl is getting an 'error' and 'gmt_expiry' attribute so display
+    # those when they become available
+    #
+    #if event.gmt_expiry:
+    #  gmtExpiryLabel = time.strftime("%H:%M %m/%d/%Y", event.gmt_expiry)
+    
+    self._notify(event, "%s, %s -> %s" % (whenLabel, event.from_addr, event.to_addr))
   
   def ns_event(self, event):
     # NetworkStatus params: nickname, idhash, orhash, ip, orport (int),
@@ -544,6 +555,10 @@ class TorEventObserver(TorCtl.PostEventListener):
   def new_consensus_event(self, event):
     msg = ", ".join(["%s (%s)" % (ns.idhex, ns.nickname) for ns in event.nslist])
     self._notify(event, "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
+  
+  def guard_event(self, event):
+    msg = "%s (%s), STATUS: %s" % (event.idhex, event.nick, event.status)
+    self._notify(event, msg, "yellow")
   
   def unknown_event(self, event):
     msg = "(%s) %s" % (event.event_name, event.event_string)
