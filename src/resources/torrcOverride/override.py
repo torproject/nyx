@@ -145,6 +145,13 @@ def remove():
       print "  unsuccessful: %s" % exc
 
 def replaceTorrc():
+  # TODO: The setresgid and setresuid functions are only available in
+  # python 2.7 (arm aims for 2.5 compatability). I'm not spotting a method
+  # for setting the saved user id without it, though. :/
+  
+  majorVersion, minorVersion = sys.version_info[:2]
+  canSetSavedUid = majorVersion >= 3 or (majorVersion == 2 and minorVersion >= 7)
+  
   orig_uid = os.getuid()
   orig_euid = os.geteuid()
   
@@ -168,7 +175,13 @@ def replaceTorrc():
   # drop to the unprivileged group, and lose the rest of the groups
   os.setgid(dropped_gid)
   os.setegid(dropped_egid)
-  os.setresgid(dropped_gid, dropped_egid, dropped_gid)
+  
+  if canSetSavedUid:
+    # only usable in python 2.7 or later
+    os.setresgid(dropped_gid, dropped_egid, dropped_gid)
+  else:
+    os.setregid(dropped_gid, dropped_egid)
+  
   os.setgroups([dropped_gid])
   
   # make a tempfile and write out the contents
@@ -192,8 +205,15 @@ def replaceTorrc():
     # I believe this drops os.setfsuid os.setfsgid stuff
     # Clear all other supplemental groups for dropped_uid
     os.setgroups([dropped_gid])
-    os.setresgid(dropped_gid, dropped_egid, dropped_gid)
-    os.setresuid(dropped_uid, dropped_euid, dropped_uid)
+    
+    if canSetSavedUid:
+      # only usable in python 2.7 or later
+      os.setresgid(dropped_gid, dropped_egid, dropped_gid)
+      os.setresuid(dropped_uid, dropped_euid, dropped_uid)
+    else:
+      os.setregid(dropped_gid, dropped_egid)
+      os.setreuid(dropped_uid, dropped_euid)
+    
     os.setgid(dropped_gid)
     os.setegid(dropped_egid)
     os.setuid(dropped_uid)
