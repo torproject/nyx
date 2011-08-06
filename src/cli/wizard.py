@@ -417,7 +417,7 @@ def showWizard():
               sudoVersionResult = sysTools.call("sudo -V")
               
               # version output looks like "Sudo version 1.7.2p7"
-              if len(sudoVersionResult) == 1 and sudoVersionResult.count(" ") >= 2:
+              if len(sudoVersionResult) == 1 and sudoVersionResult[0].count(" ") >= 2:
                 versionNum = 0
                 
                 for comp in sudoVersionResult[0].split(" ")[2].split("."):
