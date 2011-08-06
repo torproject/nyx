@@ -320,7 +320,7 @@ def showWizard():
   # permissions then we aren't able to deal with the system wide tor instance.
   # Also drop the optoin if we aren't installed since override.py won't be at
   # the expected path.
-  if not os.path.exists(SYSTEM_DROP_PATH) or not os.path.exists(OVERRIDE_SCRIPT):
+  if not os.path.exists(os.path.dirname(SYSTEM_DROP_PATH)) or not os.path.exists(OVERRIDE_SCRIPT):
     disabledOpt.append(Options.SYSTEM)
   
   while True:
