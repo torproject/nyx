@@ -24,7 +24,7 @@ TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 RelayType = enum.Enum("RESUME", "RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "RSHUTDOWN", "CSHUTDOWN", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
+Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "SYSTEM", "STARTUP", "RSHUTDOWN", "CSHUTDOWN", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -34,7 +34,8 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
-                                    Options.RSHUTDOWN),
+                                    Options.RSHUTDOWN,
+                                    Options.SYSTEM),
                 RelayType.EXIT:    (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -45,6 +46,7 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
                                     Options.RSHUTDOWN,
+                                    Options.SYSTEM,
                                     Options.DIVIDER,
                                     Options.NOTICE,
                                     Options.POLICY,
@@ -60,13 +62,15 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
-                                    Options.RSHUTDOWN),
+                                    Options.RSHUTDOWN,
+                                    Options.SYSTEM),
                 RelayType.CLIENT:  (Options.BRIDGED,
                                     Options.BRIDGE1,
                                     Options.BRIDGE2,
                                     Options.BRIDGE3,
                                     Options.REUSE,
-                                    Options.CSHUTDOWN)}
+                                    Options.CSHUTDOWN,
+                                    Options.SYSTEM)}
 
 # option sets
 CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
@@ -94,6 +98,12 @@ VERSION_REQUIREMENTS = {Options.PORTFORWARD: "0.2.3.1-alpha"}
 # tor's defaults for config options, used to filter unneeded options
 TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
                 Options.REUSE: "10 minutes"}
+
+# path for the torrc to be placed if replacing the torrc for the system wide
+# tor instance
+SYSTEM_DROP_PATH = "/var/lib/tor-arm/torrc"
+OVERRIDE_SCRIPT = "/usr/share/arm/resources/torrcOverride/override.py"
+OVERRIDE_SETUID_SCRIPT = "/usr/bin/torrc-override"
 
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
@@ -306,6 +316,13 @@ def showWizard():
     if not sysTools.isAvailable("tor-fw-helper"):
       disabledOpt.append(Options.PORTFORWARD)
   
+  # If we haven't run 'resources/torrcOverride/override.py --init' or lack
+  # permissions then we aren't able to deal with the system wide tor instance.
+  # Also drop the optoin if we aren't installed since override.py won't be at
+  # the expected path.
+  if not os.path.exists(os.path.dirname(SYSTEM_DROP_PATH)) or not os.path.exists(OVERRIDE_SCRIPT):
+    disabledOpt.append(Options.SYSTEM)
+  
   while True:
     if relayType == None:
       selection = promptRelayType(relaySelection)
@@ -331,16 +348,26 @@ def showWizard():
         if confirmationSelection == NEXT:
           log.log(log.INFO, "Writing torrc to '%s':\n%s" % (torrcLocation, generatedTorrc))
           
+          isSystemReplace = not Options.SYSTEM in disabledOpt and config[Options.SYSTEM].getValue()
+          if isSystemReplace: torrcLocation = SYSTEM_DROP_PATH
+          
           # if the torrc already exists then save it to a _bak file
           isBackedUp = False
-          if os.path.exists(torrcLocation):
-            shutil.copy(torrcLocation, torrcLocation + "_bak")
-            isBackedUp = True
+          if os.path.exists(torrcLocation) and not isSystemReplace:
+            try:
+              shutil.copy(torrcLocation, torrcLocation + "_bak")
+              isBackedUp = True
+            except IOError, exc:
+              log.log(log.WARN, "Unable to backup the torrc: %s" % exc)
           
           # writes the torrc contents
-          torrcFile = open(torrcLocation, "w")
-          torrcFile.write(generatedTorrc)
-          torrcFile.close()
+          try:
+            torrcFile = open(torrcLocation, "w")
+            torrcFile.write(generatedTorrc)
+            torrcFile.close()
+          except IOError, exc:
+            log.log(log.ERR, "Unable to make torrc: %s" % exc)
+            break
           
           # logs where we placed the torrc
           msg = "Tor configuration placed at '%s'" % torrcLocation
@@ -367,7 +394,53 @@ def showWizard():
             msg = "Exit notice placed at '%s/index.html'. Some of the sections are specific to US relay operators so please change the \"FIXME\" sections if this is inappropriate." % dst
             log.log(log.NOTICE, msg)
           
-          if manager.isTorrcAvailable():
+          runCommand, exitCode = None, 1
+          
+          if isSystemReplace:
+            # running override.py needs root so...
+            # - if running as root (bad user, no biscuit!) then run it directly
+            # - if the setuid binary is available at '/usr/bin/torrc-override'
+            #   then use that
+            # - attempt sudo in case passwordless sudo is available
+            # - if all of the above fail then log instructions
+            
+            if os.geteuid() == 0: runCommand = OVERRIDE_SCRIPT
+            elif os.path.exists(OVERRIDE_SETUID_SCRIPT): runCommand = OVERRIDE_SETUID_SCRIPT
+            else:
+              # The -n argument to sudo is *supposed* to be available starting
+              # with 1.7.0 [1] however this is a dirty lie (Ubuntu 9.10 uses
+              # 1.7.0 and even has the option in its man page, but it doesn't
+              # work). Instead checking for version 1.7.1.
+              #
+              # [1] http://www.sudo.ws/pipermail/sudo-users/2009-January/003889.html
+              
+              sudoVersionResult = sysTools.call("sudo -V")
+              
+              # version output looks like "Sudo version 1.7.2p7"
+              if len(sudoVersionResult) == 1 and sudoVersionResult[0].count(" ") >= 2:
+                versionNum = 0
+                
+                for comp in sudoVersionResult[0].split(" ")[2].split("."):
+                  if comp and comp[0].isdigit():
+                    versionNum = (10 * versionNum) + int(comp)
+                  else:
+                    # invalid format
+                    log.log(log.INFO, "Unrecognized sudo version string: %s" % sudoVersionResult[0])
+                    versionNum = 0
+                    break
+                
+                if versionNum >= 171:
+                  runCommand = "sudo -n %s" % OVERRIDE_SCRIPT
+                else:
+                  log.log(log.INFO, "Insufficient sudo version for the -n argument")
+            
+            if runCommand: exitCode = os.system("%s > /dev/null 2>&1" % runCommand)
+            
+            if exitCode != 0:
+              msg = "Tor needs root permissions to replace the system wide torrc. To continue...\n- open another terminal\n- run \"sudo %s\"\n- press 'x' here to tell tor to reload" % OVERRIDE_SCRIPT
+              log.log(log.NOTICE, msg)
+            else: torTools.getConn().reload()
+          elif manager.isTorrcAvailable():
             # If we're connected to a managed instance then just need to
             # issue a sighup to pick up the new settings. Otherwise starts
             # a new tor instance.
@@ -603,8 +676,11 @@ def getTorrc(relayType, config, disabledOpt):
   dataDir = cli.controller.getController().getDataDirectory()
   templateOptions["NOTICE_PATH"] = "%sexitNotice/index.html" % dataDir
   templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
-  templateOptions["DATA_DIR"] = "%stor_data" % dataDir
   templateOptions["USERNAME"] = getpass.getuser()
+  
+  # using custom data directory, unless this is for a system wide instance
+  if not config[Options.SYSTEM].getValue() or Options.SYSTEM in disabledOpt:
+    templateOptions["DATA_DIR"] = "%stor_data" % dataDir
   
   policyCategories = []
   if not config[Options.POLICY].getValue():
