@@ -100,7 +100,7 @@ class BandwidthStats(graphPanel.GraphStats):
         self.isAccounting = isAccountingEnabled
         
         # redraws the whole screen since our height changed
-        cli.controller.getController().requestRedraw(True)
+        cli.controller.getController().redraw()
     
     # redraws to reflect changes (this especially noticeable when we have
     # accounting and shut down since it then gives notice of the shutdown)

@@ -37,6 +37,7 @@ CONFIG = {"startup.events": "N3",
           "features.panels.show.config": True,
           "features.panels.show.torrc": True,
           "features.redrawRate": 5,
+          "features.refreshRate": 5,
           "features.confirmQuit": True,
           "features.graph.type": 1,
           "features.graph.bw.prepopulate": True,
@@ -171,6 +172,7 @@ class Controller:
     self._forceRedraw = False
     self._isDone = False
     self._torManager = TorManager(self)
+    self._lastDrawn = 0
     self.setMsg() # initializes our control message
   
   def getScreen(self):
@@ -310,39 +312,49 @@ class Controller:
     
     return allPanels
   
-  def requestRedraw(self, immediate = False):
+  def redraw(self, force = True):
+    """
+    Redraws the displayed panel content.
+    
+    Arguments:
+      force - redraws reguardless of if it's needed if true, otherwise ignores
+              the request when there arne't changes to be displayed
+    """
+    
+    force |= self._forceRedraw
+    self._forceRedraw = False
+    
+    currentTime = time.time()
+    if CONFIG["features.refreshRate"] != 0:
+      if self._lastDrawn + CONFIG["features.refreshRate"] <= currentTime:
+        force = True
+    
+    displayPanels = self.getDisplayPanels()
+    
+    occupiedContent = 0
+    for panelImpl in displayPanels:
+      panelImpl.setTop(occupiedContent)
+      occupiedContent += panelImpl.getHeight()
+    
+    for panelImpl in displayPanels:
+      panelImpl.redraw(force)
+    
+    if force: self._lastDrawn = currentTime
+  
+  def requestRedraw(self):
     """
     Requests that all content is redrawn when the interface is next rendered.
-    
-    Arguments:
-      immediate - redraws now if true, otherwise waits for when next normally
-                  drawn
     """
     
-    if immediate:
-      displayPanels = self.getDisplayPanels()
-      
-      occupiedContent = 0
-      for panelImpl in displayPanels:
-        panelImpl.setTop(occupiedContent)
-        occupiedContent += panelImpl.getHeight()
-      
-      for panelImpl in displayPanels:
-        panelImpl.redraw(True)
-    else:
-      self._forceRedraw = True
+    self._forceRedraw = True
   
-  def isRedrawRequested(self, clearFlag = False):
+  def getLastRedrawTime(self):
     """
-    True if a full redraw has been requested, false otherwise.
-    
-    Arguments:
-      clearFlag - request clears the flag if true
+    Provides the time when the content was last redrawn, zero if the content
+    has never been drawn.
     """
     
-    returnValue = self._forceRedraw
-    if clearFlag: self._forceRedraw = False
-    return returnValue
+    return self._lastDrawn
   
   def setMsg(self, msg = None, attr = None, redraw = False):
     """
@@ -612,7 +624,9 @@ def startTorMonitor(startTime):
   
   # initializes interface configs
   config = conf.getConfig("arm")
-  config.update(CONFIG)
+  config.update(CONFIG, {
+    "features.redrawRate": 1,
+    "features.refreshRate": 0})
   
   cli.graphing.graphPanel.loadConfig(config)
   cli.connections.connEntry.loadConfig(config)
@@ -710,17 +724,8 @@ def drawTorMonitor(stdscr, startTime):
     for panelImpl in control.getAllPanels():
       panelImpl.setVisible(panelImpl in displayPanels)
     
-    # panel placement
-    occupiedContent = 0
-    for panelImpl in displayPanels:
-      panelImpl.setTop(occupiedContent)
-      occupiedContent += panelImpl.getHeight()
-    
-    # redraws visible content
-    forceRedraw = control.isRedrawRequested(True)
-    for panelImpl in displayPanels:
-      panelImpl.redraw(forceRedraw)
-    
+    # redraws the interface if it's needed
+    control.redraw(False)
     stdscr.refresh()
     
     # wait for user keyboard input until timeout, unless an override was set

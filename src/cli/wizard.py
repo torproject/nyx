@@ -342,7 +342,7 @@ def showWizard():
         generatedTorrc = getTorrc(relayType, config, disabledOpt)
         
         torrcLocation = manager.getTorrcPath()
-        controller.requestRedraw(True)
+        controller.redraw()
         confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
         
         if confirmationSelection == NEXT:
@@ -463,7 +463,7 @@ def showWizard():
         elif confirmationSelection == CANCEL: break
     
     # redraws screen to clear away the dialog we just showed
-    cli.controller.getController().requestRedraw(True)
+    cli.controller.getController().redraw()
 
 def promptRelayType(initialSelection):
   """
@@ -621,7 +621,7 @@ def promptConfigOptions(relayType, config, disabledOpt):
             try: options[selection].setValue(newValue.strip())
             except ValueError, exc:
               cli.popups.showMsg(str(exc), 3)
-              cli.controller.getController().requestRedraw(True)
+              cli.controller.getController().redraw()
       elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
   finally:
     cli.popups.finalize()

@@ -427,7 +427,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # We're toggling between being a relay and client, causing the height
         # of this panel to change. Redraw all content so we don't get
         # overlapping content.
-        cli.controller.getController().requestRedraw(True)
+        cli.controller.getController().redraw()
       else:
         # just need to redraw ourselves
         self.redraw(True)
