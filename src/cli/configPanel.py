@@ -601,11 +601,11 @@ class ConfigPanel(panel.Panel):
       
       if i != descriptionHeight - 1:
         # there's more lines to display
-        msg, remainder = uiTools.cropStr(lineContent, width - 2, 4, 4, uiTools.Ending.HYPHEN, True)
+        msg, remainder = uiTools.cropStr(lineContent, width - 3, 4, 4, uiTools.Ending.HYPHEN, True)
         descriptionContent = remainder.strip() + descriptionContent
       else:
         # this is the last line, end it with an ellipse
-        msg = uiTools.cropStr(lineContent, width - 2, 4, 4)
+        msg = uiTools.cropStr(lineContent, width - 3, 4, 4)
       
       self.addstr(3 + i, 2, msg, selectionFormat)
 
