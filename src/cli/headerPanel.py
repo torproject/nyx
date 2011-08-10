@@ -21,6 +21,7 @@ import threading
 
 import TorCtl.TorCtl
 
+import starter
 import cli.popups
 import cli.controller
 
@@ -40,6 +41,7 @@ VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "re
 
 DEFAULT_CONFIG = {"startup.interface.ipAddress": "127.0.0.1",
                   "startup.interface.port": 9051,
+                  "startup.interface.socket": "/var/lib/tor/control",
                   "features.showFdUsage": False,
                   "log.fdUsageSixtyPercent": log.NOTICE,
                   "log.fdUsageNinetyPercent": log.WARN}
@@ -132,27 +134,42 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      try:
-        ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-        tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
-        
-        if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
-          authValue = cli.popups.inputPrompt("Controller Password: ")
-          if not authValue: raise IOError() # cancel reconnection
-        
-        tmpConn.authenticate(authValue)
-        torTools.getConn().init(tmpConn)
+      torctlConn = None
+      allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
+      
+      if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
+        try: torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
+        except IOError, exc:
+          if not allowPortConnection:
+            cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+      elif not allowPortConnection:
+        cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
+      
+      if not torctlConn and allowPortConnection:
+        try:
+          ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
+          tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
+          
+          if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
+            authValue = cli.popups.inputPrompt("Controller Password: ")
+            if not authValue: raise IOError() # cancel reconnection
+          
+          tmpConn.authenticate(authValue)
+          torctlConn = tmpConn
+        except Exception, exc:
+          # attempts to use the wizard port too
+          try:
+            cli.controller.getController().getTorManager().connectManagedInstance()
+            log.log(log.NOTICE, "Reconnected to Tor's control port")
+            cli.popups.showMsg("Tor reconnected", 1)
+          except:
+            # displays notice for the first failed connection attempt
+            if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+      
+      if torctlConn:
+        torTools.getConn().init(torctlConn)
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
-      except Exception, exc:
-        # attempts to use the wizard port too
-        try:
-          cli.controller.getController().getTorManager().connectManagedInstance()
-          log.log(log.NOTICE, "Reconnected to Tor's control port")
-          cli.popups.showMsg("Tor reconnected", 1)
-        except:
-          # displays notice for the first failed connection attempt
-          if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed

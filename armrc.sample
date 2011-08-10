@@ -2,6 +2,7 @@
 startup.controlPassword
 startup.interface.ipAddress 127.0.0.1
 startup.interface.port 9051
+startup.interface.socket /var/lib/tor/control
 startup.blindModeEnabled false
 startup.events N3
 startup.dataDirectory ~/.arm
@@ -66,7 +67,9 @@ features.refreshRate 5
 features.confirmQuit true
 
 # Allows arm to start when there's no running tor instance if true, otherwise
-# we terminate right away.
+# we terminate right away. This is ignored if the user provides an option
+# specifying how to connect to tor (ie, a 'startup.interface.*' option or
+# startup argument).
 features.allowDetachedStartup true
 
 # Paremters for the log panel

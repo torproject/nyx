@@ -111,6 +111,28 @@ IS_STARTUP_SIGNAL = True
 def loadConfig(config):
   config.update(CONFIG)
 
+# TODO: temporary code until this is added to torctl as part of...
+# https://trac.torproject.org/projects/tor/ticket/3638
+def connect_socket(socketPath="/var/lib/tor/control", ConnClass=TorCtl.Connection):
+  """
+  Connects to a unix domain socket available to controllers (set via tor's
+  ControlSocket option). This raises an IOError if unable to do so.
+
+  Arguments:
+    socketPath - path of the socket to attach to
+    ConnClass  - connection type to instantiate
+  """
+
+  import socket
+  try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(socketPath)
+    conn = ConnClass(s)
+    conn.authenticate("")
+    return conn
+  except Exception, exc:
+    raise IOError(exc)
+
 def getPid(controlPort=9051, pidFilePath=None):
   """
   Attempts to determine the process id for a running tor process, using the
