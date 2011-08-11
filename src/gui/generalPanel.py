@@ -12,8 +12,8 @@ import gobject
 import gtk
 
 from cli.headerPanel import (HeaderPanel as CliHeaderPanel, VERSION_STATUS_COLORS)
+from util import connections, gtkTools, sysTools, torTools, uiTools
 from TorCtl import TorCtl
-from util import connections, sysTools, gtkTools, uiTools, torTools
 
 class GeneralPanel(CliHeaderPanel):
   def __init__(self, builder):
@@ -27,7 +27,7 @@ class GeneralPanel(CliHeaderPanel):
     gobject.timeout_add(3000, self._timeout_fill_entries)
 
   def pack_widgets(self):
-    pass
+    return
 
   def _timeout_fill_entries(self):
     self._fill_entries()
@@ -37,22 +37,22 @@ class GeneralPanel(CliHeaderPanel):
   def _fill_entries(self):
     self.valsLock.acquire()
 
-    liststore = self.builder.get_object('liststore_general')
+    listStore = self.builder.get_object('liststore_general')
     theme = gtkTools.Theme()
 
-    liststore.clear()
+    listStore.clear()
 
     key = "arm"
     value = "%s (%s %s)" % (self.vals['sys/hostname'], self.vals['sys/os'], self.vals['sys/version'])
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     versionColor = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if \
         self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "black"
     key = "Tor"
     value = "%s (<span foreground=\"%s\">%s</span>)" % (self.vals['tor/version'], versionColor, self.vals['tor/versionStatus'])
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     includeControlPort = True
     key = "Relaying"
@@ -77,7 +77,7 @@ class GeneralPanel(CliHeaderPanel):
         value = "%s%s" % ("Tor Disconnected", statusTimeLabel)
         includeControlPort = False
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     key = "Control Port"
     if includeControlPort:
@@ -88,8 +88,7 @@ class GeneralPanel(CliHeaderPanel):
       authColor = "red" if authType == "open" else "green"
       value = "%s (<span foreground=\"%s\">%s</span>)" % (self.vals['tor/controlPort'], authColor, authType)
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
-
+    listStore.append(row)
 
     if self.vals["stat/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["stat/rss"]))
     else: memoryLabel = "0"
@@ -104,22 +103,22 @@ class GeneralPanel(CliHeaderPanel):
     key = "CPU"
     value = "%s%% Tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     key = "Memory"
     value = "%s (%s%%)" % (memoryLabel, self.vals["stat/%mem"])
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     key = "PID"
     value = "%s" % (self.vals["tor/pid"] if self._isTorConnected else "")
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     key = "Uptime"
     value = uptimeLabel
     row = (key, value, theme.colors['active'])
-    liststore.append(row)
+    listStore.append(row)
 
     self.valsLock.release()
 

@@ -1,13 +1,13 @@
-import gobject
-import gtk
-
 import thread
 import time
 
-from util import log, torTools
+import gobject
+import gtk
+
 from connections import connPanel
-from gui import logPanel, generalPanel
 from gui.graphing import bandwidthStats
+from gui import configPanel, generalPanel, logPanel
+from util import log, torTools
 
 gobject.threads_init()
 
@@ -26,18 +26,16 @@ class GuiController:
 
     self.builder.connect_signals(self)
 
-    self.logPanel = logPanel.LogPanel(self.builder)
-    self.logPanel.pack_widgets()
+    panelClasses = (logPanel.LogPanel,
+              bandwidthStats.BandwidthStats,
+              connPanel.ConnectionPanel,
+              configPanel.ConfigPanel,
+              generalPanel.GeneralPanel)
+    self.panels = {}
 
-    self.bwStats = bandwidthStats.BandwidthStats(self.builder)
-    self.bwStats.pack_widgets()
-
-    self.connPanel = connPanel.ConnectionPanel(self.builder)
-    self.connPanel.pack_widgets()
-    self.connPanel.start()
-
-    self.generalPanel = generalPanel.GeneralPanel(self.builder)
-    self.generalPanel.pack_widgets()
+    for panelClass in panelClasses:
+      self.panels[panelClass] = panelClass(self.builder)
+      self.panels[panelClass].pack_widgets()
 
   def run(self):
     window = self.builder.get_object('window_main')
@@ -59,7 +57,7 @@ class GuiController:
   def on_window_main_delete_event(self, widget, data=None):
     gtk.main_quit()
 
-def startGui():
+def start_gui():
   controller = GuiController()
   controller.run()
 
