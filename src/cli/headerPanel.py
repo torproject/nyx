@@ -51,7 +51,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
     tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
-          exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
+          socketPath, exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
           orListenAddr, *address, *fingerprint, *flags, pid, startTime,
           *fdUsed, fdLimit, isFdLimitEstimate
     sys/  hostname, os, version
@@ -239,17 +239,21 @@ class HeaderPanel(panel.Panel, threading.Thread):
         includeControlPort = False
     
     if includeControlPort:
-      if self.vals["tor/isAuthPassword"]: authType = "password"
-      elif self.vals["tor/isAuthCookie"]: authType = "cookie"
-      else: authType = "open"
-      
-      if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
-        authColor = "red" if authType == "open" else "green"
-        self.addstr(1, x, ", Control Port (")
-        self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
-        self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
-      elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
-        self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
+      if self.vals["tor/controlPort"] == "0":
+        # connected via a control socket
+        self.addstr(1, x, ", Control Socket: %s" % self.vals["tor/socketPath"])
+      else:
+        if self.vals["tor/isAuthPassword"]: authType = "password"
+        elif self.vals["tor/isAuthCookie"]: authType = "cookie"
+        else: authType = "open"
+        
+        if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
+          authColor = "red" if authType == "open" else "green"
+          self.addstr(1, x, ", Control Port (")
+          self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
+          self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
+        elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
+          self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
@@ -474,7 +478,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/nickname"] = conn.getOption("Nickname", "")
       self.vals["tor/orPort"] = conn.getOption("ORPort", "0")
       self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
-      self.vals["tor/controlPort"] = conn.getOption("ControlPort", "")
+      self.vals["tor/controlPort"] = conn.getOption("ControlPort", "0")
+      self.vals["tor/socketPath"] = conn.getOption("ControlSocket", "")
       self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
       self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
       
