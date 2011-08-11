@@ -35,7 +35,7 @@ DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
           "startup.interface.ipAddress": "127.0.0.1",
           "startup.interface.port": 9051,
-          "startup.interface.socket": "/var/lib/tor/control",
+          "startup.interface.socket": "/var/run/tor/control",
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",

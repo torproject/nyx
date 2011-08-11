@@ -113,7 +113,7 @@ def loadConfig(config):
 
 # TODO: temporary code until this is added to torctl as part of...
 # https://trac.torproject.org/projects/tor/ticket/3638
-def connect_socket(socketPath="/var/lib/tor/control", ConnClass=TorCtl.Connection):
+def connect_socket(socketPath="/var/run/tor/control", ConnClass=TorCtl.Connection):
   """
   Connects to a unix domain socket available to controllers (set via tor's
   ControlSocket option). This raises an IOError if unable to do so.
