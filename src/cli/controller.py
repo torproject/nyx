@@ -675,9 +675,14 @@ def startTorMonitor(startTime):
   
   try:
     curses.wrapper(drawTorMonitor, startTime)
-    shutdownDaemons()
   except KeyboardInterrupt:
-    # skip printing stack trace in case of keyboard interrupt
+    # Skip printing stack trace in case of keyboard interrupt. The
+    # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
+    # (which would leave the user's terminal in a screwed up state). There is
+    # still a tiny timing issue here (after the exception but before the flag
+    # is set) but I've never seen it happen in practice.
+    
+    panel.HALT_ACTIVITY = True
     shutdownDaemons()
 
 def drawTorMonitor(stdscr, startTime):
@@ -772,4 +777,6 @@ def drawTorMonitor(stdscr, startTime):
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
+  
+  shutdownDaemons()
 

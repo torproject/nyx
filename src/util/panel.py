@@ -25,6 +25,9 @@ for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTool
 
 CONFIG = {"log.panelRecreated": log.DEBUG}
 
+# prevents curses redraws if set
+HALT_ACTIVITY = False
+
 def loadConfig(config):
   config.update(CONFIG)
 
@@ -375,8 +378,8 @@ class Panel():
                     abandoned
     """
     
-    # skipped if not currently visible
-    if not self.isVisible(): return
+    # skipped if not currently visible or activity has been halted
+    if not self.isVisible() or HALT_ACTIVITY: return
     
     # if the panel's completely outside its parent then this is a no-op
     newHeight, newWidth = self.getPreferredSize()
