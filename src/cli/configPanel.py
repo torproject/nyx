@@ -321,7 +321,7 @@ class ConfigPanel(panel.Panel):
       
       isChanged = self.scroller.handleKey(key, self._getConfigOptions(), pageHeight)
       if isChanged: self.redraw(True)
-    elif uiTools.isSelectionKey(key):
+    elif uiTools.isSelectionKey(key) and self._getConfigOptions():
       # Prompts the user to edit the selected configuration value. The
       # interface is locked to prevent updates between setting the value
       # and showing any errors.
