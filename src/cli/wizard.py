@@ -9,6 +9,7 @@ import sys
 import random
 import shutil
 import getpass
+import platform
 import functools
 import curses
 
@@ -283,21 +284,28 @@ def showWizard():
   config[Options.REUSE].setValidator(_circDurationValidator)
   
   # enables custom policies when 'custom' is selected and disables otherwise
-  lowPortsOpt = config[Options.LOWPORTS]
-  disclaimerNotice = [config[Options.NOTICE]]
-  lowPortsOpt.setValidator(functools.partial(_toggleEnabledAction, disclaimerNotice))
-  _toggleEnabledAction(disclaimerNotice, lowPortsOpt, lowPortsOpt.getValue())
-  
   policyOpt = config[Options.POLICY]
   customPolicies = [config[opt] for opt in CUSTOM_POLICIES]
   policyOpt.setValidator(functools.partial(_toggleEnabledAction, customPolicies))
   _toggleEnabledAction(customPolicies, policyOpt, policyOpt.getValue())
+  
+  lowPortsOpt = config[Options.LOWPORTS]
+  disclaimerNotice = [config[Options.NOTICE]]
+  lowPortsOpt.setValidator(functools.partial(_toggleEnabledAction, disclaimerNotice))
+  _toggleEnabledAction(disclaimerNotice, lowPortsOpt, lowPortsOpt.getValue())
   
   # enables bridge entries when "Use Bridges" is set and disables otherwise
   useBridgeOpt = config[Options.BRIDGED]
   bridgeEntries = [config[opt] for opt in BRIDGE_ENTRIES]
   useBridgeOpt.setValidator(functools.partial(_toggleEnabledAction, bridgeEntries))
   _toggleEnabledAction(bridgeEntries, useBridgeOpt, useBridgeOpt.getValue())
+  
+  # enables running at startup when 'Use System Instance' is deselected and
+  # disables otherwise
+  systemOpt = config[Options.SYSTEM]
+  startupOpt = [config[Options.STARTUP]]
+  systemOpt.setValidator(functools.partial(_toggleEnabledAction, startupOpt, True))
+  _toggleEnabledAction(startupOpt, systemOpt, not systemOpt.getValue())
   
   # remembers the last selection made on the type prompt page
   controller = cli.controller.getController()
@@ -318,10 +326,15 @@ def showWizard():
   
   # If we haven't run 'resources/torrcOverride/override.py --init' or lack
   # permissions then we aren't able to deal with the system wide tor instance.
-  # Also drop the optoin if we aren't installed since override.py won't be at
+  # Also drop the option if we aren't installed since override.py won't be at
   # the expected path.
   if not os.path.exists(os.path.dirname(SYSTEM_DROP_PATH)) or not os.path.exists(OVERRIDE_SCRIPT):
     disabledOpt.append(Options.SYSTEM)
+  
+  # Running at startup is currently only supported for Debian and Ubuntu.
+  # Patches welcome for supporting other platforms.
+  if not platform.dist()[0] in ("debian", "Ubuntu"):
+    disabledOpt.append(Options.STARTUP)
   
   while True:
     if relayType == None:
@@ -742,6 +755,10 @@ def getTorrc(relayType, config, disabledOpt):
     if opt.upper() in templateOptions:
       del templateOptions[opt.upper()]
   
+  startupOpt = Options.STARTUP.upper()
+  if not config[Options.STARTUP].isEnabled() and startupOpt in templateOptions:
+    del templateOptions[startupOpt]
+  
   # removes options if they match the tor defaults
   for opt in TOR_DEFAULTS:
     if templateOptions[opt.upper()] == TOR_DEFAULTS[opt]:
@@ -919,7 +936,7 @@ def _obscureChar(inputText, target, options):
   
   return inputText.replace(target, replacement)
 
-def _toggleEnabledAction(toggleOptions, option, value):
+def _toggleEnabledAction(toggleOptions, option, value, invert = False):
   """
   Enables or disables custom exit policy options based on our selection.
   
@@ -928,7 +945,10 @@ def _toggleEnabledAction(toggleOptions, option, value):
                     selection (ie, true -> enabled, false -> disabled)
     options       - our config option
     value         - the value we're being set to
+    invert        - inverts selection if true
   """
+  
+  if invert: value = not value
   
   for opt in toggleOptions:
     opt.setEnabled(value)
