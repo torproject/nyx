@@ -366,7 +366,7 @@ class ConfigPanel(panel.Panel):
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
       self.showSortDialog()
-    elif key == ord('w') or key == ord('W'):
+    elif key == ord('v') or key == ord('V'):
       self.showWriteDialog()
     else: isKeystrokeConsumed = False
     
@@ -483,7 +483,7 @@ class ConfigPanel(panel.Panel):
     options.append(("page up", "scroll up a page", None))
     options.append(("page down", "scroll down a page", None))
     options.append(("enter", "edit configuration option", None))
-    options.append(("w", "save configuration", None))
+    options.append(("v", "save configuration", None))
     options.append(("a", "toggle option filtering", None))
     options.append(("s", "sort ordering", None))
     return options
