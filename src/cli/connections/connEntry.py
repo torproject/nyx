@@ -55,9 +55,10 @@ class Endpoint:
     self.ipAddr = ipAddr
     self.port = port
     
-    # if true, we treat the port as an ORPort when searching for matching
-    # fingerprints (otherwise the ORPort is assumed to be unknown)
-    self.isORPort = False
+    # if true, we treat the port as an definitely not being an ORPort when
+    # searching for matching fingerprints (otherwise we use it to possably
+    # narrow results when unknown)
+    self.isNotORPort = True
     
     # if set then this overwrites fingerprint lookups
     self.fingerprintOverwrite = None
@@ -119,8 +120,12 @@ class Endpoint:
       return self.fingerprintOverwrite
     
     conn = torTools.getConn()
-    orPort = self.port if self.isORPort else None
-    myFingerprint = conn.getRelayFingerprint(self.ipAddr, orPort)
+    myFingerprint = conn.getRelayFingerprint(self.ipAddr)
+    
+    # If there were multiple matches and our port is likely the ORPort then
+    # try again with that to narrow the results.
+    if not myFingerprint and not self.isNotORPort:
+      myFingerprint = conn.getRelayFingerprint(self.ipAddr, self.port)
     
     if myFingerprint: return myFingerprint
     else: return "UNKNOWN"
@@ -226,7 +231,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     if lPort in (myOrPort, myDirPort):
       self.baseType = Category.INBOUND
-      self.local.isORPort = True
+      self.local.isNotORPort = False
     elif lPort == mySocksPort:
       self.baseType = Category.SOCKS
     elif fPort in myHiddenServicePorts:
@@ -235,7 +240,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       self.baseType = Category.CONTROL
     else:
       self.baseType = Category.OUTBOUND
-      self.foreign.isORPort = True
+      self.foreign.isNotORPort = False
     
     self.cachedType = None
     
