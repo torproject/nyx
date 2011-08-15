@@ -171,10 +171,11 @@ Layout:
       
       connections/
         __init__.py
-        connPanel.py      - (page 2) lists the active tor connections
-        circEntry.py      - circuit entries in the connection panel
-        connEntry.py      - individual connections to or from the system
-        entries.py        - common parent for connPanel display entries
+        connPanel.py       - (page 2) lists the active tor connections
+        circEntry.py       - circuit entries in the connection panel
+        connEntry.py       - individual connections to or from the system
+        descriptorPopup.py - displays raw descriptor and consensus entries
+        entries.py         - common parent for connPanel display entries
       
       menu/
         __init__.py
@@ -185,7 +186,6 @@ Layout:
       __init__.py
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information
-      descriptorPopup.py     - displays connection descriptor data
       popups.py              - toolkit providing display popups
       wizard.py              - provides the relay setup wizard
       

@@ -6,10 +6,9 @@ import time
 import curses
 import threading
 
-import cli.descriptorPopup
 import cli.popups
 
-from cli.connections import entries, connEntry, circEntry
+from cli.connections import descriptorPopup, entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.resolveApps": True,
@@ -214,7 +213,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if selection != -1: self.setListingType(options[selection])
     elif key == ord('d') or key == ord('D'):
       # presents popup for raw consensus data
-      cli.descriptorPopup.showDescriptorPopup(self)
+      descriptorPopup.showDescriptorPopup(self)
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()
@@ -269,6 +268,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     options.append(("u", "resolving utility", resolverUtil))
     return options
   
+  def getSelection(self):
+    """
+    Provides the currently selected connection entry.
+    """
+    
+    return self._scroller.getCursorSelection(self._entryLines)
+  
   def draw(self, width, height):
     self.valsLock.acquire()
     
@@ -280,7 +286,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     isScrollbarVisible = len(self._entryLines) > height - detailPanelOffset - 1
     
     scrollLoc = self._scroller.getScrollLoc(self._entryLines, height - detailPanelOffset - 1)
-    cursorSelection = self._scroller.getCursorSelection(self._entryLines)
+    cursorSelection = self.getSelection()
     
     # draws the detail panel if currently displaying it
     if self._showDetails and cursorSelection:

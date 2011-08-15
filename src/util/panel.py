@@ -677,6 +677,8 @@ class Panel():
     for i in range(scrollbarHeight):
       if i >= sliderTop and i <= sliderTop + sliderSize:
         self.addstr(i + drawTop, drawLeft, " ", curses.A_STANDOUT)
+      else:
+        self.addstr(i + drawTop, drawLeft, " ")
     
     # draws box around the scroll bar
     self.vline(drawTop, drawLeft + 1, drawBottom - 1)
