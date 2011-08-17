@@ -174,6 +174,7 @@ Layout:
         connPanel.py       - (page 2) lists the active tor connections
         circEntry.py       - circuit entries in the connection panel
         connEntry.py       - individual connections to or from the system
+        countPopup.py      - displays client locale or exit port counts
         descriptorPopup.py - displays raw descriptor and consensus entries
         entries.py         - common parent for connPanel display entries
       

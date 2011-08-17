@@ -2,13 +2,14 @@
 Listing of the currently established connections tor has made.
 """
 
+import re
 import time
 import curses
 import threading
 
 import cli.popups
 
-from cli.connections import descriptorPopup, entries, connEntry, circEntry
+from cli.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
 from util import connections, enum, panel, torTools, uiTools
 
 DEFAULT_CONFIG = {"features.connection.resolveApps": True,
@@ -68,6 +69,32 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._cond = threading.Condition()  # used for pausing the thread
     self.valsLock = threading.RLock()
     
+    # Tracks exiting port and client country statistics
+    self._clientLocaleUsage = {}
+    self._exitPortUsage = {}
+    
+    # If we're a bridge and been running over a day then prepopulates with the
+    # last day's clients.
+    
+    conn = torTools.getConn()
+    bridgeClients = conn.getInfo("status/clients-seen")
+    
+    if bridgeClients:
+      # Response has a couple arguments...
+      # TimeStarted="2011-08-17 15:50:49" CountrySummary=us=16,de=8,uk=8
+      
+      countrySummary = None
+      for arg in bridgeClients.split():
+        if arg.startswith("CountrySummary="):
+          countrySummary = arg[15:]
+          break
+      
+      if countrySummary:
+        for entry in countrySummary.split(","):
+          if re.match("^..=[0-9]+$", entry):
+            locale, count = entry.split("=", 1)
+            self._clientLocaleUsage[locale] = int(count)
+    
     # Last sampling received from the ConnectionResolver, used to detect when
     # it changes.
     self._lastResourceFetch = -1
@@ -84,7 +111,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         entry.getLines()[0].isInitialConnection = True
     
     # listens for when tor stops so we know to stop reflecting changes
-    torTools.getConn().addStatusListener(self.torStateListener)
+    conn.addStatusListener(self.torStateListener)
   
   def torStateListener(self, conn, eventType):
     """
@@ -155,6 +182,22 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     self.valsLock.release()
   
+  def isClientsAllowed(self):
+    """
+    True if client connections are permissable, false otherwise.
+    """
+    
+    conn = torTools.getConn()
+    return "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay") == "1"
+  
+  def isExitsAllowed(self):
+    """
+    True if exit connections are permissable, false otherwise.
+    """
+    
+    policy = torTools.getConn().getExitPolicy()
+    return policy and policy.isExitingAllowed()
+  
   def showSortDialog(self):
     """
     Provides the sort dialog for our connections.
@@ -214,6 +257,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif key == ord('d') or key == ord('D'):
       # presents popup for raw consensus data
       descriptorPopup.showDescriptorPopup(self)
+    elif (key == ord('c') or key == ord('C')) and self.isClientsAllowed():
+      countPopup.showCountDialog(countPopup.CountType.CLIENT_LOCALE, self._clientLocaleUsage)
+    elif (key == ord('e') or key == ord('E')) and self.isExitsAllowed():
+      countPopup.showCountDialog(countPopup.CountType.EXIT_PORT, self._exitPortUsage)
     else: isKeystrokeConsumed = False
     
     self.valsLock.release()
@@ -263,6 +310,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     options.append(("page down", "scroll down a page", None))
     options.append(("enter", "edit configuration option", None))
     options.append(("d", "raw consensus descriptor", None))
+    
+    if self.isClientsAllowed():
+      options.append(("c", "client locale usage summary", None))
+    
+    if self.isExitsAllowed():
+      options.append(("e", "exit port usage summary", None))
+    
     options.append(("l", "listed identity", self._listingType.lower()))
     options.append(("s", "sort ordering", None))
     options.append(("u", "resolving utility", resolverUtil))
@@ -411,8 +465,22 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # Adds any new connection and circuit entries.
       for lIp, lPort, fIp, fPort in newConnections:
         newConnEntry = connEntry.ConnectionEntry(lIp, lPort, fIp, fPort)
-        if newConnEntry.getLines()[0].getType() != connEntry.Category.CIRCUIT:
+        newConnLine = newConnEntry.getLines()[0]
+        
+        if newConnLine.getType() != connEntry.Category.CIRCUIT:
           newEntries.append(newConnEntry)
+          
+          # updates exit port and client locale usage information
+          if newConnLine.isPrivate():
+            if newConnLine.getType() == connEntry.Category.INBOUND:
+              # client connection, update locale information
+              clientLocale = newConnLine.foreign.getLocale()
+              
+              if clientLocale:
+                self._clientLocaleUsage[clientLocale] = self._clientLocaleUsage.get(clientLocale, 0) + 1
+            elif newConnLine.getType() == connEntry.Category.EXIT:
+              exitPort = newConnLine.foreign.getPort()
+              self._exitPortUsage[exitPort] = self._exitPortUsage.get(exitPort, 0) + 1
       
       for circuitID in newCircuits:
         status, purpose, path = newCircuits[circuitID]
