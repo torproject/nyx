@@ -8,9 +8,10 @@ import operator
 import cli.controller
 import cli.popups
 
-from util import enum, log, uiTools
+from util import connections, enum, log, uiTools
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
+EXIT_USAGE_WIDTH = 15
 
 def showCountDialog(countType, counts):
   """
@@ -60,10 +61,23 @@ def showCountDialog(countType, counts):
         valWidth = max(valWidth, len(str(v)))
         valueTotal += v
       
+      # extra space since we're adding usage informaion
+      if countType == CountType.EXIT_PORT:
+        keyWidth += EXIT_USAGE_WIDTH
+      
       labelFormat = "%%-%is %%%ii (%%%%%%-2i)" % (keyWidth, valWidth)
       
       for i in range(height - 4):
         k, v = sortedCounts[i]
+        
+        # includes a port usage column
+        if countType == CountType.EXIT_PORT:
+          usage = connections.getPortUsage(k)
+          
+          if usage:
+            keyFormat = "%%-%is   %%s" % (keyWidth - EXIT_USAGE_WIDTH)
+            k = keyFormat % (k, usage[:EXIT_USAGE_WIDTH - 3])
+        
         label = labelFormat % (k, v, v * 100 / valueTotal)
         popup.addstr(i + 1, 2, label, curses.A_BOLD | uiTools.getColor("green"))
         
