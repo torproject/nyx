@@ -205,6 +205,7 @@ Layout:
       procTools.py   - queries process & system information from /proc contents
       procName.py    - renames our process to a friendlier name
       sysTools.py    - helper for system calls, providing client side caching
+      textInput.py   - expands the capabilities of text input fields
       torConfig.py   - functions for working with the torrc and config options
       torTools.py    - TorCtl wrapper, providing caching and derived information
       uiTools.py     - helper functions for presenting the user interface
