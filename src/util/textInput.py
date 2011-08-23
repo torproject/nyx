@@ -99,3 +99,52 @@ class BasicValidator(TextInputValidator):
     
     return PASS
 
+class HistoryValidator(TextInputValidator):
+  """
+  This intercepts the up and down arrow keys to scroll through a backlog of
+  previous commands.
+  """
+  
+  def __init__(self, commandBacklog = [], nextValidator = None):
+    TextInputValidator.__init__(self, nextValidator)
+    
+    # contents that can be scrolled back through, newest to oldest
+    self.commandBacklog = commandBacklog
+    
+    # selected item from the backlog, -1 if we're not on a backlog item
+    self.selectionIndex = -1
+    
+    # the fields input prior to selecting a backlog item
+    self.customInput = ""
+  
+  def handleKey(self, key, textbox):
+    if key in (curses.KEY_UP, curses.KEY_DOWN):
+      offset = 1 if key == curses.KEY_UP else -1
+      newSelection = self.selectionIndex + offset
+      
+      # constrains the new selection to valid bounds
+      newSelection = max(-1, newSelection)
+      newSelection = min(len(self.commandBacklog) - 1, newSelection)
+      
+      # skips if this is a no-op
+      if self.selectionIndex == newSelection:
+        return None
+      
+      # saves the previous input if we weren't on the backlog
+      if self.selectionIndex == -1:
+        self.customInput = textbox.gather().strip()
+      
+      if newSelection == -1: newInput = self.customInput
+      else: newInput = self.commandBacklog[newSelection]
+      
+      y, _ = textbox.win.getyx()
+      _, maxX = textbox.win.getmaxyx()
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, newInput[:maxX - 1])
+      textbox.win.move(y, min(len(newInput), maxX - 1))
+      
+      self.selectionIndex = newSelection
+      return None
+    
+    return PASS
+
