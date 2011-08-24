@@ -193,6 +193,7 @@ Layout:
       logPanel.py            - (page 1) displays tor, arm, and torctl events
       configPanel.py         - (page 3) editor panel for the tor configuration
       torrcPanel.py          - (page 4) displays torrc and validation
+      interpretorPanel.py    - (page 5) interpretor for control port access
     
     util/
       __init__.py

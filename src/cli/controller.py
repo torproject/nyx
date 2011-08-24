@@ -15,6 +15,7 @@ import cli.headerPanel
 import cli.logPanel
 import cli.configPanel
 import cli.torrcPanel
+import cli.interpretorPanel
 import cli.graphing.graphPanel
 import cli.graphing.bandwidthStats
 import cli.graphing.connStats
@@ -96,6 +97,8 @@ def initController(stdscr, startTime):
   # fourth page: torrc
   if CONFIG["features.panels.show.torrc"]:
     pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
+  
+  pagePanels.append([cli.interpretorPanel.InterpretorPanel(stdscr)])
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
