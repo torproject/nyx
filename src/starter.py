@@ -386,8 +386,12 @@ if __name__ == '__main__':
     msg = STANDARD_CFG_NOT_FOUND_MSG % configPath
     util.log.log(util.log.NOTICE, msg)
   
-  # when launching a prompt it doens't make sense to be without a tor instance
-  if launchPrompt:
+  # prevent arm from starting without a tor instance if...
+  # - we're launching a prompt
+  # - tor is running (otherwise it would be kinda confusing, "tor is running
+  #   but why does arm say that it's shut down?")
+  
+  if launchPrompt or util.torTools.isTorRunning():
     config.set("features.allowDetachedStartup", "false")
   
   # revises defaults to match user's configuration

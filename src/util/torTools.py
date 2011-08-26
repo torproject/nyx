@@ -345,6 +345,20 @@ def isVersion(myVersion, minVersion):
     
     return True # versions match (should have been caught above...)
 
+def isTorRunning():
+  """
+  Simple check for if a tor process is running. If this can't be determined
+  then this returns False.
+  """
+  
+  # suggestions welcome for making this more reliable
+  commandResults = sysTools.call("ps co command")
+  if commandResults:
+    for cmd in commandResults:
+      if cmd.strip() == "tor": return True
+  
+  return False
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
