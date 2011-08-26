@@ -25,6 +25,7 @@ import util.panel
 import util.procTools
 import util.sysTools
 import util.torConfig
+import util.torInterpretor
 import util.torTools
 import util.uiTools
 import TorCtl.TorCtl
@@ -53,13 +54,14 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-OPT = "gi:s:c:dbe:vh"
-OPT_EXPANDED = ["gui", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gpi:s:c:dbe:vh"
+OPT_EXPANDED = ["gui", "prompt", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -g, --gui                       launch the Gtk+ interface
+  -p, --prompt                    only start the control interpretor
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -s, --socket SOCKET_PATH        attach using unix domain socket if present,
                                     SOCKET_PATH defaults to: %s
@@ -298,6 +300,7 @@ if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
   launchGui = False
+  launchPrompt = False
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
@@ -329,6 +332,7 @@ if __name__ == '__main__':
     elif opt in ("-s", "--socket"):
       param["startup.interface.socket"] = arg
     elif opt in ("-g", "--gui"): launchGui = True
+    elif opt in ("-p", "--prompt"): launchPrompt = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
@@ -486,9 +490,11 @@ if __name__ == '__main__':
   if util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  if launchGui == True:
+  if launchGui:
     import gui.controller
     gui.controller.start_gui()
+  elif launchPrompt:
+    util.torInterpretor.prompt()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)
 
