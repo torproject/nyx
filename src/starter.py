@@ -386,6 +386,10 @@ if __name__ == '__main__':
     msg = STANDARD_CFG_NOT_FOUND_MSG % configPath
     util.log.log(util.log.NOTICE, msg)
   
+  # when launching a prompt it doens't make sense to be without a tor instance
+  if launchPrompt:
+    config.set("features.allowDetachedStartup", "false")
+  
   # revises defaults to match user's configuration
   config.update(CONFIG)
   
