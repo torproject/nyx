@@ -62,13 +62,114 @@ def format(msg, *attr):
   
   if encodings:
     return (CSI % ";".join(encodings)) + msg + RESET
-  else:
-    raise IOError("BLARG! %s" % str(attr))
-    return msg
+  else: return msg
+
+class TorCommandOptions:
+  """
+  Command autocompleter, fetching the valid options from the attached Tor
+  instance.
+  """
+  
+  def __init__(self):
+    self.commands = []
+    conn = torTools.getConn()
+    
+    # adds all of the valid GETINFO options
+    infoOptions = conn.getInfo("info/names")
+    if infoOptions:
+      for line in infoOptions.split("\n"):
+        if " " in line:
+          # skipping non-existant options mentioned in:
+          # https://trac.torproject.org/projects/tor/ticket/3844
+          
+          if line.startswith("config/*") or line.startswith("dir-usage"):
+            continue
+          
+          # strips off the ending asterisk if it accepts a value
+          infoOpt = line.split(" ", 1)[0]
+          
+          if infoOpt.endswith("*"):
+            infoOpt = infoOpt[:-1]
+          
+          self.commands.append("GETINFO %s" % infoOpt)
+    else: self.commands.append("GETINFO ")
+    
+    # adds all of the valid GETCONF / SETCONF / RESETCONF options
+    confOptions = conn.getInfo("config/names")
+    if confOptions:
+      # individual options are '<name> <type>' pairs
+      confEntries = [opt.split(" ", 1)[0] for opt in confOptions.split("\n")]
+      self.commands += ["GETCONF %s" % conf for conf in confEntries]
+      self.commands += ["SETCONF %s " % conf for conf in confEntries]
+      self.commands += ["RESETCONF %s" % conf for conf in confEntries]
+    else:
+      self.commands.append("GETCONF ")
+      self.commands.append("SETCONF ")
+      self.commands.append("RESETCONF ")
+    
+    # adds all of the valid SETEVENT options
+    eventOptions = conn.getInfo("events/names")
+    if eventOptions:
+      self.commands += ["SETEVENT %s" % event for event in eventOptions.split(" ")]
+    else: self.commands.append("SETEVENT ")
+    
+    # adds all of the valid USEFEATURE options
+    featureOptions = conn.getInfo("features/names")
+    if featureOptions:
+      self.commands += ["USEFEATURE %s" % feature for feature in featureOptions.split(" ")]
+    else: self.commands.append("USEFEATURE ")
+    
+    # adds all of the valid SIGNAL options
+    # this can't yet be fetched dynamically, as per:
+    # https://trac.torproject.org/projects/tor/ticket/3842
+    
+    signals = ("RELOAD", "SHUTDOWN", "DUMP", "DEBUG", "HALT", "HUP", "INT",
+               "USR1", "USR2", "TERM", "NEWNYM", "CLEARDNSCACHE")
+    self.commands += ["SIGNAL %s" % sig for sig in signals]
+    
+    # shouldn't use AUTHENTICATE since we only provide the prompt with an
+    # authenticated controller connection
+    #self.commands.append("AUTHENTICATE")
+    
+    # other options
+    self.commands.append("SAVECONF")
+    self.commands.append("MAPADDRESS ")
+    self.commands.append("EXTENDCIRCUIT ")
+    self.commands.append("SETCIRCUITPURPOSE ")
+    self.commands.append("SETROUTERPURPOSE ")
+    self.commands.append("ATTACHSTREAM ")
+    self.commands.append("+POSTDESCRIPTOR ") # TODO: needs to support multiline options for this (ugg)
+    self.commands.append("REDIRECTSTREAM ")
+    self.commands.append("CLOSESTREAM ")
+    self.commands.append("CLOSECIRCUIT ")
+    self.commands.append("RESOLVE ")
+    self.commands.append("PROTOCOLINFO ")
+    self.commands.append("+LOADCONF") # TODO: another multiline...
+    self.commands.append("TAKEOWNERSHIP")
+    self.commands.append("QUIT") # TODO: give a confirmation when the user does this?
+  
+  def complete(self, text, state):
+    # provides case insensetive autocompletion options based on self.commands
+    for cmd in self.commands:
+      if cmd.lower().startswith(text.lower()):
+        if not state: return cmd
+        else: state -= 1
 
 def prompt():
   prompt = format(">>> ", Color.GREEN, Attr.BOLD)
   input = ""
+  
+  # sets up tab autocompetion
+  torCommands = TorCommandOptions()
+  readline.parse_and_bind("tab: complete")
+  readline.set_completer(torCommands.complete)
+  
+  # Essentially disables autocompletion by word delimiters. This is because
+  # autocompletion options are full commands (ex. "GETINFO version") so we want
+  # "GETINFO" to match to all the options rather than be treated as a complete
+  # command by itself.
+  
+  readline.set_completer_delims("\n")
   
   formatMap = {} # mapping of Format to Color and Attr enums
   formatMap[Formats.PROMPT] = (Attr.BOLD, Color.GREEN)
@@ -82,7 +183,13 @@ def prompt():
   formatMap[Formats.ERROR] = (Attr.BOLD, Color.RED)
   
   while input != "/quit":
-    input = raw_input(prompt)
+    try:
+      input = raw_input(prompt)
+    except:
+      # moves cursor to the next line and terminates (most commonly
+      # KeyboardInterrupt and EOFErro)
+      print
+      break
     
     _, outputEntry = handleQuery(input)
     
@@ -129,16 +236,19 @@ def handleQuery(input):
     if " " in input: cmd, arg = input.split(" ", 1)
     else: cmd, arg = input, ""
     
+    # makes commands uppercase to match the spec
+    cmd = cmd.upper()
+    
     inputEntry.append((cmd + " ", Formats.INPUT_CMD))
     if arg: inputEntry.append((arg, Formats.INPUT_ARG))
     
-    if cmd.upper() == "GETINFO":
+    if cmd == "GETINFO":
       try:
         response = conn.getInfo(arg, suppressExc = False)
         outputEntry.append((response, Formats.OUTPUT))
       except Exception, exc:
         outputEntry.append((str(exc), Formats.ERROR))
-    elif cmd.upper() == "SETCONF":
+    elif cmd == "SETCONF":
       if "=" in arg:
         param, value = arg.split("=", 1)
         
