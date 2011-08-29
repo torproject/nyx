@@ -8,9 +8,6 @@ import readline # simply importing this provides history to raw_input
 
 from util import enum, torTools
 
-PROMPT = ">>> "
-Formats = enum.Enum("PROMPT", "INPUT", "INPUT_INTERPRETOR", "INPUT_CMD", "INPUT_ARG", "OUTPUT", "USAGE", "HELP", "ERROR")
-
 TERM_COLORS = ("BLACK", "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "CYAN", "WHITE")
 
 Color = enum.Enum(*TERM_COLORS)
@@ -20,6 +17,16 @@ Attr = enum.Enum("BOLD", "UNDERLINE", "HILIGHT")
 FG_ENCODING = dict([(Color.values()[i], str(30 + i)) for i in range(8)])
 BG_ENCODING = dict([(BgColor.values()[i], str(40 + i)) for i in range(8)])
 ATTR_ENCODING = {Attr.BOLD: "1", Attr.UNDERLINE: "4", Attr.HILIGHT: "7"}
+
+PROMPT = (">>> ", (Attr.BOLD, Color.GREEN))
+INPUT_FORMAT = (Color.CYAN, )
+INPUT_INTERPRETOR_FORMAT = (Attr.BOLD, Color.MAGENTA)
+INPUT_CMD_FORMAT = (Attr.BOLD, Color.GREEN)
+INPUT_ARG_FORMAT = (Attr.BOLD, Color.CYAN)
+OUTPUT_FORMAT = (Color.BLUE, )
+USAGE_FORMAT = (Color.CYAN, )
+HELP_FORMAT = (Color.MAGENTA, )
+ERROR_FORMAT = (Attr.BOLD, Color.RED)
 
 CSI = "\x1B[%sm"
 RESET = CSI % "0"
@@ -64,7 +71,7 @@ def format(msg, *attr):
     return (CSI % ";".join(encodings)) + msg + RESET
   else: return msg
 
-class TorCommandOptions:
+class TorControlCompleter:
   """
   Command autocompleter, fetching the valid options from the attached Tor
   instance.
@@ -169,12 +176,96 @@ class TorCommandOptions:
         if not state: return cmd
         else: state -= 1
 
+class ControlInterpretor:
+  """
+  Interpretor that handles queries to the control port, providing usability
+  imporvements like irc style help optoins. This tracks input and responses.
+  """
+  
+  def __init__(self):
+    self.queries = []   # requests made, newest to oldest
+    self.contents = []  # (msg, format list) tuples of both input and output (oldest to newest)
+  
+  def handleQuery(self, input):
+    """
+    Processes the given input. Requests starting with a '/' are special
+    commands to the interpretor, and anything else is sent to the control port.
+    This returns an input/output tuple, each entry being a list of lines, each
+    line having a list of (msg, format) tuples for the content to be displayed.
+    This raises a InterpretorClosed if the interpretor should be shut down.
+    
+    Arguments:
+      input - user input to be processed
+    """
+    
+    input = input.strip()
+    inputEntry, outputEntry = [PROMPT], []
+    conn = torTools.getConn()
+    
+    # input falls into three general categories:
+    # - interpretor command which starts with a '/'
+    # - controller commands handled by torTools (this allows for caching,
+    #   proper handling by the rest of arm, etc)
+    # - unrecognized controller command, this has the possability of confusing
+    #   arm...
+    
+    if input.startswith("/"):
+      # interpretor command
+      inputEntry.append((input, INPUT_INTERPRETOR_FORMAT))
+      outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
+      
+      # TODO: add /help option
+      # TODO: add /write option
+    else:
+      # controller command
+      if " " in input: cmd, arg = input.split(" ", 1)
+      else: cmd, arg = input, ""
+      
+      # makes commands uppercase to match the spec
+      cmd = cmd.upper()
+      
+      inputEntry.append((cmd + " ", INPUT_CMD_FORMAT))
+      if arg: inputEntry.append((arg, INPUT_ARG_FORMAT))
+      
+      if cmd == "GETINFO":
+        try:
+          response = conn.getInfo(arg, suppressExc = False)
+          outputEntry.append((response, OUTPUT_FORMAT))
+        except Exception, exc:
+          outputEntry.append((str(exc), ERROR_FORMAT))
+      elif cmd == "SETCONF":
+        if "=" in arg:
+          param, value = arg.split("=", 1)
+          
+          try:
+            conn.setOption(param.strip(), value.strip())
+          except Exception, exc:
+            outputEntry.append((str(exc), ERROR_FORMAT))
+        else:
+          # TODO: resets the attribute
+          outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
+      else:
+        try:
+          response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
+          
+          for entry in response:
+            # Response entries are tuples with the response code, body, and
+            # extra info. For instance:
+            # ('250', 'version=0.2.2.23-alpha (git-b85eb949b528f4d7)', None)
+            
+            if len(entry) == 3:
+              outputEntry.append((entry[1], OUTPUT_FORMAT))
+        except Exception, exc:
+          outputEntry.append((str(exc), ERROR_FORMAT))
+    
+    return (_splitOnNewlines(inputEntry), _splitOnNewlines(outputEntry))
+
 def prompt():
   prompt = format(">>> ", Color.GREEN, Attr.BOLD)
   input = ""
   
   # sets up tab autocompetion
-  torCommands = TorCommandOptions()
+  torCommands = TorControlCompleter()
   readline.parse_and_bind("tab: complete")
   readline.set_completer(torCommands.complete)
   
@@ -184,17 +275,7 @@ def prompt():
   # command by itself.
   
   readline.set_completer_delims("\n")
-  
-  formatMap = {} # mapping of Format to Color and Attr enums
-  formatMap[Formats.PROMPT] = (Attr.BOLD, Color.GREEN)
-  formatMap[Formats.INPUT] = (Color.CYAN, )
-  formatMap[Formats.INPUT_INTERPRETOR] = (Attr.BOLD, Color.MAGENTA)
-  formatMap[Formats.INPUT_CMD] = (Attr.BOLD, Color.GREEN)
-  formatMap[Formats.INPUT_ARG] = (Attr.BOLD, Color.CYAN)
-  formatMap[Formats.OUTPUT] = (Color.BLUE, )
-  formatMap[Formats.USAGE] = (Color.CYAN, )
-  formatMap[Formats.HELP] = (Color.MAGENTA, )
-  formatMap[Formats.ERROR] = (Attr.BOLD, Color.RED)
+  interpretor = ControlInterpretor()
   
   while input != "/quit":
     try:
@@ -205,89 +286,15 @@ def prompt():
       print
       break
     
-    _, outputEntry = handleQuery(input)
+    _, outputEntry = interpretor.handleQuery(input)
     
     for line in outputEntry:
       outputLine = ""
       
       for msg, msgFormat in line:
-        outputLine += format(msg, *formatMap[msgFormat])
+        outputLine += format(msg, *msgFormat)
       
       print outputLine
-
-def handleQuery(input):
-  """
-  Processes the given input. Requests starting with a '/' are special
-  commands to the interpretor, and anything else is sent to the control port.
-  This returns an input/output tuple, each entry being a list of lines, each
-  line having a list of (msg, format) tuples for the content to be displayed.
-  This raises a InterpretorClosed if the interpretor should be shut down.
-  
-  Arguments:
-    input - user input to be processed
-  """
-  
-  input = input.strip()
-  inputEntry, outputEntry = [(PROMPT, Formats.PROMPT)], []
-  conn = torTools.getConn()
-  
-  # input falls into three general categories:
-  # - interpretor command which starts with a '/'
-  # - controller commands handled by torTools (this allows for caching,
-  #   proper handling by the rest of arm, etc)
-  # - unrecognized controller command, this has the possability of confusing
-  #   arm...
-  
-  if input.startswith("/"):
-    # interpretor command
-    inputEntry.append((input, Formats.INPUT_INTERPRETOR))
-    outputEntry.append(("Not yet implemented...", Formats.ERROR)) # TODO: implement
-    
-    # TODO: add /help option
-    # TODO: add /write option
-  else:
-    # controller command
-    if " " in input: cmd, arg = input.split(" ", 1)
-    else: cmd, arg = input, ""
-    
-    # makes commands uppercase to match the spec
-    cmd = cmd.upper()
-    
-    inputEntry.append((cmd + " ", Formats.INPUT_CMD))
-    if arg: inputEntry.append((arg, Formats.INPUT_ARG))
-    
-    if cmd == "GETINFO":
-      try:
-        response = conn.getInfo(arg, suppressExc = False)
-        outputEntry.append((response, Formats.OUTPUT))
-      except Exception, exc:
-        outputEntry.append((str(exc), Formats.ERROR))
-    elif cmd == "SETCONF":
-      if "=" in arg:
-        param, value = arg.split("=", 1)
-        
-        try:
-          conn.setOption(param.strip(), value.strip())
-        except Exception, exc:
-          outputEntry.append((str(exc), Formats.ERROR))
-      else:
-        # TODO: resets the attribute
-        outputEntry.append(("Not yet implemented...", Formats.ERROR)) # TODO: implement
-    else:
-      try:
-        response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
-        
-        for entry in response:
-          # Response entries are tuples with the response code, body, and
-          # extra info. For instance:
-          # ('250', 'version=0.2.2.23-alpha (git-b85eb949b528f4d7)', None)
-          
-          if len(entry) == 3:
-            outputEntry.append((entry[1], Formats.OUTPUT))
-      except Exception, exc:
-        outputEntry.append((str(exc), Formats.ERROR))
-  
-  return (_splitOnNewlines(inputEntry), _splitOnNewlines(outputEntry))
 
 def _splitOnNewlines(entry):
   """

@@ -8,7 +8,7 @@ import curses
 from util import panel, textInput, torInterpretor, uiTools
 
 USAGE_INFO = "to use this panel press enter"
-PROMPT_LINE = [(torInterpretor.PROMPT, torInterpretor.Formats.PROMPT), (USAGE_INFO, torInterpretor.Formats.USAGE)]
+PROMPT_LINE = [torInterpretor.PROMPT, (USAGE_INFO, torInterpretor.USAGE_FORMAT)]
 
 # limits used for cropping
 BACKLOG_LIMIT = 100
@@ -17,34 +17,37 @@ LINES_LIMIT = 2000
 # lazy loaded curses formatting constants
 FORMATS = {}
 
-def getFormat(format):
+def getFormat(formatAttr):
   """
-  Provides the curses drawing attributes for a torInterpretor.Formats enum.
-  This returns plain formatting if the entry doesn't exist.
+  Provides the curses drawing attributes for torInterpretor formatting
+  attributes.
   
   Arguments:
-    format - format enum to fetch
+    formatAttr - list of formatting attributes
   """
   
   # initializes formats if they haven't yet been loaded
   if not FORMATS:
-    FORMATS[torInterpretor.Formats.PROMPT] = curses.A_BOLD | uiTools.getColor("green")
-    FORMATS[torInterpretor.Formats.INPUT] = uiTools.getColor("cyan")
-    FORMATS[torInterpretor.Formats.INPUT_INTERPRETOR] = curses.A_BOLD | uiTools.getColor("magenta")
-    FORMATS[torInterpretor.Formats.INPUT_CMD] = curses.A_BOLD | uiTools.getColor("green")
-    FORMATS[torInterpretor.Formats.INPUT_ARG] = curses.A_BOLD | uiTools.getColor("cyan")
-    FORMATS[torInterpretor.Formats.OUTPUT] = uiTools.getColor("blue")
-    FORMATS[torInterpretor.Formats.USAGE] = uiTools.getColor("cyan")
-    FORMATS[torInterpretor.Formats.HELP] = uiTools.getColor("magenta")
-    FORMATS[torInterpretor.Formats.ERROR] = curses.A_BOLD | uiTools.getColor("red")
+    for colorEnum in torInterpretor.Color.values():
+      FORMATS[colorEnum] = uiTools.getColor(colorEnum.lower())
+    
+    FORMATS[torInterpretor.Attr.BOLD] = curses.A_BOLD
+    FORMATS[torInterpretor.Attr.UNDERLINE] = curses.A_UNDERLINE
+    FORMATS[torInterpretor.Attr.HILIGHT] = curses.A_STANDOUT
   
-  return FORMATS.get(format, curses.A_NORMAL)
+  cursesFormatting = curses.A_NORMAL
+  
+  for attr in formatAttr:
+    cursesFormatting |= FORMATS.get(attr, curses.A_NORMAL)
+  
+  return cursesFormatting
 
 class InterpretorPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "interpretor", 0)
     self.isInputMode = False
     self.scroll = 0
+    self.interpretor = torInterpretor.ControlInterpretor()
     self.previousCommands = []     # user input, newest to oldest
     self.contents = [PROMPT_LINE]  # (msg, format enum) tuples being displayed (oldest to newest)
   
@@ -61,18 +64,18 @@ class InterpretorPanel(panel.Panel):
       self.redraw(True)
       
       # intercepts input so user can cycle through the history
-      torCommands = torInterpretor.TorCommandOptions()
+      torCommands = torInterpretor.TorControlCompleter()
       
       validator = textInput.BasicValidator()
       validator = textInput.HistoryValidator(self.previousCommands, validator)
       validator = textInput.TabCompleter(torCommands.getMatches, validator)
       
-      xOffset = len(torInterpretor.PROMPT)
+      xOffset = len(torInterpretor.PROMPT[0])
       if len(self.contents) > self.maxY - 1:
         xOffset += 3 # offset for scrollbar
       
       inputLine = min(self.maxY - 1, len(self.contents))
-      inputFormat = getFormat(torInterpretor.Formats.INPUT)
+      inputFormat = getFormat(torInterpretor.INPUT_FORMAT)
       input = self.getstr(inputLine, xOffset, "", inputFormat, validator = validator)
       input, isDone = input.strip(), False
       
@@ -84,7 +87,7 @@ class InterpretorPanel(panel.Panel):
         self.previousCommands = self.previousCommands[:BACKLOG_LIMIT]
         
         try:
-          inputEntry, outputEntry = torInterpretor.handleQuery(input)
+          inputEntry, outputEntry = self.interpretor.handleQuery(input)
         except torInterpretor.InterpretorClosed:
           isDone = True
         
