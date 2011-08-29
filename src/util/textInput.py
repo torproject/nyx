@@ -4,6 +4,7 @@ These can be chained together with the first matching validator taking
 precidence.
 """
 
+import os
 import curses
 
 PASS = -1
@@ -165,18 +166,28 @@ class TabCompleter(TextInputValidator):
     # Matches against the tab key. The ord('\t') is nine, though strangely none
     # of the curses.KEY_*TAB constants match this...
     if key == 9:
-      matches = self.completer(textbox.gather().strip())
+      currentContents = textbox.gather().strip()
+      matches = self.completer(currentContents)
+      newInput = None
       
       if len(matches) == 1:
         # only a single match, fill it in
         newInput = matches[0]
+      elif len(matches) > 1:
+        # looks for a common prefix we can complete
+        commonPrefix = os.path.commonprefix(matches) # weird that this comes from path...
+        
+        if commonPrefix != currentContents:
+          newInput = commonPrefix
+        
+        # TODO: somehow display matches... this is not gonna be fun
+      
+      if newInput:
         y, _ = textbox.win.getyx()
         _, maxX = textbox.win.getmaxyx()
         textbox.win.clear()
         textbox.win.addstr(y, 0, newInput[:maxX - 1])
         textbox.win.move(y, min(len(newInput), maxX - 1))
-      elif len(matches) > 1:
-        pass # TODO: somehow display matches... this is not gonna be fun
       
       return None
     
