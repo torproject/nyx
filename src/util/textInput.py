@@ -148,3 +148,37 @@ class HistoryValidator(TextInputValidator):
     
     return PASS
 
+class TabCompleter(TextInputValidator):
+  """
+  Provides tab completion based on the current input, finishing if there's only
+  a single match. This expects a functor that accepts the current input and
+  provides matches.
+  """
+  
+  def __init__(self, completer, nextValidator = None):
+    TextInputValidator.__init__(self, nextValidator)
+    
+    # functor that accepts a string and gives a list of matches
+    self.completer = completer
+  
+  def handleKey(self, key, textbox):
+    # Matches against the tab key. The ord('\t') is nine, though strangely none
+    # of the curses.KEY_*TAB constants match this...
+    if key == 9:
+      matches = self.completer(textbox.gather().strip())
+      
+      if len(matches) == 1:
+        # only a single match, fill it in
+        newInput = matches[0]
+        y, _ = textbox.win.getyx()
+        _, maxX = textbox.win.getmaxyx()
+        textbox.win.clear()
+        textbox.win.addstr(y, 0, newInput[:maxX - 1])
+        textbox.win.move(y, min(len(newInput), maxX - 1))
+      elif len(matches) > 1:
+        pass # TODO: somehow display matches... this is not gonna be fun
+      
+      return None
+    
+    return PASS
+

@@ -61,8 +61,11 @@ class InterpretorPanel(panel.Panel):
       self.redraw(True)
       
       # intercepts input so user can cycle through the history
+      torCommands = torInterpretor.TorCommandOptions()
+      
       validator = textInput.BasicValidator()
       validator = textInput.HistoryValidator(self.previousCommands, validator)
+      validator = textInput.TabCompleter(torCommands.getMatches, validator)
       
       xOffset = len(torInterpretor.PROMPT)
       if len(self.contents) > self.maxY - 1:

@@ -148,8 +148,22 @@ class TorCommandOptions:
     self.commands.append("TAKEOWNERSHIP")
     self.commands.append("QUIT") # TODO: give a confirmation when the user does this?
   
+  def getMatches(self, text):
+    """
+    Provides all options that match the given input.
+    
+    Arguments:
+      text - user input text to be matched against
+    """
+    
+    return [cmd for cmd in self.commands if cmd.lower().startswith(text.lower())]
+  
   def complete(self, text, state):
-    # provides case insensetive autocompletion options based on self.commands
+    """
+    Provides case insensetive autocompletion options, acting as a functor for
+    the readlines set_completer function.
+    """
+    
     for cmd in self.commands:
       if cmd.lower().startswith(text.lower()):
         if not state: return cmd
