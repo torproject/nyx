@@ -10,17 +10,12 @@ from util import panel, textInput, torInterpretor, uiTools
 USAGE_INFO = "to use this panel press enter"
 PROMPT_LINE = [torInterpretor.PROMPT, (USAGE_INFO, torInterpretor.USAGE_FORMAT)]
 
-# limits used for cropping
-BACKLOG_LIMIT = 100
-LINES_LIMIT = 2000
-
-# lazy loaded curses formatting constants
+# lazy loaded mapping of interpretor attributes to curses formatting constants
 FORMATS = {}
 
 def getFormat(formatAttr):
   """
-  Provides the curses drawing attributes for torInterpretor formatting
-  attributes.
+  Provides the curses drawing attributes for torInterpretor formats.
   
   Arguments:
     formatAttr - list of formatting attributes
@@ -45,11 +40,10 @@ def getFormat(formatAttr):
 class InterpretorPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "interpretor", 0)
+    self.interpretor = torInterpretor.ControlInterpretor()
+    self.inputCompleter = torInterpretor.TorControlCompleter()
     self.isInputMode = False
     self.scroll = 0
-    self.interpretor = torInterpretor.ControlInterpretor()
-    self.previousCommands = []     # user input, newest to oldest
-    self.contents = [PROMPT_LINE]  # (msg, format enum) tuples being displayed (oldest to newest)
   
   def prompt(self):
     """
@@ -64,17 +58,16 @@ class InterpretorPanel(panel.Panel):
       self.redraw(True)
       
       # intercepts input so user can cycle through the history
-      torCommands = torInterpretor.TorControlCompleter()
-      
       validator = textInput.BasicValidator()
-      validator = textInput.HistoryValidator(self.previousCommands, validator)
-      validator = textInput.TabCompleter(torCommands.getMatches, validator)
+      validator = textInput.HistoryValidator(list(reversed(self.interpretor.getBacklog())), validator)
+      validator = textInput.TabCompleter(self.inputCompleter.getMatches, validator)
       
       xOffset = len(torInterpretor.PROMPT[0])
-      if len(self.contents) > self.maxY - 1:
+      displayLength = len(self.interpretor.getDisplayContents(PROMPT_LINE))
+      if displayLength > self.maxY - 1:
         xOffset += 3 # offset for scrollbar
       
-      inputLine = min(self.maxY - 1, len(self.contents))
+      inputLine = min(self.maxY - 1, displayLength)
       inputFormat = getFormat(torInterpretor.INPUT_FORMAT)
       input = self.getstr(inputLine, xOffset, "", inputFormat, validator = validator)
       input, isDone = input.strip(), False
@@ -83,22 +76,10 @@ class InterpretorPanel(panel.Panel):
         # terminate input when we get a blank line
         isDone = True
       else:
-        self.previousCommands.insert(0, input)
-        self.previousCommands = self.previousCommands[:BACKLOG_LIMIT]
-        
         try:
           inputEntry, outputEntry = self.interpretor.handleQuery(input)
         except torInterpretor.InterpretorClosed:
           isDone = True
-        
-        promptEntry = self.contents.pop() # removes old prompt entry
-        self.contents += inputEntry
-        self.contents += outputEntry
-        self.contents.append(promptEntry)
-        
-        # if too long then crop lines
-        cropLines = len(self.contents) - LINES_LIMIT
-        if cropLines > 0: self.contents = self.contents[cropLines:]
       
       if isDone:
         self.isInputMode = False
@@ -112,7 +93,8 @@ class InterpretorPanel(panel.Panel):
       self.prompt()
     elif uiTools.isScrollKey(key) and not self.isInputMode:
       pageHeight = self.getPreferredSize()[0] - 1
-      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, len(self.contents))
+      displayLength = len(self.interpretor.getDisplayContents(PROMPT_LINE))
+      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, displayLength)
       
       if self.scroll != newScroll:
         self.scroll = newScroll
@@ -127,17 +109,18 @@ class InterpretorPanel(panel.Panel):
     self.addstr(0, 0, "Control Interpretor%s:" % usageMsg, curses.A_STANDOUT)
     
     xOffset = 0
-    if len(self.contents) > height - 1:
+    displayContents = self.interpretor.getDisplayContents(PROMPT_LINE)
+    if len(displayContents) > height - 1:
       # if we're in input mode then make sure the last line is visible
       if self.isInputMode:
-        self.scroll = len(self.contents) - height + 1
+        self.scroll = len(displayContents) - height + 1
       
       xOffset = 3
-      self.addScrollBar(self.scroll, self.scroll + height - 1, len(self.contents), 1)
+      self.addScrollBar(self.scroll, self.scroll + height - 1, len(displayContents), 1)
     
     # draws prior commands and output
     drawLine = 1
-    for entry in self.contents[self.scroll:]:
+    for entry in displayContents[self.scroll:]:
       cursor = xOffset
       
       for msg, formatEntry in entry:

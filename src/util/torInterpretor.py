@@ -31,6 +31,10 @@ ERROR_FORMAT = (Attr.BOLD, Color.RED)
 CSI = "\x1B[%sm"
 RESET = CSI % "0"
 
+# limits used for cropping
+BACKLOG_LIMIT = 100
+CONTENT_LIMIT = 2000
+
 class InterpretorClosed(Exception):
   """
   Exception raised when the interpretor should be shut down.
@@ -92,11 +96,10 @@ class TorControlCompleter:
           if line.startswith("config/*") or line.startswith("dir-usage"):
             continue
           
-          # strips off the ending asterisk if it accepts a value
           infoOpt = line.split(" ", 1)[0]
           
-          if infoOpt.endswith("*"):
-            infoOpt = infoOpt[:-1]
+          # strips off the ending asterisk if it accepts a value
+          if infoOpt.endswith("*"): infoOpt = infoOpt[:-1]
           
           self.commands.append("GETINFO %s" % infoOpt)
     else: self.commands.append("GETINFO ")
@@ -157,7 +160,7 @@ class TorControlCompleter:
   
   def getMatches(self, text):
     """
-    Provides all options that match the given input.
+    Provides all options that match the given input. This is case insensetive.
     
     Arguments:
       text - user input text to be matched against
@@ -171,10 +174,9 @@ class TorControlCompleter:
     the readlines set_completer function.
     """
     
-    for cmd in self.commands:
-      if cmd.lower().startswith(text.lower()):
-        if not state: return cmd
-        else: state -= 1
+    for cmd in self.getMatches(text):
+      if not state: return cmd
+      else: state -= 1
 
 class ControlInterpretor:
   """
@@ -183,8 +185,29 @@ class ControlInterpretor:
   """
   
   def __init__(self):
-    self.queries = []   # requests made, newest to oldest
-    self.contents = []  # (msg, format list) tuples of both input and output (oldest to newest)
+    self.backlog = []   # prior requests the user has made
+    self.contents = []  # (msg, format list) tuples for what's been displayed
+  
+  def getBacklog(self):
+    """
+    Provides the backlog of prior user input.
+    """
+    
+    return self.backlog
+  
+  def getDisplayContents(self, appendPrompt = None):
+    """
+    Provides a list of lines to be displayed, each being a list of (msg,
+    format) tuples for the content to be displayed. This is ordered as the
+    oldest to newest.
+    
+    Arguments:
+      appendPrompt - adds the given line to the end
+    """
+    
+    if appendPrompt:
+      return self.contents + [appendPrompt]
+    else: return self.contents
   
   def handleQuery(self, input):
     """
@@ -199,6 +222,12 @@ class ControlInterpretor:
     """
     
     input = input.strip()
+    
+    # appends new input, cropping if too long
+    self.backlog.append(input)
+    backlogCrop = len(self.backlog) - BACKLOG_LIMIT
+    if backlogCrop > 0: self.backlog = self.backlog[backlogCrop:]
+    
     inputEntry, outputEntry = [PROMPT], []
     conn = torTools.getConn()
     
@@ -258,7 +287,16 @@ class ControlInterpretor:
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
     
-    return (_splitOnNewlines(inputEntry), _splitOnNewlines(outputEntry))
+    # converts to lists split on newlines
+    inputLines = _splitOnNewlines(inputEntry)
+    outputLines = _splitOnNewlines(outputEntry)
+    
+    # appends new contents, cropping if too long
+    self.contents += inputLines + outputLines
+    cropLines = len(self.contents) - CONTENT_LIMIT
+    if cropLines > 0: self.contents = self.contents[cropLines:]
+    
+    return (inputLines, outputLines)
 
 def prompt():
   prompt = format(">>> ", Color.GREEN, Attr.BOLD)
