@@ -6,7 +6,13 @@ directly, history and tab completion.
 
 import readline # simply importing this provides history to raw_input
 
+import version
+
 from util import enum, torTools
+
+INIT_MSG = """Arm %s Control Interpretor
+Enter \"/help\" for usage information and \"/quit\" to stop.
+""" % version.VERSION
 
 TERM_COLORS = ("BLACK", "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "CYAN", "WHITE")
 
@@ -318,6 +324,8 @@ def prompt():
   
   readline.set_completer_delims("\n")
   interpretor = ControlInterpretor()
+  
+  print INIT_MSG
   
   while True:
     try:
