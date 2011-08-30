@@ -241,7 +241,11 @@ class ControlInterpretor:
     if input.startswith("/"):
       # interpretor command
       inputEntry.append((input, INPUT_INTERPRETOR_FORMAT))
-      outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
+      
+      if input == "/quit":
+        raise InterpretorClosed()
+      else:
+        outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
       
       # TODO: add /help option
       # TODO: add /write option
@@ -315,16 +319,15 @@ def prompt():
   readline.set_completer_delims("\n")
   interpretor = ControlInterpretor()
   
-  while input != "/quit":
+  while True:
     try:
       input = raw_input(prompt)
+      _, outputEntry = interpretor.handleQuery(input)
     except:
       # moves cursor to the next line and terminates (most commonly
       # KeyboardInterrupt and EOFErro)
       print
       break
-    
-    _, outputEntry = interpretor.handleQuery(input)
     
     for line in outputEntry:
       outputLine = ""
