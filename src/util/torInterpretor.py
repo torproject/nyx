@@ -4,6 +4,7 @@ adds usability features like IRC style interpretor commands and, when ran
 directly, history and tab completion.
 """
 
+import re
 import readline
 
 import version
@@ -39,7 +40,7 @@ RESET = CSI % "0"
 
 # limits used for cropping
 BACKLOG_LIMIT = 100
-CONTENT_LIMIT = 2000
+CONTENT_LIMIT = 20000
 
 class InterpretorClosed(Exception):
   """
@@ -193,7 +194,7 @@ class ControlInterpretor:
   def __init__(self):
     self.backlog = []   # prior requests the user has made
     self.contents = []  # (msg, format list) tuples for what's been displayed
-    self.lastWritePath = "/tmp/torInterpretor_output"
+    self.writePath = "/tmp/torInterpretor_output" # last location we've saved to
   
   def getBacklog(self):
     """
@@ -263,34 +264,61 @@ class ControlInterpretor:
     # - unrecognized controller command, this has the possability of confusing
     #   arm...
     
-    if input.startswith("/"):
+    if " " in input: cmd, arg = input.split(" ", 1)
+    else: cmd, arg = input, ""
+    
+    if cmd.startswith("/"):
       # interpretor command
       inputEntry.append((input, INPUT_INTERPRETOR_FORMAT))
       
-      if input == "/quit":
+      if cmd == "/quit":
         raise InterpretorClosed()
-      elif input.startswith("/write"):
-        if " " in input: writePath = input.split(" ", 1)[1]
-        else: writePath = self.lastWritePath
+      elif cmd == "/write":
+        if arg: self.writePath = arg
         
         try:
-          self.writeContents(writePath)
-          outputEntry.append(("Interpretor backlog written to: %s" % writePath, OUTPUT_FORMAT))
+          self.writeContents(self.writePath)
+          outputEntry.append(("Interpretor backlog written to: %s" % self.writePath, OUTPUT_FORMAT))
         except IOError, exc:
-          outputEntry.append(("Unable to write to '%s': %s" % (writePath, exc), ERROR_FORMAT))
+          outputEntry.append(("Unable to write to '%s': %s" % (self.writePath, exc), ERROR_FORMAT))
+      elif cmd == "/find":
+        argMatcher = None
         
-        self.lastWritePath = writePath
+        if not arg:
+          outputEntry.append(("Nothing to match against", ERROR_FORMAT))
+        else:
+          try: argMatcher = re.compile("(%s)" % arg)
+          except: outputEntry.append(("Unable to compile regex '%s'" % arg, ERROR_FORMAT))
+        
+        if argMatcher:
+          printedLines = []
+          
+          for line in self.contents:
+            lineText = "".join([msg for msg, _ in line])
+            
+            # skip if this was user input or a duplicate
+            if lineText.startswith(PROMPT[0]) or lineText in printedLines:
+              continue
+            
+            match = argMatcher.search(lineText)
+            if match:
+              # outputs the matching line, with the match itself bolded
+              outputEntry.append((lineText[:match.start()], OUTPUT_FORMAT))
+              outputEntry.append((match.group(), (OUTPUT_FORMAT + (Attr.BOLD, ))))
+              outputEntry.append((lineText[match.end():] + "\n", OUTPUT_FORMAT))
+              printedLines.append(lineText)
       else:
         outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
+      
+      # appends a newline so all interpretor commands have a blank before the prompt
+      if outputEntry:
+        lastEntry = outputEntry[-1]
+        outputEntry[-1] = (lastEntry[0].rstrip() + "\n", lastEntry[1])
       
       # TODO: add /help option
     else:
       # controller command
-      if " " in input: cmd, arg = input.split(" ", 1)
-      else: cmd, arg = input, ""
-      
-      # makes commands uppercase to match the spec
-      cmd = cmd.upper()
+      cmd = cmd.upper() # makes commands uppercase to match the spec
       
       inputEntry.append((cmd + " ", INPUT_CMD_FORMAT))
       if arg: inputEntry.append((arg, INPUT_ARG_FORMAT))
