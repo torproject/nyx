@@ -4,7 +4,7 @@ adds usability features like IRC style interpretor commands and, when ran
 directly, history and tab completion.
 """
 
-import readline # simply importing this provides history to raw_input
+import readline
 
 import version
 
@@ -193,6 +193,7 @@ class ControlInterpretor:
   def __init__(self):
     self.backlog = []   # prior requests the user has made
     self.contents = []  # (msg, format list) tuples for what's been displayed
+    self.lastWritePath = "/tmp/torInterpretor_output"
   
   def getBacklog(self):
     """
@@ -214,6 +215,24 @@ class ControlInterpretor:
     if appendPrompt:
       return self.contents + [appendPrompt]
     else: return self.contents
+  
+  def writeContents(self, path):
+    """
+    Attempts to write the display contents to a given path, raising an IOError
+    if unsuccessful.
+    
+    Arguments:
+      path - location to write the interpretor content to
+    """
+    
+    outputLines = []
+    
+    for line in self.contents:
+      outputLines.append("".join([msg for msg, _ in line]))
+    
+    outputFile = open(path, "w")
+    outputFile.write("\n".join(outputLines))
+    outputFile.close()
   
   def handleQuery(self, input):
     """
@@ -250,11 +269,21 @@ class ControlInterpretor:
       
       if input == "/quit":
         raise InterpretorClosed()
+      elif input.startswith("/write"):
+        if " " in input: writePath = input.split(" ", 1)[1]
+        else: writePath = self.lastWritePath
+        
+        try:
+          self.writeContents(writePath)
+          outputEntry.append(("Interpretor backlog written to: %s" % writePath, OUTPUT_FORMAT))
+        except IOError, exc:
+          outputEntry.append(("Unable to write to '%s': %s" % (writePath, exc), ERROR_FORMAT))
+        
+        self.lastWritePath = writePath
       else:
         outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
       
       # TODO: add /help option
-      # TODO: add /write option
     else:
       # controller command
       if " " in input: cmd, arg = input.split(" ", 1)
