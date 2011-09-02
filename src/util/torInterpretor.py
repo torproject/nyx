@@ -217,23 +217,57 @@ class ControlInterpretor:
       return self.contents + [appendPrompt]
     else: return self.contents
   
-  def writeContents(self, path):
+  def doWrite(self, arg, outputEntry):
     """
-    Attempts to write the display contents to a given path, raising an IOError
-    if unsuccessful.
-    
-    Arguments:
-      path - location to write the interpretor content to
+    Performs the '/write' operation, which attempts to save the backlog to a
+    given path, defaulting to the last location we write to.
     """
     
+    if arg: self.writePath = arg
     outputLines = []
     
     for line in self.contents:
       outputLines.append("".join([msg for msg, _ in line]))
     
-    outputFile = open(path, "w")
-    outputFile.write("\n".join(outputLines))
-    outputFile.close()
+    try:
+      outputFile = open(self.writePath, "w")
+      outputFile.write("\n".join(outputLines))
+      outputFile.close()
+      outputEntry.append(("Interpretor backlog written to: %s" % self.writePath, OUTPUT_FORMAT))
+    except IOError, exc:
+      outputEntry.append(("Unable to write to '%s': %s" % (self.writePath, exc), ERROR_FORMAT))
+  
+  def doFind(self, arg, outputEntry):
+    """
+    Performs the '/find' operation, which lists output from the backlog which
+    matches the given regex. Results are deduplicated and matches are bolded.
+    """
+    
+    argMatcher = None
+    
+    if not arg:
+      outputEntry.append(("Nothing to match against", ERROR_FORMAT))
+    else:
+      try: argMatcher = re.compile("(%s)" % arg)
+      except: outputEntry.append(("Unable to compile regex '%s'" % arg, ERROR_FORMAT))
+    
+    if argMatcher:
+      printedLines = []
+      
+      for line in self.contents:
+        lineText = "".join([msg for msg, _ in line])
+        
+        # skip if this was user input or a duplicate
+        if lineText.startswith(PROMPT[0]) or lineText in printedLines:
+          continue
+        
+        match = argMatcher.search(lineText)
+        if match:
+          # outputs the matching line, with the match itself bolded
+          outputEntry.append((lineText[:match.start()], OUTPUT_FORMAT))
+          outputEntry.append((match.group(), (OUTPUT_FORMAT + (Attr.BOLD, ))))
+          outputEntry.append((lineText[match.end():] + "\n", OUTPUT_FORMAT))
+          printedLines.append(lineText)
   
   def handleQuery(self, input):
     """
@@ -271,42 +305,9 @@ class ControlInterpretor:
       # interpretor command
       inputEntry.append((input, INPUT_INTERPRETOR_FORMAT))
       
-      if cmd == "/quit":
-        raise InterpretorClosed()
-      elif cmd == "/write":
-        if arg: self.writePath = arg
-        
-        try:
-          self.writeContents(self.writePath)
-          outputEntry.append(("Interpretor backlog written to: %s" % self.writePath, OUTPUT_FORMAT))
-        except IOError, exc:
-          outputEntry.append(("Unable to write to '%s': %s" % (self.writePath, exc), ERROR_FORMAT))
-      elif cmd == "/find":
-        argMatcher = None
-        
-        if not arg:
-          outputEntry.append(("Nothing to match against", ERROR_FORMAT))
-        else:
-          try: argMatcher = re.compile("(%s)" % arg)
-          except: outputEntry.append(("Unable to compile regex '%s'" % arg, ERROR_FORMAT))
-        
-        if argMatcher:
-          printedLines = []
-          
-          for line in self.contents:
-            lineText = "".join([msg for msg, _ in line])
-            
-            # skip if this was user input or a duplicate
-            if lineText.startswith(PROMPT[0]) or lineText in printedLines:
-              continue
-            
-            match = argMatcher.search(lineText)
-            if match:
-              # outputs the matching line, with the match itself bolded
-              outputEntry.append((lineText[:match.start()], OUTPUT_FORMAT))
-              outputEntry.append((match.group(), (OUTPUT_FORMAT + (Attr.BOLD, ))))
-              outputEntry.append((lineText[match.end():] + "\n", OUTPUT_FORMAT))
-              printedLines.append(lineText)
+      if cmd == "/quit": raise InterpretorClosed()
+      elif cmd == "/write": self.doWrite(arg, outputEntry)
+      elif cmd == "/find": self.doFind(arg, outputEntry)
       else:
         outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
       
