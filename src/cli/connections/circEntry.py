@@ -13,32 +13,6 @@ import curses
 from cli.connections import entries, connEntry
 from util import torTools, uiTools
 
-# cached fingerprint -> (IP Address, ORPort) results
-RELAY_INFO = {}
-
-def getRelayInfo(fingerprint):
-  """
-  Provides the (IP Address, ORPort) tuple for the given relay. If the lookup
-  fails then this returns ("192.168.0.1", "0").
-  
-  Arguments:
-    fingerprint - relay to look up
-  """
-  
-  if not fingerprint in RELAY_INFO:
-    conn = torTools.getConn()
-    failureResult = ("192.168.0.1", "0")
-    
-    nsEntry = conn.getConsensusEntry(fingerprint)
-    if not nsEntry: return failureResult
-    
-    nsLineComp = nsEntry.split("\n")[0].split(" ")
-    if len(nsLineComp) < 8: return failureResult
-    
-    RELAY_INFO[fingerprint] = (nsLineComp[6], nsLineComp[7])
-  
-  return RELAY_INFO[fingerprint]
-
 class CircEntry(connEntry.ConnectionEntry):
   def __init__(self, circuitID, status, purpose, path):
     connEntry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
@@ -72,14 +46,15 @@ class CircEntry(connEntry.ConnectionEntry):
     
     self.status = status
     self.lines = [self.lines[0]]
+    conn = torTools.getConn()
     
     if status == "BUILT" and not self.lines[0].isBuilt:
-      exitIp, exitORPort = getRelayInfo(path[-1])
+      exitIp, exitORPort = conn.getRelayAddress(path[-1], ("192.168.0.1", "0"))
       self.lines[0].setExit(exitIp, exitORPort, path[-1])
     
     for i in range(len(path)):
       relayFingerprint = path[i]
-      relayIp, relayOrPort = getRelayInfo(relayFingerprint)
+      relayIp, relayOrPort = conn.getRelayAddress(relayFingerprint, ("192.168.0.1", "0"))
       
       if i == len(path) - 1:
         if status == "BUILT": placementType = "Exit"

@@ -389,6 +389,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._nicknameToFpLookupCache = {}  # lookup cache with nickname -> fingerprint mappings
+    self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
@@ -462,6 +463,7 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
       self._nicknameToFpLookupCache = {}
+      self._addressLookupCache = {}
       self._consensusLookupCache = {}
       self._descriptorLookupCache = {}
       
@@ -1248,6 +1250,44 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
+  def getRelayAddress(self, relayFingerprint, default = None):
+    """
+    Provides the (IP Address, ORPort) tuple for a given relay. If the lookup
+    fails then this returns the default.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # query the address if it isn't yet cached
+      if not relayFingerprint in self._addressLookupCache:
+        if relayFingerprint == self.getInfo("fingerprint"):
+          # this is us, simply check the config
+          myAddress = self.getInfo("address")
+          myOrPort = self.getOption("ORPort")
+          
+          if myAddress and myOrPort:
+            self._addressLookupCache[relayFingerprint] = (myAddress, myOrPort)
+        else:
+          # check the consensus for the relay
+          nsEntry = self.getConsensusEntry(relayFingerprint)
+          
+          if nsEntry:
+            nsLineComp = nsEntry.split("\n")[0].split(" ")
+            
+            if len(nsLineComp) >= 8:
+              self._addressLookupCache[relayFingerprint] = (nsLineComp[6], nsLineComp[7])
+      
+      result = self._addressLookupCache.get(relayFingerprint, default)
+    
+    self.connLock.release()
+    
+    return result
+  
   def getNicknameFingerprint(self, relayNickname):
     """
     Provides the fingerprint associated with the given relay. This provides
@@ -1590,6 +1630,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintsAttachedCache = None
     self._nicknameLookupCache = {}
     self._nicknameToFpLookupCache = {}
+    self._addressLookupCache = {}
     self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
