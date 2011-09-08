@@ -1913,8 +1913,11 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    # Checks that the value is unset and we're running. One exception to this
+    # is the pathPrefix which doesn't depend on having a connection and may be
+    # needed for the init.
     currentVal, result = self._cachedParam.get(key), None
-    if currentVal == None and self.isAlive():
+    if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
         myFingerprint = self.getInfo("fingerprint")

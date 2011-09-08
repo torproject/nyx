@@ -225,6 +225,11 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
         try: conn._cookiePath = util.sysTools.expandRelativePath(authValue, torPid)
         except IOError: pass
     
+    # appends the path prefix if it's set
+    if authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
+      pathPrefix = util.torTools.getConn().getPathPrefix()
+      authValue = os.path.join(pathPrefix, authValue)
+    
     conn.authenticate(authValue)
     return conn
   except Exception, exc:
