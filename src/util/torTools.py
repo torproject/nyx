@@ -14,7 +14,7 @@ import Queue
 
 from TorCtl import TorCtl, TorUtil
 
-from util import enum, log, procTools, sysTools, uiTools
+from util import connections, enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -1117,10 +1117,10 @@ class Controller(TorCtl.PostEventListener):
         isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
         
         if isPrivateRejected:
-          result = ExitPolicy("reject private", result)
-          
           myAddress = self.getInfo("address")
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+          
+          result = ExitPolicy("reject private", result)
       else:
         # no ORPort is set so all relaying is disabled
         result = ExitPolicy("reject *:*", None)
@@ -1245,6 +1245,78 @@ class Controller(TorCtl.PostEventListener):
           self._nicknameLookupCache[relayFingerprint] = relayNickname
       
       result = self._nicknameLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayExitPolicy(self, relayFingerprint, allowImprecision = True):
+    """
+    Provides the ExitPolicy instance associated with the given relay. The tor
+    consensus entries don't indicate if private addresses are rejected or
+    address-specific policies, so this is only used as a fallback if a recent
+    descriptor is unavailable. This returns None if unable to determine the
+    policy.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+      allowImprecision - make use of consensus policies as a fallback
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # attempts to fetch the policy via the descriptor
+      descriptor = self.getDescriptorEntry(relayFingerprint)
+      
+      if descriptor:
+        exitPolicyEntries = []
+        for line in descriptor.split("\n"):
+          if line.startswith("accept ") or line.startswith("reject "):
+            exitPolicyEntries.append(line)
+        
+        # construct the policy chain
+        for entry in reversed(exitPolicyEntries):
+          result = ExitPolicy(entry, result)
+      elif allowImprecision:
+        # Falls back to using the consensus entry, which is both less precise
+        # and unavailable with older tor versions. This assumes that the relay
+        # has ExitPolicyRejectPrivate set and won't include address-specific
+        # policies.
+        
+        consensusLine, relayAddress = None, None
+        
+        nsEntry = self.getConsensusEntry(relayFingerprint)
+        if nsEntry:
+          for line in nsEntry.split("\n"):
+            if line.startswith("r "):
+              # fetch the relay's public address, which we'll need for the
+              # ExitPolicyRejectPrivate policy entry
+              
+              lineComp = line.split(" ")
+              if len(lineComp) >= 7 and connections.isValidIpAddress(lineComp[6]):
+                relayAddress = lineComp[6]
+            elif line.startswith("p "):
+              consensusLine = line
+              break
+        
+        if consensusLine:
+          acceptance, ports = consensusLine.split(" ")[1:]
+          
+          # starts with a reject-all for whitelists and accept-all for blacklists
+          if acceptance == "accept":
+            result = ExitPolicy("reject *:*", None)
+          else:
+            result = ExitPolicy("accept *:*", None)
+          
+          # adds each of the ports listed in the consensus
+          for port in reversed(ports.split(",")):
+            result = ExitPolicy("%s *:%s" % (acceptance, port), result)
+          
+          # adds ExitPolicyRejectPrivate since this is the default
+          if relayAddress: result = ExitPolicy("reject %s" % relayAddress, result)
+          result = ExitPolicy("reject private", result)
     
     self.connLock.release()
     
