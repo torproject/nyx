@@ -233,10 +233,11 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       # with the second argument then it will swallow the prefix. Ie...
       # os.path.join("/tmp", "/foo") => "/foo"
       
-      pathSuffix = conn._cookiePath
-      if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
-      
-      conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
+      if pathPrefix:
+        pathSuffix = conn._cookiePath
+        if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
+        
+        conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
     
     conn.authenticate(authValue)
     return conn
