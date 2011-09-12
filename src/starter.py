@@ -228,7 +228,15 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
     # appends the path prefix if it's set
     if authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
       pathPrefix = util.torTools.getConn().getPathPrefix()
-      authValue = os.path.join(pathPrefix, authValue)
+      
+      # The os.path.join function is kinda stupid. If given an absolute path
+      # with the second argument then it will swallow the prefix. Ie...
+      # os.path.join("/tmp", "/foo") => "/foo"
+      
+      pathSuffix = conn._cookiePath
+      if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
+      
+      conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
     
     conn.authenticate(authValue)
     return conn
