@@ -711,28 +711,16 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if len(nsLines) >= 2 and nsLines[1].startswith("s "):
           flags = nsLines[1][2:]
         
-        # The network status exit policy doesn't exist for older tor versions.
-        # If unavailable we'll need the full exit policy which is on the
-        # descriptor (if that's available).
+        exitPolicy = conn.getRelayExitPolicy(fingerprint)
         
-        exitPolicy = "unknown"
-        if len(nsLines) >= 4 and nsLines[3].startswith("p "):
-          exitPolicy = nsLines[3][2:].replace(",", ", ")
-        elif descEntry:
-          # the descriptor has an individual line for each entry in the exit policy
-          exitPolicyEntries = []
-          
-          for line in descEntry.split("\n"):
-            if line.startswith("accept") or line.startswith("reject"):
-              exitPolicyEntries.append(line.strip())
-          
-          exitPolicy = ", ".join(exitPolicyEntries)
+        if exitPolicy: policyLabel = exitPolicy.getSummary()
+        else: policyLabel = "unknown"
         
         dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort
         lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, orPort, dirPortLabel)
         lines[3] = "published: %s %s" % (pubDate, pubTime)
         lines[4] = "flags: %s" % flags.replace(" ", ", ")
-        lines[5] = "exit policy: %s" % exitPolicy
+        lines[5] = "exit policy: %s" % policyLabel
       
       if descEntry:
         torVersion, platform, contact = "", "", ""
