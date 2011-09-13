@@ -11,6 +11,9 @@ import version
 
 from util import connections, enum, hostnames, torTools
 
+COLOR_PROMPT = True     # provides a colored interpretor prompt
+INFO_HOSTNAMES = False  # hostname lookups in /info results
+
 INIT_MSG = """Arm %s Control Interpretor
 Enter \"/help\" for usage information and \"/quit\" to stop.
 """ % version.VERSION
@@ -325,7 +328,11 @@ class ControlInterpretor:
       if not address or not port: return
       
       locale = conn.getInfo("ip-to-country/%s" % address, "??")
-      hostname = hostnames.resolve(address, 10)
+      
+      if INFO_HOSTNAMES:
+        hostname = hostnames.resolve(address, 10)
+      else:
+        hostname = None
       
       # TODO: Most of the following is copied from the _getDetailContent method
       # of cli/connections/connEntry.py - useful bits should be refactored.
@@ -370,8 +377,9 @@ class ControlInterpretor:
       
       outputEntry.append(("%s (%s)\n" % (nickname, fingerprint), infoAttr))
       
+      hostnameLabel = ", %s" % hostname if hostname else ""
       outputEntry.append(("address: ", headingAttr))
-      outputEntry.append(("%s:%s (%s, %s)\n" % (address, port, locale, hostname), infoAttr))
+      outputEntry.append(("%s:%s (%s%s)\n" % (address, port, locale, hostnameLabel), infoAttr))
       
       outputEntry.append(("published: ", headingAttr))
       outputEntry.append(("%s %s" % (pubTime, pubDate) + "\n", infoAttr))
@@ -504,8 +512,11 @@ def prompt():
   # - if the terminal's width is smaller than the non-rendered prompt length
   #   then the cursor and some movement will be displaced
   
-  prompt = format(">>> ", Color.GREEN, Attr.BOLD)
-  prompt += "\x1b[0m" * 10
+  if COLOR_PROMPT:
+    prompt = format(">>> ", Color.GREEN, Attr.BOLD)
+    prompt += "\x1b[0m" * 10
+  else:
+    prompt = ">>> "
   
   input = ""
   
