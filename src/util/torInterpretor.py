@@ -495,9 +495,18 @@ def prompt():
   # Cycling history via the readline module with up/down is buggy with a color
   # prompt. For more information see:
   # http://bugs.python.org/issue12972
-  #prompt = format(">>> ", Color.GREEN, Attr.BOLD)
+  #
+  # To work around this while keeping a color prompt I'm padding the prompt
+  # with extra reset encodings so its length is non-rendered higher (around
+  # sixty characters). There's two ways that this can go wrong...
+  # - if the user uses up/down to display input longer than this non-rendered
+  #   length then the original bug will manifest (screwed up prompt)
+  # - if the terminal's width is smaller than the non-rendered prompt length
+  #   then the cursor and some movement will be displaced
   
-  prompt = ">>> "
+  prompt = format(">>> ", Color.GREEN, Attr.BOLD)
+  prompt += "\x1b[0m" * 10
+  
   input = ""
   
   # sets up tab autocompetion
