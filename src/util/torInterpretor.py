@@ -9,7 +9,7 @@ import readline
 
 import version
 
-from util import enum, torTools
+from util import connections, enum, hostnames, torTools
 
 INIT_MSG = """Arm %s Control Interpretor
 Enter \"/help\" for usage information and \"/quit\" to stop.
@@ -269,6 +269,130 @@ class ControlInterpretor:
           outputEntry.append((lineText[match.end():] + "\n", OUTPUT_FORMAT))
           printedLines.append(lineText)
   
+  def doInfo(self, arg, outputEntry):
+    """
+    Performs the '/info' operation, looking up a relay by fingerprint, IP
+    address, or nickname and printing its descriptor and consensus entries in a
+    pretty fashion.
+    """
+    
+    fingerprint, conn = None, torTools.getConn()
+    
+    # TODO: also recognize <ip>:<port> entries?
+    
+    # determines the fingerprint, leaving it unset and adding an error message
+    # if unsuccessful
+    if not arg:
+      outputEntry.append(("No fingerprint or nickname to look up", ERROR_FORMAT))
+    elif len(arg) == 40 and re.match("^[0-9a-fA-F]+$", arg):
+      # we got a fingerprint (fourty character hex string)
+      fingerprint = arg
+    elif connections.isValidIpAddress(arg):
+      # we got an ip address, look up the fingerprint
+      fpMatches = conn.getRelayFingerprint(arg, getAllMatches = True)
+      
+      if len(fpMatches) == 0:
+        outputEntry.append(("No relays found at %s" % arg, ERROR_FORMAT))
+      elif len(fpMatches) == 1:
+        fingerprint = fpMatches[0][1]
+      else:
+        outputEntry.append(("Multiple relays at %s, specify which by giving a port" % arg, ERROR_FORMAT))
+        
+        for i in range(len(fpMatches)):
+          relayEntry = outputEntry[i]
+          outputEntry.append(("  %i. or port: %-5s fingerprint: %s" % (i + 1, relayEntry[0], relayEntry[1]), ERROR_FORMAT))
+    else:
+      # we got something else, treat it as a nickname
+      fingerprint = conn.getNicknameFingerprint(arg)
+      
+      if not fingerprint:
+        outputEntry.append(("No relay with the nickname of '%s' found" % arg, ERROR_FORMAT))
+    
+    if fingerprint:
+      consensusEntry = conn.getConsensusEntry(fingerprint)
+      
+      # The nickname, address, and port lookups are all based on the consensus
+      # entry so if this succeeds we should be pretty confident that those
+      # queries will work too.
+      
+      if not consensusEntry:
+        outputEntry.append(("Unable to find consensus information for %s" % fingerprint, ERROR_FORMAT))
+        return
+      
+      address, port = conn.getRelayAddress(fingerprint, (None, None))
+      
+      # ... but not sure enough that we won't check
+      if not address or not port: return
+      
+      locale = conn.getInfo("ip-to-country/%s" % address, "??")
+      hostname = hostnames.resolve(address, 10)
+      
+      # TODO: Most of the following is copied from the _getDetailContent method
+      # of cli/connections/connEntry.py - useful bits should be refactored.
+      consensusLines = consensusEntry.split("\n")
+      
+      firstLineComp = consensusLines[0].split(" ")
+      if len(firstLineComp) >= 9:
+        _, nickname, _, _, pubDate, pubTime, _, orPort, _ = firstLineComp[:9]
+      else: nickname, pubDate, pubTime, orPort = "", "", "", ""
+      
+      flags = "unknown"
+      if len(consensusLines) >= 2 and consensusLines[1].startswith("s "):
+        flags = consensusLines[1][2:]
+      
+      exitPolicy = conn.getRelayExitPolicy(fingerprint)
+      
+      if exitPolicy: policyLabel = exitPolicy.getSummary()
+      else: policyLabel = "unknown"
+      
+      # fetches information from the descriptor if it's available
+      torVersion, platform, contact = "", "", ""
+      descriptorEntry = conn.getDescriptorEntry(fingerprint)
+      
+      if descriptorEntry:
+        for descLine in descriptorEntry.split("\n"):
+          if descLine.startswith("platform"):
+            # has the tor version and platform, ex:
+            # platform Tor 0.2.1.29 (r318f470bc5f2ad43) on Linux x86_64
+     
+            torVersion = descLine[13:descLine.find(" ", 13)]
+            platform = descLine[descLine.rfind(" on ") + 4:] 
+          elif descLine.startswith("contact"):
+            contact = descLine[8:]
+     
+            # clears up some highly common obscuring
+            for alias in (" at ", " AT "): contact = contact.replace(alias, "@")
+            for alias in (" dot ", " DOT "): contact = contact.replace(alias, ".")
+     
+            break # contact lines come after the platform
+      
+      headingAttr, infoAttr = (Attr.BOLD, Color.BLUE), ()
+      
+      outputEntry.append(("%s (%s)\n" % (nickname, fingerprint), infoAttr))
+      
+      outputEntry.append(("address: ", headingAttr))
+      outputEntry.append(("%s:%s (%s, %s)\n" % (address, port, locale, hostname), infoAttr))
+      
+      outputEntry.append(("published: ", headingAttr))
+      outputEntry.append(("%s %s" % (pubTime, pubDate) + "\n", infoAttr))
+      
+      if torVersion and platform:
+        outputEntry.append(("os: ", headingAttr))
+        outputEntry.append((platform + "\n", infoAttr))
+        
+        outputEntry.append(("version: ", headingAttr))
+        outputEntry.append((torVersion + "\n", infoAttr))
+      
+      outputEntry.append(("flags: ", headingAttr))
+      outputEntry.append((flags.replace(" ", ", ") + "\n", infoAttr))
+      
+      outputEntry.append(("exit policy: ", headingAttr))
+      outputEntry.append((policyLabel + "\n", infoAttr))
+      
+      if contact:
+        outputEntry.append(("contact: ", headingAttr))
+        outputEntry.append((contact + "\n", infoAttr))
+  
   def handleQuery(self, input):
     """
     Processes the given input. Requests starting with a '/' are special
@@ -308,6 +432,7 @@ class ControlInterpretor:
       if cmd == "/quit": raise InterpretorClosed()
       elif cmd == "/write": self.doWrite(arg, outputEntry)
       elif cmd == "/find": self.doFind(arg, outputEntry)
+      elif cmd == "/info": self.doInfo(arg, outputEntry)
       else:
         outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
       
@@ -393,6 +518,10 @@ def prompt():
       # moves cursor to the next line and terminates (most commonly
       # KeyboardInterrupt and EOFErro)
       print
+      
+      # stop daemons
+      hostnames.stop()
+      
       break
     
     for line in outputEntry:

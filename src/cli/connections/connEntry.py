@@ -718,7 +718,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         
         dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort
         lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, orPort, dirPortLabel)
-        lines[3] = "published: %s %s" % (pubDate, pubTime)
+        lines[3] = "published: %s %s" % (pubTime, pubDate)
         lines[4] = "flags: %s" % flags.replace(" ", ", ")
         lines[5] = "exit policy: %s" % policyLabel
       

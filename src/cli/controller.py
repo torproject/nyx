@@ -24,7 +24,7 @@ import cli.connections.connPanel
 
 from TorCtl import TorCtl
 
-from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
+from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
 
 ARM_CONTROLLER = None
 
@@ -568,6 +568,7 @@ def shutdownDaemons():
   
   # joins on utility daemon threads - this might take a moment since the
   # internal threadpools being joined might be sleeping
+  hostnames.stop()
   resourceTrackers = sysTools.RESOURCE_TRACKERS.values()
   resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
   for tracker in resourceTrackers: tracker.stop()
