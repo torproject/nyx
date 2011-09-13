@@ -2286,6 +2286,21 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
 
+class ExitPolicyIterator:
+  """
+  Basic iterator for cycling through ExitPolicy entries.
+  """
+  
+  def __init__(self, head):
+    self.head = head
+  
+  def next(self):
+    if self.head:
+      lastHead = self.head
+      self.head = self.head.nextRule
+      return lastHead
+    else: raise StopIteration
+
 class ExitPolicy:
   """
   Single rule from the user's exit policy. These are chained together to form
@@ -2300,6 +2315,9 @@ class ExitPolicy:
       ruleEntry - tor exit policy rule (for instance, "reject *:135-139")
       nextRule  - next rule to be checked when queries don't match this policy
     """
+    
+    # cached summary string
+    self.summaryStr = None
     
     # sanitize the input a bit, cleaning up tabs and stripping quotes
     ruleEntry = ruleEntry.replace("\\t", " ").replace("\"", "")
@@ -2404,6 +2422,80 @@ class ExitPolicy:
     # our policy doesn't concern this address, move on to the next one
     if self.nextRule: return self.nextRule.check(ipAddress, port)
     else: return True # fell off the chain without a conclusion (shouldn't happen...)
+  
+  def getSummary(self):
+    """
+    Provides a summary description of the policy chain similar to the
+    consensus. This excludes entries that don't cover all ips, and is either
+    a whitelist or blacklist policy based on the final entry. For instance...
+    accept 80, 443        # just accepts ports 80/443
+    reject 1-1024, 5555   # just accepts non-privilaged ports, excluding 5555
+    """
+    
+    if not self.summaryStr:
+      # determines if we're a whitelist or blacklist
+      isWhitelist = False # default in case we don't have a catch-all policy at the end
+      
+      for rule in self:
+        if rule.isIpWildcard and rule.isPortWildcard:
+          isWhitelist = not rule.isAccept
+          break
+      
+      # Iterates over the rules and adds the the ports we'll return (ie, allows
+      # if a whitelist and rejects if a blacklist). Reguardless of a port's
+      # allow/reject policy, all further entries with that port are ignored since
+      # policies respect the first matching rule.
+      
+      displayPorts, skipPorts = [], []
+      
+      for rule in self:
+        if not rule.isIpWildcard: continue
+        
+        if rule.minPort == rule.maxPort:
+          portRange = [rule.minPort]
+        else:
+          portRange = range(rule.minPort, rule.maxPort + 1)
+        
+        for port in portRange:
+          if port in skipPorts: continue
+          
+          # if accept + whitelist or reject + blacklist then add
+          if rule.isAccept == isWhitelist:
+            displayPorts.append(port)
+          
+          # all further entries with this port are to be ignored
+          skipPorts.append(port)
+      
+      # gets a list of the port ranges
+      if displayPorts:
+        displayRanges, tmpRange = [], []
+        displayPorts.sort()
+        displayPorts.append(None) # ending item to include last range in loop
+        
+        for port in displayPorts:
+          if not tmpRange or tmpRange[-1] + 1 == port:
+            tmpRange.append(port)
+          else:
+            if len(tmpRange) > 1:
+              displayRanges.append("%i-%i" % (tmpRange[0], tmpRange[-1]))
+            else:
+              displayRanges.append(str(tmpRange[0]))
+            
+            tmpRange = [port]
+      else:
+        # everything for the inverse
+        isWhitelist = not isWhitelist
+        displayRanges = ["1-65535"]
+      
+      # constructs the summary string
+      labelPrefix = "accept " if isWhitelist else "reject "
+      
+      self.summaryStr = (labelPrefix + ", ".join(displayRanges)).strip()
+    
+    return self.summaryStr
+  
+  def __iter__(self):
+    return ExitPolicyIterator(self)
   
   def __str__(self):
     # This provides the actual policy rather than the entry used to construct
