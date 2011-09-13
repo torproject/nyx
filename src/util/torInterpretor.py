@@ -492,7 +492,12 @@ class ControlInterpretor:
     return (inputLines, outputLines)
 
 def prompt():
-  prompt = format(">>> ", Color.GREEN, Attr.BOLD)
+  # Cycling history via the readline module with up/down is buggy with a color
+  # prompt. For more information see:
+  # http://bugs.python.org/issue12972
+  #prompt = format(">>> ", Color.GREEN, Attr.BOLD)
+  
+  prompt = ">>> "
   input = ""
   
   # sets up tab autocompetion
