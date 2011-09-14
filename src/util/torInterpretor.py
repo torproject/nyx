@@ -9,7 +9,7 @@ import readline
 
 import version
 
-from util import connections, enum, hostnames, torTools
+from util import connections, enum, hostnames, torConfig, torTools, uiTools
 
 COLOR_PROMPT = True     # provides a colored interpretor prompt
 INFO_HOSTNAMES = False  # hostname lookups in /info results
@@ -300,7 +300,27 @@ class ControlInterpretor:
         for line in description.split("\n"):
           outputEntry.append(("  " + line + "\n", OUTPUT_FORMAT))
       else:
-        outputEntry.append(("No help information for '%s'..." % arg, ERROR_FORMAT))
+        # check if this is a configuration option
+        manEntry = torConfig.getConfigDescription(arg)
+        
+        if manEntry:
+          # provides basic usage information in bold, followed an indented
+          # copy of the man page description (wrapped to eighty characters)
+          
+          helpTitle = "%s %s (category: %s)\n" % (manEntry.option, manEntry.argUsage, manEntry.category)
+          outputEntry.append((helpTitle, OUTPUT_FORMAT + (Attr.BOLD, )))
+          
+          descLines = manEntry.description.split("\n")
+          
+          for line in descLines:
+            if not line:
+              outputEntry.append(("\n", OUTPUT_FORMAT))
+            else:
+              while line:
+                drawPortion, line = uiTools.cropStr(line, 88, 4, 4, uiTools.Ending.HYPHEN, True)
+                outputEntry.append(("  %s\n" % drawPortion.strip(), OUTPUT_FORMAT))
+        else:
+          outputEntry.append(("No help information for '%s'..." % arg, ERROR_FORMAT))
     else:
       # provides the GENERAL_HELP with everything bolded except descriptions
       for line in GENERAL_HELP.split("\n"):

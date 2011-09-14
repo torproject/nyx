@@ -77,7 +77,8 @@ class ManPageEntry:
   Information provided about a tor configuration option in its man page entry.
   """
   
-  def __init__(self, index, category, argUsage, description):
+  def __init__(self, option, index, category, argUsage, description):
+    self.option = option
     self.index = index
     self.category = category
     self.argUsage = argUsage
@@ -168,7 +169,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
             if inputFileContents: loadedLine = inputFileContents.pop(0)
             else: break
           
-          CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(indexArg, category, argument, description.rstrip())
+          CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(option, indexArg, category, argument, description.rstrip())
       except IndexError:
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
@@ -209,7 +210,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
           # noise).
           strippedDescription = lastDescription.strip()
           if lastOption and (not validOptions or lastOption.lower() in validOptions):
-            CONFIG_DESCRIPTIONS[lastOption.lower()] = ManPageEntry(optionCount, lastCategory, lastArg, strippedDescription)
+            CONFIG_DESCRIPTIONS[lastOption.lower()] = ManPageEntry(lastOption, optionCount, lastCategory, lastArg, strippedDescription)
             optionCount += 1
           lastDescription = ""
           
@@ -271,9 +272,8 @@ def saveOptionDescriptions(path):
   torVersion = torTools.getConn().getInfo("version", "")
   outputFile.write("Tor Version %s\n" % torVersion)
   for i in range(len(sortedOptions)):
-    option = sortedOptions[i]
-    manEntry = getConfigDescription(option)
-    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (manEntry.category, manEntry.index, option, manEntry.argUsage, manEntry.description))
+    manEntry = getConfigDescription(sortedOptions[i])
+    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (manEntry.category, manEntry.index, manEntry.option, manEntry.argUsage, manEntry.description))
     if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
   
   outputFile.close()
@@ -281,7 +281,7 @@ def saveOptionDescriptions(path):
 
 def getConfigSummary(option):
   """
-  Provides a short summary description of th configuration option. If none is
+  Provides a short summary description of the configuration option. If none is
   known then this proivdes None.
   
   Arguments:
