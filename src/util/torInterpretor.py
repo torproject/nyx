@@ -14,6 +14,9 @@ from util import connections, enum, hostnames, torTools
 COLOR_PROMPT = True     # provides a colored interpretor prompt
 INFO_HOSTNAMES = False  # hostname lookups in /info results
 
+# initial location /write will save to when no path is specified
+DEFAULT_WRITE_PATH = "/tmp/torInterpretor_output"
+
 INIT_MSG = """Arm %s Control Interpretor
 Enter \"/help\" for usage information and \"/quit\" to stop.
 """ % version.VERSION
@@ -44,6 +47,64 @@ RESET = CSI % "0"
 # limits used for cropping
 BACKLOG_LIMIT = 100
 CONTENT_LIMIT = 20000
+
+GENERAL_HELP = """Interpretor commands include:
+  help  - provides information for interpretor and tor commands/config options
+  write - saves backlog to a given location
+  info  - general information for a relay
+  find  - searches backlog for lines with the given regex
+  quit  - shuts down the interpretor
+
+Tor commands include:
+  GETINFO - queries information from tor
+  GETCONF, SETCONF, RESETCONF - show or edit a configuration option
+  SIGNAL - issues control signal to the process (for resetting, stopping, etc)
+  SETEVENT - configures the events tor will notify us of
+
+  USEFEATURE - enables custom behavior for the controller
+  SAVECONF - writes tor's current configuration to our torrc
+  LOADCONF - loads the given input like it was part of our torrc
+  MAPADDRESS - replaces requests for one address with another
+  POSTDESCRIPTOR - adds a relay descriptor to our cache
+  EXTENDCIRCUIT - create or extend a tor circuit
+  SETCIRCUITPURPOSE - configures the purpose associated with a circuit
+  CLOSECIRCUIT - closes the given circuit
+  ATTACHSTREAM - associates an application's stream with a tor circuit
+  REDIRECTSTREAM - sets a stream's destination
+  CLOSESTREAM - closes the given stream
+  RESOLVE - issues an asynchronous dns or rdns request over tor
+  TAKEOWNERSHIP - instructs tor to quit when this control connection is closed
+  PROTOCOLINFO - queries version and controller authentication information
+  QUIT - disconnect control connection
+
+For more information use '/help [OPTION]'."""
+
+HELP_HELP = """Provides usage information for the given interpretor, tor command, or tor
+configuration option.
+
+Example:
+  /help info        # provides a description of the '/info' option
+  /help GETINFO     # usage information for tor's GETINFO controller option
+  /help ExitPolicy  # description of tor's ExitPolicy configuration option"""
+
+HELP_WRITE = """Writes the interpretor's backlog to the given path. If no location is
+specified then this saves to the last path specified (initially '%s').""" % DEFAULT_WRITE_PATH
+
+HELP_INFO = """Provides general information for a relay that's currently in the consensus.
+If no relay is specified then this provides information on ourselves."""
+
+HELP_FIND = """Searches the backlog for lines matching a given regular expression pattern.
+Results are deduplicated and the matching portions bolded."""
+
+HELP_QUIT = """Terminates the interpretor."""
+
+INTERPRETOR_HELP = {
+  "HELP": ("/help [OPTION]", HELP_HELP),
+  "WRITE": ("/write [PATH]", HELP_WRITE),
+  "INFO": ("/info [relay fingerprint, nickname, or IP address]", HELP_INFO),
+  "FIND": ("/find PATTERN", HELP_FIND),
+  "QUIT": ("/quit", HELP_QUIT)
+}
 
 class InterpretorClosed(Exception):
   """
@@ -156,7 +217,7 @@ class TorControlCompleter:
     self.commands.append("MAPADDRESS ")
     self.commands.append("EXTENDCIRCUIT ")
     self.commands.append("SETCIRCUITPURPOSE ")
-    self.commands.append("SETROUTERPURPOSE ")
+    #self.commands.append("SETROUTERPURPOSE ") # deprecated option
     self.commands.append("ATTACHSTREAM ")
     self.commands.append("+POSTDESCRIPTOR ") # TODO: needs to support multiline options for this (ugg)
     self.commands.append("REDIRECTSTREAM ")
@@ -197,7 +258,7 @@ class ControlInterpretor:
   def __init__(self):
     self.backlog = []   # prior requests the user has made
     self.contents = []  # (msg, format list) tuples for what's been displayed
-    self.writePath = "/tmp/torInterpretor_output" # last location we've saved to
+    self.writePath = DEFAULT_WRITE_PATH # last location we've saved to
   
   def getBacklog(self):
     """
@@ -219,6 +280,37 @@ class ControlInterpretor:
     if appendPrompt:
       return self.contents + [appendPrompt]
     else: return self.contents
+  
+  def doHelp(self, arg, outputEntry):
+    """
+    Performs the '/help' operation, giving usage information for the given
+    argument or a general summary if there wasn't one.
+    """
+    
+    arg = arg.upper()
+    
+    if arg:
+      if arg in INTERPRETOR_HELP:
+        # Provides information for the interpretor argument. This bolds the
+        # usage information and indents the description after it.
+        usage, description = INTERPRETOR_HELP[arg]
+        
+        outputEntry.append((usage + "\n", OUTPUT_FORMAT + (Attr.BOLD, )))
+        
+        for line in description.split("\n"):
+          outputEntry.append(("  " + line + "\n", OUTPUT_FORMAT))
+      else:
+        outputEntry.append(("No help information for '%s'..." % arg, ERROR_FORMAT))
+    else:
+      # provides the GENERAL_HELP with everything bolded except descriptions
+      for line in GENERAL_HELP.split("\n"):
+        cmdStart = line.find(" - ")
+        
+        if cmdStart != -1:
+          outputEntry.append((line[:cmdStart], OUTPUT_FORMAT + (Attr.BOLD, )))
+          outputEntry.append((line[cmdStart:] + "\n", OUTPUT_FORMAT))
+        else:
+          outputEntry.append((line + "\n", OUTPUT_FORMAT + (Attr.BOLD, )))
   
   def doWrite(self, arg, outputEntry):
     """
@@ -286,7 +378,11 @@ class ControlInterpretor:
     # determines the fingerprint, leaving it unset and adding an error message
     # if unsuccessful
     if not arg:
-      outputEntry.append(("No fingerprint or nickname to look up", ERROR_FORMAT))
+      # uses our fingerprint if we're a relay, otherwise gives an error
+      fingerprint = conn.getInfo("fingerprint")
+      
+      if not fingerprint:
+        outputEntry.append(("We aren't a relay, no information to provide", ERROR_FORMAT))
     elif len(arg) == 40 and re.match("^[0-9a-fA-F]+$", arg):
       # we got a fingerprint (fourty character hex string)
       fingerprint = arg
@@ -438,6 +534,7 @@ class ControlInterpretor:
       inputEntry.append((input, INPUT_INTERPRETOR_FORMAT))
       
       if cmd == "/quit": raise InterpretorClosed()
+      elif cmd == "/help": self.doHelp(arg, outputEntry)
       elif cmd == "/write": self.doWrite(arg, outputEntry)
       elif cmd == "/find": self.doFind(arg, outputEntry)
       elif cmd == "/info": self.doInfo(arg, outputEntry)
