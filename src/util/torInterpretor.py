@@ -49,11 +49,11 @@ BACKLOG_LIMIT = 100
 CONTENT_LIMIT = 20000
 
 GENERAL_HELP = """Interpretor commands include:
-  help  - provides information for interpretor and tor commands/config options
-  write - saves backlog to a given location
-  info  - general information for a relay
-  find  - searches backlog for lines with the given regex
-  quit  - shuts down the interpretor
+  /help  - provides information for interpretor and tor commands/config options
+  /write - saves backlog to a given location
+  /info  - general information for a relay
+  /find  - searches backlog for lines with the given regex
+  /quit  - shuts down the interpretor
 
 Tor commands include:
   GETINFO - queries information from tor
@@ -228,6 +228,19 @@ class TorControlCompleter:
     self.commands.append("+LOADCONF") # TODO: another multiline...
     self.commands.append("TAKEOWNERSHIP")
     self.commands.append("QUIT") # TODO: give a confirmation when the user does this?
+    
+    # adds interpretor commands
+    for cmd in INTERPRETOR_HELP:
+      self.commands.append("/" + cmd.lower())
+    
+    # adds help options for the previous commands
+    baseCmd = set([cmd.split(" ")[0].replace("+", "").replace("/", "") for cmd in self.commands])
+    for cmd in baseCmd:
+      self.commands.append("/help " + cmd)
+    
+    # adds /help for tor configuration options
+    for opt in torConfig.getConfigOptions():
+      self.commands.append("/help " + opt)
   
   def getMatches(self, text):
     """
@@ -288,6 +301,9 @@ class ControlInterpretor:
     """
     
     arg = arg.upper()
+    
+    # strip slash if someone enters an interpretor command (ex. "/help /help")
+    if arg.startswith("/"): arg = arg[1:]
     
     if arg:
       if arg in INTERPRETOR_HELP:

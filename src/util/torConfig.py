@@ -321,6 +321,19 @@ def getConfigDescription(option):
   CONFIG_DESCRIPTIONS_LOCK.release()
   return returnVal
 
+def getConfigOptions():
+  """
+  Provides the configuration options from the loaded man page. This is an empty
+  list if no man page has been loaded.
+  """
+  
+  CONFIG_DESCRIPTIONS_LOCK.acquire()
+  
+  returnVal = [CONFIG_DESCRIPTIONS[opt].option for opt in CONFIG_DESCRIPTIONS]
+  
+  CONFIG_DESCRIPTIONS_LOCK.release()
+  return returnVal
+
 def getConfigLocation():
   """
   Provides the location of the torrc, raising an IOError with the reason if the
