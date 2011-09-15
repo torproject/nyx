@@ -98,12 +98,16 @@ Results are deduplicated and the matching portions bolded."""
 
 HELP_QUIT = """Terminates the interpretor."""
 
-INTERPRETOR_HELP = {
+HELP_GETINFO = """Queries the tor process for information. Options are...
+"""
+
+HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
   "INFO": ("/info [relay fingerprint, nickname, or IP address]", HELP_INFO),
   "FIND": ("/find PATTERN", HELP_FIND),
-  "QUIT": ("/quit", HELP_QUIT)
+  "QUIT": ("/quit", HELP_QUIT),
+  "GETINFO": ("GETINFO [OPTION]", HELP_GETINFO)
 }
 
 class InterpretorClosed(Exception):
@@ -230,8 +234,9 @@ class TorControlCompleter:
     self.commands.append("QUIT") # TODO: give a confirmation when the user does this?
     
     # adds interpretor commands
-    for cmd in INTERPRETOR_HELP:
-      self.commands.append("/" + cmd.lower())
+    for cmd in HELP_OPTIONS:
+      if HELP_OPTIONS[cmd][0].startswith("/"):
+        self.commands.append("/" + cmd.lower())
     
     # adds help options for the previous commands
     baseCmd = set([cmd.split(" ")[0].replace("+", "").replace("/", "") for cmd in self.commands])
@@ -302,19 +307,42 @@ class ControlInterpretor:
     
     arg = arg.upper()
     
+    # If there's multiple arguments then just take the first. This is
+    # particularly likely if they're trying to query a full command (for
+    # instance "/help GETINFO version")
+    
+    arg = arg.split(" ")[0]
+    
     # strip slash if someone enters an interpretor command (ex. "/help /help")
     if arg.startswith("/"): arg = arg[1:]
     
     if arg:
-      if arg in INTERPRETOR_HELP:
-        # Provides information for the interpretor argument. This bolds the
-        # usage information and indents the description after it.
-        usage, description = INTERPRETOR_HELP[arg]
+      if arg in HELP_OPTIONS:
+        # Provides information for the tor or interpretor argument. This bolds
+        # the usage information and indents the description after it.
+        usage, description = HELP_OPTIONS[arg]
         
         outputEntry.append((usage + "\n", OUTPUT_FORMAT + (Attr.BOLD, )))
         
         for line in description.split("\n"):
           outputEntry.append(("  " + line + "\n", OUTPUT_FORMAT))
+        
+        # if this is the GETINFO option then also list the valid options
+        if arg == "GETINFO":
+          infoOptions = torTools.getConn().getInfo("info/names")
+          
+          if infoOptions:
+            for line in infoOptions.split("\n"):
+              if line.startswith("config/*") or line.startswith("dir-usage"):
+                continue
+              
+              lineMatch = re.match("^(.+) -- (.+)$", line)
+              
+              if lineMatch:
+                opt, description = lineMatch.groups()
+                
+                outputEntry.append(("%-33s" % opt, OUTPUT_FORMAT + (Attr.BOLD, )))
+                outputEntry.append((" - %s\n" % description, OUTPUT_FORMAT))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
@@ -336,7 +364,7 @@ class ControlInterpretor:
                 drawPortion, line = uiTools.cropStr(line, 88, 4, 4, uiTools.Ending.HYPHEN, True)
                 outputEntry.append(("  %s\n" % drawPortion.strip(), OUTPUT_FORMAT))
         else:
-          outputEntry.append(("No help information for '%s'..." % arg, ERROR_FORMAT))
+          outputEntry.append(("No help information available for '%s'..." % arg, ERROR_FORMAT))
     else:
       # provides the GENERAL_HELP with everything bolded except descriptions
       for line in GENERAL_HELP.split("\n"):
