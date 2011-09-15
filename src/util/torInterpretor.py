@@ -101,13 +101,17 @@ HELP_QUIT = """Terminates the interpretor."""
 HELP_GETINFO = """Queries the tor process for information. Options are...
 """
 
+HELP_GETCONF = """Provides the current value for a given configuration value. Options include...
+"""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
   "INFO": ("/info [relay fingerprint, nickname, or IP address]", HELP_INFO),
   "FIND": ("/find PATTERN", HELP_FIND),
   "QUIT": ("/quit", HELP_QUIT),
-  "GETINFO": ("GETINFO [OPTION]", HELP_GETINFO)
+  "GETINFO": ("GETINFO [OPTION]", HELP_GETINFO),
+  "GETCONF": ("GETCONF [OPTION]", HELP_GETCONF)
 }
 
 class InterpretorClosed(Exception):
@@ -327,8 +331,8 @@ class ControlInterpretor:
         for line in description.split("\n"):
           outputEntry.append(("  " + line + "\n", OUTPUT_FORMAT))
         
-        # if this is the GETINFO option then also list the valid options
         if arg == "GETINFO":
+          # if this is the GETINFO option then also list the valid options
           infoOptions = torTools.getConn().getInfo("info/names")
           
           if infoOptions:
@@ -343,6 +347,24 @@ class ControlInterpretor:
                 
                 outputEntry.append(("%-33s" % opt, OUTPUT_FORMAT + (Attr.BOLD, )))
                 outputEntry.append((" - %s\n" % description, OUTPUT_FORMAT))
+        elif arg == "GETCONF":
+          # lists all of the configuration options
+          
+          confOptions = torTools.getConn().getInfo("config/names")
+          if confOptions:
+            confEntries = [opt.split(" ", 1)[0] for opt in confOptions.split("\n")]
+            
+            # displays four columns of 30 characters
+            for i in range(0, len(confEntries), 2):
+              lineEntries = confEntries[i : i+2]
+              
+              lineContent = ""
+              for entry in lineEntries:
+                lineContent += "%-42s" % entry
+              
+              outputEntry.append((lineContent + "\n", OUTPUT_FORMAT))
+            
+            outputEntry.append(("For more information use '/help [CONFIG OPTION]'.", OUTPUT_FORMAT + (Attr.BOLD, )))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
