@@ -75,7 +75,7 @@ Tor commands include:
   RESOLVE - issues an asynchronous dns or rdns request over tor
   TAKEOWNERSHIP - instructs tor to quit when this control connection is closed
   PROTOCOLINFO - queries version and controller authentication information
-  QUIT - disconnect control connection
+  QUIT - disconnect the control connection
 
 For more information use '/help [OPTION]'."""
 
@@ -647,16 +647,39 @@ class ControlInterpretor:
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
       elif cmd == "SETCONF":
-        if "=" in arg:
-          param, value = arg.split("=", 1)
+        # arguments can either be '<param>' or '<param>="<value>"' entries
+        paramList = []
+        
+        while arg:
+          # TODO: I'm a little dubious of this for LineList values (like the
+          # ExitPolicy) since they're parsed as a single value. However, tor
+          # seems to be happy to get a single comma separated string (though it
+          # echos back faithfully rather than being parsed) so leaving this
+          # alone for now.
           
-          try:
-            conn.setOption(param.strip(), value.strip())
-          except Exception, exc:
-            outputEntry.append((str(exc), ERROR_FORMAT))
-        else:
-          # TODO: resets the attribute
-          outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
+          m = re.match(r'^(\S+)=\"([^"]+)\"', arg)
+          
+          if m:
+            # we're dealing with a '<param>="<value>"' entry
+            param, value = m.groups()
+            
+            paramList.append((param, value))
+            arg = arg[len(param) + len(value) + 3:].strip()
+          else:
+            # starts with just a param
+            param = arg.split()[0]
+            paramList.append((param, None))
+            arg = arg[len(param):].strip()
+        
+        try:
+          conn.setOptions(paramList)
+        except Exception, exc:
+          outputEntry.append((str(exc), ERROR_FORMAT))
+      elif cmd == "RESETCONF":
+        try:
+          conn.setOptions([(param, None) for param in arg.split()])
+        except Exception, exc:
+          outputEntry.append((str(exc), ERROR_FORMAT))
       else:
         try:
           response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)

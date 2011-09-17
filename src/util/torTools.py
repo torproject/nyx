@@ -725,10 +725,11 @@ class Controller(TorCtl.PostEventListener):
     elif result == []: return default
     else: return result
   
-  def setOption(self, param, value):
+  def setOption(self, param, value = None):
     """
     Issues a SETCONF to set the given option/value pair. An exeptions raised
-    if it fails to be set.
+    if it fails to be set. If no value is provided then this resets the
+    configuration option.
     
     Arguments:
       param - configuration option to be set
@@ -736,27 +737,53 @@ class Controller(TorCtl.PostEventListener):
               list of strings)
     """
     
-    isMultiple = isinstance(value, list) or isinstance(value, tuple)
+    self.setOptions(((param, value),))
+  
+  def setOptions(self, paramList):
+    """
+    Issues a SETCONF to replace a set of configuration options. This takes a
+    list of parameter/new value tuple pairs. Values can be...
+    - a string to set a single value
+    - a list of strings to set a series of values (for instance the ExitPolicy)
+    - None to reset the parameter
+    
+    Arguments:
+      paramList - list of parameter/value tuple pairs
+    """
+    
     self.connLock.acquire()
+    
+    # constructs the SETCONF string
+    setConfComp = []
+    
+    for param, value in paramList:
+      if isinstance(value, list) or isinstance(value, tuple):
+        setConfComp += ["%s=\"%s\"" % (param, val.strip()) for val in value]
+      elif value:
+        setConfComp.append("%s=\"%s\"" % (param, value.strip()))
+      else:
+        setConfComp.append(param)
+    
+    setConfStr = " ".join(setConfComp)
     
     startTime, raisedExc = time.time(), None
     if self.isAlive():
       try:
-        if isMultiple: self.conn.set_options([(param, val) for val in value])
-        else: self.conn.set_option(param, value)
+        self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
         
         # flushing cached values (needed until we can detect SETCONF calls)
-        for fetchType in ("str", "list", "map"):
-          entry = (param.lower(), fetchType)
+        for param, _ in paramList:
+          for fetchType in ("str", "list", "map"):
+            entry = (param.lower(), fetchType)
+            
+            if entry in self._cachedConf:
+              del self._cachedConf[entry]
           
-          if entry in self._cachedConf:
-            del self._cachedConf[entry]
-        
-        # special caches for the exit policy
-        if param.lower() == "exitpolicy":
-          self._exitPolicyChecker = self.getExitPolicy()
-          self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
-          self._exitPolicyLookupCache = {}
+          # special caches for the exit policy
+          if param.lower() == "exitpolicy":
+            self._exitPolicyChecker = self.getExitPolicy()
+            self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+            self._exitPolicyLookupCache = {}
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         elif type(exc) == TorCtl.ErrorReply:
@@ -777,9 +804,8 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    setCall = "%s %s" % (param, ", ".join(value) if isMultiple else value)
     excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
-    msg = "SETCONF %s (%sruntime: %0.4f)" % (setCall.strip(), excLabel, time.time() - startTime)
+    msg = "SETCONF %s (%sruntime: %0.4f)" % (setConfStr, excLabel, time.time() - startTime)
     log.log(CONFIG["log.torSetConf"], msg)
     
     if raisedExc: raise raisedExc
