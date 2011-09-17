@@ -595,6 +595,12 @@ class ControlInterpretor:
       input - user input to be processed
     """
     
+    conn = torTools.getConn()
+    
+    # abort if the control connection has been severed
+    if not conn.isAlive():
+      raise InterpretorClosed("Control connection has been closed")
+    
     input = input.strip()
     
     # appends new input, cropping if too long
@@ -603,7 +609,6 @@ class ControlInterpretor:
     if backlogCrop > 0: self.backlog = self.backlog[backlogCrop:]
     
     inputEntry, outputEntry = [PROMPT], []
-    conn = torTools.getConn()
     
     # input falls into three general categories:
     # - interpretor command which starts with a '/'
@@ -684,6 +689,9 @@ class ControlInterpretor:
         try:
           response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
           
+          if cmd == "QUIT":
+            raise InterpretorClosed("Closing the connection")
+          
           for entry in response:
             # Response entries are tuples with the response code, body, and
             # extra info. For instance:
@@ -692,13 +700,17 @@ class ControlInterpretor:
             if len(entry) == 3:
               outputEntry.append((entry[1], OUTPUT_FORMAT))
         except Exception, exc:
-          outputEntry.append((str(exc), ERROR_FORMAT))
+          if isinstance(exc, InterpretorClosed):
+            raise exc
+          else:
+            outputEntry.append((str(exc), ERROR_FORMAT))
     
     # converts to lists split on newlines
     inputLines = _splitOnNewlines(inputEntry)
     outputLines = _splitOnNewlines(outputEntry)
     
     # appends new contents, cropping if too long
+    # TODO: it would be nice if InterpretorClosed exceptions were added to the content too
     self.contents += inputLines + outputLines
     cropLines = len(self.contents) - CONTENT_LIMIT
     if cropLines > 0: self.contents = self.contents[cropLines:]
@@ -745,10 +757,16 @@ def prompt():
     try:
       input = raw_input(prompt)
       _, outputEntry = interpretor.handleQuery(input)
-    except:
+    except Exception, exc:
+      if isinstance(exc, InterpretorClosed) and str(exc):
+        print format(str(exc), *ERROR_FORMAT)
+      
       # moves cursor to the next line and terminates (most commonly
       # KeyboardInterrupt and EOFErro)
       print
+      
+      torTools.NO_SPAWN = True
+      torTools.getConn().close()
       
       # stop daemons
       hostnames.stop()

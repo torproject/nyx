@@ -5,7 +5,7 @@ information, tab completion, and other usability features.
 
 import curses
 
-from util import panel, textInput, torInterpretor, uiTools
+from util import panel, textInput, torInterpretor, torTools, uiTools
 
 USAGE_INFO = "to use this panel press enter"
 PROMPT_LINE = [torInterpretor.PROMPT, (USAGE_INFO, torInterpretor.USAGE_FORMAT)]
@@ -79,6 +79,9 @@ class InterpretorPanel(panel.Panel):
         try:
           inputEntry, outputEntry = self.interpretor.handleQuery(input)
         except torInterpretor.InterpretorClosed:
+          # Makes our control connection check if its been closed or not
+          torTools.getConn().isAlive()
+          
           isDone = True
       
       if isDone:
