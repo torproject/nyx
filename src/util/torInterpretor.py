@@ -5,6 +5,7 @@ directly, history and tab completion.
 """
 
 import re
+import sys
 import readline
 
 import version
@@ -791,8 +792,8 @@ class ControlInterpretor:
     return (inputLines, outputLines)
 
 def prompt():
-  # Cycling history via the readline module with up/down is buggy with a color
-  # prompt. For more information see:
+  # For Python 2.6 and earlier cycling history via the readline module with
+  # up/down is buggy with a color prompt. For more information see:
   # http://bugs.python.org/issue12972
   #
   # To work around this while keeping a color prompt I'm padding the prompt
@@ -805,7 +806,12 @@ def prompt():
   
   if COLOR_PROMPT:
     prompt = format(">>> ", Color.GREEN, Attr.BOLD)
-    prompt += "\x1b[0m" * 10
+    
+    majorVersion = sys.version_info[0]
+    minorVersion = sys.version_info[1]
+    
+    if majorVersion <= 2 and minorVersion <= 6:
+      prompt += "\x1b[0m" * 10
   else:
     prompt = ">>> "
   
