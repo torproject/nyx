@@ -177,6 +177,8 @@ HELP_EXTENDCIRCUIT = """Extends the given circuit or create a new one if the Cir
 PATH is a comma separated list of fingerprints. If it isn't set then this
 uses Tor's normal path selection."""
 
+HELP_SETCIRCUITPURPOSE = """Sets the purpose attribute for a circuit."""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -195,6 +197,7 @@ HELP_OPTIONS = {
   "MAPADDRESS": ("MAPADDRESS SOURCE_ADDR=DESTINATION_ADDR", HELP_MAPADDRESS),
   "POSTDESCRIPTOR": ("POSTDESCRIPTOR [purpose=general/controller/bridge] [cache=yes/no]...", HELP_POSTDESCRIPTOR),
   "EXTENDCIRCUIT": ("EXTENDCIRCUIT CircuitID [PATH] [purpose=general/controller]", HELP_EXTENDCIRCUIT),
+  "SETCIRCUITPURPOSE": ("SETCIRCUITPURPOSE CircuitID purpose=general/controller", HELP_SETCIRCUITPURPOSE),
 }
 
 class InterpretorClosed(Exception):
