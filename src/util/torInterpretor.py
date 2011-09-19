@@ -904,7 +904,7 @@ def prompt():
     try:
       input = raw_input(prompt)
       _, outputEntry = interpretor.handleQuery(input)
-    except Exception, exc:
+    except (KeyboardInterrupt, Exception), exc:
       if isinstance(exc, InterpretorClosed) and str(exc):
         print format(str(exc), *ERROR_FORMAT)
       
