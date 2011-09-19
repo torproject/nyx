@@ -104,14 +104,25 @@ HELP_GETINFO = """Queries the tor process for information. Options are...
 HELP_GETCONF = """Provides the current value for a given configuration value. Options include...
 """
 
+HELP_SETCONF = """Sets the given configuration parameters. Values can be quoted or non-quoted
+strings, and reverts the option to 0 or NULL if not provided.
+
+Example:
+  * Sets a contact address and resets our family to NULL
+    SETCONF MyFamily ContactInfo=foo@bar.com
+
+  * Sets an exit policy that only includes port 80/443
+    SETCONF ExitPolicy=\"accept *:80, accept *:443, reject *:*\""""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
   "INFO": ("/info [relay fingerprint, nickname, or IP address]", HELP_INFO),
   "FIND": ("/find PATTERN", HELP_FIND),
   "QUIT": ("/quit", HELP_QUIT),
-  "GETINFO": ("GETINFO [OPTION]", HELP_GETINFO),
-  "GETCONF": ("GETCONF [OPTION]", HELP_GETCONF)
+  "GETINFO": ("GETINFO OPTION", HELP_GETINFO),
+  "GETCONF": ("GETCONF OPTION", HELP_GETCONF),
+  "SETCONF": ("SETCONF PARAM[=VALUE]", HELP_SETCONF)
 }
 
 class InterpretorClosed(Exception):
