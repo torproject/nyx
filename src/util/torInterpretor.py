@@ -59,7 +59,7 @@ Tor commands include:
   GETINFO - queries information from tor
   GETCONF, SETCONF, RESETCONF - show or edit a configuration option
   SIGNAL - issues control signal to the process (for resetting, stopping, etc)
-  SETEVENT - configures the events tor will notify us of
+  SETEVENTS - configures the events tor will notify us of
 
   USEFEATURE - enables custom behavior for the controller
   SAVECONF - writes tor's current configuration to our torrc
@@ -138,6 +138,16 @@ SIGNAL_DESCRIPTIONS = (
   ("NEWNYM", "clears the DNS cache and uses new circuits for future connections")
 )
 
+HELP_SETEVENTS = """Sets the events that we will receive. This turns off any events that aren't
+listed so sending 'SETEVENTS' without any values will turn off all event reporting.
+
+For Tor versions between 0.1.1.9 and 0.2.2.1 adding 'EXTENDED' causes some
+events to give us additional information. After version 0.2.2.1 this is
+always on.
+
+Events include...
+"""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -149,6 +159,7 @@ HELP_OPTIONS = {
   "SETCONF": ("SETCONF PARAM[=VALUE]", HELP_SETCONF),
   "RESETCONF": ("RESETCONF PARAM[=VALUE]", HELP_RESETCONF),
   "SIGNAL": ("SIGNAL SIG", HELP_SIGNAL),
+  "SETEVENTS": ("SETEVENTS [EXTENDED] [EVENTS]", HELP_SETEVENTS),
 }
 
 class InterpretorClosed(Exception):
@@ -233,11 +244,11 @@ class TorControlCompleter:
       self.commands.append("SETCONF ")
       self.commands.append("RESETCONF ")
     
-    # adds all of the valid SETEVENT options
+    # adds all of the valid SETEVENTS options
     eventOptions = conn.getInfo("events/names")
     if eventOptions:
-      self.commands += ["SETEVENT %s" % event for event in eventOptions.split(" ")]
-    else: self.commands.append("SETEVENT ")
+      self.commands += ["SETEVENTS %s" % event for event in eventOptions.split(" ")]
+    else: self.commands.append("SETEVENTS ")
     
     # adds all of the valid USEFEATURE options
     featureOptions = conn.getInfo("features/names")
@@ -391,7 +402,7 @@ class ControlInterpretor:
           if confOptions:
             confEntries = [opt.split(" ", 1)[0] for opt in confOptions.split("\n")]
             
-            # displays four columns of 30 characters
+            # displays two columns of 42 characters
             for i in range(0, len(confEntries), 2):
               lineEntries = confEntries[i : i+2]
               
@@ -407,6 +418,21 @@ class ControlInterpretor:
           for signal, description in SIGNAL_DESCRIPTIONS:
             outputEntry.append(("%-15s" % signal, OUTPUT_FORMAT + (Attr.BOLD, )))
             outputEntry.append((" - %s\n" % description, OUTPUT_FORMAT))
+        elif arg == "SETEVENTS":
+          # lists all of the event types
+          eventOptions = torTools.getConn().getInfo("events/names")
+          if eventOptions:
+            eventEntries = eventOptions.split()
+            
+            # displays four columns of 20 characters
+            for i in range(0, len(eventEntries), 4):
+              lineEntries = eventEntries[i : i+4]
+              
+              lineContent = ""
+              for entry in lineEntries:
+                lineContent += "%-20s" % entry
+              
+              outputEntry.append((lineContent + "\n", OUTPUT_FORMAT))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
