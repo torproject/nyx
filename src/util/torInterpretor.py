@@ -166,6 +166,11 @@ Example:
   ExitPolicy reject *:*
   ."""
 
+HELP_MAPADDRESS = """Replaces future requests for one address with another.
+
+Example:
+  MAPADDRESS 0.0.0.0=torproject.org 1.2.3.4=tor.freehaven.net"""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -181,6 +186,7 @@ HELP_OPTIONS = {
   "USEFEATURE": ("USEFEATURE OPTION", HELP_USEFEATURE),
   "SAVECONF": ("SAVECONF", HELP_SAVECONF),
   "LOADCONF": ("LOADCONF", HELP_LOADCONF),
+  "MAPADDRESS": ("MAPADDRESS SOURCE_ADDR=DESTINATION_ADDR", HELP_MAPADDRESS),
 }
 
 class InterpretorClosed(Exception):
