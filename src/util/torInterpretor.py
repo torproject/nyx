@@ -787,6 +787,9 @@ class ControlInterpretor:
           conn.setOptions(paramList, isReset)
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
+      elif cmd.replace("+", "") in ("LOADCONF", "POSTDESCRIPTOR"):
+        # provides a notice that multi-line controller input isn't yet implemented
+        outputEntry.append((MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
       else:
         try:
           response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
