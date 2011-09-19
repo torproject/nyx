@@ -171,6 +171,8 @@ HELP_MAPADDRESS = """Replaces future requests for one address with another.
 Example:
   MAPADDRESS 0.0.0.0=torproject.org 1.2.3.4=tor.freehaven.net"""
 
+HELP_POSTDESCRIPTOR = """Simulates getting a new relay descriptor."""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -185,8 +187,9 @@ HELP_OPTIONS = {
   "SETEVENTS": ("SETEVENTS [EXTENDED] [EVENTS]", HELP_SETEVENTS),
   "USEFEATURE": ("USEFEATURE OPTION", HELP_USEFEATURE),
   "SAVECONF": ("SAVECONF", HELP_SAVECONF),
-  "LOADCONF": ("LOADCONF", HELP_LOADCONF),
+  "LOADCONF": ("LOADCONF...", HELP_LOADCONF),
   "MAPADDRESS": ("MAPADDRESS SOURCE_ADDR=DESTINATION_ADDR", HELP_MAPADDRESS),
+  "POSTDESCRIPTOR": ("POSTDESCRIPTOR [purpose=general/controller/bridge] [cache=yes/no]...", HELP_POSTDESCRIPTOR),
 }
 
 class InterpretorClosed(Exception):
@@ -496,7 +499,7 @@ class ControlInterpretor:
           featureOptions = torTools.getConn().getInfo("features/names")
           if featureOptions:
             outputEntry.append((featureOptions + "\n", OUTPUT_FORMAT))
-        elif arg in ("LOADCONF"):
+        elif arg in ("LOADCONF", "POSTDESCRIPTOR"):
           # gives a warning that this option isn't yet implemented
           outputEntry.append(("\n" + MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
       else:
