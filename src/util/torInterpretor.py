@@ -124,6 +124,20 @@ Examples:
   * Uses the default exit policy and sets our nickname to be 'Goomba'
     RESETCONF ExitPolicy Nickname=Goomba"""
 
+HELP_SIGNAL = """Issues a signal that tells the tor process to reload its torrc, dump its
+stats, halt, etc.
+"""
+
+SIGNAL_DESCRIPTIONS = (
+  ("RELOAD / HUP", "reload our torrc"),
+  ("SHUTDOWN / INT", "gracefully shut down, waiting 30 seconds if we're a relay"),
+  ("DUMP / USR1", "logs information about open connections and circuits"),
+  ("DEBUG / USR2", "makes us log at the DEBUG runlevel"),
+  ("HALT / TERM", "immediately shut down"),
+  ("CLEARDNSCACHE", "clears any cached DNS results"),
+  ("NEWNYM", "clears the DNS cache and uses new circuits for future connections")
+)
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -134,6 +148,7 @@ HELP_OPTIONS = {
   "GETCONF": ("GETCONF OPTION", HELP_GETCONF),
   "SETCONF": ("SETCONF PARAM[=VALUE]", HELP_SETCONF),
   "RESETCONF": ("RESETCONF PARAM[=VALUE]", HELP_RESETCONF),
+  "SIGNAL": ("SIGNAL SIG", HELP_SIGNAL),
 }
 
 class InterpretorClosed(Exception):
@@ -387,6 +402,11 @@ class ControlInterpretor:
               outputEntry.append((lineContent + "\n", OUTPUT_FORMAT))
             
             outputEntry.append(("For more information use '/help [CONFIG OPTION]'.", OUTPUT_FORMAT + (Attr.BOLD, )))
+        elif arg == "SIGNAL":
+          # lists descriptions for all of the signals
+          for signal, description in SIGNAL_DESCRIPTIONS:
+            outputEntry.append(("%-15s" % signal, OUTPUT_FORMAT + (Attr.BOLD, )))
+            outputEntry.append((" - %s\n" % description, OUTPUT_FORMAT))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
