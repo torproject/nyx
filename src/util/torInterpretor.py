@@ -49,6 +49,8 @@ RESET = CSI % "0"
 BACKLOG_LIMIT = 100
 CONTENT_LIMIT = 20000
 
+MULTILINE_UNIMPLEMENTED_NOTICE = "Multi-line control options like this are not yet implemented."
+
 GENERAL_HELP = """Interpretor commands include:
   /help  - provides information for interpretor and tor commands/config options
   /write - saves backlog to a given location
@@ -152,6 +154,18 @@ Events include...
 HELP_USEFEATURE = """Customizes the behavior of the control port. Options include...
 """
 
+HELP_SAVECONF = """Writes Tor's current configuration to its torrc."""
+
+HELP_LOADCONF = """Reads the given text like it belonged to our torrc.
+
+Example:
+  +LOADCONF
+  # sets our exit policy to just accept ports 80 and 443
+  ExitPolicy accept *:80
+  ExitPolicy accept *:443
+  ExitPolicy reject *:*
+  ."""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -165,6 +179,8 @@ HELP_OPTIONS = {
   "SIGNAL": ("SIGNAL SIG", HELP_SIGNAL),
   "SETEVENTS": ("SETEVENTS [EXTENDED] [EVENTS]", HELP_SETEVENTS),
   "USEFEATURE": ("USEFEATURE OPTION", HELP_USEFEATURE),
+  "SAVECONF": ("SAVECONF", HELP_SAVECONF),
+  "LOADCONF": ("LOADCONF", HELP_LOADCONF),
 }
 
 class InterpretorClosed(Exception):
@@ -443,6 +459,9 @@ class ControlInterpretor:
           featureOptions = torTools.getConn().getInfo("features/names")
           if featureOptions:
             outputEntry.append((featureOptions + "\n", OUTPUT_FORMAT))
+        elif arg in ("LOADCONF"):
+          # gives a warning that this option isn't yet implemented
+          outputEntry.append(("\n" + MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
