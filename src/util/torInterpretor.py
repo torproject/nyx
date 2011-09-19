@@ -149,6 +149,9 @@ always on.
 Events include...
 """
 
+HELP_USEFEATURE = """Customizes the behavior of the control port. Options include...
+"""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -161,6 +164,7 @@ HELP_OPTIONS = {
   "RESETCONF": ("RESETCONF PARAM[=VALUE]", HELP_RESETCONF),
   "SIGNAL": ("SIGNAL SIG", HELP_SIGNAL),
   "SETEVENTS": ("SETEVENTS [EXTENDED] [EVENTS]", HELP_SETEVENTS),
+  "USEFEATURE": ("USEFEATURE OPTION", HELP_USEFEATURE),
 }
 
 class InterpretorClosed(Exception):
@@ -434,6 +438,11 @@ class ControlInterpretor:
                 lineContent += "%-20s" % entry
               
               outputEntry.append((lineContent + "\n", OUTPUT_FORMAT))
+        elif arg == "USEFEATURE":
+          # lists the feature options
+          featureOptions = torTools.getConn().getInfo("features/names")
+          if featureOptions:
+            outputEntry.append((featureOptions + "\n", OUTPUT_FORMAT))
       else:
         # check if this is a configuration option
         manEntry = torConfig.getConfigDescription(arg)
