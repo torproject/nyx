@@ -107,12 +107,22 @@ HELP_GETCONF = """Provides the current value for a given configuration value. Op
 HELP_SETCONF = """Sets the given configuration parameters. Values can be quoted or non-quoted
 strings, and reverts the option to 0 or NULL if not provided.
 
-Example:
+Examples:
   * Sets a contact address and resets our family to NULL
     SETCONF MyFamily ContactInfo=foo@bar.com
 
   * Sets an exit policy that only includes port 80/443
     SETCONF ExitPolicy=\"accept *:80, accept *:443, reject *:*\""""
+
+HELP_RESETCONF = """Reverts the given configuration options to their default values. If a value
+is provided then this behaves in the same way as SETCONF.
+
+Examples:
+  * Returns both of our accounting parameters to their defaults
+    RESETCONF AccountingMax AccountingStart
+  
+  * Uses the default exit policy and sets our nickname to be 'Goomba'
+    RESETCONF ExitPolicy Nickname=Goomba"""
 
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
@@ -122,7 +132,8 @@ HELP_OPTIONS = {
   "QUIT": ("/quit", HELP_QUIT),
   "GETINFO": ("GETINFO OPTION", HELP_GETINFO),
   "GETCONF": ("GETCONF OPTION", HELP_GETCONF),
-  "SETCONF": ("SETCONF PARAM[=VALUE]", HELP_SETCONF)
+  "SETCONF": ("SETCONF PARAM[=VALUE]", HELP_SETCONF),
+  "RESETCONF": ("RESETCONF PARAM[=VALUE]", HELP_RESETCONF),
 }
 
 class InterpretorClosed(Exception):
