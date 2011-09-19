@@ -651,8 +651,9 @@ class ControlInterpretor:
           outputEntry.append((response, OUTPUT_FORMAT))
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
-      elif cmd == "SETCONF":
-        # arguments can either be '<param>' or '<param>="<value>"' entries
+      elif cmd == "SETCONF" or cmd == "RESETCONF":
+        # arguments can either be '<param>', '<param>=<value>', or
+        # '<param>="<value>"' entries
         paramList = []
         
         while arg:
@@ -662,14 +663,21 @@ class ControlInterpretor:
           # echos back faithfully rather than being parsed) so leaving this
           # alone for now.
           
-          m = re.match(r'^(\S+)=\"([^"]+)\"', arg)
+          quotedMatch = re.match(r'^(\S+)=\"([^"]+)\"', arg)
+          nonquotedMatch = re.match(r'^(\S+)=(\S+)', arg)
           
-          if m:
+          if quotedMatch:
             # we're dealing with a '<param>="<value>"' entry
-            param, value = m.groups()
+            param, value = quotedMatch.groups()
             
             paramList.append((param, value))
             arg = arg[len(param) + len(value) + 3:].strip()
+          elif nonquotedMatch:
+            # we're dealing with a '<param>=<value>' entry
+            param, value = nonquotedMatch.groups()
+            
+            paramList.append((param, value))
+            arg = arg[len(param) + len(value) + 1:].strip()
           else:
             # starts with just a param
             param = arg.split()[0]
@@ -677,12 +685,8 @@ class ControlInterpretor:
             arg = arg[len(param):].strip()
         
         try:
-          conn.setOptions(paramList)
-        except Exception, exc:
-          outputEntry.append((str(exc), ERROR_FORMAT))
-      elif cmd == "RESETCONF":
-        try:
-          conn.setOptions([(param, None) for param in arg.split()])
+          isReset = cmd == "RESETCONF"
+          conn.setOptions(paramList, isReset)
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
       else:

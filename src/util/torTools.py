@@ -728,8 +728,8 @@ class Controller(TorCtl.PostEventListener):
   def setOption(self, param, value = None):
     """
     Issues a SETCONF to set the given option/value pair. An exeptions raised
-    if it fails to be set. If no value is provided then this resets the
-    configuration option.
+    if it fails to be set. If no value is provided then this sets the option to
+    0 or NULL.
     
     Arguments:
       param - configuration option to be set
@@ -739,16 +739,19 @@ class Controller(TorCtl.PostEventListener):
     
     self.setOptions(((param, value),))
   
-  def setOptions(self, paramList):
+  def setOptions(self, paramList, isReset = False):
     """
     Issues a SETCONF to replace a set of configuration options. This takes a
     list of parameter/new value tuple pairs. Values can be...
     - a string to set a single value
     - a list of strings to set a series of values (for instance the ExitPolicy)
-    - None to reset the parameter
+    - None to set the value to 0 or NULL
     
     Arguments:
       paramList - list of parameter/value tuple pairs
+      isReset   - issues a RESETCONF instead of SETCONF, causing any None
+                  mappings to revert the parameter to its default rather than
+                  set it to 0 or NULL
     """
     
     self.connLock.acquire()
@@ -769,7 +772,10 @@ class Controller(TorCtl.PostEventListener):
     startTime, raisedExc = time.time(), None
     if self.isAlive():
       try:
-        self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
+        if isReset:
+          self.conn.sendAndRecv("RESETCONF %s\r\n" % setConfStr)
+        else:
+          self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
         
         # flushing cached values (needed until we can detect SETCONF calls)
         for param, _ in paramList:
