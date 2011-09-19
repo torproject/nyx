@@ -173,6 +173,10 @@ Example:
 
 HELP_POSTDESCRIPTOR = """Simulates getting a new relay descriptor."""
 
+HELP_EXTENDCIRCUIT = """Extends the given circuit or create a new one if the CircuitID is zero. The
+PATH is a comma separated list of fingerprints. If it isn't set then this
+uses Tor's normal path selection."""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -190,6 +194,7 @@ HELP_OPTIONS = {
   "LOADCONF": ("LOADCONF...", HELP_LOADCONF),
   "MAPADDRESS": ("MAPADDRESS SOURCE_ADDR=DESTINATION_ADDR", HELP_MAPADDRESS),
   "POSTDESCRIPTOR": ("POSTDESCRIPTOR [purpose=general/controller/bridge] [cache=yes/no]...", HELP_POSTDESCRIPTOR),
+  "EXTENDCIRCUIT": ("EXTENDCIRCUIT CircuitID [PATH] [purpose=general/controller]", HELP_EXTENDCIRCUIT),
 }
 
 class InterpretorClosed(Exception):
