@@ -348,6 +348,30 @@ class TorControlCompleter:
     if text != self._prefix:
       self._prefix = text
       self._prefixMatches = self.getMatches(text)
+      
+      # Tab completion fills in the first common prefix which can be
+      # problematic if they don't all match. For instance completing "Map" will
+      # result in ["MAPADDRESS", "MapAddress"], which gets truncated to the
+      # common prefix of just "M" when the user presses tab.
+      
+      if len(self._prefixMatches) > 1:
+        prefixToResult = {}
+        
+        for match in self._prefixMatches:
+          prefix = match[:len(text)]
+          
+          if prefix in prefixToResult:
+            prefixToResult[prefix].append(match)
+          else:
+            prefixToResult[prefix] = [match]
+        
+        if len(prefixToResult) > 1:
+          # we have multiple prefixes, pick the one with the most results
+          self._prefixMatches = None
+          
+          for matchSet in prefixToResult.values():
+            if not self._prefixMatches or len(self._prefixMatches) < len(matchSet):
+              self._prefixMatches = matchSet
     
     if state < len(self._prefixMatches):
       return self._prefixMatches[state]
