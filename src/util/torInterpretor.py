@@ -179,6 +179,29 @@ uses Tor's normal path selection."""
 
 HELP_SETCIRCUITPURPOSE = """Sets the purpose attribute for a circuit."""
 
+HELP_CLOSECIRCUIT = """Closes the given circuit. If "IfUnused" is included then this only closes
+the circuit if it isn't currently being used."""
+
+HELP_ATTACHSTREAM = """Attaches a stream with the given built circuit (tor picks one on its own if
+CircuitID is zero). If HopNum is given then this hop is used to exit the
+circuit, otherwise the last relay is used."""
+
+HELP_REDIRECTSTREAM = """Sets the destination for a given stream. This can only be done after a
+stream is created but before it's attached to a circuit."""
+
+HELP_CLOSESTREAM = """Closes the given stream, the reason being an integer matching a reason as
+per section 6.3 of the tor-spec."""
+
+HELP_RESOLVE = """Performs IPv4 DNS resolution over tor, doing a reverse lookup instead if
+"mode=reverse" is included. This request is processed in the background and
+results in a ADDRMAP event with the response."""
+
+HELP_TAKEOWNERSHIP = """Instructs Tor to gracefully shut down when this control connection is closed."""
+
+HELP_PROTOCOLINFO = """Provides bootstrapping information that a controller might need when first
+starting, like Tor's version and controller authentication. This can be done
+before authenticating to the control port."""
+
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
@@ -198,6 +221,13 @@ HELP_OPTIONS = {
   "POSTDESCRIPTOR": ("POSTDESCRIPTOR [purpose=general/controller/bridge] [cache=yes/no]...", HELP_POSTDESCRIPTOR),
   "EXTENDCIRCUIT": ("EXTENDCIRCUIT CircuitID [PATH] [purpose=general/controller]", HELP_EXTENDCIRCUIT),
   "SETCIRCUITPURPOSE": ("SETCIRCUITPURPOSE CircuitID purpose=general/controller", HELP_SETCIRCUITPURPOSE),
+  "CLOSECIRCUIT": ("CLOSECIRCUIT CircuitID [IfUnused]", HELP_CLOSECIRCUIT),
+  "ATTACHSTREAM": ("ATTACHSTREAM StreamID CircuitID [HOP=HopNum]", HELP_ATTACHSTREAM),
+  "REDIRECTSTREAM": ("REDIRECTSTREAM StreamID Address [Port]", HELP_REDIRECTSTREAM),
+  "CLOSESTREAM": ("CLOSESTREAM StreamID Reason [Flag]", HELP_CLOSESTREAM),
+  "RESOLVE": ("RESOLVE [mode=reverse] address", HELP_RESOLVE),
+  "TAKEOWNERSHIP": ("TAKEOWNERSHIP", HELP_TAKEOWNERSHIP),
+  "PROTOCOLINFO": ("PROTOCOLINFO [ProtocolVersion]", HELP_PROTOCOLINFO),
 }
 
 class InterpretorClosed(Exception):
