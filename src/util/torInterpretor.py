@@ -10,6 +10,12 @@ import readline
 
 import version
 
+# TODO: util should never import from the cli. This is being done as a hack to
+# simplify event listening, but we should later move the TorEventObserver into
+# the util.
+
+from cli.logPanel import TorEventObserver
+
 from util import connections, enum, hostnames, torConfig, torTools, uiTools
 
 COLOR_PROMPT = True     # provides a colored interpretor prompt
@@ -47,16 +53,18 @@ RESET = CSI % "0"
 
 # limits used for cropping
 BACKLOG_LIMIT = 100
+EVENTS_LIMIT = 200
 CONTENT_LIMIT = 20000
 
 MULTILINE_UNIMPLEMENTED_NOTICE = "Multi-line control options like this are not yet implemented."
 
 GENERAL_HELP = """Interpretor commands include:
-  /help  - provides information for interpretor and tor commands/config options
-  /write - saves backlog to a given location
-  /info  - general information for a relay
-  /find  - searches backlog for lines with the given regex
-  /quit  - shuts down the interpretor
+  /help   - provides information for interpretor and tor commands/config options
+  /info   - general information for a relay
+  /find   - searches backlog for lines with the given regex
+  /events - prints events that we've received
+  /write  - saves backlog to a given location
+  /quit   - shuts down the interpretor
 
 Tor commands include:
   GETINFO - queries information from tor
@@ -92,6 +100,10 @@ Example:
 
 HELP_WRITE = """Writes the interpretor's backlog to the given path. If no location is
 specified then this saves to the last path specified (initially '%s').""" % DEFAULT_WRITE_PATH
+
+HELP_EVENTS = """Provides events that we've received belonging to the given event types. If
+no types are specified then this provides all the messages that we've
+received."""
 
 HELP_INFO = """Provides general information for a relay that's currently in the consensus.
 If no relay is specified then this provides information on ourselves."""
@@ -205,6 +217,7 @@ before authenticating to the control port."""
 HELP_OPTIONS = {
   "HELP": ("/help [OPTION]", HELP_HELP),
   "WRITE": ("/write [PATH]", HELP_WRITE),
+  "EVENTS": ("/events [types]", HELP_EVENTS),
   "INFO": ("/info [relay fingerprint, nickname, or IP address]", HELP_INFO),
   "FIND": ("/find PATTERN", HELP_FIND),
   "QUIT": ("/quit", HELP_QUIT),
@@ -428,6 +441,21 @@ class ControlInterpretor:
     self.backlog = []   # prior requests the user has made
     self.contents = []  # (msg, format list) tuples for what's been displayed
     self.writePath = DEFAULT_WRITE_PATH # last location we've saved to
+    self.eventBuffer = [] # unread event messages
+    self.loggedEvents = [] # event types that we're listening for
+    
+    torTools.getConn().addEventListener(TorEventObserver(self.registerEvent))
+  
+  def registerEvent(self, event):
+    """
+    Adds the event to our buffer so it'll be in '/events' output.
+    """
+    
+    if event.type in self.loggedEvents:
+      self.eventBuffer.append(event)
+      
+      eventsCrop = len(self.eventBuffer) - EVENTS_LIMIT
+      if eventsCrop > 0: self.eventBuffer = self.eventBuffer[eventsCrop:]
   
   def getBacklog(self):
     """
@@ -572,6 +600,23 @@ class ControlInterpretor:
           outputEntry.append((line[cmdStart:] + "\n", OUTPUT_FORMAT))
         else:
           outputEntry.append((line + "\n", OUTPUT_FORMAT + (Attr.BOLD, )))
+  
+  def doEvents(self, arg, outputEntry):
+    """
+    Performs the '/events' operation, dumping the events that we've received
+    belonging to the given types. If no types are specified then this provides
+    all buffered events.
+    """
+    
+    bufferedEvents = self.eventBuffer
+    
+    # if we have an argument then restrict it to those event types
+    eventTypes = arg.upper().split()
+    if eventTypes:
+      bufferedEvents = [event for event in self.eventBuffer if event.type in eventTypes]
+    
+    for event in bufferedEvents:
+      outputEntry.append((event.getDisplayMessage() + "\n", OUTPUT_FORMAT))
   
   def doWrite(self, arg, outputEntry):
     """
@@ -803,6 +848,7 @@ class ControlInterpretor:
       elif cmd == "/help": self.doHelp(arg, outputEntry)
       elif cmd == "/write": self.doWrite(arg, outputEntry)
       elif cmd == "/find": self.doFind(arg, outputEntry)
+      elif cmd == "/events": self.doEvents(arg, outputEntry)
       elif cmd == "/info": self.doInfo(arg, outputEntry)
       else:
         outputEntry.append(("Not yet implemented...", ERROR_FORMAT)) # TODO: implement
@@ -865,6 +911,20 @@ class ControlInterpretor:
           conn.setOptions(paramList, isReset)
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
+      elif cmd == "SETEVENTS":
+        self.loggedEvents = arg.split()
+        allEvents = torTools.getConn().setControllerEvents(self.loggedEvents)
+        setEvents = set(self.loggedEvents).intersection(allEvents)
+        
+        if setEvents:
+          outputEntry.append(("Successfully set event listening to: %s\n" % ", ".join(setEvents), OUTPUT_FORMAT))
+        else:
+          if not self.loggedEvents:
+            # we purposefully disabled event listening
+            outputEntry.append(("Disabled event listening\n", OUTPUT_FORMAT))
+          else:
+            # we tried to set events but they all failed
+            outputEntry.append(("Unable to set any of the events. Event listening disabled.\n", ERROR_FORMAT))
       elif cmd.replace("+", "") in ("LOADCONF", "POSTDESCRIPTOR"):
         # provides a notice that multi-line controller input isn't yet implemented
         outputEntry.append((MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
