@@ -658,8 +658,9 @@ class ControlInterpretor:
       
       if cmd == "GETINFO":
         try:
-          response = conn.getInfo(arg, suppressExc = False)
-          outputEntry.append((response, OUTPUT_FORMAT))
+          for param in arg.split():
+            response = conn.getInfo(param, suppressExc = False)
+            outputEntry.append((response + "\n", OUTPUT_FORMAT))
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
       elif cmd == "SETCONF" or cmd == "RESETCONF":
