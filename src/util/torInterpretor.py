@@ -236,6 +236,9 @@ class TorControlCompleter:
   """
   
   def __init__(self):
+    self._prefix = None
+    self._prefixMatches = []
+    
     self.commands = []
     conn = torTools.getConn()
     
@@ -342,9 +345,13 @@ class TorControlCompleter:
     the readlines set_completer function.
     """
     
-    for cmd in self.getMatches(text):
-      if not state: return cmd
-      else: state -= 1
+    if text != self._prefix:
+      self._prefix = text
+      self._prefixMatches = self.getMatches(text)
+    
+    if state < len(self._prefixMatches):
+      return self._prefixMatches[state]
+    else: return None
 
 class ControlInterpretor:
   """
