@@ -203,15 +203,16 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
   
   conn = None
   try:
-    conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
+    #conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
+    conn, authTypes, authValue = util.torTools.preauth_connect_alt(controlAddr, controlPort)
     
-    if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
+    if TorCtl.TorCtl.AUTH_TYPE.PASSWORD in authTypes:
       # password authentication, promting for the password if it wasn't provided
       if passphrase: authValue = passphrase
       else:
         try: authValue = getpass.getpass("Controller password: ")
         except KeyboardInterrupt: return None
-    elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE and authValue[0] != "/":
+    elif TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes and authValue[0] != "/":
       # Connecting to the control port will probably fail if it's using cookie
       # authentication and the cookie path is relative (unfortunately this is
       # the case for TBB). This is discussed in:
@@ -226,7 +227,7 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
         except IOError: pass
     
     # appends the path prefix if it's set
-    if authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
+    if TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes:
       pathPrefix = util.torTools.getConn().getPathPrefix()
       
       # The os.path.join function is kinda stupid. If given an absolute path

@@ -359,6 +359,187 @@ def isTorRunning():
   
   return False
 
+# ============================================================
+# TODO: Remove when TorCtl can handle multiple auth methods
+# https://trac.torproject.org/projects/tor/ticket/3958
+#
+# The following is a hacked up version of the fix in that ticket.
+# ============================================================
+
+class FixedConnection(TorCtl.Connection):
+  def __init__(self, sock):
+    TorCtl.Connection.__init__(self, sock)
+    self._authTypes = []
+    
+  def get_auth_types(self):
+    """
+    Provides the list of authentication types used for the control port. Each
+    are members of the AUTH_TYPE enumeration and return results will always
+    have at least one result. This raises an IOError if the query to
+    PROTOCOLINFO fails.
+    """
+
+    if not self._authTypes:
+      # check PROTOCOLINFO for authentication type
+      try:
+        authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
+      except Exception, exc:
+        if exc.message: excMsg = ": %s" % exc
+        else: excMsg = ""
+        raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
+
+      # parses the METHODS and COOKIEFILE entries for details we need to
+      # authenticate
+
+      authTypes, cookiePath = [], None
+
+      for entry in authInfo.split():
+        if entry.startswith("METHODS="):
+          # Comma separated list of our authentication types. If we have
+          # multiple then any of them will work.
+
+          methodsEntry = entry[8:]
+
+          for authEntry in methodsEntry.split(","):
+            if authEntry == "NULL":
+              authTypes.append(TorCtl.AUTH_TYPE.NONE)
+            elif authEntry == "HASHEDPASSWORD":
+              authTypes.append(TorCtl.AUTH_TYPE.PASSWORD)
+            elif authEntry == "COOKIE":
+              authTypes.append(TorCtl.AUTH_TYPE.COOKIE)
+            else:
+              # not of a recognized authentication type (new addition to the
+              # control-spec?)
+
+              raise IOError("Unrecognized authentication type: %s" % authEntry)
+        elif entry.startswith("COOKIEFILE=\"") and entry.endswith("\""):
+          # Quoted path of the authentication cookie. This only exists if we're
+          # using cookie auth and, of course, doesn't account for chroot.
+
+          cookiePath = entry[12:-1]
+
+      # There should always be a AUTH METHODS entry. If we didn't then throw a
+      # wobbly.
+
+      if not authTypes:
+        raise IOError("PROTOCOLINFO response didn't include any authentication methods")
+
+      self._authType = authTypes[0]
+      self._authTypes = authTypes
+      self._cookiePath = cookiePath
+
+    return list(self._authTypes)
+
+  def authenticate(self, secret=""):
+    """
+    Authenticates to the control port. If an issue arises this raises either of
+    the following:
+      - IOError for failures in reading an authentication cookie or querying
+        PROTOCOLINFO.
+      - TorCtl.ErrorReply for authentication failures or if the secret is
+        undefined when using password authentication
+    """
+
+    # fetches authentication type and cookie path if still unloaded
+    if not self._authTypes: self.get_auth_types()
+
+    # validates input
+    if TorCtl.AUTH_TYPE.PASSWORD in self._authTypes and secret == "":
+      raise TorCtl.ErrorReply("Unable to authenticate: no passphrase provided")
+
+    # tries each of our authentication methods, throwing the last exception if
+    # they all fail
+
+    raisedExc = None
+    for authMethod in self._authTypes:
+      authCookie = None
+      try:
+        if authMethod == TorCtl.AUTH_TYPE.NONE:
+          self.authenticate_password("")
+        elif authMethod == TorCtl.AUTH_TYPE.PASSWORD:
+          self.authenticate_password(secret)
+        else:
+          authCookie = open(self._cookiePath, "r")
+          self.authenticate_cookie(authCookie)
+          authCookie.close()
+
+        # Did the above raise an exception? No? Cool, we're done.
+        return
+      except TorCtl.ErrorReply, exc:
+        if authCookie: authCookie.close()
+        issue = str(exc)
+
+        # simplifies message if the wrong credentials were provided (common
+        # mistake)
+        if issue.startswith("515 Authentication failed: "):
+          if issue[27:].startswith("Password did not match"):
+            issue = "password incorrect"
+          elif issue[27:] == "Wrong length on authentication cookie.":
+            issue = "cookie value incorrect"
+
+        raisedExc = TorCtl.ErrorReply("Unable to authenticate: %s" % issue)
+      except IOError, exc:
+        if authCookie: authCookie.close()
+        issue = None
+
+        # cleaner message for common errors
+        if str(exc).startswith("[Errno 13] Permission denied"):
+          issue = "permission denied"
+        elif str(exc).startswith("[Errno 2] No such file or directory"):
+          issue = "file doesn't exist"
+
+        # if problem's recognized give concise message, otherwise print exception
+        # string
+        if issue: raisedExc = IOError("Failed to read authentication cookie (%s): %s" % (issue, self._cookiePath))
+        else: raisedExc = IOError("Failed to read authentication cookie: %s" % exc)
+
+    # if we got to this point then we failed to authenticate and should have a
+    # raisedExc
+
+    if raisedExc: raise raisedExc
+
+def preauth_connect_alt(controlAddr="127.0.0.1", controlPort=9051,
+                    ConnClass=FixedConnection):
+  """
+  Provides an uninitiated torctl connection components for the control port,
+  returning a tuple of the form...
+  (torctl connection, authTypes, authValue)
+
+  The authValue corresponds to the cookie path if using an authentication
+  cookie, otherwise this is the empty string. This raises an IOError in case
+  of failure.
+
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+    ConnClass  - connection type to instantiate
+  """
+
+  conn = None
+  try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
+    conn = ConnClass(s)
+    authTypes, authValue = conn.get_auth_types(), ""
+
+    if TorCtl.AUTH_TYPE.COOKIE in authTypes:
+      authValue = conn.get_auth_cookie_path()
+
+    return (conn, authTypes, authValue)
+  except socket.error, exc:
+    if conn: conn.close()
+
+    if "Connection refused" in exc.args:
+      # most common case - tor control port isn't available
+      raise IOError("Connection refused. Is the ControlPort enabled?")
+
+    raise IOError("Failed to establish socket: %s" % exc)
+  except Exception, exc:
+    if conn: conn.close()
+    raise IOError(exc)
+
+# ============================================================
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
