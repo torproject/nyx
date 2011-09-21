@@ -352,7 +352,7 @@ def isTorRunning():
   """
   
   # suggestions welcome for making this more reliable
-  commandResults = sysTools.call("ps co command")
+  commandResults = sysTools.call("ps -A co command")
   if commandResults:
     for cmd in commandResults:
       if cmd.strip() == "tor": return True
