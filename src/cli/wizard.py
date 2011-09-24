@@ -356,14 +356,14 @@ def showWizard():
         generatedTorrc = getTorrc(relayType, config, disabledOpt)
         
         torrcLocation = manager.getTorrcPath()
+        isSystemReplace = not Options.SYSTEM in disabledOpt and config[Options.SYSTEM].getValue()
+        if isSystemReplace: torrcLocation = SYSTEM_DROP_PATH
+        
         controller.redraw()
         confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
         
         if confirmationSelection == NEXT:
           log.log(log.INFO, "Writing torrc to '%s':\n%s" % (torrcLocation, generatedTorrc))
-          
-          isSystemReplace = not Options.SYSTEM in disabledOpt and config[Options.SYSTEM].getValue()
-          if isSystemReplace: torrcLocation = SYSTEM_DROP_PATH
           
           # if the torrc already exists then save it to a _bak file
           isBackedUp = False
