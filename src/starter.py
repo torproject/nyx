@@ -94,7 +94,7 @@ DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
 NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
 STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
-STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
+STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize arm by placing a configuration file at '%s' (see the armrc.sample for its options)."
 
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
