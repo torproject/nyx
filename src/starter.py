@@ -99,6 +99,9 @@ STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
+# notices given if the user is running arm or tor as root
+TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
+
 def allowConnectionTypes():
   """
   This provides a tuple with booleans indicating if we should or shouldn't
@@ -489,7 +492,14 @@ if __name__ == '__main__':
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
   controller = util.torTools.getConn()
-  if conn: controller.init(conn)
+  
+  if conn:
+    controller.init(conn)
+    
+    # give a notice if tor is running with root
+    if controller.getMyUser() == "root":
+      util.log.log(util.log.NOTICE, TOR_ROOT_NOTICE)
+      
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)
