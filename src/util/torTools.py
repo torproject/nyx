@@ -1546,7 +1546,7 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
-    result = None
+    result = default
     if self.isAlive():
       # query the address if it isn't yet cached
       if not relayFingerprint in self._addressLookupCache:
