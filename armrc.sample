@@ -303,7 +303,7 @@ log.configDescriptions.persistance.saveFailed NOTICE
 log.connResolverOptions INFO
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
-log.connLookupAbandon WARN
+log.connLookupAbandon NOTICE
 log.connLookupRateGrowing NONE
 log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO

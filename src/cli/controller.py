@@ -670,7 +670,7 @@ def startTorMonitor(startTime):
       connections.getResolver("tor").setPaused(not conn.isAlive())
     
     # hack to display a better (arm specific) notice if all resolvers fail
-    connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
+    connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = cli.logPanel.getMissingEventTypes()
