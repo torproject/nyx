@@ -351,6 +351,7 @@ def showWizard():
       selection = promptConfigOptions(relayType, config, disabledOpt)
       
       if selection == BACK: relayType = None
+      elif selection == CANCEL: break
       elif selection == NEXT:
         generatedTorrc = getTorrc(relayType, config, disabledOpt)
         
@@ -536,7 +537,7 @@ def promptRelayType(initialSelection):
       if key == curses.KEY_UP: selection = (selection - 1) % len(options)
       elif key == curses.KEY_DOWN: selection = (selection + 1) % len(options)
       elif uiTools.isSelectionKey(key): return options[selection].getValue()
-      elif key == 27: return CANCEL # esc - cancel
+      elif key in (27, ord('q'), ord('Q')): return CANCEL # esc or q - cancel
   finally:
     cli.popups.finalize()
 
@@ -635,7 +636,7 @@ def promptConfigOptions(relayType, config, disabledOpt):
             except ValueError, exc:
               cli.popups.showMsg(str(exc), 3)
               cli.controller.getController().redraw()
-      elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
+      elif key in (27, ord('q'), ord('Q')): return CANCEL
   finally:
     cli.popups.finalize()
 
@@ -857,7 +858,7 @@ def showConfirmationDialog(torrcContents, torrcLocation):
         if selection == 0: return CANCEL
         elif selection == 1: return BACK
         else: return NEXT
-      elif key == 27: return CANCEL
+      elif key in (27, ord('q'), ord('Q')): return CANCEL
   finally:
     cli.popups.finalize()
 
