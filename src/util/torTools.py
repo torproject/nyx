@@ -2004,7 +2004,9 @@ class Controller(TorCtl.PostEventListener):
     
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
+    self.connLock.acquire()
     self._fingerprintsAttachedCache = None
+    self.connLock.release()
     
     self._cachedParam["circuits"] = None
   
@@ -2084,6 +2086,10 @@ class Controller(TorCtl.PostEventListener):
       relayAddress - address of relay to be returned
       relayPort    - orport of relay (to further narrow the results)
     """
+    
+    # Events can reset _fingerprintsAttachedCache to None, so all uses of this
+    # function need to be under the connection lock (skipping that might also
+    # scew with the conn usage of this function...)
     
     # If we were provided with a string port then convert to an int (so
     # lookups won't mismatch based on type).
