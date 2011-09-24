@@ -331,10 +331,15 @@ def showWizard():
   if not os.path.exists(os.path.dirname(SYSTEM_DROP_PATH)) or not os.path.exists(OVERRIDE_SCRIPT):
     disabledOpt.append(Options.SYSTEM)
   
+  # TODO: The STARTUP option is currently disabled in the 'settings.cfg', and I
+  # don't currently have plans to implement it (it would be a big pita, and the
+  # tor deb already handles it). *If* it is implemented then I'd limit support
+  # for the option to Debian and Ubuntu to start with, via the following...
+  
   # Running at startup is currently only supported for Debian and Ubuntu.
   # Patches welcome for supporting other platforms.
-  if not platform.dist()[0] in ("debian", "Ubuntu"):
-    disabledOpt.append(Options.STARTUP)
+  #if not platform.dist()[0] in ("debian", "Ubuntu"):
+  #  disabledOpt.append(Options.STARTUP)
   
   while True:
     if relayType == None:
