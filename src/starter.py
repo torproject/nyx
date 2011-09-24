@@ -101,6 +101,7 @@ PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
 # notices given if the user is running arm or tor as root
 TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
+ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
 
 def allowConnectionTypes():
   """
@@ -493,13 +494,23 @@ if __name__ == '__main__':
   initTime = time.time() - startTime
   controller = util.torTools.getConn()
   
+  torUser = None
   if conn:
     controller.init(conn)
     
     # give a notice if tor is running with root
-    if controller.getMyUser() == "root":
+    torUser = controller.getMyUser()
+    if torUser == "root":
       util.log.log(util.log.NOTICE, TOR_ROOT_NOTICE)
-      
+  
+  # Give a notice if arm is running with root. Querying connections usually
+  # requires us to have the same permissions as tor so if tor is running as
+  # root then drop this notice (they're already then being warned about tor
+  # being root, anyway).
+  
+  if torUser != "root" and os.getuid() == 0:
+    torUserLabel = torUser if torUser else "<tor user>"
+    util.log.log(util.log.NOTICE, ARM_ROOT_NOTICE % torUserLabel)
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)
