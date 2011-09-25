@@ -112,9 +112,16 @@ class ConnectionPanelLine:
     self._descriptorCache = None
     self._descriptorCacheArgs = None
   
+  def getListingPrefix(self):
+    """
+    Provides a list of characters to be appended before the listing entry.
+    """
+    
+    return ()
+  
   def getListingEntry(self, width, currentTime, listingType):
     """
-    Provides a DrawEntry instance for contents to be displayed in the
+    Provides a [(msg, attr)...] tuple list for contents to be displayed in the
     connection panel listing.
     
     Arguments:
@@ -137,8 +144,8 @@ class ConnectionPanelLine:
   
   def getDetails(self, width):
     """
-    Provides a list of DrawEntry instances with detailed information for this
-    connection.
+    Provides a list of [(msg, attr)...] tuple listings with detailed
+    information for this connection.
     
     Arguments:
       width - available space to display in

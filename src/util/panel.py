@@ -9,7 +9,7 @@ import curses.ascii
 import curses.textpad
 from threading import RLock
 
-from util import log, uiTools
+from util import log, textInput, uiTools
 
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
@@ -24,6 +24,9 @@ FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
 for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
 
 CONFIG = {"log.panelRecreated": log.DEBUG}
+
+# prevents curses redraws if set
+HALT_ACTIVITY = False
 
 def loadConfig(config):
   config.update(CONFIG)
@@ -186,7 +189,7 @@ class Panel():
     """
     
     if not attr in self.pauseAttr: return None
-    elif self.isPaused(): return self.pauseBuffer[attr]
+    elif self.paused: return self.pauseBuffer[attr]
     else: return self.__dict__.get(attr)
   
   def copyAttr(self, attr):
@@ -375,8 +378,8 @@ class Panel():
                     abandoned
     """
     
-    # skipped if not currently visible
-    if not self.isVisible(): return
+    # skipped if not currently visible or activity has been halted
+    if not self.isVisible() or HALT_ACTIVITY: return
     
     # if the panel's completely outside its parent then this is a no-op
     newHeight, newWidth = self.getPreferredSize()
@@ -572,7 +575,7 @@ class Panel():
         baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
         raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
   
-  def getstr(self, y, x, initialText = "", format = None, maxWidth = None):
+  def getstr(self, y, x, initialText = "", format = None, maxWidth = None, validator = None):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
@@ -589,6 +592,7 @@ class Panel():
       initialText - starting text in this field
       format      - format used for the text
       maxWidth    - maximum width for the text field
+      validator   - custom TextInputValidator for handling keybindings
     """
     
     if not format: format = curses.A_NORMAL
@@ -616,8 +620,11 @@ class Panel():
     
     textbox = curses.textpad.Textbox(inputSubwindow)
     
+    if not validator:
+      validator = textInput.BasicValidator()
+    
     textbox.win.attron(format)
-    userInput = textbox.edit(lambda key: _textboxValidate(textbox, key)).strip()
+    userInput = textbox.edit(lambda key: validator.validate(key, textbox)).strip()
     textbox.win.attroff(format)
     if textbox.lastcmd == curses.ascii.BEL: userInput = None
     
@@ -674,6 +681,8 @@ class Panel():
     for i in range(scrollbarHeight):
       if i >= sliderTop and i <= sliderTop + sliderSize:
         self.addstr(i + drawTop, drawLeft, " ", curses.A_STANDOUT)
+      else:
+        self.addstr(i + drawTop, drawLeft, " ")
     
     # draws box around the scroll bar
     self.vline(drawTop, drawLeft + 1, drawBottom - 1)
@@ -721,53 +730,4 @@ class Panel():
       msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)
       log.log(CONFIG["log.panelRecreated"], msg)
     return recreate
-
-def _textboxValidate(textbox, key):
-  """
-  Interceptor for keystrokes given to a textbox, doing the following:
-  - quits by setting the input to curses.ascii.BEL when escape is pressed
-  - stops the cursor at the end of the box's content when pressing the right
-    arrow
-  - home and end keys move to the start/end of the line
-  """
-  
-  y, x = textbox.win.getyx()
-  
-  if curses.ascii.isprint(key) and x < textbox.maxx:
-    # Shifts the existing text forward so input is an insert method rather
-    # than replacement. The curses.textpad accepts an insert mode flag but
-    # this has a couple issues...
-    # - The flag is only available for Python 2.6+, before that the
-    #   constructor only accepted a subwindow argument as per:
-    #   https://trac.torproject.org/projects/tor/ticket/2354
-    # - The textpad doesn't shift text that has text attributes. This is
-    #   because keycodes read by textbox.win.inch() includes formatting,
-    #   causing the curses.ascii.isprint() check it does to fail.
-    
-    currentInput = textbox.gather()
-    textbox.win.addstr(y, x + 1, currentInput[x:textbox.maxx - 1])
-    textbox.win.move(y, x) # reverts cursor movement during gather call
-  elif key == 27:
-    # curses.ascii.BEL is a character codes that causes textpad to terminate
-    return curses.ascii.BEL
-  elif key == curses.KEY_HOME:
-    textbox.win.move(y, 0)
-    return None
-  elif key in (curses.KEY_END, curses.KEY_RIGHT):
-    msgLen = len(textbox.gather())
-    textbox.win.move(y, x) # reverts cursor movement during gather call
-    
-    if key == curses.KEY_END and msgLen > 0 and x < msgLen - 1:
-      # if we're in the content then move to the end
-      textbox.win.move(y, msgLen - 1)
-      return None
-    elif key == curses.KEY_RIGHT and x >= msgLen - 1:
-      # don't move the cursor if there's no content after it
-      return None
-  elif key == 410:
-    # if we're resizing the display during text entry then cancel it
-    # (otherwise the input field is filled with nonprintable characters)
-    return curses.ascii.BEL
-  
-  return key
 

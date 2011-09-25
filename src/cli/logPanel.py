@@ -284,6 +284,13 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
     # entries look like:
     # Jul 15 18:29:48.806 [notice] Parsing GEOIP file.
     lineComp = line.split()
+    
+    # Checks that we have all the components we expect. This could happen if
+    # we're either not parsing a tor log or in weird edge cases (like being
+    # out of disk space)
+    
+    if len(lineComp) < 4: continue
+    
     eventType = lineComp[3][1:-1].upper()
     
     if eventType in runlevels:
@@ -508,9 +515,6 @@ class TorEventObserver(TorCtl.PostEventListener):
   
   def or_conn_status_event(self, event):
     msg = "STATUS: %-10s ENDPOINT: %-20s" % (event.status, event.endpoint)
-    if event.age: msg += " AGE: %-3s" % event.age
-    if event.read_bytes: msg += " READ: %-4i" % event.read_bytes
-    if event.wrote_bytes: msg += " WRITTEN: %-4i" % event.wrote_bytes
     if event.reason: msg += " REASON: %-6s" % event.reason
     if event.ncircs: msg += " NCIRCS: %i" % event.ncircs
     self._notify(event, msg)
@@ -529,7 +533,18 @@ class TorEventObserver(TorCtl.PostEventListener):
     self._notify(event, ", ".join(idlistStr))
   
   def address_mapped_event(self, event):
-    self._notify(event, "%s, %s -> %s" % (event.when, event.from_addr, event.to_addr))
+    whenLabel, gmtExpiryLabel = "", ""
+    
+    if event.when:
+      whenLabel = time.strftime("%H:%M %m/%d/%Y", event.when)
+    
+    # TODO: torctl is getting an 'error' and 'gmt_expiry' attribute so display
+    # those when they become available
+    #
+    #if event.gmt_expiry:
+    #  gmtExpiryLabel = time.strftime("%H:%M %m/%d/%Y", event.gmt_expiry)
+    
+    self._notify(event, "%s, %s -> %s" % (whenLabel, event.from_addr, event.to_addr))
   
   def ns_event(self, event):
     # NetworkStatus params: nickname, idhash, orhash, ip, orport (int),
@@ -540,6 +555,10 @@ class TorEventObserver(TorCtl.PostEventListener):
   def new_consensus_event(self, event):
     msg = ", ".join(["%s (%s)" % (ns.idhex, ns.nickname) for ns in event.nslist])
     self._notify(event, "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
+  
+  def guard_event(self, event):
+    msg = "%s (%s), STATUS: %s" % (event.idhex, event.nick, event.status)
+    self._notify(event, msg, "yellow")
   
   def unknown_event(self, event):
     msg = "(%s) %s" % (event.event_name, event.event_string)

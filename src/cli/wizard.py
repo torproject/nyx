@@ -9,6 +9,7 @@ import sys
 import random
 import shutil
 import getpass
+import platform
 import functools
 import curses
 
@@ -24,7 +25,7 @@ TORRC_TEMPLATE = "resources/torrcTemplate.txt"
 RelayType = enum.Enum("RESUME", "RELAY", "EXIT", "BRIDGE", "CLIENT")
 
 # all options that can be configured
-Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "STARTUP", "RSHUTDOWN", "CSHUTDOWN", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
+Options = enum.Enum("DIVIDER", "CONTROL", "NICKNAME", "CONTACT", "NOTIFY", "BANDWIDTH", "LIMIT", "CLIENT", "LOWPORTS", "PORTFORWARD", "SYSTEM", "STARTUP", "RSHUTDOWN", "CSHUTDOWN", "NOTICE", "POLICY", "WEBSITES", "EMAIL", "IM", "MISC", "PLAINTEXT", "DISTRIBUTE", "BRIDGED", "BRIDGE1", "BRIDGE2", "BRIDGE3", "REUSE")
 RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -34,7 +35,8 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
-                                    Options.RSHUTDOWN),
+                                    Options.RSHUTDOWN,
+                                    Options.SYSTEM),
                 RelayType.EXIT:    (Options.NICKNAME,
                                     Options.CONTACT,
                                     Options.NOTIFY,
@@ -45,6 +47,7 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
                                     Options.RSHUTDOWN,
+                                    Options.SYSTEM,
                                     Options.DIVIDER,
                                     Options.NOTICE,
                                     Options.POLICY,
@@ -60,13 +63,15 @@ RelayOptions = {RelayType.RELAY:   (Options.NICKNAME,
                                     Options.LOWPORTS,
                                     Options.PORTFORWARD,
                                     Options.STARTUP,
-                                    Options.RSHUTDOWN),
+                                    Options.RSHUTDOWN,
+                                    Options.SYSTEM),
                 RelayType.CLIENT:  (Options.BRIDGED,
                                     Options.BRIDGE1,
                                     Options.BRIDGE2,
                                     Options.BRIDGE3,
                                     Options.REUSE,
-                                    Options.CSHUTDOWN)}
+                                    Options.CSHUTDOWN,
+                                    Options.SYSTEM)}
 
 # option sets
 CUSTOM_POLICIES = (Options.WEBSITES, Options.EMAIL, Options.IM, Options.MISC, Options.PLAINTEXT)
@@ -94,6 +99,12 @@ VERSION_REQUIREMENTS = {Options.PORTFORWARD: "0.2.3.1-alpha"}
 # tor's defaults for config options, used to filter unneeded options
 TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
                 Options.REUSE: "10 minutes"}
+
+# path for the torrc to be placed if replacing the torrc for the system wide
+# tor instance
+SYSTEM_DROP_PATH = "/var/lib/tor-arm/torrc"
+OVERRIDE_SCRIPT = "/usr/share/arm/resources/torrcOverride/override.py"
+OVERRIDE_SETUID_SCRIPT = "/usr/bin/torrc-override"
 
 CONFIG = {"wizard.message.role": "",
           "wizard.message.relay": "",
@@ -273,21 +284,28 @@ def showWizard():
   config[Options.REUSE].setValidator(_circDurationValidator)
   
   # enables custom policies when 'custom' is selected and disables otherwise
-  lowPortsOpt = config[Options.LOWPORTS]
-  disclaimerNotice = [config[Options.NOTICE]]
-  lowPortsOpt.setValidator(functools.partial(_toggleEnabledAction, disclaimerNotice))
-  _toggleEnabledAction(disclaimerNotice, lowPortsOpt, lowPortsOpt.getValue())
-  
   policyOpt = config[Options.POLICY]
   customPolicies = [config[opt] for opt in CUSTOM_POLICIES]
   policyOpt.setValidator(functools.partial(_toggleEnabledAction, customPolicies))
   _toggleEnabledAction(customPolicies, policyOpt, policyOpt.getValue())
+  
+  lowPortsOpt = config[Options.LOWPORTS]
+  disclaimerNotice = [config[Options.NOTICE]]
+  lowPortsOpt.setValidator(functools.partial(_toggleEnabledAction, disclaimerNotice))
+  _toggleEnabledAction(disclaimerNotice, lowPortsOpt, lowPortsOpt.getValue())
   
   # enables bridge entries when "Use Bridges" is set and disables otherwise
   useBridgeOpt = config[Options.BRIDGED]
   bridgeEntries = [config[opt] for opt in BRIDGE_ENTRIES]
   useBridgeOpt.setValidator(functools.partial(_toggleEnabledAction, bridgeEntries))
   _toggleEnabledAction(bridgeEntries, useBridgeOpt, useBridgeOpt.getValue())
+  
+  # enables running at startup when 'Use System Instance' is deselected and
+  # disables otherwise
+  systemOpt = config[Options.SYSTEM]
+  startupOpt = [config[Options.STARTUP]]
+  systemOpt.setValidator(functools.partial(_toggleEnabledAction, startupOpt, True))
+  _toggleEnabledAction(startupOpt, systemOpt, not systemOpt.getValue())
   
   # remembers the last selection made on the type prompt page
   controller = cli.controller.getController()
@@ -306,6 +324,23 @@ def showWizard():
     if not sysTools.isAvailable("tor-fw-helper"):
       disabledOpt.append(Options.PORTFORWARD)
   
+  # If we haven't run 'resources/torrcOverride/override.py --init' or lack
+  # permissions then we aren't able to deal with the system wide tor instance.
+  # Also drop the option if we aren't installed since override.py won't be at
+  # the expected path.
+  if not os.path.exists(os.path.dirname(SYSTEM_DROP_PATH)) or not os.path.exists(OVERRIDE_SCRIPT):
+    disabledOpt.append(Options.SYSTEM)
+  
+  # TODO: The STARTUP option is currently disabled in the 'settings.cfg', and I
+  # don't currently have plans to implement it (it would be a big pita, and the
+  # tor deb already handles it). *If* it is implemented then I'd limit support
+  # for the option to Debian and Ubuntu to start with, via the following...
+  
+  # Running at startup is currently only supported for Debian and Ubuntu.
+  # Patches welcome for supporting other platforms.
+  #if not platform.dist()[0] in ("debian", "Ubuntu"):
+  #  disabledOpt.append(Options.STARTUP)
+  
   while True:
     if relayType == None:
       selection = promptRelayType(relaySelection)
@@ -321,11 +356,15 @@ def showWizard():
       selection = promptConfigOptions(relayType, config, disabledOpt)
       
       if selection == BACK: relayType = None
+      elif selection == CANCEL: break
       elif selection == NEXT:
         generatedTorrc = getTorrc(relayType, config, disabledOpt)
         
         torrcLocation = manager.getTorrcPath()
-        controller.requestRedraw(True)
+        isSystemReplace = not Options.SYSTEM in disabledOpt and config[Options.SYSTEM].getValue()
+        if isSystemReplace: torrcLocation = SYSTEM_DROP_PATH
+        
+        controller.redraw()
         confirmationSelection = showConfirmationDialog(generatedTorrc, torrcLocation)
         
         if confirmationSelection == NEXT:
@@ -333,14 +372,21 @@ def showWizard():
           
           # if the torrc already exists then save it to a _bak file
           isBackedUp = False
-          if os.path.exists(torrcLocation):
-            shutil.copy(torrcLocation, torrcLocation + "_bak")
-            isBackedUp = True
+          if os.path.exists(torrcLocation) and not isSystemReplace:
+            try:
+              shutil.copy(torrcLocation, torrcLocation + "_bak")
+              isBackedUp = True
+            except IOError, exc:
+              log.log(log.WARN, "Unable to backup the torrc: %s" % exc)
           
           # writes the torrc contents
-          torrcFile = open(torrcLocation, "w")
-          torrcFile.write(generatedTorrc)
-          torrcFile.close()
+          try:
+            torrcFile = open(torrcLocation, "w")
+            torrcFile.write(generatedTorrc)
+            torrcFile.close()
+          except IOError, exc:
+            log.log(log.ERR, "Unable to make torrc: %s" % exc)
+            break
           
           # logs where we placed the torrc
           msg = "Tor configuration placed at '%s'" % torrcLocation
@@ -367,7 +413,53 @@ def showWizard():
             msg = "Exit notice placed at '%s/index.html'. Some of the sections are specific to US relay operators so please change the \"FIXME\" sections if this is inappropriate." % dst
             log.log(log.NOTICE, msg)
           
-          if manager.isTorrcAvailable():
+          runCommand, exitCode = None, 1
+          
+          if isSystemReplace:
+            # running override.py needs root so...
+            # - if running as root (bad user, no biscuit!) then run it directly
+            # - if the setuid binary is available at '/usr/bin/torrc-override'
+            #   then use that
+            # - attempt sudo in case passwordless sudo is available
+            # - if all of the above fail then log instructions
+            
+            if os.geteuid() == 0: runCommand = OVERRIDE_SCRIPT
+            elif os.path.exists(OVERRIDE_SETUID_SCRIPT): runCommand = OVERRIDE_SETUID_SCRIPT
+            else:
+              # The -n argument to sudo is *supposed* to be available starting
+              # with 1.7.0 [1] however this is a dirty lie (Ubuntu 9.10 uses
+              # 1.7.0 and even has the option in its man page, but it doesn't
+              # work). Instead checking for version 1.7.1.
+              #
+              # [1] http://www.sudo.ws/pipermail/sudo-users/2009-January/003889.html
+              
+              sudoVersionResult = sysTools.call("sudo -V")
+              
+              # version output looks like "Sudo version 1.7.2p7"
+              if len(sudoVersionResult) == 1 and sudoVersionResult[0].count(" ") >= 2:
+                versionNum = 0
+                
+                for comp in sudoVersionResult[0].split(" ")[2].split("."):
+                  if comp and comp[0].isdigit():
+                    versionNum = (10 * versionNum) + int(comp)
+                  else:
+                    # invalid format
+                    log.log(log.INFO, "Unrecognized sudo version string: %s" % sudoVersionResult[0])
+                    versionNum = 0
+                    break
+                
+                if versionNum >= 171:
+                  runCommand = "sudo -n %s" % OVERRIDE_SCRIPT
+                else:
+                  log.log(log.INFO, "Insufficient sudo version for the -n argument")
+            
+            if runCommand: exitCode = os.system("%s > /dev/null 2>&1" % runCommand)
+            
+            if exitCode != 0:
+              msg = "Tor needs root permissions to replace the system wide torrc. To continue...\n- open another terminal\n- run \"sudo %s\"\n- press 'x' here to tell tor to reload" % OVERRIDE_SCRIPT
+              log.log(log.NOTICE, msg)
+            else: torTools.getConn().reload()
+          elif manager.isTorrcAvailable():
             # If we're connected to a managed instance then just need to
             # issue a sighup to pick up the new settings. Otherwise starts
             # a new tor instance.
@@ -390,7 +482,7 @@ def showWizard():
         elif confirmationSelection == CANCEL: break
     
     # redraws screen to clear away the dialog we just showed
-    cli.controller.getController().requestRedraw(True)
+    cli.controller.getController().redraw()
 
 def promptRelayType(initialSelection):
   """
@@ -450,7 +542,7 @@ def promptRelayType(initialSelection):
       if key == curses.KEY_UP: selection = (selection - 1) % len(options)
       elif key == curses.KEY_DOWN: selection = (selection + 1) % len(options)
       elif uiTools.isSelectionKey(key): return options[selection].getValue()
-      elif key == 27: return CANCEL # esc - cancel
+      elif key in (27, ord('q'), ord('Q')): return CANCEL # esc or q - cancel
   finally:
     cli.popups.finalize()
 
@@ -548,8 +640,8 @@ def promptConfigOptions(relayType, config, disabledOpt):
             try: options[selection].setValue(newValue.strip())
             except ValueError, exc:
               cli.popups.showMsg(str(exc), 3)
-              cli.controller.getController().requestRedraw(True)
-      elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
+              cli.controller.getController().redraw()
+      elif key in (27, ord('q'), ord('Q')): return CANCEL
   finally:
     cli.popups.finalize()
 
@@ -603,8 +695,11 @@ def getTorrc(relayType, config, disabledOpt):
   dataDir = cli.controller.getController().getDataDirectory()
   templateOptions["NOTICE_PATH"] = "%sexitNotice/index.html" % dataDir
   templateOptions["LOG_ENTRY"] = "notice file %stor_log" % dataDir
-  templateOptions["DATA_DIR"] = "%stor_data" % dataDir
   templateOptions["USERNAME"] = getpass.getuser()
+  
+  # using custom data directory, unless this is for a system wide instance
+  if not config[Options.SYSTEM].getValue() or Options.SYSTEM in disabledOpt:
+    templateOptions["DATA_DIR"] = "%stor_data" % dataDir
   
   policyCategories = []
   if not config[Options.POLICY].getValue():
@@ -665,6 +760,10 @@ def getTorrc(relayType, config, disabledOpt):
   for opt in disabledOpt:
     if opt.upper() in templateOptions:
       del templateOptions[opt.upper()]
+  
+  startupOpt = Options.STARTUP.upper()
+  if not config[Options.STARTUP].isEnabled() and startupOpt in templateOptions:
+    del templateOptions[startupOpt]
   
   # removes options if they match the tor defaults
   for opt in TOR_DEFAULTS:
@@ -764,7 +863,7 @@ def showConfirmationDialog(torrcContents, torrcLocation):
         if selection == 0: return CANCEL
         elif selection == 1: return BACK
         else: return NEXT
-      elif key == 27: return CANCEL
+      elif key in (27, ord('q'), ord('Q')): return CANCEL
   finally:
     cli.popups.finalize()
 
@@ -843,7 +942,7 @@ def _obscureChar(inputText, target, options):
   
   return inputText.replace(target, replacement)
 
-def _toggleEnabledAction(toggleOptions, option, value):
+def _toggleEnabledAction(toggleOptions, option, value, invert = False):
   """
   Enables or disables custom exit policy options based on our selection.
   
@@ -852,7 +951,10 @@ def _toggleEnabledAction(toggleOptions, option, value):
                     selection (ie, true -> enabled, false -> disabled)
     options       - our config option
     value         - the value we're being set to
+    invert        - inverts selection if true
   """
+  
+  if invert: value = not value
   
   for opt in toggleOptions:
     opt.setEnabled(value)

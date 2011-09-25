@@ -1,6 +1,44 @@
 CHANGE LOG
 
-7/16/11 - version 1.4.3
+9/25/11 - version 1.4.4
+Besides the normal bug fixes and minor features, this release introduces the control port interpretor. This is a new page or standalone prompt that gives raw control port access with several usability improvements (tab completion, history, irc style help, interpretor commands, etc).
+
+    * added: control port interpretor which provides...
+          o tab completion
+          o history scrollback
+          o /help option which provides usage information for all of the tor/interpretor commands and tor configuration options
+          o /info option for querying relay information via fingerprint, nickname, or IP address
+          o /find option which searches the backlog for the given regex
+          o /events option which displays any events that we've listened for
+          o /write option which dumps the interpretor backlog to a file
+    * added: control socket support (feature request by dererk, ticket)
+    * added: optional system wide torrc integration (thanks to ioerror, ticket)
+    * added: dialog for guards, bridges, and exits with exit port usage and client locales
+    * added: configuration editor for the gui interface (implemented by krkhan)
+    * added: notice that warns the user against running tor or arm as root
+    * change: doing a manual redraw when the user presses ctrl+L (ticket)
+    * change: moving download location to archive.torproject.org so downloads will have ssl (suggested by arma)
+    * change: rewrite of the descriptor popup, cleaning up the code and minor performance improvements
+    * fix: preventing arm from starting if there's a running tor instance that we can't connect to
+    * fix: when the config-text GETINFO option was unavailable we'd write a blank torrc (caught by Runa)
+    * fix: appending path prefix to auth cookie path (caught by sid77)
+    * fix: skipping log parsing if misformatted (caught by Sjon)
+    * fix: incorrect armrc path in man page (caught by dererk)
+    * fix: toning down the warning when all connection resolvers fail (suggested by Sebastian)
+    * fix: quitting wizard when the user presses 'q' instead of just esc (suggested by monochromec, ticket)
+    * fix: quitting could cause unclean curses shutdown
+    * fix: relay address fetching would ignore default values at shutdown, causing a stacktrace
+    * fix: concurrency bug could crash arm if a CIRC event occurs while caching attached relays
+    * fix: crashing issue from use of an uninitialized buffer when paused with accounting stats
+    * fix: periodically redrawing content to prevent weird terminal glitches from persisting
+    * fix: pressing 'enter' on config panel when never attached to tor would crash
+    * fix: hotkey for saving the torrc conflicted with the relay setup wizard
+    * fix: avoiding catch-all during controller init
+    * fix: listener wasn't registering GUARD events
+    * fix: dropping nonexistent ORCONN attributes
+    * fix: clarifying the missing torrc message
+
+7/16/11 - version 1.4.3 (6cf4836)
 This completes the codebase refactoring project that's been a year in the works and provides numerous performance and usability improvements. Most notably this includes a setup wizard for new relays, menuing interface, gui prototype, substantial performance improvements, and support for Mac OSX.
 
     * added: relay setup wizard for autogenerating a torrc configuration

@@ -324,7 +324,7 @@ class GraphPanel(panel.Panel):
           self.setGraphHeight(self.graphHeight - 1)
         elif uiTools.isSelectionKey(key): break
         
-        control.requestRedraw(True)
+        control.redraw()
     finally:
       control.setMsg()
       panel.CURSES_LOCK.release()

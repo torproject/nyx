@@ -14,7 +14,7 @@ import Queue
 
 from TorCtl import TorCtl, TorUtil
 
-from util import enum, log, procTools, sysTools, uiTools
+from util import connections, enum, log, procTools, sysTools, uiTools
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -110,6 +110,27 @@ IS_STARTUP_SIGNAL = True
 
 def loadConfig(config):
   config.update(CONFIG)
+
+# TODO: temporary code until this is added to torctl as part of...
+# https://trac.torproject.org/projects/tor/ticket/3638
+def connect_socket(socketPath="/var/run/tor/control", ConnClass=TorCtl.Connection):
+  """
+  Connects to a unix domain socket available to controllers (set via tor's
+  ControlSocket option). This raises an IOError if unable to do so.
+
+  Arguments:
+    socketPath - path of the socket to attach to
+    ConnClass  - connection type to instantiate
+  """
+
+  try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(socketPath)
+    conn = ConnClass(s)
+    conn.authenticate("")
+    return conn
+  except Exception, exc:
+    raise IOError(exc)
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
@@ -323,6 +344,201 @@ def isVersion(myVersion, minVersion):
     
     return True # versions match (should have been caught above...)
 
+def isTorRunning():
+  """
+  Simple check for if a tor process is running. If this can't be determined
+  then this returns False.
+  """
+  
+  # suggestions welcome for making this more reliable
+  commandResults = sysTools.call("ps -A co command")
+  if commandResults:
+    for cmd in commandResults:
+      if cmd.strip() == "tor": return True
+  
+  return False
+
+# ============================================================
+# TODO: Remove when TorCtl can handle multiple auth methods
+# https://trac.torproject.org/projects/tor/ticket/3958
+#
+# The following is a hacked up version of the fix in that ticket.
+# ============================================================
+
+class FixedConnection(TorCtl.Connection):
+  def __init__(self, sock):
+    TorCtl.Connection.__init__(self, sock)
+    self._authTypes = []
+    
+  def get_auth_types(self):
+    """
+    Provides the list of authentication types used for the control port. Each
+    are members of the AUTH_TYPE enumeration and return results will always
+    have at least one result. This raises an IOError if the query to
+    PROTOCOLINFO fails.
+    """
+
+    if not self._authTypes:
+      # check PROTOCOLINFO for authentication type
+      try:
+        authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
+      except Exception, exc:
+        if exc.message: excMsg = ": %s" % exc
+        else: excMsg = ""
+        raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
+
+      # parses the METHODS and COOKIEFILE entries for details we need to
+      # authenticate
+
+      authTypes, cookiePath = [], None
+
+      for entry in authInfo.split():
+        if entry.startswith("METHODS="):
+          # Comma separated list of our authentication types. If we have
+          # multiple then any of them will work.
+
+          methodsEntry = entry[8:]
+
+          for authEntry in methodsEntry.split(","):
+            if authEntry == "NULL":
+              authTypes.append(TorCtl.AUTH_TYPE.NONE)
+            elif authEntry == "HASHEDPASSWORD":
+              authTypes.append(TorCtl.AUTH_TYPE.PASSWORD)
+            elif authEntry == "COOKIE":
+              authTypes.append(TorCtl.AUTH_TYPE.COOKIE)
+            else:
+              # not of a recognized authentication type (new addition to the
+              # control-spec?)
+
+              raise IOError("Unrecognized authentication type: %s" % authEntry)
+        elif entry.startswith("COOKIEFILE=\"") and entry.endswith("\""):
+          # Quoted path of the authentication cookie. This only exists if we're
+          # using cookie auth and, of course, doesn't account for chroot.
+
+          cookiePath = entry[12:-1]
+
+      # There should always be a AUTH METHODS entry. If we didn't then throw a
+      # wobbly.
+
+      if not authTypes:
+        raise IOError("PROTOCOLINFO response didn't include any authentication methods")
+
+      self._authType = authTypes[0]
+      self._authTypes = authTypes
+      self._cookiePath = cookiePath
+
+    return list(self._authTypes)
+
+  def authenticate(self, secret=""):
+    """
+    Authenticates to the control port. If an issue arises this raises either of
+    the following:
+      - IOError for failures in reading an authentication cookie or querying
+        PROTOCOLINFO.
+      - TorCtl.ErrorReply for authentication failures or if the secret is
+        undefined when using password authentication
+    """
+
+    # fetches authentication type and cookie path if still unloaded
+    if not self._authTypes: self.get_auth_types()
+
+    # validates input
+    if TorCtl.AUTH_TYPE.PASSWORD in self._authTypes and secret == "":
+      raise TorCtl.ErrorReply("Unable to authenticate: no passphrase provided")
+
+    # tries each of our authentication methods, throwing the last exception if
+    # they all fail
+
+    raisedExc = None
+    for authMethod in self._authTypes:
+      authCookie = None
+      try:
+        if authMethod == TorCtl.AUTH_TYPE.NONE:
+          self.authenticate_password("")
+        elif authMethod == TorCtl.AUTH_TYPE.PASSWORD:
+          self.authenticate_password(secret)
+        else:
+          authCookie = open(self._cookiePath, "r")
+          self.authenticate_cookie(authCookie)
+          authCookie.close()
+
+        # Did the above raise an exception? No? Cool, we're done.
+        return
+      except TorCtl.ErrorReply, exc:
+        if authCookie: authCookie.close()
+        issue = str(exc)
+
+        # simplifies message if the wrong credentials were provided (common
+        # mistake)
+        if issue.startswith("515 Authentication failed: "):
+          if issue[27:].startswith("Password did not match"):
+            issue = "password incorrect"
+          elif issue[27:] == "Wrong length on authentication cookie.":
+            issue = "cookie value incorrect"
+
+        raisedExc = TorCtl.ErrorReply("Unable to authenticate: %s" % issue)
+      except IOError, exc:
+        if authCookie: authCookie.close()
+        issue = None
+
+        # cleaner message for common errors
+        if str(exc).startswith("[Errno 13] Permission denied"):
+          issue = "permission denied"
+        elif str(exc).startswith("[Errno 2] No such file or directory"):
+          issue = "file doesn't exist"
+
+        # if problem's recognized give concise message, otherwise print exception
+        # string
+        if issue: raisedExc = IOError("Failed to read authentication cookie (%s): %s" % (issue, self._cookiePath))
+        else: raisedExc = IOError("Failed to read authentication cookie: %s" % exc)
+
+    # if we got to this point then we failed to authenticate and should have a
+    # raisedExc
+
+    if raisedExc: raise raisedExc
+
+def preauth_connect_alt(controlAddr="127.0.0.1", controlPort=9051,
+                    ConnClass=FixedConnection):
+  """
+  Provides an uninitiated torctl connection components for the control port,
+  returning a tuple of the form...
+  (torctl connection, authTypes, authValue)
+
+  The authValue corresponds to the cookie path if using an authentication
+  cookie, otherwise this is the empty string. This raises an IOError in case
+  of failure.
+
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+    ConnClass  - connection type to instantiate
+  """
+
+  conn = None
+  try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
+    conn = ConnClass(s)
+    authTypes, authValue = conn.get_auth_types(), ""
+
+    if TorCtl.AUTH_TYPE.COOKIE in authTypes:
+      authValue = conn.get_auth_cookie_path()
+
+    return (conn, authTypes, authValue)
+  except socket.error, exc:
+    if conn: conn.close()
+
+    if "Connection refused" in exc.args:
+      # most common case - tor control port isn't available
+      raise IOError("Connection refused. Is the ControlPort enabled?")
+
+    raise IOError("Failed to establish socket: %s" % exc)
+  except Exception, exc:
+    if conn: conn.close()
+    raise IOError(exc)
+
+# ============================================================
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
@@ -353,6 +569,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._nicknameToFpLookupCache = {}  # lookup cache with nickname -> fingerprint mappings
+    self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
@@ -426,6 +643,7 @@ class Controller(TorCtl.PostEventListener):
       self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
       self._nicknameToFpLookupCache = {}
+      self._addressLookupCache = {}
       self._consensusLookupCache = {}
       self._descriptorLookupCache = {}
       
@@ -687,10 +905,11 @@ class Controller(TorCtl.PostEventListener):
     elif result == []: return default
     else: return result
   
-  def setOption(self, param, value):
+  def setOption(self, param, value = None):
     """
     Issues a SETCONF to set the given option/value pair. An exeptions raised
-    if it fails to be set.
+    if it fails to be set. If no value is provided then this sets the option to
+    0 or NULL.
     
     Arguments:
       param - configuration option to be set
@@ -698,27 +917,59 @@ class Controller(TorCtl.PostEventListener):
               list of strings)
     """
     
-    isMultiple = isinstance(value, list) or isinstance(value, tuple)
+    self.setOptions(((param, value),))
+  
+  def setOptions(self, paramList, isReset = False):
+    """
+    Issues a SETCONF to replace a set of configuration options. This takes a
+    list of parameter/new value tuple pairs. Values can be...
+    - a string to set a single value
+    - a list of strings to set a series of values (for instance the ExitPolicy)
+    - None to set the value to 0 or NULL
+    
+    Arguments:
+      paramList - list of parameter/value tuple pairs
+      isReset   - issues a RESETCONF instead of SETCONF, causing any None
+                  mappings to revert the parameter to its default rather than
+                  set it to 0 or NULL
+    """
+    
     self.connLock.acquire()
+    
+    # constructs the SETCONF string
+    setConfComp = []
+    
+    for param, value in paramList:
+      if isinstance(value, list) or isinstance(value, tuple):
+        setConfComp += ["%s=\"%s\"" % (param, val.strip()) for val in value]
+      elif value:
+        setConfComp.append("%s=\"%s\"" % (param, value.strip()))
+      else:
+        setConfComp.append(param)
+    
+    setConfStr = " ".join(setConfComp)
     
     startTime, raisedExc = time.time(), None
     if self.isAlive():
       try:
-        if isMultiple: self.conn.set_options([(param, val) for val in value])
-        else: self.conn.set_option(param, value)
+        if isReset:
+          self.conn.sendAndRecv("RESETCONF %s\r\n" % setConfStr)
+        else:
+          self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
         
         # flushing cached values (needed until we can detect SETCONF calls)
-        for fetchType in ("str", "list", "map"):
-          entry = (param.lower(), fetchType)
+        for param, _ in paramList:
+          for fetchType in ("str", "list", "map"):
+            entry = (param.lower(), fetchType)
+            
+            if entry in self._cachedConf:
+              del self._cachedConf[entry]
           
-          if entry in self._cachedConf:
-            del self._cachedConf[entry]
-        
-        # special caches for the exit policy
-        if param.lower() == "exitpolicy":
-          self._exitPolicyChecker = self.getExitPolicy()
-          self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
-          self._exitPolicyLookupCache = {}
+          # special caches for the exit policy
+          if param.lower() == "exitpolicy":
+            self._exitPolicyChecker = self.getExitPolicy()
+            self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+            self._exitPolicyLookupCache = {}
       except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
         if type(exc) == TorCtl.TorCtlClosed: self.close()
         elif type(exc) == TorCtl.ErrorReply:
@@ -739,9 +990,8 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    setCall = "%s %s" % (param, ", ".join(value) if isMultiple else value)
     excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
-    msg = "SETCONF %s (%sruntime: %0.4f)" % (setCall.strip(), excLabel, time.time() - startTime)
+    msg = "SETCONF %s (%sruntime: %0.4f)" % (setConfStr, excLabel, time.time() - startTime)
     log.log(CONFIG["log.torSetConf"], msg)
     
     if raisedExc: raise raisedExc
@@ -1079,10 +1329,10 @@ class Controller(TorCtl.PostEventListener):
         isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
         
         if isPrivateRejected:
-          result = ExitPolicy("reject private", result)
-          
           myAddress = self.getInfo("address")
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
+          
+          result = ExitPolicy("reject private", result)
       else:
         # no ORPort is set so all relaying is disabled
         result = ExitPolicy("reject *:*", None)
@@ -1207,6 +1457,146 @@ class Controller(TorCtl.PostEventListener):
           self._nicknameLookupCache[relayFingerprint] = relayNickname
       
       result = self._nicknameLookupCache[relayFingerprint]
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayExitPolicy(self, relayFingerprint, allowImprecision = True):
+    """
+    Provides the ExitPolicy instance associated with the given relay. The tor
+    consensus entries don't indicate if private addresses are rejected or
+    address-specific policies, so this is only used as a fallback if a recent
+    descriptor is unavailable. This returns None if unable to determine the
+    policy.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+      allowImprecision - make use of consensus policies as a fallback
+    """
+    
+    self.connLock.acquire()
+    
+    result = None
+    if self.isAlive():
+      # attempts to fetch the policy via the descriptor
+      descriptor = self.getDescriptorEntry(relayFingerprint)
+      
+      if descriptor:
+        exitPolicyEntries = []
+        for line in descriptor.split("\n"):
+          if line.startswith("accept ") or line.startswith("reject "):
+            exitPolicyEntries.append(line)
+        
+        # construct the policy chain
+        for entry in reversed(exitPolicyEntries):
+          result = ExitPolicy(entry, result)
+      elif allowImprecision:
+        # Falls back to using the consensus entry, which is both less precise
+        # and unavailable with older tor versions. This assumes that the relay
+        # has ExitPolicyRejectPrivate set and won't include address-specific
+        # policies.
+        
+        consensusLine, relayAddress = None, None
+        
+        nsEntry = self.getConsensusEntry(relayFingerprint)
+        if nsEntry:
+          for line in nsEntry.split("\n"):
+            if line.startswith("r "):
+              # fetch the relay's public address, which we'll need for the
+              # ExitPolicyRejectPrivate policy entry
+              
+              lineComp = line.split(" ")
+              if len(lineComp) >= 7 and connections.isValidIpAddress(lineComp[6]):
+                relayAddress = lineComp[6]
+            elif line.startswith("p "):
+              consensusLine = line
+              break
+        
+        if consensusLine:
+          acceptance, ports = consensusLine.split(" ")[1:]
+          
+          # starts with a reject-all for whitelists and accept-all for blacklists
+          if acceptance == "accept":
+            result = ExitPolicy("reject *:*", None)
+          else:
+            result = ExitPolicy("accept *:*", None)
+          
+          # adds each of the ports listed in the consensus
+          for port in reversed(ports.split(",")):
+            result = ExitPolicy("%s *:%s" % (acceptance, port), result)
+          
+          # adds ExitPolicyRejectPrivate since this is the default
+          if relayAddress: result = ExitPolicy("reject %s" % relayAddress, result)
+          result = ExitPolicy("reject private", result)
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getRelayAddress(self, relayFingerprint, default = None):
+    """
+    Provides the (IP Address, ORPort) tuple for a given relay. If the lookup
+    fails then this returns the default.
+    
+    Arguments:
+      relayFingerprint - fingerprint of the relay
+    """
+    
+    self.connLock.acquire()
+    
+    result = default
+    if self.isAlive():
+      # query the address if it isn't yet cached
+      if not relayFingerprint in self._addressLookupCache:
+        if relayFingerprint == self.getInfo("fingerprint"):
+          # this is us, simply check the config
+          myAddress = self.getInfo("address")
+          myOrPort = self.getOption("ORPort")
+          
+          if myAddress and myOrPort:
+            self._addressLookupCache[relayFingerprint] = (myAddress, myOrPort)
+        else:
+          # check the consensus for the relay
+          nsEntry = self.getConsensusEntry(relayFingerprint)
+          
+          if nsEntry:
+            nsLineComp = nsEntry.split("\n")[0].split(" ")
+            
+            if len(nsLineComp) >= 8:
+              self._addressLookupCache[relayFingerprint] = (nsLineComp[6], nsLineComp[7])
+      
+      result = self._addressLookupCache.get(relayFingerprint, default)
+    
+    self.connLock.release()
+    
+    return result
+  
+  def getAllRelayAddresses(self, default = {}):
+    """
+    Provides a mapping of...
+    Relay IP Address -> [(ORPort, Fingerprint)...]
+    
+    for all relays currently in the cached consensus.
+    
+    Arguments:
+      default - value returned if the query fails
+    """
+    
+    self.connLock.acquire()
+    
+    result = default
+    
+    if self.isAlive():
+      # check both if the cached mappings are unset or blank
+      if not self._fingerprintMappings:
+        self._fingerprintMappings = self._getFingerprintMappings()
+      
+      # Make a shallow copy of the results. This doesn't protect the internal
+      # listings, but good enough for the moment.
+      # TODO: change the [(port, fingerprint)...] lists to tuples?
+      if self._fingerprintMappings != {}:
+        result = dict(self._fingerprintMappings)
     
     self.connLock.release()
     
@@ -1554,6 +1944,7 @@ class Controller(TorCtl.PostEventListener):
     self._fingerprintsAttachedCache = None
     self._nicknameLookupCache = {}
     self._nicknameToFpLookupCache = {}
+    self._addressLookupCache = {}
     self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
@@ -1612,7 +2003,9 @@ class Controller(TorCtl.PostEventListener):
     
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
+    self.connLock.acquire()
     self._fingerprintsAttachedCache = None
+    self.connLock.release()
     
     self._cachedParam["circuits"] = None
   
@@ -1692,6 +2085,10 @@ class Controller(TorCtl.PostEventListener):
       relayAddress - address of relay to be returned
       relayPort    - orport of relay (to further narrow the results)
     """
+    
+    # Events can reset _fingerprintsAttachedCache to None, so all uses of this
+    # function need to be under the connection lock (skipping that might also
+    # scew with the conn usage of this function...)
     
     # If we were provided with a string port then convert to an int (so
     # lookups won't mismatch based on type).
@@ -1806,8 +2203,11 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
+    # Checks that the value is unset and we're running. One exception to this
+    # is the pathPrefix which doesn't depend on having a connection and may be
+    # needed for the init.
     currentVal, result = self._cachedParam.get(key), None
-    if currentVal == None and self.isAlive():
+    if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
         myFingerprint = self.getInfo("fingerprint")
@@ -2104,6 +2504,21 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
 
+class ExitPolicyIterator:
+  """
+  Basic iterator for cycling through ExitPolicy entries.
+  """
+  
+  def __init__(self, head):
+    self.head = head
+  
+  def next(self):
+    if self.head:
+      lastHead = self.head
+      self.head = self.head.nextRule
+      return lastHead
+    else: raise StopIteration
+
 class ExitPolicy:
   """
   Single rule from the user's exit policy. These are chained together to form
@@ -2118,6 +2533,9 @@ class ExitPolicy:
       ruleEntry - tor exit policy rule (for instance, "reject *:135-139")
       nextRule  - next rule to be checked when queries don't match this policy
     """
+    
+    # cached summary string
+    self.summaryStr = None
     
     # sanitize the input a bit, cleaning up tabs and stripping quotes
     ruleEntry = ruleEntry.replace("\\t", " ").replace("\"", "")
@@ -2222,6 +2640,80 @@ class ExitPolicy:
     # our policy doesn't concern this address, move on to the next one
     if self.nextRule: return self.nextRule.check(ipAddress, port)
     else: return True # fell off the chain without a conclusion (shouldn't happen...)
+  
+  def getSummary(self):
+    """
+    Provides a summary description of the policy chain similar to the
+    consensus. This excludes entries that don't cover all ips, and is either
+    a whitelist or blacklist policy based on the final entry. For instance...
+    accept 80, 443        # just accepts ports 80/443
+    reject 1-1024, 5555   # just accepts non-privilaged ports, excluding 5555
+    """
+    
+    if not self.summaryStr:
+      # determines if we're a whitelist or blacklist
+      isWhitelist = False # default in case we don't have a catch-all policy at the end
+      
+      for rule in self:
+        if rule.isIpWildcard and rule.isPortWildcard:
+          isWhitelist = not rule.isAccept
+          break
+      
+      # Iterates over the rules and adds the the ports we'll return (ie, allows
+      # if a whitelist and rejects if a blacklist). Reguardless of a port's
+      # allow/reject policy, all further entries with that port are ignored since
+      # policies respect the first matching rule.
+      
+      displayPorts, skipPorts = [], []
+      
+      for rule in self:
+        if not rule.isIpWildcard: continue
+        
+        if rule.minPort == rule.maxPort:
+          portRange = [rule.minPort]
+        else:
+          portRange = range(rule.minPort, rule.maxPort + 1)
+        
+        for port in portRange:
+          if port in skipPorts: continue
+          
+          # if accept + whitelist or reject + blacklist then add
+          if rule.isAccept == isWhitelist:
+            displayPorts.append(port)
+          
+          # all further entries with this port are to be ignored
+          skipPorts.append(port)
+      
+      # gets a list of the port ranges
+      if displayPorts:
+        displayRanges, tmpRange = [], []
+        displayPorts.sort()
+        displayPorts.append(None) # ending item to include last range in loop
+        
+        for port in displayPorts:
+          if not tmpRange or tmpRange[-1] + 1 == port:
+            tmpRange.append(port)
+          else:
+            if len(tmpRange) > 1:
+              displayRanges.append("%i-%i" % (tmpRange[0], tmpRange[-1]))
+            else:
+              displayRanges.append(str(tmpRange[0]))
+            
+            tmpRange = [port]
+      else:
+        # everything for the inverse
+        isWhitelist = not isWhitelist
+        displayRanges = ["1-65535"]
+      
+      # constructs the summary string
+      labelPrefix = "accept " if isWhitelist else "reject "
+      
+      self.summaryStr = (labelPrefix + ", ".join(displayRanges)).strip()
+    
+    return self.summaryStr
+  
+  def __iter__(self):
+    return ExitPolicyIterator(self)
   
   def __str__(self):
     # This provides the actual policy rather than the entry used to construct

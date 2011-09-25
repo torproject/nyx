@@ -21,6 +21,7 @@ import threading
 
 import TorCtl.TorCtl
 
+import starter
 import cli.popups
 import cli.controller
 
@@ -40,6 +41,7 @@ VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "re
 
 DEFAULT_CONFIG = {"startup.interface.ipAddress": "127.0.0.1",
                   "startup.interface.port": 9051,
+                  "startup.interface.socket": "/var/run/tor/control",
                   "features.showFdUsage": False,
                   "log.fdUsageSixtyPercent": log.NOTICE,
                   "log.fdUsageNinetyPercent": log.WARN}
@@ -49,7 +51,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   Top area contenting tor settings and system information. Stats are stored in
   the vals mapping, keys including:
     tor/  version, versionStatus, nickname, orPort, dirPort, controlPort,
-          exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
+          socketPath, exitPolicy, isAuthPassword (bool), isAuthCookie (bool),
           orListenAddr, *address, *fingerprint, *flags, pid, startTime,
           *fdUsed, fdLimit, isFdLimitEstimate
     sys/  hostname, os, version
@@ -132,27 +134,42 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      try:
-        ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-        tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
-        
-        if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
-          authValue = cli.popups.inputPrompt("Controller Password: ")
-          if not authValue: raise IOError() # cancel reconnection
-        
-        tmpConn.authenticate(authValue)
-        torTools.getConn().init(tmpConn)
+      torctlConn = None
+      allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
+      
+      if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
+        try: torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
+        except IOError, exc:
+          if not allowPortConnection:
+            cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+      elif not allowPortConnection:
+        cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
+      
+      if not torctlConn and allowPortConnection:
+        try:
+          ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
+          tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
+          
+          if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
+            authValue = cli.popups.inputPrompt("Controller Password: ")
+            if not authValue: raise IOError() # cancel reconnection
+          
+          tmpConn.authenticate(authValue)
+          torctlConn = tmpConn
+        except Exception, exc:
+          # attempts to use the wizard port too
+          try:
+            cli.controller.getController().getTorManager().connectManagedInstance()
+            log.log(log.NOTICE, "Reconnected to Tor's control port")
+            cli.popups.showMsg("Tor reconnected", 1)
+          except:
+            # displays notice for the first failed connection attempt
+            if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+      
+      if torctlConn:
+        torTools.getConn().init(torctlConn)
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
-      except Exception, exc:
-        # attempts to use the wizard port too
-        try:
-          cli.controller.getController().getTorManager().connectManagedInstance()
-          log.log(log.NOTICE, "Reconnected to Tor's control port")
-          cli.popups.showMsg("Tor reconnected", 1)
-        except:
-          # displays notice for the first failed connection attempt
-          if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
@@ -222,17 +239,21 @@ class HeaderPanel(panel.Panel, threading.Thread):
         includeControlPort = False
     
     if includeControlPort:
-      if self.vals["tor/isAuthPassword"]: authType = "password"
-      elif self.vals["tor/isAuthCookie"]: authType = "cookie"
-      else: authType = "open"
-      
-      if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
-        authColor = "red" if authType == "open" else "green"
-        self.addstr(1, x, ", Control Port (")
-        self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
-        self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
-      elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
-        self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
+      if self.vals["tor/controlPort"] == "0":
+        # connected via a control socket
+        self.addstr(1, x, ", Control Socket: %s" % self.vals["tor/socketPath"])
+      else:
+        if self.vals["tor/isAuthPassword"]: authType = "password"
+        elif self.vals["tor/isAuthCookie"]: authType = "cookie"
+        else: authType = "open"
+        
+        if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
+          authColor = "red" if authType == "open" else "green"
+          self.addstr(1, x, ", Control Port (")
+          self.addstr(1, x + 16, authType, uiTools.getColor(authColor))
+          self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
+        elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
+          self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
@@ -427,7 +448,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # We're toggling between being a relay and client, causing the height
         # of this panel to change. Redraw all content so we don't get
         # overlapping content.
-        cli.controller.getController().requestRedraw(True)
+        cli.controller.getController().redraw()
       else:
         # just need to redraw ourselves
         self.redraw(True)
@@ -457,7 +478,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/nickname"] = conn.getOption("Nickname", "")
       self.vals["tor/orPort"] = conn.getOption("ORPort", "0")
       self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
-      self.vals["tor/controlPort"] = conn.getOption("ControlPort", "")
+      self.vals["tor/controlPort"] = conn.getOption("ControlPort", "0")
+      self.vals["tor/socketPath"] = conn.getOption("ControlSocket", "")
       self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
       self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
       

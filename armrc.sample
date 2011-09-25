@@ -2,6 +2,7 @@
 startup.controlPassword
 startup.interface.ipAddress 127.0.0.1
 startup.interface.port 9051
+startup.interface.socket /var/run/tor/control
 startup.blindModeEnabled false
 startup.events N3
 startup.dataDirectory ~/.arm
@@ -17,6 +18,7 @@ features.panels.show.log true
 features.panels.show.connection true
 features.panels.show.config true
 features.panels.show.torrc true
+features.panels.show.interpretor true
 
 # Read the proc contents directly instead of calling ps, netstat, and other
 # resolvers. This provides very sizable performance benefits (around 90%
@@ -57,11 +59,18 @@ features.showFdUsage false
 # Seconds to wait on user input before refreshing content
 features.redrawRate 5
 
+# Rate (seconds) to periodically redraw the screen, disabled if zero. This
+# shouldn't be necessary, but can correct issues if the terminal gets into a
+# funky state.
+features.refreshRate 5
+
 # Confirms promt to confirm when quiting if true
 features.confirmQuit true
 
 # Allows arm to start when there's no running tor instance if true, otherwise
-# we terminate right away.
+# we terminate right away. This is ignored if the user provides an option
+# specifying how to connect to tor (ie, a 'startup.interface.*' option or
+# startup argument).
 features.allowDetachedStartup true
 
 # Paremters for the log panel
@@ -294,7 +303,7 @@ log.configDescriptions.persistance.saveFailed NOTICE
 log.connResolverOptions INFO
 log.connLookupFailed INFO
 log.connLookupFailover NOTICE
-log.connLookupAbandon WARN
+log.connLookupAbandon NOTICE
 log.connLookupRateGrowing NONE
 log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO

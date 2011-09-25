@@ -11,104 +11,82 @@ from collections import deque
 import gobject
 import gtk
 
-from cli.connections import (circEntry as cliCircEntry, connEntry as cliConnEntry)
+from cli.connections import (circEntry as cliCircEntry, connEntry as cliConnEntry, entries)
 from cli.connections.connPanel import ConnectionPanel as CliConnectionPanel
 from gui.connections import circEntry, connEntry
+from util import connections, gtkTools, sysTools, uiTools, torTools
 from TorCtl import TorCtl
-from util import connections, sysTools, uiTools, torTools
 
-REFRESH_RATE = 3
-
-def convertToGui(instance):
-  cliToGuiMap = [ (cliCircEntry.CircEntry, circEntry.CircEntry),
-                  (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
+def convert_to_gui(cliInstance):
+  cliToGuiMap = [ (cliCircEntry.CircHeaderLine, circEntry.CircHeaderLine),
                   (cliCircEntry.CircLine, circEntry.CircLine),
-                  (cliConnEntry.ConnectionEntry, connEntry.ConnectionEntry),
                   (cliConnEntry.ConnectionLine, connEntry.ConnectionLine)]
 
+  line = None
+
   for (cliClass, guiClass) in cliToGuiMap:
-    if isinstance(instance, cliClass):
-      guiClass.convertToGui(instance)
+    if isinstance(cliInstance, cliClass):
+      line = guiClass(cliInstance)
       break
 
-def calculateCacheKey(entryLine):
-  local = (entryLine.local.ipAddr, entryLine.local.port)
-  foreign = (entryLine.foreign.ipAddr, entryLine.foreign.port)
+  return line
 
-  return (entryLine.__class__, local, foreign)
+class EntryLines(gtkTools.TreeWrapper):
+  def __init__(self, container, model=None, listingType=None):
+    gtkTools.TreeWrapper.__init__(self, container, model)
+
+    self._listingType = listingType if listingType else entries.ListingType.IP_ADDRESS
+
+  def _model_append(self, cliLine):
+    if not self.model:
+      return
+
+    row = self._create_row_from_value(cliLine)
+    line = convert_to_gui(cliLine)
+
+    if isinstance(line, circEntry.CircHeaderLine):
+      self.headerIter = self.model.append(None, row)
+    elif isinstance(line, circEntry.CircLine):
+      self.model.append(self.headerIter, row)
+    else:
+      self.model.append(None, row)
+
+  def _create_row_from_value(self, cliLine):
+    line = convert_to_gui(cliLine)
+    row = line.get_listing_row(self._listingType)
+
+    return row
 
 class ConnectionPanel(CliConnectionPanel):
   def __init__(self, builder):
     CliConnectionPanel.__init__(self, None)
 
     self.builder = builder
-    self.cache = {}
 
     conn = torTools.getConn()
     torPid = conn.getMyPid()
-    torCmdName = sysTools.getProcessName(torPid, "tor")
-    connections.getResolver(torCmdName, torPid, "tor")
+    torCmdName = sysTools.getProcessName(torPid, 'tor')
+    connections.getResolver(torCmdName, torPid, 'tor')
 
-    gobject.idle_add(self._fill_entries)
-    gobject.timeout_add(3000, self._timeout_fill_entries)
+    treeStore = self.builder.get_object('treestore_conn')
+    self._wrappedEntryLines = EntryLines(self._entryLines, treeStore)
+
+  @property
+  def _entryLines(self):
+    if hasattr(self, '_wrappedEntryLines'):
+      return self._wrappedEntryLines.container
+    else:
+      return []
+
+  @_entryLines.setter
+  def _entryLines(self, value):
+    if hasattr(self, '_wrappedEntryLines'):
+      self._wrappedEntryLines.empty()
+      for entry in value:
+        self._wrappedEntryLines.append(entry)
+    else:
+      self._wrappedEntryLines = EntryLines(value)
 
   def pack_widgets(self):
-    pass
-
-  def _timeout_fill_entries(self):
-    self._fill_entries()
-
-    return True
-
-  def _fill_entries(self):
-    self.valsLock.acquire()
-
-    label = self.builder.get_object('label_conn_top')
-    label.set_text(self._title)
-
-    treestore = self.builder.get_object('treestore_conn')
-
-    # first pass checks whether we have enough entries cached to not update the treeview
-    index = 0
-    for line in self._entryLines:
-      convertToGui(line)
-      cacheKey = calculateCacheKey(line)
-
-      if self.cache.has_key(cacheKey):
-        if not isinstance(line, circEntry.CircLine):
-          timeLabel = "%d s" % (time.time() - line.startTime)
-          treestore.set_value(self.cache[cacheKey], 2, timeLabel)
-      else:
-        break
-
-      index = index + 1
-
-    if index == len(self._entryLines):
-      self.valsLock.release()
-      return True
-
-    # one of the entries was not found in cache, clear and repopulate the treestore
-    treestore.clear()
-    headeriter = None
-
-    for line in self._entryLines:
-      convertToGui(line)
-
-      if isinstance(line, connEntry.ConnectionLine) and line.isUnresolvedApp():
-        self._resolveApps()
-
-      row = line.getListingRow(self._listingType)
-
-      if isinstance(line, circEntry.CircHeaderLine):
-        currentiter = treestore.append(None, row)
-        headeriter = currentiter
-      elif isinstance(line, circEntry.CircLine):
-        currentiter = treestore.append(headeriter, row)
-      else:
-        currentiter = treestore.append(None, row)
-
-      cacheKey = calculateCacheKey(line)
-      self.cache[cacheKey] = currentiter
-
-    self.valsLock.release()
+    self.start()
 

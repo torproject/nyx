@@ -171,10 +171,12 @@ Layout:
       
       connections/
         __init__.py
-        connPanel.py      - (page 2) lists the active tor connections
-        circEntry.py      - circuit entries in the connection panel
-        connEntry.py      - individual connections to or from the system
-        entries.py        - common parent for connPanel display entries
+        connPanel.py       - (page 2) lists the active tor connections
+        circEntry.py       - circuit entries in the connection panel
+        connEntry.py       - individual connections to or from the system
+        countPopup.py      - displays client locale or exit port counts
+        descriptorPopup.py - displays raw descriptor and consensus entries
+        entries.py         - common parent for connPanel display entries
       
       menu/
         __init__.py
@@ -185,13 +187,13 @@ Layout:
       __init__.py
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information
-      descriptorPopup.py     - displays connection descriptor data
       popups.py              - toolkit providing display popups
       wizard.py              - provides the relay setup wizard
       
       logPanel.py            - (page 1) displays tor, arm, and torctl events
       configPanel.py         - (page 3) editor panel for the tor configuration
       torrcPanel.py          - (page 4) displays torrc and validation
+      interpretorPanel.py    - (page 5) interpretor for control port access
     
     util/
       __init__.py
@@ -204,7 +206,9 @@ Layout:
       procTools.py   - queries process & system information from /proc contents
       procName.py    - renames our process to a friendlier name
       sysTools.py    - helper for system calls, providing client side caching
+      textInput.py   - expands the capabilities of text input fields
       torConfig.py   - functions for working with the torrc and config options
+      torInterpretor.py - provides a shell around raw control port access
       torTools.py    - TorCtl wrapper, providing caching and derived information
       uiTools.py     - helper functions for presenting the user interface
 

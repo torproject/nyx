@@ -35,7 +35,7 @@ class BandwidthStats(graphPanel.GraphStats):
   Uses tor BW events to generate bandwidth usage graph.
   """
   
-  def __init__(self, config=None):
+  def __init__(self, config=None, isPauseBuffer=False):
     graphPanel.GraphStats.__init__(self)
     
     self.inputConfig = config
@@ -56,7 +56,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # rate/burst and if tor's using accounting
     conn = torTools.getConn()
     self._titleStats, self.isAccounting = [], False
-    self.resetListener(conn, torTools.State.INIT) # initializes values
+    if not isPauseBuffer: self.resetListener(conn, torTools.State.INIT) # initializes values
     conn.addStatusListener(self.resetListener)
     
     # Initialized the bandwidth totals to the values reported by Tor. This
@@ -78,9 +78,14 @@ class BandwidthStats(graphPanel.GraphStats):
       self.initialSecondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
   
   def clone(self, newCopy=None):
-    if not newCopy: newCopy = BandwidthStats(self.inputConfig)
+    if not newCopy: newCopy = BandwidthStats(self.inputConfig, True)
     newCopy.accountingLastUpdated = self.accountingLastUpdated
     newCopy.accountingInfo = self.accountingInfo
+    
+    # attributes that would have been initialized from calling the resetListener
+    newCopy.isAccounting = self.isAccounting
+    newCopy._titleStats = self._titleStats
+    
     return graphPanel.GraphStats.clone(self, newCopy)
   
   def resetListener(self, conn, eventType):
@@ -95,7 +100,7 @@ class BandwidthStats(graphPanel.GraphStats):
         self.isAccounting = isAccountingEnabled
         
         # redraws the whole screen since our height changed
-        cli.controller.getController().requestRedraw(True)
+        cli.controller.getController().redraw()
     
     # redraws to reflect changes (this especially noticeable when we have
     # accounting and shut down since it then gives notice of the shutdown)

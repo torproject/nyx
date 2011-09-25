@@ -7,14 +7,14 @@ import sys
 import gobject
 import gtk
 
-from TorCtl import TorCtl
+from gui.graphing import graphPanel
 from starter import CONFIG
-from gui.graphing import graphStats
-from util import uiTools, torTools
+from util import torTools, uiTools
+from TorCtl import TorCtl
 
-class BandwidthStats(graphStats.GraphStats):
+class BandwidthStats(graphPanel.GraphPanel):
   def __init__(self, builder):
-    graphStats.GraphStats.__init__(self, builder)
+    graphPanel.GraphPanel.__init__(self, builder)
 
     conn = torTools.getConn()
     if not conn.isAlive():
@@ -51,7 +51,7 @@ class BandwidthStats(graphStats.GraphStats):
       label.set_text(msg)
 
   def bandwidth_event(self, event):
-    self._processEvent(event.read, event.written)
+    self._process_event(event.read, event.written)
 
     msg = 'Download: %s/s' % uiTools.getSizeLabel(event.read, 2, isBytes=False)
     self.update_header('primary', msg)

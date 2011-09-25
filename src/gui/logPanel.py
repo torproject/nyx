@@ -12,12 +12,11 @@ from threading import RLock
 import gobject
 import gtk
 
-from TorCtl import TorCtl
-from util import log, gtkTools, uiTools, torTools
-
 from cli.logPanel import (expandEvents, setEventListening, getLogFileEntries,
                           LogEntry, TorEventObserver,
                           DEFAULT_CONFIG)
+from util import gtkTools, log, torTools, uiTools
+from TorCtl import TorCtl
 
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: 'insensitive', log.INFO: 'normal', log.NOTICE: 'normal',
                         log.WARN: 'active', log.ERR: 'active'}
@@ -73,17 +72,17 @@ class LogPanel:
     gobject.idle_add(self.fill_log)
 
   def pack_widgets(self):
-    liststore = self.builder.get_object('liststore_log')
+    listStore = self.builder.get_object('liststore_log')
 
-    liststore.set_sort_func(1, self._compare_rows)
-    liststore.set_sort_column_id(1, gtk.SORT_DESCENDING)
+    listStore.set_sort_func(1, self._compare_rows)
+    listStore.set_sort_column_id(1, gtk.SORT_DESCENDING)
 
   def fill_log(self):
     if time.time() - self._lastUpdate < REFRESH_RATE:
       return
 
-    liststore = self.builder.get_object('liststore_log')
-    liststore.clear()
+    listStore = self.builder.get_object('liststore_log')
+    listStore.clear()
 
     self.lock.acquire()
     try:
@@ -91,7 +90,7 @@ class LogPanel:
         timeLabel = time.strftime('%H:%M:%S', time.localtime(entry.timestamp))
 
         row = (long(entry.timestamp), timeLabel, entry.type, entry.msg, entry.color)
-        liststore.append(row)
+        listStore.append(row)
     finally:
       self.lock.release()
 
@@ -106,6 +105,7 @@ class LogPanel:
       self.msgLog.appendleft(event)
     finally:
       self.lock.release()
+
     gobject.idle_add(self.fill_log)
 
   def _register_arm_event(self, level, msg, eventTime):
@@ -118,9 +118,9 @@ class LogPanel:
     eventColor = theme.colors[RUNLEVEL_EVENT_COLOR[level]]
     self.register_event(LogEntry(time.time(), "TORCTL_%s" % level, msg, eventColor))
 
-  def _compare_rows(self, treemodel, iter1, iter2, data=None):
-    timestamp_raw1 = treemodel.get(iter1, 0)
-    timestamp_raw2 = treemodel.get(iter2, 0)
+  def _compare_rows(self, treeModel, iter1, iter2, data=None):
+    timestampRaw1 = treeModel.get(iter1, 0)
+    timestampRaw2 = treeModel.get(iter2, 0)
 
-    return cmp(timestamp_raw1, timestamp_raw2)
+    return cmp(timestampRaw1, timestampRaw2)
 

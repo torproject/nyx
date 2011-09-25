@@ -15,6 +15,7 @@ import cli.headerPanel
 import cli.logPanel
 import cli.configPanel
 import cli.torrcPanel
+import cli.interpretorPanel
 import cli.graphing.graphPanel
 import cli.graphing.bandwidthStats
 import cli.graphing.connStats
@@ -23,7 +24,7 @@ import cli.connections.connPanel
 
 from TorCtl import TorCtl
 
-from util import connections, conf, enum, log, panel, sysTools, torConfig, torTools
+from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
 
 ARM_CONTROLLER = None
 
@@ -36,7 +37,9 @@ CONFIG = {"startup.events": "N3",
           "features.panels.show.connection": True,
           "features.panels.show.config": True,
           "features.panels.show.torrc": True,
+          "features.panels.show.interpretor": True,
           "features.redrawRate": 5,
+          "features.refreshRate": 5,
           "features.confirmQuit": True,
           "features.graph.type": 1,
           "features.graph.bw.prepopulate": True,
@@ -95,6 +98,9 @@ def initController(stdscr, startTime):
   # fourth page: torrc
   if CONFIG["features.panels.show.torrc"]:
     pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
+  
+  if CONFIG["features.panels.show.interpretor"]:
+    pagePanels.append([cli.interpretorPanel.InterpretorPanel(stdscr)])
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
@@ -171,6 +177,7 @@ class Controller:
     self._forceRedraw = False
     self._isDone = False
     self._torManager = TorManager(self)
+    self._lastDrawn = 0
     self.setMsg() # initializes our control message
   
   def getScreen(self):
@@ -310,39 +317,49 @@ class Controller:
     
     return allPanels
   
-  def requestRedraw(self, immediate = False):
+  def redraw(self, force = True):
+    """
+    Redraws the displayed panel content.
+    
+    Arguments:
+      force - redraws reguardless of if it's needed if true, otherwise ignores
+              the request when there arne't changes to be displayed
+    """
+    
+    force |= self._forceRedraw
+    self._forceRedraw = False
+    
+    currentTime = time.time()
+    if CONFIG["features.refreshRate"] != 0:
+      if self._lastDrawn + CONFIG["features.refreshRate"] <= currentTime:
+        force = True
+    
+    displayPanels = self.getDisplayPanels()
+    
+    occupiedContent = 0
+    for panelImpl in displayPanels:
+      panelImpl.setTop(occupiedContent)
+      occupiedContent += panelImpl.getHeight()
+    
+    for panelImpl in displayPanels:
+      panelImpl.redraw(force)
+    
+    if force: self._lastDrawn = currentTime
+  
+  def requestRedraw(self):
     """
     Requests that all content is redrawn when the interface is next rendered.
-    
-    Arguments:
-      immediate - redraws now if true, otherwise waits for when next normally
-                  drawn
     """
     
-    if immediate:
-      displayPanels = self.getDisplayPanels()
-      
-      occupiedContent = 0
-      for panelImpl in displayPanels:
-        panelImpl.setTop(occupiedContent)
-        occupiedContent += panelImpl.getHeight()
-      
-      for panelImpl in displayPanels:
-        panelImpl.redraw(True)
-    else:
-      self._forceRedraw = True
+    self._forceRedraw = True
   
-  def isRedrawRequested(self, clearFlag = False):
+  def getLastRedrawTime(self):
     """
-    True if a full redraw has been requested, false otherwise.
-    
-    Arguments:
-      clearFlag - request clears the flag if true
+    Provides the time when the content was last redrawn, zero if the content
+    has never been drawn.
     """
     
-    returnValue = self._forceRedraw
-    if clearFlag: self._forceRedraw = False
-    return returnValue
+    return self._lastDrawn
   
   def setMsg(self, msg = None, attr = None, redraw = False):
     """
@@ -551,6 +568,7 @@ def shutdownDaemons():
   
   # joins on utility daemon threads - this might take a moment since the
   # internal threadpools being joined might be sleeping
+  hostnames.stop()
   resourceTrackers = sysTools.RESOURCE_TRACKERS.values()
   resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
   for tracker in resourceTrackers: tracker.stop()
@@ -612,7 +630,9 @@ def startTorMonitor(startTime):
   
   # initializes interface configs
   config = conf.getConfig("arm")
-  config.update(CONFIG)
+  config.update(CONFIG, {
+    "features.redrawRate": 1,
+    "features.refreshRate": 0})
   
   cli.graphing.graphPanel.loadConfig(config)
   cli.connections.connEntry.loadConfig(config)
@@ -650,7 +670,7 @@ def startTorMonitor(startTime):
       connections.getResolver("tor").setPaused(not conn.isAlive())
     
     # hack to display a better (arm specific) notice if all resolvers fail
-    connections.RESOLVER_FINAL_FAILURE_MSG += " (connection related portions of the monitor won't function)"
+    connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = cli.logPanel.getMissingEventTypes()
@@ -662,8 +682,14 @@ def startTorMonitor(startTime):
   try:
     curses.wrapper(drawTorMonitor, startTime)
   except KeyboardInterrupt:
-    pass # skip printing stack trace in case of keyboard interrupt
-  finally: shutdownDaemons()
+    # Skip printing stack trace in case of keyboard interrupt. The
+    # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
+    # (which would leave the user's terminal in a screwed up state). There is
+    # still a tiny timing issue here (after the exception but before the flag
+    # is set) but I've never seen it happen in practice.
+    
+    panel.HALT_ACTIVITY = True
+    shutdownDaemons()
 
 def drawTorMonitor(stdscr, startTime):
   """
@@ -709,17 +735,8 @@ def drawTorMonitor(stdscr, startTime):
     for panelImpl in control.getAllPanels():
       panelImpl.setVisible(panelImpl in displayPanels)
     
-    # panel placement
-    occupiedContent = 0
-    for panelImpl in displayPanels:
-      panelImpl.setTop(occupiedContent)
-      occupiedContent += panelImpl.getHeight()
-    
-    # redraws visible content
-    forceRedraw = control.isRedrawRequested(True)
-    for panelImpl in displayPanels:
-      panelImpl.redraw(forceRedraw)
-    
+    # redraws the interface if it's needed
+    control.redraw(False)
     stdscr.refresh()
     
     # wait for user keyboard input until timeout, unless an override was set
@@ -759,8 +776,13 @@ def drawTorMonitor(stdscr, startTime):
       overrideKey = cli.popups.showHelpPopup()
     elif key == ord('w') or key == ord('W'):
       cli.wizard.showWizard()
+    elif key == ord('l') - 96:
+      # force redraw when ctrl+l is pressed
+      control.redraw()
     else:
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
+  
+  shutdownDaemons()
 

@@ -58,7 +58,7 @@ class MenuItem():
     if self._callback:
       control = cli.controller.getController()
       control.setMsg()
-      control.requestRedraw(True)
+      control.redraw()
       self._callback()
     return True
   

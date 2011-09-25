@@ -13,32 +13,6 @@ import curses
 from cli.connections import entries, connEntry
 from util import torTools, uiTools
 
-# cached fingerprint -> (IP Address, ORPort) results
-RELAY_INFO = {}
-
-def getRelayInfo(fingerprint):
-  """
-  Provides the (IP Address, ORPort) tuple for the given relay. If the lookup
-  fails then this returns ("192.168.0.1", "0").
-  
-  Arguments:
-    fingerprint - relay to look up
-  """
-  
-  if not fingerprint in RELAY_INFO:
-    conn = torTools.getConn()
-    failureResult = ("192.168.0.1", "0")
-    
-    nsEntry = conn.getConsensusEntry(fingerprint)
-    if not nsEntry: return failureResult
-    
-    nsLineComp = nsEntry.split("\n")[0].split(" ")
-    if len(nsLineComp) < 8: return failureResult
-    
-    RELAY_INFO[fingerprint] = (nsLineComp[6], nsLineComp[7])
-  
-  return RELAY_INFO[fingerprint]
-
 class CircEntry(connEntry.ConnectionEntry):
   def __init__(self, circuitID, status, purpose, path):
     connEntry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
@@ -72,14 +46,15 @@ class CircEntry(connEntry.ConnectionEntry):
     
     self.status = status
     self.lines = [self.lines[0]]
+    conn = torTools.getConn()
     
     if status == "BUILT" and not self.lines[0].isBuilt:
-      exitIp, exitORPort = getRelayInfo(path[-1])
+      exitIp, exitORPort = conn.getRelayAddress(path[-1], ("192.168.0.1", "0"))
       self.lines[0].setExit(exitIp, exitORPort, path[-1])
     
     for i in range(len(path)):
       relayFingerprint = path[i]
-      relayIp, relayOrPort = getRelayInfo(relayFingerprint)
+      relayIp, relayOrPort = conn.getRelayAddress(relayFingerprint, ("192.168.0.1", "0"))
       
       if i == len(path) - 1:
         if status == "BUILT": placementType = "Exit"
@@ -135,7 +110,7 @@ class CircHeaderLine(connEntry.ConnectionLine):
   def getDetails(self, width):
     if not self.isBuilt:
       detailFormat = curses.A_BOLD | uiTools.getColor(connEntry.CATEGORY_COLOR[self.getType()])
-      return [uiTools.DrawEntry("Building Circuit...", detailFormat)]
+      return [("Building Circuit...", detailFormat)]
     else: return connEntry.ConnectionLine.getDetails(self, width)
 
 class CircLine(connEntry.ConnectionLine):
@@ -157,10 +132,14 @@ class CircLine(connEntry.ConnectionLine):
   def getType(self):
     return connEntry.Category.CIRCUIT
   
+  def getListingPrefix(self):
+    if self.isLast: return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
+    else: return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+  
   def getListingEntry(self, width, currentTime, listingType):
     """
-    Provides the DrawEntry for this relay in the circuilt listing. Lines are
-    composed of the following components:
+    Provides the [(msg, attr)...] listing for this relay in the circuilt
+    listing. Lines are composed of the following components:
       <bracket> <dst> <etc> <placement label>
     
     The dst and etc entries largely match their ConnectionEntry counterparts.
@@ -182,9 +161,7 @@ class CircLine(connEntry.ConnectionLine):
     # placementLabel (14 characters)
     # gap between etc and placement label (5 characters)
     
-    if self.isLast: bracket = (curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
-    else: bracket = (curses.ACS_VLINE, ord(' '), ord(' '))
-    baselineSpace = len(bracket) + 14 + 5 + 1
+    baselineSpace = 14 + 5
     
     dst, etc = "", ""
     if listingType == entries.ListingType.IP_ADDRESS:
@@ -213,10 +190,7 @@ class CircLine(connEntry.ConnectionLine):
       dstLayout = "%%-%is" % (width - baselineSpace - len(etc))
       dst = dstLayout % self.foreign.getNickname()
     
-    drawEntry = uiTools.DrawEntry("%-14s" % self.placementLabel, lineFormat)
-    drawEntry = uiTools.DrawEntry(" " * (width - baselineSpace - len(dst) - len(etc) + 5), lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(dst + etc, lineFormat, drawEntry)
-    drawEntry = uiTools.DrawEntry(bracket, curses.A_NORMAL, drawEntry, lockFormat = True)
-    drawEntry = uiTools.DrawEntry(" ", curses.A_NORMAL, drawEntry, lockFormat = True)
-    return drawEntry
+    return ((dst + etc, lineFormat),
+            (" " * (width - baselineSpace - len(dst) - len(etc) + 5), lineFormat),
+            ("%-14s" % self.placementLabel, lineFormat))
 

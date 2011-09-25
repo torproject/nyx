@@ -321,7 +321,7 @@ class ConfigPanel(panel.Panel):
       
       isChanged = self.scroller.handleKey(key, self._getConfigOptions(), pageHeight)
       if isChanged: self.redraw(True)
-    elif uiTools.isSelectionKey(key):
+    elif uiTools.isSelectionKey(key) and self._getConfigOptions():
       # Prompts the user to edit the selected configuration value. The
       # interface is locked to prevent updates between setting the value
       # and showing any errors.
@@ -366,7 +366,7 @@ class ConfigPanel(panel.Panel):
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
       self.showSortDialog()
-    elif key == ord('w') or key == ord('W'):
+    elif key == ord('v') or key == ord('V'):
       self.showWriteDialog()
     else: isKeystrokeConsumed = False
     
@@ -483,7 +483,7 @@ class ConfigPanel(panel.Panel):
     options.append(("page up", "scroll up a page", None))
     options.append(("page down", "scroll down a page", None))
     options.append(("enter", "edit configuration option", None))
-    options.append(("w", "save configuration", None))
+    options.append(("v", "save configuration", None))
     options.append(("a", "toggle option filtering", None))
     options.append(("s", "sort ordering", None))
     return options
@@ -601,11 +601,11 @@ class ConfigPanel(panel.Panel):
       
       if i != descriptionHeight - 1:
         # there's more lines to display
-        msg, remainder = uiTools.cropStr(lineContent, width - 2, 4, 4, uiTools.Ending.HYPHEN, True)
+        msg, remainder = uiTools.cropStr(lineContent, width - 3, 4, 4, uiTools.Ending.HYPHEN, True)
         descriptionContent = remainder.strip() + descriptionContent
       else:
         # this is the last line, end it with an ellipse
-        msg = uiTools.cropStr(lineContent, width - 2, 4, 4)
+        msg = uiTools.cropStr(lineContent, width - 3, 4, 4)
       
       self.addstr(3 + i, 2, msg, selectionFormat)
 

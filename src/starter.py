@@ -25,6 +25,7 @@ import util.panel
 import util.procTools
 import util.sysTools
 import util.torConfig
+import util.torInterpretor
 import util.torTools
 import util.uiTools
 import TorCtl.TorCtl
@@ -35,6 +36,7 @@ DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 CONFIG = {"startup.controlPassword": None,
           "startup.interface.ipAddress": "127.0.0.1",
           "startup.interface.port": 9051,
+          "startup.interface.socket": "/var/run/tor/control",
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
@@ -52,14 +54,17 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-OPT = "gi:c:dbe:vh"
-OPT_EXPANDED = ["gui", "interface=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gpi:s:c:dbe:vh"
+OPT_EXPANDED = ["gui", "prompt", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
   -g, --gui                       launch the Gtk+ interface
+  -p, --prompt                    only start the control interpretor
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
+  -s, --socket SOCKET_PATH        attach using unix domain socket if present,
+                                    SOCKET_PATH defaults to: %s
   -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
                                     defaults to: %s
   -d, --debug                     writes all arm logs to %s
@@ -72,7 +77,7 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], CONFIG["startup.interface.socket"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -89,10 +94,37 @@ DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
 NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
 STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
-STANDARD_CFG_NOT_FOUND_MSG = "No configuration found at '%s', using defaults"
+STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize arm by placing a configuration file at '%s' (see the armrc.sample for its options)."
 
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
+
+# notices given if the user is running arm or tor as root
+TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
+ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
+
+def allowConnectionTypes():
+  """
+  This provides a tuple with booleans indicating if we should or shouldn't
+  attempt to connect by various methods...
+  (allowPortConnection, allowSocketConnection, allowDetachedStart)
+  """
+  
+  confKeys = util.conf.getConfig("arm").getKeys()
+  
+  isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
+  isSocketArgPresent = "startup.interface.socket" in confKeys
+  
+  skipPortConnection = isSocketArgPresent and not isPortArgPresent
+  skipSocketConnection = isPortArgPresent and not isSocketArgPresent
+  
+  # Flag to indicate if we'll start arm reguardless of being unable to connect
+  # to Tor. This is the default behavior if the user hasn't provided a port or
+  # socket to connect to, so we can show the relay setup wizard.
+  
+  allowDetachedStart = CONFIG["features.allowDetachedStartup"] and not isPortArgPresent and not isSocketArgPresent
+  
+  return (not skipPortConnection, not skipSocketConnection, allowDetachedStart)
 
 def _loadConfigurationDescriptions(pathPrefix):
   """
@@ -168,22 +200,23 @@ def _loadConfigurationDescriptions(pathPrefix):
         msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
-def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
+def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg="", printError=True):
   """
   Custom handler for establishing a TorCtl connection.
   """
   
   conn = None
   try:
-    conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
+    #conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
+    conn, authTypes, authValue = util.torTools.preauth_connect_alt(controlAddr, controlPort)
     
-    if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
+    if TorCtl.TorCtl.AUTH_TYPE.PASSWORD in authTypes:
       # password authentication, promting for the password if it wasn't provided
       if passphrase: authValue = passphrase
       else:
         try: authValue = getpass.getpass("Controller password: ")
         except KeyboardInterrupt: return None
-    elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE and authValue[0] != "/":
+    elif TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes and authValue[0] != "/":
       # Connecting to the control port will probably fail if it's using cookie
       # authentication and the cookie path is relative (unfortunately this is
       # the case for TBB). This is discussed in:
@@ -196,6 +229,20 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       if torPid:
         try: conn._cookiePath = util.sysTools.expandRelativePath(authValue, torPid)
         except IOError: pass
+    
+    # appends the path prefix if it's set
+    if TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes:
+      pathPrefix = util.torTools.getConn().getPathPrefix()
+      
+      # The os.path.join function is kinda stupid. If given an absolute path
+      # with the second argument then it will swallow the prefix. Ie...
+      # os.path.join("/tmp", "/foo") => "/foo"
+      
+      if pathPrefix:
+        pathSuffix = conn._cookiePath
+        if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
+        
+        conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
     
     conn.authenticate(authValue)
     return conn
@@ -222,7 +269,7 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       # again prompting for the user to enter it
       print incorrectPasswordMsg
       return _torCtlConnect(controlAddr, controlPort)
-    elif not CONFIG["features.allowDetachedStartup"]:
+    elif printError:
       print exc
       return None
 
@@ -272,6 +319,7 @@ if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
   launchGui = False
+  launchPrompt = False
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
@@ -300,7 +348,10 @@ if __name__ == '__main__':
       
       param["startup.interface.ipAddress"] = controlAddr
       param["startup.interface.port"] = controlPort
+    elif opt in ("-s", "--socket"):
+      param["startup.interface.socket"] = arg
     elif opt in ("-g", "--gui"): launchGui = True
+    elif opt in ("-p", "--prompt"): launchPrompt = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
@@ -354,6 +405,14 @@ if __name__ == '__main__':
     msg = STANDARD_CFG_NOT_FOUND_MSG % configPath
     util.log.log(util.log.NOTICE, msg)
   
+  # prevent arm from starting without a tor instance if...
+  # - we're launching a prompt
+  # - tor is running (otherwise it would be kinda confusing, "tor is running
+  #   but why does arm say that it's shut down?")
+  
+  if launchPrompt or util.torTools.isTorRunning():
+    config.set("features.allowDetachedStartup", "false")
+  
   # revises defaults to match user's configuration
   config.update(CONFIG)
   
@@ -361,7 +420,7 @@ if __name__ == '__main__':
   for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.procTools, util.sysTools, util.torConfig, util.torTools, util.uiTools):
     utilModule.loadConfig(config)
   
-  # snycs config and parameters, saving changed config options and overwriting
+  # syncs config and parameters, saving changed config options and overwriting
   # undefined parameters with defaults
   for key in param.keys():
     if param[key] == None: param[key] = CONFIG[key]
@@ -389,34 +448,69 @@ if __name__ == '__main__':
   # temporarily disables TorCtl logging to prevent issues from going to stdout while starting
   TorCtl.TorUtil.loglevel = "NONE"
   
-  # sets up TorCtl connection, prompting for the passphrase if necessary and
-  # sending problems to stdout if they arise
-  authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
-  incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
-  conn = _torCtlConnect(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
-  if conn == None and not CONFIG["features.allowDetachedStartup"]: sys.exit(1)
+  # By default attempts to connect using the control socket if it exists. This
+  # skips attempting to connect by socket or port if the user has given
+  # arguments for connecting to the other.
   
-  # removing references to the controller password so the memory can be freed
-  # (unfortunately python does allow for direct access to the memory so this
-  # is the best we can do)
-  del authPassword
-  if "startup.controlPassword" in config.contents:
-    del config.contents["startup.controlPassword"]
+  conn = None
+  allowPortConnection, allowSocketConnection, allowDetachedStart = allowConnectionTypes()
+  
+  socketPath = param["startup.interface.socket"]
+  if os.path.exists(socketPath) and allowSocketConnection:
+    try: conn = util.torTools.connect_socket(socketPath)
+    except IOError, exc:
+      if not allowPortConnection:
+        print "Unable to use socket '%s': %s" % (socketPath, exc)
+  elif not allowPortConnection:
+    print "Socket '%s' doesn't exist" % socketPath
+  
+  if not conn and allowPortConnection:
+    # sets up TorCtl connection, prompting for the passphrase if necessary and
+    # sending problems to stdout if they arise
+    authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
+    incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
+    conn = _torCtlConnect(controlAddr, controlPort, authPassword, incorrectPasswordMsg, not allowDetachedStart)
     
-    pwLineNum = None
-    for i in range(len(config.rawContents)):
-      if config.rawContents[i].strip().startswith("startup.controlPassword"):
-        pwLineNum = i
-        break
-    
-    if pwLineNum != None:
-      del config.rawContents[i]
+    # removing references to the controller password so the memory can be freed
+    # (unfortunately python does allow for direct access to the memory so this
+    # is the best we can do)
+    del authPassword
+    if "startup.controlPassword" in config.contents:
+      del config.contents["startup.controlPassword"]
+      
+      pwLineNum = None
+      for i in range(len(config.rawContents)):
+        if config.rawContents[i].strip().startswith("startup.controlPassword"):
+          pwLineNum = i
+          break
+      
+      if pwLineNum != None:
+        del config.rawContents[i]
+  
+  if conn == None and not allowDetachedStart: sys.exit(1)
   
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
   controller = util.torTools.getConn()
-  if conn: controller.init(conn)
+  
+  torUser = None
+  if conn:
+    controller.init(conn)
+    
+    # give a notice if tor is running with root
+    torUser = controller.getMyUser()
+    if torUser == "root":
+      util.log.log(util.log.NOTICE, TOR_ROOT_NOTICE)
+  
+  # Give a notice if arm is running with root. Querying connections usually
+  # requires us to have the same permissions as tor so if tor is running as
+  # root then drop this notice (they're already then being warned about tor
+  # being root, anyway).
+  
+  if torUser != "root" and os.getuid() == 0:
+    torUserLabel = torUser if torUser else "<tor user>"
+    util.log.log(util.log.NOTICE, ARM_ROOT_NOTICE % torUserLabel)
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)
@@ -440,9 +534,11 @@ if __name__ == '__main__':
   if util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  if launchGui == True:
+  if launchGui:
     import gui.controller
-    gui.controller.startGui()
+    gui.controller.start_gui()
+  elif launchPrompt:
+    util.torInterpretor.showPrompt()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)
 

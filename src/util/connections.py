@@ -72,13 +72,13 @@ RUN_BSD_PROCSTAT = "procstat -f %s | grep TCP | grep -v 0.0.0.0:0"
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
-RESOLVER_SERIAL_FAILURE_MSG = "Querying connections with %s failed, trying %s"
+RESOLVER_SERIAL_FAILURE_MSG = "Unable to query connections with %s, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
 CONFIG = {"queries.connections.minRate": 5,
           "log.connResolverOptions": log.INFO,
           "log.connLookupFailed": log.INFO,
           "log.connLookupFailover": log.NOTICE,
-          "log.connLookupAbandon": log.WARN,
+          "log.connLookupAbandon": log.NOTICE,
           "log.connLookupRateGrowing": None,
           "log.configEntryTypeError": log.NOTICE}
 

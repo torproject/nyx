@@ -12,58 +12,6 @@
       <column type="gchararray"/>
     </columns>
   </object>
-  <object class="GtkTreeStore" id="treestore_conn">
-    <columns>
-      <!-- column-name origin -->
-      <column type="gchararray"/>
-      <!-- column-name dest -->
-      <column type="gchararray"/>
-      <!-- column-name time -->
-      <column type="gchararray"/>
-      <!-- column-name type -->
-      <column type="gchararray"/>
-      <!-- column-name foreground -->
-      <column type="gchararray"/>
-    </columns>
-  </object>
-  <object class="GtkListStore" id="liststore_config">
-    <columns>
-      <!-- column-name key -->
-      <column type="gchararray"/>
-      <!-- column-name value -->
-      <column type="gchararray"/>
-      <!-- column-name desc -->
-      <column type="gchararray"/>
-      <!-- column-name foreground -->
-      <column type="gchararray"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">BandwidthRate</col>
-        <col id="1" translatable="yes">5242880</col>
-        <col id="2" translatable="yes">Average bandwidth usage limit</col>
-        <col id="3" translatable="yes">#368918</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">BandwidthBurst</col>
-        <col id="1" translatable="yes">10485760</col>
-        <col id="2" translatable="yes">Maximum bandwidth usage limit</col>
-        <col id="3" translatable="yes">#368918</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">RelayBandwidthBurst</col>
-        <col id="1" translatable="yes">0 B</col>
-        <col id="2" translatable="yes">Maximum bandwidth usage limit for relaying</col>
-        <col id="3" translatable="yes">#368918</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">ControlPort</col>
-        <col id="1" translatable="yes">9051</col>
-        <col id="2" translatable="yes">Port providing access to tor controllers (arm, vidalia, etc)</col>
-        <col id="3" translatable="yes">#368918</col>
-      </row>
-    </data>
-  </object>
   <object class="GtkListStore" id="liststore_log">
     <columns>
       <!-- column-name timestamp_raw -->
@@ -78,8 +26,38 @@
       <column type="gchararray"/>
     </columns>
   </object>
+  <object class="GtkListStore" id="liststore_config">
+    <columns>
+      <!-- column-name option -->
+      <column type="gchararray"/>
+      <!-- column-name value -->
+      <column type="gchararray"/>
+      <!-- column-name summary -->
+      <column type="gchararray"/>
+      <!-- column-name foreground -->
+      <column type="gchararray"/>
+      <!-- column-name desc -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkTreeStore" id="treestore_conn">
+    <columns>
+      <!-- column-name origin -->
+      <column type="gchararray"/>
+      <!-- column-name dest -->
+      <column type="gchararray"/>
+      <!-- column-name time -->
+      <column type="gchararray"/>
+      <!-- column-name type -->
+      <column type="gchararray"/>
+      <!-- column-name foreground -->
+      <column type="gchararray"/>
+      <!-- column-name entry_line -->
+      <column type="GObject"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="window_main">
-    <property name="title" translatable="yes">arm</property>
+    <property name="title" translatable="yes">garm</property>
     <property name="default_width">640</property>
     <property name="default_height">480</property>
     <signal name="delete_event" handler="on_window_main_delete_event"/>
@@ -410,6 +388,106 @@
                       </packing>
                     </child>
                     <child>
+                      <object class="GtkVPaned" id="vpaned_config">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkScrolledWindow" id="scrolledwindow_config_desc">
+                            <property name="height_request">60</property>
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="hscrollbar_policy">automatic</property>
+                            <property name="vscrollbar_policy">automatic</property>
+                            <child>
+                              <object class="GtkTextView" id="textview_config_desc">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="editable">False</property>
+                                <property name="wrap_mode">word</property>
+                                <property name="cursor_visible">False</property>
+                                <property name="buffer">textbuffer_config_desc</property>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="resize">False</property>
+                            <property name="shrink">True</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow" id="scrolledwindow_config">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="hscrollbar_policy">automatic</property>
+                            <property name="vscrollbar_policy">automatic</property>
+                            <child>
+                              <object class="GtkTreeView" id="treeview_config">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="model">liststore_config</property>
+                                <property name="headers_clickable">False</property>
+                                <property name="search_column">0</property>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_config_option">
+                                    <property name="title">Option</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_option"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="text">0</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_config_value">
+                                    <property name="title">Value</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_value"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="text">1</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="treeviewcolumn_config_summary">
+                                    <property name="title">Description</property>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="cellrenderertext_config_summary"/>
+                                      <attributes>
+                                        <attribute name="foreground">3</attribute>
+                                        <attribute name="text">2</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="resize">True</property>
+                            <property name="shrink">True</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="position">2</property>
+                      </packing>
+                    </child>
+                    <child type="tab">
+                      <object class="GtkLabel" id="label_config">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Configuration</property>
+                      </object>
+                      <packing>
+                        <property name="position">3</property>
+                        <property name="tab_fill">False</property>
+                      </packing>
+                    </child>
+                    <child>
                       <object class="GtkScrolledWindow" id="scrolledwindow_general">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
@@ -451,7 +529,7 @@
                         </child>
                       </object>
                       <packing>
-                        <property name="position">2</property>
+                        <property name="position">3</property>
                       </packing>
                     </child>
                     <child type="tab">
@@ -460,7 +538,7 @@
                         <property name="label" translatable="yes">General</property>
                       </object>
                       <packing>
-                        <property name="position">2</property>
+                        <property name="position">3</property>
                         <property name="tab_fill">False</property>
                       </packing>
                     </child>
@@ -1228,6 +1306,8 @@ the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 &lt;http://www.gnu.org/philosophy/why-not-lgpl.html&gt;.
 </property>
+    <property name="authors">Kamran Riaz Khan &lt;krkhan@inspirated.com&gt;
+Damian Johnson &lt;atagar1@gmail.com&gt;</property>
     <signal name="response" handler="on_aboutdialog_response"/>
     <child internal-child="vbox">
       <object class="GtkVBox" id="aboutdialog_vbox">
@@ -1261,5 +1341,8 @@ Public License instead of this License.  But first, please read
     <property name="tooltip">About</property>
     <property name="stock_id">gtk-about</property>
     <signal name="activate" handler="on_action_about_activate"/>
+  </object>
+  <object class="GtkTextBuffer" id="textbuffer_config_desc">
+    <property name="text" translatable="yes">Select a configuration option to see its description.</property>
   </object>
 </interface>
