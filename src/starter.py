@@ -538,7 +538,7 @@ if __name__ == '__main__':
     import gui.controller
     gui.controller.start_gui()
   elif launchPrompt:
-    util.torInterpretor.prompt()
+    util.torInterpretor.showPrompt()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)
 

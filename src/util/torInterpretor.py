@@ -960,7 +960,7 @@ class ControlInterpretor:
     
     return (inputLines, outputLines)
 
-def prompt():
+def showPrompt():
   # For Python 2.6 and earlier cycling history via the readline module with
   # up/down is buggy with a color prompt. For more information see:
   # http://bugs.python.org/issue12972
@@ -1041,17 +1041,17 @@ def _splitOnNewlines(entry):
   entry = list(entry) # shallow copy
   
   while entry:
-    msg, format = entry.pop(0)
+    msg, msgFormat = entry.pop(0)
     
     if "\n" in msg:
       msg, remainder = msg.split("\n", 1)
-      entry.insert(0, (remainder, format))
+      entry.insert(0, (remainder, msgFormat))
       
-      tmpLine.append((msg, format))
+      tmpLine.append((msg, msgFormat))
       results.append(tmpLine)
       tmpLine = []
     else:
-      tmpLine.append((msg, format))
+      tmpLine.append((msg, msgFormat))
   
   if tmpLine: results.append(tmpLine)
   return results
