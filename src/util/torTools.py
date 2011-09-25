@@ -123,7 +123,6 @@ def connect_socket(socketPath="/var/run/tor/control", ConnClass=TorCtl.Connectio
     ConnClass  - connection type to instantiate
   """
 
-  import socket
   try:
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.connect(socketPath)

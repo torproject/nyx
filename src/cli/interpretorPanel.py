@@ -77,7 +77,7 @@ class InterpretorPanel(panel.Panel):
         isDone = True
       else:
         try:
-          inputEntry, outputEntry = self.interpretor.handleQuery(input)
+          self.interpretor.handleQuery(input)
         except torInterpretor.InterpretorClosed:
           # Makes our control connection check if its been closed or not
           torTools.getConn().isAlive()
