@@ -1,6 +1,6 @@
 CHANGE LOG
 
-9/25/11 - version 1.4.4
+9/25/11 - version 1.4.4 (881c67a)
 Besides the normal bug fixes and minor features, this release introduces the control port interpretor. This is a new page or standalone prompt that gives raw control port access with several usability improvements (tab completion, history, irc style help, interpretor commands, etc).
 
     * added: control port interpretor which provides...
@@ -13,7 +13,7 @@ Besides the normal bug fixes and minor features, this release introduces the con
           o /write option which dumps the interpretor backlog to a file
     * added: control socket support (feature request by dererk, ticket)
     * added: optional system wide torrc integration (thanks to ioerror, ticket)
-    * added: dialog for guards, bridges, and exits with exit port usage and client locales
+    * added: dialog for guards, bridges, and exits with exit port usage and client locales (feature request by waltman and ioerror)
     * added: configuration editor for the gui interface (implemented by krkhan)
     * added: notice that warns the user against running tor or arm as root
     * change: doing a manual redraw when the user presses ctrl+L (ticket)
