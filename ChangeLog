@@ -11,12 +11,12 @@ Besides the normal bug fixes and minor features, this release introduces the con
           o /find option which searches the backlog for the given regex
           o /events option which displays any events that we've listened for
           o /write option which dumps the interpretor backlog to a file
-    * added: control socket support (feature request by dererk, ticket)
-    * added: optional system wide torrc integration (thanks to ioerror, ticket)
+    * added: control socket support (feature request by dererk, https://trac.torproject.org/projects/tor/ticket/3638)
+    * added: optional system wide torrc integration (thanks to ioerror, https://trac.torproject.org/projects/tor/ticket/3629)
     * added: dialog for guards, bridges, and exits with exit port usage and client locales (feature request by waltman and ioerror)
     * added: configuration editor for the gui interface (implemented by krkhan)
     * added: notice that warns the user against running tor or arm as root
-    * change: doing a manual redraw when the user presses ctrl+L (ticket)
+    * change: doing a manual redraw when the user presses ctrl+L (https://trac.torproject.org/projects/tor/ticket/2830)
     * change: moving download location to archive.torproject.org so downloads will have ssl (suggested by arma)
     * change: rewrite of the descriptor popup, cleaning up the code and minor performance improvements
     * fix: preventing arm from starting if there's a running tor instance that we can't connect to
@@ -25,7 +25,7 @@ Besides the normal bug fixes and minor features, this release introduces the con
     * fix: skipping log parsing if misformatted (caught by Sjon)
     * fix: incorrect armrc path in man page (caught by dererk)
     * fix: toning down the warning when all connection resolvers fail (suggested by Sebastian)
-    * fix: quitting wizard when the user presses 'q' instead of just esc (suggested by monochromec, ticket)
+    * fix: quitting wizard when the user presses 'q' instead of just esc (suggested by monochromec, https://trac.torproject.org/projects/tor/ticket/3995)
     * fix: quitting could cause unclean curses shutdown
     * fix: relay address fetching would ignore default values at shutdown, causing a stacktrace
     * fix: concurrency bug could crash arm if a CIRC event occurs while caching attached relays
