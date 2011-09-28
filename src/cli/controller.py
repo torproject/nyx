@@ -778,7 +778,7 @@ def drawTorMonitor(stdscr, startTime):
       cli.wizard.showWizard()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed
-      control.redraw()
+      control.redraw(True)
     else:
       for panelImpl in displayPanels:
         isKeystrokeConsumed = panelImpl.handleKey(key)
