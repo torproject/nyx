@@ -70,6 +70,7 @@ class InterpretorPanel(panel.Panel):
       inputLine = min(self.maxY - 1, displayLength)
       inputFormat = getFormat(torInterpretor.INPUT_FORMAT)
       input = self.getstr(inputLine, xOffset, "", inputFormat, validator = validator)
+      if input == None: input = ""
       input, isDone = input.strip(), False
       
       if not input:
