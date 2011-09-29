@@ -37,6 +37,10 @@ Besides the normal bug fixes and minor features, this release introduces the con
     * fix: listener wasn't registering GUARD events
     * fix: dropping nonexistent ORCONN attributes
     * fix: clarifying the missing torrc message
+    * fix (9/29/11): dropping gtk/cagraph requirements (caught by monochromec, vinc3nt, and Bill White)
+    * fix (9/29/11): crash from esc in interpretor panel prompt (caught by Sebastian, https://trac.torproject.org/projects/tor/ticket/4098)
+    * fix (9/29/11): deduplicating 'Circuit build timeout' and 'looks like we don't need to wait so long' messages (patch by StrangeCharm, https://trac.torproject.org/projects/tor/ticket/4096)
+    * fix (9/29/11): forcing redraw on ctrl+L reguardless of need (caught by np, https://trac.torproject.org/projects/tor/ticket/2830)
 
 7/16/11 - version 1.4.3 (6cf4836)
 This completes the codebase refactoring project that's been a year in the works and provides numerous performance and usability improvements. Most notably this includes a setup wizard for new relays, menuing interface, gui prototype, substantial performance improvements, and support for Mac OSX.
