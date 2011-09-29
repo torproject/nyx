@@ -26,11 +26,11 @@ echo "5460adb1394c368ba492cc33d6681618b3d3062b3f5f70b2a87520fc291701c3 <- expect
 tar -C $exportDst/src -xzf torctl.tar.gz
 rm torctl.tar.gz
 
-wget --quiet http://www.atagar.com/arm/resources/deps/11-06-10/cagraph.tar.gz
-sha256sum cagraph.tar.gz
-echo "1439acd40ce016f4329deb216d86f36a749e4b8bf73a313a757396af6f95310d <- expected"
-tar -C $exportDst/src -xzf cagraph.tar.gz
-rm cagraph.tar.gz
+#wget --quiet http://www.atagar.com/arm/resources/deps/11-06-10/cagraph.tar.gz
+#sha256sum cagraph.tar.gz
+#echo "1439acd40ce016f4329deb216d86f36a749e4b8bf73a313a757396af6f95310d <- expected"
+#tar -C $exportDst/src -xzf cagraph.tar.gz
+#rm cagraph.tar.gz
 
 # the following installed torctl from its master repo rather than our
 # dependency mirror
