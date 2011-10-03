@@ -341,6 +341,11 @@ class Controller:
       panelImpl.setTop(occupiedContent)
       occupiedContent += panelImpl.getHeight()
     
+    # apparently curses may cache display contents unless we explicitely
+    # request a redraw here...
+    # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
+    if force: self._screen.clear()
+    
     for panelImpl in displayPanels:
       panelImpl.redraw(force)
     
