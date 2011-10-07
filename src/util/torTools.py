@@ -352,6 +352,19 @@ def isTorRunning():
   
   # suggestions welcome for making this more reliable
   commandResults = sysTools.call("ps -A co command")
+  
+  if not commandResults:
+    # OpenBSD uses a weird (and largely broken from the looks of it) version of
+    # ps. It lacks the -A argument and according to the man page -j, -l, and -u
+    # all do something similar but they fail.
+    #
+    # ucomm is defined in the man page as 'Alias: comm.  Name to be used for
+    # accounting.' The alias part is a lie (it works, but with an error
+    # message), though this seems to do what we want and prints the bare
+    # command.
+    
+    commandResults = sysTools.call("ps -o ucomm=")
+  
   if commandResults:
     for cmd in commandResults:
       if cmd.strip() == "tor": return True
