@@ -350,20 +350,27 @@ def isTorRunning():
   then this returns False.
   """
   
-  # suggestions welcome for making this more reliable
-  commandResults = sysTools.call("ps -A co command")
+  # Linux and the BSD families have different variants of ps. Guess based on
+  # os.uname() results which to try first, then fall back to the other.
+  #
+  # Linux
+  #   -A          - Select all processes. Identical to -e.
+  #   -co command - Shows just the base command.
+  #
+  # Mac / BSD
+  #   -a        - Display information about other users' processes as well as
+  #               your own.
+  #   -o ucomm= - Shows just the ucomm attribute ("name to be used for
+  #               accounting")
   
+  primaryResolver, secondaryResolver = "ps -A co command", "ps -ao ucomm="
+  
+  if os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
+    primaryResolver, secondaryResolver = secondaryResolver, primaryResolver
+  
+  commandResults = sysTools.call(primaryResolver)
   if not commandResults:
-    # OpenBSD uses a weird (and largely broken from the looks of it) version of
-    # ps. It lacks the -A argument and according to the man page -j, -l, and -u
-    # all do something similar but they fail.
-    #
-    # ucomm is defined in the man page as 'Alias: comm.  Name to be used for
-    # accounting.' The alias part is a lie (it works, but with an error
-    # message), though this seems to do what we want and prints the bare
-    # command.
-    
-    commandResults = sysTools.call("ps -o ucomm=")
+    commandResults = sysTools.call(secondaryResolver)
   
   if commandResults:
     for cmd in commandResults:
