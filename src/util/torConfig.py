@@ -580,6 +580,14 @@ def validate(contents = None):
   
   # checks if any custom options are missing from the torrc
   for option in customOptions:
+    # In new versions the 'DirReqStatistics' option is true by default and
+    # disabled on startup if geoip lookups are unavailable. If this option is
+    # missing then that's most likely the reason.
+    #
+    # https://trac.torproject.org/projects/tor/ticket/4237
+    
+    if option == "DirReqStatistics": continue
+    
     if not option in seenOptions:
       issuesFound.append((None, ValidationError.MISSING, option))
   
