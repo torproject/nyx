@@ -174,6 +174,23 @@ def getPwd(pid):
       PWD_CACHE[pid] = pwd
       return pwd
     except IOError: pass # fall back to pwdx
+  elif os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
+    # BSD neither useres the above proc info nor does it have pwdx. Use lsof to
+    # determine this instead:
+    # https://trac.torproject.org/projects/tor/ticket/4236
+    #
+    # ~$ lsof -a -p 75717 -d cwd -Fn
+    # p75717
+    # n/Users/atagar/tor/src/or
+    
+    try:
+      results = call("lsof -a -p %s -d cwd -Fn" % pid)
+      
+      if results and len(results) == 2 and results[1].startswith("n/"):
+        pwd = results[1][1:].strip()
+        PWD_CACHE[pid] = pwd
+        return pwd
+    except IOError, exc: pass
   
   try:
     # pwdx results are of the form:
