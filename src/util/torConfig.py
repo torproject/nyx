@@ -832,7 +832,7 @@ class Torrc():
         log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], msg)
       
       if mismatchLines or missingOptions:
-        msg = "The torrc differ from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
+        msg = "The torrc differs from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
         
         if mismatchLines:
           if len(mismatchLines) > 1:
