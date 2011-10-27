@@ -550,6 +550,10 @@ class TorManager:
     
     if authType == TorCtl.AUTH_TYPE.COOKIE:
       try:
+        authCookieSize = os.path.getsize(authValue)
+        if authCookieSize != 32:
+          raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
+        
         torctlConn.authenticate(authValue)
         torTools.getConn().init(torctlConn)
       except Exception, exc:

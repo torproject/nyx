@@ -243,6 +243,19 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
         if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
         
         conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
+      
+      # Abort if the file isn't 32 bytes long. This is to avoid exposing
+      # arbitrary file content to the port.
+      #
+      # Without this a malicious socket could, for instance, claim that
+      # '~/.bash_history' or '~/.ssh/id_rsa' was its authentication cookie to
+      # trick us into reading it for them with our current permissions.
+      #
+      # https://trac.torproject.org/projects/tor/ticket/4305
+      
+      authCookieSize = os.path.getsize(conn._cookiePath)
+      if authCookieSize != 32:
+        raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (conn._cookiePath, authCookieSize))
     
     conn.authenticate(authValue)
     return conn
