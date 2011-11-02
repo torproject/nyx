@@ -1,6 +1,6 @@
 #!/bin/sh
 cp redhat/MANIFEST ./
-python setup.py bdist_rpm
+python setup.py bdist_rpm --requires="python-2.5, python-hashlib"
 
 # cleans up after rpm build
 files="build MANIFEST"
