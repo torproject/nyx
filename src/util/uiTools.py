@@ -39,6 +39,7 @@ TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
 Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 CONFIG = {"features.colorInterface": True,
+          "features.acsSupport": True,
           "features.printUnicode": True,
           "log.cursesColorSupport": log.INFO,
           "log.configEntryTypeError": log.NOTICE}
@@ -337,10 +338,15 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   panel.vline(top + 1, left + width - 1, height - 2, attr)
   
   # draws the corners
-  panel.addch(top, left, curses.ACS_ULCORNER, attr)
-  panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
-  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
-  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, attr)
+  if CONFIG["features.acsSupport"]:
+    panel.addch(top, left, curses.ACS_ULCORNER, attr)
+    panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
+    panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
+  else:
+    panel.addch(top, left, "+", attr)
+    panel.addch(top, left + width - 1, "+", attr)
+    panel.addch(top + height - 1, left, "+", attr)
+    panel.addch(top + height - 1, left + width - 1, "+", attr)
 
 def isSelectionKey(key):
   """
