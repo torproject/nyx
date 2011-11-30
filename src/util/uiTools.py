@@ -338,15 +338,9 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   panel.vline(top + 1, left + width - 1, height - 2, attr)
   
   # draws the corners
-  if CONFIG["features.acsSupport"]:
-    panel.addch(top, left, curses.ACS_ULCORNER, attr)
-    panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
-    panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
-  else:
-    panel.addch(top, left, "+", attr)
-    panel.addch(top, left + width - 1, "+", attr)
-    panel.addch(top + height - 1, left, "+", attr)
-    panel.addch(top + height - 1, left + width - 1, "+", attr)
+  panel.addch(top, left, curses.ACS_ULCORNER, attr)
+  panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
+  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
 
 def isSelectionKey(key):
   """
@@ -714,6 +708,21 @@ def _initColors():
   
   global COLOR_ATTR_INITIALIZED, COLOR_IS_SUPPORTED
   if not COLOR_ATTR_INITIALIZED:
+    # hack to replace all ACS characters with '+' if ACS support has been
+    # manually disabled
+    if not CONFIG["features.acsSupport"]:
+      for item in curses.__dict__:
+        if item.startswith("ACS_"):
+          curses.__dict__[item] = ord('+')
+      
+      # replace a few common border pipes that are better rendered as '|' or
+      # '-' instead
+      
+      curses.ACS_SBSB = ord('|')
+      curses.ACS_VLINE = ord('|')
+      curses.ACS_BSBS = ord('-')
+      curses.ACS_HLINE = ord('-')
+    
     COLOR_ATTR_INITIALIZED = True
     COLOR_IS_SUPPORTED = False
     if not CONFIG["features.colorInterface"]: return

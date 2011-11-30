@@ -23,8 +23,7 @@ FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<h>": (_noOp, curses.A_STANDOUT)}
 for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
 
-CONFIG = {"features.acsSupport": True,
-          "log.panelRecreated": log.DEBUG}
+CONFIG = {"log.panelRecreated": log.DEBUG}
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
@@ -426,11 +425,7 @@ class Panel():
     if self.win and self.maxX > x and self.maxY > y:
       try:
         drawLength = min(length, self.maxX - x)
-        
-        if CONFIG["features.acsSupport"]:
-          self.win.hline(y, x, curses.ACS_HLINE | attr, drawLength)
-        else:
-          self.addstr(y, x, "-" * drawLength, attr)
+        self.win.hline(y, x, curses.ACS_HLINE | attr, drawLength)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
@@ -450,12 +445,7 @@ class Panel():
     if self.win and self.maxX > x and self.maxY > y:
       try:
         drawLength = min(length, self.maxY - y)
-        
-        if CONFIG["features.acsSupport"]:
-          self.win.vline(y, x, curses.ACS_VLINE | attr, drawLength)
-        else:
-          for i in range(drawLength):
-            self.addch(y + i, x, "|", attr)
+        self.win.vline(y, x, curses.ACS_VLINE | attr, drawLength)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
@@ -696,13 +686,8 @@ class Panel():
     
     # draws box around the scroll bar
     self.vline(drawTop, drawLeft + 1, drawBottom - 1)
-    
-    if CONFIG["features.acsSupport"]:
-      self.addch(drawBottom, drawLeft + 1, curses.ACS_LRCORNER)
-      self.addch(drawBottom, drawLeft, curses.ACS_HLINE)
-    else:
-      self.addch(drawBottom, drawLeft + 1, "+")
-      self.addch(drawBottom, drawLeft, "-")
+    self.addch(drawBottom, drawLeft + 1, curses.ACS_LRCORNER)
+    self.addch(drawBottom, drawLeft, curses.ACS_HLINE)
   
   def _resetSubwindow(self):
     """
