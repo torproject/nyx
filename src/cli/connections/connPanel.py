@@ -308,7 +308,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     options.append(("down arrow", "scroll down a line", None))
     options.append(("page up", "scroll up a page", None))
     options.append(("page down", "scroll down a page", None))
-    options.append(("enter", "edit configuration option", None))
+    options.append(("enter", "toggle connection details", None))
     options.append(("d", "raw consensus descriptor", None))
     
     if self.isClientsAllowed():
