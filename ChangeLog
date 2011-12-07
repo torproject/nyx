@@ -24,6 +24,7 @@ Besides the normal bug fixes and minor features, this release introduces the con
     * fix: appending path prefix to auth cookie path (caught by sid77)
     * fix: skipping log parsing if misformatted (caught by Sjon)
     * fix: incorrect armrc path in man page (caught by dererk)
+    * fix: trying all authentication methods rather than just the first (caught by arma, https://trac.torproject.org/projects/tor/ticket/3958)
     * fix: toning down the warning when all connection resolvers fail (suggested by Sebastian)
     * fix: quitting wizard when the user presses 'q' instead of just esc (suggested by monochromec, https://trac.torproject.org/projects/tor/ticket/3995)
     * fix: quitting could cause unclean curses shutdown
