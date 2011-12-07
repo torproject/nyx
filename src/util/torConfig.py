@@ -395,8 +395,15 @@ def getCustomOptions(includeValue = False):
   # from Tor's defaults with the exception of its Log and Nickname entries
   # which, even if undefined, returns "Log notice stdout" as per:
   # https://trac.torproject.org/projects/tor/ticket/2362
+  #
+  # If this is from the deb then it will be "Log notice file /var/log/tor/log"
+  # due to special patching applied to it, as per:
+  # https://trac.torproject.org/projects/tor/ticket/4602
   
   try: configLines.remove("Log notice stdout")
+  except ValueError: pass
+  
+  try: configLines.remove("Log notice file /var/log/tor/log")
   except ValueError: pass
   
   try: configLines.remove("Nickname %s" % socket.gethostname())
