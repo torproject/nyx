@@ -911,9 +911,15 @@ class LogPanel(panel.Panel, threading.Thread):
       path - path where to save the log snapshot
     """
     
+    path = os.path.abspath(path)
+    
     # make dir if the path doesn't already exist
     baseDir = os.path.dirname(path)
-    if not os.path.exists(baseDir): os.makedirs(baseDir)
+    
+    try:
+      if not os.path.exists(baseDir): os.makedirs(baseDir)
+    except OSError, exc:
+      raise IOError("unable to make directory '%s'" % baseDir)
     
     snapshotFile = open(path, "w")
     self.valsLock.acquire()
