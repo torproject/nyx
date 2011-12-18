@@ -103,6 +103,11 @@ PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
 ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
 
+# Makes subcommands provide us with English results (this is important so we
+# can properly parse it).
+
+os.putenv("LANG", "C")
+
 def allowConnectionTypes():
   """
   This provides a tuple with booleans indicating if we should or shouldn't
