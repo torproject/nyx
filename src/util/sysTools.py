@@ -152,6 +152,7 @@ def getProcessName(pid, default = None, cacheFailure = True):
       
       return default
   else:
+    processName = os.path.basename(processName)
     PROCESS_NAME_CACHE[pid] = processName
     return processName
 
