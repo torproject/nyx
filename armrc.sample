@@ -277,7 +277,7 @@ log.torGetInfoCache NONE
 log.torGetConf DEBUG
 log.torGetConfCache NONE
 log.torSetConf INFO
-log.torEventTypeUnrecognized NOTICE
+log.torEventTypeUnrecognized INFO
 log.torPrefixPathInvalid NOTICE
 log.procCallMade DEBUG
 log.sysCallMade DEBUG

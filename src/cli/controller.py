@@ -45,7 +45,7 @@ CONFIG = {"startup.events": "N3",
           "features.graph.bw.prepopulate": True,
           "wizard.default": {},
           "log.startTime": log.INFO,
-          "log.torEventTypeUnrecognized": log.NOTICE,
+          "log.torEventTypeUnrecognized": log.INFO,
           "log.configEntryUndefined": log.NOTICE,
           "log.unknownTorPid": log.WARN}
 
