@@ -663,23 +663,31 @@ def startTorMonitor(startTime):
   torTools.REQ_EVENTS["BW"] = "bandwidth graph won't function"
   
   if not CONFIG["startup.blindModeEnabled"]:
-    torTools.REQ_EVENTS["CIRC"] = "may cause issues in identifying client connections"
+    # The DisableDebuggerAttachment will prevent our connection panel from really
+    # functioning. It'll have circuits, but little else. If this is the case then
+    # notify the user and tell them what they can do to fix it.
     
-    # Configures connection resoultions. This is paused/unpaused according to
-    # if Tor's connected or not.
-    conn.addStatusListener(connResetListener)
-    
-    if torPid:
-      # use the tor pid to help narrow connection results
-      torCmdName = sysTools.getProcessName(torPid, "tor")
-      connections.getResolver(torCmdName, torPid, "tor")
+    if conn.getOption("DisableDebuggerAttachment") == "1":
+      log.log(log.NOTICE, "Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
+      connections.getResolver("tor").setPaused(True)
     else:
-      # constructs singleton resolver and, if tor isn't connected, initizes
-      # it to be paused
-      connections.getResolver("tor").setPaused(not conn.isAlive())
-    
-    # hack to display a better (arm specific) notice if all resolvers fail
-    connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
+      torTools.REQ_EVENTS["CIRC"] = "may cause issues in identifying client connections"
+      
+      # Configures connection resoultions. This is paused/unpaused according to
+      # if Tor's connected or not.
+      conn.addStatusListener(connResetListener)
+      
+      if torPid:
+        # use the tor pid to help narrow connection results
+        torCmdName = sysTools.getProcessName(torPid, "tor")
+        connections.getResolver(torCmdName, torPid, "tor")
+      else:
+        # constructs singleton resolver and, if tor isn't connected, initizes
+        # it to be paused
+        connections.getResolver("tor").setPaused(not conn.isAlive())
+      
+      # hack to display a better (arm specific) notice if all resolvers fail
+      connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
   
   # provides a notice about any event types tor supports but arm doesn't
   missingEventTypes = cli.logPanel.getMissingEventTypes()
