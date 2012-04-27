@@ -430,7 +430,7 @@ class FixedConnection(TorCtl.Connection):
               # not of a recognized authentication type (new addition to the
               # control-spec?)
 
-              log.log(log.WARN, "Unrecognized authentication type: %s" % authEntry)
+              log.log(log.INFO, "Unrecognized authentication type: %s" % authEntry)
         elif entry.startswith("COOKIEFILE=\"") and entry.endswith("\""):
           # Quoted path of the authentication cookie. This only exists if we're
           # using cookie auth and, of course, doesn't account for chroot.
