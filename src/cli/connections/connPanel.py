@@ -419,105 +419,104 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     connResolver = connections.getResolver("tor")
     currentResolutionCount = connResolver.getResolutionCount()
     
-    if self._lastResourceFetch != currentResolutionCount:
-      self.valsLock.acquire()
-      
-      newEntries = [] # the new results we'll display
-      
-      # Fetches new connections and client circuits...
-      # newConnections  [(local ip, local port, foreign ip, foreign port)...]
-      # newCircuits     {circuitID => (status, purpose, path)...}
-      
-      newConnections = connResolver.getConnections()
-      newCircuits = {}
-      
-      for circuitID, status, purpose, path in torTools.getConn().getCircuits():
-        # Skips established single-hop circuits (these are for directory
-        # fetches, not client circuits)
-        if not (status == "BUILT" and len(path) == 1):
-          newCircuits[circuitID] = (status, purpose, path)
-      
-      # Populates newEntries with any of our old entries that still exist.
-      # This is both for performance and to keep from resetting the uptime
-      # attributes. Note that CircEntries are a ConnectionEntry subclass so
-      # we need to check for them first.
-      
-      for oldEntry in self._entries:
-        if isinstance(oldEntry, circEntry.CircEntry):
-          newEntry = newCircuits.get(oldEntry.circuitID)
-          
-          if newEntry:
-            oldEntry.update(newEntry[0], newEntry[2])
-            newEntries.append(oldEntry)
-            del newCircuits[oldEntry.circuitID]
-        elif isinstance(oldEntry, connEntry.ConnectionEntry):
-          connLine = oldEntry.getLines()[0]
-          connAttr = (connLine.local.getIpAddr(), connLine.local.getPort(),
-                      connLine.foreign.getIpAddr(), connLine.foreign.getPort())
-          
-          if connAttr in newConnections:
-            newEntries.append(oldEntry)
-            newConnections.remove(connAttr)
-      
-      # Reset any display attributes for the entries we're keeping
-      for entry in newEntries: entry.resetDisplay()
-      
-      # Adds any new connection and circuit entries.
-      for lIp, lPort, fIp, fPort in newConnections:
-        newConnEntry = connEntry.ConnectionEntry(lIp, lPort, fIp, fPort)
-        newConnLine = newConnEntry.getLines()[0]
+    self.valsLock.acquire()
+    
+    newEntries = [] # the new results we'll display
+    
+    # Fetches new connections and client circuits...
+    # newConnections  [(local ip, local port, foreign ip, foreign port)...]
+    # newCircuits     {circuitID => (status, purpose, path)...}
+    
+    newConnections = connResolver.getConnections()
+    newCircuits = {}
+    
+    for circuitID, status, purpose, path in torTools.getConn().getCircuits():
+      # Skips established single-hop circuits (these are for directory
+      # fetches, not client circuits)
+      if not (status == "BUILT" and len(path) == 1):
+        newCircuits[circuitID] = (status, purpose, path)
+    
+    # Populates newEntries with any of our old entries that still exist.
+    # This is both for performance and to keep from resetting the uptime
+    # attributes. Note that CircEntries are a ConnectionEntry subclass so
+    # we need to check for them first.
+    
+    for oldEntry in self._entries:
+      if isinstance(oldEntry, circEntry.CircEntry):
+        newEntry = newCircuits.get(oldEntry.circuitID)
         
-        if newConnLine.getType() != connEntry.Category.CIRCUIT:
-          newEntries.append(newConnEntry)
-          
-          # updates exit port and client locale usage information
-          if newConnLine.isPrivate():
-            if newConnLine.getType() == connEntry.Category.INBOUND:
-              # client connection, update locale information
-              clientLocale = newConnLine.foreign.getLocale()
-              
-              if clientLocale:
-                self._clientLocaleUsage[clientLocale] = self._clientLocaleUsage.get(clientLocale, 0) + 1
-            elif newConnLine.getType() == connEntry.Category.EXIT:
-              exitPort = newConnLine.foreign.getPort()
-              self._exitPortUsage[exitPort] = self._exitPortUsage.get(exitPort, 0) + 1
+        if newEntry:
+          oldEntry.update(newEntry[0], newEntry[2])
+          newEntries.append(oldEntry)
+          del newCircuits[oldEntry.circuitID]
+      elif isinstance(oldEntry, connEntry.ConnectionEntry):
+        connLine = oldEntry.getLines()[0]
+        connAttr = (connLine.local.getIpAddr(), connLine.local.getPort(),
+                    connLine.foreign.getIpAddr(), connLine.foreign.getPort())
+        
+        if connAttr in newConnections:
+          newEntries.append(oldEntry)
+          newConnections.remove(connAttr)
+    
+    # Reset any display attributes for the entries we're keeping
+    for entry in newEntries: entry.resetDisplay()
+    
+    # Adds any new connection and circuit entries.
+    for lIp, lPort, fIp, fPort in newConnections:
+      newConnEntry = connEntry.ConnectionEntry(lIp, lPort, fIp, fPort)
+      newConnLine = newConnEntry.getLines()[0]
       
-      for circuitID in newCircuits:
-        status, purpose, path = newCircuits[circuitID]
-        newEntries.append(circEntry.CircEntry(circuitID, status, purpose, path))
-      
-      # Counts the relays in each of the categories. This also flushes the
-      # type cache for all of the connections (in case its changed since last
-      # fetched).
-      
-      categoryTypes = connEntry.Category.values()
-      typeCounts = dict((type, 0) for type in categoryTypes)
-      for entry in newEntries:
-        if isinstance(entry, connEntry.ConnectionEntry):
-          typeCounts[entry.getLines()[0].getType()] += 1
-        elif isinstance(entry, circEntry.CircEntry):
-          typeCounts[connEntry.Category.CIRCUIT] += 1
-      
-      # makes labels for all the categories with connections (ie,
-      # "21 outbound", "1 control", etc)
-      countLabels = []
-      
-      for category in categoryTypes:
-        if typeCounts[category] > 0:
-          countLabels.append("%i %s" % (typeCounts[category], category.lower()))
-      
-      if countLabels: self._title = "Connections (%s):" % ", ".join(countLabels)
-      else: self._title = "Connections:"
-      
-      self._entries = newEntries
-      
-      self._entryLines = []
-      for entry in self._entries:
-        self._entryLines += entry.getLines()
-      
-      self.setSortOrder()
-      self._lastResourceFetch = currentResolutionCount
-      self.valsLock.release()
+      if newConnLine.getType() != connEntry.Category.CIRCUIT:
+        newEntries.append(newConnEntry)
+        
+        # updates exit port and client locale usage information
+        if newConnLine.isPrivate():
+          if newConnLine.getType() == connEntry.Category.INBOUND:
+            # client connection, update locale information
+            clientLocale = newConnLine.foreign.getLocale()
+            
+            if clientLocale:
+              self._clientLocaleUsage[clientLocale] = self._clientLocaleUsage.get(clientLocale, 0) + 1
+          elif newConnLine.getType() == connEntry.Category.EXIT:
+            exitPort = newConnLine.foreign.getPort()
+            self._exitPortUsage[exitPort] = self._exitPortUsage.get(exitPort, 0) + 1
+    
+    for circuitID in newCircuits:
+      status, purpose, path = newCircuits[circuitID]
+      newEntries.append(circEntry.CircEntry(circuitID, status, purpose, path))
+    
+    # Counts the relays in each of the categories. This also flushes the
+    # type cache for all of the connections (in case its changed since last
+    # fetched).
+    
+    categoryTypes = connEntry.Category.values()
+    typeCounts = dict((type, 0) for type in categoryTypes)
+    for entry in newEntries:
+      if isinstance(entry, connEntry.ConnectionEntry):
+        typeCounts[entry.getLines()[0].getType()] += 1
+      elif isinstance(entry, circEntry.CircEntry):
+        typeCounts[connEntry.Category.CIRCUIT] += 1
+    
+    # makes labels for all the categories with connections (ie,
+    # "21 outbound", "1 control", etc)
+    countLabels = []
+    
+    for category in categoryTypes:
+      if typeCounts[category] > 0:
+        countLabels.append("%i %s" % (typeCounts[category], category.lower()))
+    
+    if countLabels: self._title = "Connections (%s):" % ", ".join(countLabels)
+    else: self._title = "Connections:"
+    
+    self._entries = newEntries
+    
+    self._entryLines = []
+    for entry in self._entries:
+      self._entryLines += entry.getLines()
+    
+    self.setSortOrder()
+    self._lastResourceFetch = currentResolutionCount
+    self.valsLock.release()
   
   def _resolveApps(self, flagQuery = True):
     """
