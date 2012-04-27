@@ -2422,10 +2422,17 @@ class Controller(TorCtl.PostEventListener):
           for line in circStatusResults.split("\n"):
             # appends a tuple with the (status, purpose, path)
             lineComp = line.split(" ")
+            if len(lineComp) < 3: continue
             
-            # skips blank lines and circuits without a path, for instance:
-            #  5 LAUNCHED PURPOSE=TESTING
-            if len(lineComp) < 4: continue
+            # The third parameter is *optionally* the path. This is a pita to
+            # parse out because we need to identify it verses the key=value
+            # entries that might follow. To do this checking if...
+            # - it lacks a '=' then it can't be a key=value entry
+            # - if it has a '=' but starts with a '$' then this should be a
+            #   $fingerprint=nickname entity
+            
+            if lineComp[2].count("=") == 1 and lineComp[2][0] != "$":
+              continue
             
             path = []
             for hopEntry in lineComp[2].split(","):
