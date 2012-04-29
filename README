@@ -99,11 +99,24 @@ pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
 Arm still runs, just no connection listing or ps stats.
 
-> The bandwidth graph showing up
+> The bandwidth graph isn't showing up
 
 Some terminals, most notably screen sessions on Gentoo, appear to have a bug
 where highlighted spaces aren't rendered. A reported workaround is to set:
   TERM="rxvt-unicode"
+
+> There's borders like 'mwqqqqqqqqj'
+
+If you're getting something that looks like...
+http://www.atagar.com/arm/images/acs_display_failure.png
+
+then you're encountering a bug between ncurses and your terminal where
+alternate character support (ACS) is unavailable. For more information see...
+http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing
+
+Unfortunately there doesn't seem to be a way for arm to automatically detect
+and correct this. To work around some of the issues set this in your armrc...
+features.acsSupport false
 
 > When I press enter in the connection panel to get details some of the
 information is either missing or outdated. Why is this?

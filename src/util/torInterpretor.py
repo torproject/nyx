@@ -6,7 +6,6 @@ directly, history and tab completion.
 
 import re
 import sys
-import readline
 
 import version
 
@@ -961,6 +960,13 @@ class ControlInterpretor:
     return (inputLines, outputLines)
 
 def showPrompt():
+  # When displaying the prompt we want the readline module to be imported so
+  # we get its neat features like history scrollback. HOWEVER, importing
+  # readline prior to initializing curses causes terminal bugs, most noticeably
+  # screen resizing.
+  
+  import readline
+  
   # For Python 2.6 and earlier cycling history via the readline module with
   # up/down is buggy with a color prompt. For more information see:
   # http://bugs.python.org/issue12972

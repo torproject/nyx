@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Tor monitor
+Name[es]=Monitor de Tor
+Comment=Status monitor for Tor routers
+Comment[es]=Monitor de estado para routers Tor
+GenericName=Monitor
+GenericName[es]=Monitor
+Exec=arm -g
+Icon=tor-arm
+Terminal=false
+Type=Application
+Categories=System;Monitor;GTK

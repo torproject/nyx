@@ -103,6 +103,11 @@ PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
 ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
 
+# Makes subcommands provide us with English results (this is important so we
+# can properly parse it).
+
+os.putenv("LANG", "C")
+
 def allowConnectionTypes():
   """
   This provides a tuple with booleans indicating if we should or shouldn't
@@ -212,11 +217,19 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
     
     if TorCtl.TorCtl.AUTH_TYPE.PASSWORD in authTypes:
       # password authentication, promting for the password if it wasn't provided
-      if passphrase: authValue = passphrase
-      else:
-        try: authValue = getpass.getpass("Controller password: ")
+      #
+      # TODO: When handling multi-auth we should try to authenticate via the
+      # cookie first, then fall back to prompting the user for their password.
+      # With the stack of fixes and hacks we have here jerry-rigging that in
+      # without trying cookie auth twice will be a pita so leaving this alone
+      # for now. Stem will handle most of this transparently, letting us handle
+      # this much more elegantly.
+      
+      if not passphrase:
+        try: passphrase = getpass.getpass("Controller password: ")
         except KeyboardInterrupt: return None
-    elif TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes and authValue[0] != "/":
+    
+    if TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes and authValue[0] != "/":
       # Connecting to the control port will probably fail if it's using cookie
       # authentication and the cookie path is relative (unfortunately this is
       # the case for TBB). This is discussed in:
@@ -243,8 +256,30 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
         if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
         
         conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
+      
+      # Abort if the file isn't 32 bytes long. This is to avoid exposing
+      # arbitrary file content to the port.
+      #
+      # Without this a malicious socket could, for instance, claim that
+      # '~/.bash_history' or '~/.ssh/id_rsa' was its authentication cookie to
+      # trick us into reading it for them with our current permissions.
+      #
+      # https://trac.torproject.org/projects/tor/ticket/4305
+      
+      try:
+        authCookieSize = os.path.getsize(conn._cookiePath)
+        if authCookieSize != 32:
+          raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (conn._cookiePath, authCookieSize))
+      except Exception, exc:
+        # if the above fails then either...
+        # - raise an exception if cookie auth is the only method we have to
+        #   authenticate
+        # - suppress the exception and try the other connection methods if we
+        #   have alternatives
+        if len(authTypes) == 1: raise exc
+        else: conn._authTypes.remove(TorCtl.TorCtl.AUTH_TYPE.COOKIE)
     
-    conn.authenticate(authValue)
+    conn.authenticate(passphrase)
     return conn
   except Exception, exc:
     if conn: conn.close()

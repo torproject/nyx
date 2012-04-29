@@ -350,8 +350,28 @@ def isTorRunning():
   then this returns False.
   """
   
-  # suggestions welcome for making this more reliable
-  commandResults = sysTools.call("ps -A co command")
+  # Linux and the BSD families have different variants of ps. Guess based on
+  # os.uname() results which to try first, then fall back to the other.
+  #
+  # Linux
+  #   -A          - Select all processes. Identical to -e.
+  #   -co command - Shows just the base command.
+  #
+  # Mac / BSD
+  #   -a        - Display information about other users' processes as well as
+  #               your own.
+  #   -o ucomm= - Shows just the ucomm attribute ("name to be used for
+  #               accounting")
+  
+  primaryResolver, secondaryResolver = "ps -A co command", "ps -ao ucomm="
+  
+  if os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
+    primaryResolver, secondaryResolver = secondaryResolver, primaryResolver
+  
+  commandResults = sysTools.call(primaryResolver)
+  if not commandResults:
+    commandResults = sysTools.call(secondaryResolver)
+  
   if commandResults:
     for cmd in commandResults:
       if cmd.strip() == "tor": return True
@@ -410,7 +430,7 @@ class FixedConnection(TorCtl.Connection):
               # not of a recognized authentication type (new addition to the
               # control-spec?)
 
-              raise IOError("Unrecognized authentication type: %s" % authEntry)
+              log.log(log.INFO, "Unrecognized authentication type: %s" % authEntry)
         elif entry.startswith("COOKIEFILE=\"") and entry.endswith("\""):
           # Quoted path of the authentication cookie. This only exists if we're
           # using cookie auth and, of course, doesn't account for chroot.
@@ -2402,10 +2422,17 @@ class Controller(TorCtl.PostEventListener):
           for line in circStatusResults.split("\n"):
             # appends a tuple with the (status, purpose, path)
             lineComp = line.split(" ")
+            if len(lineComp) < 3: continue
             
-            # skips blank lines and circuits without a path, for instance:
-            #  5 LAUNCHED PURPOSE=TESTING
-            if len(lineComp) < 4: continue
+            # The third parameter is *optionally* the path. This is a pita to
+            # parse out because we need to identify it verses the key=value
+            # entries that might follow. To do this checking if...
+            # - it lacks a '=' then it can't be a key=value entry
+            # - if it has a '=' but starts with a '$' then this should be a
+            #   $fingerprint=nickname entity
+            
+            if lineComp[2].count("=") == 1 and lineComp[2][0] != "$":
+              continue
             
             path = []
             for hopEntry in lineComp[2].split(","):

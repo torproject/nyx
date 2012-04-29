@@ -300,10 +300,17 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
       # strips the decimal seconds
       if "." in timestamp: timestamp = timestamp[:timestamp.find(".")]
       
-      # overwrites missing time parameters with the local time (ignoring wday
-      # and yday since they aren't used)
-      eventTimeComp = list(time.strptime(timestamp, "%b %d %H:%M:%S"))
-      eventTimeComp[0] = currentLocalTime.tm_year
+      # Ignoring wday and yday since they aren't used.
+      #
+      # Pretend the year is 2012, because 2012 is a leap year, and parsing a
+      # date with strptime fails if Feb 29th is passed without a year that's
+      # actually a leap year. We can't just use the current year, because we
+      # might be parsing old logs which didn't get rotated.
+      #
+      # https://trac.torproject.org/projects/tor/ticket/5265
+      
+      timestamp = "2012 " + timestamp
+      eventTimeComp = list(time.strptime(timestamp, "%Y %b %d %H:%M:%S"))
       eventTimeComp[8] = currentLocalTime.tm_isdst
       eventTime = time.mktime(eventTimeComp) # converts local to unix time
       
@@ -911,9 +918,15 @@ class LogPanel(panel.Panel, threading.Thread):
       path - path where to save the log snapshot
     """
     
+    path = os.path.abspath(path)
+    
     # make dir if the path doesn't already exist
     baseDir = os.path.dirname(path)
-    if not os.path.exists(baseDir): os.makedirs(baseDir)
+    
+    try:
+      if not os.path.exists(baseDir): os.makedirs(baseDir)
+    except OSError, exc:
+      raise IOError("unable to make directory '%s'" % baseDir)
     
     snapshotFile = open(path, "w")
     self.valsLock.acquire()

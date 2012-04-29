@@ -337,7 +337,7 @@ def getSystemResolvers(osType = None):
   
   if osType == "FreeBSD":
     resolvers = [Resolver.BSD_SOCKSTAT, Resolver.BSD_PROCSTAT, Resolver.LSOF]
-  elif osType == "Darwin":
+  elif osType in ("OpenBSD", "Darwin"):
     resolvers = [Resolver.LSOF]
   else:
     resolvers = [Resolver.NETSTAT, Resolver.SOCKSTAT, Resolver.LSOF, Resolver.SS]

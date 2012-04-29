@@ -395,8 +395,15 @@ def getCustomOptions(includeValue = False):
   # from Tor's defaults with the exception of its Log and Nickname entries
   # which, even if undefined, returns "Log notice stdout" as per:
   # https://trac.torproject.org/projects/tor/ticket/2362
+  #
+  # If this is from the deb then it will be "Log notice file /var/log/tor/log"
+  # due to special patching applied to it, as per:
+  # https://trac.torproject.org/projects/tor/ticket/4602
   
   try: configLines.remove("Log notice stdout")
+  except ValueError: pass
+  
+  try: configLines.remove("Log notice file /var/log/tor/log")
   except ValueError: pass
   
   try: configLines.remove("Nickname %s" % socket.gethostname())
@@ -524,6 +531,21 @@ def validate(contents = None):
     if len(lineComp) == 2: option, value = lineComp
     else: option, value = lineText, ""
     
+    # Tor is case insensetive when parsing its torrc. This poses a bit of an
+    # issue for us because we want all of our checks to be case insensetive
+    # too but also want messages to match the normal camel-case conventions.
+    #
+    # Using the customOptions to account for this. It contains the tor reported
+    # options (camel case) and is either a matching set or the following defaut
+    # value check will fail. Hence using that hash to correct the case.
+    #
+    # TODO: when refactoring for stem make this less confusing...
+    
+    for customOpt in customOptions:
+      if customOpt.lower() == option.lower():
+        option = customOpt
+        break
+    
     # if an aliased option then use its real name
     if option in CONFIG["torrc.alias"]:
       option = CONFIG["torrc.alias"][option]
@@ -580,6 +602,14 @@ def validate(contents = None):
   
   # checks if any custom options are missing from the torrc
   for option in customOptions:
+    # In new versions the 'DirReqStatistics' option is true by default and
+    # disabled on startup if geoip lookups are unavailable. If this option is
+    # missing then that's most likely the reason.
+    #
+    # https://trac.torproject.org/projects/tor/ticket/4237
+    
+    if option == "DirReqStatistics": continue
+    
     if not option in seenOptions:
       issuesFound.append((None, ValidationError.MISSING, option))
   
@@ -772,7 +802,9 @@ class Torrc():
       skipValidation = not CONFIG["features.torrc.validate"]
       skipValidation |= not torTools.getConn().isVersion("0.2.2.7-alpha")
       
-      if skipValidation: returnVal = {}
+      if skipValidation:
+        log.log(log.INFO, "Skipping torrc validation (requires tor 0.2.2.7-alpha)")
+        returnVal = {}
       else:
         if self.corrections == None:
           self.corrections = validate(self.contents)
@@ -832,7 +864,7 @@ class Torrc():
         log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], msg)
       
       if mismatchLines or missingOptions:
-        msg = "The torrc differ from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
+        msg = "The torrc differs from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
         
         if mismatchLines:
           if len(mismatchLines) > 1:

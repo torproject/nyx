@@ -28,6 +28,10 @@ queries.useProc true
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true
 
+# Uses ACS (alternate character support) to display nice borders. This may not
+# work on all terminals.
+features.acsSupport true
+
 # Replaces all colored content (ie, anything that isn't white) with this
 # color. Valid options are:
 # none, red, green, yellow, blue, cyan, magenta, black, white
@@ -273,7 +277,7 @@ log.torGetInfoCache NONE
 log.torGetConf DEBUG
 log.torGetConfCache NONE
 log.torSetConf INFO
-log.torEventTypeUnrecognized NOTICE
+log.torEventTypeUnrecognized INFO
 log.torPrefixPathInvalid NOTICE
 log.procCallMade DEBUG
 log.sysCallMade DEBUG

@@ -146,6 +146,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
         cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
       
       if not torctlConn and allowPortConnection:
+        # TODO: This has diverged from starter.py's connection, for instance it
+        # doesn't account for relative cookie paths or multiple authentication
+        # methods. We can't use the starter.py's connection function directly
+        # due to password prompts, but we could certainly make this mess more
+        # manageable.
+        
         try:
           ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
           tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
@@ -153,6 +159,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
           if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
             authValue = cli.popups.inputPrompt("Controller Password: ")
             if not authValue: raise IOError() # cancel reconnection
+          elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
+            authCookieSize = os.path.getsize(authValue)
+            if authCookieSize != 32:
+              raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
           
           tmpConn.authenticate(authValue)
           torctlConn = tmpConn
