@@ -1,6 +1,6 @@
 CHANGE LOG
 
-4/28/12 - version 1.4.5
+4/28/12 - version 1.4.5 (e249dc8)
 Software isn't perfect and arm is no exception. This is a bugfix release that corrects most issues that users have reported over the last several months. This does not include any new features, but includes changes that are important for continued interoperability with tor.
 
     * fix: unrecognized authentication methods (like 'SAFECOOKIE') would make arm crash (caught by E)
