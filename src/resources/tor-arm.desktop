@@ -9,4 +9,4 @@ Exec=arm -g
 Icon=tor-arm
 Terminal=false
 Type=Application
-Categories=System;Monitor;GTK
+Categories=System;Monitor;GTK;
