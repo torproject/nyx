@@ -1,5 +1,9 @@
 #!/bin/sh
-if [ "$0" = /usr/bin/arm ]; then
+
+# Also looking in /bin/arm because of the UsrMove feature on Fedora...
+# https://trac.torproject.org/5973
+
+if [ "$0" = /usr/bin/arm ] || [ "$0" = /bin/arm ]; then
   arm_base=/usr/share/arm/
 else
   arm_base=$( dirname "$0" )/src/
