@@ -2370,16 +2370,20 @@ class Controller(TorCtl.PostEventListener):
         myPid = self.getMyPid()
         
         if myPid:
-          try:
-            if procTools.isProcAvailable():
+          if procTools.isProcAvailable():
+            try:
               result = float(procTools.getStats(myPid, procTools.Stat.START_TIME)[0])
-            else:
+            except: pass
+          
+          if not result:
+            # if we're either not using proc or it fails then try using ps
+            try:
               psCall = sysTools.call("ps -p %s -o etime" % myPid)
               
               if psCall and len(psCall) >= 2:
                 etimeEntry = psCall[1].strip()
                 result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
-          except: pass
+            except: pass
       elif key == "authorities":
         # There's two configuration options that can overwrite the default
         # authorities: DirServer and AlternateDirAuthority.
