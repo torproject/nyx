@@ -11,9 +11,9 @@ argument replacement (ie, replace argv[0], argv[1], etc but with a string
 the same size).
 """
 
-import sys
 import ctypes
 import ctypes.util
+import platform
 
 # flag for setting the process name, found in '/usr/include/linux/prctl.h'
 PR_SET_NAME = 15
@@ -38,9 +38,9 @@ def renameProcess(processName):
   """
   
   _setArgv(processName)
-  if sys.platform == "linux2":
+  if platform.system() == "Linux":
     _setPrctlName(processName)
-  elif sys.platform == "freebsd7":
+  elif platform.system() in ("Darwin", "FreeBSD", "OpenBSD"):
     _setProcTitle(processName)
 
 def _setArgv(processName):
