@@ -579,6 +579,7 @@ class Controller(TorCtl.PostEventListener):
   def __init__(self):
     TorCtl.PostEventListener.__init__(self)
     self.conn = None                    # None if uninitialized or controller's been closed
+    self.controller = None
     self.connLock = threading.RLock()
     self.eventListeners = []            # instances listening for tor controller events
     self.torctlListeners = []           # callback functions for TorCtl events
@@ -631,26 +632,25 @@ class Controller(TorCtl.PostEventListener):
     # tracks the number of sequential geoip lookup failures
     self.geoipFailureCount = 0
   
-  def init(self, conn=None):
+  def init(self, conn, controller):
     """
     Uses the given TorCtl instance for future operations, notifying listeners
     about the change.
     
     Arguments:
-      conn - TorCtl instance to be used, if None then a new instance is fetched
-             via the connect function
+      conn - TorCtl instance to be used
+      controller - stem based Controller instance
     """
     
-    if conn == None:
-      conn = TorCtl.connect()
-      
-      if conn == None: raise ValueError("Unable to initialize TorCtl instance.")
-    
-    if conn.is_live() and conn != self.conn:
+    if conn.is_live() and controller.is_alive() and conn != self.conn:
       self.connLock.acquire()
       
       if self.conn: self.close() # shut down current connection
       self.conn = conn
+      
+      self.controller = controller
+      log.log(log.INFO, "Stem connected to tor version %s" % self.controller.get_version())
+      
       self.conn.add_event_listener(self)
       for listener in self.eventListeners: self.conn.add_event_listener(listener)
       
@@ -698,6 +698,9 @@ class Controller(TorCtl.PostEventListener):
       self.conn.close()
       self.conn = None
       
+      self.controller.close()
+      self.controller = None
+      
       self._status = State.CLOSED
       self._statusTime = time.time()
       
@@ -719,7 +722,7 @@ class Controller(TorCtl.PostEventListener):
     
     result = False
     if self.conn:
-      if self.conn.is_live(): result = True
+      if self.conn.is_live() and self.controller.is_alive(): result = True
       else: self.close()
     
     self.connLock.release()

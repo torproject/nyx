@@ -23,6 +23,7 @@ import cli.graphing.resourceStats
 import cli.connections.connPanel
 
 from TorCtl import TorCtl
+from stem.control import Controller
 
 from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
 
@@ -555,7 +556,11 @@ class TorManager:
           raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
         
         torctlConn.authenticate(authValue)
-        torTools.getConn().init(torctlConn)
+        
+        controller = Controller.from_port(control_port = int(CONFIG["wizard.default"]["Control"]))
+        controller.authenticate()
+        
+        torTools.getConn().init(torctlConn, controller)
       except Exception, exc:
         raise IOError("Unable to connect to Tor: %s" % exc)
 

@@ -20,6 +20,10 @@ import curses
 import threading
 
 import TorCtl.TorCtl
+import stem
+import stem.connection
+
+from stem.control import Controller
 
 import starter
 import cli.popups
@@ -134,12 +138,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      torctlConn = None
+      torctlConn, controller = None, None
       allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       
       if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
-        try: torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
-        except IOError, exc:
+        try:
+          torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
+          
+          # TODO: um... what about passwords?
+          controller = Controller.from_socket_file(self._config["startup.interface.socket"])
+          controller.authenticate()
+        except (IOError, stem.SocketError), exc:
+          torctlConn, controller = None, None
+          
           if not allowPortConnection:
             cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       elif not allowPortConnection:
@@ -166,7 +177,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
           
           tmpConn.authenticate(authValue)
           torctlConn = tmpConn
+          
+          controller = Controller.from_port(ctlAddr, ctlPort)
+          
+          try:
+            controller.authenticate()
+          except stem.connection.MissingPassword:
+            controller.authenticate(authValue) # already got the password above
         except Exception, exc:
+          torctlConn, controller = None, None
+          
           # attempts to use the wizard port too
           try:
             cli.controller.getController().getTorManager().connectManagedInstance()
@@ -176,8 +196,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
             # displays notice for the first failed connection attempt
             if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       
-      if torctlConn:
-        torTools.getConn().init(torctlConn)
+      if torctlConn and controller:
+        torTools.getConn().init(torctlConn, controller)
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
