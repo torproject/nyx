@@ -12,7 +12,7 @@ import thread
 import threading
 import Queue
 
-from TorCtl import TorCtl, TorUtil
+from TorCtl import TorCtl
 
 from util import connections, enum, log, procTools, sysTools, uiTools
 
@@ -69,9 +69,6 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
-
-# provides int -> str mappings for torctl event runlevels
-TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
 
 # ip address ranges substituted by the 'private' keyword
 PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
@@ -560,7 +557,6 @@ class Controller(TorCtl.PostEventListener):
     self.controller = None
     self.connLock = threading.RLock()
     self.eventListeners = []            # instances listening for tor controller events
-    self.torctlListeners = []           # callback functions for TorCtl events
     self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
@@ -601,10 +597,6 @@ class Controller(TorCtl.PostEventListener):
     # cached GETCONF parameters, entries consisting of:
     # (option, fetch_type) => value
     self._cachedConf = {}
-    
-    # directs TorCtl to notify us of events
-    TorUtil.logger = self
-    TorUtil.loglevel = "DEBUG"
   
   def init(self, conn, controller):
     """
@@ -1609,18 +1601,6 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive(): self.conn.add_event_listener(listener)
     self.connLock.release()
   
-  def addTorCtlListener(self, callback):
-    """
-    Directs further TorCtl events to the callback function. Events are composed
-    of a runlevel and message tuple.
-    
-    Arguments:
-      callback - functor that'll accept the events, expected to be of the form:
-                 myFunction(runlevel, msg)
-    """
-    
-    self.torctlListeners.append(callback)
-  
   def addStatusListener(self, callback):
     """
     Directs further events related to tor's controller status to the callback
@@ -1983,15 +1963,6 @@ class Controller(TorCtl.PostEventListener):
   
   def unknown_event(self, event):
     self._updateHeartbeat()
-  
-  def log(self, level, msg, *args):
-    """
-    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a
-    logging.Logger instance.
-    """
-    
-    # notifies listeners of TorCtl events
-    for callback in self.torctlListeners: callback(TORCTL_RUNLEVELS[level], msg)
   
   def _updateHeartbeat(self):
     """
