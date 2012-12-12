@@ -8,9 +8,12 @@ import re
 import os
 import time
 import curses
+import logging
 import threading
 
 from TorCtl import TorCtl
+
+import stem.util.log
 
 import popups
 from version import VERSION
@@ -102,8 +105,7 @@ def expandEvents(eventAbbr):
   A - all events
   X - no events
   DINWE - runlevel and higher
-  12345 - arm runlevel and higher (ARM_DEBUG - ARM_ERR)
-  67890 - torctl runlevel and higher (TORCTL_DEBUG - TORCTL_ERR)
+  12345 - arm/stem runlevel and higher (ARM_DEBUG - ARM_ERR)
   Raises ValueError with invalid input if any part isn't recognized.
   
   Examples:
@@ -120,26 +122,27 @@ def expandEvents(eventAbbr):
   for flag in eventAbbr:
     if flag == "A":
       armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel.values()]
-      torctlRunlevels = ["TORCTL_" + runlevel for runlevel in log.Runlevel.values()]
-      expandedEvents = set(TOR_EVENT_TYPES.values() + armRunlevels + torctlRunlevels + ["UNKNOWN"])
+      stemRunlevels = ["STEM_" + runlevel for runlevel in log.Runlevel.values()]
+      expandedEvents = set(TOR_EVENT_TYPES.values() + armRunlevels + stemRunlevels + ["UNKNOWN"])
       break
     elif flag == "X":
       expandedEvents = set()
       break
-    elif flag in "DINWE1234567890":
+    elif flag in "DINWE12345":
       # all events for a runlevel and higher
-      if flag in "DINWE": typePrefix = ""
-      elif flag in "12345": typePrefix = "ARM_"
-      elif flag in "67890": typePrefix = "TORCTL_"
+      if flag in "D1": runlevelIndex = 0
+      elif flag in "I2": runlevelIndex = 1
+      elif flag in "N3": runlevelIndex = 2
+      elif flag in "W4": runlevelIndex = 3
+      elif flag in "E5": runlevelIndex = 4
       
-      if flag in "D16": runlevelIndex = 0
-      elif flag in "I27": runlevelIndex = 1
-      elif flag in "N38": runlevelIndex = 2
-      elif flag in "W49": runlevelIndex = 3
-      elif flag in "E50": runlevelIndex = 4
-      
-      runlevelSet = [typePrefix + runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
-      expandedEvents = expandedEvents.union(set(runlevelSet))
+      if flag in "DINWE":
+        runlevelSet = [runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
+        expandedEvents = expandedEvents.union(set(runlevelSet))
+      elif flag in "12345":
+        for prefix in ("ARM_", "STEM_"):
+          runlevelSet = [prefix + runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
+          expandedEvents = expandedEvents.union(set(runlevelSet))
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
     elif flag in TOR_EVENT_TYPES:
@@ -574,7 +577,7 @@ class TorEventObserver(TorCtl.PostEventListener):
   def _notify(self, event, msg, color="white"):
     self.callback(LogEntry(event.arrived_at, event.event_name, msg, color))
 
-class LogPanel(panel.Panel, threading.Thread):
+class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   """
   Listens for and displays tor, arm, and torctl events. This can prepopulate
   from tor's log file if it exists.
@@ -582,6 +585,13 @@ class LogPanel(panel.Panel, threading.Thread):
   
   def __init__(self, stdscr, loggedEvents, config=None):
     panel.Panel.__init__(self, stdscr, "log", 0)
+    logging.Handler.__init__(self, level = stem.util.log.logging_level(stem.util.log.DEBUG))
+    
+    self.setFormatter(logging.Formatter(
+      fmt = '%(asctime)s [%(levelname)s] %(message)s',
+      datefmt = '%m/%d/%Y %H:%M:%S'),
+    )
+    
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
@@ -659,7 +669,6 @@ class LogPanel(panel.Panel, threading.Thread):
     # adds listeners for tor and torctl events
     conn = torTools.getConn()
     conn.addEventListener(TorEventObserver(self.registerEvent))
-    conn.addTorCtlListener(self._registerTorCtlEvent)
     conn.addStatusListener(self._resetListener)
     
     # opens log file if we'll be saving entries
@@ -676,6 +685,13 @@ class LogPanel(panel.Panel, threading.Thread):
       except (IOError, OSError), exc:
         log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
+    
+    stem_logger = stem.util.log.get_logger()
+    stem_logger.addHandler(self)
+  
+  def emit(self, record):
+    eventColor = RUNLEVEL_EVENT_COLOR[record.levelname]
+    self.registerEvent(LogEntry(int(record.created), "STEM_%s" % record.levelname, record.msg, eventColor))
   
   def reprepopulateEvents(self):
     """
@@ -771,10 +787,6 @@ class LogPanel(panel.Panel, threading.Thread):
   def _registerArmEvent(self, level, msg, eventTime):
     eventColor = RUNLEVEL_EVENT_COLOR[level]
     self.registerEvent(LogEntry(eventTime, "ARM_%s" % level, msg, eventColor))
-  
-  def _registerTorCtlEvent(self, level, msg):
-    eventColor = RUNLEVEL_EVENT_COLOR[level]
-    self.registerEvent(LogEntry(time.time(), "TORCTL_%s" % level, msg, eventColor))
   
   def setLoggedEvents(self, eventTypes):
     """
@@ -1256,7 +1268,7 @@ class LogPanel(panel.Panel, threading.Thread):
       # reverses runlevels and types so they're appended in the right order
       reversedRunlevels = log.Runlevel.values()
       reversedRunlevels.reverse()
-      for prefix in ("TORCTL_", "ARM_", ""):
+      for prefix in ("STEM_", "ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end
         for runlevel in reversedRunlevels + [""]:
           eventType = prefix + runlevel
