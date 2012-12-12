@@ -762,45 +762,6 @@ class Controller(TorCtl.PostEventListener):
     finally:
       self.connLock.release()
   
-  def getOptionMap(self, param, default = UNDEFINED):
-    """
-    Queries the control port for the given configuration option, providing back
-    a mapping of config options to a list of the values returned.
-    
-    There's three use cases for GETCONF:
-    - a single value is provided
-    - multiple values are provided for the option queried
-    - a set of options that weren't necessarily requested are returned (for
-      instance querying HiddenServiceOptions gives HiddenServiceDir,
-      HiddenServicePort, etc)
-    
-    The vast majority of the options fall into the first two catagories, in
-    which case calling getOption is sufficient. However, for the special
-    options that give a set of values this provides back the full response. As
-    of tor version 0.2.1.25 HiddenServiceOptions was the only option like this.
-    
-    The getOption function accounts for these special mappings, and the only
-    advantage to this funtion is that it provides all related values in a
-    single response.
-    
-    Arguments:
-      param   - configuration option to be queried
-      default - result if the query fails
-    """
-    
-    self.connLock.acquire()
-    
-    try:
-      if default != UNDEFINED:
-        return self.controller.get_conf_map(param, default)
-      else:
-        return self.controller.get_conf_map(param)
-    except stem.SocketClosed, exc:
-      self.close()
-      raise exc
-    finally:
-      self.connLock.release()
-  
   def setOption(self, param, value = None):
     """
     Issues a SETCONF to set the given option/value pair. An exeptions raised
@@ -2301,7 +2262,7 @@ class Controller(TorCtl.PostEventListener):
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
       elif key == "hsPorts":
         result = []
-        hsOptions = self.getOptionMap("HiddenServiceOptions", None)
+        hsOptions = self.controller.get_conf_map("HiddenServiceOptions", None)
         
         if hsOptions and "HiddenServicePort" in hsOptions:
           for hsEntry in hsOptions["HiddenServicePort"]:
