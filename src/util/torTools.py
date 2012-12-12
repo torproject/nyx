@@ -66,6 +66,8 @@ CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
 # so erring on the side of inclusiveness by using the notice event instead.
 ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
 
+UNDEFINED = "<Undefined_ >"
+
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"torrc.map": {},
           "features.pathPrefix": "",
@@ -750,7 +752,7 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
-  def getInfo(self, param, default = None, suppressExc = True):
+  def getInfo(self, param, default = UNDEFINED):
     """
     Queries the control port for the given GETINFO option, providing the
     default if the response is undefined or fails for any reason (error
@@ -758,64 +760,20 @@ class Controller(TorCtl.PostEventListener):
     
     Arguments:
       param       - GETINFO option to be queried
-      default     - result if the query fails and exception's suppressed
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
+      default     - result if the query fails
     """
     
     self.connLock.acquire()
     
-    isGeoipRequest = param.startswith("ip-to-country/")
-    
-    # checks if this is an arg caching covers
-    isCacheArg = param in CACHE_ARGS
-    
-    if not isCacheArg:
-      for prefix in CACHE_GETINFO_PREFIX_ARGS:
-        if param.startswith(prefix):
-          isCacheArg = True
-          break
-    
-    startTime = time.time()
-    result, raisedExc, isFromCache = default, None, False
-    if self.isAlive():
-      cachedValue = self._cachedParam.get(param)
-      
-      if isCacheArg and cachedValue:
-        result = cachedValue
-        isFromCache = True
-      elif isGeoipRequest and self.isGeoipUnavailable():
-        # the geoip database aleady looks to be unavailable - abort the request
-        raisedExc = TorCtl.ErrorReply("Tor geoip database is unavailable.")
+    try:
+      if default != UNDEFINED:
+        return self.controller.get_info(param, default)
       else:
-        try:
-          getInfoVal = self.conn.get_info(param)[param]
-          if getInfoVal != None: result = getInfoVal
-          if isGeoipRequest: self.geoipFailureCount = -1
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-          if type(exc) == TorCtl.TorCtlClosed: self.close()
-          raisedExc = exc
-          
-          if isGeoipRequest and not self.geoipFailureCount == -1:
-            self.geoipFailureCount += 1
-            
-            if self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
-              log.log(CONFIG["log.geoipUnavailable"], "Tor geoip database is unavailable.")
-    
-    if isCacheArg and result and not isFromCache:
-      self._cachedParam[param] = result
-    
-    if isFromCache:
-      msg = "GETINFO %s (cache fetch)" % param
-      log.log(CONFIG["log.torGetInfoCache"], msg)
-    else:
-      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
-      log.log(CONFIG["log.torGetInfo"], msg)
-    
-    self.connLock.release()
-    
-    if not suppressExc and raisedExc: raise raisedExc
-    else: return result
+        return self.controller.get_info(param)
+    except stem.SocketClosed:
+      self.close()
+    finally:
+      self.connLock.release()
   
   def getOption(self, param, default = None, multiple = False, suppressExc = True):
     """
@@ -1336,7 +1294,7 @@ class Controller(TorCtl.PostEventListener):
           policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
         
         # appends the default exit policy
-        defaultExitPolicy = self.getInfo("exit-policy/default")
+        defaultExitPolicy = self.getInfo("exit-policy/default", None)
         
         if defaultExitPolicy:
           policyEntries += defaultExitPolicy.split(",")
@@ -1352,7 +1310,7 @@ class Controller(TorCtl.PostEventListener):
         isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
         
         if isPrivateRejected:
-          myAddress = self.getInfo("address")
+          myAddress = self.getInfo("address", None)
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
           
           result = ExitPolicy("reject private", result)
@@ -1378,7 +1336,7 @@ class Controller(TorCtl.PostEventListener):
     result = None
     if self.isAlive():
       if not relayFingerprint in self._consensusLookupCache:
-        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint, None)
         self._consensusLookupCache[relayFingerprint] = nsEntry
       
       result = self._consensusLookupCache[relayFingerprint]
@@ -1402,7 +1360,7 @@ class Controller(TorCtl.PostEventListener):
     result = None
     if self.isAlive():
       if not relayFingerprint in self._descriptorLookupCache:
-        descEntry = self.getInfo("desc/id/%s" % relayFingerprint)
+        descEntry = self.getInfo("desc/id/%s" % relayFingerprint, None)
         self._descriptorLookupCache[relayFingerprint] = descEntry
       
       result = self._descriptorLookupCache[relayFingerprint]
@@ -1466,7 +1424,7 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the nickname if it isn't yet cached
       if not relayFingerprint in self._nicknameLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint"):
+        if relayFingerprint == self.getInfo("fingerprint", None):
           # this is us, simply check the config
           myNickname = self.getOption("Nickname", "Unnamed")
           self._nicknameLookupCache[relayFingerprint] = myNickname
@@ -1572,9 +1530,9 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the address if it isn't yet cached
       if not relayFingerprint in self._addressLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint"):
+        if relayFingerprint == self.getInfo("fingerprint", None):
           # this is us, simply check the config
-          myAddress = self.getInfo("address")
+          myAddress = self.getInfo("address", None)
           myOrPort = self.getOption("ORPort")
           
           if myAddress and myOrPort:
@@ -1649,7 +1607,7 @@ class Controller(TorCtl.PostEventListener):
         #   "34f7e3b7c563afe76b71b6c52d038d37729aa4da"
         
         relayFingerprint = None
-        consensusEntry = self.getInfo("ns/name/%s" % relayNickname)
+        consensusEntry = self.getInfo("ns/name/%s" % relayNickname, None)
         if consensusEntry:
           encodedFp = consensusEntry.split()[2]
           decodedFp = (encodedFp + "=").decode('base64').encode('hex')
@@ -1757,7 +1715,7 @@ class Controller(TorCtl.PostEventListener):
       
       # initial check for event availability, using the 'events/names' GETINFO
       # option to detect invalid events
-      validEvents = self.getInfo("events/names")
+      validEvents = self.getInfo("events/names", None)
       
       if validEvents:
         validEvents = set(validEvents.split())
@@ -1940,7 +1898,7 @@ class Controller(TorCtl.PostEventListener):
     self._updateHeartbeat()
     self._consensusLookupCache = {}
     
-    myFingerprint = self.getInfo("fingerprint")
+    myFingerprint = self.getInfo("fingerprint", None)
     if myFingerprint:
       for ns in event.nslist:
         if ns.idhex == myFingerprint:
@@ -1980,7 +1938,7 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
-    myFingerprint = self.getInfo("fingerprint")
+    myFingerprint = self.getInfo("fingerprint", None)
     if not myFingerprint or myFingerprint in event.idlist:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
@@ -2118,9 +2076,9 @@ class Controller(TorCtl.PostEventListener):
     if isinstance(relayPort, str): relayPort = int(relayPort)
     
     # checks if this matches us
-    if relayAddress == self.getInfo("address"):
+    if relayAddress == self.getInfo("address", None):
       if not relayPort or relayPort == self.getOption("ORPort"):
-        return self.getInfo("fingerprint")
+        return self.getInfo("fingerprint", None)
     
     # if we haven't yet populated the ip -> fingerprint mappings then do so
     if self._fingerprintMappings == None:
@@ -2154,7 +2112,7 @@ class Controller(TorCtl.PostEventListener):
       
       # orconn-status has entries of the form:
       # $33173252B70A50FE3928C7453077936D71E45C52=shiven CONNECTED
-      orconnResults = self.getInfo("orconn-status")
+      orconnResults = self.getInfo("orconn-status", None)
       if orconnResults:
         for line in orconnResults.split("\n"):
           self._fingerprintsAttachedCache.append(line[1:line.find("=")])
@@ -2189,7 +2147,7 @@ class Controller(TorCtl.PostEventListener):
         if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
         nsEntry = nsCall[0]
         
-        descEntry = self.getInfo("desc/id/%s" % entryFingerprint)
+        descEntry = self.getInfo("desc/id/%s" % entryFingerprint, None)
         if not descEntry: raise TorCtl.ErrorReply() # relay descriptor couldn't be fetched
         descLines = descEntry.split("\n")
         
@@ -2233,11 +2191,11 @@ class Controller(TorCtl.PostEventListener):
     if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
-        myFingerprint = self.getInfo("fingerprint")
+        myFingerprint = self.getInfo("fingerprint", None)
         
         if myFingerprint:
           queryType = "ns" if key == "nsEntry" else "desc"
-          queryResult = self.getInfo("%s/id/%s" % (queryType, myFingerprint))
+          queryResult = self.getInfo("%s/id/%s" % (queryType, myFingerprint), None)
           if queryResult: result = queryResult.split("\n")
       elif key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
@@ -2286,13 +2244,13 @@ class Controller(TorCtl.PostEventListener):
             result = line[2:].split()
             break
       elif key == "pid":
-        result = self.getInfo("process/pid")
+        result = self.getInfo("process/pid", None)
         
         if not result:
           result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
       elif key == "user":
         # provides the empty string if the query fails
-        queriedUser = self.getInfo("process/user")
+        queriedUser = self.getInfo("process/user", None)
         
         if queriedUser != None and queriedUser != "":
           result = queriedUser
@@ -2315,7 +2273,7 @@ class Controller(TorCtl.PostEventListener):
               if psResults and len(psResults) >= 2: result = psResults[1].strip()
       elif key == "fdLimit":
         # provides -1 if the query fails
-        queriedLimit = self.getInfo("process/descriptor-limit")
+        queriedLimit = self.getInfo("process/descriptor-limit", None)
         
         if queriedLimit != None and queriedLimit != "-1":
           result = (int(queriedLimit), False)
@@ -2419,7 +2377,7 @@ class Controller(TorCtl.PostEventListener):
         # just "$<fingerprint>" OR <nickname>. The dolar sign can't be used in
         # nicknames so this can be used to differentiate.
         
-        circStatusResults = self.getInfo("circuit-status")
+        circStatusResults = self.getInfo("circuit-status", None)
         
         if circStatusResults == "":
           result = [] # we don't have any circuits

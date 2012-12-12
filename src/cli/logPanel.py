@@ -160,7 +160,7 @@ def getMissingEventTypes():
   if the GETINFO query fails.
   """
   
-  torEventTypes = torTools.getConn().getInfo("events/names")
+  torEventTypes = torTools.getConn().getInfo("events/names", None)
   
   if torEventTypes:
     torEventTypes = torEventTypes.split(" ")

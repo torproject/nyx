@@ -182,7 +182,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
       # Fetches all options available with this tor instance. This isn't
       # vital, and the validOptions are left empty if the call fails.
       conn, validOptions = torTools.getConn(), []
-      configOptionQuery = conn.getInfo("config/names")
+      configOptionQuery = conn.getInfo("config/names", None)
       if configOptionQuery:
         for line in configOptionQuery.strip().split("\n"):
           validOptions.append(line[:line.find(" ")].lower())
@@ -341,7 +341,7 @@ def getConfigLocation():
   """
   
   conn = torTools.getConn()
-  configLocation = conn.getInfo("config-file")
+  configLocation = conn.getInfo("config-file", None)
   torPid, torPrefix = conn.getMyPid(), conn.getPathPrefix()
   if not configLocation: raise IOError("unable to query the torrc location")
   
@@ -362,7 +362,7 @@ def getMultilineParameters():
   if MULTILINE_PARAM == None:
     conn, multilineEntries = torTools.getConn(), []
     
-    configOptionQuery = conn.getInfo("config/names")
+    configOptionQuery = conn.getInfo("config/names", None)
     if configOptionQuery:
       for line in configOptionQuery.strip().split("\n"):
         confOption, confType = line.strip().split(" ", 1)
@@ -445,7 +445,7 @@ def saveConf(destination = None, contents = None):
     # double check that "GETINFO config-text" is unavailable rather than just
     # giving an empty result
     
-    if torTools.getConn().getInfo("config-text") == None:
+    if torTools.getConn().getInfo("config-text", None) == None:
       raise IOError("determining the torrc requires Tor version 0.2.2.7")
   
   currentLocation = None

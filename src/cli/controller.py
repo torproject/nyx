@@ -510,7 +510,7 @@ class TorManager:
       conn - controller instance to be checked
     """
     
-    return conn.getInfo("config-file") == self.getTorrcPath()
+    return conn.getInfo("config-file", None) == self.getTorrcPath()
   
   def startManagedInstance(self):
     """

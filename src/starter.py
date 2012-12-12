@@ -346,7 +346,7 @@ def _dumpConfig():
   else: armConfigEntry = "Arm Configuration: None"
   
   # dumps tor's version and configuration
-  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version")
+  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version", None)
   
   for line in conn.getInfo("config-text", "").split("\n"):
     if not line: continue

@@ -69,11 +69,11 @@ class BandwidthStats(graphPanel.GraphStats):
     self.initialPrimaryTotal = 0
     self.initialSecondaryTotal = 0
     
-    readTotal = conn.getInfo("traffic/read")
+    readTotal = conn.getInfo("traffic/read", None)
     if readTotal and readTotal.isdigit():
       self.initialPrimaryTotal = int(readTotal) / 1024 # Bytes -> KB
     
-    writeTotal = conn.getInfo("traffic/written")
+    writeTotal = conn.getInfo("traffic/written", None)
     if writeTotal and writeTotal.isdigit():
       self.initialSecondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
   
@@ -94,7 +94,7 @@ class BandwidthStats(graphPanel.GraphStats):
     self.new_desc_event(None) # updates title params
     
     if eventType in (torTools.State.INIT, torTools.State.RESET) and self._config["features.graph.bw.accounting.show"]:
-      isAccountingEnabled = conn.getInfo('accounting/enabled') == '1'
+      isAccountingEnabled = conn.getInfo('accounting/enabled', None) == '1'
       
       if isAccountingEnabled != self.isAccounting:
         self.isAccounting = isAccountingEnabled
@@ -335,7 +335,7 @@ class BandwidthStats(graphPanel.GraphStats):
     conn = torTools.getConn()
     if not conn.isAlive(): return # keep old values
     
-    myFingerprint = conn.getInfo("fingerprint")
+    myFingerprint = conn.getInfo("fingerprint", None)
     if not self._titleStats or not myFingerprint or (event and myFingerprint in event.idlist):
       stats = []
       bwRate = conn.getMyBandwidthRate()
@@ -386,10 +386,10 @@ class BandwidthStats(graphPanel.GraphStats):
     
     conn = torTools.getConn()
     queried = dict([(arg, "") for arg in ACCOUNTING_ARGS])
-    queried["status"] = conn.getInfo("accounting/hibernating")
+    queried["status"] = conn.getInfo("accounting/hibernating", None)
     
     # provides a nicely formatted reset time
-    endInterval = conn.getInfo("accounting/interval-end")
+    endInterval = conn.getInfo("accounting/interval-end", None)
     if endInterval:
       # converts from gmt to local with respect to DST
       if time.localtime()[8]: tz_offset = time.altzone
@@ -408,8 +408,8 @@ class BandwidthStats(graphPanel.GraphStats):
         queried["resetTime"] = "%i:%02i:%02i:%02i" % (days, hours, minutes, sec)
     
     # number of bytes used and in total for the accounting period
-    used = conn.getInfo("accounting/bytes")
-    left = conn.getInfo("accounting/bytes-left")
+    used = conn.getInfo("accounting/bytes", None)
+    left = conn.getInfo("accounting/bytes-left", None)
     
     if used and left:
       usedComp, leftComp = used.split(" "), left.split(" ")

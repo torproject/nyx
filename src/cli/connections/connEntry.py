@@ -202,7 +202,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     # overwrite the local fingerprint with ours
     conn = torTools.getConn()
-    self.local.fingerprintOverwrite = conn.getInfo("fingerprint")
+    self.local.fingerprintOverwrite = conn.getInfo("fingerprint", None)
     
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
