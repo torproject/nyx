@@ -47,25 +47,6 @@ FAILED_EVENTS = set()
 
 CONTROLLER = None # singleton Controller instance
 
-# Valid keys for the controller's getInfo cache. This includes static GETINFO
-# options (unchangable, even with a SETCONF) and other useful stats
-CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
-              "config/names", "info/names", "features/names", "events/names",
-              "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
-              "bwObserved", "bwMeasured", "flags", "pid", "user", "fdLimit",
-              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
-CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
-
-# Tor has a couple messages (in or/router.c) for when our ip address changes:
-# "Our IP Address has changed from <previous> to <current>; rebuilding
-#   descriptor (source: <source>)."
-# "Guessed our IP address as <current> (source: <source>)."
-# 
-# It would probably be preferable to use the EXTERNAL_ADDRESS event, but I'm
-# not quite sure why it's not provided by check_descriptor_ipaddress_changed
-# so erring on the side of inclusiveness by using the notice event instead.
-ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
-
 UNDEFINED = "<Undefined_ >"
 
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
@@ -614,8 +595,7 @@ class Controller(TorCtl.PostEventListener):
     # messages.
     self._pathPrefixLogging = True
     
-    # cached parameters for GETINFO and custom getters (None if unset or
-    # possibly changed)
+    # cached parameters for custom getters (None if unset or possibly changed)
     self._cachedParam = {}
     
     # cached GETCONF parameters, entries consisting of:
@@ -762,8 +742,9 @@ class Controller(TorCtl.PostEventListener):
         return self.controller.get_info(param, default)
       else:
         return self.controller.get_info(param)
-    except stem.SocketClosed:
+    except stem.SocketClosed, exc:
       self.close()
+      raise exc
     finally:
       self.connLock.release()
   
@@ -2011,13 +1992,6 @@ class Controller(TorCtl.PostEventListener):
     
     # notifies listeners of TorCtl events
     for callback in self.torctlListeners: callback(TORCTL_RUNLEVELS[level], msg)
-    
-    # if the message is informing us of our ip address changing then clear
-    # its cached value
-    for prefix in ADDR_CHANGED_MSG_PREFIX:
-      if msg.startswith(prefix):
-        self._cachedParam["address"] = None
-        break
   
   def _updateHeartbeat(self):
     """
@@ -2157,7 +2131,7 @@ class Controller(TorCtl.PostEventListener):
     available and otherwise looking it up.
     
     Arguments:
-      key            - parameter being queried (from CACHE_ARGS)
+      key            - parameter being queried
       default        - value to be returned if undefined
       cacheUndefined - caches when values are undefined, avoiding further
                        lookups if true
