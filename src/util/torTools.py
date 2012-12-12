@@ -50,8 +50,7 @@ CONTROLLER = None # singleton Controller instance
 UNDEFINED = "<Undefined_ >"
 
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"torrc.map": {},
-          "features.pathPrefix": "",
+CONFIG = {"features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
           "log.torGetInfo": log.DEBUG,
           "log.torGetInfoCache": None,
@@ -593,10 +592,6 @@ class Controller(TorCtl.PostEventListener):
     
     # cached parameters for custom getters (None if unset or possibly changed)
     self._cachedParam = {}
-    
-    # cached GETCONF parameters, entries consisting of:
-    # (option, fetch_type) => value
-    self._cachedConf = {}
   
   def init(self, conn, controller):
     """
@@ -754,19 +749,18 @@ class Controller(TorCtl.PostEventListener):
                   this just provides the first result
     """
     
-    fetchType = "list" if multiple else "str"
+    self.connLock.acquire()
     
-    if param in CONFIG["torrc.map"]:
-      # This is among the options fetched via a special command. The results
-      # are a set of values that (hopefully) contain the one we were
-      # requesting.
-      configMappings = self._getOption(CONFIG["torrc.map"][param], default, "map")
-      if param in configMappings:
-        if fetchType == "list": return configMappings[param]
-        else: return configMappings[param][0]
-      else: return default
-    else:
-      return self._getOption(param, default, fetchType)
+    try:
+      if default != UNDEFINED:
+        return self.controller.get_conf(param, default, multiple)
+      else:
+        return self.controller.get_conf(param, multiple = multiple)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
   
   def getOptionMap(self, param, default = UNDEFINED):
     """
@@ -794,59 +788,18 @@ class Controller(TorCtl.PostEventListener):
       default - result if the query fails
     """
     
-    return self._getOption(param, default, "map")
-  
-  # TODO: cache isn't updated (or invalidated) during SETCONF events:
-  # https://trac.torproject.org/projects/tor/ticket/1692
-  def _getOption(self, param, default, fetchType):
-    if not fetchType in ("str", "list", "map"):
-      msg = "BUG: unrecognized fetchType in torTools._getOption (%s)" % fetchType
-      log.log(log.ERR, msg)
-      return default
-    
     self.connLock.acquire()
-    startTime, raisedExc, isFromCache = time.time(), None, False
-    result = {} if fetchType == "map" else []
     
-    if self.isAlive():
-      if (param.lower(), fetchType) in self._cachedConf:
-        isFromCache = True
-        result = self._cachedConf[(param.lower(), fetchType)]
+    try:
+      if default != UNDEFINED:
+        return self.controller.get_conf_map(param, default)
       else:
-        try:
-          if fetchType == "str":
-            getConfVal = self.conn.get_option(param)[0][1]
-            if getConfVal != None: result = getConfVal
-          else:
-            for key, value in self.conn.get_option(param):
-              if value != None:
-                if fetchType == "list": result.append(value)
-                elif fetchType == "map":
-                  if key in result: result[key].append(value)
-                  else: result[key] = [value]
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-          if type(exc) == TorCtl.TorCtlClosed: self.close()
-          result, raisedExc = default, exc
-    
-    if not isFromCache:
-      cacheValue = result
-      if fetchType == "list": cacheValue = list(result)
-      elif fetchType == "map": cacheValue = dict(result)
-      self._cachedConf[(param.lower(), fetchType)] = cacheValue
-    
-    if isFromCache:
-      msg = "GETCONF %s (cache fetch)" % param
-      log.log(CONFIG["log.torGetConfCache"], msg)
-    else:
-      msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
-      log.log(CONFIG["log.torGetConf"], msg)
-    
-    self.connLock.release()
-    
-    if raisedExc and default == UNDEFINED:
-      raise raisedExc
-    elif result == []: return default
-    else: return result
+        return self.controller.get_conf_map(param)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
   
   def setOption(self, param, value = None):
     """
@@ -904,9 +857,6 @@ class Controller(TorCtl.PostEventListener):
         for param, _ in paramList:
           for fetchType in ("str", "list", "map"):
             entry = (param.lower(), fetchType)
-            
-            if entry in self._cachedConf:
-              del self._cachedConf[entry]
           
           # special caches for the exit policy
           if param.lower() == "exitpolicy":
@@ -1742,7 +1692,6 @@ class Controller(TorCtl.PostEventListener):
         try:
           self.conn.send_signal("RELOAD")
           self._cachedParam = {}
-          self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
           # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
@@ -1787,7 +1736,6 @@ class Controller(TorCtl.PostEventListener):
             else: raise IOError("failed silently")
           
           self._cachedParam = {}
-          self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
     
@@ -2419,7 +2367,6 @@ class Controller(TorCtl.PostEventListener):
     if eventType:
       # resets cached GETINFO and GETCONF parameters
       self._cachedParam = {}
-      self._cachedConf = {}
       
       # gives a notice that the control port has closed
       if eventType == State.CLOSED:
