@@ -79,8 +79,7 @@ CONFIG = {"torrc.map": {},
           "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
-          "log.unknownBsdJailId": log.WARN,
-          "log.geoipUnavailable": log.WARN}
+          "log.unknownBsdJailId": log.WARN}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -89,10 +88,6 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
-
-# number of sequential attempts before we decide that the Tor geoip database
-# is unavailable
-GEOIP_FAILURE_THRESHOLD = 5
 
 # provides int -> str mappings for torctl event runlevels
 TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
@@ -630,9 +625,6 @@ class Controller(TorCtl.PostEventListener):
     # directs TorCtl to notify us of events
     TorUtil.logger = self
     TorUtil.loglevel = "DEBUG"
-    
-    # tracks the number of sequential geoip lookup failures
-    self.geoipFailureCount = 0
   
   def init(self, conn, controller):
     """
@@ -1158,7 +1150,7 @@ class Controller(TorCtl.PostEventListener):
     false otherwise.
     """
     
-    return self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD
+    return self.controller.is_geoip_unavailable()
   
   def getMyPid(self):
     """

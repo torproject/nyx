@@ -313,7 +313,6 @@ log.hostnameCacheTrimmed INFO
 log.cursesColorSupport INFO
 log.bsdJailFound INFO
 log.unknownBsdJailId WARN
-log.geoipUnavailable WARN
 log.stats.failedProcResolution DEBUG
 log.stats.procResolutionFailover INFO
 log.stats.failedPsResolution INFO
