@@ -115,7 +115,7 @@ class BandwidthStats(graphPanel.GraphStats):
     
     # checks that this is a relay (if ORPort is unset, then skip)
     conn = torTools.getConn()
-    orPort = conn.getOption("ORPort")
+    orPort = conn.getOption("ORPort", None)
     if orPort == "0": return
     
     # gets the uptime (using the same parameters as the header panel to take
@@ -140,7 +140,7 @@ class BandwidthStats(graphPanel.GraphStats):
       return False
     
     # get the user's data directory (usually '~/.tor')
-    dataDir = conn.getOption("DataDirectory")
+    dataDir = conn.getOption("DataDirectory", None)
     if not dataDir:
       msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
       log.log(self._config["log.graph.bw.prepopulateFailure"], msg)

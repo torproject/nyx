@@ -510,15 +510,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
       self.vals["tor/controlPort"] = conn.getOption("ControlPort", "0")
       self.vals["tor/socketPath"] = conn.getOption("ControlSocket", "")
-      self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
-      self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
+      self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword", None) != None
+      self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication", None) == "1"
       
       # orport is reported as zero if unset
       if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
       
       # overwrite address if ORListenAddress is set (and possibly orPort too)
       self.vals["tor/orListenAddr"] = ""
-      listenAddr = conn.getOption("ORListenAddress")
+      listenAddr = conn.getOption("ORListenAddress", None)
       if listenAddr:
         if ":" in listenAddr:
           # both ip and port overwritten

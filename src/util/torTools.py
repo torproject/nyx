@@ -723,8 +723,8 @@ class Controller(TorCtl.PostEventListener):
     response, control port closed, initiated, etc).
     
     Arguments:
-      param       - GETINFO option to be queried
-      default     - result if the query fails
+      param   - GETINFO option to be queried
+      default - result if the query fails
     """
     
     self.connLock.acquire()
@@ -740,7 +740,7 @@ class Controller(TorCtl.PostEventListener):
     finally:
       self.connLock.release()
   
-  def getOption(self, param, default = None, multiple = False, suppressExc = True):
+  def getOption(self, param, default = UNDEFINED, multiple = False):
     """
     Queries the control port for the given configuration option, providing the
     default if the response is undefined or fails for any reason. If multiple
@@ -748,12 +748,10 @@ class Controller(TorCtl.PostEventListener):
     flag is set.
     
     Arguments:
-      param       - configuration option to be queried
-      default     - result if the query fails and exception's suppressed
-      multiple    - provides a list with all returned values if true, otherwise
-                    this just provides the first result
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
+      param     - configuration option to be queried
+      default   - result if the query fails
+      multiple  - provides a list with all returned values if true, otherwise
+                  this just provides the first result
     """
     
     fetchType = "list" if multiple else "str"
@@ -762,15 +760,15 @@ class Controller(TorCtl.PostEventListener):
       # This is among the options fetched via a special command. The results
       # are a set of values that (hopefully) contain the one we were
       # requesting.
-      configMappings = self._getOption(CONFIG["torrc.map"][param], default, "map", suppressExc)
+      configMappings = self._getOption(CONFIG["torrc.map"][param], default, "map")
       if param in configMappings:
         if fetchType == "list": return configMappings[param]
         else: return configMappings[param][0]
       else: return default
     else:
-      return self._getOption(param, default, fetchType, suppressExc)
+      return self._getOption(param, default, fetchType)
   
-  def getOptionMap(self, param, default = None, suppressExc = True):
+  def getOptionMap(self, param, default = UNDEFINED):
     """
     Queries the control port for the given configuration option, providing back
     a mapping of config options to a list of the values returned.
@@ -792,17 +790,15 @@ class Controller(TorCtl.PostEventListener):
     single response.
     
     Arguments:
-      param       - configuration option to be queried
-      default     - result if the query fails and exception's suppressed
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
+      param   - configuration option to be queried
+      default - result if the query fails
     """
     
-    return self._getOption(param, default, "map", suppressExc)
+    return self._getOption(param, default, "map")
   
   # TODO: cache isn't updated (or invalidated) during SETCONF events:
   # https://trac.torproject.org/projects/tor/ticket/1692
-  def _getOption(self, param, default, fetchType, suppressExc):
+  def _getOption(self, param, default, fetchType):
     if not fetchType in ("str", "list", "map"):
       msg = "BUG: unrecognized fetchType in torTools._getOption (%s)" % fetchType
       log.log(log.ERR, msg)
@@ -847,7 +843,8 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.release()
     
-    if not suppressExc and raisedExc: raise raisedExc
+    if raisedExc and default == UNDEFINED:
+      raise raisedExc
     elif result == []: return default
     else: return result
   
@@ -1253,7 +1250,7 @@ class Controller(TorCtl.PostEventListener):
     
     result = None
     if self.isAlive():
-      if self.getOption("ORPort"):
+      if self.getOption("ORPort", None):
         policyEntries = []
         for exitPolicy in self.getOption("ExitPolicy", [], True):
           policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
@@ -1498,7 +1495,7 @@ class Controller(TorCtl.PostEventListener):
         if relayFingerprint == self.getInfo("fingerprint", None):
           # this is us, simply check the config
           myAddress = self.getInfo("address", None)
-          myOrPort = self.getOption("ORPort")
+          myOrPort = self.getOption("ORPort", None)
           
           if myAddress and myOrPort:
             self._addressLookupCache[relayFingerprint] = (myAddress, myOrPort)
@@ -1813,7 +1810,7 @@ class Controller(TorCtl.PostEventListener):
     raisedException = None
     if self.isAlive():
       try:
-        isRelay = self.getOption("ORPort") != None
+        isRelay = self.getOption("ORPort", None) != None
         signal = "HALT" if force else "SHUTDOWN"
         self.conn.send_signal(signal)
         
@@ -2014,7 +2011,7 @@ class Controller(TorCtl.PostEventListener):
     
     # checks if this matches us
     if relayAddress == self.getInfo("address", None):
-      if not relayPort or relayPort == self.getOption("ORPort"):
+      if not relayPort or relayPort == self.getOption("ORPort", None):
         return self.getInfo("fingerprint", None)
     
     # if we haven't yet populated the ip -> fingerprint mappings then do so
@@ -2137,21 +2134,21 @@ class Controller(TorCtl.PostEventListener):
       elif key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
         # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-        effectiveRate = int(self.getOption("BandwidthRate"))
+        effectiveRate = int(self.getOption("BandwidthRate", None))
         
-        relayRate = self.getOption("RelayBandwidthRate")
+        relayRate = self.getOption("RelayBandwidthRate", None)
         if relayRate and relayRate != "0":
           effectiveRate = min(effectiveRate, int(relayRate))
         
-        maxAdvertised = self.getOption("MaxAdvertisedBandwidth")
+        maxAdvertised = self.getOption("MaxAdvertisedBandwidth", None)
         if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
         
         result = effectiveRate
       elif key == "bwBurst":
         # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-        effectiveBurst = int(self.getOption("BandwidthBurst"))
+        effectiveBurst = int(self.getOption("BandwidthBurst", None))
         
-        relayBurst = self.getOption("RelayBandwidthBurst")
+        relayBurst = self.getOption("RelayBandwidthBurst", None)
         if relayBurst and relayBurst != "0":
           effectiveBurst = min(effectiveBurst, int(relayBurst))
         
@@ -2184,7 +2181,7 @@ class Controller(TorCtl.PostEventListener):
         result = self.getInfo("process/pid", None)
         
         if not result:
-          result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+          result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile", None))
       elif key == "user":
         # provides the empty string if the query fails
         queriedUser = self.getInfo("process/user", None)
@@ -2356,7 +2353,7 @@ class Controller(TorCtl.PostEventListener):
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
       elif key == "hsPorts":
         result = []
-        hsOptions = self.getOptionMap("HiddenServiceOptions")
+        hsOptions = self.getOptionMap("HiddenServiceOptions", None)
         
         if hsOptions and "HiddenServicePort" in hsOptions:
           for hsEntry in hsOptions["HiddenServicePort"]:

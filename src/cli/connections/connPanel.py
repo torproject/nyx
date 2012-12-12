@@ -188,7 +188,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     conn = torTools.getConn()
-    return "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay") == "1"
+    return "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay", None) == "1"
   
   def isExitsAllowed(self):
     """

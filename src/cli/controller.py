@@ -672,7 +672,7 @@ def startTorMonitor(startTime):
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
     
-    if conn.getOption("DisableDebuggerAttachment") == "1":
+    if conn.getOption("DisableDebuggerAttachment", None) == "1":
       log.log(log.NOTICE, "Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
     else:
