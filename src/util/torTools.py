@@ -828,7 +828,7 @@ class Controller(TorCtl.PostEventListener):
     
     if self.isAlive():
       self._lastNewnym = time.time()
-      self.conn.send_signal("NEWNYM")
+      self.controller.signal(stem.Signal.NEWNYM)
     
     self.connLock.release()
   
