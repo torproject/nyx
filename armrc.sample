@@ -272,11 +272,6 @@ log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
 log.torCtlPortClosed NOTICE
-log.torGetInfo DEBUG
-log.torGetInfoCache NONE
-log.torGetConf DEBUG
-log.torGetConfCache NONE
-log.torSetConf INFO
 log.torEventTypeUnrecognized INFO
 log.torPrefixPathInvalid NOTICE
 log.procCallMade DEBUG

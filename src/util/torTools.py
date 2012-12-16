@@ -52,11 +52,6 @@ UNDEFINED = "<Undefined_ >"
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"features.pathPrefix": "",
           "log.torCtlPortClosed": log.NOTICE,
-          "log.torGetInfo": log.DEBUG,
-          "log.torGetInfoCache": None,
-          "log.torGetConf": log.DEBUG,
-          "log.torGetConfCache": None,
-          "log.torSetConf": log.INFO,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
           "log.unknownBsdJailId": log.WARN}
@@ -793,62 +788,19 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
-    # constructs the SETCONF string
-    setConfComp = []
-    
-    for param, value in paramList:
-      if isinstance(value, list) or isinstance(value, tuple):
-        setConfComp += ["%s=\"%s\"" % (param, val.strip()) for val in value]
-      elif value:
-        setConfComp.append("%s=\"%s\"" % (param, value.strip()))
-      else:
-        setConfComp.append(param)
-    
-    setConfStr = " ".join(setConfComp)
-    
-    startTime, raisedExc = time.time(), None
-    if self.isAlive():
-      try:
-        if isReset:
-          self.conn.sendAndRecv("RESETCONF %s\r\n" % setConfStr)
-        else:
-          self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
-        
-        # flushing cached values (needed until we can detect SETCONF calls)
-        for param, _ in paramList:
-          for fetchType in ("str", "list", "map"):
-            entry = (param.lower(), fetchType)
-          
-          # special caches for the exit policy
-          if param.lower() == "exitpolicy":
-            self._exitPolicyChecker = self.getExitPolicy()
-            self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
-            self._exitPolicyLookupCache = {}
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-        if type(exc) == TorCtl.TorCtlClosed: self.close()
-        elif type(exc) == TorCtl.ErrorReply:
-          excStr = str(exc)
-          if excStr.startswith("513 Unacceptable option value: "):
-            # crops off the common error prefix
-            excStr = excStr[31:]
-            
-            # Truncates messages like:
-            # Value 'BandwidthRate la de da' is malformed or out of bounds.
-            # to: Value 'la de da' is malformed or out of bounds.
-            if excStr.startswith("Value '"):
-              excStr = excStr.replace("%s " % param, "", 1)
-            
-            exc = TorCtl.ErrorReply(excStr)
-        
-        raisedExc = exc
-    
-    self.connLock.release()
-    
-    excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
-    msg = "SETCONF %s (%sruntime: %0.4f)" % (setConfStr, excLabel, time.time() - startTime)
-    log.log(CONFIG["log.torSetConf"], msg)
-    
-    if raisedExc: raise raisedExc
+    try:
+      # clears our exit policy chache if it's changing
+      if "exitpolicy" in [k.lower() for (k, v) in paramList]:
+        self._exitPolicyChecker = self.getExitPolicy()
+        self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+        self._exitPolicyLookupCache = {}
+      
+      self.controller.set_options(paramList, isReset)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
   
   def sendNewnym(self):
     """
