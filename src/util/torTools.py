@@ -256,64 +256,6 @@ def getBsdJailId():
   log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
   return 0
 
-def parseVersion(versionStr):
-  """
-  Parses the given version string into its expected components, for instance...
-  '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)'
-  
-  would provide:
-  (0, 2, 2, 13, 'alpha')
-  
-  If the input isn't recognized then this returns None.
-  
-  Arguments:
-    versionStr - version string to be parsed
-  """
-  
-  # crops off extra arguments, for instance:
-  # '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)' -> '0.2.2.13-alpha'
-  versionStr = versionStr.split()[0]
-  
-  result = None
-  if versionStr.count(".") in (2, 3):
-    # parses the optional suffix ('alpha', 'release', etc)
-    if versionStr.count("-") == 1:
-      versionStr, versionSuffix = versionStr.split("-")
-    else: versionSuffix = ""
-    
-    # Parses the numeric portion of the version. This can have three or four
-    # entries depending on if an optional patch level was provided.
-    try:
-      versionComp = [int(entry) for entry in versionStr.split(".")]
-      if len(versionComp) == 3: versionComp += [0]
-      result = tuple(versionComp + [versionSuffix])
-    except ValueError: pass
-  
-  return result
-
-def isVersion(myVersion, minVersion):
-  """
-  Checks if the given version meets a given minimum. Both arguments are
-  expected to be version tuples. To get this from a version string use the
-  parseVersion function.
-  
-  Arguments:
-    myVersion  - tor version tuple
-    minVersion - version tuple to be checked against
-  """
-  
-  if myVersion[:4] == minVersion[:4]:
-    return True # versions match
-  else:
-    # compares each of the numeric portions of the version
-    for i in range(4):
-      myVal, minVal = myVersion[i], minVersion[i]
-      
-      if myVal > minVal: return True
-      elif myVal < minVal: return False
-    
-    return True # versions match (should have been caught above...)
-
 def isTorRunning():
   """
   Simple check for if a tor process is running. If this can't be determined
@@ -959,39 +901,23 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("flags", default)
   
-  def isVersion(self, minVersionStr):
+  def getVersion(self):
     """
-    Checks if we meet the given version. Recognized versions are of the form:
-    <major>.<minor>.<micro>[.<patch>][-<status_tag>]
-    
-    for instance, "0.2.2.13-alpha" or "0.2.1.5". This raises a ValueError if
-    the input isn't recognized, and returns False if unable to fetch our
-    instance's version.
-    
-    According to the spec the status_tag is purely informal, so it's ignored
-    in comparisons.
-    
-    Arguments:
-      minVersionStr - version to be compared against
+    Provides the version of our tor instance, this is None if we don't have a
+    connection.
     """
-    
-    minVersion = parseVersion(minVersionStr)
-    
-    if minVersion == None:
-      raise ValueError("unrecognized version: %s" % minVersionStr)
     
     self.connLock.acquire()
     
-    result = False
-    if self.isAlive():
-      myVersion = parseVersion(self.getInfo("version", ""))
-      
-      if not myVersion: result = False
-      else: result = isVersion(myVersion, minVersion)
-    
-    self.connLock.release()
-    
-    return result
+    try:
+      return self.controller.get_version()
+    except stem.SocketClosed, exc:
+      self.close()
+      return None
+    except:
+      return None
+    finally:
+      self.connLock.release()
   
   def isGeoipUnavailable(self):
     """

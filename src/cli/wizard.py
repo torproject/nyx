@@ -16,6 +16,8 @@ import curses
 import cli.popups
 import cli.controller
 
+import stem.version
+
 from util import connections, enum, log, sysTools, torConfig, torTools, uiTools
 
 # template used to generate the torrc
@@ -94,7 +96,9 @@ BRACKETS = ((' ', ' '),
             ('|', '|'))
 
 # version requirements for options
-VERSION_REQUIREMENTS = {Options.PORTFORWARD: "0.2.3.1-alpha"}
+VERSION_REQUIREMENTS = {
+  Options.PORTFORWARD: stem.version.Requirement.TORRC_PORT_FORWARDING,
+}
 
 # tor's defaults for config options, used to filter unneeded options
 TOR_DEFAULTS = {Options.BANDWIDTH: "5 MB",
@@ -245,16 +249,10 @@ def showWizard():
     log.log(log.WARN, msg)
     return
   
-  # gets tor's version
-  torVersion = None
   try:
-    versionQuery = sysTools.call("tor --version")
-    
-    for line in versionQuery:
-      if line.startswith("Tor version "):
-        torVersion = torTools.parseVersion(line.split(" ")[2])
-        break
+    torVersion = stem.version.get_system_tor_version()
   except IOError, exc:
+    torVersion = None
     log.log(log.INFO, "'tor --version' query failed: %s" % exc)
   
   relayType, config = None, {}
@@ -316,7 +314,7 @@ def showWizard():
   disabledOpt = list(CONFIG["wizard.disabled"])
   
   for opt, optVersion in VERSION_REQUIREMENTS.items():
-    if not torVersion or not torTools.isVersion(torVersion, torTools.parseVersion(optVersion)):
+    if torVersion is None or not torVersion.meets_requirements(optVersion):
       disabledOpt.append(opt)
   
   # the port forwarding option would only work if tor-fw-helper is in the path

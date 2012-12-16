@@ -7,6 +7,8 @@ import time
 import socket
 import threading
 
+import stem.version
+
 from util import enum, log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
@@ -791,16 +793,11 @@ class Torrc():
     
     self.valsLock.acquire()
     
-    # The torrc validation relies on 'GETINFO config-text' which was
-    # introduced in tor 0.2.2.7-alpha so if we're using an earlier version
-    # (or configured to skip torrc validation) then this is a no-op. For more
-    # information see:
-    # https://trac.torproject.org/projects/tor/ticket/2501
-    
     if not self.isLoaded(): returnVal = None
     else:
+      torVersion = torTools.getConn().getVersion()
       skipValidation = not CONFIG["features.torrc.validate"]
-      skipValidation |= not torTools.getConn().isVersion("0.2.2.7-alpha")
+      skipValidation |= (torVersion is None or not torVersion.meets_requirements(stem.version.Requirement.GETINFO_CONFIG_TEXT))
       
       if skipValidation:
         log.log(log.INFO, "Skipping torrc validation (requires tor 0.2.2.7-alpha)")
