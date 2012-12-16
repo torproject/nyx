@@ -721,6 +721,12 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     try:
+      if not self.isAlive():
+        if default != UNDEFINED:
+          return default
+        else:
+          raise stem.SocketClosed()
+      
       if default != UNDEFINED:
         return self.controller.get_info(param, default)
       else:
@@ -748,6 +754,12 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     try:
+      if not self.isAlive():
+        if default != UNDEFINED:
+          return default
+        else:
+          raise stem.SocketClosed()
+      
       if default != UNDEFINED:
         return self.controller.get_conf(param, default, multiple)
       else:
@@ -790,6 +802,9 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     try:
+      if not self.isAlive():
+        raise stem.SocketClosed()
+      
       # clears our exit policy chache if it's changing
       if "exitpolicy" in [k.lower() for (k, v) in paramList]:
         self._exitPolicyChecker = self.getExitPolicy()
