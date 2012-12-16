@@ -12,6 +12,7 @@ import thread
 import threading
 import Queue
 
+import stem
 from TorCtl import TorCtl
 
 from util import connections, enum, log, procTools, sysTools, uiTools
