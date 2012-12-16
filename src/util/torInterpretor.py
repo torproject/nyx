@@ -9,6 +9,8 @@ import sys
 
 import version
 
+import stem
+
 # TODO: util should never import from the cli. This is being done as a hack to
 # simplify event listening, but we should later move the TorEventObserver into
 # the util.
@@ -929,18 +931,16 @@ class ControlInterpretor:
         outputEntry.append((MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
       else:
         try:
-          response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
+          controller = conn.controller
+          if controller is None: raise stem.SocketClosed()
+          
+          response = controller.msg(input)
           
           if cmd == "QUIT":
             raise InterpretorClosed("Closing the connection")
           
-          for entry in response:
-            # Response entries are tuples with the response code, body, and
-            # extra info. For instance:
-            # ('250', 'version=0.2.2.23-alpha (git-b85eb949b528f4d7)', None)
-            
-            if len(entry) == 3:
-              outputEntry.append((entry[1], OUTPUT_FORMAT))
+          for _, _, content in response.content():
+            outputEntry.append((content + '\n', OUTPUT_FORMAT))
         except Exception, exc:
           if isinstance(exc, InterpretorClosed):
             raise exc

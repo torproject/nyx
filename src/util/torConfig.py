@@ -463,7 +463,7 @@ def saveConf(destination = None, contents = None):
   # attempts SAVECONF if we're updating our torrc with the current state
   if isSaveconf:
     try:
-      torTools.getConn().getTorCtl().save_conf()
+      torTools.getConn().saveConf()
       
       try: getTorrc().load()
       except IOError: pass

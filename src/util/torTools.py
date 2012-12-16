@@ -636,19 +636,6 @@ class Controller(TorCtl.PostEventListener):
     
     return self.lastHeartbeat
   
-  def getTorCtl(self):
-    """
-    Provides the current TorCtl connection. If unset or closed then this
-    returns None.
-    """
-    
-    self.connLock.acquire()
-    result = None
-    if self.isAlive(): result = self.conn
-    self.connLock.release()
-    
-    return result
-  
   def getInfo(self, param, default = UNDEFINED):
     """
     Queries the control port for the given GETINFO option, providing the
@@ -759,6 +746,18 @@ class Controller(TorCtl.PostEventListener):
       raise exc
     finally:
       self.connLock.release()
+  
+  def saveConf(self):
+    """
+    Calls tor's SAVECONF method.
+    """
+    
+    self.connLock.acquire()
+    
+    if self.isAlive():
+      self.controller.save_conf()
+    
+    self.connLock.release()
   
   def sendNewnym(self):
     """
