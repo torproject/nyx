@@ -22,7 +22,6 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
-from TorCtl import TorCtl
 from stem.control import Controller
 
 from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
@@ -564,7 +563,7 @@ def shutdownDaemons():
   for panelImpl in control.getDaemonPanels(): panelImpl.stop()
   for panelImpl in control.getDaemonPanels(): panelImpl.join()
   
-  # joins on TorCtl event thread
+  # joins on stem threads
   torTools.getConn().close()
   
   # joins on utility daemon threads - this might take a moment since the

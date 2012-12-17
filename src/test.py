@@ -23,7 +23,7 @@ conn = None
 while True:
   userInput = raw_input(MENU)
   
-  # initiate the TorCtl connection if the test needs it
+  # initiate the stem connection if the test needs it
   if userInput in ("1", "2", "4") and not conn:
     conn = torTools.getConn()
     conn.init()

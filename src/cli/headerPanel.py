@@ -19,7 +19,6 @@ import time
 import curses
 import threading
 
-import TorCtl.TorCtl
 import stem
 import stem.connection
 

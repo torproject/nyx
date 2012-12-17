@@ -271,7 +271,7 @@ log.startTime INFO
 log.configEntryNotFound NONE
 log.configEntryUndefined NOTICE
 log.configEntryTypeError NOTICE
-log.torCtlPortClosed NOTICE
+log.stemPortClosed NOTICE
 log.torEventTypeUnrecognized INFO
 log.torPrefixPathInvalid NOTICE
 log.procCallMade DEBUG

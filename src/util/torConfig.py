@@ -471,8 +471,6 @@ def saveConf(destination = None, contents = None):
       log.log(log.DEBUG, logMsg % ("SAVECONF", time.time() - startTime))
       return # if successful then we're done
     except:
-      # example error:
-      # TorCtl.TorCtl.ErrorReply: 551 Unable to write configuration to disk.
       pass
   
   # if the SAVECONF fails or this is a custom save then write contents directly

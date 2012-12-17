@@ -14,7 +14,7 @@ import Queue
 
 import stem
 import stem.control
-from TorCtl import TorCtl
+import stem.descriptor
 
 from util import connections, enum, log, procTools, sysTools, uiTools
 
@@ -45,7 +45,7 @@ UNDEFINED = "<Undefined_ >"
 
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 CONFIG = {"features.pathPrefix": "",
-          "log.torCtlPortClosed": log.NOTICE,
+          "log.stemPortClosed": log.NOTICE,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
           "log.unknownBsdJailId": log.WARN}
@@ -265,22 +265,21 @@ def isTorRunning():
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
-  uninitialized, needing a TorCtl instance before it's fully functional.
+  uninitialized, needing a stem Controller before it's fully functional.
   """
   
   global CONTROLLER
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
 
-class Controller(TorCtl.PostEventListener):
+class Controller:
   """
-  TorCtl wrapper providing convenience functions, listener functionality for
-  tor's state, and the capability for controller connections to be restarted
-  if closed.
+  Stem wrapper providing convenience functions (mostly from the days of using
+  TorCtl), listener functionality for tor's state, and the capability for
+  controller connections to be restarted if closed.
   """
   
   def __init__(self):
-    TorCtl.PostEventListener.__init__(self)
     self.controller = None
     self.connLock = threading.RLock()
     self.statusListeners = []           # callback functions for tor's state changes
@@ -321,7 +320,7 @@ class Controller(TorCtl.PostEventListener):
   
   def init(self, controller):
     """
-    Uses the given TorCtl instance for future operations, notifying listeners
+    Uses the given stem instance for future operations, notifying listeners
     about the change.
     
     Arguments:
@@ -373,7 +372,7 @@ class Controller(TorCtl.PostEventListener):
   
   def close(self):
     """
-    Closes the current TorCtl instance and notifies listeners.
+    Closes the current stem instance and notifies listeners.
     """
     
     self.connLock.acquire()
@@ -394,7 +393,7 @@ class Controller(TorCtl.PostEventListener):
   
   def isAlive(self):
     """
-    Returns True if this has been initialized with a working TorCtl instance,
+    Returns True if this has been initialized with a working stem instance,
     False otherwise.
     """
     
@@ -1252,8 +1251,6 @@ class Controller(TorCtl.PostEventListener):
           self._cachedParam = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
-          # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
-          # http://bugs.noreply.org/flyspray/index.php?do=details&id=1329
           raisedException = IOError(str(exc))
       else:
         try:
@@ -1531,17 +1528,6 @@ class Controller(TorCtl.PostEventListener):
     
     if len(attachedMatches) == 1:
       return attachedMatches[0]
-    
-    # Highly unlikely, but still haven't found it. Last we'll use some
-    # tricks from Mike's ConsensusTracker, excluding possiblities that
-    # have...
-    # - lost their Running flag
-    # - list a bandwidth of 0
-    # - have 'opt hibernating' set
-    # 
-    # This involves constructing a TorCtl Router and checking its 'down'
-    # flag (which is set by the three conditions above). This is the last
-    # resort since it involves a couple GETINFO queries.
     
     for entryPort, entryFingerprint in list(potentialMatches):
       try:
@@ -1884,7 +1870,7 @@ class Controller(TorCtl.PostEventListener):
       
       # gives a notice that the control port has closed
       if eventType == State.CLOSED:
-        log.log(CONFIG["log.torCtlPortClosed"], "Tor control port closed")
+        log.log(CONFIG["log.stemPortClosed"], "Tor control port closed")
       
       for callback in self.statusListeners:
         callback(self, eventType)
