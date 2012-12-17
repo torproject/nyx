@@ -11,9 +11,8 @@ import curses
 import logging
 import threading
 
-from TorCtl import TorCtl
-
 import stem.util.log
+from stem.response import events
 
 import popups
 from version import VERSION
@@ -35,7 +34,7 @@ EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s ST
                      j CLIENTS_SEEN      q ORCONN
           DINWE tor runlevel+            A All Events
           12345 arm runlevel+            X No Events
-          67890 torctl runlevel+         U Unknown Events"""
+                                         U Unknown Events"""
 
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "magenta", log.INFO: "blue", log.NOTICE: "green",
                         log.WARN: "yellow", log.ERR: "red"}
@@ -155,7 +154,7 @@ def expandEvents(eventAbbr):
 
 def getMissingEventTypes():
   """
-  Provides the event types the current torctl connection supports but arm
+  Provides the event types the current tor connection supports but arm
   doesn't. This provides an empty list if no event types are missing, and None
   if the GETINFO query fails.
   """
@@ -167,28 +166,6 @@ def getMissingEventTypes():
     armEventTypes = TOR_EVENT_TYPES.values()
     return [event for event in torEventTypes if not event in armEventTypes]
   else: return None # GETINFO call failed
-
-def setEventListening(events):
-  """
-  Configures the events Tor listens for, filtering non-tor events from what we
-  request from the controller. This returns a sorted list of the events we
-  successfully set.
-  
-  Arguments:
-    events - event types to attempt to set
-  """
-  
-  events = set(events) # drops duplicates
-  torEvents = events.intersection(set(TOR_EVENT_TYPES.values()))
-  
-  # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
-  if "UNKNOWN" in events:
-    torEvents.update(set(getMissingEventTypes()))
-  
-  setEvents = torTools.getConn().setControllerEvents(list(torEvents))
-  
-  # provides back the input set minus events we failed to set
-  return sorted(events.difference(torTools.FAILED_EVENTS))
 
 def loadLogMessages():
   """
@@ -491,95 +468,9 @@ class LogEntry():
     
     return self._displayMessage
 
-class TorEventObserver(TorCtl.PostEventListener):
-  """
-  Listens for all types of events provided by TorCtl, providing an LogEntry
-  instance to the given callback function.
-  """
-  
-  def __init__(self, callback):
-    """
-    Tor event listener with the purpose of translating events to nicely
-    formatted calls of a callback function.
-    
-    Arguments:
-      callback - function accepting a LogEntry, called when an event of these
-                 types occur
-    """
-    
-    TorCtl.PostEventListener.__init__(self)
-    self.callback = callback
-  
-  def circ_status_event(self, event):
-    msg = "ID: %-3s STATUS: %-10s PATH: %s" % (event.circ_id, event.status, ", ".join(event.path))
-    if event.purpose: msg += " PURPOSE: %s" % event.purpose
-    if event.reason: msg += " REASON: %s" % event.reason
-    if event.remote_reason: msg += " REMOTE_REASON: %s" % event.remote_reason
-    self._notify(event, msg, "yellow")
-  
-  def buildtimeout_set_event(self, event):
-    self._notify(event, "SET_TYPE: %s, TOTAL_TIMES: %s, TIMEOUT_MS: %s, XM: %s, ALPHA: %s, CUTOFF_QUANTILE: %s" % (event.set_type, event.total_times, event.timeout_ms, event.xm, event.alpha, event.cutoff_quantile))
-  
-  def stream_status_event(self, event):
-    self._notify(event, "ID: %s STATUS: %s CIRC_ID: %s TARGET: %s:%s REASON: %s REMOTE_REASON: %s SOURCE: %s SOURCE_ADDR: %s PURPOSE: %s" % (event.strm_id, event.status, event.circ_id, event.target_host, event.target_port, event.reason, event.remote_reason, event.source, event.source_addr, event.purpose))
-  
-  def or_conn_status_event(self, event):
-    msg = "STATUS: %-10s ENDPOINT: %-20s" % (event.status, event.endpoint)
-    if event.reason: msg += " REASON: %-6s" % event.reason
-    if event.ncircs: msg += " NCIRCS: %i" % event.ncircs
-    self._notify(event, msg)
-  
-  def stream_bw_event(self, event):
-    self._notify(event, "ID: %s READ: %s WRITTEN: %s" % (event.strm_id, event.bytes_read, event.bytes_written))
-  
-  def bandwidth_event(self, event):
-    self._notify(event, "READ: %i, WRITTEN: %i" % (event.read, event.written), "cyan")
-  
-  def msg_event(self, event):
-    self._notify(event, event.msg, RUNLEVEL_EVENT_COLOR[event.level])
-  
-  def new_desc_event(self, event):
-    idlistStr = [str(item) for item in event.idlist]
-    self._notify(event, ", ".join(idlistStr))
-  
-  def address_mapped_event(self, event):
-    whenLabel, gmtExpiryLabel = "", ""
-    
-    if event.when:
-      whenLabel = time.strftime("%H:%M %m/%d/%Y", event.when)
-    
-    # TODO: torctl is getting an 'error' and 'gmt_expiry' attribute so display
-    # those when they become available
-    #
-    #if event.gmt_expiry:
-    #  gmtExpiryLabel = time.strftime("%H:%M %m/%d/%Y", event.gmt_expiry)
-    
-    self._notify(event, "%s, %s -> %s" % (whenLabel, event.from_addr, event.to_addr))
-  
-  def ns_event(self, event):
-    # NetworkStatus params: nickname, idhash, orhash, ip, orport (int),
-    #     dirport (int), flags, idhex, bandwidth, updated (datetime)
-    msg = ", ".join(["%s (%s)" % (ns.idhex, ns.nickname) for ns in event.nslist])
-    self._notify(event, "Listed (%i): %s" % (len(event.nslist), msg), "blue")
-  
-  def new_consensus_event(self, event):
-    msg = ", ".join(["%s (%s)" % (ns.idhex, ns.nickname) for ns in event.nslist])
-    self._notify(event, "Listed (%i): %s" % (len(event.nslist), msg), "magenta")
-  
-  def guard_event(self, event):
-    msg = "%s (%s), STATUS: %s" % (event.idhex, event.nick, event.status)
-    self._notify(event, msg, "yellow")
-  
-  def unknown_event(self, event):
-    msg = "(%s) %s" % (event.event_name, event.event_string)
-    self.callback(LogEntry(event.arrived_at, "UNKNOWN", msg, "red"))
-  
-  def _notify(self, event, msg, color="white"):
-    self.callback(LogEntry(event.arrived_at, event.event_name, msg, color))
-
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   """
-  Listens for and displays tor, arm, and torctl events. This can prepopulate
+  Listens for and displays tor, arm, and stem events. This can prepopulate
   from tor's log file if it exists.
   """
   
@@ -626,13 +517,14 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # collapses duplicate log entries if false, showing only the most recent
     self.showDuplicates = self._config["features.log.showDuplicateEntries"]
     
+    self.loggedEvents = [] # needs to be set before we receive any events
+    
     # restricts the input to the set of events we can listen to, and
     # configures the controller to liten to them
-    loggedEvents = setEventListening(loggedEvents)
+    self.loggedEvents = self.setEventListening(loggedEvents)
     
     self.setPauseAttr("msgLog")         # tracks the message log when we're paused
     self.msgLog = []                    # log entries, sorted by the timestamp
-    self.loggedEvents = loggedEvents    # events we're listening to
     self.regexFilter = None             # filter for presented log events (no filtering if None)
     self.lastContentHeight = 0          # height of the rendered content when last drawn
     self.logFile = None                 # file log messages are saved to (skipped if None)
@@ -666,9 +558,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # leaving lastContentHeight as being too low causes initialization problems
     self.lastContentHeight = len(self.msgLog)
     
-    # adds listeners for tor and torctl events
+    # adds listeners for tor and stem events
     conn = torTools.getConn()
-    conn.addEventListener(TorEventObserver(self.registerEvent))
     conn.addStatusListener(self._resetListener)
     
     # opens log file if we'll be saving entries
@@ -750,6 +641,33 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     
     self.showDuplicates = isVisible
   
+  def registerTorEvent(self, event):
+    """
+    Translates a stem.response.event.Event instance into a LogEvent, and calls
+    registerEvent().
+    """
+    
+    msg, color = ' '.join(str(event).split(' ')[1:]), "white"
+    
+    if isinstance(event, events.CircuitEvent):
+      color = "yellow"
+    elif isinstance(event, events.BandwidthEvent):
+      color = "cyan"
+      msg = "READ: %i, WRITTEN: %i" % (event.read, event.written)
+    elif isinstance(event, events.LogEvent):
+      color = RUNLEVEL_EVENT_COLOR[event.runlevel]
+      msg = event.message
+    elif isinstance(event, events.NetworkStatusEvent):
+      color = "blue"
+    elif isinstance(event, events.NewConsensusEvent):
+      color = "magenta"
+    elif isinstance(event, events.GuardEvent):
+      color = "yellow"
+    elif not event.type in TOR_EVENT_TYPES.values():
+      color = "red" # unknown event type
+    
+    self.registerEvent(LogEntry(event.arrived_at, event.type, msg, color))
+  
   def registerEvent(self, event):
     """
     Notes event and redraws log. If paused it's held in a temporary buffer.
@@ -801,7 +719,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     
     # configures the controller to listen for these tor events, and provides
     # back a subset without anything we're failing to listen to
-    setTypes = setEventListening(eventTypes)
+    setTypes = self.setEventListening(eventTypes)
     self.loggedEvents = setTypes
     self.redraw(True)
     self.valsLock.release()
@@ -1217,6 +1135,35 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self._cond.notifyAll()
     self._cond.release()
   
+  def setEventListening(self, events):
+    """
+    Configures the events Tor listens for, filtering non-tor events from what we
+    request from the controller. This returns a sorted list of the events we
+    successfully set.
+    
+    Arguments:
+      events - event types to attempt to set
+    """
+    
+    events = set(events) # drops duplicates
+    torEvents = events.intersection(set(TOR_EVENT_TYPES.values()))
+    
+    # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
+    if "UNKNOWN" in events:
+      torEvents.update(set(getMissingEventTypes()))
+    
+    torConn = torTools.getConn()
+    torConn.removeEventListener(self.registerTorEvent)
+    
+    for eventType in list(torEvents):
+      try:
+        torConn.addEventListener(self.registerTorEvent, eventType)
+      except stem.ProtocolError:
+        torEvents.remove(eventType)
+    
+    # provides back the input set minus events we failed to set
+    return sorted(torEvents)
+  
   def _resetListener(self, _, eventType):
     # if we're attaching to a new tor instance then clears the log and
     # prepopulates it with the content belonging to this instance
@@ -1257,7 +1204,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         labelPattern = uiTools.cropStr(currentPattern, width - 18)
         panelLabel = "Events (filter: %s):" % labelPattern
     else:
-      # does the following with all runlevel types (tor, arm, and torctl):
+      # does the following with all runlevel types (tor, arm, and stem):
       # - pulls to the start of the list
       # - condenses range if there's three or more in a row (ex. "ARM_INFO - WARN")
       # - condense further if there's identical runlevel ranges for multiple

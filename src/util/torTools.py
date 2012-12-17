@@ -38,14 +38,6 @@ DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
 # message logged by default when a controller can't set an event type
 DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
 
-# TODO: check version when reattaching to controller and if version changes, flush?
-# Skips attempting to set events we've failed to set before. This avoids
-# logging duplicate warnings but can be problematic if controllers belonging
-# to multiple versions of tor are attached, making this unreflective of the
-# controller's capabilites. However, this is a pretty bizarre edge case.
-DROP_FAILED_EVENTS = True
-FAILED_EVENTS = set()
-
 CONTROLLER = None # singleton Controller instance
 
 UNDEFINED = "<Undefined_ >"
@@ -493,7 +485,6 @@ class Controller(TorCtl.PostEventListener):
     self.conn = None                    # None if uninitialized or controller's been closed
     self.controller = None
     self.connLock = threading.RLock()
-    self.eventListeners = []            # instances listening for tor controller events
     self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
@@ -541,6 +532,9 @@ class Controller(TorCtl.PostEventListener):
       controller - stem based Controller instance
     """
     
+    # TODO: We should reuse our controller instance so event listeners will be
+    # re-attached. This is a point of regression until we do... :(
+    
     if conn.is_live() and controller.is_alive() and conn != self.conn:
       self.connLock.acquire()
       
@@ -550,8 +544,11 @@ class Controller(TorCtl.PostEventListener):
       self.controller = controller
       log.log(log.INFO, "Stem connected to tor version %s" % self.controller.get_version())
       
-      self.conn.add_event_listener(self)
-      for listener in self.eventListeners: self.conn.add_event_listener(listener)
+      self.controller.add_event_listener(self.msg_event, stem.control.EventType.NOTICE)
+      self.controller.add_event_listener(self.ns_event, stem.control.EventType.NS)
+      self.controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+      self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
+      self.controller.add_event_listener(self.circ_status_event, stem.control.EventType.CIRC)
       
       # registers this as our first heartbeat
       self._updateHeartbeat()
@@ -569,10 +566,6 @@ class Controller(TorCtl.PostEventListener):
       self._exitPolicyChecker = self.getExitPolicy()
       self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
       self._exitPolicyLookupCache = {}
-      
-      # sets the events listened for by the new controller (incompatible events
-      # are dropped with a logged warning)
-      self.setControllerEvents(self.controllerEvents)
       
       self._status = State.INIT
       self._statusTime = time.time()
@@ -1387,19 +1380,24 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
-  def addEventListener(self, listener):
+  def addEventListener(self, listener, *eventTypes):
     """
     Directs further tor controller events to callback functions of the
     listener. If a new control connection is initialized then this listener is
     reattached.
-    
-    Arguments:
-      listener - TorCtl.PostEventListener instance listening for events
     """
     
     self.connLock.acquire()
-    self.eventListeners.append(listener)
-    if self.isAlive(): self.conn.add_event_listener(listener)
+    if self.isAlive(): self.controller.add_event_listener(listener, *eventTypes)
+    self.connLock.release()
+  
+  def removeEventListener(self, listener):
+    """
+    Stops the given event listener from being notified of further events.
+    """
+    
+    self.connLock.acquire()
+    if self.isAlive(): self.controller.remove_event_listener(listener)
     self.connLock.release()
   
   def addStatusListener(self, callback):
@@ -1434,92 +1432,6 @@ class Controller(TorCtl.PostEventListener):
     """
     
     return list(self.controllerEvents)
-  
-  def setControllerEvents(self, events):
-    """
-    Sets the events being requested from any attached tor instance, logging
-    warnings for event types that aren't supported (possibly due to version
-    issues). Events in REQ_EVENTS will also be included, logging at the error
-    level with an additional description in case of failure.
-    
-    This remembers the successfully set events and tries to request them from
-    any tor instance it attaches to in the future too (again logging and
-    dropping unsuccessful event types).
-    
-    This returns the listing of event types that were successfully set. If not
-    currently attached to a tor instance then all events are assumed to be ok,
-    then attempted when next attached to a control port.
-    
-    Arguments:
-      events - listing of events to be set
-    """
-    
-    self.connLock.acquire()
-    
-    returnVal = []
-    if self.isAlive():
-      events = set(events)
-      events = events.union(set(REQ_EVENTS.keys()))
-      unavailableEvents = set()
-      
-      # removes anything we've already failed to set
-      if DROP_FAILED_EVENTS:
-        unavailableEvents.update(events.intersection(FAILED_EVENTS))
-        events.difference_update(FAILED_EVENTS)
-      
-      # initial check for event availability, using the 'events/names' GETINFO
-      # option to detect invalid events
-      validEvents = self.getInfo("events/names", None)
-      
-      if validEvents:
-        validEvents = set(validEvents.split())
-        unavailableEvents.update(events.difference(validEvents))
-        events.intersection_update(validEvents)
-      
-      # attempt to set events via trial and error
-      isEventsSet, isAbandoned = False, False
-      
-      while not isEventsSet and not isAbandoned:
-        try:
-          self.conn.set_events(list(events))
-          isEventsSet = True
-        except TorCtl.ErrorReply, exc:
-          msg = str(exc)
-          
-          if "Unrecognized event" in msg:
-            # figure out type of event we failed to listen for
-            start = msg.find("event \"") + 7
-            end = msg.rfind("\"")
-            failedType = msg[start:end]
-            
-            unavailableEvents.add(failedType)
-            events.discard(failedType)
-          else:
-            # unexpected error, abandon attempt
-            isAbandoned = True
-        except TorCtl.TorCtlClosed:
-          self.close()
-          isAbandoned = True
-      
-      FAILED_EVENTS.update(unavailableEvents)
-      if not isAbandoned:
-        # logs warnings or errors for failed events
-        for eventType in unavailableEvents:
-          defaultMsg = DEFAULT_FAILED_EVENT_MSG % eventType
-          if eventType in REQ_EVENTS:
-            log.log(log.ERR, defaultMsg + " (%s)" % REQ_EVENTS[eventType])
-          else:
-            log.log(log.WARN, defaultMsg)
-        
-        self.controllerEvents = list(events)
-        returnVal = list(events)
-    else:
-      # attempts to set the events when next attached to a control port
-      self.controllerEvents = list(events)
-      returnVal = list(events)
-    
-    self.connLock.release()
-    return returnVal
   
   def reload(self, issueSighup = False):
     """
@@ -1631,7 +1543,7 @@ class Controller(TorCtl.PostEventListener):
     causing the torrc and internal state to be reset.
     """
     
-    if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
+    if event.runlevel == "NOTICE" and event.message.startswith("Received reload signal (hup)"):
       self.connLock.acquire()
       
       if self.isAlive():
@@ -1652,8 +1564,8 @@ class Controller(TorCtl.PostEventListener):
     
     myFingerprint = self.getInfo("fingerprint", None)
     if myFingerprint:
-      for ns in event.nslist:
-        if ns.idhex == myFingerprint:
+      for desc in event.desc:
+        if desc.fingerprint == myFingerprint:
           self._cachedParam["nsEntry"] = None
           self._cachedParam["flags"] = None
           self._cachedParam["bwMeasured"] = None
@@ -1681,7 +1593,7 @@ class Controller(TorCtl.PostEventListener):
     self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
-      self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
+      self._fingerprintMappings = self._getFingerprintMappings(event.desc)
     
     self.connLock.release()
   
@@ -1691,7 +1603,9 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     myFingerprint = self.getInfo("fingerprint", None)
-    if not myFingerprint or myFingerprint in event.idlist:
+    desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
+    
+    if not myFingerprint or myFingerprint in desc_fingerprints:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
     
@@ -1702,32 +1616,26 @@ class Controller(TorCtl.PostEventListener):
     self._descriptorLookupCache = {}
     
     if self._fingerprintMappings != None:
-      for fingerprint in event.idlist:
+      for fingerprint in desc_fingerprints:
         # gets consensus data for the new descriptor
-        try: nsLookup = self.conn.get_network_status("id/%s" % fingerprint)
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): continue
-        
-        if len(nsLookup) > 1:
-          # multiple records for fingerprint (shouldn't happen)
-          log.log(log.WARN, "Multiple consensus entries for fingerprint: %s" % fingerprint)
-          continue
+        try: desc = self.controller.get_network_status(fingerprint)
+        except stem.ControllerError: continue
         
         # updates fingerprintMappings with new data
-        newRelay = nsLookup[0]
-        if newRelay.ip in self._fingerprintMappings:
+        if desc.address in self._fingerprintMappings:
           # if entry already exists with the same orport, remove it
           orportMatch = None
-          for entryPort, entryFingerprint in self._fingerprintMappings[newRelay.ip]:
-            if entryPort == newRelay.orport:
+          for entryPort, entryFingerprint in self._fingerprintMappings[desc.address]:
+            if entryPort == desc.or_port:
               orportMatch = (entryPort, entryFingerprint)
               break
           
-          if orportMatch: self._fingerprintMappings[newRelay.ip].remove(orportMatch)
+          if orportMatch: self._fingerprintMappings[desc.address].remove(orportMatch)
           
           # add the new entry
-          self._fingerprintMappings[newRelay.ip].append((newRelay.orport, newRelay.idhex))
+          self._fingerprintMappings[desc.address].append((desc.or_port, desc.fingerprint))
         else:
-          self._fingerprintMappings[newRelay.ip] = [(newRelay.orport, newRelay.idhex)]
+          self._fingerprintMappings[desc.address] = [(desc.or_port, desc.fingerprint)]
     
     self.connLock.release()
   
@@ -1742,27 +1650,6 @@ class Controller(TorCtl.PostEventListener):
     
     self._cachedParam["circuits"] = None
   
-  def buildtimeout_set_event(self, event):
-    self._updateHeartbeat()
-  
-  def stream_status_event(self, event):
-    self._updateHeartbeat()
-  
-  def or_conn_status_event(self, event):
-    self._updateHeartbeat()
-  
-  def stream_bw_event(self, event):
-    self._updateHeartbeat()
-  
-  def bandwidth_event(self, event):
-    self._updateHeartbeat()
-  
-  def address_mapped_event(self, event):
-    self._updateHeartbeat()
-  
-  def unknown_event(self, event):
-    self._updateHeartbeat()
-  
   def _updateHeartbeat(self):
     """
     Called on any event occurance to note the time it occured.
@@ -1771,26 +1658,25 @@ class Controller(TorCtl.PostEventListener):
     # alternative is to use the event's timestamp (via event.arrived_at)
     self.lastHeartbeat = time.time()
   
-  def _getFingerprintMappings(self, nsList = None):
+  def _getFingerprintMappings(self, descriptors = None):
     """
     Provides IP address to (port, fingerprint) tuple mappings for all of the
     currently cached relays.
     
     Arguments:
-      nsList - network status listing (fetched if not provided)
+      descriptors - router status entries (fetched if not provided)
     """
     
     results = {}
     if self.isAlive():
       # fetch the current network status if not provided
-      if not nsList:
-        try: nsList = self.conn.get_network_status(get_iterator=True)
-        except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
+      if not descriptors:
+        try: descriptors = self.controller.get_network_statuses()
+        except stem.ControllerError: descriptors = []
       
       # construct mappings of ips to relay data
-      for relay in nsList:
-        if relay.ip in results: results[relay.ip].append((relay.orport, relay.idhex))
-        else: results[relay.ip] = [(relay.orport, relay.idhex)]
+      for desc in descriptors:
+        results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
     
     return results
   

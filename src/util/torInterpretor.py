@@ -11,12 +11,6 @@ import version
 
 import stem
 
-# TODO: util should never import from the cli. This is being done as a hack to
-# simplify event listening, but we should later move the TorEventObserver into
-# the util.
-
-from cli.logPanel import TorEventObserver
-
 from util import connections, enum, hostnames, torConfig, torTools, uiTools
 
 COLOR_PROMPT = True     # provides a colored interpretor prompt
@@ -445,7 +439,12 @@ class ControlInterpretor:
     self.eventBuffer = [] # unread event messages
     self.loggedEvents = [] # event types that we're listening for
     
-    torTools.getConn().addEventListener(TorEventObserver(self.registerEvent))
+    # TODO: Dropping event listening since...
+    # a. it was a complete hack
+    # b. said hack isn't worth porting to stem
+    # c. I'm likely about to separate the interpretor from arm anyway
+    
+    #torTools.getConn().addEventListener(TorEventObserver(self.registerEvent))
   
   def registerEvent(self, event):
     """
@@ -913,8 +912,10 @@ class ControlInterpretor:
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
       elif cmd == "SETEVENTS":
+        return ([], []) # dropping support, see the comment for the event listener above for why
+        
         self.loggedEvents = arg.split()
-        allEvents = torTools.getConn().setControllerEvents(self.loggedEvents)
+        #allEvents = torTools.getConn().setControllerEvents(self.loggedEvents)
         setEvents = set(self.loggedEvents).intersection(allEvents)
         
         if setEvents:
