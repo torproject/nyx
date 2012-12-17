@@ -1,5 +1,4 @@
 *.pyc
-src/TorCtl/
 src/stem/
 *.swp
 
