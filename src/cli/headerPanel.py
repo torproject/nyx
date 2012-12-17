@@ -138,25 +138,23 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      torctlConn, controller = None, None
+      controller = None
       allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       
       if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
         try:
-          torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
-          
           # TODO: um... what about passwords?
           controller = Controller.from_socket_file(self._config["startup.interface.socket"])
           controller.authenticate()
         except (IOError, stem.SocketError), exc:
-          torctlConn, controller = None, None
+          controller = None
           
           if not allowPortConnection:
             cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       elif not allowPortConnection:
         cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
       
-      if not torctlConn and allowPortConnection:
+      if not controller and allowPortConnection:
         # TODO: This has diverged from starter.py's connection, for instance it
         # doesn't account for relative cookie paths or multiple authentication
         # methods. We can't use the starter.py's connection function directly
@@ -165,19 +163,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
         
         try:
           ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-          tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
-          
-          if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
-            authValue = cli.popups.inputPrompt("Controller Password: ")
-            if not authValue: raise IOError() # cancel reconnection
-          elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
-            authCookieSize = os.path.getsize(authValue)
-            if authCookieSize != 32:
-              raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
-          
-          tmpConn.authenticate(authValue)
-          torctlConn = tmpConn
-          
           controller = Controller.from_port(ctlAddr, ctlPort)
           
           try:
@@ -185,7 +170,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           except stem.connection.MissingPassword:
             controller.authenticate(authValue) # already got the password above
         except Exception, exc:
-          torctlConn, controller = None, None
+          controller = None
           
           # attempts to use the wizard port too
           try:
@@ -196,8 +181,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
             # displays notice for the first failed connection attempt
             if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       
-      if torctlConn and controller:
-        torTools.getConn().init(torctlConn, controller)
+      if controller:
+        torTools.getConn().init(controller)
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False

@@ -543,26 +543,13 @@ class TorManager:
     unsuccessful.
     """
     
-    torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
-    
-    if not torctlConn:
-      msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % self.getTorrcPath()
-      raise IOError(msg)
-    
-    if authType == TorCtl.AUTH_TYPE.COOKIE:
-      try:
-        authCookieSize = os.path.getsize(authValue)
-        if authCookieSize != 32:
-          raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
-        
-        torctlConn.authenticate(authValue)
-        
-        controller = Controller.from_port(control_port = int(CONFIG["wizard.default"]["Control"]))
-        controller.authenticate()
-        
-        torTools.getConn().init(torctlConn, controller)
-      except Exception, exc:
-        raise IOError("Unable to connect to Tor: %s" % exc)
+    try:
+      controller = Controller.from_port(control_port = int(CONFIG["wizard.default"]["Control"]))
+      controller.authenticate()
+      
+      torTools.getConn().init(controller)
+    except Exception, exc:
+      raise IOError("Unable to connect to Tor: %s" % exc)
 
 def shutdownDaemons():
   """

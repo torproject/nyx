@@ -483,7 +483,6 @@ class Controller(TorCtl.PostEventListener):
   
   def __init__(self):
     TorCtl.PostEventListener.__init__(self)
-    self.conn = None                    # None if uninitialized or controller's been closed
     self.controller = None
     self.connLock = threading.RLock()
     self.statusListeners = []           # callback functions for tor's state changes
@@ -522,25 +521,22 @@ class Controller(TorCtl.PostEventListener):
     # cached parameters for custom getters (None if unset or possibly changed)
     self._cachedParam = {}
   
-  def init(self, conn, controller):
+  def init(self, controller):
     """
     Uses the given TorCtl instance for future operations, notifying listeners
     about the change.
     
     Arguments:
-      conn - TorCtl instance to be used
       controller - stem based Controller instance
     """
     
     # TODO: We should reuse our controller instance so event listeners will be
     # re-attached. This is a point of regression until we do... :(
     
-    if conn.is_live() and controller.is_alive() and conn != self.conn:
+    if controller.is_alive() and controller != self.controller:
       self.connLock.acquire()
       
-      if self.conn: self.close() # shut down current connection
-      self.conn = conn
-      
+      if self.controller: self.close() # shut down current connection
       self.controller = controller
       log.log(log.INFO, "Stem connected to tor version %s" % self.controller.get_version())
       
@@ -583,10 +579,7 @@ class Controller(TorCtl.PostEventListener):
     """
     
     self.connLock.acquire()
-    if self.conn:
-      self.conn.close()
-      self.conn = None
-      
+    if self.controller:
       self.controller.close()
       self.controller = None
       
@@ -610,8 +603,8 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.acquire()
     
     result = False
-    if self.conn:
-      if self.conn.is_live() and self.controller.is_alive(): result = True
+    if self.controller:
+      if self.controller.is_alive(): result = True
       else: self.close()
     
     self.connLock.release()
@@ -622,7 +615,10 @@ class Controller(TorCtl.PostEventListener):
     Provides the time of the last registered tor message.
     """
     
-    return self.controller.get_latest_heartbeat()
+    if self.isAlive():
+      return self.controller.get_latest_heartbeat()
+    else:
+      return 0
   
   def getInfo(self, param, default = UNDEFINED):
     """
@@ -912,7 +908,10 @@ class Controller(TorCtl.PostEventListener):
     false otherwise.
     """
     
-    return self.controller.is_geoip_unavailable()
+    if self.isAlive():
+      return self.controller.is_geoip_unavailable()
+    else:
+      return False
   
   def getMyPid(self):
     """
