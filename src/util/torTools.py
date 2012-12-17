@@ -13,6 +13,7 @@ import threading
 import Queue
 
 import stem
+import stem.control
 from TorCtl import TorCtl
 
 from util import connections, enum, log, procTools, sysTools, uiTools
@@ -1450,7 +1451,7 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       if not issueSighup:
         try:
-          self.conn.send_signal("RELOAD")
+          self.controller.signal(stem.Signal.RELOAD)
           self._cachedParam = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
@@ -1519,8 +1520,11 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       try:
         isRelay = self.getOption("ORPort", None) != None
-        signal = "HALT" if force else "SHUTDOWN"
-        self.conn.send_signal(signal)
+        
+        if force:
+          stem.controller.signal(stem.Signal.HALT)
+        else:
+          stem.controller.signal(stem.Signal.SHUTDOWN)
         
         # shuts down control connection if we aren't making a delayed shutdown
         if force or not isRelay: self.close()
