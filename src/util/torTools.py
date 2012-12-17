@@ -1748,17 +1748,11 @@ class Controller(TorCtl.PostEventListener):
     
     for entryPort, entryFingerprint in list(potentialMatches):
       try:
-        nsCall = self.conn.get_network_status("id/%s" % entryFingerprint)
-        if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
-        nsEntry = nsCall[0]
+        nsEntry = self.controller.get_network_status(entryFingerprint)
         
-        descEntry = self.getInfo("desc/id/%s" % entryFingerprint, None)
-        if not descEntry: raise TorCtl.ErrorReply() # relay descriptor couldn't be fetched
-        descLines = descEntry.split("\n")
-        
-        isDown = TorCtl.Router.build_from_desc(descLines, nsEntry).down
-        if isDown: potentialMatches.remove((entryPort, entryFingerprint))
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+        if not stem.descriptor.RUNNING in nsEntry.flags:
+          potentialMatches.remove((entryPort, entryFingerprint))
+      except stem.ControllerError: pass
     
     if len(potentialMatches) == 1:
       return potentialMatches[0][1]
