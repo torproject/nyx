@@ -499,7 +499,6 @@ class Controller(TorCtl.PostEventListener):
     self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
-    self.lastHeartbeat = 0              # time of the last tor event
     
     # Status signaling for when tor starts, stops, or is reset is done via
     # enquing the signal then spawning a handler thread. This is to provide
@@ -549,9 +548,6 @@ class Controller(TorCtl.PostEventListener):
       self.controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
       self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
       self.controller.add_event_listener(self.circ_status_event, stem.control.EventType.CIRC)
-      
-      # registers this as our first heartbeat
-      self._updateHeartbeat()
       
       # reset caches for ip -> fingerprint lookups
       self._fingerprintMappings = None
@@ -622,12 +618,10 @@ class Controller(TorCtl.PostEventListener):
   
   def getHeartbeat(self):
     """
-    Provides the time of the last registered tor event (if listening for BW
-    events then this should occure every second if relay's still responsive).
-    This returns zero if this has never received an event.
+    Provides the time of the last registered tor message.
     """
     
-    return self.lastHeartbeat
+    return self.controller.get_latest_heartbeat()
   
   def getInfo(self, param, default = UNDEFINED):
     """
@@ -1559,7 +1553,6 @@ class Controller(TorCtl.PostEventListener):
       self.connLock.release()
   
   def ns_event(self, event):
-    self._updateHeartbeat()
     self._consensusLookupCache = {}
     
     myFingerprint = self.getInfo("fingerprint", None)
@@ -1576,8 +1569,6 @@ class Controller(TorCtl.PostEventListener):
       self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
-    self._updateHeartbeat()
-    
     self.connLock.acquire()
     
     self._cachedParam["nsEntry"] = None
@@ -1598,8 +1589,6 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.release()
   
   def new_desc_event(self, event):
-    self._updateHeartbeat()
-    
     self.connLock.acquire()
     
     myFingerprint = self.getInfo("fingerprint", None)
@@ -1640,8 +1629,6 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.release()
   
   def circ_status_event(self, event):
-    self._updateHeartbeat()
-    
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
     self.connLock.acquire()
@@ -1649,14 +1636,6 @@ class Controller(TorCtl.PostEventListener):
     self.connLock.release()
     
     self._cachedParam["circuits"] = None
-  
-  def _updateHeartbeat(self):
-    """
-    Called on any event occurance to note the time it occured.
-    """
-    
-    # alternative is to use the event's timestamp (via event.arrived_at)
-    self.lastHeartbeat = time.time()
   
   def _getFingerprintMappings(self, descriptors = None):
     """
