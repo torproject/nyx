@@ -12,81 +12,43 @@ import tempfile
 
 # Library dependencies can be fetched on request. By default this is via
 # the following mirrors with their sha256 signatures checked.
-TORCTL_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-06-16/torctl.tar.gz"
-TORCTL_SIG = "5460adb1394c368ba492cc33d6681618b3d3062b3f5f70b2a87520fc291701c3"
-CAGRAPH_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-06-10/cagraph.tar.gz"
-CAGRAPH_SIG = "1439acd40ce016f4329deb216d86f36a749e4b8bf73a313a757396af6f95310d"
+#STEM_ARCHIVE = "http://www.atagar.com/arm/resources/deps/11-06-16/torctl.tar.gz"
+#STEM_SIG = "5460adb1394c368ba492cc33d6681618b3d3062b3f5f70b2a87520fc291701c3"
 
 # optionally we can do an unverified fetch from the library's sources
-TORCTL_REPO = "git://git.torproject.org/pytorctl.git"
-CAGRAPH_TARBALL_URL = "http://cagraph.googlecode.com/files/cagraph-1.2.tar.gz"
-CAGRAPH_TARBALL_NAME = "cagraph-1.2.tar.gz"
-CAGRAPH_TARBALL_ROOT = "cagraph-1.2"
+STEM_REPO = "git://git.torproject.org/stem.git"
 
-def isTorCtlAvailable():
+def isStemAvailable():
   """
-  True if TorCtl is already available on the platform, false otherwise.
+  True if stem is already available on the platform, false otherwise.
   """
   
   try:
-    import TorCtl
+    import stem
     return True
   except ImportError:
     return False
 
-def isCagraphAvailable():
+def promptStemInstall():
   """
-  True if cagraph is already available on the platform, false otherwise.
-  """
-  try:
-    import cagraph
-    return True
-  except ImportError:
-    return False
-
-def promptTorCtlInstall():
-  """
-  Asks the user to install TorCtl. This returns True if it was installed and
+  Asks the user to install stem. This returns True if it was installed and
   False otherwise (if it was either declined or failed to be fetched).
   """
   
-  userInput = raw_input("Arm requires TorCtl to run, but it's unavailable. Would you like to install it? (y/n): ")
+  userInput = raw_input("Arm requires stem to run, but it's unavailable. Would you like to install it? (y/n): ")
   
   # if user says no then terminate
   if not userInput.lower() in ("y", "yes"): return False
   
-  # attempt to install TorCtl, printing the issue if unsuccessful
+  # attempt to install stem, printing the issue if unsuccessful
   try:
-    fetchLibrary(TORCTL_ARCHIVE, TORCTL_SIG)
+    #fetchLibrary(STEM_ARCHIVE, STEM_SIG)
+    installStem()
     
-    if not isTorCtlAvailable():
-      raise IOError("Unable to install TorCtl, sorry")
+    if not isStemAvailable():
+      raise IOError("Unable to install stem, sorry")
     
-    print "TorCtl successfully installed"
-    return True
-  except IOError, exc:
-    print exc
-    return False
-
-def promptCagraphInstall():
-  """
-  Asks the user to install cagraph. This returns True if it was installed and
-  False otherwise (if it was either declined or failed to be fetched).
-  """
-  
-  userInput = raw_input("Arm requires cagraph to run, but it's unavailable. Would you like to install it? (y/n): ")
-  
-  # if user says no then terminate
-  if not userInput.lower() in ("y", "yes"): return False
-  
-  # attempt to install cagraph, printing the issue if unsuccessful
-  try:
-    fetchLibrary(CAGRAPH_ARCHIVE, CAGRAPH_SIG)
-    
-    if not isCagraphAvailable():
-      raise IOError("Unable to install cagraph, sorry")
-    
-    print "cagraph successfully installed"
+    print "Stem successfully installed"
     return True
   except IOError, exc:
     print exc
@@ -129,63 +91,34 @@ def fetchLibrary(url, sig):
   # clean up the temporary contents (fails quietly if unsuccessful)
   shutil.rmtree(destination, ignore_errors=True)
 
-def installTorCtl():
+def installStem():
   """
-  Checks out the current git head release for TorCtl and bundles it with arm.
+  Checks out the current git head release for stem and bundles it with arm.
   This raises an IOError if unsuccessful.
   """
   
-  if isTorCtlAvailable(): return
+  if isStemAvailable(): return
   
-  # temporary destination for TorCtl's git clone, guarenteed to be unoccupied
+  # temporary destination for stem's git clone, guarenteed to be unoccupied
   # (to avoid conflicting with files that are already there)
-  tmpFilename = tempfile.mktemp("/torctl")
+  tmpFilename = tempfile.mktemp("/stem")
   
-  # fetches TorCtl
-  exitStatus = os.system("git clone --quiet %s %s > /dev/null" % (TORCTL_REPO, tmpFilename))
-  if exitStatus: raise IOError("Unable to get TorCtl from %s. Is git installed?" % TORCTL_REPO)
+  # fetches stem
+  exitStatus = os.system("git clone --quiet %s %s > /dev/null" % (STEM_REPO, tmpFilename))
+  if exitStatus: raise IOError("Unable to get stem from %s. Is git installed?" % STEM_REPO)
   
-  # the destination for TorCtl will be our directory
+  # the destination for stem will be our directory
   ourDir = os.path.dirname(os.path.realpath(__file__))
   
-  # exports TorCtl to our location
-  exitStatus = os.system("(cd %s && git archive --format=tar --prefix=TorCtl/ master) | (cd %s && tar xf - 2> /dev/null)" % (tmpFilename, ourDir))
-  if exitStatus: raise IOError("Unable to install TorCtl to %s" % ourDir)
+  # exports stem to our location
+  exitStatus = os.system("(cd %s && git archive --format=tar master stem) | (cd %s && tar xf - 2> /dev/null)" % (tmpFilename, ourDir))
+  if exitStatus: raise IOError("Unable to install stem to %s" % ourDir)
   
   # Clean up the temporary contents. This isn't vital so quietly fails in case
   # of errors.
   shutil.rmtree(tmpFilename, ignore_errors=True)
 
-def installCagraph():
-  """
-  Downloads and extracts the cagraph tarball. This raises an IOError if
-  unsuccessful.
-  """
-  
-  if isCagraphAvailable(): return
-  
-  tmpDir = tempfile.mkdtemp()
-  tmpFilename = os.path.join(tmpDir, CAGRAPH_TARBALL_NAME)
-  
-  exitStatus = os.system("wget --quiet -P %s %s" % (tmpDir, CAGRAPH_TARBALL_URL))
-  if exitStatus: raise IOError("Unable to fetch cagraph from %s. Is wget installed?" % CAGRAPH_TARBALL_URL)
-  
-  # the destination for cagraph will be our directory
-  ourDir = os.path.dirname(os.path.realpath(__file__))
-  
-  # exports cagraph to our location
-  exitStatus = os.system("(cd %s && tar --strip-components=1 -xzf %s %s/cagraph)" % (ourDir, tmpFilename, CAGRAPH_TARBALL_ROOT))
-  if exitStatus: raise IOError("Unable to extract cagraph to %s" % ourDir)
-  
-  # Clean up the temporary contents. This isn't vital so quietly fails in case
-  # of errors.
-  shutil.rmtree(tmpDir, ignore_errors=True)
-
-def allPrereq():
-  """
-  Requrements for both the cli and gui versions of arm.
-  """
-  
+if __name__ == '__main__':
   majorVersion = sys.version_info[0]
   minorVersion = sys.version_info[1]
   
@@ -196,44 +129,13 @@ def allPrereq():
     print("arm requires python version 2.5 or greater\n")
     sys.exit(1)
   
-  if not isTorCtlAvailable():
-    isInstalled = promptTorCtlInstall()
+  if not isStemAvailable():
+    isInstalled = promptStemInstall()
     if not isInstalled: sys.exit(1)
-
-def cliPrereq():
-  """
-  Requirements for the cli arm interface.
-  """
-  
-  allPrereq()
   
   try:
     import curses
   except ImportError:
     print("arm requires curses - try installing the python-curses package\n")
     sys.exit(1)
-
-def guiPrereq():
-  """
-  Requirements for the gui arm interface.
-  """
-  
-  allPrereq()
-  
-  try:
-    import gtk
-  except ImportError:
-    print("arm requires gtk - try installing the python-gtk2 package\n")
-    sys.exit(1)
-  
-  if not isCagraphAvailable():
-    isInstalled = promptCagraphInstall()
-    if not isInstalled: sys.exit(1)
-
-if __name__ == '__main__':
-  isGui = "-g" in sys.argv or "--gui" in sys.argv
-  isBoth = "--both" in sys.argv
-  
-  if isGui or isBoth: guiPrereq()
-  if not isGui or isBoth: cliPrereq()
 

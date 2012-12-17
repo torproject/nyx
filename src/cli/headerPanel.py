@@ -19,7 +19,10 @@ import time
 import curses
 import threading
 
-import TorCtl.TorCtl
+import stem
+import stem.connection
+
+from stem.control import Controller
 
 import starter
 import cli.popups
@@ -134,18 +137,23 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      torctlConn = None
+      controller = None
       allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       
       if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
-        try: torctlConn = torTools.connect_socket(self._config["startup.interface.socket"])
-        except IOError, exc:
+        try:
+          # TODO: um... what about passwords?
+          controller = Controller.from_socket_file(self._config["startup.interface.socket"])
+          controller.authenticate()
+        except (IOError, stem.SocketError), exc:
+          controller = None
+          
           if not allowPortConnection:
             cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       elif not allowPortConnection:
         cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
       
-      if not torctlConn and allowPortConnection:
+      if not controller and allowPortConnection:
         # TODO: This has diverged from starter.py's connection, for instance it
         # doesn't account for relative cookie paths or multiple authentication
         # methods. We can't use the starter.py's connection function directly
@@ -154,19 +162,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
         
         try:
           ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
-          tmpConn, authType, authValue = TorCtl.TorCtl.preauth_connect(ctlAddr, ctlPort)
+          controller = Controller.from_port(ctlAddr, ctlPort)
           
-          if authType == TorCtl.TorCtl.AUTH_TYPE.PASSWORD:
-            authValue = cli.popups.inputPrompt("Controller Password: ")
-            if not authValue: raise IOError() # cancel reconnection
-          elif authType == TorCtl.TorCtl.AUTH_TYPE.COOKIE:
-            authCookieSize = os.path.getsize(authValue)
-            if authCookieSize != 32:
-              raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
-          
-          tmpConn.authenticate(authValue)
-          torctlConn = tmpConn
+          try:
+            controller.authenticate()
+          except stem.connection.MissingPassword:
+            controller.authenticate(authValue) # already got the password above
         except Exception, exc:
+          controller = None
+          
           # attempts to use the wizard port too
           try:
             cli.controller.getController().getTorManager().connectManagedInstance()
@@ -176,8 +180,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
             # displays notice for the first failed connection attempt
             if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       
-      if torctlConn:
-        torTools.getConn().init(torctlConn)
+      if controller:
+        torTools.getConn().init(controller)
         log.log(log.NOTICE, "Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
@@ -490,15 +494,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/dirPort"] = conn.getOption("DirPort", "0")
       self.vals["tor/controlPort"] = conn.getOption("ControlPort", "0")
       self.vals["tor/socketPath"] = conn.getOption("ControlSocket", "")
-      self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword") != None
-      self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication") == "1"
+      self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword", None) != None
+      self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication", None) == "1"
       
       # orport is reported as zero if unset
       if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
       
       # overwrite address if ORListenAddress is set (and possibly orPort too)
       self.vals["tor/orListenAddr"] = ""
-      listenAddr = conn.getOption("ORListenAddress")
+      listenAddr = conn.getOption("ORListenAddress", None)
       if listenAddr:
         if ":" in listenAddr:
           # both ip and port overwritten

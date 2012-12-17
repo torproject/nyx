@@ -202,7 +202,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     
     # overwrite the local fingerprint with ours
     conn = torTools.getConn()
-    self.local.fingerprintOverwrite = conn.getInfo("fingerprint")
+    self.local.fingerprintOverwrite = conn.getInfo("fingerprint", None)
     
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -218,14 +218,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.appPid = None
     self.isAppResolving = False
     
-    myOrPort = conn.getOption("ORPort")
-    myDirPort = conn.getOption("DirPort")
+    myOrPort = conn.getOption("ORPort", None)
+    myDirPort = conn.getOption("DirPort", None)
     mySocksPort = conn.getOption("SocksPort", "9050")
-    myCtlPort = conn.getOption("ControlPort")
+    myCtlPort = conn.getOption("ControlPort", None)
     myHiddenServicePorts = conn.getHiddenServicePorts()
     
     # the ORListenAddress can overwrite the ORPort
-    listenAddr = conn.getOption("ORListenAddress")
+    listenAddr = conn.getOption("ORListenAddress", None)
     if listenAddr and ":" in listenAddr:
       myOrPort = listenAddr[listenAddr.find(":") + 1:]
     
@@ -363,7 +363,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # known relay then it might be client traffic
       
       conn = torTools.getConn()
-      if "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay") == "1":
+      if "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay", None) == "1":
         allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
         return allMatches == []
     elif myType == Category.EXIT:

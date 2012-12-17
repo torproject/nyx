@@ -77,7 +77,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # last day's clients.
     
     conn = torTools.getConn()
-    bridgeClients = conn.getInfo("status/clients-seen")
+    bridgeClients = conn.getInfo("status/clients-seen", None)
     
     if bridgeClients:
       # Response has a couple arguments...
@@ -188,7 +188,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     conn = torTools.getConn()
-    return "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay") == "1"
+    return "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay", None) == "1"
   
   def isExitsAllowed(self):
     """

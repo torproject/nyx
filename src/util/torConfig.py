@@ -7,6 +7,8 @@ import time
 import socket
 import threading
 
+import stem.version
+
 from util import enum, log, sysTools, torTools, uiTools
 
 CONFIG = {"features.torrc.validate": True,
@@ -182,7 +184,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
       # Fetches all options available with this tor instance. This isn't
       # vital, and the validOptions are left empty if the call fails.
       conn, validOptions = torTools.getConn(), []
-      configOptionQuery = conn.getInfo("config/names")
+      configOptionQuery = conn.getInfo("config/names", None)
       if configOptionQuery:
         for line in configOptionQuery.strip().split("\n"):
           validOptions.append(line[:line.find(" ")].lower())
@@ -341,7 +343,7 @@ def getConfigLocation():
   """
   
   conn = torTools.getConn()
-  configLocation = conn.getInfo("config-file")
+  configLocation = conn.getInfo("config-file", None)
   torPid, torPrefix = conn.getMyPid(), conn.getPathPrefix()
   if not configLocation: raise IOError("unable to query the torrc location")
   
@@ -362,7 +364,7 @@ def getMultilineParameters():
   if MULTILINE_PARAM == None:
     conn, multilineEntries = torTools.getConn(), []
     
-    configOptionQuery = conn.getInfo("config/names")
+    configOptionQuery = conn.getInfo("config/names", None)
     if configOptionQuery:
       for line in configOptionQuery.strip().split("\n"):
         confOption, confType = line.strip().split(" ", 1)
@@ -445,7 +447,7 @@ def saveConf(destination = None, contents = None):
     # double check that "GETINFO config-text" is unavailable rather than just
     # giving an empty result
     
-    if torTools.getConn().getInfo("config-text") == None:
+    if torTools.getConn().getInfo("config-text", None) == None:
       raise IOError("determining the torrc requires Tor version 0.2.2.7")
   
   currentLocation = None
@@ -461,7 +463,7 @@ def saveConf(destination = None, contents = None):
   # attempts SAVECONF if we're updating our torrc with the current state
   if isSaveconf:
     try:
-      torTools.getConn().getTorCtl().save_conf()
+      torTools.getConn().saveConf()
       
       try: getTorrc().load()
       except IOError: pass
@@ -469,8 +471,6 @@ def saveConf(destination = None, contents = None):
       log.log(log.DEBUG, logMsg % ("SAVECONF", time.time() - startTime))
       return # if successful then we're done
     except:
-      # example error:
-      # TorCtl.TorCtl.ErrorReply: 551 Unable to write configuration to disk.
       pass
   
   # if the SAVECONF fails or this is a custom save then write contents directly
@@ -791,16 +791,11 @@ class Torrc():
     
     self.valsLock.acquire()
     
-    # The torrc validation relies on 'GETINFO config-text' which was
-    # introduced in tor 0.2.2.7-alpha so if we're using an earlier version
-    # (or configured to skip torrc validation) then this is a no-op. For more
-    # information see:
-    # https://trac.torproject.org/projects/tor/ticket/2501
-    
     if not self.isLoaded(): returnVal = None
     else:
+      torVersion = torTools.getConn().getVersion()
       skipValidation = not CONFIG["features.torrc.validate"]
-      skipValidation |= not torTools.getConn().isVersion("0.2.2.7-alpha")
+      skipValidation |= (torVersion is None or not torVersion.meets_requirements(stem.version.Requirement.GETINFO_CONFIG_TEXT))
       
       if skipValidation:
         log.log(log.INFO, "Skipping torrc validation (requires tor 0.2.2.7-alpha)")

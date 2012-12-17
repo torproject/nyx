@@ -1,5 +1,5 @@
 *.pyc
 src/TorCtl/
-src/cagraph/
+src/stem/
 *.swp
 

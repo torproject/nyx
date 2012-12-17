@@ -28,8 +28,9 @@ import util.torConfig
 import util.torInterpretor
 import util.torTools
 import util.uiTools
-import TorCtl.TorCtl
-import TorCtl.TorUtil
+
+from stem.control import Controller
+import stem.connection
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
@@ -55,12 +56,11 @@ CONFIG = {"startup.controlPassword": None,
           "log.savingDebugLog": util.log.NOTICE}
 
 OPT = "gpi:s:c:dbe:vh"
-OPT_EXPANDED = ["gui", "prompt", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT_EXPANDED = ["prompt", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
-  -g, --gui                       launch the Gtk+ interface
   -p, --prompt                    only start the control interpretor
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -s, --socket SOCKET_PATH        attach using unix domain socket if present,
@@ -205,84 +205,28 @@ def _loadConfigurationDescriptions(pathPrefix):
         msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
         util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
 
-def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg="", printError=True):
+def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg="", printError=True):
   """
-  Custom handler for establishing a TorCtl connection.
+  Custom handler for establishing a stem connection (... needs an overhaul).
   """
   
-  conn = None
+  controller = None
   try:
-    #conn, authType, authValue = TorCtl.TorCtl.preauth_connect(controlAddr, controlPort)
-    conn, authTypes, authValue = util.torTools.preauth_connect_alt(controlAddr, controlPort)
+    chroot = util.torTools.getConn().getPathPrefix()
+    controller = Controller.from_port(controlAddr, controlPort)
     
-    if TorCtl.TorCtl.AUTH_TYPE.PASSWORD in authTypes:
-      # password authentication, promting for the password if it wasn't provided
-      #
-      # TODO: When handling multi-auth we should try to authenticate via the
-      # cookie first, then fall back to prompting the user for their password.
-      # With the stack of fixes and hacks we have here jerry-rigging that in
-      # without trying cookie auth twice will be a pita so leaving this alone
-      # for now. Stem will handle most of this transparently, letting us handle
-      # this much more elegantly.
-      
-      if not passphrase:
-        try: passphrase = getpass.getpass("Controller password: ")
-        except KeyboardInterrupt: return None
-    
-    if TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes and authValue[0] != "/":
-      # Connecting to the control port will probably fail if it's using cookie
-      # authentication and the cookie path is relative (unfortunately this is
-      # the case for TBB). This is discussed in:
-      # https://trac.torproject.org/projects/tor/ticket/1101
-      #
-      # This is best effort. If we can't expand the path then it's still
-      # attempted since we might be running in tor's pwd.
-      
-      torPid = util.torTools.getPid(controlPort)
-      if torPid:
-        try: conn._cookiePath = util.sysTools.expandRelativePath(authValue, torPid)
-        except IOError: pass
-    
-    # appends the path prefix if it's set
-    if TorCtl.TorCtl.AUTH_TYPE.COOKIE in authTypes:
-      pathPrefix = util.torTools.getConn().getPathPrefix()
-      
-      # The os.path.join function is kinda stupid. If given an absolute path
-      # with the second argument then it will swallow the prefix. Ie...
-      # os.path.join("/tmp", "/foo") => "/foo"
-      
-      if pathPrefix:
-        pathSuffix = conn._cookiePath
-        if pathSuffix.startswith("/"): pathSuffix = pathSuffix[1:]
-        
-        conn._cookiePath = os.path.join(pathPrefix, pathSuffix)
-      
-      # Abort if the file isn't 32 bytes long. This is to avoid exposing
-      # arbitrary file content to the port.
-      #
-      # Without this a malicious socket could, for instance, claim that
-      # '~/.bash_history' or '~/.ssh/id_rsa' was its authentication cookie to
-      # trick us into reading it for them with our current permissions.
-      #
-      # https://trac.torproject.org/projects/tor/ticket/4305
-      
+    try:
+      controller.authenticate(password = passphrase, chroot_path = chroot)
+    except stem.connection.MissingPassword:
       try:
-        authCookieSize = os.path.getsize(conn._cookiePath)
-        if authCookieSize != 32:
-          raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (conn._cookiePath, authCookieSize))
-      except Exception, exc:
-        # if the above fails then either...
-        # - raise an exception if cookie auth is the only method we have to
-        #   authenticate
-        # - suppress the exception and try the other connection methods if we
-        #   have alternatives
-        if len(authTypes) == 1: raise exc
-        else: conn._authTypes.remove(TorCtl.TorCtl.AUTH_TYPE.COOKIE)
+        passphrase = getpass.getpass("Controller password: ")
+        controller.authenticate(password = passphrase, chroot_path = chroot)
+      except:
+        return None
     
-    conn.authenticate(passphrase)
-    return conn
+    return controller
   except Exception, exc:
-    if conn: conn.close()
+    if controller: controller.close()
     
     # attempts to connect with the default wizard address too
     wizardPort = CONFIG["wizard.default"].get("Control")
@@ -295,18 +239,19 @@ def _torCtlConnect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       # connection failure. Otherwise, return the connection result.
       
       if controlPort != wizardPort:
-        connResult = _torCtlConnect(controlAddr, wizardPort)
-        if connResult != None: return connResult
+        controller = _getController(controlAddr, wizardPort)
+        if controller != None: return controller
       else: return None # wizard connection attempt, don't print anything
     
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try
       # again prompting for the user to enter it
       print incorrectPasswordMsg
-      return _torCtlConnect(controlAddr, controlPort)
+      return _getController(controlAddr, controlPort)
     elif printError:
       print exc
-      return None
+    
+    return None
 
 def _dumpConfig():
   """
@@ -335,7 +280,7 @@ def _dumpConfig():
   else: armConfigEntry = "Arm Configuration: None"
   
   # dumps tor's version and configuration
-  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version")
+  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version", None)
   
   for line in conn.getInfo("config-text", "").split("\n"):
     if not line: continue
@@ -353,7 +298,6 @@ def _dumpConfig():
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
-  launchGui = False
   launchPrompt = False
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
@@ -385,7 +329,6 @@ if __name__ == '__main__':
       param["startup.interface.port"] = controlPort
     elif opt in ("-s", "--socket"):
       param["startup.interface.socket"] = arg
-    elif opt in ("-g", "--gui"): launchGui = True
     elif opt in ("-p", "--prompt"): launchPrompt = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
@@ -480,31 +423,33 @@ if __name__ == '__main__':
       print "Unrecognized event flag: %s" % flag
     sys.exit()
   
-  # temporarily disables TorCtl logging to prevent issues from going to stdout while starting
-  TorCtl.TorUtil.loglevel = "NONE"
-  
   # By default attempts to connect using the control socket if it exists. This
   # skips attempting to connect by socket or port if the user has given
   # arguments for connecting to the other.
   
-  conn = None
+  controller = None
   allowPortConnection, allowSocketConnection, allowDetachedStart = allowConnectionTypes()
   
   socketPath = param["startup.interface.socket"]
   if os.path.exists(socketPath) and allowSocketConnection:
-    try: conn = util.torTools.connect_socket(socketPath)
+    try:
+      # TODO: um... what about passwords?
+      # https://trac.torproject.org/6881
+      
+      controller = Controller.from_socket_file(socketPath)
+      controller.authenticate()
     except IOError, exc:
       if not allowPortConnection:
         print "Unable to use socket '%s': %s" % (socketPath, exc)
   elif not allowPortConnection:
     print "Socket '%s' doesn't exist" % socketPath
   
-  if not conn and allowPortConnection:
-    # sets up TorCtl connection, prompting for the passphrase if necessary and
+  if not controller and allowPortConnection:
+    # sets up stem connection, prompting for the passphrase if necessary and
     # sending problems to stdout if they arise
     authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
     incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
-    conn = _torCtlConnect(controlAddr, controlPort, authPassword, incorrectPasswordMsg, not allowDetachedStart)
+    controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg, not allowDetachedStart)
     
     # removing references to the controller password so the memory can be freed
     # (unfortunately python does allow for direct access to the memory so this
@@ -522,19 +467,19 @@ if __name__ == '__main__':
       if pwLineNum != None:
         del config.rawContents[i]
   
-  if conn == None and not allowDetachedStart: sys.exit(1)
+  if controller is None and not allowDetachedStart: sys.exit(1)
   
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
-  controller = util.torTools.getConn()
+  controllerWrapper = util.torTools.getConn()
   
   torUser = None
-  if conn:
-    controller.init(conn)
+  if controller:
+    controllerWrapper.init(controller)
     
     # give a notice if tor is running with root
-    torUser = controller.getMyUser()
+    torUser = controllerWrapper.getMyUser()
     if torUser == "root":
       util.log.log(util.log.NOTICE, TOR_ROOT_NOTICE)
   
@@ -569,10 +514,7 @@ if __name__ == '__main__':
   if util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  if launchGui:
-    import gui.controller
-    gui.controller.start_gui()
-  elif launchPrompt:
+  if launchPrompt:
     util.torInterpretor.showPrompt()
   else:
     cli.controller.startTorMonitor(time.time() - initTime)

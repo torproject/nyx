@@ -221,7 +221,7 @@ class ConfigPanel(panel.Panel):
     if self.configType == State.TOR:
       conn, configOptionLines = torTools.getConn(), []
       customOptions = torConfig.getCustomOptions()
-      configOptionQuery = conn.getInfo("config/names")
+      configOptionQuery = conn.getInfo("config/names", None)
       
       if configOptionQuery:
         configOptionLines = configOptionQuery.strip().split("\n")

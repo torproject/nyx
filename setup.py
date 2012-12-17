@@ -6,8 +6,6 @@ import tempfile
 from src.version import VERSION
 from distutils.core import setup
 
-INCLUDE_CAGRAPH = False
-
 def getResources(dst, sourceDir):
   """
   Provides a list of tuples of the form...
@@ -92,12 +90,7 @@ if "install" in sys.argv:
   except IOError, exc:
     print "Unable to compress man page: %s" % exc
 
-# When installing we include a bundled copy of TorCtl. However, when creating
-# a deb we have a dependency on the python-torctl package instead:
-# http://packages.debian.org/unstable/main/python-torctl
-installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.gui', 'arm.gui.connections', 'arm.gui.graphing', 'arm.util', 'arm.TorCtl']
-if isDebInstall: installPackages.remove('arm.TorCtl')
-if INCLUDE_CAGRAPH: installPackages += ['arm.cagraph', 'arm.cagraph.axis', 'arm.cagraph.series']
+installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.util', 'arm.stem']
 
 setup(name='arm',
       version=VERSION,

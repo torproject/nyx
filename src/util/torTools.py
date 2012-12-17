@@ -1,6 +1,6 @@
 """
 Helper for working with an active tor process. This both provides a wrapper for
-accessing TorCtl and notifications of state changes to subscribers.
+accessing stem and notifications of state changes to subscribers.
 """
 
 import os
@@ -12,7 +12,9 @@ import thread
 import threading
 import Queue
 
-from TorCtl import TorCtl, TorUtil
+import stem
+import stem.control
+import stem.descriptor
 
 from util import connections, enum, log, procTools, sysTools, uiTools
 
@@ -37,48 +39,16 @@ DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
 # message logged by default when a controller can't set an event type
 DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
 
-# TODO: check version when reattaching to controller and if version changes, flush?
-# Skips attempting to set events we've failed to set before. This avoids
-# logging duplicate warnings but can be problematic if controllers belonging
-# to multiple versions of tor are attached, making this unreflective of the
-# controller's capabilites. However, this is a pretty bizarre edge case.
-DROP_FAILED_EVENTS = True
-FAILED_EVENTS = set()
-
 CONTROLLER = None # singleton Controller instance
 
-# Valid keys for the controller's getInfo cache. This includes static GETINFO
-# options (unchangable, even with a SETCONF) and other useful stats
-CACHE_ARGS = ("version", "config-file", "exit-policy/default", "fingerprint",
-              "config/names", "info/names", "features/names", "events/names",
-              "nsEntry", "descEntry", "address", "bwRate", "bwBurst",
-              "bwObserved", "bwMeasured", "flags", "pid", "user", "fdLimit",
-              "pathPrefix", "startTime", "authorities", "circuits", "hsPorts")
-CACHE_GETINFO_PREFIX_ARGS = ("ip-to-country/", )
-
-# Tor has a couple messages (in or/router.c) for when our ip address changes:
-# "Our IP Address has changed from <previous> to <current>; rebuilding
-#   descriptor (source: <source>)."
-# "Guessed our IP address as <current> (source: <source>)."
-# 
-# It would probably be preferable to use the EXTERNAL_ADDRESS event, but I'm
-# not quite sure why it's not provided by check_descriptor_ipaddress_changed
-# so erring on the side of inclusiveness by using the notice event instead.
-ADDR_CHANGED_MSG_PREFIX = ("Our IP Address has changed from", "Guessed our IP address as")
+UNDEFINED = "<Undefined_ >"
 
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"torrc.map": {},
-          "features.pathPrefix": "",
-          "log.torCtlPortClosed": log.NOTICE,
-          "log.torGetInfo": log.DEBUG,
-          "log.torGetInfoCache": None,
-          "log.torGetConf": log.DEBUG,
-          "log.torGetConfCache": None,
-          "log.torSetConf": log.INFO,
+CONFIG = {"features.pathPrefix": "",
+          "log.stemPortClosed": log.NOTICE,
           "log.torPrefixPathInvalid": log.NOTICE,
           "log.bsdJailFound": log.INFO,
-          "log.unknownBsdJailId": log.WARN,
-          "log.geoipUnavailable": log.WARN}
+          "log.unknownBsdJailId": log.WARN}
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -87,13 +57,6 @@ REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
               "NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
-
-# number of sequential attempts before we decide that the Tor geoip database
-# is unavailable
-GEOIP_FAILURE_THRESHOLD = 5
-
-# provides int -> str mappings for torctl event runlevels
-TORCTL_RUNLEVELS = dict([(val, key) for (key, val) in TorUtil.loglevels.items()])
 
 # ip address ranges substituted by the 'private' keyword
 PRIVATE_IP_RANGES = ("0.0.0.0/8", "169.254.0.0/16", "127.0.0.0/8", "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
@@ -110,27 +73,6 @@ IS_STARTUP_SIGNAL = True
 
 def loadConfig(config):
   config.update(CONFIG)
-
-# TODO: temporary code until this is added to torctl as part of...
-# https://trac.torproject.org/projects/tor/ticket/3638
-def connect_socket(socketPath="/var/run/tor/control", ConnClass=TorCtl.Connection):
-  """
-  Connects to a unix domain socket available to controllers (set via tor's
-  ControlSocket option). This raises an IOError if unable to do so.
-
-  Arguments:
-    socketPath - path of the socket to attach to
-    ConnClass  - connection type to instantiate
-  """
-
-  try:
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect(socketPath)
-    conn = ConnClass(s)
-    conn.authenticate("")
-    return conn
-  except Exception, exc:
-    raise IOError(exc)
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
@@ -286,64 +228,6 @@ def getBsdJailId():
   log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
   return 0
 
-def parseVersion(versionStr):
-  """
-  Parses the given version string into its expected components, for instance...
-  '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)'
-  
-  would provide:
-  (0, 2, 2, 13, 'alpha')
-  
-  If the input isn't recognized then this returns None.
-  
-  Arguments:
-    versionStr - version string to be parsed
-  """
-  
-  # crops off extra arguments, for instance:
-  # '0.2.2.13-alpha (git-feb8c1b5f67f2c6f)' -> '0.2.2.13-alpha'
-  versionStr = versionStr.split()[0]
-  
-  result = None
-  if versionStr.count(".") in (2, 3):
-    # parses the optional suffix ('alpha', 'release', etc)
-    if versionStr.count("-") == 1:
-      versionStr, versionSuffix = versionStr.split("-")
-    else: versionSuffix = ""
-    
-    # Parses the numeric portion of the version. This can have three or four
-    # entries depending on if an optional patch level was provided.
-    try:
-      versionComp = [int(entry) for entry in versionStr.split(".")]
-      if len(versionComp) == 3: versionComp += [0]
-      result = tuple(versionComp + [versionSuffix])
-    except ValueError: pass
-  
-  return result
-
-def isVersion(myVersion, minVersion):
-  """
-  Checks if the given version meets a given minimum. Both arguments are
-  expected to be version tuples. To get this from a version string use the
-  parseVersion function.
-  
-  Arguments:
-    myVersion  - tor version tuple
-    minVersion - version tuple to be checked against
-  """
-  
-  if myVersion[:4] == minVersion[:4]:
-    return True # versions match
-  else:
-    # compares each of the numeric portions of the version
-    for i in range(4):
-      myVal, minVal = myVersion[i], minVersion[i]
-      
-      if myVal > minVal: return True
-      elif myVal < minVal: return False
-    
-    return True # versions match (should have been caught above...)
-
 def isTorRunning():
   """
   Simple check for if a tor process is running. If this can't be determined
@@ -378,210 +262,26 @@ def isTorRunning():
   
   return False
 
-# ============================================================
-# TODO: Remove when TorCtl can handle multiple auth methods
-# https://trac.torproject.org/projects/tor/ticket/3958
-#
-# The following is a hacked up version of the fix in that ticket.
-# ============================================================
-
-class FixedConnection(TorCtl.Connection):
-  def __init__(self, sock):
-    TorCtl.Connection.__init__(self, sock)
-    self._authTypes = []
-    
-  def get_auth_types(self):
-    """
-    Provides the list of authentication types used for the control port. Each
-    are members of the AUTH_TYPE enumeration and return results will always
-    have at least one result. This raises an IOError if the query to
-    PROTOCOLINFO fails.
-    """
-
-    if not self._authTypes:
-      # check PROTOCOLINFO for authentication type
-      try:
-        authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
-      except Exception, exc:
-        if exc.message: excMsg = ": %s" % exc
-        else: excMsg = ""
-        raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
-
-      # parses the METHODS and COOKIEFILE entries for details we need to
-      # authenticate
-
-      authTypes, cookiePath = [], None
-
-      for entry in authInfo.split():
-        if entry.startswith("METHODS="):
-          # Comma separated list of our authentication types. If we have
-          # multiple then any of them will work.
-
-          methodsEntry = entry[8:]
-
-          for authEntry in methodsEntry.split(","):
-            if authEntry == "NULL":
-              authTypes.append(TorCtl.AUTH_TYPE.NONE)
-            elif authEntry == "HASHEDPASSWORD":
-              authTypes.append(TorCtl.AUTH_TYPE.PASSWORD)
-            elif authEntry == "COOKIE":
-              authTypes.append(TorCtl.AUTH_TYPE.COOKIE)
-            else:
-              # not of a recognized authentication type (new addition to the
-              # control-spec?)
-
-              log.log(log.INFO, "Unrecognized authentication type: %s" % authEntry)
-        elif entry.startswith("COOKIEFILE=\"") and entry.endswith("\""):
-          # Quoted path of the authentication cookie. This only exists if we're
-          # using cookie auth and, of course, doesn't account for chroot.
-
-          cookiePath = entry[12:-1]
-
-      # There should always be a AUTH METHODS entry. If we didn't then throw a
-      # wobbly.
-
-      if not authTypes:
-        raise IOError("PROTOCOLINFO response didn't include any authentication methods")
-
-      self._authType = authTypes[0]
-      self._authTypes = authTypes
-      self._cookiePath = cookiePath
-
-    return list(self._authTypes)
-
-  def authenticate(self, secret=""):
-    """
-    Authenticates to the control port. If an issue arises this raises either of
-    the following:
-      - IOError for failures in reading an authentication cookie or querying
-        PROTOCOLINFO.
-      - TorCtl.ErrorReply for authentication failures or if the secret is
-        undefined when using password authentication
-    """
-
-    # fetches authentication type and cookie path if still unloaded
-    if not self._authTypes: self.get_auth_types()
-
-    # validates input
-    if TorCtl.AUTH_TYPE.PASSWORD in self._authTypes and secret == "":
-      raise TorCtl.ErrorReply("Unable to authenticate: no passphrase provided")
-
-    # tries each of our authentication methods, throwing the last exception if
-    # they all fail
-
-    raisedExc = None
-    for authMethod in self._authTypes:
-      authCookie = None
-      try:
-        if authMethod == TorCtl.AUTH_TYPE.NONE:
-          self.authenticate_password("")
-        elif authMethod == TorCtl.AUTH_TYPE.PASSWORD:
-          self.authenticate_password(secret)
-        else:
-          authCookie = open(self._cookiePath, "r")
-          self.authenticate_cookie(authCookie)
-          authCookie.close()
-
-        # Did the above raise an exception? No? Cool, we're done.
-        return
-      except TorCtl.ErrorReply, exc:
-        if authCookie: authCookie.close()
-        issue = str(exc)
-
-        # simplifies message if the wrong credentials were provided (common
-        # mistake)
-        if issue.startswith("515 Authentication failed: "):
-          if issue[27:].startswith("Password did not match"):
-            issue = "password incorrect"
-          elif issue[27:] == "Wrong length on authentication cookie.":
-            issue = "cookie value incorrect"
-
-        raisedExc = TorCtl.ErrorReply("Unable to authenticate: %s" % issue)
-      except IOError, exc:
-        if authCookie: authCookie.close()
-        issue = None
-
-        # cleaner message for common errors
-        if str(exc).startswith("[Errno 13] Permission denied"):
-          issue = "permission denied"
-        elif str(exc).startswith("[Errno 2] No such file or directory"):
-          issue = "file doesn't exist"
-
-        # if problem's recognized give concise message, otherwise print exception
-        # string
-        if issue: raisedExc = IOError("Failed to read authentication cookie (%s): %s" % (issue, self._cookiePath))
-        else: raisedExc = IOError("Failed to read authentication cookie: %s" % exc)
-
-    # if we got to this point then we failed to authenticate and should have a
-    # raisedExc
-
-    if raisedExc: raise raisedExc
-
-def preauth_connect_alt(controlAddr="127.0.0.1", controlPort=9051,
-                    ConnClass=FixedConnection):
-  """
-  Provides an uninitiated torctl connection components for the control port,
-  returning a tuple of the form...
-  (torctl connection, authTypes, authValue)
-
-  The authValue corresponds to the cookie path if using an authentication
-  cookie, otherwise this is the empty string. This raises an IOError in case
-  of failure.
-
-  Arguments:
-    controlAddr - ip address belonging to the controller
-    controlPort - port belonging to the controller
-    ConnClass  - connection type to instantiate
-  """
-
-  conn = None
-  try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = ConnClass(s)
-    authTypes, authValue = conn.get_auth_types(), ""
-
-    if TorCtl.AUTH_TYPE.COOKIE in authTypes:
-      authValue = conn.get_auth_cookie_path()
-
-    return (conn, authTypes, authValue)
-  except socket.error, exc:
-    if conn: conn.close()
-
-    if "Connection refused" in exc.args:
-      # most common case - tor control port isn't available
-      raise IOError("Connection refused. Is the ControlPort enabled?")
-
-    raise IOError("Failed to establish socket: %s" % exc)
-  except Exception, exc:
-    if conn: conn.close()
-    raise IOError(exc)
-
-# ============================================================
-
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
-  uninitialized, needing a TorCtl instance before it's fully functional.
+  uninitialized, needing a stem Controller before it's fully functional.
   """
   
   global CONTROLLER
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
 
-class Controller(TorCtl.PostEventListener):
+class Controller:
   """
-  TorCtl wrapper providing convenience functions, listener functionality for
-  tor's state, and the capability for controller connections to be restarted
-  if closed.
+  Stem wrapper providing convenience functions (mostly from the days of using
+  TorCtl), listener functionality for tor's state, and the capability for
+  controller connections to be restarted if closed.
   """
   
   def __init__(self):
-    TorCtl.PostEventListener.__init__(self)
-    self.conn = None                    # None if uninitialized or controller's been closed
+    self.controller = None
     self.connLock = threading.RLock()
-    self.eventListeners = []            # instances listening for tor controller events
-    self.torctlListeners = []           # callback functions for TorCtl events
     self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
@@ -596,7 +296,6 @@ class Controller(TorCtl.PostEventListener):
     self._status = State.CLOSED         # current status of the attached control port
     self._statusTime = 0                # unix time-stamp for the duration of the status
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
-    self.lastHeartbeat = 0              # time of the last tor event
     
     # Status signaling for when tor starts, stops, or is reset is done via
     # enquing the signal then spawning a handler thread. This is to provide
@@ -616,46 +315,33 @@ class Controller(TorCtl.PostEventListener):
     # messages.
     self._pathPrefixLogging = True
     
-    # cached parameters for GETINFO and custom getters (None if unset or
-    # possibly changed)
+    # cached parameters for custom getters (None if unset or possibly changed)
     self._cachedParam = {}
-    
-    # cached GETCONF parameters, entries consisting of:
-    # (option, fetch_type) => value
-    self._cachedConf = {}
-    
-    # directs TorCtl to notify us of events
-    TorUtil.logger = self
-    TorUtil.loglevel = "DEBUG"
-    
-    # tracks the number of sequential geoip lookup failures
-    self.geoipFailureCount = 0
   
-  def init(self, conn=None):
+  def init(self, controller):
     """
-    Uses the given TorCtl instance for future operations, notifying listeners
+    Uses the given stem instance for future operations, notifying listeners
     about the change.
     
     Arguments:
-      conn - TorCtl instance to be used, if None then a new instance is fetched
-             via the connect function
+      controller - stem based Controller instance
     """
     
-    if conn == None:
-      conn = TorCtl.connect()
-      
-      if conn == None: raise ValueError("Unable to initialize TorCtl instance.")
+    # TODO: We should reuse our controller instance so event listeners will be
+    # re-attached. This is a point of regression until we do... :(
     
-    if conn.is_live() and conn != self.conn:
+    if controller.is_alive() and controller != self.controller:
       self.connLock.acquire()
       
-      if self.conn: self.close() # shut down current connection
-      self.conn = conn
-      self.conn.add_event_listener(self)
-      for listener in self.eventListeners: self.conn.add_event_listener(listener)
+      if self.controller: self.close() # shut down current connection
+      self.controller = controller
+      log.log(log.INFO, "Stem connected to tor version %s" % self.controller.get_version())
       
-      # registers this as our first heartbeat
-      self._updateHeartbeat()
+      self.controller.add_event_listener(self.msg_event, stem.control.EventType.NOTICE)
+      self.controller.add_event_listener(self.ns_event, stem.control.EventType.NS)
+      self.controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+      self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
+      self.controller.add_event_listener(self.circ_status_event, stem.control.EventType.CIRC)
       
       # reset caches for ip -> fingerprint lookups
       self._fingerprintMappings = None
@@ -670,10 +356,6 @@ class Controller(TorCtl.PostEventListener):
       self._exitPolicyChecker = self.getExitPolicy()
       self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
       self._exitPolicyLookupCache = {}
-      
-      # sets the events listened for by the new controller (incompatible events
-      # are dropped with a logged warning)
-      self.setControllerEvents(self.controllerEvents)
       
       self._status = State.INIT
       self._statusTime = time.time()
@@ -690,13 +372,13 @@ class Controller(TorCtl.PostEventListener):
   
   def close(self):
     """
-    Closes the current TorCtl instance and notifies listeners.
+    Closes the current stem instance and notifies listeners.
     """
     
     self.connLock.acquire()
-    if self.conn:
-      self.conn.close()
-      self.conn = None
+    if self.controller:
+      self.controller.close()
+      self.controller = None
       
       self._status = State.CLOSED
       self._statusTime = time.time()
@@ -711,15 +393,15 @@ class Controller(TorCtl.PostEventListener):
   
   def isAlive(self):
     """
-    Returns True if this has been initialized with a working TorCtl instance,
+    Returns True if this has been initialized with a working stem instance,
     False otherwise.
     """
     
     self.connLock.acquire()
     
     result = False
-    if self.conn:
-      if self.conn.is_live(): result = True
+    if self.controller:
+      if self.controller.is_alive(): result = True
       else: self.close()
     
     self.connLock.release()
@@ -727,94 +409,45 @@ class Controller(TorCtl.PostEventListener):
   
   def getHeartbeat(self):
     """
-    Provides the time of the last registered tor event (if listening for BW
-    events then this should occure every second if relay's still responsive).
-    This returns zero if this has never received an event.
+    Provides the time of the last registered tor message.
     """
     
-    return self.lastHeartbeat
+    if self.isAlive():
+      return self.controller.get_latest_heartbeat()
+    else:
+      return 0
   
-  def getTorCtl(self):
-    """
-    Provides the current TorCtl connection. If unset or closed then this
-    returns None.
-    """
-    
-    self.connLock.acquire()
-    result = None
-    if self.isAlive(): result = self.conn
-    self.connLock.release()
-    
-    return result
-  
-  def getInfo(self, param, default = None, suppressExc = True):
+  def getInfo(self, param, default = UNDEFINED):
     """
     Queries the control port for the given GETINFO option, providing the
     default if the response is undefined or fails for any reason (error
     response, control port closed, initiated, etc).
     
     Arguments:
-      param       - GETINFO option to be queried
-      default     - result if the query fails and exception's suppressed
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
+      param   - GETINFO option to be queried
+      default - result if the query fails
     """
     
     self.connLock.acquire()
     
-    isGeoipRequest = param.startswith("ip-to-country/")
-    
-    # checks if this is an arg caching covers
-    isCacheArg = param in CACHE_ARGS
-    
-    if not isCacheArg:
-      for prefix in CACHE_GETINFO_PREFIX_ARGS:
-        if param.startswith(prefix):
-          isCacheArg = True
-          break
-    
-    startTime = time.time()
-    result, raisedExc, isFromCache = default, None, False
-    if self.isAlive():
-      cachedValue = self._cachedParam.get(param)
+    try:
+      if not self.isAlive():
+        if default != UNDEFINED:
+          return default
+        else:
+          raise stem.SocketClosed()
       
-      if isCacheArg and cachedValue:
-        result = cachedValue
-        isFromCache = True
-      elif isGeoipRequest and self.isGeoipUnavailable():
-        # the geoip database aleady looks to be unavailable - abort the request
-        raisedExc = TorCtl.ErrorReply("Tor geoip database is unavailable.")
+      if default != UNDEFINED:
+        return self.controller.get_info(param, default)
       else:
-        try:
-          getInfoVal = self.conn.get_info(param)[param]
-          if getInfoVal != None: result = getInfoVal
-          if isGeoipRequest: self.geoipFailureCount = -1
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-          if type(exc) == TorCtl.TorCtlClosed: self.close()
-          raisedExc = exc
-          
-          if isGeoipRequest and not self.geoipFailureCount == -1:
-            self.geoipFailureCount += 1
-            
-            if self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD:
-              log.log(CONFIG["log.geoipUnavailable"], "Tor geoip database is unavailable.")
-    
-    if isCacheArg and result and not isFromCache:
-      self._cachedParam[param] = result
-    
-    if isFromCache:
-      msg = "GETINFO %s (cache fetch)" % param
-      log.log(CONFIG["log.torGetInfoCache"], msg)
-    else:
-      msg = "GETINFO %s (runtime: %0.4f)" % (param, time.time() - startTime)
-      log.log(CONFIG["log.torGetInfo"], msg)
-    
-    self.connLock.release()
-    
-    if not suppressExc and raisedExc: raise raisedExc
-    else: return result
+        return self.controller.get_info(param)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
   
-  def getOption(self, param, default = None, multiple = False, suppressExc = True):
+  def getOption(self, param, default = UNDEFINED, multiple = False):
     """
     Queries the control port for the given configuration option, providing the
     default if the response is undefined or fails for any reason. If multiple
@@ -822,108 +455,30 @@ class Controller(TorCtl.PostEventListener):
     flag is set.
     
     Arguments:
-      param       - configuration option to be queried
-      default     - result if the query fails and exception's suppressed
-      multiple    - provides a list with all returned values if true, otherwise
-                    this just provides the first result
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
+      param     - configuration option to be queried
+      default   - result if the query fails
+      multiple  - provides a list with all returned values if true, otherwise
+                  this just provides the first result
     """
-    
-    fetchType = "list" if multiple else "str"
-    
-    if param in CONFIG["torrc.map"]:
-      # This is among the options fetched via a special command. The results
-      # are a set of values that (hopefully) contain the one we were
-      # requesting.
-      configMappings = self._getOption(CONFIG["torrc.map"][param], default, "map", suppressExc)
-      if param in configMappings:
-        if fetchType == "list": return configMappings[param]
-        else: return configMappings[param][0]
-      else: return default
-    else:
-      return self._getOption(param, default, fetchType, suppressExc)
-  
-  def getOptionMap(self, param, default = None, suppressExc = True):
-    """
-    Queries the control port for the given configuration option, providing back
-    a mapping of config options to a list of the values returned.
-    
-    There's three use cases for GETCONF:
-    - a single value is provided
-    - multiple values are provided for the option queried
-    - a set of options that weren't necessarily requested are returned (for
-      instance querying HiddenServiceOptions gives HiddenServiceDir,
-      HiddenServicePort, etc)
-    
-    The vast majority of the options fall into the first two catagories, in
-    which case calling getOption is sufficient. However, for the special
-    options that give a set of values this provides back the full response. As
-    of tor version 0.2.1.25 HiddenServiceOptions was the only option like this.
-    
-    The getOption function accounts for these special mappings, and the only
-    advantage to this funtion is that it provides all related values in a
-    single response.
-    
-    Arguments:
-      param       - configuration option to be queried
-      default     - result if the query fails and exception's suppressed
-      suppressExc - suppresses lookup errors (returning the default) if true,
-                    otherwise this raises the original exception
-    """
-    
-    return self._getOption(param, default, "map", suppressExc)
-  
-  # TODO: cache isn't updated (or invalidated) during SETCONF events:
-  # https://trac.torproject.org/projects/tor/ticket/1692
-  def _getOption(self, param, default, fetchType, suppressExc):
-    if not fetchType in ("str", "list", "map"):
-      msg = "BUG: unrecognized fetchType in torTools._getOption (%s)" % fetchType
-      log.log(log.ERR, msg)
-      return default
     
     self.connLock.acquire()
-    startTime, raisedExc, isFromCache = time.time(), None, False
-    result = {} if fetchType == "map" else []
     
-    if self.isAlive():
-      if (param.lower(), fetchType) in self._cachedConf:
-        isFromCache = True
-        result = self._cachedConf[(param.lower(), fetchType)]
+    try:
+      if not self.isAlive():
+        if default != UNDEFINED:
+          return default
+        else:
+          raise stem.SocketClosed()
+      
+      if default != UNDEFINED:
+        return self.controller.get_conf(param, default, multiple)
       else:
-        try:
-          if fetchType == "str":
-            getConfVal = self.conn.get_option(param)[0][1]
-            if getConfVal != None: result = getConfVal
-          else:
-            for key, value in self.conn.get_option(param):
-              if value != None:
-                if fetchType == "list": result.append(value)
-                elif fetchType == "map":
-                  if key in result: result[key].append(value)
-                  else: result[key] = [value]
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-          if type(exc) == TorCtl.TorCtlClosed: self.close()
-          result, raisedExc = default, exc
-    
-    if not isFromCache:
-      cacheValue = result
-      if fetchType == "list": cacheValue = list(result)
-      elif fetchType == "map": cacheValue = dict(result)
-      self._cachedConf[(param.lower(), fetchType)] = cacheValue
-    
-    if isFromCache:
-      msg = "GETCONF %s (cache fetch)" % param
-      log.log(CONFIG["log.torGetConfCache"], msg)
-    else:
-      msg = "GETCONF %s (runtime: %0.4f)" % (param, time.time() - startTime)
-      log.log(CONFIG["log.torGetConf"], msg)
-    
-    self.connLock.release()
-    
-    if not suppressExc and raisedExc: raise raisedExc
-    elif result == []: return default
-    else: return result
+        return self.controller.get_conf(param, multiple = multiple)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
   
   def setOption(self, param, value = None):
     """
@@ -956,65 +511,34 @@ class Controller(TorCtl.PostEventListener):
     
     self.connLock.acquire()
     
-    # constructs the SETCONF string
-    setConfComp = []
+    try:
+      if not self.isAlive():
+        raise stem.SocketClosed()
+      
+      # clears our exit policy chache if it's changing
+      if "exitpolicy" in [k.lower() for (k, v) in paramList]:
+        self._exitPolicyChecker = self.getExitPolicy()
+        self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
+        self._exitPolicyLookupCache = {}
+      
+      self.controller.set_options(paramList, isReset)
+    except stem.SocketClosed, exc:
+      self.close()
+      raise exc
+    finally:
+      self.connLock.release()
+  
+  def saveConf(self):
+    """
+    Calls tor's SAVECONF method.
+    """
     
-    for param, value in paramList:
-      if isinstance(value, list) or isinstance(value, tuple):
-        setConfComp += ["%s=\"%s\"" % (param, val.strip()) for val in value]
-      elif value:
-        setConfComp.append("%s=\"%s\"" % (param, value.strip()))
-      else:
-        setConfComp.append(param)
+    self.connLock.acquire()
     
-    setConfStr = " ".join(setConfComp)
-    
-    startTime, raisedExc = time.time(), None
     if self.isAlive():
-      try:
-        if isReset:
-          self.conn.sendAndRecv("RESETCONF %s\r\n" % setConfStr)
-        else:
-          self.conn.sendAndRecv("SETCONF %s\r\n" % setConfStr)
-        
-        # flushing cached values (needed until we can detect SETCONF calls)
-        for param, _ in paramList:
-          for fetchType in ("str", "list", "map"):
-            entry = (param.lower(), fetchType)
-            
-            if entry in self._cachedConf:
-              del self._cachedConf[entry]
-          
-          # special caches for the exit policy
-          if param.lower() == "exitpolicy":
-            self._exitPolicyChecker = self.getExitPolicy()
-            self._isExitingAllowed = self._exitPolicyChecker.isExitingAllowed()
-            self._exitPolicyLookupCache = {}
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed), exc:
-        if type(exc) == TorCtl.TorCtlClosed: self.close()
-        elif type(exc) == TorCtl.ErrorReply:
-          excStr = str(exc)
-          if excStr.startswith("513 Unacceptable option value: "):
-            # crops off the common error prefix
-            excStr = excStr[31:]
-            
-            # Truncates messages like:
-            # Value 'BandwidthRate la de da' is malformed or out of bounds.
-            # to: Value 'la de da' is malformed or out of bounds.
-            if excStr.startswith("Value '"):
-              excStr = excStr.replace("%s " % param, "", 1)
-            
-            exc = TorCtl.ErrorReply(excStr)
-        
-        raisedExc = exc
+      self.controller.save_conf()
     
     self.connLock.release()
-    
-    excLabel = "failed: \"%s\", " % raisedExc if raisedExc else ""
-    msg = "SETCONF %s (%sruntime: %0.4f)" % (setConfStr, excLabel, time.time() - startTime)
-    log.log(CONFIG["log.torSetConf"], msg)
-    
-    if raisedExc: raise raisedExc
   
   def sendNewnym(self):
     """
@@ -1026,7 +550,7 @@ class Controller(TorCtl.PostEventListener):
     
     if self.isAlive():
       self._lastNewnym = time.time()
-      self.conn.send_signal("NEWNYM")
+      self.controller.signal(stem.Signal.NEWNYM)
     
     self.connLock.release()
   
@@ -1157,39 +681,23 @@ class Controller(TorCtl.PostEventListener):
     
     return self._getRelayAttr("flags", default)
   
-  def isVersion(self, minVersionStr):
+  def getVersion(self):
     """
-    Checks if we meet the given version. Recognized versions are of the form:
-    <major>.<minor>.<micro>[.<patch>][-<status_tag>]
-    
-    for instance, "0.2.2.13-alpha" or "0.2.1.5". This raises a ValueError if
-    the input isn't recognized, and returns False if unable to fetch our
-    instance's version.
-    
-    According to the spec the status_tag is purely informal, so it's ignored
-    in comparisons.
-    
-    Arguments:
-      minVersionStr - version to be compared against
+    Provides the version of our tor instance, this is None if we don't have a
+    connection.
     """
-    
-    minVersion = parseVersion(minVersionStr)
-    
-    if minVersion == None:
-      raise ValueError("unrecognized version: %s" % minVersionStr)
     
     self.connLock.acquire()
     
-    result = False
-    if self.isAlive():
-      myVersion = parseVersion(self.getInfo("version", ""))
-      
-      if not myVersion: result = False
-      else: result = isVersion(myVersion, minVersion)
-    
-    self.connLock.release()
-    
-    return result
+    try:
+      return self.controller.get_version()
+    except stem.SocketClosed, exc:
+      self.close()
+      return None
+    except:
+      return None
+    finally:
+      self.connLock.release()
   
   def isGeoipUnavailable(self):
     """
@@ -1197,7 +705,10 @@ class Controller(TorCtl.PostEventListener):
     false otherwise.
     """
     
-    return self.geoipFailureCount == GEOIP_FAILURE_THRESHOLD
+    if self.isAlive():
+      return self.controller.is_geoip_unavailable()
+    else:
+      return False
   
   def getMyPid(self):
     """
@@ -1327,13 +838,13 @@ class Controller(TorCtl.PostEventListener):
     
     result = None
     if self.isAlive():
-      if self.getOption("ORPort"):
+      if self.getOption("ORPort", None):
         policyEntries = []
         for exitPolicy in self.getOption("ExitPolicy", [], True):
           policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
         
         # appends the default exit policy
-        defaultExitPolicy = self.getInfo("exit-policy/default")
+        defaultExitPolicy = self.getInfo("exit-policy/default", None)
         
         if defaultExitPolicy:
           policyEntries += defaultExitPolicy.split(",")
@@ -1349,7 +860,7 @@ class Controller(TorCtl.PostEventListener):
         isPrivateRejected = self.getOption("ExitPolicyRejectPrivate", True)
         
         if isPrivateRejected:
-          myAddress = self.getInfo("address")
+          myAddress = self.getInfo("address", None)
           if myAddress: result = ExitPolicy("reject %s" % myAddress, result)
           
           result = ExitPolicy("reject private", result)
@@ -1375,7 +886,7 @@ class Controller(TorCtl.PostEventListener):
     result = None
     if self.isAlive():
       if not relayFingerprint in self._consensusLookupCache:
-        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint)
+        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint, None)
         self._consensusLookupCache[relayFingerprint] = nsEntry
       
       result = self._consensusLookupCache[relayFingerprint]
@@ -1399,7 +910,7 @@ class Controller(TorCtl.PostEventListener):
     result = None
     if self.isAlive():
       if not relayFingerprint in self._descriptorLookupCache:
-        descEntry = self.getInfo("desc/id/%s" % relayFingerprint)
+        descEntry = self.getInfo("desc/id/%s" % relayFingerprint, None)
         self._descriptorLookupCache[relayFingerprint] = descEntry
       
       result = self._descriptorLookupCache[relayFingerprint]
@@ -1463,7 +974,7 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the nickname if it isn't yet cached
       if not relayFingerprint in self._nicknameLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint"):
+        if relayFingerprint == self.getInfo("fingerprint", None):
           # this is us, simply check the config
           myNickname = self.getOption("Nickname", "Unnamed")
           self._nicknameLookupCache[relayFingerprint] = myNickname
@@ -1569,10 +1080,10 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       # query the address if it isn't yet cached
       if not relayFingerprint in self._addressLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint"):
+        if relayFingerprint == self.getInfo("fingerprint", None):
           # this is us, simply check the config
-          myAddress = self.getInfo("address")
-          myOrPort = self.getOption("ORPort")
+          myAddress = self.getInfo("address", None)
+          myOrPort = self.getOption("ORPort", None)
           
           if myAddress and myOrPort:
             self._addressLookupCache[relayFingerprint] = (myAddress, myOrPort)
@@ -1646,7 +1157,7 @@ class Controller(TorCtl.PostEventListener):
         #   "34f7e3b7c563afe76b71b6c52d038d37729aa4da"
         
         relayFingerprint = None
-        consensusEntry = self.getInfo("ns/name/%s" % relayNickname)
+        consensusEntry = self.getInfo("ns/name/%s" % relayNickname, None)
         if consensusEntry:
           encodedFp = consensusEntry.split()[2]
           decodedFp = (encodedFp + "=").decode('base64').encode('hex')
@@ -1660,32 +1171,25 @@ class Controller(TorCtl.PostEventListener):
     
     return result
   
-  def addEventListener(self, listener):
+  def addEventListener(self, listener, *eventTypes):
     """
     Directs further tor controller events to callback functions of the
     listener. If a new control connection is initialized then this listener is
     reattached.
-    
-    Arguments:
-      listener - TorCtl.PostEventListener instance listening for events
     """
     
     self.connLock.acquire()
-    self.eventListeners.append(listener)
-    if self.isAlive(): self.conn.add_event_listener(listener)
+    if self.isAlive(): self.controller.add_event_listener(listener, *eventTypes)
     self.connLock.release()
   
-  def addTorCtlListener(self, callback):
+  def removeEventListener(self, listener):
     """
-    Directs further TorCtl events to the callback function. Events are composed
-    of a runlevel and message tuple.
-    
-    Arguments:
-      callback - functor that'll accept the events, expected to be of the form:
-                 myFunction(runlevel, msg)
+    Stops the given event listener from being notified of further events.
     """
     
-    self.torctlListeners.append(callback)
+    self.connLock.acquire()
+    if self.isAlive(): self.controller.remove_event_listener(listener)
+    self.connLock.release()
   
   def addStatusListener(self, callback):
     """
@@ -1720,92 +1224,6 @@ class Controller(TorCtl.PostEventListener):
     
     return list(self.controllerEvents)
   
-  def setControllerEvents(self, events):
-    """
-    Sets the events being requested from any attached tor instance, logging
-    warnings for event types that aren't supported (possibly due to version
-    issues). Events in REQ_EVENTS will also be included, logging at the error
-    level with an additional description in case of failure.
-    
-    This remembers the successfully set events and tries to request them from
-    any tor instance it attaches to in the future too (again logging and
-    dropping unsuccessful event types).
-    
-    This returns the listing of event types that were successfully set. If not
-    currently attached to a tor instance then all events are assumed to be ok,
-    then attempted when next attached to a control port.
-    
-    Arguments:
-      events - listing of events to be set
-    """
-    
-    self.connLock.acquire()
-    
-    returnVal = []
-    if self.isAlive():
-      events = set(events)
-      events = events.union(set(REQ_EVENTS.keys()))
-      unavailableEvents = set()
-      
-      # removes anything we've already failed to set
-      if DROP_FAILED_EVENTS:
-        unavailableEvents.update(events.intersection(FAILED_EVENTS))
-        events.difference_update(FAILED_EVENTS)
-      
-      # initial check for event availability, using the 'events/names' GETINFO
-      # option to detect invalid events
-      validEvents = self.getInfo("events/names")
-      
-      if validEvents:
-        validEvents = set(validEvents.split())
-        unavailableEvents.update(events.difference(validEvents))
-        events.intersection_update(validEvents)
-      
-      # attempt to set events via trial and error
-      isEventsSet, isAbandoned = False, False
-      
-      while not isEventsSet and not isAbandoned:
-        try:
-          self.conn.set_events(list(events))
-          isEventsSet = True
-        except TorCtl.ErrorReply, exc:
-          msg = str(exc)
-          
-          if "Unrecognized event" in msg:
-            # figure out type of event we failed to listen for
-            start = msg.find("event \"") + 7
-            end = msg.rfind("\"")
-            failedType = msg[start:end]
-            
-            unavailableEvents.add(failedType)
-            events.discard(failedType)
-          else:
-            # unexpected error, abandon attempt
-            isAbandoned = True
-        except TorCtl.TorCtlClosed:
-          self.close()
-          isAbandoned = True
-      
-      FAILED_EVENTS.update(unavailableEvents)
-      if not isAbandoned:
-        # logs warnings or errors for failed events
-        for eventType in unavailableEvents:
-          defaultMsg = DEFAULT_FAILED_EVENT_MSG % eventType
-          if eventType in REQ_EVENTS:
-            log.log(log.ERR, defaultMsg + " (%s)" % REQ_EVENTS[eventType])
-          else:
-            log.log(log.WARN, defaultMsg)
-        
-        self.controllerEvents = list(events)
-        returnVal = list(events)
-    else:
-      # attempts to set the events when next attached to a control port
-      self.controllerEvents = list(events)
-      returnVal = list(events)
-    
-    self.connLock.release()
-    return returnVal
-  
   def reload(self, issueSighup = False):
     """
     This resets tor (sending a RELOAD signal to the control port) causing tor's
@@ -1829,13 +1247,10 @@ class Controller(TorCtl.PostEventListener):
     if self.isAlive():
       if not issueSighup:
         try:
-          self.conn.send_signal("RELOAD")
+          self.controller.signal(stem.Signal.RELOAD)
           self._cachedParam = {}
-          self._cachedConf = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
-          # BUG: this doesn't work - torrc errors still cause TorCtl to crash... :(
-          # http://bugs.noreply.org/flyspray/index.php?do=details&id=1329
           raisedException = IOError(str(exc))
       else:
         try:
@@ -1876,7 +1291,6 @@ class Controller(TorCtl.PostEventListener):
             else: raise IOError("failed silently")
           
           self._cachedParam = {}
-          self._cachedConf = {}
         except IOError, exc:
           raisedException = exc
     
@@ -1899,9 +1313,12 @@ class Controller(TorCtl.PostEventListener):
     raisedException = None
     if self.isAlive():
       try:
-        isRelay = self.getOption("ORPort") != None
-        signal = "HALT" if force else "SHUTDOWN"
-        self.conn.send_signal(signal)
+        isRelay = self.getOption("ORPort", None) != None
+        
+        if force:
+          stem.controller.signal(stem.Signal.HALT)
+        else:
+          stem.controller.signal(stem.Signal.SHUTDOWN)
         
         # shuts down control connection if we aren't making a delayed shutdown
         if force or not isRelay: self.close()
@@ -1918,7 +1335,7 @@ class Controller(TorCtl.PostEventListener):
     causing the torrc and internal state to be reset.
     """
     
-    if event.level == "NOTICE" and event.msg.startswith("Received reload signal (hup)"):
+    if event.runlevel == "NOTICE" and event.message.startswith("Received reload signal (hup)"):
       self.connLock.acquire()
       
       if self.isAlive():
@@ -1934,13 +1351,12 @@ class Controller(TorCtl.PostEventListener):
       self.connLock.release()
   
   def ns_event(self, event):
-    self._updateHeartbeat()
     self._consensusLookupCache = {}
     
-    myFingerprint = self.getInfo("fingerprint")
+    myFingerprint = self.getInfo("fingerprint", None)
     if myFingerprint:
-      for ns in event.nslist:
-        if ns.idhex == myFingerprint:
+      for desc in event.desc:
+        if desc.fingerprint == myFingerprint:
           self._cachedParam["nsEntry"] = None
           self._cachedParam["flags"] = None
           self._cachedParam["bwMeasured"] = None
@@ -1951,8 +1367,6 @@ class Controller(TorCtl.PostEventListener):
       self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
-    self._updateHeartbeat()
-    
     self.connLock.acquire()
     
     self._cachedParam["nsEntry"] = None
@@ -1968,17 +1382,17 @@ class Controller(TorCtl.PostEventListener):
     self._consensusLookupCache = {}
     
     if self._fingerprintMappings != None:
-      self._fingerprintMappings = self._getFingerprintMappings(event.nslist)
+      self._fingerprintMappings = self._getFingerprintMappings(event.desc)
     
     self.connLock.release()
   
   def new_desc_event(self, event):
-    self._updateHeartbeat()
-    
     self.connLock.acquire()
     
-    myFingerprint = self.getInfo("fingerprint")
-    if not myFingerprint or myFingerprint in event.idlist:
+    myFingerprint = self.getInfo("fingerprint", None)
+    desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
+    
+    if not myFingerprint or myFingerprint in desc_fingerprints:
       self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
     
@@ -1989,38 +1403,30 @@ class Controller(TorCtl.PostEventListener):
     self._descriptorLookupCache = {}
     
     if self._fingerprintMappings != None:
-      for fingerprint in event.idlist:
+      for fingerprint in desc_fingerprints:
         # gets consensus data for the new descriptor
-        try: nsLookup = self.conn.get_network_status("id/%s" % fingerprint)
-        except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): continue
-        
-        if len(nsLookup) > 1:
-          # multiple records for fingerprint (shouldn't happen)
-          log.log(log.WARN, "Multiple consensus entries for fingerprint: %s" % fingerprint)
-          continue
+        try: desc = self.controller.get_network_status(fingerprint)
+        except stem.ControllerError: continue
         
         # updates fingerprintMappings with new data
-        newRelay = nsLookup[0]
-        if newRelay.ip in self._fingerprintMappings:
+        if desc.address in self._fingerprintMappings:
           # if entry already exists with the same orport, remove it
           orportMatch = None
-          for entryPort, entryFingerprint in self._fingerprintMappings[newRelay.ip]:
-            if entryPort == newRelay.orport:
+          for entryPort, entryFingerprint in self._fingerprintMappings[desc.address]:
+            if entryPort == desc.or_port:
               orportMatch = (entryPort, entryFingerprint)
               break
           
-          if orportMatch: self._fingerprintMappings[newRelay.ip].remove(orportMatch)
+          if orportMatch: self._fingerprintMappings[desc.address].remove(orportMatch)
           
           # add the new entry
-          self._fingerprintMappings[newRelay.ip].append((newRelay.orport, newRelay.idhex))
+          self._fingerprintMappings[desc.address].append((desc.or_port, desc.fingerprint))
         else:
-          self._fingerprintMappings[newRelay.ip] = [(newRelay.orport, newRelay.idhex)]
+          self._fingerprintMappings[desc.address] = [(desc.or_port, desc.fingerprint)]
     
     self.connLock.release()
   
   def circ_status_event(self, event):
-    self._updateHeartbeat()
-    
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
     self.connLock.acquire()
@@ -2029,71 +1435,25 @@ class Controller(TorCtl.PostEventListener):
     
     self._cachedParam["circuits"] = None
   
-  def buildtimeout_set_event(self, event):
-    self._updateHeartbeat()
-  
-  def stream_status_event(self, event):
-    self._updateHeartbeat()
-  
-  def or_conn_status_event(self, event):
-    self._updateHeartbeat()
-  
-  def stream_bw_event(self, event):
-    self._updateHeartbeat()
-  
-  def bandwidth_event(self, event):
-    self._updateHeartbeat()
-  
-  def address_mapped_event(self, event):
-    self._updateHeartbeat()
-  
-  def unknown_event(self, event):
-    self._updateHeartbeat()
-  
-  def log(self, level, msg, *args):
-    """
-    Tracks TorCtl events. Ugly hack since TorCtl/TorUtil.py expects a
-    logging.Logger instance.
-    """
-    
-    # notifies listeners of TorCtl events
-    for callback in self.torctlListeners: callback(TORCTL_RUNLEVELS[level], msg)
-    
-    # if the message is informing us of our ip address changing then clear
-    # its cached value
-    for prefix in ADDR_CHANGED_MSG_PREFIX:
-      if msg.startswith(prefix):
-        self._cachedParam["address"] = None
-        break
-  
-  def _updateHeartbeat(self):
-    """
-    Called on any event occurance to note the time it occured.
-    """
-    
-    # alternative is to use the event's timestamp (via event.arrived_at)
-    self.lastHeartbeat = time.time()
-  
-  def _getFingerprintMappings(self, nsList = None):
+  def _getFingerprintMappings(self, descriptors = None):
     """
     Provides IP address to (port, fingerprint) tuple mappings for all of the
     currently cached relays.
     
     Arguments:
-      nsList - network status listing (fetched if not provided)
+      descriptors - router status entries (fetched if not provided)
     """
     
     results = {}
     if self.isAlive():
       # fetch the current network status if not provided
-      if not nsList:
-        try: nsList = self.conn.get_network_status(get_iterator=True)
-        except (socket.error, TorCtl.TorCtlClosed, TorCtl.ErrorReply): nsList = []
+      if not descriptors:
+        try: descriptors = self.controller.get_network_statuses()
+        except stem.ControllerError: descriptors = []
       
       # construct mappings of ips to relay data
-      for relay in nsList:
-        if relay.ip in results: results[relay.ip].append((relay.orport, relay.idhex))
-        else: results[relay.ip] = [(relay.orport, relay.idhex)]
+      for desc in descriptors:
+        results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
     
     return results
   
@@ -2115,9 +1475,9 @@ class Controller(TorCtl.PostEventListener):
     if isinstance(relayPort, str): relayPort = int(relayPort)
     
     # checks if this matches us
-    if relayAddress == self.getInfo("address"):
-      if not relayPort or relayPort == self.getOption("ORPort"):
-        return self.getInfo("fingerprint")
+    if relayAddress == self.getInfo("address", None):
+      if not relayPort or relayPort == self.getOption("ORPort", None):
+        return self.getInfo("fingerprint", None)
     
     # if we haven't yet populated the ip -> fingerprint mappings then do so
     if self._fingerprintMappings == None:
@@ -2151,7 +1511,7 @@ class Controller(TorCtl.PostEventListener):
       
       # orconn-status has entries of the form:
       # $33173252B70A50FE3928C7453077936D71E45C52=shiven CONNECTED
-      orconnResults = self.getInfo("orconn-status")
+      orconnResults = self.getInfo("orconn-status", None)
       if orconnResults:
         for line in orconnResults.split("\n"):
           self._fingerprintsAttachedCache.append(line[1:line.find("=")])
@@ -2169,30 +1529,13 @@ class Controller(TorCtl.PostEventListener):
     if len(attachedMatches) == 1:
       return attachedMatches[0]
     
-    # Highly unlikely, but still haven't found it. Last we'll use some
-    # tricks from Mike's ConsensusTracker, excluding possiblities that
-    # have...
-    # - lost their Running flag
-    # - list a bandwidth of 0
-    # - have 'opt hibernating' set
-    # 
-    # This involves constructing a TorCtl Router and checking its 'down'
-    # flag (which is set by the three conditions above). This is the last
-    # resort since it involves a couple GETINFO queries.
-    
     for entryPort, entryFingerprint in list(potentialMatches):
       try:
-        nsCall = self.conn.get_network_status("id/%s" % entryFingerprint)
-        if not nsCall: raise TorCtl.ErrorReply() # network consensus couldn't be fetched
-        nsEntry = nsCall[0]
+        nsEntry = self.controller.get_network_status(entryFingerprint)
         
-        descEntry = self.getInfo("desc/id/%s" % entryFingerprint)
-        if not descEntry: raise TorCtl.ErrorReply() # relay descriptor couldn't be fetched
-        descLines = descEntry.split("\n")
-        
-        isDown = TorCtl.Router.build_from_desc(descLines, nsEntry).down
-        if isDown: potentialMatches.remove((entryPort, entryFingerprint))
-      except (socket.error, TorCtl.ErrorReply, TorCtl.TorCtlClosed): pass
+        if not stem.descriptor.RUNNING in nsEntry.flags:
+          potentialMatches.remove((entryPort, entryFingerprint))
+      except stem.ControllerError: pass
     
     if len(potentialMatches) == 1:
       return potentialMatches[0][1]
@@ -2204,7 +1547,7 @@ class Controller(TorCtl.PostEventListener):
     available and otherwise looking it up.
     
     Arguments:
-      key            - parameter being queried (from CACHE_ARGS)
+      key            - parameter being queried
       default        - value to be returned if undefined
       cacheUndefined - caches when values are undefined, avoiding further
                        lookups if true
@@ -2230,30 +1573,30 @@ class Controller(TorCtl.PostEventListener):
     if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
       if key in ("nsEntry", "descEntry"):
-        myFingerprint = self.getInfo("fingerprint")
+        myFingerprint = self.getInfo("fingerprint", None)
         
         if myFingerprint:
           queryType = "ns" if key == "nsEntry" else "desc"
-          queryResult = self.getInfo("%s/id/%s" % (queryType, myFingerprint))
+          queryResult = self.getInfo("%s/id/%s" % (queryType, myFingerprint), None)
           if queryResult: result = queryResult.split("\n")
       elif key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
         # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-        effectiveRate = int(self.getOption("BandwidthRate"))
+        effectiveRate = int(self.getOption("BandwidthRate", None))
         
-        relayRate = self.getOption("RelayBandwidthRate")
+        relayRate = self.getOption("RelayBandwidthRate", None)
         if relayRate and relayRate != "0":
           effectiveRate = min(effectiveRate, int(relayRate))
         
-        maxAdvertised = self.getOption("MaxAdvertisedBandwidth")
+        maxAdvertised = self.getOption("MaxAdvertisedBandwidth", None)
         if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
         
         result = effectiveRate
       elif key == "bwBurst":
         # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-        effectiveBurst = int(self.getOption("BandwidthBurst"))
+        effectiveBurst = int(self.getOption("BandwidthBurst", None))
         
-        relayBurst = self.getOption("RelayBandwidthBurst")
+        relayBurst = self.getOption("RelayBandwidthBurst", None)
         if relayBurst and relayBurst != "0":
           effectiveBurst = min(effectiveBurst, int(relayBurst))
         
@@ -2283,13 +1626,13 @@ class Controller(TorCtl.PostEventListener):
             result = line[2:].split()
             break
       elif key == "pid":
-        result = self.getInfo("process/pid")
+        result = self.getInfo("process/pid", None)
         
         if not result:
-          result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile"))
+          result = getPid(int(self.getOption("ControlPort", 9051)), self.getOption("PidFile", None))
       elif key == "user":
         # provides the empty string if the query fails
-        queriedUser = self.getInfo("process/user")
+        queriedUser = self.getInfo("process/user", None)
         
         if queriedUser != None and queriedUser != "":
           result = queriedUser
@@ -2312,7 +1655,7 @@ class Controller(TorCtl.PostEventListener):
               if psResults and len(psResults) >= 2: result = psResults[1].strip()
       elif key == "fdLimit":
         # provides -1 if the query fails
-        queriedLimit = self.getInfo("process/descriptor-limit")
+        queriedLimit = self.getInfo("process/descriptor-limit", None)
         
         if queriedLimit != None and queriedLimit != "-1":
           result = (int(queriedLimit), False)
@@ -2416,7 +1759,7 @@ class Controller(TorCtl.PostEventListener):
         # just "$<fingerprint>" OR <nickname>. The dolar sign can't be used in
         # nicknames so this can be used to differentiate.
         
-        circStatusResults = self.getInfo("circuit-status")
+        circStatusResults = self.getInfo("circuit-status", None)
         
         if circStatusResults == "":
           result = [] # we don't have any circuits
@@ -2458,7 +1801,7 @@ class Controller(TorCtl.PostEventListener):
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
       elif key == "hsPorts":
         result = []
-        hsOptions = self.getOptionMap("HiddenServiceOptions")
+        hsOptions = self.controller.get_conf_map("HiddenServiceOptions", None)
         
         if hsOptions and "HiddenServicePort" in hsOptions:
           for hsEntry in hsOptions["HiddenServicePort"]:
@@ -2524,11 +1867,10 @@ class Controller(TorCtl.PostEventListener):
     if eventType:
       # resets cached GETINFO and GETCONF parameters
       self._cachedParam = {}
-      self._cachedConf = {}
       
       # gives a notice that the control port has closed
       if eventType == State.CLOSED:
-        log.log(CONFIG["log.torCtlPortClosed"], "Tor control port closed")
+        log.log(CONFIG["log.stemPortClosed"], "Tor control port closed")
       
       for callback in self.statusListeners:
         callback(self, eventType)

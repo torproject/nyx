@@ -9,11 +9,7 @@ import sys
 
 import version
 
-# TODO: util should never import from the cli. This is being done as a hack to
-# simplify event listening, but we should later move the TorEventObserver into
-# the util.
-
-from cli.logPanel import TorEventObserver
+import stem
 
 from util import connections, enum, hostnames, torConfig, torTools, uiTools
 
@@ -296,7 +292,7 @@ class TorControlCompleter:
     conn = torTools.getConn()
     
     # adds all of the valid GETINFO options
-    infoOptions = conn.getInfo("info/names")
+    infoOptions = conn.getInfo("info/names", None)
     if infoOptions:
       for line in infoOptions.split("\n"):
         if " " in line:
@@ -315,7 +311,7 @@ class TorControlCompleter:
     else: self.commands.append("GETINFO ")
     
     # adds all of the valid GETCONF / SETCONF / RESETCONF options
-    confOptions = conn.getInfo("config/names")
+    confOptions = conn.getInfo("config/names", None)
     if confOptions:
       # individual options are '<name> <type>' pairs
       confEntries = [opt.split(" ", 1)[0] for opt in confOptions.split("\n")]
@@ -328,13 +324,13 @@ class TorControlCompleter:
       self.commands.append("RESETCONF ")
     
     # adds all of the valid SETEVENTS options
-    eventOptions = conn.getInfo("events/names")
+    eventOptions = conn.getInfo("events/names", None)
     if eventOptions:
       self.commands += ["SETEVENTS %s" % event for event in eventOptions.split(" ")]
     else: self.commands.append("SETEVENTS ")
     
     # adds all of the valid USEFEATURE options
-    featureOptions = conn.getInfo("features/names")
+    featureOptions = conn.getInfo("features/names", None)
     if featureOptions:
       self.commands += ["USEFEATURE %s" % feature for feature in featureOptions.split(" ")]
     else: self.commands.append("USEFEATURE ")
@@ -443,7 +439,12 @@ class ControlInterpretor:
     self.eventBuffer = [] # unread event messages
     self.loggedEvents = [] # event types that we're listening for
     
-    torTools.getConn().addEventListener(TorEventObserver(self.registerEvent))
+    # TODO: Dropping event listening since...
+    # a. it was a complete hack
+    # b. said hack isn't worth porting to stem
+    # c. I'm likely about to separate the interpretor from arm anyway
+    
+    #torTools.getConn().addEventListener(TorEventObserver(self.registerEvent))
   
   def registerEvent(self, event):
     """
@@ -507,7 +508,7 @@ class ControlInterpretor:
         
         if arg == "GETINFO":
           # if this is the GETINFO option then also list the valid options
-          infoOptions = torTools.getConn().getInfo("info/names")
+          infoOptions = torTools.getConn().getInfo("info/names", None)
           
           if infoOptions:
             for line in infoOptions.split("\n"):
@@ -524,7 +525,7 @@ class ControlInterpretor:
         elif arg == "GETCONF":
           # lists all of the configuration options
           
-          confOptions = torTools.getConn().getInfo("config/names")
+          confOptions = torTools.getConn().getInfo("config/names", None)
           if confOptions:
             confEntries = [opt.split(" ", 1)[0] for opt in confOptions.split("\n")]
             
@@ -546,7 +547,7 @@ class ControlInterpretor:
             outputEntry.append((" - %s\n" % description, OUTPUT_FORMAT))
         elif arg == "SETEVENTS":
           # lists all of the event types
-          eventOptions = torTools.getConn().getInfo("events/names")
+          eventOptions = torTools.getConn().getInfo("events/names", None)
           if eventOptions:
             eventEntries = eventOptions.split()
             
@@ -561,7 +562,7 @@ class ControlInterpretor:
               outputEntry.append((lineContent + "\n", OUTPUT_FORMAT))
         elif arg == "USEFEATURE":
           # lists the feature options
-          featureOptions = torTools.getConn().getInfo("features/names")
+          featureOptions = torTools.getConn().getInfo("features/names", None)
           if featureOptions:
             outputEntry.append((featureOptions + "\n", OUTPUT_FORMAT))
         elif arg in ("LOADCONF", "POSTDESCRIPTOR"):
@@ -684,7 +685,7 @@ class ControlInterpretor:
     # if unsuccessful
     if not arg:
       # uses our fingerprint if we're a relay, otherwise gives an error
-      fingerprint = conn.getInfo("fingerprint")
+      fingerprint = conn.getInfo("fingerprint", None)
       
       if not fingerprint:
         outputEntry.append(("We aren't a relay, no information to provide", ERROR_FORMAT))
@@ -868,7 +869,7 @@ class ControlInterpretor:
       if cmd == "GETINFO":
         try:
           for param in arg.split():
-            response = conn.getInfo(param, suppressExc = False)
+            response = conn.getInfo(param)
             outputEntry.append((response + "\n", OUTPUT_FORMAT))
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
@@ -911,8 +912,10 @@ class ControlInterpretor:
         except Exception, exc:
           outputEntry.append((str(exc), ERROR_FORMAT))
       elif cmd == "SETEVENTS":
+        return ([], []) # dropping support, see the comment for the event listener above for why
+        
         self.loggedEvents = arg.split()
-        allEvents = torTools.getConn().setControllerEvents(self.loggedEvents)
+        #allEvents = torTools.getConn().setControllerEvents(self.loggedEvents)
         setEvents = set(self.loggedEvents).intersection(allEvents)
         
         if setEvents:
@@ -929,18 +932,16 @@ class ControlInterpretor:
         outputEntry.append((MULTILINE_UNIMPLEMENTED_NOTICE + "\n", ERROR_FORMAT))
       else:
         try:
-          response = conn.getTorCtl().sendAndRecv("%s\r\n" % input)
+          controller = conn.controller
+          if controller is None: raise stem.SocketClosed()
+          
+          response = controller.msg(input)
           
           if cmd == "QUIT":
             raise InterpretorClosed("Closing the connection")
           
-          for entry in response:
-            # Response entries are tuples with the response code, body, and
-            # extra info. For instance:
-            # ('250', 'version=0.2.2.23-alpha (git-b85eb949b528f4d7)', None)
-            
-            if len(entry) == 3:
-              outputEntry.append((entry[1], OUTPUT_FORMAT))
+          for _, _, content in response.content():
+            outputEntry.append((content + '\n', OUTPUT_FORMAT))
         except Exception, exc:
           if isinstance(exc, InterpretorClosed):
             raise exc

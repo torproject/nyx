@@ -22,7 +22,7 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
-from TorCtl import TorCtl
+from stem.control import Controller
 
 from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
 
@@ -509,7 +509,7 @@ class TorManager:
       conn - controller instance to be checked
     """
     
-    return conn.getInfo("config-file") == self.getTorrcPath()
+    return conn.getInfo("config-file", None) == self.getTorrcPath()
   
   def startManagedInstance(self):
     """
@@ -542,22 +542,13 @@ class TorManager:
     unsuccessful.
     """
     
-    torctlConn, authType, authValue = TorCtl.preauth_connect(controlPort = int(CONFIG["wizard.default"]["Control"]))
-    
-    if not torctlConn:
-      msg = "Unable to start tor, try running \"tor -f %s\" to see the error output" % self.getTorrcPath()
-      raise IOError(msg)
-    
-    if authType == TorCtl.AUTH_TYPE.COOKIE:
-      try:
-        authCookieSize = os.path.getsize(authValue)
-        if authCookieSize != 32:
-          raise IOError("authentication cookie '%s' is the wrong size (%i bytes instead of 32)" % (authValue, authCookieSize))
-        
-        torctlConn.authenticate(authValue)
-        torTools.getConn().init(torctlConn)
-      except Exception, exc:
-        raise IOError("Unable to connect to Tor: %s" % exc)
+    try:
+      controller = Controller.from_port(control_port = int(CONFIG["wizard.default"]["Control"]))
+      controller.authenticate()
+      
+      torTools.getConn().init(controller)
+    except Exception, exc:
+      raise IOError("Unable to connect to Tor: %s" % exc)
 
 def shutdownDaemons():
   """
@@ -572,7 +563,7 @@ def shutdownDaemons():
   for panelImpl in control.getDaemonPanels(): panelImpl.stop()
   for panelImpl in control.getDaemonPanels(): panelImpl.join()
   
-  # joins on TorCtl event thread
+  # joins on stem threads
   torTools.getConn().close()
   
   # joins on utility daemon threads - this might take a moment since the
@@ -667,7 +658,7 @@ def startTorMonitor(startTime):
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
     
-    if conn.getOption("DisableDebuggerAttachment") == "1":
+    if conn.getOption("DisableDebuggerAttachment", None) == "1":
       log.log(log.NOTICE, "Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
     else:

@@ -18,10 +18,11 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
 
 import copy
 import curses
-from TorCtl import TorCtl
 
 import cli.popups
 import cli.controller
+
+import stem.control
 
 from util import enum, panel, torTools, uiTools
 
@@ -56,7 +57,7 @@ def loadConfig(config):
     "features.graph.interval": (0, len(UPDATE_INTERVALS) - 1),
     "features.graph.bound": (0, 2)})
 
-class GraphStats(TorCtl.PostEventListener):
+class GraphStats:
   """
   Module that's expected to update dynamically and provide attributes to be
   graphed. Up to two graphs (a 'primary' and 'secondary') can be displayed at a
@@ -67,8 +68,6 @@ class GraphStats(TorCtl.PostEventListener):
     """
     Initializes parameters needed to present a graph.
     """
-    
-    TorCtl.PostEventListener.__init__(self)
     
     # panel to be redrawn when updated (set when added to GraphPanel)
     self._graphPanel = None
@@ -96,7 +95,7 @@ class GraphStats(TorCtl.PostEventListener):
       self.secondaryCounts[i] = (self.maxCol + 1) * [0]
     
     # tracks BW events
-    torTools.getConn().addEventListener(self)
+    torTools.getConn().addEventListener(self.bandwidth_event, stem.control.EventType.BW)
   
   def clone(self, newCopy=None):
     """
