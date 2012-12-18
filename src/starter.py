@@ -25,7 +25,6 @@ import util.panel
 import util.procTools
 import util.sysTools
 import util.torConfig
-import util.torInterpretor
 import util.torTools
 import util.uiTools
 
@@ -55,8 +54,8 @@ CONFIG = {"startup.controlPassword": None,
           "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
           "log.savingDebugLog": util.log.NOTICE}
 
-OPT = "gpi:s:c:dbe:vh"
-OPT_EXPANDED = ["prompt", "interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
+OPT = "gi:s:c:dbe:vh"
+OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
@@ -298,7 +297,6 @@ def _dumpConfig():
 if __name__ == '__main__':
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
-  launchPrompt = False
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
   
@@ -329,7 +327,6 @@ if __name__ == '__main__':
       param["startup.interface.port"] = controlPort
     elif opt in ("-s", "--socket"):
       param["startup.interface.socket"] = arg
-    elif opt in ("-p", "--prompt"): launchPrompt = True
     elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
@@ -388,7 +385,7 @@ if __name__ == '__main__':
   # - tor is running (otherwise it would be kinda confusing, "tor is running
   #   but why does arm say that it's shut down?")
   
-  if launchPrompt or util.torTools.isTorRunning():
+  if util.torTools.isTorRunning():
     config.set("features.allowDetachedStartup", "false")
   
   # revises defaults to match user's configuration
@@ -514,8 +511,5 @@ if __name__ == '__main__':
   if util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  if launchPrompt:
-    util.torInterpretor.showPrompt()
-  else:
-    cli.controller.startTorMonitor(time.time() - initTime)
+  cli.controller.startTorMonitor(time.time() - initTime)
 
