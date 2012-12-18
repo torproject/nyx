@@ -9,7 +9,6 @@ import curses
 import threading
 
 import cli.menu.menu
-import cli.wizard
 import cli.popups
 import cli.headerPanel
 import cli.logPanel
@@ -30,7 +29,6 @@ ARM_CONTROLLER = None
 CONFIG = {"startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
           "startup.blindModeEnabled": False,
-          "features.offerTorShutdownOnQuit": False,
           "features.panels.show.graph": True,
           "features.panels.show.log": True,
           "features.panels.show.connection": True,
@@ -41,7 +39,6 @@ CONFIG = {"startup.events": "N3",
           "features.confirmQuit": True,
           "features.graph.type": 1,
           "features.graph.bw.prepopulate": True,
-          "wizard.default": {},
           "log.startTime": log.INFO,
           "log.torEventTypeUnrecognized": log.INFO,
           "log.configEntryUndefined": log.NOTICE,
@@ -171,7 +168,6 @@ class Controller:
     self._isPaused = False
     self._forceRedraw = False
     self._isDone = False
-    self._torManager = TorManager(self)
     self._lastDrawn = 0
     self.setMsg() # initializes our control message
   
@@ -401,13 +397,6 @@ class Controller:
     if not os.path.exists(dataDir): os.makedirs(dataDir)
     return dataDir
   
-  def getTorManager(self):
-    """
-    Provides management utils for an arm managed tor instance.
-    """
-    
-    return self._torManager
-  
   def isDone(self):
     """
     True if arm should be terminated, false otherwise.
@@ -439,111 +428,6 @@ class Controller:
     if isShutdownFlagPresent:
       try: torTools.getConn().shutdown()
       except IOError, exc: cli.popups.showMsg(str(exc), 3, curses.A_BOLD)
-    
-    if CONFIG["features.offerTorShutdownOnQuit"]:
-      conn = torTools.getConn()
-      
-      if self.getTorManager().isManaged(conn):
-        while True:
-          msg = "Shut down the Tor instance arm started (y/n)?"
-          confirmationKey = cli.popups.showMsg(msg, attr = curses.A_BOLD)
-          
-          if confirmationKey in (ord('y'), ord('Y')):
-            # attempts a graceful shutdown of tor, showing the issue if
-            # unsuccessful then continuing the shutdown
-            try: conn.shutdown()
-            except IOError, exc: cli.popups.showMsg(str(exc), 3, curses.A_BOLD)
-            
-            break
-          elif confirmationKey in (ord('n'), ord('N')):
-            break
-
-class TorManager:
-  """
-  Bundle of utils for starting and manipulating an arm generated tor instance.
-  """
-  
-  def __init__(self, controller):
-    self._controller = controller
-  
-  def getTorrcPath(self):
-    """
-    Provides the path to a wizard generated torrc.
-    """
-    
-    return self._controller.getDataDirectory() + "torrc"
-  
-  def isTorrcAvailable(self):
-    """
-    True if a wizard generated torrc exists and the user has permissions to
-    run it, false otherwise.
-    """
-    
-    torrcLoc = self.getTorrcPath()
-    if os.path.exists(torrcLoc):
-      # If we aren't running as root and would be trying to bind to low ports
-      # then the startup will fail due to permissons. Attempts to check for
-      # this in the torrc. If unable to read the torrc then we probably
-      # wouldn't be able to use it anyway with our permissions.
-      
-      if os.getuid() != 0:
-        try:
-          return not torConfig.isRootNeeded(torrcLoc)
-        except IOError, exc:
-          log.log(log.INFO, "Failed to read torrc at '%s': %s" % (torrcLoc, exc))
-          return False
-      else: return True
-    
-    return False
-  
-  def isManaged(self, conn):
-    """
-    Returns true if the given tor instance is managed by us, false otherwise.
-    
-    Arguments:
-      conn - controller instance to be checked
-    """
-    
-    return conn.getInfo("config-file", None) == self.getTorrcPath()
-  
-  def startManagedInstance(self):
-    """
-    Starts a managed instance of tor, logging a warning if unsuccessful. This
-    returns True if successful and False otherwise.
-    """
-    
-    torrcLoc = self.getTorrcPath()
-    os.system("tor --quiet -f %s&" % torrcLoc)
-    startTime = time.time()
-    
-    # attempts to connect for five seconds (tor might or might not be
-    # immediately available)
-    raisedExc = None
-    
-    while time.time() - startTime < 5:
-      try:
-        self.connectManagedInstance()
-        return True
-      except IOError, exc:
-        raisedExc = exc
-        time.sleep(0.5)
-    
-    if raisedExc: log.log(log.WARN, str(raisedExc))
-    return False
-  
-  def connectManagedInstance(self):
-    """
-    Attempts to connect to a managed tor instance, raising an IOError if
-    unsuccessful.
-    """
-    
-    try:
-      controller = Controller.from_port(control_port = int(CONFIG["wizard.default"]["Control"]))
-      controller.authenticate()
-      
-      torTools.getConn().init(controller)
-    except Exception, exc:
-      raise IOError("Unable to connect to Tor: %s" % exc)
 
 def shutdownDaemons():
   """
@@ -631,7 +515,6 @@ def startTorMonitor(startTime):
   
   cli.graphing.graphPanel.loadConfig(config)
   cli.connections.connEntry.loadConfig(config)
-  cli.wizard.loadConfig(config)
   
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
@@ -728,7 +611,6 @@ def drawTorMonitor(stdscr, startTime):
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
   isUnresponsive = False # flag for heartbeat responsiveness check
-  if not torTools.getConn().isAlive(): overrideKey = ord('w') # shows wizard
   
   while not control.isDone():
     displayPanels = control.getDisplayPanels()
@@ -777,8 +659,6 @@ def drawTorMonitor(stdscr, startTime):
           log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
       overrideKey = cli.popups.showHelpPopup()
-    elif key == ord('w') or key == ord('W'):
-      cli.wizard.showWizard()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed
       control.redraw(True)

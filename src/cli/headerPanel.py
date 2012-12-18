@@ -170,15 +170,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
             controller.authenticate(authValue) # already got the password above
         except Exception, exc:
           controller = None
-          
-          # attempts to use the wizard port too
-          try:
-            cli.controller.getController().getTorManager().connectManagedInstance()
-            log.log(log.NOTICE, "Reconnected to Tor's control port")
-            cli.popups.showMsg("Tor reconnected", 1)
-          except:
-            # displays notice for the first failed connection attempt
-            if exc.args: cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       
       if controller:
         torTools.getConn().init(controller)

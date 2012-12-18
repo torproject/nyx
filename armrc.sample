@@ -36,10 +36,6 @@ features.acsSupport true
 # none, red, green, yellow, blue, cyan, magenta, black, white
 features.colorOverride none
 
-# If arm is attached to an arm started tor instance when it shuts down then
-# offers to shut down tor too if true, otherwise skips this prompt.
-features.offerTorShutdownOnQuit false
-
 # Includes unicode characters in the interface.
 features.printUnicode true
 
@@ -74,7 +70,7 @@ features.confirmQuit true
 # we terminate right away. This is ignored if the user provides an option
 # specifying how to connect to tor (ie, a 'startup.interface.*' option or
 # startup argument).
-features.allowDetachedStartup true
+features.allowDetachedStartup false
 
 # Paremters for the log panel
 # ---------------------------

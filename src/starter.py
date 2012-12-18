@@ -40,8 +40,7 @@ CONFIG = {"startup.controlPassword": None,
           "startup.blindModeEnabled": False,
           "startup.events": "N3",
           "startup.dataDirectory": "~/.arm",
-          "wizard.default": {},
-          "features.allowDetachedStartup": True,
+          "features.allowDetachedStartup": False,
           "features.config.descriptions.enabled": True,
           "features.config.descriptions.persist": True,
           "log.configDescriptions.readManPageSuccess": util.log.INFO,
@@ -123,8 +122,7 @@ def allowConnectionTypes():
   skipSocketConnection = isPortArgPresent and not isSocketArgPresent
   
   # Flag to indicate if we'll start arm reguardless of being unable to connect
-  # to Tor. This is the default behavior if the user hasn't provided a port or
-  # socket to connect to, so we can show the relay setup wizard.
+  # to Tor.
   
   allowDetachedStart = CONFIG["features.allowDetachedStartup"] and not isPortArgPresent and not isSocketArgPresent
   
@@ -226,21 +224,6 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
     return controller
   except Exception, exc:
     if controller: controller.close()
-    
-    # attempts to connect with the default wizard address too
-    wizardPort = CONFIG["wizard.default"].get("Control")
-    
-    if wizardPort and wizardPort.isdigit():
-      wizardPort = int(wizardPort)
-      
-      # Attempt to connect to the wizard port. If the connection fails then
-      # don't print anything and continue with the error case for the initial
-      # connection failure. Otherwise, return the connection result.
-      
-      if controlPort != wizardPort:
-        controller = _getController(controlAddr, wizardPort)
-        if controller != None: return controller
-      else: return None # wizard connection attempt, don't print anything
     
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try

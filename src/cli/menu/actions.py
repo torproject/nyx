@@ -5,7 +5,6 @@ Generates the menu for arm, binding options with their related actions.
 import functools
 
 import cli.popups
-import cli.wizard
 import cli.controller
 import cli.menu.item
 import cli.graphing.graphPanel
@@ -50,7 +49,6 @@ def makeActionsMenu():
   """
   
   control = cli.controller.getController()
-  manager = control.getTorManager()
   conn = torTools.getConn()
   headerPanel = control.getPanel("header")
   actionsMenu = cli.menu.item.Submenu("Actions")
@@ -59,11 +57,8 @@ def makeActionsMenu():
   
   if conn.isAlive():
     actionsMenu.add(cli.menu.item.MenuItem("Stop Tor", conn.shutdown))
-  elif manager.isTorrcAvailable():
-    actionsMenu.add(cli.menu.item.MenuItem("Start Tor", manager.startManagedInstance))
   
   actionsMenu.add(cli.menu.item.MenuItem("Reset Tor", conn.reload))
-  actionsMenu.add(cli.menu.item.MenuItem("Setup Wizard", cli.wizard.showWizard))
   
   if control.isPaused(): label, arg = "Unpause", False
   else: label, arg = "Pause", True

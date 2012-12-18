@@ -201,7 +201,6 @@ Layout:
       controller.py          - main display loop, handling input and layout
       headerPanel.py         - top of all pages, providing general information
       popups.py              - toolkit providing display popups
-      wizard.py              - provides the relay setup wizard
       
       logPanel.py            - (page 1) displays tor, arm, and stem events
       configPanel.py         - (page 3) editor panel for the tor configuration
