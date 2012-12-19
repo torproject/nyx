@@ -120,9 +120,9 @@ def expandEvents(eventAbbr):
   
   for flag in eventAbbr:
     if flag == "A":
-      armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel.values()]
-      stemRunlevels = ["STEM_" + runlevel for runlevel in log.Runlevel.values()]
-      expandedEvents = set(TOR_EVENT_TYPES.values() + armRunlevels + stemRunlevels + ["UNKNOWN"])
+      armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel]
+      stemRunlevels = ["STEM_" + runlevel for runlevel in log.Runlevel]
+      expandedEvents = set(list(TOR_EVENT_TYPES) + armRunlevels + stemRunlevels + ["UNKNOWN"])
       break
     elif flag == "X":
       expandedEvents = set()
@@ -136,11 +136,11 @@ def expandEvents(eventAbbr):
       elif flag in "E5": runlevelIndex = 4
       
       if flag in "DINWE":
-        runlevelSet = [runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
+        runlevelSet = [runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
         expandedEvents = expandedEvents.union(set(runlevelSet))
       elif flag in "12345":
         for prefix in ("ARM_", "STEM_"):
-          runlevelSet = [prefix + runlevel for runlevel in log.Runlevel.values()[runlevelIndex:]]
+          runlevelSet = [prefix + runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
           expandedEvents = expandedEvents.union(set(runlevelSet))
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
@@ -219,7 +219,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
   
   # if the runlevels argument is a superset of the log file then we can
   # limit the read contents to the addLimit
-  runlevels = log.Runlevel.values()
+  runlevels = list(log.Runlevel)
   loggingTypes = loggingTypes.upper()
   if addLimit and (not readLimit or readLimit > addLimit):
     if "-" in loggingTypes:
@@ -550,7 +550,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # adds arm listener and prepopulates log with past tor/arm events
     log.LOG_LOCK.acquire()
     try:
-      log.addListeners(log.Runlevel.values(), self._registerArmEvent)
+      log.addListeners(list(log.Runlevel), self._registerArmEvent)
       self.reprepopulateEvents()
     finally:
       log.LOG_LOCK.release()
@@ -597,16 +597,16 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # fetches past tor events from log file, if available
     torEventBacklog = []
     if self._config["features.log.prepopulate"]:
-      setRunlevels = list(set.intersection(set(self.loggedEvents), set(log.Runlevel.values())))
+      setRunlevels = list(set.intersection(set(self.loggedEvents), set(list(log.Runlevel))))
       readLimit = self._config["features.log.prepopulateReadLimit"]
       addLimit = self._config["cache.logPanel.size"]
       torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
     
     # gets the set of arm events we're logging
     setRunlevels = []
-    armRunlevels = log.Runlevel.values()
+    armRunlevels = list(log.Runlevel)
     for i in range(len(armRunlevels)):
-      if "ARM_" + log.Runlevel.values()[i] in self.loggedEvents:
+      if "ARM_" + list(log.Runlevel)[i] in self.loggedEvents:
         setRunlevels.append(armRunlevels[i])
     
     armEventBacklog = []
@@ -1213,7 +1213,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       runlevelRanges = [] # tuple of type, startLevel, endLevel for ranges to be consensed
       
       # reverses runlevels and types so they're appended in the right order
-      reversedRunlevels = log.Runlevel.values()
+      reversedRunlevels = list(log.Runlevel)
       reversedRunlevels.reverse()
       for prefix in ("STEM_", "ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end

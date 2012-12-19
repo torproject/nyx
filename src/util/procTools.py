@@ -20,7 +20,9 @@ import time
 import socket
 import base64
 
-from util import enum, log
+from util import log
+
+from stem.util import enum
 
 # cached system values
 SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None

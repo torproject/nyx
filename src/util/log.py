@@ -11,23 +11,22 @@ import time
 from sys import maxint
 from threading import RLock
 
-from util import enum
+from stem.util import enum
 
 # Logging runlevels. These are *very* commonly used so including shorter
 # aliases (so they can be referenced as log.DEBUG, log.WARN, etc).
-Runlevel = enum.Enum(("DEBUG", "DEBUG"), ("INFO", "INFO"), ("NOTICE", "NOTICE"),
-                     ("WARN", "WARN"), ("ERR", "ERR"))
-DEBUG, INFO, NOTICE, WARN, ERR = Runlevel.values()
+Runlevel = enum.UppercaseEnum("DEBUG", "INFO", "NOTICE", "WARN", "ERR")
+DEBUG, INFO, NOTICE, WARN, ERR = list(Runlevel)
 
 # provides thread safety for logging operations
 LOG_LOCK = RLock()
 
 # chronologically ordered records of events for each runlevel, stored as tuples
 # consisting of: (time, message)
-_backlog = dict([(level, []) for level in Runlevel.values()])
+_backlog = dict([(level, []) for level in Runlevel])
 
 # mapping of runlevels to the listeners interested in receiving events from it
-_listeners = dict([(level, []) for level in Runlevel.values()])
+_listeners = dict([(level, []) for level in Runlevel])
 
 CONFIG = {"cache.armLog.size": 1000,
           "cache.armLog.trimSize": 200}

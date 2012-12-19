@@ -68,7 +68,7 @@ while True:
       # provide the selection options
       printDivider()
       print("Select a resolver:")
-      availableResolvers = connections.Resolver.values()
+      availableResolvers = list(connections.Resolver)
       for i in range(len(availableResolvers)):
         print("  %i. %s" % (i, availableResolvers[i]))
       print("  q. Go back to the main menu")
@@ -80,7 +80,7 @@ while True:
       
       if userSelection.isdigit() and int(userSelection) in range(0, 7):
         try:
-          resolver = connections.Resolver.values()[int(userSelection)]
+          resolver = list(connections.Resolver)[int(userSelection)]
           startTime = time.time()
           
           print(connections.getResolverCommand(resolver, "tor", conn.getMyPid()))

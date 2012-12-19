@@ -8,7 +8,9 @@ import threading
 
 import popups
 
-from util import conf, enum, panel, torConfig, torTools, uiTools
+from util import conf, panel, torConfig, torTools, uiTools
+
+from stem.util import enum
 
 DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
                   "features.config.file.maxLinesPerEntry": 8}

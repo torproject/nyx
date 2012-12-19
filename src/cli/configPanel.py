@@ -9,7 +9,9 @@ import threading
 import cli.controller
 import popups
 
-from util import conf, enum, panel, sysTools, torConfig, torTools, uiTools
+from util import conf, panel, sysTools, torConfig, torTools, uiTools
+
+from stem.util import enum
 
 DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
                   "features.config.prepopulateEditValues": True,
@@ -182,7 +184,7 @@ class ConfigPanel(panel.Panel):
         "features.config.state.colWidth.option": 5,
         "features.config.state.colWidth.value": 5})
       
-      sortFields = Field.values()
+      sortFields = list(Field)
       customOrdering = config.getIntCSV("features.config.order", None, 3, 0, len(sortFields))
       
       if customOrdering:
@@ -300,9 +302,9 @@ class ConfigPanel(panel.Panel):
     
     # set ordering for config options
     titleLabel = "Config Option Ordering:"
-    options = [FIELD_ATTR[field][0] for field in Field.values()]
+    options = [FIELD_ATTR[field][0] for field in Field]
     oldSelection = [FIELD_ATTR[field][0] for field in self.sortOrdering]
-    optionColors = dict([FIELD_ATTR[field] for field in Field.values()])
+    optionColors = dict([FIELD_ATTR[field] for field in Field])
     results = popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
     
     if results:

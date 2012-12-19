@@ -4,7 +4,7 @@ entry itself (ie, Tor connection, client circuit, etc) and the lines it
 consists of in the listing.
 """
 
-from util import enum
+from stem.util import enum
 
 # attributes we can list entries by
 ListingType = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")

@@ -8,7 +8,9 @@ import operator
 import cli.controller
 import cli.popups
 
-from util import connections, enum, log, uiTools
+from util import connections, log, uiTools
+
+from stem.util import enum
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
 EXIT_USAGE_WIDTH = 15

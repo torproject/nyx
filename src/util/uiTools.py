@@ -10,7 +10,9 @@ import sys
 import curses
 
 from curses.ascii import isprint
-from util import enum, log
+from util import log
+
+from stem.util import enum
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,

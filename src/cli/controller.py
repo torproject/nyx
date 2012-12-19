@@ -22,7 +22,9 @@ import cli.connections.connPanel
 
 from stem.control import Controller
 
-from util import connections, conf, enum, hostnames, log, panel, sysTools, torConfig, torTools
+from util import connections, conf, hostnames, log, panel, sysTools, torConfig, torTools
+
+from stem.util import enum
 
 ARM_CONTROLLER = None
 

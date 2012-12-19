@@ -6,8 +6,10 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from util import connections, enum, torTools, uiTools
+from util import connections, torTools, uiTools
 from cli.connections import entries
+
+from stem.util import enum
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -178,7 +180,7 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
       if myNickname == "UNKNOWN": return "z" * 20 # orders at the end
       else: return myNickname.lower()
     elif attr == entries.SortAttr.CATEGORY:
-      return Category.indexOf(connLine.getType())
+      return Category.index_of(connLine.getType())
     elif attr == entries.SortAttr.UPTIME:
       return connLine.startTime
     elif attr == entries.SortAttr.COUNTRY:

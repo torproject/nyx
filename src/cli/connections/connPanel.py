@@ -10,7 +10,9 @@ import threading
 import cli.popups
 
 from cli.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
-from util import connections, enum, panel, torTools, uiTools
+from util import connections, panel, torTools, uiTools
+
+from stem.util import enum
 
 DEFAULT_CONFIG = {"features.connection.resolveApps": True,
                   "features.connection.listingType": 0,
@@ -41,7 +43,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     if config:
       config.update(self._config, {
-        "features.connection.listingType": (0, len(Listing.values()) - 1),
+        "features.connection.listingType": (0, len(list(Listing)) - 1),
         "features.connection.refreshRate": 1})
       
       # defaults our listing selection to fingerprints if ip address
@@ -49,13 +51,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if not self._config["features.connection.showIps"] and self._config["features.connection.listingType"] == 0:
         self._config["features.connection.listingType"] = 2
       
-      sortFields = entries.SortAttr.values()
+      sortFields = list(entries.SortAttr)
       customOrdering = config.getIntCSV("features.connection.order", None, 3, 0, len(sortFields))
       
       if customOrdering:
         self._sortOrdering = [sortFields[i] for i in customOrdering]
     
-    self._listingType = Listing.values()[self._config["features.connection.listingType"]]
+    self._listingType = list(Listing)[self._config["features.connection.listingType"]]
     self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel
     self._entries = []          # last fetched display entries
@@ -205,7 +207,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     
     # set ordering for connection options
     titleLabel = "Connection Ordering:"
-    options = entries.SortAttr.values()
+    options = list(entries.SortAttr)
     oldSelection = self._sortOrdering
     optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
     results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
@@ -228,7 +230,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif key == ord('u') or key == ord('U'):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"
-      options = ["auto"] + connections.Resolver.values()
+      options = ["auto"] + list(connections.Resolver)
       connResolver = connections.getResolver("tor")
       
       currentOverwrite = connResolver.overwriteResolver
@@ -244,7 +246,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif key == ord('l') or key == ord('L'):
       # provides a menu to pick the primary information we list connections by
       title = "List By:"
-      options = entries.ListingType.values()
+      options = list(entries.ListingType)
       
       # dropping the HOSTNAME listing type until we support displaying that content
       options.remove(cli.connections.entries.ListingType.HOSTNAME)
@@ -489,7 +491,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # type cache for all of the connections (in case its changed since last
     # fetched).
     
-    categoryTypes = connEntry.Category.values()
+    categoryTypes = list(connEntry.Category)
     typeCounts = dict((type, 0) for type in categoryTypes)
     for entry in newEntries:
       if isinstance(entry, connEntry.ConnectionEntry):

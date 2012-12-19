@@ -157,7 +157,7 @@ def makeGraphMenu(graphPanel):
   boundsMenu = cli.menu.item.Submenu("Bounds")
   boundsGroup = cli.menu.item.SelectionGroup(graphPanel.setBoundsType, graphPanel.getBoundsType())
   
-  for boundsType in cli.graphing.graphPanel.Bounds.values():
+  for boundsType in cli.graphing.graphPanel.Bounds:
     boundsMenu.add(cli.menu.item.SelectionMenuItem(boundsType, boundsGroup, boundsType))
   
   graphMenu.add(boundsMenu)
@@ -219,7 +219,7 @@ def makeConnectionsMenu(connPanel):
   # listing options
   listingGroup = cli.menu.item.SelectionGroup(connPanel.setListingType, connPanel.getListingType())
   
-  listingOptions = cli.connections.entries.ListingType.values()
+  listingOptions = list(cli.connections.entries.ListingType)
   listingOptions.remove(cli.connections.entries.ListingType.HOSTNAME)
   
   for option in listingOptions:
@@ -235,7 +235,7 @@ def makeConnectionsMenu(connPanel):
   
   resolverMenu.add(cli.menu.item.SelectionMenuItem("auto", resolverGroup, None))
   
-  for option in connections.Resolver.values():
+  for option in connections.Resolver:
     resolverMenu.add(cli.menu.item.SelectionMenuItem(option, resolverGroup, option))
   
   connectionsMenu.add(resolverMenu)

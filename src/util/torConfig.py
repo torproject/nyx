@@ -9,7 +9,9 @@ import threading
 
 import stem.version
 
-from util import enum, log, sysTools, torTools, uiTools
+from util import log, sysTools, torTools, uiTools
+
+from stem.util import enum
 
 CONFIG = {"features.torrc.validate": True,
           "config.important": [],
@@ -147,7 +149,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         while inputFileContents:
           # gets category enum, failing if it doesn't exist
           category = inputFileContents.pop(0).rstrip()
-          if not category in Category.values():
+          if not category in Category:
             baseMsg = "invalid category in input file: '%s'"
             raise IOError(baseMsg % category)
           

@@ -16,7 +16,9 @@ import stem
 import stem.control
 import stem.descriptor
 
-from util import connections, enum, log, procTools, sysTools, uiTools
+from util import connections, log, procTools, sysTools, uiTools
+
+from stem.util import enum
 
 # enums for tor's controller state:
 # INIT - attached to a new controller

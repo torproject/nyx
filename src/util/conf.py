@@ -111,7 +111,7 @@ class Config():
     
     if key.startswith("log."):
       if val.upper() == "NONE": val = None
-      elif val.upper() in log.Runlevel.values(): val = val.upper()
+      elif val.upper() in list(log.Runlevel): val = val.upper()
       else:
         msg = "Config entry '%s' is expected to be a runlevel" % key
         if default != None: msg += ", defaulting to '%s'" % default

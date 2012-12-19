@@ -24,7 +24,9 @@ import cli.controller
 
 import stem.control
 
-from util import enum, panel, torTools, uiTools
+from util import panel, torTools, uiTools
+
+from stem.util import enum
 
 # time intervals at which graphs can be updated
 UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
@@ -232,7 +234,7 @@ class GraphPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "graph", 0)
     self.updateInterval = CONFIG["features.graph.interval"]
-    self.bounds = Bounds.values()[CONFIG["features.graph.bound"]]
+    self.bounds = list(Bounds)[CONFIG["features.graph.bound"]]
     self.graphHeight = CONFIG["features.graph.height"]
     self.currentDisplay = None    # label of the stats currently being displayed
     self.stats = {}               # available stats (mappings of label -> instance)

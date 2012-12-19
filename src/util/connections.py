@@ -21,7 +21,9 @@ import os
 import time
 import threading
 
-from util import enum, log, procTools, sysTools
+from util import log, procTools, sysTools
+
+from stem.util import enum
 
 # enums for connection resolution utilities
 Resolver = enum.Enum(("PROC", "proc"),
