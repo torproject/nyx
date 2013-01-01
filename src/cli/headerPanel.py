@@ -23,6 +23,7 @@ import stem
 import stem.connection
 
 from stem.control import Controller
+from stem.util import conf
 
 import starter
 import cli.popups
@@ -42,12 +43,14 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
 VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
-DEFAULT_CONFIG = {"startup.interface.ipAddress": "127.0.0.1",
-                  "startup.interface.port": 9051,
-                  "startup.interface.socket": "/var/run/tor/control",
-                  "features.showFdUsage": False,
-                  "log.fdUsageSixtyPercent": log.NOTICE,
-                  "log.fdUsageNinetyPercent": log.WARN}
+CONFIG = conf.config_dict("arm", {
+  "startup.interface.ipAddress": "127.0.0.1",
+  "startup.interface.port": 9051,
+  "startup.interface.socket": "/var/run/tor/control",
+  "features.showFdUsage": False,
+  "log.fdUsageSixtyPercent": log.NOTICE,
+  "log.fdUsageNinetyPercent": log.WARN,
+})
 
 class HeaderPanel(panel.Panel, threading.Thread):
   """
@@ -63,13 +66,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
   * volatile parameter that'll be reset on each update
   """
   
-  def __init__(self, stdscr, startTime, config = None):
+  def __init__(self, stdscr, startTime):
     panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
-    
-    self._config = dict(DEFAULT_CONFIG)
-    if config: config.update(self._config)
     
     self._isTorConnected = torTools.getConn().isAlive()
     self._lastUpdate = -1       # time the content was last revised
@@ -140,10 +140,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       controller = None
       allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       
-      if os.path.exists(self._config["startup.interface.socket"]) and allowSocketConnection:
+      if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
         try:
           # TODO: um... what about passwords?
-          controller = Controller.from_socket_file(self._config["startup.interface.socket"])
+          controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
           controller.authenticate()
         except (IOError, stem.SocketError), exc:
           controller = None
@@ -151,7 +151,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           if not allowPortConnection:
             cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       elif not allowPortConnection:
-        cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % self._config["startup.interface.socket"], 3)
+        cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
       
       if not controller and allowPortConnection:
         # TODO: This has diverged from starter.py's connection, for instance it
@@ -161,7 +161,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # manageable.
         
         try:
-          ctlAddr, ctlPort = self._config["startup.interface.ipAddress"], self._config["startup.interface.port"]
+          ctlAddr, ctlPort = CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"]
           controller = Controller.from_port(ctlAddr, ctlPort)
           
           try:
@@ -297,7 +297,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         
         fdPercent = 100 * self.vals["tor/fdUsed"] / self.vals["tor/fdLimit"]
         
-        if fdPercent >= 60 or self._config["features.showFdUsage"]:
+        if fdPercent >= 60 or CONFIG["features.showFdUsage"]:
           fdPercentLabel, fdPercentFormat = "%i%%" % fdPercent, curses.A_NORMAL
           if fdPercent >= 95:
             fdPercentFormat = curses.A_BOLD | uiTools.getColor("red")
@@ -559,10 +559,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if fdPercent >= 90 and not self._isFdNinetyPercentWarned:
         self._isFdSixtyPercentWarned, self._isFdNinetyPercentWarned = True, True
         msg += " If you run out Tor will be unable to continue functioning."
-        log.log(self._config["log.fdUsageNinetyPercent"], msg)
+        log.log(CONFIG["log.fdUsageNinetyPercent"], msg)
       elif fdPercent >= 60 and not self._isFdSixtyPercentWarned:
         self._isFdSixtyPercentWarned = True
-        log.log(self._config["log.fdUsageSixtyPercent"], msg)
+        log.log(CONFIG["log.fdUsageSixtyPercent"], msg)
     
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:

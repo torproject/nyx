@@ -9,7 +9,7 @@ import curses
 from util import connections, torTools, uiTools
 from cli.connections import entries
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -35,16 +35,15 @@ LABEL_MIN_PADDING = 2 # min space between listing label and following data
 # sort value for scrubbed ip addresses
 SCRUBBED_IP_VAL = 255 ** 4
 
-CONFIG = {"features.connection.markInitialConnections": True,
-          "features.connection.showIps": True,
-          "features.connection.showExitPort": True,
-          "features.connection.showColumn.fingerprint": True,
-          "features.connection.showColumn.nickname": True,
-          "features.connection.showColumn.destination": True,
-          "features.connection.showColumn.expandedIp": True}
-
-def loadConfig(config):
-  config.update(CONFIG)
+CONFIG = conf.config_dict("arm", {
+  "features.connection.markInitialConnections": True,
+  "features.connection.showIps": True,
+  "features.connection.showExitPort": True,
+  "features.connection.showColumn.fingerprint": True,
+  "features.connection.showColumn.nickname": True,
+  "features.connection.showColumn.destination": True,
+  "features.connection.showColumn.expandedIp": True,
+})
 
 class Endpoint:
   """

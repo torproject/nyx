@@ -26,7 +26,7 @@ import stem.control
 
 from util import panel, torTools, uiTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # time intervals at which graphs can be updated
 UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
@@ -45,19 +45,24 @@ Bounds = enum.Enum("GLOBAL_MAX", "LOCAL_MAX", "TIGHT")
 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
-# used for setting defaults when initializing GraphStats and GraphPanel instances
-CONFIG = {"features.graph.height": 7,
-          "features.graph.interval": 0,
-          "features.graph.bound": 1,
-          "features.graph.maxWidth": 150,
-          "features.graph.showIntermediateBounds": True}
+def conf_handler(key, value):
+  if key == "features.graph.height":
+    return max(MIN_GRAPH_HEIGHT, value)
+  elif key == "features.graph.maxWidth":
+    return max(1, value)
+  elif key == "features.graph.interval":
+    return max(0, min(len(UPDATE_INTERVALS) - 1, value))
+  elif key == "features.graph.bound":
+    return max(0, min(2, value))
 
-def loadConfig(config):
-  config.update(CONFIG, {
-    "features.graph.height": MIN_GRAPH_HEIGHT,
-    "features.graph.maxWidth": 1,
-    "features.graph.interval": (0, len(UPDATE_INTERVALS) - 1),
-    "features.graph.bound": (0, 2)})
+# used for setting defaults when initializing GraphStats and GraphPanel instances
+CONFIG = conf.config_dict("arm", {
+  "features.graph.height": 7,
+  "features.graph.interval": 0,
+  "features.graph.bound": 1,
+  "features.graph.maxWidth": 150,
+  "features.graph.showIntermediateBounds": True,
+}, conf_handler)
 
 class GraphStats:
   """

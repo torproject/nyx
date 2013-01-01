@@ -11,6 +11,8 @@ from threading import RLock
 
 from util import log, textInput, uiTools
 
+from stem.util import conf
+
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
 CURSES_LOCK = RLock()
@@ -23,13 +25,12 @@ FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<h>": (_noOp, curses.A_STANDOUT)}
 for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
 
-CONFIG = {"log.panelRecreated": log.DEBUG}
+CONFIG = conf.config_dict("arm", {
+  "log.panelRecreated": log.DEBUG,
+})
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
-
-def loadConfig(config):
-  config.update(CONFIG)
 
 class Panel():
   """

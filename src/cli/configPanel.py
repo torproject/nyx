@@ -9,16 +9,9 @@ import threading
 import cli.controller
 import popups
 
-from util import conf, panel, sysTools, torConfig, torTools, uiTools
+from util import panel, sysTools, torConfig, torTools, uiTools
 
-from stem.util import enum
-
-DEFAULT_CONFIG = {"features.config.selectionDetails.height": 6,
-                  "features.config.prepopulateEditValues": True,
-                  "features.config.state.showPrivateOptions": False,
-                  "features.config.state.showVirtualOptions": False,
-                  "features.config.state.colWidth.option": 25,
-                  "features.config.state.colWidth.value": 15}
+from stem.util import conf, enum
 
 # TODO: The arm use cases are incomplete since they currently can't be
 # modified, have their descriptions fetched, or even get a complete listing
@@ -38,7 +31,7 @@ CATEGORY_COLOR = {torConfig.Category.GENERAL: "green",
 # attributes of a ConfigEntry
 Field = enum.Enum("CATEGORY", "OPTION", "VALUE", "TYPE", "ARG_USAGE",
                   "SUMMARY", "DESCRIPTION", "MAN_ENTRY", "IS_DEFAULT")
-DEFAULT_SORT_ORDER = (Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT)
+
 FIELD_ATTR = {Field.CATEGORY: ("Category", "red"),
               Field.OPTION: ("Option Name", "blue"),
               Field.VALUE: ("Value", "cyan"),
@@ -48,6 +41,26 @@ FIELD_ATTR = {Field.CATEGORY: ("Category", "red"),
               Field.DESCRIPTION: ("Description", "white"),
               Field.MAN_ENTRY: ("Man Page Entry", "blue"),
               Field.IS_DEFAULT: ("Is Default", "magenta")}
+
+def conf_handler(key, value):
+  if key == "features.config.selectionDetails.height":
+    return max(0, value)
+  elif key == "features.config.state.colWidth.option":
+    return max(5, value)
+  elif key == "features.config.state.colWidth.value":
+    return max(5, value)
+  elif key == "features.config.order":
+    return conf.parse_enum_csv(key, value[0], Field, 3)
+
+CONFIG = conf.config_dict("arm", {
+  "features.config.order": [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
+  "features.config.selectionDetails.height": 6,
+  "features.config.prepopulateEditValues": True,
+  "features.config.state.showPrivateOptions": False,
+  "features.config.state.showVirtualOptions": False,
+  "features.config.state.colWidth.option": 25,
+  "features.config.state.colWidth.value": 15,
+}, conf_handler)
 
 def getFieldFromLabel(fieldLabel):
   """
@@ -173,22 +186,8 @@ class ConfigPanel(panel.Panel):
   be selected and edited.
   """
   
-  def __init__(self, stdscr, configType, config=None):
+  def __init__(self, stdscr, configType):
     panel.Panel.__init__(self, stdscr, "configuration", 0)
-    
-    self.sortOrdering = DEFAULT_SORT_ORDER
-    self._config = dict(DEFAULT_CONFIG)
-    if config:
-      config.update(self._config, {
-        "features.config.selectionDetails.height": 0,
-        "features.config.state.colWidth.option": 5,
-        "features.config.state.colWidth.value": 5})
-      
-      sortFields = list(Field)
-      customOrdering = config.getIntCSV("features.config.order", None, 3, 0, len(sortFields))
-      
-      if customOrdering:
-        self.sortOrdering = [sortFields[i] for i in customOrdering]
     
     self.configType = configType
     self.confContents = []
@@ -237,16 +236,16 @@ class ConfigPanel(panel.Panel):
         confOption, confType = lineComp[0], lineComp[1]
         
         # skips private and virtual entries if not configured to show them
-        if not self._config["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
+        if not CONFIG["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
           continue
-        elif not self._config["features.config.state.showVirtualOptions"] and confType == "Virtual":
+        elif not CONFIG["features.config.state.showVirtualOptions"] and confType == "Virtual":
           continue
         
         self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions))
     elif self.configType == State.ARM:
       # loaded via the conf utility
-      armConf = conf.getConfig("arm")
-      for key in armConf.getKeys():
+      armConf = conf.get_config("arm")
+      for key in armConf.keys():
         pass # TODO: implement
     
     # mirror listing with only the important configuration options
@@ -290,9 +289,9 @@ class ConfigPanel(panel.Panel):
     """
     
     self.valsLock.acquire()
-    if ordering: self.sortOrdering = ordering
-    self.confContents.sort(key=lambda i: (i.getAll(self.sortOrdering)))
-    self.confImportantContents.sort(key=lambda i: (i.getAll(self.sortOrdering)))
+    if ordering: CONFIG["features.config.order"] = ordering
+    self.confContents.sort(key=lambda i: (i.getAll(CONFIG["features.config.order"])))
+    self.confImportantContents.sort(key=lambda i: (i.getAll(CONFIG["features.config.order"])))
     self.valsLock.release()
   
   def showSortDialog(self):
@@ -303,7 +302,7 @@ class ConfigPanel(panel.Panel):
     # set ordering for config options
     titleLabel = "Config Option Ordering:"
     options = [FIELD_ATTR[field][0] for field in Field]
-    oldSelection = [FIELD_ATTR[field][0] for field in self.sortOrdering]
+    oldSelection = [FIELD_ATTR[field][0] for field in CONFIG["features.config.order"]]
     optionColors = dict([FIELD_ATTR[field] for field in Field])
     results = popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
     
@@ -317,7 +316,7 @@ class ConfigPanel(panel.Panel):
     isKeystrokeConsumed = True
     if uiTools.isScrollKey(key):
       pageHeight = self.getPreferredSize()[0] - 1
-      detailPanelHeight = self._config["features.config.selectionDetails.height"]
+      detailPanelHeight = CONFIG["features.config.selectionDetails.height"]
       if detailPanelHeight > 0 and detailPanelHeight + 2 <= pageHeight:
         pageHeight -= (detailPanelHeight + 1)
       
@@ -336,7 +335,7 @@ class ConfigPanel(panel.Panel):
         else: initialValue = selection.get(Field.VALUE)
         
         promptMsg = "%s Value (esc to cancel): " % configOption
-        isPrepopulated = self._config["features.config.prepopulateEditValues"]
+        isPrepopulated = CONFIG["features.config.prepopulateEditValues"]
         newValue = popups.inputPrompt(promptMsg, initialValue if isPrepopulated else "")
         
         if newValue != None and newValue != initialValue:
@@ -494,7 +493,7 @@ class ConfigPanel(panel.Panel):
     self.valsLock.acquire()
     
     # panel with details for the current selection
-    detailPanelHeight = self._config["features.config.selectionDetails.height"]
+    detailPanelHeight = CONFIG["features.config.selectionDetails.height"]
     isScrollbarVisible = False
     if detailPanelHeight == 0 or detailPanelHeight + 2 >= height:
       # no detail panel
@@ -526,8 +525,8 @@ class ConfigPanel(panel.Panel):
       scrollOffset = 3
       self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self._getConfigOptions()), 1 + detailPanelHeight)
     
-    optionWidth = self._config["features.config.state.colWidth.option"]
-    valueWidth = self._config["features.config.state.colWidth.value"]
+    optionWidth = CONFIG["features.config.state.colWidth.option"]
+    valueWidth = CONFIG["features.config.state.colWidth.value"]
     descriptionWidth = max(0, width - scrollOffset - optionWidth - valueWidth - 2)
     
     # if the description column is overly long then use its space for the

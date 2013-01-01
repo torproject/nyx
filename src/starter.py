@@ -17,12 +17,8 @@ import platform
 import version
 import cli.controller
 import cli.logPanel
-import util.conf
 import util.connections
-import util.hostnames
 import util.log
-import util.panel
-import util.procTools
 import util.sysTools
 import util.torConfig
 import util.torTools
@@ -30,28 +26,32 @@ import util.uiTools
 
 from stem.control import Controller
 import stem.connection
+import stem.util.conf
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
-CONFIG = {"startup.controlPassword": None,
-          "startup.interface.ipAddress": "127.0.0.1",
-          "startup.interface.port": 9051,
-          "startup.interface.socket": "/var/run/tor/control",
-          "startup.blindModeEnabled": False,
-          "startup.events": "N3",
-          "startup.dataDirectory": "~/.arm",
-          "features.allowDetachedStartup": False,
-          "features.config.descriptions.enabled": True,
-          "features.config.descriptions.persist": True,
-          "log.configDescriptions.readManPageSuccess": util.log.INFO,
-          "log.configDescriptions.readManPageFailed": util.log.NOTICE,
-          "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
-          "log.configDescriptions.internalLoadFailed": util.log.ERR,
-          "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
-          "log.configDescriptions.persistance.loadFailed": util.log.INFO,
-          "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
-          "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
-          "log.savingDebugLog": util.log.NOTICE}
+
+CONFIG = stem.util.conf.config_dict("arm", {
+  "startup.controlPassword": None,
+  "startup.interface.ipAddress": "127.0.0.1",
+  "startup.interface.port": 9051,
+  "startup.interface.socket": "/var/run/tor/control",
+  "startup.blindModeEnabled": False,
+  "startup.events": "N3",
+  "startup.dataDirectory": "~/.arm",
+  "features.allowDetachedStartup": False,
+  "features.config.descriptions.enabled": True,
+  "features.config.descriptions.persist": True,
+  "log.configDescriptions.readManPageSuccess": util.log.INFO,
+  "log.configDescriptions.readManPageFailed": util.log.NOTICE,
+  "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
+  "log.configDescriptions.internalLoadFailed": util.log.ERR,
+  "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
+  "log.configDescriptions.persistance.loadFailed": util.log.INFO,
+  "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
+  "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
+  "log.savingDebugLog": util.log.NOTICE,
+})
 
 OPT = "gi:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
@@ -113,7 +113,7 @@ def allowConnectionTypes():
   (allowPortConnection, allowSocketConnection, allowDetachedStart)
   """
   
-  confKeys = util.conf.getConfig("arm").getKeys()
+  confKeys = stem.util.conf.get_config("arm").keys()
   
   isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
   isSocketArgPresent = "startup.interface.socket" in confKeys
@@ -242,12 +242,12 @@ def _dumpConfig():
   check that I didn't miss anything.
   """
   
-  config = util.conf.getConfig("arm")
+  config = stem.util.conf.get_config("arm")
   conn = util.torTools.getConn()
   
   # dumps arm's configuration
   armConfigEntry = ""
-  armConfigKeys = list(config.getKeys())
+  armConfigKeys = list(config.keys())
   armConfigKeys.sort()
   
   for configKey in armConfigKeys:
@@ -256,7 +256,7 @@ def _dumpConfig():
     # arm.
     
     if not configKey.startswith("config.summary.") and not configKey.startswith("torrc.") and not configKey.startswith("msg."):
-      armConfigEntry += "%s -> %s\n" % (configKey, config.contents[configKey])
+      armConfigEntry += "%s -> %s\n" % (configKey, config.get_value(configKey))
   
   if armConfigEntry: armConfigEntry = "Arm Configuration:\n%s" % armConfigEntry
   else: armConfigEntry = "Arm Configuration: None"
@@ -338,7 +338,7 @@ if __name__ == '__main__':
     except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
   
-  config = util.conf.getConfig("arm")
+  config = stem.util.conf.get_config("arm")
   
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
   pathPrefix = os.path.dirname(sys.argv[0])
@@ -370,13 +370,6 @@ if __name__ == '__main__':
   
   if util.torTools.isTorRunning():
     config.set("features.allowDetachedStartup", "false")
-  
-  # revises defaults to match user's configuration
-  config.update(CONFIG)
-  
-  # loads user preferences for utilities
-  for utilModule in (util.conf, util.connections, util.hostnames, util.log, util.panel, util.procTools, util.sysTools, util.torConfig, util.torTools, util.uiTools):
-    utilModule.loadConfig(config)
   
   # syncs config and parameters, saving changed config options and overwriting
   # undefined parameters with defaults
@@ -435,17 +428,17 @@ if __name__ == '__main__':
     # (unfortunately python does allow for direct access to the memory so this
     # is the best we can do)
     del authPassword
-    if "startup.controlPassword" in config.contents:
-      del config.contents["startup.controlPassword"]
+    if "startup.controlPassword" in config._contents:
+      del config._contents["startup.controlPassword"]
       
       pwLineNum = None
-      for i in range(len(config.rawContents)):
-        if config.rawContents[i].strip().startswith("startup.controlPassword"):
+      for i in range(len(config._raw_contents)):
+        if config._raw_contents[i].strip().startswith("startup.controlPassword"):
           pwLineNum = i
           break
       
       if pwLineNum != None:
-        del config.rawContents[i]
+        del config._raw_contents[i]
   
   if controller is None and not allowDetachedStart: sys.exit(1)
   

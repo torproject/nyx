@@ -109,9 +109,17 @@ features.log.maxRefreshRate 300
 # ---------------------------
 # order
 #   three comma separated configuration attributes, options including:
-#   0 -> Category,  1 -> Option Name,   2 -> Value,       3 -> Arg Type,
-#   4 -> Arg Usage, 5 -> Summary,       6 -> Description, 7 -> Man Entry,
-#   8 -> Is Default
+#
+#     * CATEGORY
+#     * OPTION
+#     * VALUE
+#     * TYPE
+#     * ARG_USAGE
+#     * SUMMARY
+#     * DESCRIPTION
+#     * MAN_ENTRY
+#     * IS_DEFAULT
+#
 # selectionDetails.height
 #   rows of data for the panel showing details on the current selection, this
 #   is disabled entirely if zero
@@ -131,7 +139,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.order 7, 1, 8
+features.config.order MAN_ENTRY, OPTION, IS_DEFAULT
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25
@@ -200,13 +208,25 @@ features.graph.bw.accounting.isTimeLong false
 # ---------------------------------
 # listingType
 #   the primary category of information shown by default, options including:
-#   0 -> IP Address / Port              1 -> Hostname
-#   2 -> Fingerprint                    3 -> Nickname
+#
+#   * IP_ADDRESS
+#   * HOSTNAME
+#   * FINGERPRINT
+#   * NICKNAME
+#
 # order
 #   three comma separated configuration attributes, options including:
-#   0 -> Category,  1 -> Uptime,        2 -> Listing,     3 -> IP Address,
-#   4 -> Port,      5 -> Hostname,      6 -> Fingerprint, 7 -> Nickname,
-#   8 -> Country
+#
+#   * CATEGORY
+#   * UPTIME
+#   * LISTING
+#   * IP_ADDRESS
+#   * PORT
+#   * HOSTNAME
+#   * FINGERPRINT
+#   * NICKNAME
+#   * COUNTRY
+#
 # refreshRate
 #   rate at which the connection panel contents is redrawn (if higher than the
 #   connection resolution rate then reducing this won't casue new data to
@@ -227,8 +247,8 @@ features.graph.bw.accounting.isTimeLong false
 # showColumn.*
 #   toggles the visability of the connection table columns
 
-features.connection.listingType 0
-features.connection.order 0, 2, 1
+features.connection.listingType IP_ADDRESS
+features.connection.order CATEGORY, LISTING, UPTIME
 features.connection.refreshRate 5
 features.connection.resolveApps true
 features.connection.markInitialConnections true

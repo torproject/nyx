@@ -12,12 +12,7 @@ import cli.popups
 from cli.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
 from util import connections, panel, torTools, uiTools
 
-from stem.util import enum
-
-DEFAULT_CONFIG = {"features.connection.resolveApps": True,
-                  "features.connection.listingType": 0,
-                  "features.connection.refreshRate": 5,
-                  "features.connection.showIps": True}
+from stem.util import conf, enum
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
@@ -25,7 +20,24 @@ DETAILS_HEIGHT = 7
 # listing types
 Listing = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
 
-DEFAULT_SORT_ORDER = (entries.SortAttr.CATEGORY, entries.SortAttr.LISTING, entries.SortAttr.UPTIME)
+def conf_handler(key, value):
+  if key == "features.connection.listingType":
+    return conf.parse_enum(key, value, Listing)
+  elif key == "features.connection.refreshRate":
+    return max(1, value)
+  elif key == "features.connection.order":
+    return conf.parse_enum_csv(key, value[0], entries.SortAttr, 3)
+
+CONFIG = conf.config_dict("arm", {
+  "features.connection.resolveApps": True,
+  "features.connection.listingType": Listing.IP_ADDRESS,
+  "features.connection.order": [
+    entries.SortAttr.CATEGORY,
+    entries.SortAttr.LISTING,
+    entries.SortAttr.UPTIME],
+  "features.connection.refreshRate": 5,
+  "features.connection.showIps": True,
+}, conf_handler)
 
 class ConnectionPanel(panel.Panel, threading.Thread):
   """
@@ -33,31 +45,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   the current consensus and other data sources.
   """
   
-  def __init__(self, stdscr, config=None):
+  def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "connections", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
     
-    self._sortOrdering = DEFAULT_SORT_ORDER
-    self._config = dict(DEFAULT_CONFIG)
+    # defaults our listing selection to fingerprints if ip address
+    # displaying is disabled
+    #
+    # TODO: This is a little sucky in that it won't work if showIps changes
+    # while we're running (... but arm doesn't allow for that atm)
     
-    if config:
-      config.update(self._config, {
-        "features.connection.listingType": (0, len(list(Listing)) - 1),
-        "features.connection.refreshRate": 1})
-      
-      # defaults our listing selection to fingerprints if ip address
-      # displaying is disabled
-      if not self._config["features.connection.showIps"] and self._config["features.connection.listingType"] == 0:
-        self._config["features.connection.listingType"] = 2
-      
-      sortFields = list(entries.SortAttr)
-      customOrdering = config.getIntCSV("features.connection.order", None, 3, 0, len(sortFields))
-      
-      if customOrdering:
-        self._sortOrdering = [sortFields[i] for i in customOrdering]
+    if not CONFIG["features.connection.showIps"] and CONFIG["features.connection.listingType"] == 0:
+      armConf = conf.get_config("arm")
+      armConf.set("features.connection.listingType", enumeration.keys()[Listing.index_of(Listing.FINGERPRINT)])
     
-    self._listingType = list(Listing)[self._config["features.connection.listingType"]]
     self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel
     self._entries = []          # last fetched display entries
@@ -150,8 +152,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     
     self.valsLock.acquire()
-    if ordering: self._sortOrdering = ordering
-    self._entries.sort(key=lambda i: (i.getSortValues(self._sortOrdering, self._listingType)))
+    
+    if ordering:
+      armConf = conf.get_config("arm")
+      
+      ordering_keys = [entries.SortAttr.keys()[entries.SortAttr.index_of(v)] for v in ordering]
+      armConf.set("features.connection.order", ", ".join(ordering_keys))
+    
+    self._entries.sort(key=lambda i: (i.getSortValues(CONFIG["features.connection.order"], self.getListingType())))
     
     self._entryLines = []
     for entry in self._entries:
@@ -163,7 +171,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Provides the priority content we list connections by.
     """
     
-    return self._listingType
+    return CONFIG["features.connection.listingType"]
   
   def setListingType(self, listingType):
     """
@@ -173,13 +181,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       listingType - Listing instance for the primary information to be shown
     """
     
-    if self._listingType == listingType: return
+    if self.getListingType() == listingType: return
     
     self.valsLock.acquire()
-    self._listingType = listingType
+    
+    armConf = conf.get_config("arm")
+    armConf.set("features.connection.listingType", enumeration.keys()[Listing.index_of(listingType)])
     
     # if we're sorting by the listing then we need to resort
-    if entries.SortAttr.LISTING in self._sortOrdering:
+    if entries.SortAttr.LISTING in CONFIG["features.connection.order"]:
       self.setSortOrder()
     
     self.valsLock.release()
@@ -208,7 +218,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # set ordering for connection options
     titleLabel = "Connection Ordering:"
     options = list(entries.SortAttr)
-    oldSelection = self._sortOrdering
+    oldSelection = CONFIG["features.connection.order"]
     optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
     results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
     if results: self.setSortOrder(results)
@@ -251,7 +261,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # dropping the HOSTNAME listing type until we support displaying that content
       options.remove(cli.connections.entries.ListingType.HOSTNAME)
       
-      oldSelection = options.index(self._listingType)
+      oldSelection = options.index(self.getListingType())
       selection = cli.popups.showMenu(title, options, oldSelection)
       
       # applies new setting
@@ -287,7 +297,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     while not self._halt:
       currentTime = time.time()
       
-      if self.isPaused() or not self._isTorRunning or currentTime - lastDraw < self._config["features.connection.refreshRate"]:
+      if self.isPaused() or not self._isTorRunning or currentTime - lastDraw < CONFIG["features.connection.refreshRate"]:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
         self._cond.release()
@@ -298,8 +308,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         
         # we may have missed multiple updates due to being paused, showing
         # another panel, etc so lastDraw might need to jump multiple ticks
-        drawTicks = (time.time() - lastDraw) / self._config["features.connection.refreshRate"]
-        lastDraw += self._config["features.connection.refreshRate"] * drawTicks
+        drawTicks = (time.time() - lastDraw) / CONFIG["features.connection.refreshRate"]
+        lastDraw += CONFIG["features.connection.refreshRate"] * drawTicks
   
   def getHelp(self):
     resolverUtil = connections.getResolver("tor").overwriteResolver
@@ -319,7 +329,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if self.isExitsAllowed():
       options.append(("e", "exit port usage summary", None))
     
-    options.append(("l", "listed identity", self._listingType.lower()))
+    options.append(("l", "listed identity", self.getListingType().lower()))
     options.append(("s", "sort ordering", None))
     options.append(("u", "resolving utility", resolverUtil))
     return options
@@ -387,7 +397,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         self.addch(drawLine, scrollOffset + i, prefix[i])
       
       xOffset = scrollOffset + len(prefix)
-      drawEntry = entryLine.getListingEntry(width - scrollOffset - len(prefix), currentTime, self._listingType)
+      drawEntry = entryLine.getListingEntry(width - scrollOffset - len(prefix), currentTime, self.getListingType())
       
       for msg, attr in drawEntry:
         attr |= extraFormat
@@ -530,7 +540,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
                   until the next update if true
     """
     
-    if self.appResolveSinceUpdate or not self._config["features.connection.resolveApps"]: return
+    if self.appResolveSinceUpdate or not CONFIG["features.connection.resolveApps"]: return
     unresolvedLines = [l for l in self._entryLines if isinstance(l, connEntry.ConnectionLine) and l.isUnresolvedApp()]
     
     # get the ports used for unresolved applications

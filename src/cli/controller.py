@@ -22,29 +22,37 @@ import cli.connections.connPanel
 
 from stem.control import Controller
 
-from util import connections, conf, hostnames, log, panel, sysTools, torConfig, torTools
+from util import connections, hostnames, log, panel, sysTools, torConfig, torTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
 ARM_CONTROLLER = None
 
-CONFIG = {"startup.events": "N3",
-          "startup.dataDirectory": "~/.arm",
-          "startup.blindModeEnabled": False,
-          "features.panels.show.graph": True,
-          "features.panels.show.log": True,
-          "features.panels.show.connection": True,
-          "features.panels.show.config": True,
-          "features.panels.show.torrc": True,
-          "features.redrawRate": 5,
-          "features.refreshRate": 5,
-          "features.confirmQuit": True,
-          "features.graph.type": 1,
-          "features.graph.bw.prepopulate": True,
-          "log.startTime": log.INFO,
-          "log.torEventTypeUnrecognized": log.INFO,
-          "log.configEntryUndefined": log.NOTICE,
-          "log.unknownTorPid": log.WARN}
+def conf_handler(key, value):
+  if key == "features.redrawRate":
+    return max(1, value)
+  elif key == "features.refreshRate":
+    return max(0, value)
+
+CONFIG = conf.config_dict("arm", {
+  "startup.events": "N3",
+  "startup.dataDirectory": "~/.arm",
+  "startup.blindModeEnabled": False,
+  "features.panels.show.graph": True,
+  "features.panels.show.log": True,
+  "features.panels.show.connection": True,
+  "features.panels.show.config": True,
+  "features.panels.show.torrc": True,
+  "features.redrawRate": 5,
+  "features.refreshRate": 5,
+  "features.confirmQuit": True,
+  "features.graph.type": 1,
+  "features.graph.bw.prepopulate": True,
+  "log.startTime": log.INFO,
+  "log.torEventTypeUnrecognized": log.INFO,
+  "log.configEntryUndefined": log.NOTICE,
+  "log.unknownTorPid": log.WARN,
+}, conf_handler)
 
 GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
 
@@ -67,10 +75,9 @@ def initController(stdscr, startTime):
   """
   
   global ARM_CONTROLLER
-  config = conf.getConfig("arm")
   
   # initializes the panels
-  stickyPanels = [cli.headerPanel.HeaderPanel(stdscr, startTime, config),
+  stickyPanels = [cli.headerPanel.HeaderPanel(stdscr, startTime),
                   LabelPanel(stdscr)]
   pagePanels, firstPagePanels = [], []
   
@@ -80,21 +87,21 @@ def initController(stdscr, startTime):
   
   if CONFIG["features.panels.show.log"]:
     expandedEvents = cli.logPanel.expandEvents(CONFIG["startup.events"])
-    firstPagePanels.append(cli.logPanel.LogPanel(stdscr, expandedEvents, config))
+    firstPagePanels.append(cli.logPanel.LogPanel(stdscr, expandedEvents))
   
   if firstPagePanels: pagePanels.append(firstPagePanels)
   
   # second page: connections
   if not CONFIG["startup.blindModeEnabled"] and CONFIG["features.panels.show.connection"]:
-    pagePanels.append([cli.connections.connPanel.ConnectionPanel(stdscr, config)])
+    pagePanels.append([cli.connections.connPanel.ConnectionPanel(stdscr)])
   
   # third page: config
   if CONFIG["features.panels.show.config"]:
-    pagePanels.append([cli.configPanel.ConfigPanel(stdscr, cli.configPanel.State.TOR, config)])
+    pagePanels.append([cli.configPanel.ConfigPanel(stdscr, cli.configPanel.State.TOR)])
   
   # fourth page: torrc
   if CONFIG["features.panels.show.torrc"]:
-    pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC, config)])
+    pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC)])
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
@@ -104,7 +111,7 @@ def initController(stdscr, startTime):
   
   if graphPanel:
     # statistical monitors for graph
-    bwStats = cli.graphing.bandwidthStats.BandwidthStats(config)
+    bwStats = cli.graphing.bandwidthStats.BandwidthStats()
     graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
     graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, cli.graphing.resourceStats.ResourceStats())
     if not CONFIG["startup.blindModeEnabled"]:
@@ -509,15 +516,6 @@ def startTorMonitor(startTime):
     startTime - unix time for when arm was started
   """
   
-  # initializes interface configs
-  config = conf.getConfig("arm")
-  config.update(CONFIG, {
-    "features.redrawRate": 1,
-    "features.refreshRate": 0})
-  
-  cli.graphing.graphPanel.loadConfig(config)
-  cli.connections.connEntry.loadConfig(config)
-  
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
   conn = torTools.getConn()
@@ -592,7 +590,7 @@ def drawTorMonitor(stdscr, startTime):
   control = getController()
   
   # provides notice about any unused config keys
-  for key in conf.getConfig("arm").getUnusedKeys():
+  for key in conf.get_config("arm").unused_keys():
     log.log(CONFIG["log.configEntryUndefined"], "Unused configuration entry: %s" % key)
   
   # tells daemon panels to start

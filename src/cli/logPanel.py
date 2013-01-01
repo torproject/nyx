@@ -11,12 +11,13 @@ import curses
 import logging
 import threading
 
-import stem.util.log
+import stem.util.log # move to a 'from' import when we've dropped the other log util
 from stem.response import events
+from stem.util import conf
 
 import popups
 from version import VERSION
-from util import conf, log, panel, sysTools, torTools, uiTools
+from util import log, panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
@@ -42,22 +43,35 @@ DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
 ENTRY_INDENT = 2 # spaces an entry's message is indented after the first line
-DEFAULT_CONFIG = {"features.logFile": "",
-                  "features.log.showDateDividers": True,
-                  "features.log.showDuplicateEntries": False,
-                  "features.log.entryDuration": 7,
-                  "features.log.maxLinesPerEntry": 6,
-                  "features.log.prepopulate": True,
-                  "features.log.prepopulateReadLimit": 5000,
-                  "features.log.maxRefreshRate": 300,
-                  "features.log.regex": [],
-                  "cache.logPanel.size": 1000,
-                  "log.logPanel.prepopulateSuccess": log.INFO,
-                  "log.logPanel.prepopulateFailed": log.WARN,
-                  "log.logPanel.logFileOpened": log.NOTICE,
-                  "log.logPanel.logFileWriteFailed": log.ERR,
-                  "log.logPanel.forceDoubleRedraw": log.DEBUG,
-                  "log.configEntryTypeError": log.NOTICE}
+
+def conf_handler(key, value):
+  if key == "features.log.maxLinesPerEntry":
+    return max(1, value)
+  elif key == "features.log.prepopulateReadLimit":
+    return max(0, value)
+  elif key == "features.log.maxRefreshRate":
+    return max(10, value)
+  elif key == "cache.logPanel.size":
+    return max(1000, value)
+
+CONFIG = conf.config_dict("arm", {
+  "features.logFile": "",
+  "features.log.showDateDividers": True,
+  "features.log.showDuplicateEntries": False,
+  "features.log.entryDuration": 7,
+  "features.log.maxLinesPerEntry": 6,
+  "features.log.prepopulate": True,
+  "features.log.prepopulateReadLimit": 5000,
+  "features.log.maxRefreshRate": 300,
+  "features.log.regex": [],
+  "cache.logPanel.size": 1000,
+  "log.logPanel.prepopulateSuccess": log.INFO,
+  "log.logPanel.prepopulateFailed": log.WARN,
+  "log.logPanel.logFileOpened": log.NOTICE,
+  "log.logPanel.logFileWriteFailed": log.ERR,
+  "log.logPanel.forceDoubleRedraw": log.DEBUG,
+  "log.configEntryTypeError": log.NOTICE,
+}, conf_handler)
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
 
@@ -173,16 +187,16 @@ def loadLogMessages():
   """
   
   global COMMON_LOG_MESSAGES
-  armConf = conf.getConfig("arm")
+  armConf = conf.get_config("arm")
   
   COMMON_LOG_MESSAGES = {}
-  for confKey in armConf.getKeys():
+  for confKey in armConf.keys():
     if confKey.startswith("msg."):
       eventType = confKey[4:].upper()
       messages = armConf.get(confKey, [])
       COMMON_LOG_MESSAGES[eventType] = messages
 
-def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = None):
+def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   """
   Parses tor's log file for past events matching the given runlevels, providing
   a list of log entries (ordered newest to oldest). Limiting the number of read
@@ -193,14 +207,10 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
     runlevels - event types (DEBUG - ERR) to be returned
     readLimit - max lines of the log file that'll be read (unlimited if None)
     addLimit  - maximum entries to provide back (unlimited if None)
-    config    - configuration parameters related to this panel, uses defaults
-                if left as None
   """
   
   startTime = time.time()
   if not runlevels: return []
-  
-  if not config: config = DEFAULT_CONFIG
   
   # checks tor's configuration for the log file's location (if any exists)
   loggingTypes, loggingLocation = None, None
@@ -252,7 +262,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
       logFile.close()
   except IOError:
     msg = "Unable to read tor's log file: %s" % loggingLocation
-    log.log(config["log.logPanel.prepopulateFailed"], msg)
+    log.log(CONFIG["log.logPanel.prepopulateFailed"], msg)
   
   if not lines: return []
   
@@ -308,7 +318,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None, config = Non
   
   if addLimit: loggedEvents = loggedEvents[:addLimit]
   msg = "Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(loggedEvents), loggingLocation, readLimit, time.time() - startTime)
-  log.log(config["log.logPanel.prepopulateSuccess"], msg)
+  log.log(CONFIG["log.logPanel.prepopulateSuccess"], msg)
   return loggedEvents
 
 def getDaybreaks(events, ignoreTimeForCache = False):
@@ -474,7 +484,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   from tor's log file if it exists.
   """
   
-  def __init__(self, stdscr, loggedEvents, config=None):
+  def __init__(self, stdscr, loggedEvents):
     panel.Panel.__init__(self, stdscr, "log", 0)
     logging.Handler.__init__(self, level = stem.util.log.logging_level(stem.util.log.DEBUG))
     
@@ -494,28 +504,16 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # regex filters the user has defined
     self.filterOptions = []
     
-    self._config = dict(DEFAULT_CONFIG)
-    
-    if config:
-      config.update(self._config, {
-        "features.log.maxLinesPerEntry": 1,
-        "features.log.prepopulateReadLimit": 0,
-        "features.log.maxRefreshRate": 10,
-        "cache.logPanel.size": 1000})
+    for filter in CONFIG["features.log.regex"]:
+      # checks if we can't have more filters
+      if len(self.filterOptions) >= MAX_REGEX_FILTERS: break
       
-      for filter in self._config["features.log.regex"]:
-        # checks if we can't have more filters
-        if len(self.filterOptions) >= MAX_REGEX_FILTERS: break
-        
-        try:
-          re.compile(filter)
-          self.filterOptions.append(filter)
-        except re.error, exc:
-          msg = "Invalid regular expression pattern (%s): %s" % (exc, filter)
-          log.log(self._config["log.configEntryTypeError"], msg)
-    
-    # collapses duplicate log entries if false, showing only the most recent
-    self.showDuplicates = self._config["features.log.showDuplicateEntries"]
+      try:
+        re.compile(filter)
+        self.filterOptions.append(filter)
+      except re.error, exc:
+        msg = "Invalid regular expression pattern (%s): %s" % (exc, filter)
+        log.log(CONFIG["log.configEntryTypeError"], msg)
     
     self.loggedEvents = [] # needs to be set before we receive any events
     
@@ -563,8 +561,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     conn.addStatusListener(self._resetListener)
     
     # opens log file if we'll be saving entries
-    if self._config["features.logFile"]:
-      logPath = self._config["features.logFile"]
+    if CONFIG["features.logFile"]:
+      logPath = CONFIG["features.logFile"]
       
       try:
         # make dir if the path doesn't already exist
@@ -572,9 +570,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         if not os.path.exists(baseDir): os.makedirs(baseDir)
         
         self.logFile = open(logPath, "a")
-        log.log(self._config["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
+        log.log(CONFIG["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
       except (IOError, OSError), exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+        log.log(CONFIG["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
     stem_logger = stem.util.log.get_logger()
@@ -596,11 +594,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     
     # fetches past tor events from log file, if available
     torEventBacklog = []
-    if self._config["features.log.prepopulate"]:
+    if CONFIG["features.log.prepopulate"]:
       setRunlevels = list(set.intersection(set(self.loggedEvents), set(list(log.Runlevel))))
-      readLimit = self._config["features.log.prepopulateReadLimit"]
-      addLimit = self._config["cache.logPanel.size"]
-      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit, self._config)
+      readLimit = CONFIG["features.log.prepopulateReadLimit"]
+      addLimit = CONFIG["cache.logPanel.size"]
+      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit)
     
     # gets the set of arm events we're logging
     setRunlevels = []
@@ -639,7 +637,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
                   deduplicated
     """
     
-    self.showDuplicates = isVisible
+    armConf = conf.get_config("arm")
+    armConf.set("features.log.showDuplicateEntries", str(isVisible))
   
   def registerTorEvent(self, event):
     """
@@ -687,7 +686,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.logFile.write(event.getDisplayMessage(True) + "\n")
         self.logFile.flush()
       except IOError, exc:
-        log.log(self._config["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+        log.log(CONFIG["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
     self.valsLock.acquire()
@@ -883,7 +882,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.valsLock.release()
     elif key in (ord('u'), ord('U')):
       self.valsLock.acquire()
-      self.showDuplicates = not self.showDuplicates
+      self.setDuplicateVisability(not CONFIG["features.log.showDuplicateEntries"])
       self.redraw(True)
       self.valsLock.release()
     elif key == ord('c') or key == ord('C'):
@@ -929,7 +928,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     options.append(("a", "save snapshot of the log", None))
     options.append(("e", "change logged events", None))
     options.append(("f", "log regex filter", "enabled" if self.regexFilter else "disabled"))
-    options.append(("u", "duplicate log entries", "visible" if self.showDuplicates else "hidden"))
+    options.append(("u", "duplicate log entries", "visible" if CONFIG["features.log.showDuplicateEntries"] else "hidden"))
     options.append(("c", "clear event log", None))
     return options
   
@@ -963,15 +962,15 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     seenFirstDateDivider = False
     dividerAttr, duplicateAttr = curses.A_BOLD | uiTools.getColor("yellow"), curses.A_BOLD | uiTools.getColor("green")
     
-    isDatesShown = self.regexFilter == None and self._config["features.log.showDateDividers"]
+    isDatesShown = self.regexFilter == None and CONFIG["features.log.showDateDividers"]
     eventLog = getDaybreaks(currentLog, self.isPaused()) if isDatesShown else list(currentLog)
-    if not self.showDuplicates:
+    if not CONFIG["features.log.showDuplicateEntries"]:
       deduplicatedLog = getDuplicates(eventLog)
       
       if deduplicatedLog == None:
         msg = "Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive."
         log.log(log.WARN, msg)
-        self.showDuplicates = True
+        self.setDuplicateVisability(True)
         deduplicatedLog = [(entry, 0) for entry in eventLog]
     else: deduplicatedLog = [(entry, 0) for entry in eventLog]
     
@@ -1024,7 +1023,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
           displayQueue.append((duplicateMsg, duplicateAttr, False))
         
         cursorLoc, lineOffset = msgIndent, 0
-        maxEntriesPerLine = self._config["features.log.maxLinesPerEntry"]
+        maxEntriesPerLine = CONFIG["features.log.maxLinesPerEntry"]
         while displayQueue:
           msg, format, includeBreak = displayQueue.pop(0)
           drawLine = lineCount + lineOffset
@@ -1085,7 +1084,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self.lastContentHeight = newContentHeight
     if forceRedraw:
       forceRedrawReason = "redrawing the log panel with the corrected content height (%s)" % forceRedrawReason
-      log.log(self._config["log.logPanel.forceDoubleRedraw"], forceRedrawReason)
+      log.log(CONFIG["log.logPanel.forceDoubleRedraw"], forceRedrawReason)
       self.redraw(True)
     
     self.valsLock.release()
@@ -1105,7 +1104,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     while not self._halt:
       currentDay = daysSince()
       timeSinceReset = time.time() - self._lastUpdate
-      maxLogUpdateRate = self._config["features.log.maxRefreshRate"] / 1000.0
+      maxLogUpdateRate = CONFIG["features.log.maxRefreshRate"] / 1000.0
       
       sleepTime = 0
       if (self.msgLog == self._lastLoggedEvents and lastDay == currentDay) or self.isPaused():
@@ -1281,10 +1280,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       eventListing - listing of log entries
     """
     
-    cacheSize = self._config["cache.logPanel.size"]
+    cacheSize = CONFIG["cache.logPanel.size"]
     if len(eventListing) > cacheSize: del eventListing[cacheSize:]
     
-    logTTL = self._config["features.log.entryDuration"]
+    logTTL = CONFIG["features.log.entryDuration"]
     if logTTL > 0:
       currentDay = daysSince()
       

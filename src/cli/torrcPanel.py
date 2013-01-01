@@ -8,12 +8,18 @@ import threading
 
 import popups
 
-from util import conf, panel, torConfig, torTools, uiTools
+from util import panel, torConfig, torTools, uiTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
-DEFAULT_CONFIG = {"features.config.file.showScrollbars": True,
-                  "features.config.file.maxLinesPerEntry": 8}
+def conf_handler(key, value):
+  if key == "features.config.file.maxLinesPerEntry":
+    return max(1, value)
+
+CONFIG = conf.config_dict("arm", {
+  "features.config.file.showScrollbars": True,
+  "features.config.file.maxLinesPerEntry": 8,
+}, conf_handler)
 
 # TODO: The armrc use case is incomplete. There should be equivilant reloading
 # and validation capabilities to the torrc.
@@ -25,12 +31,8 @@ class TorrcPanel(panel.Panel):
   area.
   """
   
-  def __init__(self, stdscr, configType, config=None):
+  def __init__(self, stdscr, configType):
     panel.Panel.__init__(self, stdscr, "torrc", 0)
-    
-    self._config = dict(DEFAULT_CONFIG)
-    if config:
-      config.update(self._config, {"features.config.file.maxLinesPerEntry": 1})
     
     self.valsLock = threading.RLock()
     self.configType = configType
@@ -180,9 +182,9 @@ class TorrcPanel(panel.Panel):
       
       loadedTorrc.getLock().release()
     else:
-      loadedArmrc = conf.getConfig("arm")
-      confLocation = loadedArmrc.path
-      renderedContents = list(loadedArmrc.rawContents)
+      loadedArmrc = conf.get_config("arm")
+      confLocation = loadedArmrc._path
+      renderedContents = list(loadedArmrc._raw_contents)
     
     # offset to make room for the line numbers
     lineNumOffset = 0
@@ -192,7 +194,7 @@ class TorrcPanel(panel.Panel):
     
     # draws left-hand scroll bar if content's longer than the height
     scrollOffset = 0
-    if self._config["features.config.file.showScrollbars"] and self._lastContentHeight > height - 1:
+    if CONFIG["features.config.file.showScrollbars"] and self._lastContentHeight > height - 1:
       scrollOffset = 3
       self.addScrollBar(self.scroll, self.scroll + height - 1, self._lastContentHeight, 1)
     
@@ -267,7 +269,7 @@ class TorrcPanel(panel.Panel):
       
       # draws the rest of the components with line wrap
       cursorLoc, lineOffset = lineNumOffset + scrollOffset, 0
-      maxLinesPerEntry = self._config["features.config.file.maxLinesPerEntry"]
+      maxLinesPerEntry = CONFIG["features.config.file.maxLinesPerEntry"]
       displayQueue = [lineComp[entry] for entry in ("option", "argument", "correction", "comment")]
       
       while displayQueue:

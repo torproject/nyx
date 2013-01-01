@@ -18,7 +18,7 @@ import stem.descriptor
 
 from util import connections, log, procTools, sysTools, uiTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -46,11 +46,14 @@ CONTROLLER = None # singleton Controller instance
 UNDEFINED = "<Undefined_ >"
 
 UNKNOWN = "UNKNOWN" # value used by cached information if undefined
-CONFIG = {"features.pathPrefix": "",
-          "log.stemPortClosed": log.NOTICE,
-          "log.torPrefixPathInvalid": log.NOTICE,
-          "log.bsdJailFound": log.INFO,
-          "log.unknownBsdJailId": log.WARN}
+
+CONFIG = conf.config_dict("arm", {
+  "features.pathPrefix": "",
+  "log.stemPortClosed": log.NOTICE,
+  "log.torPrefixPathInvalid": log.NOTICE,
+  "log.bsdJailFound": log.INFO,
+  "log.unknownBsdJailId": log.WARN,
+})
 
 # events used for controller functionality:
 # NOTICE - used to detect when tor is shut down
@@ -72,9 +75,6 @@ NO_SPAWN = False
 # Flag to indicate if we're handling our first init signal. This is for
 # startup performance so we don't introduce a sleep while initializing.
 IS_STARTUP_SIGNAL = True
-
-def loadConfig(config):
-  config.update(CONFIG)
 
 def getPid(controlPort=9051, pidFilePath=None):
   """

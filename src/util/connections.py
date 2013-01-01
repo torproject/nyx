@@ -23,7 +23,7 @@ import threading
 
 from util import log, procTools, sysTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # enums for connection resolution utilities
 Resolver = enum.Enum(("PROC", "proc"),
@@ -76,45 +76,43 @@ RESOLVERS = []                      # connection resolvers available via the sin
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Unable to query connections with %s, trying %s"
 RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
-CONFIG = {"queries.connections.minRate": 5,
-          "log.connResolverOptions": log.INFO,
-          "log.connLookupFailed": log.INFO,
-          "log.connLookupFailover": log.NOTICE,
-          "log.connLookupAbandon": log.NOTICE,
-          "log.connLookupRateGrowing": None,
-          "log.configEntryTypeError": log.NOTICE}
+
+def conf_handler(key, value):
+  if key.startswith("port.label."):
+    portEntry = key[11:]
+    
+    divIndex = portEntry.find("-")
+    if divIndex == -1:
+      # single port
+      if portEntry.isdigit():
+        PORT_USAGE[portEntry] = value
+      else:
+        msg = "Port value isn't numeric for entry: %s" % key
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+    else:
+      try:
+        # range of ports (inclusive)
+        minPort = int(portEntry[:divIndex])
+        maxPort = int(portEntry[divIndex + 1:])
+        if minPort > maxPort: raise ValueError()
+        
+        for port in range(minPort, maxPort + 1):
+          PORT_USAGE[str(port)] = value
+      except ValueError:
+        msg = "Unable to parse port range for entry: %s" % key
+        log.log(CONFIG["log.configEntryTypeError"], msg)
+
+CONFIG = conf.config_dict("arm", {
+  "queries.connections.minRate": 5,
+  "log.connResolverOptions": log.INFO,
+  "log.connLookupFailed": log.INFO,
+  "log.connLookupFailover": log.NOTICE,
+  "log.connLookupAbandon": log.NOTICE,
+  "log.connLookupRateGrowing": None,
+  "log.configEntryTypeError": log.NOTICE,
+}, conf_handler)
 
 PORT_USAGE = {}
-
-def loadConfig(config):
-  config.update(CONFIG)
-  
-  for configKey in config.getKeys():
-    # fetches any port.label.* values
-    if configKey.startswith("port.label."):
-      portEntry = configKey[11:]
-      purpose = config.get(configKey)
-      
-      divIndex = portEntry.find("-")
-      if divIndex == -1:
-        # single port
-        if portEntry.isdigit():
-          PORT_USAGE[portEntry] = purpose
-        else:
-          msg = "Port value isn't numeric for entry: %s" % configKey
-          log.log(CONFIG["log.configEntryTypeError"], msg)
-      else:
-        try:
-          # range of ports (inclusive)
-          minPort = int(portEntry[:divIndex])
-          maxPort = int(portEntry[divIndex + 1:])
-          if minPort > maxPort: raise ValueError()
-          
-          for port in range(minPort, maxPort + 1):
-            PORT_USAGE[str(port)] = purpose
-        except ValueError:
-          msg = "Unable to parse port range for entry: %s" % configKey
-          log.log(CONFIG["log.configEntryTypeError"], msg)
 
 def isValidIpAddress(ipStr):
   """

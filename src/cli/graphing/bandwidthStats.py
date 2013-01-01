@@ -11,6 +11,21 @@ import cli.controller
 from cli.graphing import graphPanel
 from util import log, sysTools, torTools, uiTools
 
+from stem.util import conf
+
+def conf_handler(key, value):
+  if key == "features.graph.bw.accounting.rate":
+    return max(1, value)
+
+CONFIG = conf.config_dict("arm", {
+  "features.graph.bw.transferInBytes": False,
+  "features.graph.bw.accounting.show": True,
+  "features.graph.bw.accounting.rate": 10,
+  "features.graph.bw.accounting.isTimeLong": False,
+  "log.graph.bw.prepopulateSuccess": log.NOTICE,
+  "log.graph.bw.prepopulateFailure": log.NOTICE,
+}, conf_handler)
+
 DL_COLOR, UL_COLOR = "green", "cyan"
 
 # width at which panel abandons placing optional stats (avg and total) with
@@ -23,25 +38,13 @@ ACCOUNTING_ARGS = ("status", "resetTime", "read", "written", "readLimit", "writt
 PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
-DEFAULT_CONFIG = {"features.graph.bw.transferInBytes": False,
-                  "features.graph.bw.accounting.show": True,
-                  "features.graph.bw.accounting.rate": 10,
-                  "features.graph.bw.accounting.isTimeLong": False,
-                  "log.graph.bw.prepopulateSuccess": log.NOTICE,
-                  "log.graph.bw.prepopulateFailure": log.NOTICE}
-
 class BandwidthStats(graphPanel.GraphStats):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
   
-  def __init__(self, config=None, isPauseBuffer=False):
+  def __init__(self, isPauseBuffer=False):
     graphPanel.GraphStats.__init__(self)
-    
-    self.inputConfig = config
-    self._config = dict(DEFAULT_CONFIG)
-    if config:
-      config.update(self._config, {"features.graph.bw.accounting.rate": 1})
     
     # stats prepopulated from tor's state file
     self.prepopulatePrimaryTotal = 0
@@ -78,7 +81,7 @@ class BandwidthStats(graphPanel.GraphStats):
       self.initialSecondaryTotal = int(writeTotal) / 1024 # Bytes -> KB
   
   def clone(self, newCopy=None):
-    if not newCopy: newCopy = BandwidthStats(self.inputConfig, True)
+    if not newCopy: newCopy = BandwidthStats(True)
     newCopy.accountingLastUpdated = self.accountingLastUpdated
     newCopy.accountingInfo = self.accountingInfo
     
@@ -93,7 +96,7 @@ class BandwidthStats(graphPanel.GraphStats):
     self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
-    if eventType in (torTools.State.INIT, torTools.State.RESET) and self._config["features.graph.bw.accounting.show"]:
+    if eventType in (torTools.State.INIT, torTools.State.RESET) and CONFIG["features.graph.bw.accounting.show"]:
       isAccountingEnabled = conn.getInfo('accounting/enabled', None) == '1'
       
       if isAccountingEnabled != self.isAccounting:
@@ -136,21 +139,21 @@ class BandwidthStats(graphPanel.GraphStats):
     # results associated with this tor instance
     if not uptime or not "-" in uptime:
       msg = PREPOPULATE_FAILURE_MSG % "insufficient uptime"
-      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
       return False
     
     # get the user's data directory (usually '~/.tor')
     dataDir = conn.getOption("DataDirectory", None)
     if not dataDir:
       msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
-      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
       return False
     
     # attempt to open the state file
     try: stateFile = open("%s%s/state" % (conn.getPathPrefix(), dataDir), "r")
     except IOError:
       msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
-      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
       return False
     
     # get the BWHistory entries (ordered oldest to newest) and number of
@@ -189,7 +192,7 @@ class BandwidthStats(graphPanel.GraphStats):
     
     if not bwReadEntries or not bwWriteEntries or not lastReadTime or not lastWriteTime:
       msg = PREPOPULATE_FAILURE_MSG % "bandwidth stats missing from state file"
-      log.log(self._config["log.graph.bw.prepopulateFailure"], msg)
+      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
       return False
     
     # fills missing entries with the last value
@@ -228,13 +231,13 @@ class BandwidthStats(graphPanel.GraphStats):
     msg = PREPOPULATE_SUCCESS_MSG
     missingSec = time.time() - min(lastReadTime, lastWriteTime)
     if missingSec: msg += " (%s is missing)" % uiTools.getTimeLabel(missingSec, 0, True)
-    log.log(self._config["log.graph.bw.prepopulateSuccess"], msg)
+    log.log(CONFIG["log.graph.bw.prepopulateSuccess"], msg)
     
     return True
   
   def bandwidth_event(self, event):
     if self.isAccounting and self.isNextTickRedraw():
-      if time.time() - self.accountingLastUpdated >= self._config["features.graph.bw.accounting.rate"]:
+      if time.time() - self.accountingLastUpdated >= CONFIG["features.graph.bw.accounting.rate"]:
         self._updateAccountingInfo()
     
     # scales units from B to KB for graphing
@@ -309,7 +312,7 @@ class BandwidthStats(graphPanel.GraphStats):
       stats[1] = "- %s" % self._getAvgLabel(isPrimary)
       stats[2] = ", %s" % self._getTotalLabel(isPrimary)
     
-    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"]))
+    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
     
     # drops label's components if there's not enough space
     labeling = graphType + " (" + "".join(stats).strip() + "):"
@@ -342,7 +345,7 @@ class BandwidthStats(graphPanel.GraphStats):
       bwBurst = conn.getMyBandwidthBurst()
       bwObserved = conn.getMyBandwidthObserved()
       bwMeasured = conn.getMyBandwidthMeasured()
-      labelInBytes = self._config["features.graph.bw.transferInBytes"]
+      labelInBytes = CONFIG["features.graph.bw.transferInBytes"]
       
       if bwRate and bwBurst:
         bwRateLabel = uiTools.getSizeLabel(bwRate, 1, False, labelInBytes)
@@ -369,7 +372,7 @@ class BandwidthStats(graphPanel.GraphStats):
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
     total += self.prepopulatePrimaryTotal if isPrimary else self.prepopulateSecondaryTotal
-    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick + self.prepopulateTicks)) * 1024, 1, False, self._config["features.graph.bw.transferInBytes"])
+    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick + self.prepopulateTicks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
@@ -396,7 +399,7 @@ class BandwidthStats(graphPanel.GraphStats):
       else: tz_offset = time.timezone
       
       sec = time.mktime(time.strptime(endInterval, "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
-      if self._config["features.graph.bw.accounting.isTimeLong"]:
+      if CONFIG["features.graph.bw.accounting.isTimeLong"]:
         queried["resetTime"] = ", ".join(uiTools.getTimeLabels(sec, True))
       else:
         days = sec / 86400

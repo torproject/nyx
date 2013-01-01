@@ -12,7 +12,7 @@ import curses
 from curses.ascii import isprint
 from util import log
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -40,26 +40,25 @@ TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
 
 Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
-CONFIG = {"features.colorInterface": True,
-          "features.acsSupport": True,
-          "features.printUnicode": True,
-          "log.cursesColorSupport": log.INFO,
-          "log.configEntryTypeError": log.NOTICE}
+
+def conf_handler(key, value):
+  if key == "features.colorOverride" and value != "none":
+    try: setColorOverride(value)
+    except ValueError, exc:
+      log.log(CONFIG["log.configEntryTypeError"], exc)
+
+CONFIG = conf.config_dict("arm", {
+  "features.colorOverride": "none",
+  "features.colorInterface": True,
+  "features.acsSupport": True,
+  "features.printUnicode": True,
+  "log.cursesColorSupport": log.INFO,
+  "log.configEntryTypeError": log.NOTICE,
+}, conf_handler)
 
 # Flag indicating if unicode is supported by curses. If None then this has yet
 # to be determined.
 IS_UNICODE_SUPPORTED = None
-
-def loadConfig(config):
-  config.update(CONFIG)
-  
-  CONFIG["features.colorOverride"] = "none"
-  colorOverride = config.get("features.colorOverride", "none")
-  
-  if colorOverride != "none":
-    try: setColorOverride(colorOverride)
-    except ValueError, exc:
-      log.log(CONFIG["log.configEntryTypeError"], exc)
 
 def demoGlyphs():
   """

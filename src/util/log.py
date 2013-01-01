@@ -11,7 +11,7 @@ import time
 from sys import maxint
 from threading import RLock
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # Logging runlevels. These are *very* commonly used so including shorter
 # aliases (so they can be referenced as log.DEBUG, log.WARN, etc).
@@ -28,17 +28,20 @@ _backlog = dict([(level, []) for level in Runlevel])
 # mapping of runlevels to the listeners interested in receiving events from it
 _listeners = dict([(level, []) for level in Runlevel])
 
-CONFIG = {"cache.armLog.size": 1000,
-          "cache.armLog.trimSize": 200}
+def conf_handler(key, value):
+  if key == "cache.armLog.size":
+    return max(10, value)
+  elif key == "cache.armLog.trimSize":
+    return max(5, value)
+  elif key == "cache.armLog.trimSize":
+    return min(value, CONFIG["cache.armLog.size"] / 2)
+
+CONFIG = conf.config_dict("arm", {
+  "cache.armLog.size": 1000,
+  "cache.armLog.trimSize": 200,
+}, conf_handler)
 
 DUMP_FILE = None
-
-def loadConfig(config):
-  config.update(CONFIG, {
-    "cache.armLog.size": 10,
-    "cache.armLog.trimSize": 5})
-  
-  CONFIG["cache.armLog.trimSize"] = min(CONFIG["cache.armLog.trimSize"], CONFIG["cache.armLog.size"] / 2)
 
 def setDumpFile(logPath):
   """

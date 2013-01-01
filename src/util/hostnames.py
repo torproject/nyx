@@ -34,25 +34,31 @@ import distutils.sysconfig
 
 from util import log, sysTools
 
+from stem.util import conf
+
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
 RESOLVER_COUNTER = itertools.count()  # atomic counter, providing the age for new entries (for trimming)
 DNS_ERROR_CODES = ("1(FORMERR)", "2(SERVFAIL)", "3(NXDOMAIN)", "4(NOTIMP)", "5(REFUSED)", "6(YXDOMAIN)",
                    "7(YXRRSET)", "8(NXRRSET)", "9(NOTAUTH)", "10(NOTZONE)", "16(BADVERS)")
 
-CONFIG = {"queries.hostnames.poolSize": 5,
-          "queries.hostnames.useSocketModule": False,
-          "cache.hostnames.size": 700000,
-          "cache.hostnames.trimSize": 200000,
-          "log.hostnameCacheTrimmed": log.INFO}
+def conf_handler(key, value):
+  if key == "queries.hostnames.poolSize":
+    return max(1, value)
+  elif key == "cache.hostnames.size":
+    return max(100, value)
+  elif key == "cache.hostnames.trimSize":
+    return max(10, value)
+  elif key == "cache.hostnames.trimSize":
+    return min(value, CONFIG["cache.hostnames.size"] / 2)
 
-def loadConfig(config):
-  config.update(CONFIG, {
-    "queries.hostnames.poolSize": 1,
-    "cache.hostnames.size": 100,
-    "cache.hostnames.trimSize": 10})
-  
-  CONFIG["cache.hostnames.trimSize"] = min(CONFIG["cache.hostnames.trimSize"], CONFIG["cache.hostnames.size"] / 2)
+CONFIG = conf.config_dict("arm", {
+  "queries.hostnames.poolSize": 5,
+  "queries.hostnames.useSocketModule": False,
+  "cache.hostnames.size": 700000,
+  "cache.hostnames.trimSize": 200000,
+  "log.hostnameCacheTrimmed": log.INFO,
+}, conf_handler)
 
 def start():
   """

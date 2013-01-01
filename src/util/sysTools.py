@@ -8,6 +8,8 @@ import threading
 
 from util import log, procTools, uiTools
 
+from stem.util import conf
+
 # Mapping of commands to if they're available or not. This isn't always
 # reliable, failing for some special commands. For these the cache is
 # prepopulated to skip lookups.
@@ -28,18 +30,17 @@ RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
 RUNTIMES = []
 SAMPLING_PERIOD = 5 # time of the sampling period
 
-CONFIG = {"queries.resourceUsage.rate": 5,
-          "cache.sysCalls.size": 600,
-          "log.sysCallMade": log.DEBUG,
-          "log.sysCallCached": None,
-          "log.sysCallFailed": log.INFO,
-          "log.sysCallCacheGrowing": log.INFO,
-          "log.stats.failedProcResolution": log.DEBUG,
-          "log.stats.procResolutionFailover": log.INFO,
-          "log.stats.failedPsResolution": log.INFO}
-
-def loadConfig(config):
-  config.update(CONFIG)
+CONFIG = conf.config_dict("arm", {
+  "queries.resourceUsage.rate": 5,
+  "cache.sysCalls.size": 600,
+  "log.sysCallMade": log.DEBUG,
+  "log.sysCallCached": None,
+  "log.sysCallFailed": log.INFO,
+  "log.sysCallCacheGrowing": log.INFO,
+  "log.stats.failedProcResolution": log.DEBUG,
+  "log.stats.procResolutionFailover": log.INFO,
+  "log.stats.failedPsResolution": log.INFO,
+})
 
 def getSysCpuUsage():
   """

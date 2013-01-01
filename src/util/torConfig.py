@@ -11,25 +11,38 @@ import stem.version
 
 from util import log, sysTools, torTools, uiTools
 
-from stem.util import enum
+from stem.util import conf, enum
 
-CONFIG = {"features.torrc.validate": True,
-          "config.important": [],
-          "torrc.alias": {},
-          "torrc.label.size.b": [],
-          "torrc.label.size.kb": [],
-          "torrc.label.size.mb": [],
-          "torrc.label.size.gb": [],
-          "torrc.label.size.tb": [],
-          "torrc.label.time.sec": [],
-          "torrc.label.time.min": [],
-          "torrc.label.time.hour": [],
-          "torrc.label.time.day": [],
-          "torrc.label.time.week": [],
-          "log.torrc.readFailed": log.WARN,
-          "log.configDescriptions.unrecognizedCategory": log.NOTICE,
-          "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE,
-          "log.torrc.validation.torStateDiffers": log.WARN}
+def conf_handler(key, value):
+  if key == "config.important":
+    # stores lowercase entries to drop case sensitivity
+    return [entry.lower() for entry in value]
+  elif key.startswith("config.summary."):
+    # we'll look for summary keys with a lowercase config name
+    CONFIG[key.lower()] = value
+  elif key.startswith("torrc.label.") and value:
+    # all the torrc.label.* values are comma separated lists
+    return [entry.strip() for entry in value[0].split(",")]
+
+CONFIG = conf.config_dict("arm", {
+  "features.torrc.validate": True,
+  "config.important": [],
+  "torrc.alias": {},
+  "torrc.label.size.b": [],
+  "torrc.label.size.kb": [],
+  "torrc.label.size.mb": [],
+  "torrc.label.size.gb": [],
+  "torrc.label.size.tb": [],
+  "torrc.label.time.sec": [],
+  "torrc.label.time.min": [],
+  "torrc.label.time.hour": [],
+  "torrc.label.time.day": [],
+  "torrc.label.time.week": [],
+  "log.torrc.readFailed": log.WARN,
+  "log.configDescriptions.unrecognizedCategory": log.NOTICE,
+  "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE,
+  "log.torrc.validation.torStateDiffers": log.WARN,
+}, conf_handler)
 
 # enums and values for numeric torrc entries
 ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
@@ -58,23 +71,6 @@ MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
 
 # torrc options that bind to ports
 PORT_OPT = ("SocksPort", "ORPort", "DirPort", "ControlPort", "TransPort")
-
-def loadConfig(config):
-  config.update(CONFIG)
-  
-  # stores lowercase entries to drop case sensitivity
-  CONFIG["config.important"] = [entry.lower() for entry in CONFIG["config.important"]]
-  
-  for configKey in config.getKeys():
-    # fetches any config.summary.* values
-    if configKey.startswith("config.summary."):
-      CONFIG[configKey.lower()] = config.get(configKey)
-  
-  # all the torrc.label.* values are comma separated lists
-  for configKey in CONFIG.keys():
-    if configKey.startswith("torrc.label."):
-      configValues = config.get(configKey, "").split(",")
-      if configValues: CONFIG[configKey] = [val.strip() for val in configValues]
 
 class ManPageEntry:
   """

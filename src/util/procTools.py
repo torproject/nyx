@@ -22,18 +22,17 @@ import base64
 
 from util import log
 
-from stem.util import enum
+from stem.util import conf, enum
 
 # cached system values
 SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None
 CLOCK_TICKS = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
 Stat = enum.Enum("COMMAND", "CPU_UTIME", "CPU_STIME", "START_TIME")
 
-CONFIG = {"queries.useProc": True,
-          "log.procCallMade": log.DEBUG}
-
-def loadConfig(config):
-  config.update(CONFIG)
+CONFIG = conf.config_dict("arm", {
+  "queries.useProc": True,
+  "log.procCallMade": log.DEBUG,
+})
 
 def isProcAvailable():
   """
