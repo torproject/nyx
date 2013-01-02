@@ -9,9 +9,9 @@ import curses.ascii
 import curses.textpad
 from threading import RLock
 
-from util import log, textInput, uiTools
+from util import textInput, uiTools
 
-from stem.util import conf
+from stem.util import log
 
 # global ui lock governing all panel instances (curses isn't thread save and 
 # concurrency bugs produce especially sinister glitches)
@@ -24,10 +24,6 @@ FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
                "<u>": (_noOp, curses.A_UNDERLINE),
                "<h>": (_noOp, curses.A_STANDOUT)}
 for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
-
-CONFIG = conf.config_dict("arm", {
-  "log.panelRecreated": log.DEBUG,
-})
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
@@ -728,7 +724,6 @@ class Panel():
       self.win = self.parent.subwin(newHeight, newWidth, self.top, self.left)
       
       # note: doing this log before setting win produces an infinite loop
-      msg = "recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth)
-      log.log(CONFIG["log.panelRecreated"], msg)
+      log.debug("recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth))
     return recreate
 

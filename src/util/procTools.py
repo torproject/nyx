@@ -20,9 +20,7 @@ import time
 import socket
 import base64
 
-from util import log
-
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 # cached system values
 SYS_START_TIME, SYS_PHYSICAL_MEMORY = None, None
@@ -31,7 +29,6 @@ Stat = enum.Enum("COMMAND", "CPU_UTIME", "CPU_STIME", "START_TIME")
 
 CONFIG = conf.config_dict("arm", {
   "queries.useProc": True,
-  "log.procCallMade": log.DEBUG,
 })
 
 def isProcAvailable():
@@ -302,6 +299,5 @@ def _decodeProcAddressEncoding(addr):
   return (ip, port)
 
 def _logProcRuntime(parameter, procLocation, startTime):
-  msg = "proc call (%s): %s (runtime: %0.4f)" % (parameter, procLocation, time.time() - startTime)
-  log.log(CONFIG["log.procCallMade"], msg)
+  log.debug("proc call (%s): %s (runtime: %0.4f)" % (parameter, procLocation, time.time() - startTime))
 

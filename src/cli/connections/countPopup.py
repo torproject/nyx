@@ -8,9 +8,9 @@ import operator
 import cli.controller
 import cli.popups
 
-from util import connections, log, uiTools
+from util import connections, uiTools
 
-from stem.util import enum
+from stem.util import enum, log
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
 EXIT_USAGE_WIDTH = 15
@@ -46,7 +46,7 @@ def showCountDialog(countType, counts):
       title = "Exiting Port Usage"
     else:
       title = ""
-      log.log(log.WARN, "Unrecognized count type: %s" % countType)
+      log.warn("Unrecognized count type: %s" % countType)
     
     popup.addstr(0, 0, title, curses.A_STANDOUT)
     

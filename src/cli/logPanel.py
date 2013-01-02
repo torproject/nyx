@@ -11,13 +11,13 @@ import curses
 import logging
 import threading
 
-import stem.util.log # move to a 'from' import when we've dropped the other log util
+import stem
 from stem.response import events
-from stem.util import conf
+from stem.util import conf, log
 
 import popups
 from version import VERSION
-from util import log, panel, sysTools, torTools, uiTools
+from util import panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
@@ -65,12 +65,6 @@ CONFIG = conf.config_dict("arm", {
   "features.log.maxRefreshRate": 300,
   "features.log.regex": [],
   "cache.logPanel.size": 1000,
-  "log.logPanel.prepopulateSuccess": log.INFO,
-  "log.logPanel.prepopulateFailed": log.WARN,
-  "log.logPanel.logFileOpened": log.NOTICE,
-  "log.logPanel.logFileWriteFailed": log.ERR,
-  "log.logPanel.forceDoubleRedraw": log.DEBUG,
-  "log.configEntryTypeError": log.NOTICE,
 }, conf_handler)
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
@@ -135,27 +129,25 @@ def expandEvents(eventAbbr):
   for flag in eventAbbr:
     if flag == "A":
       armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel]
-      stemRunlevels = ["STEM_" + runlevel for runlevel in log.Runlevel]
-      expandedEvents = set(list(TOR_EVENT_TYPES) + armRunlevels + stemRunlevels + ["UNKNOWN"])
+      expandedEvents = set(list(TOR_EVENT_TYPES) + armRunlevels + ["UNKNOWN"])
       break
     elif flag == "X":
       expandedEvents = set()
       break
     elif flag in "DINWE12345":
       # all events for a runlevel and higher
-      if flag in "D1": runlevelIndex = 0
-      elif flag in "I2": runlevelIndex = 1
-      elif flag in "N3": runlevelIndex = 2
-      elif flag in "W4": runlevelIndex = 3
-      elif flag in "E5": runlevelIndex = 4
+      if flag in "D1": runlevelIndex = 1
+      elif flag in "I2": runlevelIndex = 2
+      elif flag in "N3": runlevelIndex = 3
+      elif flag in "W4": runlevelIndex = 4
+      elif flag in "E5": runlevelIndex = 5
       
       if flag in "DINWE":
         runlevelSet = [runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
         expandedEvents = expandedEvents.union(set(runlevelSet))
       elif flag in "12345":
-        for prefix in ("ARM_", "STEM_"):
-          runlevelSet = [prefix + runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
-          expandedEvents = expandedEvents.union(set(runlevelSet))
+        runlevelSet = ["ARM_" + runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
+        expandedEvents = expandedEvents.union(set(runlevelSet))
     elif flag == "U":
       expandedEvents.add("UNKNOWN")
     elif flag in TOR_EVENT_TYPES:
@@ -261,8 +253,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
       lines = logFile.readlines()
       logFile.close()
   except IOError:
-    msg = "Unable to read tor's log file: %s" % loggingLocation
-    log.log(CONFIG["log.logPanel.prepopulateFailed"], msg)
+    log.warn("Unable to read tor's log file: %s" % loggingLocation)
   
   if not lines: return []
   
@@ -317,8 +308,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
       break # this entry marks the start of this tor instance
   
   if addLimit: loggedEvents = loggedEvents[:addLimit]
-  msg = "Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(loggedEvents), loggingLocation, readLimit, time.time() - startTime)
-  log.log(CONFIG["log.logPanel.prepopulateSuccess"], msg)
+  log.info("Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(loggedEvents), loggingLocation, readLimit, time.time() - startTime))
   return loggedEvents
 
 def getDaybreaks(events, ignoreTimeForCache = False):
@@ -486,7 +476,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   
   def __init__(self, stdscr, loggedEvents):
     panel.Panel.__init__(self, stdscr, "log", 0)
-    logging.Handler.__init__(self, level = stem.util.log.logging_level(stem.util.log.DEBUG))
+    logging.Handler.__init__(self, level = log.logging_level(log.DEBUG))
     
     self.setFormatter(logging.Formatter(
       fmt = '%(asctime)s [%(levelname)s] %(message)s',
@@ -512,8 +502,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         re.compile(filter)
         self.filterOptions.append(filter)
       except re.error, exc:
-        msg = "Invalid regular expression pattern (%s): %s" % (exc, filter)
-        log.log(CONFIG["log.configEntryTypeError"], msg)
+        log.notice("Invalid regular expression pattern (%s): %s" % (exc, filter))
     
     self.loggedEvents = [] # needs to be set before we receive any events
     
@@ -545,13 +534,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self._titleCache = None
     self._titleArgs = (None, None, None)
     
-    # adds arm listener and prepopulates log with past tor/arm events
-    log.LOG_LOCK.acquire()
-    try:
-      log.addListeners(list(log.Runlevel), self._registerArmEvent)
-      self.reprepopulateEvents()
-    finally:
-      log.LOG_LOCK.release()
+    self.reprepopulateEvents()
     
     # leaving lastContentHeight as being too low causes initialization problems
     self.lastContentHeight = len(self.msgLog)
@@ -570,17 +553,22 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         if not os.path.exists(baseDir): os.makedirs(baseDir)
         
         self.logFile = open(logPath, "a")
-        log.log(CONFIG["log.logPanel.logFileOpened"], "arm %s opening log file (%s)" % (VERSION, logPath))
+        log.notice("arm %s opening log file (%s)" % (VERSION, logPath))
       except (IOError, OSError), exc:
-        log.log(CONFIG["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+        log.error("Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
-    stem_logger = stem.util.log.get_logger()
+    stem_logger = log.get_logger()
     stem_logger.addHandler(self)
   
   def emit(self, record):
+    if record.levelname == "ERROR":
+      record.levelname = "ERR"
+    elif record.levelname == "WARNING":
+      record.levelname = "WARN"
+    
     eventColor = RUNLEVEL_EVENT_COLOR[record.levelname]
-    self.registerEvent(LogEntry(int(record.created), "STEM_%s" % record.levelname, record.msg, eventColor))
+    self.registerEvent(LogEntry(int(record.created), "ARM_%s" % record.levelname, record.msg, eventColor))
   
   def reprepopulateEvents(self):
     """
@@ -593,35 +581,12 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self.msgLog = []
     
     # fetches past tor events from log file, if available
-    torEventBacklog = []
     if CONFIG["features.log.prepopulate"]:
       setRunlevels = list(set.intersection(set(self.loggedEvents), set(list(log.Runlevel))))
       readLimit = CONFIG["features.log.prepopulateReadLimit"]
       addLimit = CONFIG["cache.logPanel.size"]
-      torEventBacklog = getLogFileEntries(setRunlevels, readLimit, addLimit)
-    
-    # gets the set of arm events we're logging
-    setRunlevels = []
-    armRunlevels = list(log.Runlevel)
-    for i in range(len(armRunlevels)):
-      if "ARM_" + list(log.Runlevel)[i] in self.loggedEvents:
-        setRunlevels.append(armRunlevels[i])
-    
-    armEventBacklog = []
-    for level, msg, eventTime in log._getEntries(setRunlevels):
-      armEventEntry = LogEntry(eventTime, "ARM_" + level, msg, RUNLEVEL_EVENT_COLOR[level])
-      armEventBacklog.insert(0, armEventEntry)
-    
-    # joins armEventBacklog and torEventBacklog chronologically into msgLog
-    while armEventBacklog or torEventBacklog:
-      if not armEventBacklog:
-        self.msgLog.append(torEventBacklog.pop(0))
-      elif not torEventBacklog:
-        self.msgLog.append(armEventBacklog.pop(0))
-      elif armEventBacklog[0].timestamp < torEventBacklog[0].timestamp:
-        self.msgLog.append(torEventBacklog.pop(0))
-      else:
-        self.msgLog.append(armEventBacklog.pop(0))
+      for entry in getLogFileEntries(setRunlevels, readLimit, addLimit):
+        self.msgLog.append(entry)
     
     # crops events that are either too old, or more numerous than the caching size
     self._trimEvents(self.msgLog)
@@ -686,7 +651,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.logFile.write(event.getDisplayMessage(True) + "\n")
         self.logFile.flush()
       except IOError, exc:
-        log.log(CONFIG["log.logPanel.logFileWriteFailed"], "Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+        log.error("Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
     
     self.valsLock.acquire()
@@ -700,10 +665,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self._cond.release()
     
     self.valsLock.release()
-  
-  def _registerArmEvent(self, level, msg, eventTime):
-    eventColor = RUNLEVEL_EVENT_COLOR[level]
-    self.registerEvent(LogEntry(eventTime, "ARM_%s" % level, msg, eventColor))
   
   def setLoggedEvents(self, eventTypes):
     """
@@ -765,8 +726,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.filterOptions.insert(0, selectedOption)
       except re.error, exc:
         # shouldn't happen since we've already checked validity
-        msg = "Invalid regular expression ('%s': %s) - removing from listing" % (selectedOption, exc)
-        log.log(log.WARN, msg)
+        log.warn("Invalid regular expression ('%s': %s) - removing from listing" % (selectedOption, exc))
         self.filterOptions.remove(selectedOption)
     else: self.setFilter(None)
   
@@ -968,8 +928,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       deduplicatedLog = getDuplicates(eventLog)
       
       if deduplicatedLog == None:
-        msg = "Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive."
-        log.log(log.WARN, msg)
+        log.warn("Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.")
         self.setDuplicateVisability(True)
         deduplicatedLog = [(entry, 0) for entry in eventLog]
     else: deduplicatedLog = [(entry, 0) for entry in eventLog]
@@ -1083,8 +1042,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     
     self.lastContentHeight = newContentHeight
     if forceRedraw:
-      forceRedrawReason = "redrawing the log panel with the corrected content height (%s)" % forceRedrawReason
-      log.log(CONFIG["log.logPanel.forceDoubleRedraw"], forceRedrawReason)
+      log.debug("redrawing the log panel with the corrected content height (%s)" % forceRedrawReason)
       self.redraw(True)
     
     self.valsLock.release()
@@ -1145,7 +1103,18 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     """
     
     events = set(events) # drops duplicates
+    
+    # accounts for runlevel naming difference
+    if "ERROR" in events:
+      events.add("ERR")
+      events.remove("ERROR")
+    
+    if "WARNING" in events:
+      events.add("WARN")
+      events.remove("WARNING")
+    
     torEvents = events.intersection(set(TOR_EVENT_TYPES.values()))
+    armEvents = events.intersection(set(["ARM_%s" % runlevel for runlevel in log.Runlevel.keys()]))
     
     # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
     if "UNKNOWN" in events:
@@ -1161,7 +1130,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         torEvents.remove(eventType)
     
     # provides back the input set minus events we failed to set
-    return sorted(torEvents)
+    return sorted(torEvents.union(armEvents))
   
   def _resetListener(self, _, eventType):
     # if we're attaching to a new tor instance then clears the log and
@@ -1214,7 +1183,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       # reverses runlevels and types so they're appended in the right order
       reversedRunlevels = list(log.Runlevel)
       reversedRunlevels.reverse()
-      for prefix in ("STEM_", "ARM_", ""):
+      for prefix in ("ARM_", ""):
         # blank ending runlevel forces the break condition to be reached at the end
         for runlevel in reversedRunlevels + [""]:
           eventType = prefix + runlevel

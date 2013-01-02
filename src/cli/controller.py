@@ -22,9 +22,9 @@ import cli.connections.connPanel
 
 from stem.control import Controller
 
-from util import connections, hostnames, log, panel, sysTools, torConfig, torTools
+from util import connections, hostnames, panel, sysTools, torConfig, torTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 ARM_CONTROLLER = None
 
@@ -48,10 +48,6 @@ CONFIG = conf.config_dict("arm", {
   "features.confirmQuit": True,
   "features.graph.type": 1,
   "features.graph.bw.prepopulate": True,
-  "log.startTime": log.INFO,
-  "log.torEventTypeUnrecognized": log.INFO,
-  "log.configEntryUndefined": log.NOTICE,
-  "log.unknownTorPid": log.WARN,
 }, conf_handler)
 
 GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
@@ -477,11 +473,11 @@ def heartbeatCheck(isUnresponsive):
   if conn.isAlive() and "BW" in conn.getControllerEvents():
     if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
       isUnresponsive = True
-      log.log(log.NOTICE, "Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))
+      log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))
     elif isUnresponsive and (time.time() - lastHeartbeat) < 10:
       # really shouldn't happen (meant Tor froze for a bit)
       isUnresponsive = False
-      log.log(log.NOTICE, "Relay resumed")
+      log.notice("Relay resumed")
   
   return isUnresponsive
 
@@ -522,8 +518,7 @@ def startTorMonitor(startTime):
   torPid = conn.getMyPid()
   
   if not torPid and conn.isAlive():
-    msg = "Unable to determine Tor's pid. Some information, like its resource usage will be unavailable."
-    log.log(CONFIG["log.unknownTorPid"], msg)
+    log.warn("Unable to determine Tor's pid. Some information, like its resource usage will be unavailable.")
   
   # adds events needed for arm functionality to the torTools REQ_EVENTS
   # mapping (they're then included with any setControllerEvents call, and log
@@ -537,7 +532,7 @@ def startTorMonitor(startTime):
     # notify the user and tell them what they can do to fix it.
     
     if conn.getOption("DisableDebuggerAttachment", None) == "1":
-      log.log(log.NOTICE, "Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
+      log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
     else:
       torTools.REQ_EVENTS["CIRC"] = "may cause issues in identifying client connections"
@@ -563,7 +558,7 @@ def startTorMonitor(startTime):
   
   if missingEventTypes:
     pluralLabel = "s" if len(missingEventTypes) > 1 else ""
-    log.log(CONFIG["log.torEventTypeUnrecognized"], "arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (pluralLabel, ", ".join(missingEventTypes)))
+    log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (pluralLabel, ", ".join(missingEventTypes)))
   
   try:
     curses.wrapper(drawTorMonitor, startTime)
@@ -591,7 +586,7 @@ def drawTorMonitor(stdscr, startTime):
   
   # provides notice about any unused config keys
   for key in conf.get_config("arm").unused_keys():
-    log.log(CONFIG["log.configEntryUndefined"], "Unused configuration entry: %s" % key)
+    log.notice("Unused configuration entry: %s" % key)
   
   # tells daemon panels to start
   for panelImpl in control.getDaemonPanels(): panelImpl.start()
@@ -605,8 +600,7 @@ def drawTorMonitor(stdscr, startTime):
   except curses.error: pass
   
   # logs the initialization time
-  msg = "arm started (initialization took %0.3f seconds)" % (time.time() - startTime)
-  log.log(CONFIG["log.startTime"], msg)
+  log.info("arm started (initialization took %0.3f seconds)" % (time.time() - startTime))
   
   # main draw loop
   overrideKey = None     # uses this rather than waiting on user input
@@ -656,7 +650,7 @@ def drawTorMonitor(stdscr, startTime):
       if confirmationKey in (ord('x'), ord('X')):
         try: torTools.getConn().reload()
         except IOError, exc:
-          log.log(log.ERR, "Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
+          log.error("Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
       overrideKey = cli.popups.showHelpPopup()
     elif key == ord('l') - 96:

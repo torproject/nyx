@@ -18,15 +18,16 @@ import version
 import cli.controller
 import cli.logPanel
 import util.connections
-import util.log
 import util.sysTools
 import util.torConfig
 import util.torTools
 import util.uiTools
 
 from stem.control import Controller
+
 import stem.connection
 import stem.util.conf
+import stem.util.log
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
@@ -42,15 +43,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "features.allowDetachedStartup": False,
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
-  "log.configDescriptions.readManPageSuccess": util.log.INFO,
-  "log.configDescriptions.readManPageFailed": util.log.NOTICE,
-  "log.configDescriptions.internalLoadSuccess": util.log.NOTICE,
-  "log.configDescriptions.internalLoadFailed": util.log.ERR,
-  "log.configDescriptions.persistance.loadSuccess": util.log.INFO,
-  "log.configDescriptions.persistance.loadFailed": util.log.INFO,
-  "log.configDescriptions.persistance.saveSuccess": util.log.INFO,
-  "log.configDescriptions.persistance.saveFailed": util.log.NOTICE,
-  "log.savingDebugLog": util.log.NOTICE,
 })
 
 OPT = "gi:s:c:dbe:vh"
@@ -157,11 +149,9 @@ def _loadConfigurationDescriptions(pathPrefix):
         util.torConfig.loadOptionDescriptions(descriptorPath)
         isConfigDescriptionsLoaded = True
         
-        msg = DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
-        util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
+        stem.util.log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
       except IOError, exc:
-        msg = DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
-        util.log.log(CONFIG["log.configDescriptions.persistance.loadFailed"], msg)
+        stem.util.log.info(DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
     
     # fetches configuration options from the man page
     if not isConfigDescriptionsLoaded:
@@ -170,23 +160,18 @@ def _loadConfigurationDescriptions(pathPrefix):
         util.torConfig.loadOptionDescriptions()
         isConfigDescriptionsLoaded = True
         
-        msg = DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime)
-        util.log.log(CONFIG["log.configDescriptions.readManPageSuccess"], msg)
+        stem.util.log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
       except IOError, exc:
-        msg = DESC_READ_MAN_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
-        util.log.log(CONFIG["log.configDescriptions.readManPageFailed"], msg)
+        stem.util.log.notice(DESC_READ_MAN_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
       
       # persists configuration descriptions 
       if isConfigDescriptionsLoaded and descriptorPath:
         try:
           loadStartTime = time.time()
           util.torConfig.saveOptionDescriptions(descriptorPath)
-          
-          msg = DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime)
-          util.log.log(CONFIG["log.configDescriptions.persistance.loadSuccess"], msg)
+          stem.util.log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
         except (IOError, OSError), exc:
-          msg = DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
-          util.log.log(CONFIG["log.configDescriptions.persistance.saveFailed"], msg)
+          stem.util.log.notice(DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
     
     # finally fall back to the cached descriptors provided with arm (this is
     # often the case for tbb and manual builds)
@@ -195,12 +180,9 @@ def _loadConfigurationDescriptions(pathPrefix):
         loadStartTime = time.time()
         loadedVersion = util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
         isConfigDescriptionsLoaded = True
-        
-        msg = DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion
-        util.log.log(CONFIG["log.configDescriptions.internalLoadSuccess"], msg)
+        stem.util.log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
       except IOError, exc:
-        msg = DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
-        util.log.log(CONFIG["log.configDescriptions.internalLoadFailed"], msg)
+        stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
 
 def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg="", printError=True):
   """
@@ -274,8 +256,8 @@ def _dumpConfig():
     else:
       torConfigEntry += "%s %s\n" % (key, value)
   
-  util.log.log(util.log.DEBUG, armConfigEntry.strip())
-  util.log.log(util.log.DEBUG, torConfigEntry.strip())
+  stem.util.log.debug(armConfigEntry.strip())
+  stem.util.log.debug(torConfigEntry.strip())
 
 if __name__ == '__main__':
   startTime = time.time()
@@ -325,7 +307,9 @@ if __name__ == '__main__':
   
   if isDebugMode:
     try:
-      util.log.setDumpFile(LOG_DUMP_PATH)
+      stem_logger = stem.util.log.get_logger()
+      stem_logger.addHandler(logging.FileHandler(LOG_DUMP_PATH))
+      stem_logger.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
       
       currentTime = time.localtime()
       timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
@@ -333,8 +317,7 @@ if __name__ == '__main__':
       pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
       osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
       
-      util.log.DUMP_FILE.write("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
-      util.log.DUMP_FILE.flush()
+      stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
     except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
   
@@ -348,20 +331,17 @@ if __name__ == '__main__':
   try:
     config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
-    msg = NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc)
-    util.log.log(util.log.WARN, msg)
+    stem.util.log.warn(NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc))
   
   # loads user's personal armrc if available
   if os.path.exists(configPath):
     try:
       config.load(configPath)
     except IOError, exc:
-      msg = STANDARD_CFG_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc)
-      util.log.log(util.log.WARN, msg)
+      stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
   else:
     # no armrc found, falling back to the defaults in the source
-    msg = STANDARD_CFG_NOT_FOUND_MSG % configPath
-    util.log.log(util.log.NOTICE, msg)
+    stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % configPath)
   
   # prevent arm from starting without a tor instance if...
   # - we're launching a prompt
@@ -454,7 +434,7 @@ if __name__ == '__main__':
     # give a notice if tor is running with root
     torUser = controllerWrapper.getMyUser()
     if torUser == "root":
-      util.log.log(util.log.NOTICE, TOR_ROOT_NOTICE)
+      stem.util.log.notice(TOR_ROOT_NOTICE)
   
   # Give a notice if arm is running with root. Querying connections usually
   # requires us to have the same permissions as tor so if tor is running as
@@ -463,14 +443,14 @@ if __name__ == '__main__':
   
   if torUser != "root" and os.getuid() == 0:
     torUserLabel = torUser if torUser else "<tor user>"
-    util.log.log(util.log.NOTICE, ARM_ROOT_NOTICE % torUserLabel)
+    stem.util.log.notice(ARM_ROOT_NOTICE % torUserLabel)
   
   # fetches descriptions for tor's configuration options
   _loadConfigurationDescriptions(pathPrefix)
   
   # dump tor and arm configuration when in debug mode
   if isDebugMode:
-    util.log.log(CONFIG["log.savingDebugLog"], "Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
+    stem.util.log.notice("Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
     _dumpConfig()
   
   # Attempts to rename our process from "python setup.py <input args>" to

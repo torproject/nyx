@@ -10,9 +10,8 @@ import sys
 import curses
 
 from curses.ascii import isprint
-from util import log
 
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -45,15 +44,13 @@ def conf_handler(key, value):
   if key == "features.colorOverride" and value != "none":
     try: setColorOverride(value)
     except ValueError, exc:
-      log.log(CONFIG["log.configEntryTypeError"], exc)
+      log.notice(exc)
 
 CONFIG = conf.config_dict("arm", {
   "features.colorOverride": "none",
   "features.colorInterface": True,
   "features.acsSupport": True,
   "features.printUnicode": True,
-  "log.cursesColorSupport": log.INFO,
-  "log.configEntryTypeError": log.NOTICE,
 }, conf_handler)
 
 # Flag indicating if unicode is supported by curses. If None then this has yet
@@ -734,7 +731,7 @@ def _initColors():
     # initializes color mappings if color support is available
     if COLOR_IS_SUPPORTED:
       colorpair = 0
-      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support detected and enabled")
+      log.info("Terminal color support detected and enabled")
       
       for colorName in COLOR_LIST:
         fgColor = COLOR_LIST[colorName]
@@ -743,5 +740,5 @@ def _initColors():
         curses.init_pair(colorpair, fgColor, bgColor)
         COLOR_ATTR[colorName] = curses.color_pair(colorpair)
     else:
-      log.log(CONFIG["log.cursesColorSupport"], "Terminal color support unavailable")
+      log.info("Terminal color support unavailable")
 

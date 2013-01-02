@@ -16,9 +16,9 @@ import stem
 import stem.control
 import stem.descriptor
 
-from util import connections, log, procTools, sysTools, uiTools
+from util import connections, procTools, sysTools, uiTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -49,10 +49,6 @@ UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 
 CONFIG = conf.config_dict("arm", {
   "features.pathPrefix": "",
-  "log.stemPortClosed": log.NOTICE,
-  "log.torPrefixPathInvalid": log.NOTICE,
-  "log.bsdJailFound": log.INFO,
-  "log.unknownBsdJailId": log.WARN,
 })
 
 # events used for controller functionality:
@@ -227,7 +223,7 @@ def getBsdJailId():
     jid = psOutput[1].strip()
     if jid.isdigit(): return int(jid)
   
-  log.log(CONFIG["log.unknownBsdJailId"], "Failed to figure out the FreeBSD jail id. Assuming 0.")
+  log.warn("Failed to figure out the FreeBSD jail id. Assuming 0.")
   return 0
 
 def isTorRunning():
@@ -337,7 +333,7 @@ class Controller:
       
       if self.controller: self.close() # shut down current connection
       self.controller = controller
-      log.log(log.INFO, "Stem connected to tor version %s" % self.controller.get_version())
+      log.info("Stem connected to tor version %s" % self.controller.get_version())
       
       self.controller.add_event_listener(self.msg_event, stem.control.EventType.NOTICE)
       self.controller.add_event_listener(self.ns_event, stem.control.EventType.NS)
@@ -1696,8 +1692,7 @@ class Controller:
               prefixPath = jlsOutput[1].split()[3]
               
               if self._pathPrefixLogging:
-                msg = "Adjusting paths to account for Tor running in a jail at: %s" % prefixPath
-                log.log(CONFIG["log.bsdJailFound"], msg)
+                log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
         
         if prefixPath:
           # strips off ending slash from the path
@@ -1705,8 +1700,7 @@ class Controller:
           
           # avoid using paths that don't exist
           if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
-            msg = "The prefix path set in your config (%s) doesn't exist." % prefixPath
-            log.log(CONFIG["log.torPrefixPathInvalid"], msg)
+            log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
             prefixPath = ""
         
         self._pathPrefixLogging = False # prevents logging if fetched again
@@ -1796,8 +1790,7 @@ class Controller:
                 
                 if relayFingerprint: path.append(relayFingerprint)
                 else:
-                  msg = "Unable to determine the fingerprint for a relay in our own circuit: %s" % hopEntry
-                  log.log(log.WARN, msg)
+                  log.warn("Unable to determine the fingerprint for a relay in our own circuit: %s" % hopEntry)
                   path.append("0" * 40)
             
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
@@ -1872,7 +1865,7 @@ class Controller:
       
       # gives a notice that the control port has closed
       if eventType == State.CLOSED:
-        log.log(CONFIG["log.stemPortClosed"], "Tor control port closed")
+        log.notice("Tor control port closed")
       
       for callback in self.statusListeners:
         callback(self, eventType)

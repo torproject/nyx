@@ -29,7 +29,9 @@ import starter
 import cli.popups
 import cli.controller
 
-from util import log, panel, sysTools, torTools, uiTools
+from util import panel, sysTools, torTools, uiTools
+
+from stem.util import log
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -48,8 +50,6 @@ CONFIG = conf.config_dict("arm", {
   "startup.interface.port": 9051,
   "startup.interface.socket": "/var/run/tor/control",
   "features.showFdUsage": False,
-  "log.fdUsageSixtyPercent": log.NOTICE,
-  "log.fdUsageNinetyPercent": log.WARN,
 })
 
 class HeaderPanel(panel.Panel, threading.Thread):
@@ -173,7 +173,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       
       if controller:
         torTools.getConn().init(controller)
-        log.log(log.NOTICE, "Reconnected to Tor's control port")
+        log.notice("Reconnected to Tor's control port")
         cli.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
     
@@ -559,10 +559,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if fdPercent >= 90 and not self._isFdNinetyPercentWarned:
         self._isFdSixtyPercentWarned, self._isFdNinetyPercentWarned = True, True
         msg += " If you run out Tor will be unable to continue functioning."
-        log.log(CONFIG["log.fdUsageNinetyPercent"], msg)
+        log.warn(msg)
       elif fdPercent >= 60 and not self._isFdSixtyPercentWarned:
         self._isFdSixtyPercentWarned = True
-        log.log(CONFIG["log.fdUsageSixtyPercent"], msg)
+        log.notice(msg)
     
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:

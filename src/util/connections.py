@@ -21,9 +21,9 @@ import os
 import time
 import threading
 
-from util import log, procTools, sysTools
+from util import procTools, sysTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 # enums for connection resolution utilities
 Resolver = enum.Enum(("PROC", "proc"),
@@ -88,7 +88,7 @@ def conf_handler(key, value):
         PORT_USAGE[portEntry] = value
       else:
         msg = "Port value isn't numeric for entry: %s" % key
-        log.log(CONFIG["log.configEntryTypeError"], msg)
+        log.notice(msg)
     else:
       try:
         # range of ports (inclusive)
@@ -100,16 +100,10 @@ def conf_handler(key, value):
           PORT_USAGE[str(port)] = value
       except ValueError:
         msg = "Unable to parse port range for entry: %s" % key
-        log.log(CONFIG["log.configEntryTypeError"], msg)
+        log.notice(msg)
 
 CONFIG = conf.config_dict("arm", {
   "queries.connections.minRate": 5,
-  "log.connResolverOptions": log.INFO,
-  "log.connLookupFailed": log.INFO,
-  "log.connLookupFailover": log.NOTICE,
-  "log.connLookupAbandon": log.NOTICE,
-  "log.connLookupRateGrowing": None,
-  "log.configEntryTypeError": log.NOTICE,
 }, conf_handler)
 
 PORT_USAGE = {}
@@ -419,7 +413,7 @@ class ConnectionResolver(threading.Thread):
     osType = os.uname()[0]
     self.resolverOptions = getSystemResolvers(osType)
     
-    log.log(CONFIG["log.connResolverOptions"], "Operating System: %s, Connection Resolvers: %s" % (osType, ", ".join(self.resolverOptions)))
+    log.info("Operating System: %s, Connection Resolvers: %s" % (osType, ", ".join(self.resolverOptions)))
     
     # sets the default resolver to be the first found in the system's PATH
     # (left as netstat if none are found)
@@ -499,8 +493,7 @@ class ConnectionResolver(threading.Thread):
             # adding extra to keep the rate from frequently changing
             self.defaultRate = newMinDefaultRate + 0.5
             
-            msg = "connection lookup time increasing to %0.1f seconds per call" % self.defaultRate
-            log.log(CONFIG["log.connLookupRateGrowing"], msg)
+            log.trace("connection lookup time increasing to %0.1f seconds per call" % self.defaultRate)
           else: self._rateThresholdBroken += 1
         else: self._rateThresholdBroken = 0
         
@@ -511,7 +504,7 @@ class ConnectionResolver(threading.Thread):
         # logged via sysTools)
         # - note fail-overs for default resolution methods
         if str(exc).startswith("No results found using:"):
-          log.log(CONFIG["log.connLookupFailed"], str(exc))
+          log.info(exc)
         
         if isDefault:
           self._subsiquentFailures += 1
@@ -530,11 +523,10 @@ class ConnectionResolver(threading.Thread):
             
             if newResolver:
               # provide notice that failures have occurred and resolver is changing
-              msg = RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver)
-              log.log(CONFIG["log.connLookupFailover"], msg)
+              log.notice(RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver))
             else:
               # exhausted all resolvers, give warning
-              log.log(CONFIG["log.connLookupAbandon"], RESOLVER_FINAL_FAILURE_MSG)
+              log.notice(RESOLVER_FINAL_FAILURE_MSG)
             
             self.defaultResolver = newResolver
       finally:

@@ -6,9 +6,9 @@ import os
 import time
 import threading
 
-from util import log, procTools, uiTools
+from util import procTools, uiTools
 
-from stem.util import conf
+from stem.util import conf, log
 
 # Mapping of commands to if they're available or not. This isn't always
 # reliable, failing for some special commands. For these the cache is
@@ -33,13 +33,6 @@ SAMPLING_PERIOD = 5 # time of the sampling period
 CONFIG = conf.config_dict("arm", {
   "queries.resourceUsage.rate": 5,
   "cache.sysCalls.size": 600,
-  "log.sysCallMade": log.DEBUG,
-  "log.sysCallCached": None,
-  "log.sysCallFailed": log.INFO,
-  "log.sysCallCacheGrowing": log.INFO,
-  "log.stats.failedProcResolution": log.DEBUG,
-  "log.stats.procResolutionFailover": log.INFO,
-  "log.stats.failedPsResolution": log.INFO,
 })
 
 def getSysCpuUsage():
@@ -276,8 +269,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
           cacheSize = len(newCache) * 2
           CONFIG["cache.sysCalls.size"] = cacheSize
           
-          msg = "growing system call cache to %i entries" % cacheSize
-          log.log(CONFIG["log.sysCallCacheGrowing"], msg)
+          log.info("growing system call cache to %i entries" % cacheSize)
         
         CALL_CACHE = newCache
       CALL_CACHE_LOCK.release()
@@ -289,8 +281,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
       
       if isinstance(cachedResults, IOError):
         if IS_FAILURES_CACHED:
-          msg = "system call (cached failure): %s (age: %0.1f, error: %s)" % (command, cacheAge, str(cachedResults))
-          log.log(CONFIG["log.sysCallCached"], msg)
+          log.trace(CONFIG["log.sysCallCached"], "system call (cached failure): %s (age: %0.1f, error: %s)" % (command, cacheAge, cachedResults))
           
           if suppressExc: return None
           else: raise cachedResults
@@ -298,8 +289,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
           # flag was toggled after a failure was cached - reissue call, ignoring the cache
           return call(command, 0, suppressExc, quiet)
       else:
-        msg = "system call (cached): %s (age: %0.1f)" % (command, cacheAge)
-        log.log(CONFIG["log.sysCallCached"], msg)
+        log.trace(CONFIG["log.sysCallCached"], "system call (cached): %s (age: %0.1f)" % (command, cacheAge))
         
         return cachedResults
   
@@ -337,8 +327,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
   
   if errorExc:
     # log failure and either provide None or re-raise exception
-    msg = "system call (failed): %s (error: %s)" % (command, str(errorExc))
-    log.log(CONFIG["log.sysCallFailed"], msg)
+    log.info("system call (failed): %s (error: %s)" % (command, str(errorExc)))
     
     if cacheAge > 0 and IS_FAILURES_CACHED:
       CALL_CACHE_LOCK.acquire()
@@ -351,8 +340,7 @@ def call(command, cacheAge=0, suppressExc=False, quiet=True):
     # log call information and if we're caching then save the results
     currentTime = time.time()
     runtime = currentTime - startTime
-    msg = "system call: %s (runtime: %0.2f)" % (command, runtime)
-    log.log(CONFIG["log.sysCallMade"], msg)
+    log.debug("system call: %s (runtime: %0.2f)" % (command, runtime))
     
     # append the runtime, and remove any outside of the sampling period
     RUNTIMES.append((currentTime, runtime))
@@ -533,23 +521,20 @@ class ResourceTracker(threading.Thread):
           if self._failureCount >= 3:
             # We've failed three times resolving via proc. Warn, and fall back
             # to ps resolutions.
-            msg = "Failed three attempts to get process resource usage from proc, falling back to ps (%s)" % exc
-            log.log(CONFIG["log.stats.procResolutionFailover"], msg)
+            log.info("Failed three attempts to get process resource usage from proc, falling back to ps (%s)" % exc)
             
             self._useProc = False
             self._failureCount = 1 # prevents lastQueryFailed() from thinking that we succeeded
           else:
             # wait a bit and try again
-            msg = "Unable to query process resource usage from proc (%s)" % exc
-            log.log(CONFIG["log.stats.failedProcResolution"], msg)
+            log.debug("Unable to query process resource usage from proc (%s)" % exc)
             self._cond.acquire()
             if not self._halt: self._cond.wait(0.5)
             self._cond.release()
         else:
           # exponential backoff on making failed ps calls
           sleepTime = 0.01 * (2 ** self._failureCount) + self._failureCount
-          msg = "Unable to query process resource usage from ps, waiting %0.2f seconds (%s)" % (sleepTime, exc)
-          log.log(CONFIG["log.stats.failedProcResolution"], msg)
+          log.debug("Unable to query process resource usage from ps, waiting %0.2f seconds (%s)" % (sleepTime, exc))
           self._cond.acquire()
           if not self._halt: self._cond.wait(sleepTime)
           self._cond.release()

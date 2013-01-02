@@ -32,9 +32,9 @@ import itertools
 import Queue
 import distutils.sysconfig
 
-from util import log, sysTools
+from util import sysTools
 
-from stem.util import conf
+from stem.util import conf, log
 
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
@@ -57,7 +57,6 @@ CONFIG = conf.config_dict("arm", {
   "queries.hostnames.useSocketModule": False,
   "cache.hostnames.size": 700000,
   "cache.hostnames.trimSize": 200000,
-  "log.hostnameCacheTrimmed": log.INFO,
 }, conf_handler)
 
 def start():
@@ -385,7 +384,7 @@ class _Resolver():
         newCache = {}
         
         msg = "trimming hostname cache from %i entries to %i" % (len(self.resolvedCache), newCacheSize)
-        log.log(CONFIG["log.hostnameCacheTrimmed"], msg)
+        log.info(msg)
         
         # checks age of each entry, adding to toDelete if too old
         for ipAddr, entry in self.resolvedCache.iteritems():

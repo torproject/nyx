@@ -9,9 +9,9 @@ import curses
 import cli.controller
 
 from cli.graphing import graphPanel
-from util import log, sysTools, torTools, uiTools
+from util import sysTools, torTools, uiTools
 
-from stem.util import conf
+from stem.util import conf, log
 
 def conf_handler(key, value):
   if key == "features.graph.bw.accounting.rate":
@@ -22,8 +22,6 @@ CONFIG = conf.config_dict("arm", {
   "features.graph.bw.accounting.show": True,
   "features.graph.bw.accounting.rate": 10,
   "features.graph.bw.accounting.isTimeLong": False,
-  "log.graph.bw.prepopulateSuccess": log.NOTICE,
-  "log.graph.bw.prepopulateFailure": log.NOTICE,
 }, conf_handler)
 
 DL_COLOR, UL_COLOR = "green", "cyan"
@@ -139,21 +137,21 @@ class BandwidthStats(graphPanel.GraphStats):
     # results associated with this tor instance
     if not uptime or not "-" in uptime:
       msg = PREPOPULATE_FAILURE_MSG % "insufficient uptime"
-      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
+      log.notice(msg)
       return False
     
     # get the user's data directory (usually '~/.tor')
     dataDir = conn.getOption("DataDirectory", None)
     if not dataDir:
       msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
-      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
+      log.notice(msg)
       return False
     
     # attempt to open the state file
     try: stateFile = open("%s%s/state" % (conn.getPathPrefix(), dataDir), "r")
     except IOError:
       msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
-      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
+      log.notice(msg)
       return False
     
     # get the BWHistory entries (ordered oldest to newest) and number of
@@ -192,7 +190,7 @@ class BandwidthStats(graphPanel.GraphStats):
     
     if not bwReadEntries or not bwWriteEntries or not lastReadTime or not lastWriteTime:
       msg = PREPOPULATE_FAILURE_MSG % "bandwidth stats missing from state file"
-      log.log(CONFIG["log.graph.bw.prepopulateFailure"], msg)
+      log.notice(msg)
       return False
     
     # fills missing entries with the last value
@@ -231,7 +229,7 @@ class BandwidthStats(graphPanel.GraphStats):
     msg = PREPOPULATE_SUCCESS_MSG
     missingSec = time.time() - min(lastReadTime, lastWriteTime)
     if missingSec: msg += " (%s is missing)" % uiTools.getTimeLabel(missingSec, 0, True)
-    log.log(CONFIG["log.graph.bw.prepopulateSuccess"], msg)
+    log.notice(msg)
     
     return True
   

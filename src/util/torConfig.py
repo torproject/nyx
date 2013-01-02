@@ -9,9 +9,9 @@ import threading
 
 import stem.version
 
-from util import log, sysTools, torTools, uiTools
+from util import sysTools, torTools, uiTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, log
 
 def conf_handler(key, value):
   if key == "config.important":
@@ -38,10 +38,6 @@ CONFIG = conf.config_dict("arm", {
   "torrc.label.time.hour": [],
   "torrc.label.time.day": [],
   "torrc.label.time.week": [],
-  "log.torrc.readFailed": log.WARN,
-  "log.configDescriptions.unrecognizedCategory": log.NOTICE,
-  "log.torrc.validation.unnecessaryTorrcEntries": log.NOTICE,
-  "log.torrc.validation.torStateDiffers": log.WARN,
 }, conf_handler)
 
 # enums and values for numeric torrc entries
@@ -230,8 +226,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
             elif line.startswith("HIDDEN SERVICE"): lastCategory = Category.HIDDEN_SERVICE
             elif line.startswith("TESTING NETWORK"): lastCategory = Category.TESTING
             else:
-              msg = "Unrecognized category in the man page: %s" % line.strip()
-              log.log(CONFIG["log.configDescriptions.unrecognizedCategory"], msg)
+              log.notice("Unrecognized category in the man page: %s" % line.strip())
         else:
           # Appends the text to the running description. Empty lines and lines
           # starting with a specific indentation are used for formatting, for
@@ -466,7 +461,7 @@ def saveConf(destination = None, contents = None):
       try: getTorrc().load()
       except IOError: pass
       
-      log.log(log.DEBUG, logMsg % ("SAVECONF", time.time() - startTime))
+      log.debug(logMsg % ("SAVECONF", time.time() - startTime))
       return # if successful then we're done
     except:
       pass
@@ -489,7 +484,7 @@ def saveConf(destination = None, contents = None):
     try: getTorrc().load()
     except IOError: pass
   
-  log.log(log.DEBUG, logMsg % ("directly writing", time.time() - startTime))
+  log.debug(logMsg % ("directly writing", time.time() - startTime))
 
 def validate(contents = None):
   """
@@ -709,8 +704,7 @@ class Torrc():
       configFile.close()
     except IOError, exc:
       if logFailure and not self.isLoadFailWarned:
-        msg = "Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc)
-        log.log(CONFIG["log.torrc.readFailed"], msg)
+        log.warn("Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc))
         self.isLoadFailWarned = True
       
       self.valsLock.release()
@@ -796,7 +790,7 @@ class Torrc():
       skipValidation |= (torVersion is None or not torVersion.meets_requirements(stem.version.Requirement.GETINFO_CONFIG_TEXT))
       
       if skipValidation:
-        log.log(log.INFO, "Skipping torrc validation (requires tor 0.2.2.7-alpha)")
+        log.info("Skipping torrc validation (requires tor 0.2.2.7-alpha)")
         returnVal = {}
       else:
         if self.corrections == None:
@@ -854,7 +848,7 @@ class Torrc():
           defaultOptions.sort()
           msg += ", ".join(defaultOptions)
         
-        log.log(CONFIG["log.torrc.validation.unnecessaryTorrcEntries"], msg)
+        log.notice(msg)
       
       if mismatchLines or missingOptions:
         msg = "The torrc differs from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
@@ -877,7 +871,7 @@ class Torrc():
           missingOptions.sort()
           msg += ", ".join(missingOptions)
         
-        log.log(CONFIG["log.torrc.validation.torStateDiffers"], msg)
+        log.warn(msg)
 
 def _testConfigDescriptions():
   """
@@ -1021,7 +1015,7 @@ def renderTorrc(template, options, commentIndent = 30):
           option, arg = parsedLine.split(" ", 1)
           option = option.strip()
         else:
-          log.log(log.INFO, "torrc template option lacks an argument: '%s'" % line)
+          log.info("torrc template option lacks an argument: '%s'" % line)
           continue
         
         # inputs dynamic arguments
