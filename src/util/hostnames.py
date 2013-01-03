@@ -32,9 +32,7 @@ import itertools
 import Queue
 import distutils.sysconfig
 
-from util import sysTools
-
-from stem.util import conf, log
+from stem.util import conf, log, system
 
 RESOLVER = None                       # hostname resolver (service is stopped if None)
 RESOLVER_LOCK = threading.RLock()     # regulates assignment to the RESOLVER
@@ -233,7 +231,7 @@ def _resolveViaHost(ipAddr):
     ipAddr - ip address to be resolved
   """
   
-  hostname = sysTools.call("host %s" % ipAddr)[0].split()[-1:][0]
+  hostname = system.call("host %s" % ipAddr)[0].split()[-1:][0]
   
   if hostname == "reached":
     # got message: ";; connection timed out; no servers could be reached"

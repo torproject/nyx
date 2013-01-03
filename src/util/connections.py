@@ -17,13 +17,12 @@ options that perform even better (thanks to Fabian Keil and Hans Schnehl):
 - procstat    procstat -f <pid> | grep TCP | grep -v 0.0.0.0:0
 """
 
+import re
 import os
 import time
 import threading
 
-from util import sysTools
-
-from stem.util import conf, enum, log, proc
+from stem.util import conf, enum, log, proc, system
 
 # enums for connection resolution utilities
 Resolver = enum.Enum(("PROC", "proc"),
@@ -46,13 +45,13 @@ RECREATE_HALTED_RESOLVERS = False
 # tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
 # *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
 #   equivilant -p doesn't exist so this can't function)
-RUN_NETSTAT = "netstat -np | grep \"ESTABLISHED %s/%s\""
+RUN_NETSTAT = "netstat -np"
 
 # n = numeric ports, p = include process, t = tcp sockets, u = udp sockets
 # output:
 # ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
 # *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -nptu | grep \"ESTAB.*\\\"%s\\\",%s\""
+RUN_SS = "ss -nptu"
 
 # n = prevent dns lookups, P = show port numbers (not names), i = ip only,
 # -w = no warnings
@@ -62,15 +61,15 @@ RUN_SS = "ss -nptu | grep \"ESTAB.*\\\"%s\\\",%s\""
 # oddly, using the -p flag via:
 # lsof      lsof -nPi -p <pid> | grep "^<process>.*(ESTABLISHED)"
 # is much slower (11-28% in tests I ran)
-RUN_LSOF = "lsof -wnPi | egrep \"^%s *%s.*((UDP.*)|(\\(ESTABLISHED\\)))\""
+RUN_LSOF = "lsof -wnPi"
 
 # output:
 # atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED
 # *note: this isn't available by default under ubuntu
-RUN_SOCKSTAT = "sockstat | egrep \"%s *%s.*ESTABLISHED\""
+RUN_SOCKSTAT = "sockstat"
 
-RUN_BSD_SOCKSTAT = "sockstat -4c | grep '%s *%s'"
-RUN_BSD_PROCSTAT = "procstat -f %s | grep TCP | grep -v 0.0.0.0:0"
+RUN_BSD_SOCKSTAT = "sockstat -4c"
+RUN_BSD_PROCSTAT = "procstat -f %s"
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
@@ -176,9 +175,9 @@ def getPortUsage(port):
 
 def getResolverCommand(resolutionCmd, processName, processPid = ""):
   """
-  Provides the command that would be processed for the given resolver type.
-  This raises a ValueError if either the resolutionCmd isn't recognized or a
-  pid was requited but not provided.
+  Provides the command and line filter that would be processed for the given
+  resolver type. This raises a ValueError if either the resolutionCmd isn't
+  recognized or a pid was requited but not provided.
   
   Arguments:
     resolutionCmd - command to use in resolving the address
@@ -194,13 +193,39 @@ def getResolverCommand(resolutionCmd, processName, processPid = ""):
     # if the pid was undefined then match any in that field
     processPid = "[0-9]*"
   
-  if resolutionCmd == Resolver.PROC: return ""
-  elif resolutionCmd == Resolver.NETSTAT: return RUN_NETSTAT % (processPid, processName)
-  elif resolutionCmd == Resolver.SS: return RUN_SS % (processName, processPid)
-  elif resolutionCmd == Resolver.LSOF: return RUN_LSOF % (processName, processPid)
-  elif resolutionCmd == Resolver.SOCKSTAT: return RUN_SOCKSTAT % (processName, processPid)
-  elif resolutionCmd == Resolver.BSD_SOCKSTAT: return RUN_BSD_SOCKSTAT % (processName, processPid)
-  elif resolutionCmd == Resolver.BSD_PROCSTAT: return RUN_BSD_PROCSTAT % processPid
+  no_op_filter = lambda line: True
+  
+  if resolutionCmd == Resolver.PROC: return ("", no_op_filter)
+  elif resolutionCmd == Resolver.NETSTAT:
+    return (
+      RUN_NETSTAT,
+      lambda line: "ESTABLISHED %s/%s" % (processPid, processName) in line
+    )
+  elif resolutionCmd == Resolver.SS:
+    return (
+      RUN_SS,
+      lambda line: ("ESTAB" in line) and ("\"%s\",%s" % (processName, processPid) in line)
+    )
+  elif resolutionCmd == Resolver.LSOF:
+    return (
+      RUN_LSOF,
+      lambda line: re.match("^%s *%s.*((UDP.*)|(\(ESTABLISHED\)))" % (processName, processPid))
+    )
+  elif resolutionCmd == Resolver.SOCKSTAT:
+    return (
+      RUN_SOCKSTAT,
+      lambda line: re.match("%s *%s.*ESTABLISHED" % (processName, processPid))
+    )
+  elif resolutionCmd == Resolver.BSD_SOCKSTAT:
+    return (
+      RUN_BSD_SOCKSTAT,
+      lambda line: re.match("%s *%s" % (processName, processPid))
+    )
+  elif resolutionCmd == Resolver.BSD_PROCSTAT:
+    return (
+      RUN_BSD_PROCSTAT % processPid,
+      lambda line: "TCP" in line and "0.0.0.0:0" not in line
+    )
   else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
 
 def getConnections(resolutionCmd, processName, processPid = ""):
@@ -232,8 +257,9 @@ def getConnections(resolutionCmd, processName, processPid = ""):
   else:
     # Queries a resolution utility (netstat, lsof, etc). This raises an
     # IOError if the command fails or isn't available.
-    cmd = getResolverCommand(resolutionCmd, processName, processPid)
-    results = sysTools.call(cmd)
+    cmd, cmd_filter = getResolverCommand(resolutionCmd, processName, processPid)
+    results = system.call(cmd)
+    results = filter(cmd_filter, results)
     
     if not results: raise IOError("No results found using: %s" % cmd)
     
@@ -422,7 +448,7 @@ class ConnectionResolver(threading.Thread):
       # resolvers.
       resolverCmd = resolver.replace(" (bsd)", "")
       
-      if resolver == Resolver.PROC or sysTools.isAvailable(resolverCmd):
+      if resolver == Resolver.PROC or system.is_available(resolverCmd):
         self.defaultResolver = resolver
         break
     
@@ -501,7 +527,7 @@ class ConnectionResolver(threading.Thread):
       except (ValueError, IOError), exc:
         # this logs in a couple of cases:
         # - special failures noted by getConnections (most cases are already
-        # logged via sysTools)
+        # logged via system)
         # - note fail-overs for default resolution methods
         if str(exc).startswith("No results found using:"):
           log.info(exc)
@@ -690,7 +716,7 @@ class AppResolver:
       else: lsofArgs.append("-i tcp:%s" % port)
     
     if lsofArgs:
-      lsofResults = sysTools.call("lsof -nP " + " ".join(lsofArgs))
+      lsofResults = system.call("lsof -nP " + " ".join(lsofArgs))
     else: lsofResults = None
     
     if not lsofResults and self.failureCount != -1:

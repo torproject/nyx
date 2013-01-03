@@ -13,7 +13,7 @@ import threading
 
 import stem
 from stem.response import events
-from stem.util import conf, log
+from stem.util import conf, log, system
 
 import popups
 from version import VERSION
@@ -246,7 +246,7 @@ def getLogFileEntries(runlevels, readLimit = None, addLimit = None):
   lines = []
   try:
     if readLimit:
-      lines = sysTools.call("tail -n %i %s" % (readLimit, loggingLocation))
+      lines = system.call("tail -n %i %s" % (readLimit, loggingLocation))
       if not lines: raise IOError()
     else:
       logFile = open(loggingLocation, "r")

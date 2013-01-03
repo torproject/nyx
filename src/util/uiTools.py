@@ -11,7 +11,7 @@ import curses
 
 from curses.ascii import isprint
 
-from stem.util import conf, enum, log
+from stem.util import conf, enum, log, system
 
 # colors curses can handle
 COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
@@ -102,8 +102,6 @@ def isUnicodeAvailable():
   
   global IS_UNICODE_SUPPORTED
   if IS_UNICODE_SUPPORTED == None:
-    import sysTools
-    
     if CONFIG["features.printUnicode"]:
       # Checks if our LANG variable is unicode. This is what will be respected
       # when printing multi-byte characters after calling...
@@ -485,10 +483,10 @@ def _isWideCharactersAvailable():
     #   /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 111.1.6)
     
     libDependencyLines = None
-    if sysTools.isAvailable("ldd"):
-      libDependencyLines = sysTools.call("ldd %s" % cursesLib)
-    elif sysTools.isAvailable("otool"):
-      libDependencyLines = sysTools.call("otool -L %s" % cursesLib)
+    if system.is_available("ldd"):
+      libDependencyLines = system.call("ldd %s" % cursesLib)
+    elif system.is_available("otool"):
+      libDependencyLines = system.call("otool -L %s" % cursesLib)
     
     if libDependencyLines:
       for line in libDependencyLines:

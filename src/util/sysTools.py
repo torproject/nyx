@@ -6,20 +6,9 @@ import os
 import time
 import threading
 
-from stem.util import conf, log, proc, str_tools
-
-# Mapping of commands to if they're available or not. This isn't always
-# reliable, failing for some special commands. For these the cache is
-# prepopulated to skip lookups.
-CMD_AVAILABLE_CACHE = {"ulimit": True}
-
-# cached system call results, mapping the command issued to the (time, results) tuple
-CALL_CACHE = {}
-IS_FAILURES_CACHED = True           # caches both successful and failed results if true
-CALL_CACHE_LOCK = threading.RLock() # governs concurrent modifications of CALL_CACHE
+from stem.util import conf, log, proc, str_tools, system
 
 PROCESS_NAME_CACHE = {} # mapping of pids to their process names
-PWD_CACHE = {}          # mapping of pids to their present working directory
 RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
 
 # Runtimes for system calls, used to estimate cpu usage. Entries are tuples of
@@ -30,8 +19,10 @@ SAMPLING_PERIOD = 5 # time of the sampling period
 
 CONFIG = conf.config_dict("arm", {
   "queries.resourceUsage.rate": 5,
-  "cache.sysCalls.size": 600,
 })
+
+# TODO: This was a bit of a hack, and one that won't work now that we lack our
+# call() method to populate RUNTIMES.
 
 def getSysCpuUsage():
   """
@@ -49,35 +40,6 @@ def getSysCpuUsage():
   
   runtimeSum = sum([entry[1] for entry in RUNTIMES])
   return runtimeSum / SAMPLING_PERIOD
-
-def isAvailable(command, cached=True):
-  """
-  Checks the current PATH to see if a command is available or not. If a full
-  call is provided then this just checks the first command (for instance
-  "ls -a | grep foo" is truncated to "ls"). This returns True if an accessible
-  executable by the name is found and False otherwise.
-  
-  Arguments:
-    command - command for which to search
-    cached  - this makes use of available cached results if true, otherwise
-              they're overwritten
-  """
-  
-  if " " in command: command = command.split(" ")[0]
-  
-  if cached and command in CMD_AVAILABLE_CACHE:
-    return CMD_AVAILABLE_CACHE[command]
-  else:
-    cmdExists = False
-    for path in os.environ["PATH"].split(os.pathsep):
-      cmdPath = os.path.join(path, command)
-      
-      if os.path.exists(cmdPath) and os.access(cmdPath, os.X_OK):
-        cmdExists = True
-        break
-    
-    CMD_AVAILABLE_CACHE[command] = cmdExists
-    return cmdExists
 
 def getFileErrorMsg(exc):
   """
@@ -129,7 +91,7 @@ def getProcessName(pid, default = None, cacheFailure = True):
     # the ps call formats results as:
     # COMMAND
     # tor
-    psCall = call("ps -p %s -o command" % pid)
+    psCall = system.call("ps -p %s -o command" % pid)
     
     if psCall and len(psCall) >= 2 and not " " in psCall[1]:
       processName, raisedExc = psCall[1].strip(), None
@@ -147,210 +109,6 @@ def getProcessName(pid, default = None, cacheFailure = True):
     processName = os.path.basename(processName)
     PROCESS_NAME_CACHE[pid] = processName
     return processName
-
-def getPwd(pid):
-  """
-  Provices the working directory of the given process. This raises an IOError
-  if it can't be determined.
-  
-  Arguments:
-    pid - pid of the process
-  """
-  
-  if not pid: raise IOError("we couldn't get the pid")
-  elif pid in PWD_CACHE: return PWD_CACHE[pid]
-  
-  # try fetching via the proc contents if available
-  if proc.is_available():
-    try:
-      pwd = proc.get_cwd(pid)
-      PWD_CACHE[pid] = pwd
-      return pwd
-    except IOError: pass # fall back to pwdx
-  elif os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
-    # BSD neither useres the above proc info nor does it have pwdx. Use lsof to
-    # determine this instead:
-    # https://trac.torproject.org/projects/tor/ticket/4236
-    #
-    # ~$ lsof -a -p 75717 -d cwd -Fn
-    # p75717
-    # n/Users/atagar/tor/src/or
-    
-    try:
-      results = call("lsof -a -p %s -d cwd -Fn" % pid)
-      
-      if results and len(results) == 2 and results[1].startswith("n/"):
-        pwd = results[1][1:].strip()
-        PWD_CACHE[pid] = pwd
-        return pwd
-    except IOError, exc: pass
-  
-  try:
-    # pwdx results are of the form:
-    # 3799: /home/atagar
-    # 5839: No such process
-    results = call("pwdx %s" % pid)
-    if not results:
-      raise IOError("pwdx didn't return any results")
-    elif results[0].endswith("No such process"):
-      raise IOError("pwdx reported no process for pid " + pid)
-    elif len(results) != 1 or results[0].count(" ") != 1:
-      raise IOError("we got unexpected output from pwdx")
-    else:
-      pwd = results[0][results[0].find(" ") + 1:].strip()
-      PWD_CACHE[pid] = pwd
-      return pwd
-  except IOError, exc:
-    raise IOError("the pwdx call failed: " + str(exc))
-
-def expandRelativePath(path, ownerPid):
-  """
-  Expands relative paths to be an absolute path with reference to a given
-  process. This raises an IOError if the process pwd is required and can't be
-  resolved.
-  
-  Arguments:
-    path     - path to be expanded
-    ownerPid - pid of the process to which the path belongs
-  """
-  
-  if not path or path[0] == "/": return path
-  else:
-    if path.startswith("./"): path = path[2:]
-    processPwd = getPwd(ownerPid)
-    return "%s/%s" % (processPwd, path)
-
-def call(command, cacheAge=0, suppressExc=False, quiet=True):
-  """
-  Convenience function for performing system calls, providing:
-  - suppression of any writing to stdout, both directing stderr to /dev/null
-    and checking for the existence of commands before executing them
-  - logging of results (command issued, runtime, success/failure, etc)
-  - optional exception suppression and caching (the max age for cached results
-    is a minute)
-  
-  Arguments:
-    command     - command to be issued
-    cacheAge    - uses cached results rather than issuing a new request if last
-                  fetched within this number of seconds (if zero then all
-                  caching functionality is skipped)
-    suppressExc - provides None in cases of failure if True, otherwise IOErrors
-                  are raised
-    quiet       - if True, "2> /dev/null" is appended to all commands
-  """
-  
-  # caching functionality (fetching and trimming)
-  if cacheAge > 0:
-    global CALL_CACHE
-    
-    # keeps consistency that we never use entries over a minute old (these
-    # results are 'dirty' and might be trimmed at any time)
-    cacheAge = min(cacheAge, 60)
-    cacheSize = CONFIG["cache.sysCalls.size"]
-    
-    # if the cache is especially large then trim old entries
-    if len(CALL_CACHE) > cacheSize:
-      CALL_CACHE_LOCK.acquire()
-      
-      # checks that we haven't trimmed while waiting
-      if len(CALL_CACHE) > cacheSize:
-        # constructs a new cache with only entries less than a minute old
-        newCache, currentTime = {}, time.time()
-        
-        for cachedCommand, cachedResult in CALL_CACHE.items():
-          if currentTime - cachedResult[0] < 60:
-            newCache[cachedCommand] = cachedResult
-        
-        # if the cache is almost as big as the trim size then we risk doing this
-        # frequently, so grow it and log
-        if len(newCache) > (0.75 * cacheSize):
-          cacheSize = len(newCache) * 2
-          CONFIG["cache.sysCalls.size"] = cacheSize
-          
-          log.info("growing system call cache to %i entries" % cacheSize)
-        
-        CALL_CACHE = newCache
-      CALL_CACHE_LOCK.release()
-    
-    # checks if we can make use of cached results
-    if command in CALL_CACHE and time.time() - CALL_CACHE[command][0] < cacheAge:
-      cachedResults = CALL_CACHE[command][1]
-      cacheAge = time.time() - CALL_CACHE[command][0]
-      
-      if isinstance(cachedResults, IOError):
-        if IS_FAILURES_CACHED:
-          log.trace(CONFIG["log.sysCallCached"], "system call (cached failure): %s (age: %0.1f, error: %s)" % (command, cacheAge, cachedResults))
-          
-          if suppressExc: return None
-          else: raise cachedResults
-        else:
-          # flag was toggled after a failure was cached - reissue call, ignoring the cache
-          return call(command, 0, suppressExc, quiet)
-      else:
-        log.trace(CONFIG["log.sysCallCached"], "system call (cached): %s (age: %0.1f)" % (command, cacheAge))
-        
-        return cachedResults
-  
-  startTime = time.time()
-  commandCall, results, errorExc = None, None, None
-  
-  # Gets all the commands involved, taking piping into consideration. If the
-  # pipe is quoted (ie, echo "an | example") then it's ignored.
-  
-  commandComp = []
-  for component in command.split("|"):
-    if not commandComp or component.count("\"") % 2 == 0:
-      commandComp.append(component)
-    else:
-      # pipe is within quotes
-      commandComp[-1] += "|" + component
-  
-  # preprocessing for the commands to prevent anything going to stdout
-  for i in range(len(commandComp)):
-    subcommand = commandComp[i].strip()
-    
-    if not isAvailable(subcommand): errorExc = IOError("'%s' is unavailable" % subcommand.split(" ")[0])
-    if quiet: commandComp[i] = "%s 2> /dev/null" % subcommand
-  
-  # processes the system call
-  if not errorExc:
-    try:
-      commandCall = os.popen(" | ".join(commandComp))
-      results = commandCall.readlines()
-    except IOError, exc:
-      errorExc = exc
-  
-  # make sure sys call is closed
-  if commandCall: commandCall.close()
-  
-  if errorExc:
-    # log failure and either provide None or re-raise exception
-    log.info("system call (failed): %s (error: %s)" % (command, str(errorExc)))
-    
-    if cacheAge > 0 and IS_FAILURES_CACHED:
-      CALL_CACHE_LOCK.acquire()
-      CALL_CACHE[command] = (time.time(), errorExc)
-      CALL_CACHE_LOCK.release()
-    
-    if suppressExc: return None
-    else: raise errorExc
-  else:
-    # log call information and if we're caching then save the results
-    currentTime = time.time()
-    runtime = currentTime - startTime
-    log.debug("system call: %s (runtime: %0.2f)" % (command, runtime))
-    
-    # append the runtime, and remove any outside of the sampling period
-    RUNTIMES.append((currentTime, runtime))
-    while RUNTIMES and currentTime - RUNTIMES[0][0] > SAMPLING_PERIOD:
-      RUNTIMES.pop(0)
-    
-    if cacheAge > 0:
-      CALL_CACHE_LOCK.acquire()
-      CALL_CACHE[command] = (time.time(), results)
-      CALL_CACHE_LOCK.release()
-    
-    return results
 
 def getResourceTracker(pid, noSpawn = False):
   """
@@ -489,7 +247,7 @@ class ResourceTracker(threading.Thread):
           #     TIME      ELAPSED    RSS %MEM
           #  0:04.40        37:57  18772  0.9
           
-          psCall = call("ps -p %s -o cputime,etime,rss,%%mem" % self.processPid)
+          psCall = system.call("ps -p %s -o cputime,etime,rss,%%mem" % self.processPid)
           
           isSuccessful = False
           if psCall and len(psCall) >= 2:

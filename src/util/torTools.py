@@ -7,7 +7,6 @@ import os
 import pwd
 import time
 import math
-import socket
 import thread
 import threading
 import Queue
@@ -16,9 +15,9 @@ import stem
 import stem.control
 import stem.descriptor
 
-from util import connections, sysTools
+from util import connections
 
-from stem.util import conf, enum, log, proc, str_tools
+from stem.util import conf, enum, log, proc, str_tools, system
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -111,7 +110,7 @@ def getPid(controlPort=9051, pidFilePath=None):
   # - tor is running under a different name
   # - there are multiple instances of tor
   try:
-    results = sysTools.call("pgrep -x tor")
+    results = system.call("pgrep -x tor")
     if len(results) == 1 and len(results[0].split()) == 1:
       pid = results[0].strip()
       if pid.isdigit(): return pid
@@ -121,7 +120,7 @@ def getPid(controlPort=9051, pidFilePath=None):
   # - tor's running under a different name
   # - there's multiple instances of tor
   try:
-    results = sysTools.call("pidof tor")
+    results = system.call("pidof tor")
     if len(results) == 1 and len(results[0].split()) == 1:
       pid = results[0].strip()
       if pid.isdigit(): return pid
@@ -130,7 +129,8 @@ def getPid(controlPort=9051, pidFilePath=None):
   # attempts to resolve using netstat, failing if:
   # - tor's being run as a different user due to permissions
   try:
-    results = sysTools.call("netstat -npl | grep 127.0.0.1:%i" % controlPort)
+    results = system.call("netstat -npl")
+    results = filter(lambda line: "127.0.0.1:%i" % controlPort in line, results)
     
     if len(results) == 1:
       results = results[0].split()[6] # process field (ex. "7184/tor")
@@ -142,7 +142,7 @@ def getPid(controlPort=9051, pidFilePath=None):
   # - tor's running under a different name
   # - there's multiple instances of tor
   try:
-    results = sysTools.call("ps -o pid -C tor")
+    results = system.call("ps -o pid -C tor")
     if len(results) == 2:
       pid = results[1].strip()
       if pid.isdigit(): return pid
@@ -157,7 +157,9 @@ def getPid(controlPort=9051, pidFilePath=None):
   # TODO: the later two issues could be solved by filtering for the control
   # port IP address instead of the process name.
   try:
-    results = sysTools.call("sockstat -4l -P tcp -p %i | grep tor" % controlPort)
+    results = system.call("sockstat -4l -P tcp -p %i" % controlPort)
+    results = filter(lambda line: "tor" in line, results)
+    
     if len(results) == 1 and len(results[0].split()) == 7:
       pid = results[0].split()[2]
       if pid.isdigit(): return pid
@@ -169,7 +171,9 @@ def getPid(controlPort=9051, pidFilePath=None):
   # - there's multiple instances of tor
   
   try:
-    results = sysTools.call("ps axc | egrep \" tor$\"")
+    results = system.call("ps axc")
+    results = filter(lambda line: line.endswith(" tor"), results)
+    
     if len(results) == 1 and len(results[0].split()) > 0:
       pid = results[0].split()[0]
       if pid.isdigit(): return pid
@@ -183,7 +187,8 @@ def getPid(controlPort=9051, pidFilePath=None):
   #   same control port on different addresses.
   
   try:
-    results = sysTools.call("lsof -wnPi | egrep \"^tor.*:%i\"" % controlPort)
+    results = system.call("lsof -wnPi")
+    results = filter(lambda line: line.startswith("tor.*:%i" % controlPort), results)
     
     # This can result in multiple entries with the same pid (from the query
     # itself). Checking all lines to see if they're in agreement about the pid.
@@ -202,29 +207,6 @@ def getPid(controlPort=9051, pidFilePath=None):
   except IOError: pass
   
   return None
-
-def getBsdJailId():
-  """
-  Get the FreeBSD jail id for the monitored Tor process.
-  """
-  
-  # Output when called from a FreeBSD jail or when Tor isn't jailed:
-  #   JID
-  #    0
-  # 
-  # Otherwise it's something like:
-  #   JID
-  #    1
-  
-  torPid = getConn().getMyPid()
-  psOutput = sysTools.call("ps -p %s -o jid" % torPid)
-  
-  if len(psOutput) == 2 and len(psOutput[1].split()) == 1:
-    jid = psOutput[1].strip()
-    if jid.isdigit(): return int(jid)
-  
-  log.warn("Failed to figure out the FreeBSD jail id. Assuming 0.")
-  return 0
 
 def isTorRunning():
   """
@@ -250,9 +232,9 @@ def isTorRunning():
   if os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
     primaryResolver, secondaryResolver = secondaryResolver, primaryResolver
   
-  commandResults = sysTools.call(primaryResolver)
+  commandResults = system.call(primaryResolver)
   if not commandResults:
-    commandResults = sysTools.call(secondaryResolver)
+    commandResults = system.call(secondaryResolver)
   
   if commandResults:
     for cmd in commandResults:
@@ -1261,7 +1243,7 @@ class Controller:
           #   - only provide an error if Tor fails to log a sighup
           #   - provide the error message associated with the tor pid (others
           #     would be a red herring)
-          if not sysTools.isAvailable("pkill"):
+          if not system.is_available("pkill"):
             raise IOError("pkill command is unavailable")
           
           self._isReset = False
@@ -1649,7 +1631,7 @@ class Controller:
             
             # fall back to querying via ps
             if not result:
-              psResults = sysTools.call("ps -o user %s" % myPid)
+              psResults = system.call("ps -o user %s" % myPid)
               if psResults and len(psResults) >= 2: result = psResults[1].strip()
       elif key == "fdLimit":
         # provides -1 if the query fails
@@ -1669,7 +1651,7 @@ class Controller:
             result = (8192, True)
           else:
             # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
-            ulimitResults = sysTools.call("ulimit -Hn")
+            ulimitResults = system.call("ulimit -Hn")
             
             if ulimitResults:
               ulimit = ulimitResults[0].strip()
@@ -1681,12 +1663,13 @@ class Controller:
         # adjusts the prefix path to account for jails under FreeBSD (many
         # thanks to Fabian Keil!)
         if not prefixPath and os.uname()[0] == "FreeBSD":
-          jid = getBsdJailId()
+          torPid = getConn().getMyPid()
+          jid = system.get_bsd_jail_id()
           if jid != 0:
             # Output should be something like:
             #    JID  IP Address      Hostname      Path
             #      1  10.0.0.2        tor-jail      /usr/jails/tor-jail
-            jlsOutput = sysTools.call("jls -j %s" % jid)
+            jlsOutput = system.call("jls -j %s" % jid)
             
             if len(jlsOutput) == 2 and len(jlsOutput[1].split()) == 4:
               prefixPath = jlsOutput[1].split()[3]
@@ -1717,7 +1700,7 @@ class Controller:
           if not result:
             # if we're either not using proc or it fails then try using ps
             try:
-              psCall = sysTools.call("ps -p %s -o etime" % myPid)
+              psCall = system.call("ps -p %s -o etime" % myPid)
               
               if psCall and len(psCall) >= 2:
                 etimeEntry = psCall[1].strip()

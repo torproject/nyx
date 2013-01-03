@@ -274,7 +274,6 @@ queries.hostnames.poolSize 5
 queries.hostnames.useSocketModule false
 
 # Caching parameters
-cache.sysCalls.size 600
 cache.hostnames.size 700000
 cache.hostnames.trimSize 200000
 cache.logPanel.size 1000

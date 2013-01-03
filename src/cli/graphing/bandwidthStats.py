@@ -9,9 +9,9 @@ import curses
 import cli.controller
 
 from cli.graphing import graphPanel
-from util import sysTools, torTools, uiTools
+from util import torTools, uiTools
 
-from stem.util import conf, log, str_tools
+from stem.util import conf, log, str_tools, system
 
 def conf_handler(key, value):
   if key == "features.graph.bw.accounting.rate":
@@ -120,13 +120,15 @@ class BandwidthStats(graphPanel.GraphStats):
     if orPort == "0": return
     
     # gets the uptime (using the same parameters as the header panel to take
-    # advantage of caching
+    # advantage of caching)
+    # TODO: stem dropped system caching support so we'll need to think of
+    # something else
     uptime = None
     queryPid = conn.getMyPid()
     if queryPid:
       queryParam = ["%cpu", "rss", "%mem", "etime"]
       queryCmd = "ps -p %s -o %s" % (queryPid, ",".join(queryParam))
-      psCall = sysTools.call(queryCmd, 3600, True)
+      psCall = system.call(queryCmd, None)
       
       if psCall and len(psCall) == 2:
         stats = psCall[1].strip().split()

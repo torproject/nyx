@@ -11,7 +11,7 @@ import stem.version
 
 from util import sysTools, torTools, uiTools
 
-from stem.util import conf, enum, log, str_tools
+from stem.util import conf, enum, log, str_tools, system
 
 def conf_handler(key, value):
   if key == "config.important":
@@ -176,7 +176,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
     else:
-      manCallResults = sysTools.call("man tor")
+      manCallResults = system.call("man tor")
       
       if not manCallResults:
         raise IOError("man page not found")
@@ -347,7 +347,8 @@ def getConfigLocation():
   if not configLocation: raise IOError("unable to query the torrc location")
   
   try:
-    return torPrefix + sysTools.expandRelativePath(configLocation, torPid)
+    torCwd = system.get_cwd(torPid)
+    return torPrefix + system.expand_path(configLocation, torCwd)
   except IOError, exc:
     raise IOError("querying tor's pwd failed because %s" % exc)
 
