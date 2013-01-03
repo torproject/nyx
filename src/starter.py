@@ -12,6 +12,7 @@ import time
 import getopt
 import getpass
 import locale
+import logging
 import platform
 
 import version
@@ -308,8 +309,15 @@ if __name__ == '__main__':
   if isDebugMode:
     try:
       stem_logger = stem.util.log.get_logger()
-      stem_logger.addHandler(logging.FileHandler(LOG_DUMP_PATH))
-      stem_logger.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
+      
+      debugHandler = logging.FileHandler(LOG_DUMP_PATH)
+      debugHandler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
+      debugHandler.setFormatter(logging.Formatter(
+        fmt = '%(asctime)s [%(levelname)s] %(message)s',
+        datefmt = '%m/%d/%Y %H:%M:%S'
+      ))
+      
+      stem_logger.addHandler(debugHandler)
       
       currentTime = time.localtime()
       timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
