@@ -6,9 +6,9 @@ import os
 import time
 import threading
 
-from util import procTools, uiTools
+from util import uiTools
 
-from stem.util import conf, log
+from stem.util import conf, log, proc
 
 # Mapping of commands to if they're available or not. This isn't always
 # reliable, failing for some special commands. For these the cache is
@@ -120,9 +120,9 @@ def getProcessName(pid, default = None, cacheFailure = True):
   processName, raisedExc = "", None
   
   # fetch it from proc contents if available
-  if procTools.isProcAvailable():
+  if proc.is_available():
     try:
-      processName = procTools.getStats(pid, procTools.Stat.COMMAND)[0]
+      processName = proc.get_stats(pid, proc.Stat.COMMAND)[0]
     except IOError, exc:
       raisedExc = exc
   
@@ -163,9 +163,9 @@ def getPwd(pid):
   elif pid in PWD_CACHE: return PWD_CACHE[pid]
   
   # try fetching via the proc contents if available
-  if procTools.isProcAvailable():
+  if proc.is_available():
     try:
-      pwd = procTools.getPwd(pid)
+      pwd = proc.get_cwd(pid)
       PWD_CACHE[pid] = pwd
       return pwd
     except IOError: pass # fall back to pwdx
@@ -403,7 +403,7 @@ class ResourceTracker(threading.Thread):
     self.memUsagePercentage = 0.0 # percentage cpu usage
     
     # resolves usage via proc results if true, ps otherwise
-    self._useProc = procTools.isProcAvailable()
+    self._useProc = proc.is_available()
     
     # used to get the deltas when querying cpu time
     self._lastCpuTotal = 0
@@ -469,15 +469,15 @@ class ResourceTracker(threading.Thread):
       newValues = {}
       try:
         if self._useProc:
-          utime, stime, startTime = procTools.getStats(self.processPid, procTools.Stat.CPU_UTIME, procTools.Stat.CPU_STIME, procTools.Stat.START_TIME)
+          utime, stime, startTime = proc.get_stats(self.processPid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
           totalCpuTime = float(utime) + float(stime)
           cpuDelta = totalCpuTime - self._lastCpuTotal
           newValues["cpuSampling"] = cpuDelta / timeSinceReset
           newValues["cpuAvg"] = totalCpuTime / (time.time() - float(startTime))
           newValues["_lastCpuTotal"] = totalCpuTime
           
-          memUsage = int(procTools.getMemoryUsage(self.processPid)[0])
-          totalMemory = procTools.getPhysicalMemory()
+          memUsage = int(proc.get_memory_usage(self.processPid)[0])
+          totalMemory = proc.get_physical_memory()
           newValues["memUsage"] = memUsage
           newValues["memUsagePercentage"] = float(memUsage) / totalMemory
         else:

@@ -21,9 +21,9 @@ import os
 import time
 import threading
 
-from util import procTools, sysTools
+from util import sysTools
 
-from stem.util import conf, enum, log
+from stem.util import conf, enum, log, proc
 
 # enums for connection resolution utilities
 Resolver = enum.Enum(("PROC", "proc"),
@@ -226,7 +226,7 @@ def getConnections(resolutionCmd, processName, processPid = ""):
       raise ValueError("proc resolution requires a pid")
     
     try:
-      return procTools.getConnections(processPid)
+      return proc.get_connections(processPid)
     except Exception, exc:
       raise IOError(str(exc))
   else:
@@ -337,7 +337,7 @@ def getSystemResolvers(osType = None):
     resolvers = [Resolver.NETSTAT, Resolver.SOCKSTAT, Resolver.LSOF, Resolver.SS]
   
   # proc resolution, by far, outperforms the others so defaults to this is able
-  if procTools.isProcAvailable():
+  if proc.is_available():
     resolvers = [Resolver.PROC] + resolvers
   
   return resolvers

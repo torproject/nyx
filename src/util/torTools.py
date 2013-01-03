@@ -16,9 +16,9 @@ import stem
 import stem.control
 import stem.descriptor
 
-from util import connections, procTools, sysTools, uiTools
+from util import connections, sysTools, uiTools
 
-from stem.util import conf, enum, log
+from stem.util import conf, enum, log, proc
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -737,7 +737,7 @@ class Controller:
     self.connLock.acquire()
     
     result = None
-    if self.isAlive() and procTools.isProcAvailable():
+    if self.isAlive() and proc.is_available():
       myPid = self.getMyPid()
       
       if myPid:
@@ -1640,9 +1640,9 @@ class Controller:
           if myPid:
             # if proc contents are available then fetch the pid from there and
             # convert it to the username
-            if procTools.isProcAvailable():
+            if proc.is_available():
               try:
-                myUid = procTools.getUid(myPid)
+                myUid = proc.get_uid(myPid)
                 if myUid and myUid.isdigit():
                   result = pwd.getpwuid(int(myUid)).pw_name
               except: pass
@@ -1709,9 +1709,9 @@ class Controller:
         myPid = self.getMyPid()
         
         if myPid:
-          if procTools.isProcAvailable():
+          if proc.is_available():
             try:
-              result = float(procTools.getStats(myPid, procTools.Stat.START_TIME)[0])
+              result = float(proc.get_stats(myPid, proc.Stat.START_TIME)[0])
             except: pass
           
           if not result:
