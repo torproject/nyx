@@ -23,7 +23,7 @@ import stem
 import stem.connection
 
 from stem.control import Controller
-from stem.util import conf
+from stem.util import conf, str_tools
 
 import starter
 import cli.popups
@@ -31,7 +31,7 @@ import cli.controller
 
 from util import panel, sysTools, torTools, uiTools
 
-from stem.util import log
+from stem.util import log, str_tools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -262,16 +262,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
     
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
-    if self.vals["stat/rss"] != "0": memoryLabel = uiTools.getSizeLabel(int(self.vals["stat/rss"]))
+    if self.vals["stat/rss"] != "0": memoryLabel = str_tools.get_size_label(int(self.vals["stat/rss"]))
     else: memoryLabel = "0"
     
     uptimeLabel = ""
     if self.vals["tor/startTime"]:
       if self.isPaused() or not self._isTorConnected:
         # freeze the uptime when paused or the tor process is stopped
-        uptimeLabel = uiTools.getShortTimeLabel(self.getPauseTime() - self.vals["tor/startTime"])
+        uptimeLabel = str_tools.get_short_time_label(self.getPauseTime() - self.vals["tor/startTime"])
       else:
-        uptimeLabel = uiTools.getShortTimeLabel(time.time() - self.vals["tor/startTime"])
+        uptimeLabel = str_tools.get_short_time_label(time.time() - self.vals["tor/startTime"])
     
     sysFields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
                  (27, "mem: %s (%s%%)" % (memoryLabel, self.vals["stat/%mem"])),

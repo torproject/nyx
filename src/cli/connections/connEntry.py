@@ -9,7 +9,7 @@ import curses
 from util import connections, torTools, uiTools
 from cli.connections import entries
 
-from stem.util import conf, enum
+from stem.util import conf, enum, str_tools
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -295,7 +295,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       timePrefix = "+" if self.isInitialConnection else " "
     else: timePrefix = ""
     
-    timeLabel = timePrefix + "%5s" % uiTools.getTimeLabel(currentTime - self.startTime, 1)
+    timeLabel = timePrefix + "%5s" % str_tools.get_time_label(currentTime - self.startTime, 1)
     myListing[2] = (timeLabel, myListing[2][1])
     
     return myListing

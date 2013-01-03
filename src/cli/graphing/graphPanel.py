@@ -26,7 +26,7 @@ import stem.control
 
 from util import panel, torTools, uiTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, str_tools
 
 # time intervals at which graphs can be updated
 UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
@@ -464,7 +464,7 @@ class GraphPanel(panel.Panel):
       unitsLabel, decimalPrecision = None, 0
       for i in range((graphCol - 4) / intervalSpacing):
         loc = (i + 1) * intervalSpacing
-        timeLabel = uiTools.getTimeLabel(loc * intervalSec, decimalPrecision)
+        timeLabel = str_tools.get_time_label(loc * intervalSec, decimalPrecision)
         
         if not unitsLabel: unitsLabel = timeLabel[-1]
         elif unitsLabel != timeLabel[-1]:

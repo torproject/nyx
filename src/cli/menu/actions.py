@@ -11,6 +11,8 @@ import cli.graphing.graphPanel
 
 from util import connections, torTools, uiTools
 
+from stem.util import str_tools
+
 def makeMenu():
   """
   Constructs the base menu and all of its contents.
@@ -84,7 +86,7 @@ def makeViewMenu():
     
     for i in range(control.getPageCount()):
       pagePanels = control.getDisplayPanels(pageNumber = i, includeSticky = False)
-      label = " / ".join([uiTools.camelCase(panel.getName()) for panel in pagePanels])
+      label = " / ".join([str_tools.camel_case(panel.getName()) for panel in pagePanels])
       
       viewMenu.add(cli.menu.item.SelectionMenuItem(label, pageGroup, i))
   
@@ -95,7 +97,7 @@ def makeViewMenu():
     colorMenu.add(cli.menu.item.SelectionMenuItem("All", colorGroup, None))
     
     for color in uiTools.COLOR_LIST:
-      colorMenu.add(cli.menu.item.SelectionMenuItem(uiTools.camelCase(color), colorGroup, color))
+      colorMenu.add(cli.menu.item.SelectionMenuItem(str_tools.camel_case(color), colorGroup, color))
     
     viewMenu.add(colorMenu)
   
@@ -135,7 +137,7 @@ def makeGraphMenu(graphPanel):
   availableStats.sort()
   
   for statKey in ["None"] + availableStats:
-    label = uiTools.camelCase(statKey, divider = " ")
+    label = str_tools.camel_case(statKey, divider = " ")
     statKey = None if statKey == "None" else statKey
     graphMenu.add(cli.menu.item.SelectionMenuItem(label, statGroup, statKey))
   
@@ -148,7 +150,7 @@ def makeGraphMenu(graphPanel):
   
   for i in range(len(cli.graphing.graphPanel.UPDATE_INTERVALS)):
     label = cli.graphing.graphPanel.UPDATE_INTERVALS[i][0]
-    label = uiTools.camelCase(label, divider = " ")
+    label = str_tools.camel_case(label, divider = " ")
     intervalMenu.add(cli.menu.item.SelectionMenuItem(label, intervalGroup, i))
   
   graphMenu.add(intervalMenu)

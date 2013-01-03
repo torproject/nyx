@@ -16,9 +16,9 @@ import stem
 import stem.control
 import stem.descriptor
 
-from util import connections, sysTools, uiTools
+from util import connections, sysTools
 
-from stem.util import conf, enum, log, proc
+from stem.util import conf, enum, log, proc, str_tools
 
 # enums for tor's controller state:
 # INIT - attached to a new controller
@@ -1721,7 +1721,7 @@ class Controller:
               
               if psCall and len(psCall) >= 2:
                 etimeEntry = psCall[1].strip()
-                result = time.time() - uiTools.parseShortTimeLabel(etimeEntry)
+                result = time.time() - str_tools.parse_short_time_label(etimeEntry)
             except: pass
       elif key == "authorities":
         # There's two configuration options that can overwrite the default

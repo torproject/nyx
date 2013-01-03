@@ -27,16 +27,6 @@ COLOR_IS_SUPPORTED = None
 COLOR_ATTR_INITIALIZED = False
 COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 
-# value tuples for label conversions (bits / bytes / seconds, short label, long label)
-SIZE_UNITS_BITS =  [(140737488355328.0, " Pb", " Petabit"), (137438953472.0, " Tb", " Terabit"),
-                    (134217728.0, " Gb", " Gigabit"),       (131072.0, " Mb", " Megabit"),
-                    (128.0, " Kb", " Kilobit"),             (0.125, " b", " Bit")]
-SIZE_UNITS_BYTES = [(1125899906842624.0, " PB", " Petabyte"), (1099511627776.0, " TB", " Terabyte"),
-                    (1073741824.0, " GB", " Gigabyte"),       (1048576.0, " MB", " Megabyte"),
-                    (1024.0, " KB", " Kilobyte"),             (1.0, " B", " Byte")]
-TIME_UNITS = [(86400.0, "d", " day"), (3600.0, "h", " hour"),
-              (60.0, "m", " minute"), (1.0, "s", " second")]
-
 Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 
@@ -294,26 +284,6 @@ def padStr(msg, size, cropExtra = False):
   if cropExtra: msg = msg[:size]
   return ("%%-%is" % size) % msg
 
-def camelCase(label, divider = "_", joiner = " "):
-  """
-  Converts the given string to camel case, ie:
-  >>> camelCase("I_LIKE_PEPPERJACK!")
-  'I Like Pepperjack!'
-  
-  Arguments:
-    label   - input string to be converted
-    divider - character to be used for word breaks
-    joiner  - character used to fill between word breaks
-  """
-  
-  words = []
-  for entry in label.split(divider):
-    if len(entry) == 0: words.append("")
-    elif len(entry) == 1: words.append(entry.upper())
-    else: words.append(entry[0].upper() + entry[1:].lower())
-  
-  return joiner.join(words)
-
 def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   Draws a box in the panel with the given bounds.
@@ -394,137 +364,6 @@ def getScrollPosition(key, position, pageHeight, contentHeight, isCursor = False
     maxLoc = contentHeight - 1 if isCursor else contentHeight - pageHeight
     return max(0, min(position + shift, maxLoc))
   else: return position
-
-def getSizeLabel(bytes, decimal = 0, isLong = False, isBytes=True):
-  """
-  Converts byte count into label in its most significant units, for instance
-  7500 bytes would return "7 KB". If the isLong option is used this expands
-  unit labels to be the properly pluralized full word (for instance 'Kilobytes'
-  rather than 'KB'). Units go up through PB.
-  
-  Example Usage:
-    getSizeLabel(2000000) = '1 MB'
-    getSizeLabel(1050, 2) = '1.02 KB'
-    getSizeLabel(1050, 3, True) = '1.025 Kilobytes'
-  
-  Arguments:
-    bytes   - source number of bytes for conversion
-    decimal - number of decimal digits to be included
-    isLong  - expands units label
-    isBytes - provides units in bytes if true, bits otherwise
-  """
-  
-  if isBytes: return _getLabel(SIZE_UNITS_BYTES, bytes, decimal, isLong)
-  else: return _getLabel(SIZE_UNITS_BITS, bytes, decimal, isLong)
-
-def getTimeLabel(seconds, decimal = 0, isLong = False):
-  """
-  Converts seconds into a time label truncated to its most significant units,
-  for instance 7500 seconds would return "2h". Units go up through days.
-  
-  This defaults to presenting single character labels, but if the isLong option
-  is used this expands labels to be the full word (space included and properly
-  pluralized). For instance, "4h" would be "4 hours" and "1m" would become
-  "1 minute".
-  
-  Example Usage:
-    getTimeLabel(10000) = '2h'
-    getTimeLabel(61, 1, True) = '1.0 minute'
-    getTimeLabel(61, 2, True) = '1.01 minutes'
-  
-  Arguments:
-    seconds - source number of seconds for conversion
-    decimal - number of decimal digits to be included
-    isLong  - expands units label
-  """
-  
-  return _getLabel(TIME_UNITS, seconds, decimal, isLong)
-
-def getTimeLabels(seconds, isLong = False):
-  """
-  Provides a list containing label conversions for each time unit, starting
-  with its most significant units on down. Any counts that evaluate to zero are
-  omitted.
-  
-  Example Usage:
-    getTimeLabels(400) = ['6m', '40s']
-    getTimeLabels(3640, True) = ['1 hour', '40 seconds']
-  
-  Arguments:
-    seconds - source number of seconds for conversion
-    isLong  - expands units label
-  """
-  
-  timeLabels = []
-  
-  for countPerUnit, _, _ in TIME_UNITS:
-    if seconds >= countPerUnit:
-      timeLabels.append(_getLabel(TIME_UNITS, seconds, 0, isLong))
-      seconds %= countPerUnit
-  
-  return timeLabels
-
-def getShortTimeLabel(seconds):
-  """
-  Provides a time in the following format:
-  [[dd-]hh:]mm:ss
-  
-  Arguments:
-    seconds - source number of seconds for conversion
-  """
-  
-  timeComp = {}
-  
-  for amount, _, label in TIME_UNITS:
-    count = int(seconds / amount)
-    seconds %= amount
-    timeComp[label.strip()] = count
-  
-  labelPrefix = ""
-  if timeComp["day"]:
-    labelPrefix = "%i-%02i:" % (timeComp["day"], timeComp["hour"])
-  elif timeComp["hour"]:
-    labelPrefix = "%02i:" % timeComp["hour"]
-  
-  return "%s%02i:%02i" % (labelPrefix, timeComp["minute"], timeComp["second"])
-
-def parseShortTimeLabel(timeEntry):
-  """
-  Provides the number of seconds corresponding to the formatting used for the
-  cputime and etime fields of ps:
-  [[dd-]hh:]mm:ss or mm:ss.ss
-  
-  If the input entry is malformed then this raises a ValueError.
-  
-  Arguments:
-    timeEntry - formatting ps time entry
-  """
-  
-  days, hours, minutes, seconds = 0, 0, 0, 0
-  errorMsg = "invalidly formatted ps time entry: %s" % timeEntry
-  
-  dateDivider = timeEntry.find("-")
-  if dateDivider != -1:
-    days = int(timeEntry[:dateDivider])
-    timeEntry = timeEntry[dateDivider+1:]
-  
-  timeComp = timeEntry.split(":")
-  if len(timeComp) == 3:
-    hours, minutes, seconds = timeComp
-  elif len(timeComp) == 2:
-    minutes, seconds = timeComp
-    seconds = round(float(seconds))
-  else:
-    raise ValueError(errorMsg)
-  
-  try:
-    timeSum = int(seconds)
-    timeSum += int(minutes) * 60
-    timeSum += int(hours) * 3600
-    timeSum += int(days) * 86400
-    return timeSum
-  except ValueError:
-    raise ValueError(errorMsg)
 
 class Scroller:
   """
@@ -615,46 +454,6 @@ class Scroller:
       else: self.scrollLoc = newLoc
       return True
     else: return False
-
-def _getLabel(units, count, decimal, isLong):
-  """
-  Provides label corresponding to units of the highest significance in the
-  provided set. This rounds down (ie, integer truncation after visible units).
-  
-  Arguments:
-    units   - type of units to be used for conversion, a tuple containing
-              (countPerUnit, shortLabel, longLabel)
-    count   - number of base units being converted
-    decimal - decimal precision of label
-    isLong  - uses the long label if true, short label otherwise
-  """
-  
-  format = "%%.%if" % decimal
-  if count < 1:
-    unitsLabel = units[-1][2] + "s" if isLong else units[-1][1]
-    return "%s%s" % (format % count, unitsLabel)
-  
-  for countPerUnit, shortLabel, longLabel in units:
-    if count >= countPerUnit:
-      if count * 10 ** decimal % countPerUnit * 10 ** decimal == 0:
-        # even division, keep it simple
-        countLabel = format % (count / countPerUnit)
-      else:
-        # unfortunately the %f formatting has no method of rounding down, so
-        # reducing value to only concern the digits that are visible - note
-        # that this doesn't work with minuscule values (starts breaking down at
-        # around eight decimal places) or edge cases when working with powers
-        # of two
-        croppedCount = count - (count % (countPerUnit / (10 ** decimal)))
-        countLabel = format % (croppedCount / countPerUnit)
-      
-      if isLong:
-        # plural if any of the visible units make it greater than one (for
-        # instance 1.0003 is plural but 1.000 isn't)
-        if decimal > 0: isPlural = count >= (countPerUnit + countPerUnit / (10 ** decimal))
-        else: isPlural = count >= countPerUnit * 2
-        return countLabel + longLabel + ("s" if isPlural else "")
-      else: return countLabel + shortLabel
 
 def _isWideCharactersAvailable():
   """

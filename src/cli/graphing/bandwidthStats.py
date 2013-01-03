@@ -11,7 +11,7 @@ import cli.controller
 from cli.graphing import graphPanel
 from util import sysTools, torTools, uiTools
 
-from stem.util import conf, log
+from stem.util import conf, log, str_tools
 
 def conf_handler(key, value):
   if key == "features.graph.bw.accounting.rate":
@@ -228,7 +228,7 @@ class BandwidthStats(graphPanel.GraphStats):
     
     msg = PREPOPULATE_SUCCESS_MSG
     missingSec = time.time() - min(lastReadTime, lastWriteTime)
-    if missingSec: msg += " (%s is missing)" % uiTools.getTimeLabel(missingSec, 0, True)
+    if missingSec: msg += " (%s is missing)" % str_tools.get_time_label(missingSec, 0, True)
     log.notice(msg)
     
     return True
@@ -310,7 +310,7 @@ class BandwidthStats(graphPanel.GraphStats):
       stats[1] = "- %s" % self._getAvgLabel(isPrimary)
       stats[2] = ", %s" % self._getTotalLabel(isPrimary)
     
-    stats[0] = "%-14s" % ("%s/sec" % uiTools.getSizeLabel((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
+    stats[0] = "%-14s" % ("%s/sec" % str_tools.get_size_label((self.lastPrimary if isPrimary else self.lastSecondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
     
     # drops label's components if there's not enough space
     labeling = graphType + " (" + "".join(stats).strip() + "):"
@@ -346,8 +346,8 @@ class BandwidthStats(graphPanel.GraphStats):
       labelInBytes = CONFIG["features.graph.bw.transferInBytes"]
       
       if bwRate and bwBurst:
-        bwRateLabel = uiTools.getSizeLabel(bwRate, 1, False, labelInBytes)
-        bwBurstLabel = uiTools.getSizeLabel(bwBurst, 1, False, labelInBytes)
+        bwRateLabel = str_tools.get_size_label(bwRate, 1, False, labelInBytes)
+        bwBurstLabel = str_tools.get_size_label(bwBurst, 1, False, labelInBytes)
         
         # if both are using rounded values then strip off the ".0" decimal
         if ".0" in bwRateLabel and ".0" in bwBurstLabel:
@@ -361,21 +361,21 @@ class BandwidthStats(graphPanel.GraphStats):
       # available or if the measured bandwidth is the observed (this happens
       # if there isn't yet enough bandwidth measurements).
       if bwObserved and (not bwMeasured or bwMeasured == bwObserved):
-        stats.append("observed: %s/s" % uiTools.getSizeLabel(bwObserved, 1, False, labelInBytes))
+        stats.append("observed: %s/s" % str_tools.get_size_label(bwObserved, 1, False, labelInBytes))
       elif bwMeasured:
-        stats.append("measured: %s/s" % uiTools.getSizeLabel(bwMeasured, 1, False, labelInBytes))
+        stats.append("measured: %s/s" % str_tools.get_size_label(bwMeasured, 1, False, labelInBytes))
       
       self._titleStats = stats
   
   def _getAvgLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
     total += self.prepopulatePrimaryTotal if isPrimary else self.prepopulateSecondaryTotal
-    return "avg: %s/sec" % uiTools.getSizeLabel((total / max(1, self.tick + self.prepopulateTicks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
+    return "avg: %s/sec" % str_tools.get_size_label((total / max(1, self.tick + self.prepopulateTicks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
   
   def _getTotalLabel(self, isPrimary):
     total = self.primaryTotal if isPrimary else self.secondaryTotal
     total += self.initialPrimaryTotal if isPrimary else self.initialSecondaryTotal
-    return "total: %s" % uiTools.getSizeLabel(total * 1024, 1)
+    return "total: %s" % str_tools.get_size_label(total * 1024, 1)
   
   def _updateAccountingInfo(self):
     """
@@ -398,7 +398,7 @@ class BandwidthStats(graphPanel.GraphStats):
       
       sec = time.mktime(time.strptime(endInterval, "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
       if CONFIG["features.graph.bw.accounting.isTimeLong"]:
-        queried["resetTime"] = ", ".join(uiTools.getTimeLabels(sec, True))
+        queried["resetTime"] = ", ".join(str_tools.get_time_labels(sec, True))
       else:
         days = sec / 86400
         sec %= 86400
@@ -417,10 +417,10 @@ class BandwidthStats(graphPanel.GraphStats):
       read, written = int(usedComp[0]), int(usedComp[1])
       readLeft, writtenLeft = int(leftComp[0]), int(leftComp[1])
       
-      queried["read"] = uiTools.getSizeLabel(read)
-      queried["written"] = uiTools.getSizeLabel(written)
-      queried["readLimit"] = uiTools.getSizeLabel(read + readLeft)
-      queried["writtenLimit"] = uiTools.getSizeLabel(written + writtenLeft)
+      queried["read"] = str_tools.get_size_label(read)
+      queried["written"] = str_tools.get_size_label(written)
+      queried["readLimit"] = str_tools.get_size_label(read + readLeft)
+      queried["writtenLimit"] = str_tools.get_size_label(written + writtenLeft)
     
     self.accountingInfo = queried
     self.accountingLastUpdated = time.time()

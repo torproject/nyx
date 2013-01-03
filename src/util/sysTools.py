@@ -6,9 +6,7 @@ import os
 import time
 import threading
 
-from util import uiTools
-
-from stem.util import conf, log, proc
+from stem.util import conf, log, proc, str_tools
 
 # Mapping of commands to if they're available or not. This isn't always
 # reliable, failing for some special commands. For these the cache is
@@ -499,8 +497,8 @@ class ResourceTracker(threading.Thread):
             
             if len(stats) == 4:
               try:
-                totalCpuTime = uiTools.parseShortTimeLabel(stats[0])
-                uptime = uiTools.parseShortTimeLabel(stats[1])
+                totalCpuTime = str_tools.parse_short_time_label(stats[0])
+                uptime = str_tools.parse_short_time_label(stats[1])
                 cpuDelta = totalCpuTime - self._lastCpuTotal
                 newValues["cpuSampling"] = cpuDelta / timeSinceReset
                 newValues["cpuAvg"] = totalCpuTime / uptime

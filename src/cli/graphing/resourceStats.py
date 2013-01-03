@@ -3,7 +3,9 @@ Tracks the system resource usage (cpu and memory) of the tor process.
 """
 
 from cli.graphing import graphPanel
-from util import sysTools, torTools, uiTools
+from util import sysTools, torTools
+
+from stem.util import str_tools
 
 class ResourceStats(graphPanel.GraphStats):
   """
@@ -29,8 +31,8 @@ class ResourceStats(graphPanel.GraphStats):
       return "CPU (%0.1f%%, avg: %0.1f%%):" % (lastAmount, avg)
     else:
       # memory sizes are converted from MB to B before generating labels
-      usageLabel = uiTools.getSizeLabel(lastAmount * 1048576, 1)
-      avgLabel = uiTools.getSizeLabel(avg * 1048576, 1)
+      usageLabel = str_tools.get_size_label(lastAmount * 1048576, 1)
+      avgLabel = str_tools.get_size_label(avg * 1048576, 1)
       return "Memory (%s, avg: %s):" % (usageLabel, avgLabel)
   
   def eventTick(self):

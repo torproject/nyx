@@ -11,7 +11,7 @@ import popups
 
 from util import panel, sysTools, torConfig, torTools, uiTools
 
-from stem.util import conf, enum
+from stem.util import conf, enum, str_tools
 
 # TODO: The arm use cases are incomplete since they currently can't be
 # modified, have their descriptions fetched, or even get a complete listing
@@ -174,9 +174,9 @@ class ConfigEntry():
     elif self.get(Field.TYPE) == "Boolean" and confValue in ("0", "1"):
       confValue = "False" if confValue == "0" else "True"
     elif self.get(Field.TYPE) == "DataSize" and confValue.isdigit():
-      confValue = uiTools.getSizeLabel(int(confValue))
+      confValue = str_tools.get_size_label(int(confValue))
     elif self.get(Field.TYPE) == "TimeInterval" and confValue.isdigit():
-      confValue = uiTools.getTimeLabel(int(confValue), isLong = True)
+      confValue = str_tools.get_time_label(int(confValue), is_long = True)
     
     return confValue
 

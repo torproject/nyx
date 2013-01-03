@@ -11,8 +11,7 @@ import stem.version
 
 from util import sysTools, torTools, uiTools
 
-from stem.util import conf, enum, log
-
+from stem.util import conf, enum, log, str_tools
 
 def conf_handler(key, value):
   if key == "config.important":
@@ -594,9 +593,9 @@ def validate(contents = None):
         # converts corrections to reader friedly size values
         displayValues = torValues
         if valueType == ValueType.SIZE:
-          displayValues = [uiTools.getSizeLabel(int(val)) for val in torValues]
+          displayValues = [str_tools.get_size_label(int(val)) for val in torValues]
         elif valueType == ValueType.TIME:
-          displayValues = [uiTools.getTimeLabel(int(val)) for val in torValues]
+          displayValues = [str_tools.get_time_label(int(val)) for val in torValues]
         
         issuesFound.append((lineNumber, ValidationError.MISMATCH, ", ".join(displayValues)))
   
