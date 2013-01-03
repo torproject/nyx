@@ -13,16 +13,11 @@ from util import sysTools, torTools, uiTools
 
 from stem.util import conf, enum, log
 
+
 def conf_handler(key, value):
   if key == "config.important":
     # stores lowercase entries to drop case sensitivity
     return [entry.lower() for entry in value]
-  elif key.startswith("config.summary."):
-    # we'll look for summary keys with a lowercase config name
-    CONFIG[key.lower()] = value
-  elif key.startswith("torrc.label.") and value:
-    # all the torrc.label.* values are comma separated lists
-    return [entry.strip() for entry in value[0].split(",")]
 
 CONFIG = conf.config_dict("arm", {
   "features.torrc.validate": True,
@@ -39,6 +34,18 @@ CONFIG = conf.config_dict("arm", {
   "torrc.label.time.day": [],
   "torrc.label.time.week": [],
 }, conf_handler)
+
+def general_conf_handler(config, key):
+  value = config.get(key)
+  
+  if key.startswith("config.summary."):
+    # we'll look for summary keys with a lowercase config name
+    CONFIG[key.lower()] = value
+  elif key.startswith("torrc.label.") and value:
+    # all the torrc.label.* values are comma separated lists
+    return [entry.strip() for entry in value[0].split(",")]
+
+conf.get_config("arm").add_listener(general_conf_handler, backfill = True)
 
 # enums and values for numeric torrc entries
 ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
