@@ -1664,7 +1664,7 @@ class Controller:
         # thanks to Fabian Keil!)
         if not prefixPath and os.uname()[0] == "FreeBSD":
           torPid = getConn().getMyPid()
-          jid = system.get_bsd_jail_id()
+          jid = system.get_bsd_jail_id(torPid)
           if jid != 0:
             # Output should be something like:
             #    JID  IP Address      Hostname      Path
