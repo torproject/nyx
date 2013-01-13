@@ -29,6 +29,7 @@ from stem.control import Controller
 import stem.connection
 import stem.util.conf
 import stem.util.log
+import stem.util.system
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
@@ -465,8 +466,7 @@ if __name__ == '__main__':
   # "arm <input args>"
   
   try:
-    from util import procName
-    procName.renameProcess("arm\0%s" % "\0".join(sys.argv[1:]))
+    stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
   except: pass
   
   # If using our LANG variable for rendering multi-byte characters lets us

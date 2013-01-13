@@ -4,5 +4,5 @@ application's status, making cross platform system calls, parsing tor data,
 and safely working with curses (hiding some of the gory details).
 """
 
-__all__ = ["connections", "hostnames", "panel", "procName", "sysTools", "textInput", "torConfig", "torTools", "uiTools"]
+__all__ = ["connections", "hostnames", "panel", "sysTools", "textInput", "torConfig", "torTools", "uiTools"]
 
