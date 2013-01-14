@@ -714,7 +714,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         
         exitPolicy = conn.getRelayExitPolicy(fingerprint)
         
-        if exitPolicy: policyLabel = exitPolicy.getSummary()
+        if exitPolicy: policyLabel = exitPolicy.summary()
         else: policyLabel = "unknown"
         
         dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort

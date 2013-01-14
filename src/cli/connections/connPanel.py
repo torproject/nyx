@@ -207,8 +207,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     True if exit connections are permissable, false otherwise.
     """
     
+    if not torTools.getOption("ORPort", None):
+      return False # no ORPort
+    
     policy = torTools.getConn().getExitPolicy()
-    return policy and policy.isExitingAllowed()
+    return policy and policy.is_exiting_allowed()
   
   def showSortDialog(self):
     """
