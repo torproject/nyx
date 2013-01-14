@@ -1422,7 +1422,7 @@ class Controller:
       try:
         nsEntry = self.controller.get_network_status(entryFingerprint)
         
-        if not stem.descriptor.RUNNING in nsEntry.flags:
+        if not stem.descriptor.Flag.RUNNING in nsEntry.flags:
           potentialMatches.remove((entryPort, entryFingerprint))
       except stem.ControllerError: pass
     
