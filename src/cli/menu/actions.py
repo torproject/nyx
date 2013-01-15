@@ -86,7 +86,7 @@ def makeViewMenu():
     
     for i in range(control.getPageCount()):
       pagePanels = control.getDisplayPanels(pageNumber = i, includeSticky = False)
-      label = " / ".join([str_tools.camel_case(panel.getName()) for panel in pagePanels])
+      label = " / ".join([str_tools.to_camel_case(panel.getName()) for panel in pagePanels])
       
       viewMenu.add(cli.menu.item.SelectionMenuItem(label, pageGroup, i))
   
