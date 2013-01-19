@@ -12,6 +12,7 @@ import logging
 import threading
 
 import stem
+from stem.control import State
 from stem.response import events
 from stem.util import conf, log, system
 
@@ -1132,13 +1133,15 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # provides back the input set minus events we failed to set
     return sorted(torEvents.union(armEvents))
   
-  def _resetListener(self, _, eventType):
+  def _resetListener(self, controller, eventType, _):
     # if we're attaching to a new tor instance then clears the log and
     # prepopulates it with the content belonging to this instance
     
-    if eventType == torTools.State.INIT:
+    if eventType == State.INIT:
       self.reprepopulateEvents()
       self.redraw(True)
+    elif eventType == State.CLOSED:
+      log.notice("Tor control port closed")
   
   def _getTitle(self, width):
     """

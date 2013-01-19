@@ -20,7 +20,7 @@ import cli.graphing.connStats
 import cli.graphing.resourceStats
 import cli.connections.connPanel
 
-from stem.control import Controller
+from stem.control import State, Controller
 
 from util import connections, hostnames, panel, sysTools, torConfig, torTools
 
@@ -481,7 +481,7 @@ def heartbeatCheck(isUnresponsive):
   
   return isUnresponsive
 
-def connResetListener(conn, eventType):
+def connResetListener(controller, eventType, _):
   """
   Pauses connection resolution when tor's shut down, and resumes with the new
   pid if started again.
@@ -489,9 +489,9 @@ def connResetListener(conn, eventType):
   
   if connections.isResolverAlive("tor"):
     resolver = connections.getResolver("tor")
-    resolver.setPaused(eventType == torTools.State.CLOSED)
+    resolver.setPaused(eventType == State.CLOSED)
     
-    if eventType in (torTools.State.INIT, torTools.State.RESET):
+    if eventType in (State.INIT, State.RESET):
       # Reload the torrc contents. If the torrc panel is present then it will
       # do this instead since it wants to do validation and redraw _after_ the
       # new contents are loaded.
@@ -499,7 +499,7 @@ def connResetListener(conn, eventType):
       if getController().getPanel("torrc") == None:
         torConfig.getTorrc().load(True)
       
-      torPid = conn.getMyPid()
+      torPid = controller.get_info("process/pid", None)
       
       if torPid and torPid != resolver.getPid():
         resolver.setPid(torPid)

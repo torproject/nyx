@@ -22,7 +22,7 @@ import threading
 import stem
 import stem.connection
 
-from stem.control import Controller
+from stem.control import State, Controller
 from stem.util import conf, str_tools
 
 import starter
@@ -232,7 +232,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(1, x, "Relaying Disabled", uiTools.getColor("cyan"))
         x += 17
       else:
-        statusTime = torTools.getConn().getStatus()[1]
+        statusTime = torTools.getConn().getHeartbeat()
         
         if statusTime:
           statusTimeLabel = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(statusTime))
@@ -334,7 +334,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           self.addstr(y, x, "none", curses.A_BOLD | uiTools.getColor("cyan"))
       else:
         y = 2 if isWide else 4
-        statusTime = torTools.getConn().getStatus()[1]
+        statusTime = torTools.getConn().getHeartbeat()
         statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
         self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
         self.addstr(y, 16, " (%s) - press r to reconnect" % statusTimeLabel)
@@ -434,16 +434,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._cond.notifyAll()
     self._cond.release()
   
-  def resetListener(self, _, eventType):
+  def resetListener(self, controller, eventType, _):
     """
     Updates static parameters on tor reload (sighup) events.
-    
-    Arguments:
-      conn      - tor controller
-      eventType - type of event detected
     """
     
-    if eventType in (torTools.State.INIT, torTools.State.RESET):
+    if eventType in (State.INIT, State.RESET):
       initialHeight = self.getHeight()
       self._isTorConnected = True
       self._haltTime = None
@@ -457,7 +453,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         # just need to redraw ourselves
         self.redraw(True)
-    elif eventType == torTools.State.CLOSED:
+    elif eventType == State.CLOSED:
       self._isTorConnected = False
       self._haltTime = time.time()
       self._update()

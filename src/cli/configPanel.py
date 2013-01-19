@@ -11,6 +11,8 @@ import popups
 
 from util import panel, sysTools, torConfig, torTools, uiTools
 
+import stem.control
+
 from stem.util import conf, enum, str_tools
 
 # TODO: The arm use cases are incomplete since they currently can't be
@@ -202,13 +204,13 @@ class ConfigPanel(panel.Panel):
     # initializes config contents if we're connected
     conn = torTools.getConn()
     conn.addStatusListener(self.resetListener)
-    if conn.isAlive(): self.resetListener(conn, torTools.State.INIT)
+    if conn.isAlive(): self.resetListener(None, stem.control.State.INIT, None)
   
-  def resetListener(self, conn, eventType):
+  def resetListener(self, controller, eventType, _):
     # fetches configuration options if a new instance, otherewise keeps our
     # current contents
     
-    if eventType == torTools.State.INIT:
+    if eventType == stem.control.State.INIT:
       self._loadConfigOptions()
   
   def _loadConfigOptions(self):

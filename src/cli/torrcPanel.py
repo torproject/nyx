@@ -10,6 +10,7 @@ import popups
 
 from util import panel, torConfig, torTools, uiTools
 
+from stem.control import State
 from stem.util import conf, enum
 
 def conf_handler(key, value):
@@ -48,18 +49,14 @@ class TorrcPanel(panel.Panel):
     # listens for tor reload (sighup) events
     conn = torTools.getConn()
     conn.addStatusListener(self.resetListener)
-    if conn.isAlive(): self.resetListener(conn, torTools.State.INIT)
+    if conn.isAlive(): self.resetListener(None, State.INIT, None)
   
-  def resetListener(self, conn, eventType):
+  def resetListener(self, controller, eventType, _):
     """
     Reloads and displays the torrc on tor reload (sighup) events.
-    
-    Arguments:
-      conn      - tor controller
-      eventType - type of event detected
     """
     
-    if eventType == torTools.State.INIT:
+    if eventType == State.INIT:
       # loads the torrc and provides warnings in case of validation errors
       try:
         loadedTorrc = torConfig.getTorrc()
@@ -67,7 +64,7 @@ class TorrcPanel(panel.Panel):
         loadedTorrc.logValidationIssues()
         self.redraw(True)
       except: pass
-    elif eventType == torTools.State.RESET:
+    elif eventType == State.RESET:
       try:
         torConfig.getTorrc().load(True)
         self.redraw(True)

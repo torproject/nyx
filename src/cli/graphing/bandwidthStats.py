@@ -11,6 +11,7 @@ import cli.controller
 from cli.graphing import graphPanel
 from util import torTools, uiTools
 
+from stem.control import State
 from stem.util import conf, log, str_tools, system
 
 def conf_handler(key, value):
@@ -57,7 +58,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # rate/burst and if tor's using accounting
     conn = torTools.getConn()
     self._titleStats, self.isAccounting = [], False
-    if not isPauseBuffer: self.resetListener(conn, torTools.State.INIT) # initializes values
+    if not isPauseBuffer: self.resetListener(conn.getController(), State.INIT, None) # initializes values
     conn.addStatusListener(self.resetListener)
     
     # Initialized the bandwidth totals to the values reported by Tor. This
@@ -89,13 +90,13 @@ class BandwidthStats(graphPanel.GraphStats):
     
     return graphPanel.GraphStats.clone(self, newCopy)
   
-  def resetListener(self, conn, eventType):
+  def resetListener(self, controller, eventType, _):
     # updates title parameters and accounting status if they changed
     self._titleStats = []     # force reset of title
     self.new_desc_event(None) # updates title params
     
-    if eventType in (torTools.State.INIT, torTools.State.RESET) and CONFIG["features.graph.bw.accounting.show"]:
-      isAccountingEnabled = conn.getInfo('accounting/enabled', None) == '1'
+    if eventType in (State.INIT, State.RESET) and CONFIG["features.graph.bw.accounting.show"]:
+      isAccountingEnabled = controller.get_info('accounting/enabled', None) == '1'
       
       if isAccountingEnabled != self.isAccounting:
         self.isAccounting = isAccountingEnabled

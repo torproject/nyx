@@ -5,6 +5,8 @@ Tracks stats concerning tor's current connections.
 from cli.graphing import graphPanel
 from util import connections, torTools
 
+from stem.control import State
+
 class ConnStats(graphPanel.GraphStats):
   """
   Tracks number of connections, counting client and directory connections as 
@@ -17,18 +19,18 @@ class ConnStats(graphPanel.GraphStats):
     # listens for tor reload (sighup) events which can reset the ports tor uses
     conn = torTools.getConn()
     self.orPort, self.dirPort, self.controlPort = "0", "0", "0"
-    self.resetListener(conn, torTools.State.INIT) # initialize port values
+    self.resetListener(conn.getController(), State.INIT, None) # initialize port values
     conn.addStatusListener(self.resetListener)
   
   def clone(self, newCopy=None):
     if not newCopy: newCopy = ConnStats()
     return graphPanel.GraphStats.clone(self, newCopy)
   
-  def resetListener(self, conn, eventType):
-    if eventType in (torTools.State.INIT, torTools.State.RESET):
-      self.orPort = conn.getOption("ORPort", "0")
-      self.dirPort = conn.getOption("DirPort", "0")
-      self.controlPort = conn.getOption("ControlPort", "0")
+  def resetListener(self, controller, eventType, _):
+    if eventType in (State.INIT, State.RESET):
+      self.orPort = controller.get_conf("ORPort", "0")
+      self.dirPort = controller.get_conf("DirPort", "0")
+      self.controlPort = controller.get_conf("ControlPort", "0")
   
   def eventTick(self):
     """

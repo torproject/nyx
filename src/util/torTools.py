@@ -19,12 +19,6 @@ from util import connections
 
 from stem.util import conf, enum, log, proc, str_tools, system
 
-# enums for tor's controller state:
-# INIT - attached to a new controller
-# RESET - received a reset/sighup signal
-# CLOSED - control port closed
-State = enum.Enum("INIT", "RESET", "CLOSED")
-
 # Addresses of the default directory authorities for tor version 0.2.3.0-alpha
 # (this comes from the dirservers array in src/or/config.c).
 DIR_SERVERS = [("86.59.21.38", "80"),         # tor26
@@ -51,22 +45,10 @@ CONFIG = conf.config_dict("arm", {
 })
 
 # events used for controller functionality:
-# NOTICE - used to detect when tor is shut down
 # NEWDESC, NS, and NEWCONSENSUS - used for cache invalidation
-REQ_EVENTS = {"NOTICE": "this will be unable to detect when tor is shut down",
-              "NEWDESC": "information related to descriptors will grow stale",
+REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
-
-# This prevents controllers from spawning worker threads (and by extension
-# notifying status listeners). This is important when shutting down to prevent
-# rogue threads from being alive during shutdown.
-
-NO_SPAWN = False
-
-# Flag to indicate if we're handling our first init signal. This is for
-# startup performance so we don't introduce a sleep while initializing.
-IS_STARTUP_SIGNAL = True
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
@@ -259,7 +241,6 @@ class Controller:
   def __init__(self):
     self.controller = None
     self.connLock = threading.RLock()
-    self.statusListeners = []           # callback functions for tor's state changes
     self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
@@ -270,18 +251,7 @@ class Controller:
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._isReset = False               # internal flag for tracking resets
-    self._status = State.CLOSED         # current status of the attached control port
-    self._statusTime = 0                # unix time-stamp for the duration of the status
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
-    
-    # Status signaling for when tor starts, stops, or is reset is done via
-    # enquing the signal then spawning a handler thread. This is to provide
-    # safety in race conditions, for instance if we sighup with a torrc that
-    # causes tor to crash then we'll get both an INIT and CLOSED signal. It's
-    # important in those cases that listeners get the correct signal last (in
-    # that case CLOSED) so they aren't confused about what tor's current state
-    # is.
-    self._notificationQueue = Queue.Queue()
     
     # Logs issues and notices when fetching the path prefix if true. This is
     # only done once for the duration of the application to avoid pointless
@@ -310,7 +280,6 @@ class Controller:
       self.controller = controller
       log.info("Stem connected to tor version %s" % self.controller.get_version())
       
-      self.controller.add_event_listener(self.msg_event, stem.control.EventType.NOTICE)
       self.controller.add_event_listener(self.ns_event, stem.control.EventType.NS)
       self.controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
       self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
@@ -326,16 +295,8 @@ class Controller:
       self._consensusLookupCache = {}
       self._descriptorLookupCache = {}
       
-      self._status = State.INIT
-      self._statusTime = time.time()
-      
       # time that we sent our last newnym signal
       self._lastNewnym = 0
-      
-      # notifies listeners that a new controller is available
-      if not NO_SPAWN:
-        self._notificationQueue.put(State.INIT)
-        thread.start_new_thread(self._notifyStatusListeners, ())
       
       self.connLock.release()
   
@@ -348,18 +309,12 @@ class Controller:
     if self.controller:
       self.controller.close()
       self.controller = None
-      
-      self._status = State.CLOSED
-      self._statusTime = time.time()
-      
-      # notifies listeners that the controller's been shut down
-      if not NO_SPAWN:
-        self._notificationQueue.put(State.CLOSED)
-        thread.start_new_thread(self._notifyStatusListeners, ())
-      
       self.connLock.release()
     else: self.connLock.release()
   
+  def getController(self):
+    return self.controller
+
   def isAlive(self):
     """
     Returns True if this has been initialized with a working stem instance,
@@ -754,15 +709,6 @@ class Controller:
     
     return self._getRelayAttr("startTime", None)
   
-  def getStatus(self):
-    """
-    Provides a tuple consisting of the control port's current status and unix
-    time-stamp for when it became this way (zero if no status has yet to be
-    set).
-    """
-    
-    return (self._status, self._statusTime)
-  
   def isExitingAllowed(self, ipAddress, port):
     """
     Checks if the given destination can be exited to by this relay, returning
@@ -1090,21 +1036,7 @@ class Controller:
                  myFunction(controller, eventType)
     """
     
-    self.statusListeners.append(callback)
-  
-  def removeStatusListener(self, callback):
-    """
-    Stops listener from being notified of further events. This returns true if a
-    listener's removed, false otherwise.
-    
-    Arguments:
-      callback - functor to be removed
-    """
-    
-    if callback in self.statusListeners:
-      self.statusListeners.remove(callback)
-      return True
-    else: return False
+    self.controller.add_status_listener(callback)
   
   def getControllerEvents(self):
     """
@@ -1217,27 +1149,6 @@ class Controller:
     self.connLock.release()
     
     if raisedException: raise raisedException
-  
-  def msg_event(self, event):
-    """
-    Listens for reload signal (hup), which is either produced by:
-    causing the torrc and internal state to be reset.
-    """
-    
-    if event.runlevel == "NOTICE" and event.message.startswith("Received reload signal (hup)"):
-      self.connLock.acquire()
-      
-      if self.isAlive():
-        self._isReset = True
-        
-        self._status = State.RESET
-        self._statusTime = time.time()
-        
-        if not NO_SPAWN:
-          self._notificationQueue.put(State.RESET)
-          thread.start_new_thread(self._notifyStatusListeners, ())
-      
-      self.connLock.release()
   
   def ns_event(self, event):
     self._consensusLookupCache = {}
@@ -1720,47 +1631,4 @@ class Controller:
     
     if result == None or result == UNKNOWN: return default
     else: return result
-  
-  def _notifyStatusListeners(self):
-    """
-    Sends a notice to all current listeners that a given change in tor's
-    controller status has occurred.
-    
-    Arguments:
-      eventType - enum representing tor's new status
-    """
-    
-    global IS_STARTUP_SIGNAL
-    
-    # If there's a quick race state (for instance a sighup causing both an init
-    # and close event) then give them a moment to enqueue. This way we can
-    # coles the events and discard the inaccurate one.
-    
-    if not IS_STARTUP_SIGNAL:
-      time.sleep(0.2)
-    else: IS_STARTUP_SIGNAL = False
-    
-    self.connLock.acquire()
-    
-    try:
-      eventType = self._notificationQueue.get(timeout=0)
-      
-      # checks that the notice is accurate for our current state
-      if self.isAlive() != (eventType in (State.INIT, State.RESET)):
-        eventType = None
-    except Queue.Empty:
-      eventType = None
-    
-    if eventType:
-      # resets cached GETINFO and GETCONF parameters
-      self._cachedParam = {}
-      
-      # gives a notice that the control port has closed
-      if eventType == State.CLOSED:
-        log.notice("Tor control port closed")
-      
-      for callback in self.statusListeners:
-        callback(self, eventType)
-    
-    self.connLock.release()
 

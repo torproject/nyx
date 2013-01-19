@@ -12,6 +12,7 @@ import cli.popups
 from cli.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
 from util import connections, panel, torTools, uiTools
 
+from stem.control import State
 from stem.util import conf, enum
 
 # height of the detail panel content, not counting top and bottom border
@@ -117,16 +118,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # listens for when tor stops so we know to stop reflecting changes
     conn.addStatusListener(self.torStateListener)
   
-  def torStateListener(self, conn, eventType):
+  def torStateListener(self, controller, eventType, _):
     """
     Freezes the connection contents when Tor stops.
-    
-    Arguments:
-      conn      - tor controller
-      eventType - type of event detected
     """
     
-    self._isTorRunning = eventType in (torTools.State.INIT, torTools.State.RESET)
+    self._isTorRunning = eventType in (State.INIT, State.RESET)
     
     if self._isTorRunning: self._haltTime = None
     else: self._haltTime = time.time()
