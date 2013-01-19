@@ -1137,9 +1137,9 @@ class Controller:
         isRelay = self.getOption("ORPort", None) != None
         
         if force:
-          stem.controller.signal(stem.Signal.HALT)
+          self.controller.signal(stem.Signal.HALT)
         else:
-          stem.controller.signal(stem.Signal.SHUTDOWN)
+          self.controller.signal(stem.Signal.SHUTDOWN)
         
         # shuts down control connection if we aren't making a delayed shutdown
         if force or not isRelay: self.close()
