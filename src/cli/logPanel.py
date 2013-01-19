@@ -808,7 +808,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       path - path where to save the log snapshot
     """
     
-    path = os.path.abspath(path)
+    path = os.path.abspath(os.path.expanduser(path))
     
     # make dir if the path doesn't already exist
     baseDir = os.path.dirname(path)
