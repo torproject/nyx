@@ -11,7 +11,11 @@ import cli.graphing.graphPanel
 
 from util import connections, torTools, uiTools
 
-from stem.util import str_tools
+from stem.util import conf, str_tools
+
+CONFIG = conf.config_dict("arm", {
+  "features.log.showDuplicateEntries": False,
+})
 
 def makeMenu():
   """
@@ -185,7 +189,8 @@ def makeLogMenu(logPanel):
   logMenu.add(cli.menu.item.MenuItem("Snapshot...", logPanel.showSnapshotPrompt))
   logMenu.add(cli.menu.item.MenuItem("Clear", logPanel.clear))
   
-  if logPanel.showDuplicates: label, arg = "Hide", False
+  if CONFIG["features.log.showDuplicateEntries"]:
+    label, arg = "Hide", False
   else: label, arg = "Show", True
   logMenu.add(cli.menu.item.MenuItem("%s Duplicates" % label, functools.partial(logPanel.setDuplicateVisability, arg)))
   

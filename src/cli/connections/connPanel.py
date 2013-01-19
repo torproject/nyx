@@ -207,7 +207,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     True if exit connections are permissable, false otherwise.
     """
     
-    if not torTools.getOption("ORPort", None):
+    if not torTools.getConn().getOption("ORPort", None):
       return False # no ORPort
     
     policy = torTools.getConn().getExitPolicy()
