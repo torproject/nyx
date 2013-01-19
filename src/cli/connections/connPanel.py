@@ -183,7 +183,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.valsLock.acquire()
     
     armConf = conf.get_config("arm")
-    armConf.set("features.connection.listingType", listingType.keys()[Listing.index_of(listingType)])
+    armConf.set("features.connection.listingType", Listing.keys()[Listing.index_of(listingType)])
     
     # if we're sorting by the listing then we need to resort
     if entries.SortAttr.LISTING in CONFIG["features.connection.order"]:
