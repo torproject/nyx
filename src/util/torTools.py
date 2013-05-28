@@ -14,6 +14,7 @@ import Queue
 import stem
 import stem.control
 import stem.descriptor
+import stem.util.system
 
 from util import connections
 
@@ -52,20 +53,9 @@ REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
 
 def getPid(controlPort=9051, pidFilePath=None):
   """
-  Attempts to determine the process id for a running tor process, using the
-  following:
-  1. GETCONF PidFile
-  2. "pgrep -x tor"
-  3. "pidof tor"
-  4. "netstat -npl | grep 127.0.0.1:%s" % <tor control port>
-  5. "ps -o pid -C tor"
-  6. "sockstat -4l -P tcp -p %i | grep tor" % <tor control port>
-  7. "ps axc | egrep \" tor$\""
-  8. "lsof -wnPi | egrep \"^tor.*:%i\"" % <tor control port>
-  
-  If pidof or ps provide multiple tor instances then their results are
-  discarded (since only netstat can differentiate using the control port). This
-  provides None if either no running process exists or it can't be determined.
+  Attempts to determine the process id for a running tor process. This uses
+  the PidFile if it's available, otherwise trying to figure it out from our
+  process name and control port.
   
   Arguments:
     controlPort - control port of the tor process if multiple exist
@@ -85,107 +75,12 @@ def getPid(controlPort=9051, pidFilePath=None):
       if pidEntry.isdigit(): return pidEntry
     except: pass
   
-  # attempts to resolve using pgrep, failing if:
-  # - tor is running under a different name
-  # - there are multiple instances of tor
-  try:
-    results = system.call("pgrep -x tor")
-    if len(results) == 1 and len(results[0].split()) == 1:
-      pid = results[0].strip()
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve using pidof, failing if:
-  # - tor's running under a different name
-  # - there's multiple instances of tor
-  try:
-    results = system.call("pidof tor")
-    if len(results) == 1 and len(results[0].split()) == 1:
-      pid = results[0].strip()
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve using netstat, failing if:
-  # - tor's being run as a different user due to permissions
-  try:
-    results = system.call("netstat -npl")
-    results = filter(lambda line: "127.0.0.1:%i" % controlPort in line, results)
-    
-    if len(results) == 1:
-      results = results[0].split()[6] # process field (ex. "7184/tor")
-      pid = results[:results.find("/")]
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve using ps, failing if:
-  # - tor's running under a different name
-  # - there's multiple instances of tor
-  try:
-    results = system.call("ps -o pid -C tor")
-    if len(results) == 2:
-      pid = results[1].strip()
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve using sockstat, failing if:
-  # - sockstat doesn't accept the -4 flag (BSD only)
-  # - tor is running under a different name
-  # - there are multiple instances of Tor, using the
-  #   same control port on different addresses.
-  # 
-  # TODO: the later two issues could be solved by filtering for the control
-  # port IP address instead of the process name.
-  try:
-    results = system.call("sockstat -4l -P tcp -p %i" % controlPort)
-    results = filter(lambda line: "tor" in line, results)
-    
-    if len(results) == 1 and len(results[0].split()) == 7:
-      pid = results[0].split()[2]
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve via a ps command that works on the mac (this and lsof
-  # are the only resolvers to work on that platform). This fails if:
-  # - tor's running under a different name
-  # - there's multiple instances of tor
-  
-  try:
-    results = system.call("ps axc")
-    results = filter(lambda line: line.endswith(" tor"), results)
-    
-    if len(results) == 1 and len(results[0].split()) > 0:
-      pid = results[0].split()[0]
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  # attempts to resolve via lsof - this should work on linux, mac, and bsd -
-  # this fails if:
-  # - tor's running under a different name
-  # - tor's being run as a different user due to permissions
-  # - there are multiple instances of Tor, using the
-  #   same control port on different addresses.
-  
-  try:
-    results = system.call("lsof -wnPi")
-    results = filter(lambda line: line.startswith("tor.*:%i" % controlPort), results)
-    
-    # This can result in multiple entries with the same pid (from the query
-    # itself). Checking all lines to see if they're in agreement about the pid.
-    
-    if results:
-      pid = ""
-      
-      for line in results:
-        lineComp = line.split()
-        
-        if len(lineComp) >= 2 and (not pid or lineComp[1] == pid):
-          pid = lineComp[1]
-        else: raise IOError
-      
-      if pid.isdigit(): return pid
-  except IOError: pass
-  
-  return None
+  pid = stem.util.system.get_pid_by_name('tor')
+
+  if pid is None:
+    pid = stem.util.system.get_pid_by_port(controlPort)
+
+  return pid
 
 def isTorRunning():
   """
