@@ -1317,23 +1317,10 @@ class Controller:
         self._pathPrefixLogging = False # prevents logging if fetched again
         result = prefixPath
       elif key == "startTime":
-        myPid = self.controller.get_pid(None)
-        
-        if myPid:
-          if proc.is_available():
-            try:
-              result = float(proc.get_stats(myPid, proc.Stat.START_TIME)[0])
-            except: pass
-          
-          if not result:
-            # if we're either not using proc or it fails then try using ps
-            try:
-              psCall = system.call("ps -p %s -o etime" % myPid)
-              
-              if psCall and len(psCall) >= 2:
-                etimeEntry = psCall[1].strip()
-                result = time.time() - str_tools.parse_short_time_label(etimeEntry)
-            except: pass
+        try:
+          result = system.get_start_time(self.controller.get_pid())
+        except:
+          pass
       elif key == "authorities":
         # There's two configuration options that can overwrite the default
         # authorities: DirServer and AlternateDirAuthority.
