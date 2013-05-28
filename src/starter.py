@@ -357,7 +357,7 @@ if __name__ == '__main__':
   # - tor is running (otherwise it would be kinda confusing, "tor is running
   #   but why does arm say that it's shut down?")
   
-  if util.torTools.isTorRunning():
+  if len(stem.util.system.get_pid_by_name('tor', multiple = True)) >= 1:
     config.set("features.allowDetachedStartup", "false")
   
   # syncs config and parameters, saving changed config options and overwriting

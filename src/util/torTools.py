@@ -51,40 +51,6 @@ REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
-def isTorRunning():
-  """
-  Simple check for if a tor process is running. If this can't be determined
-  then this returns False.
-  """
-  
-  # Linux and the BSD families have different variants of ps. Guess based on
-  # os.uname() results which to try first, then fall back to the other.
-  #
-  # Linux
-  #   -A          - Select all processes. Identical to -e.
-  #   -co command - Shows just the base command.
-  #
-  # Mac / BSD
-  #   -a        - Display information about other users' processes as well as
-  #               your own.
-  #   -o ucomm= - Shows just the ucomm attribute ("name to be used for
-  #               accounting")
-  
-  primaryResolver, secondaryResolver = "ps -A co command", "ps -ao ucomm="
-  
-  if os.uname()[0] in ("Darwin", "FreeBSD", "OpenBSD"):
-    primaryResolver, secondaryResolver = secondaryResolver, primaryResolver
-  
-  commandResults = system.call(primaryResolver)
-  if not commandResults:
-    commandResults = system.call(secondaryResolver)
-  
-  if commandResults:
-    for cmd in commandResults:
-      if cmd.strip() == "tor": return True
-  
-  return False
-
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
