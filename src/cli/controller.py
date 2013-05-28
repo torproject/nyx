@@ -469,7 +469,7 @@ def heartbeatCheck(isUnresponsive):
   """
   
   conn = torTools.getConn()
-  lastHeartbeat = conn.getHeartbeat()
+  lastHeartbeat = conn.controller.get_latest_heartbeat()
   if conn.isAlive() and "BW" in conn.getControllerEvents():
     if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
       isUnresponsive = True

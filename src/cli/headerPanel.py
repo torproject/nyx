@@ -232,7 +232,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(1, x, "Relaying Disabled", uiTools.getColor("cyan"))
         x += 17
       else:
-        statusTime = torTools.getConn().getHeartbeat()
+        statusTime = torTools.getConn().controller.get_latest_heartbeat()
         
         if statusTime:
           statusTimeLabel = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(statusTime))
@@ -334,7 +334,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           self.addstr(y, x, "none", curses.A_BOLD | uiTools.getColor("cyan"))
       else:
         y = 2 if isWide else 4
-        statusTime = torTools.getConn().getHeartbeat()
+        statusTime = torTools.getConn().controller.get_latest_heartbeat()
         statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
         self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
         self.addstr(y, 16, " (%s) - press r to reconnect" % statusTimeLabel)

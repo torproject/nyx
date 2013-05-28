@@ -161,16 +161,6 @@ class Controller:
     self.connLock.release()
     return result
   
-  def getHeartbeat(self):
-    """
-    Provides the time of the last registered tor message.
-    """
-    
-    if self.isAlive():
-      return self.controller.get_latest_heartbeat()
-    else:
-      return 0
-  
   def getInfo(self, param, default = UNDEFINED):
     """
     Queries the control port for the given GETINFO option, providing the
