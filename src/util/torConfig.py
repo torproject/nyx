@@ -343,7 +343,7 @@ def getConfigLocation():
   
   conn = torTools.getConn()
   configLocation = conn.getInfo("config-file", None)
-  torPid, torPrefix = conn.getMyPid(), conn.getPathPrefix()
+  torPid, torPrefix = conn.controller.get_pid(None), conn.getPathPrefix()
   if not configLocation: raise IOError("unable to query the torrc location")
   
   try:

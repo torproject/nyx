@@ -499,10 +499,10 @@ def connResetListener(controller, eventType, _):
       if getController().getPanel("torrc") == None:
         torConfig.getTorrc().load(True)
       
-      torPid = controller.get_info("process/pid", None)
-      
-      if torPid and torPid != resolver.getPid():
-        resolver.setPid(torPid)
+      try:
+        resolver.setPid(controller.get_pid())
+      except ValueError:
+        pass
 
 def startTorMonitor(startTime):
   """
@@ -515,7 +515,7 @@ def startTorMonitor(startTime):
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
   conn = torTools.getConn()
-  torPid = conn.getMyPid()
+  torPid = conn.controller.get_pid(None)
   
   if not torPid and conn.isAlive():
     log.warn("Unable to determine Tor's pid. Some information, like its resource usage will be unavailable.")

@@ -125,7 +125,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # TODO: stem dropped system caching support so we'll need to think of
     # something else
     uptime = None
-    queryPid = conn.getMyPid()
+    queryPid = conn.controller.get_pid(None)
     if queryPid:
       queryParam = ["%cpu", "rss", "%mem", "etime"]
       queryCmd = "ps -p %s -o %s" % (queryPid, ",".join(queryParam))

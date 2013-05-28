@@ -14,7 +14,7 @@ class ResourceStats(graphPanel.GraphStats):
   
   def __init__(self):
     graphPanel.GraphStats.__init__(self)
-    self.queryPid = torTools.getConn().getMyPid()
+    self.queryPid = torTools.getConn().controller.get_pid(None)
   
   def clone(self, newCopy=None):
     if not newCopy: newCopy = ResourceStats()

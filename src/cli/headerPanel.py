@@ -516,8 +516,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["sys/os"] = unameVals[0]
       self.vals["sys/version"] = unameVals[2]
       
-      pid = conn.getMyPid()
-      self.vals["tor/pid"] = pid if pid else ""
+      self.vals["tor/pid"] = conn.controller.get_pid("")
       
       startTime = conn.getStartTime()
       self.vals["tor/startTime"] = startTime if startTime else ""
