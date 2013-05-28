@@ -794,7 +794,7 @@ class Torrc():
     else:
       torVersion = torTools.getConn().getVersion()
       skipValidation = not CONFIG["features.torrc.validate"]
-      skipValidation |= (torVersion is None or not torVersion.meets_requirements(stem.version.Requirement.GETINFO_CONFIG_TEXT))
+      skipValidation |= (torVersion is None or not torVersion >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
       
       if skipValidation:
         log.info("Skipping torrc validation (requires tor 0.2.2.7-alpha)")
