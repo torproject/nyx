@@ -1288,22 +1288,11 @@ class Controller:
         # make sure the path prefix is valid and exists (providing a notice if not)
         prefixPath = CONFIG["features.pathPrefix"].strip()
         
-        # adjusts the prefix path to account for jails under FreeBSD (many
-        # thanks to Fabian Keil!)
         if not prefixPath and os.uname()[0] == "FreeBSD":
-          torPid = getConn().controller.get_pid(None)
-          jid = system.get_bsd_jail_id(torPid)
-          if jid != 0:
-            # Output should be something like:
-            #    JID  IP Address      Hostname      Path
-            #      1  10.0.0.2        tor-jail      /usr/jails/tor-jail
-            jlsOutput = system.call("jls -j %s" % jid)
-            
-            if len(jlsOutput) == 2 and len(jlsOutput[1].split()) == 4:
-              prefixPath = jlsOutput[1].split()[3]
-              
-              if self._pathPrefixLogging:
-                log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
+          prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
+
+          if prefixPath and self._pathPrefixLogging:
+            log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
         
         if prefixPath:
           # strips off ending slash from the path
