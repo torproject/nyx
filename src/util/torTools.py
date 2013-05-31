@@ -348,16 +348,6 @@ class Controller:
     
     return self._getRelayAttr("nsEntry", default)
   
-  def getMyDescriptor(self, default = None):
-    """
-    Provides the descriptor entry for this relay if available.
-    
-    Arguments:
-      default - result if the query fails
-    """
-    
-    return self._getRelayAttr("descEntry", default)
-  
   def getMyBandwidthRate(self, default = None):
     """
     Provides the effective relaying bandwidth rate of this relay. Currently
@@ -1006,7 +996,6 @@ class Controller:
     desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
     
     if not myFingerprint or myFingerprint in desc_fingerprints:
-      self._cachedParam["descEntry"] = None
       self._cachedParam["bwObserved"] = None
     
     # If we're tracking ip address -> fingerprint mappings then update with
@@ -1185,14 +1174,11 @@ class Controller:
     currentVal, result = self._cachedParam.get(key), None
     if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
-      if key in ("nsEntry", "descEntry"):
+      if key == "nsEntry":
         myFingerprint = self.getInfo("fingerprint", None)
         
         if myFingerprint:
-          if key == "nsEntry":
-            result = self.controller.get_network_status(myFingerprint)
-          else:
-            result = self.controller.get_server_descriptor(myFingerprint)
+          result = self.controller.get_network_status(myFingerprint)
       elif key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
         # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
@@ -1216,10 +1202,13 @@ class Controller:
         
         result = effectiveBurst
       elif key == "bwObserved":
-        myDescriptor = self.getMyDescriptor()
+        myFingerprint = self.getInfo("fingerprint", None)
+        
+        if myFingerprint:
+          myDescriptor = self.controller.get_server_descriptor(myFingerprint)
 
-        if myDescriptor:
-          result = myDescriptor.observed_bandwidth
+          if myDescriptor:
+            result = myDescriptor.observed_bandwidth
       elif key == "bwMeasured":
         # TODO: Currently there's no client side indication of what type of
         # measurement was used. Include this in results if it's ever available.
