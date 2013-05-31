@@ -1239,28 +1239,7 @@ class Controller:
             result = line[2:].split()
             break
       elif key == "user":
-        # provides the empty string if the query fails
-        queriedUser = self.getInfo("process/user", None)
-        
-        if queriedUser != None and queriedUser != "":
-          result = queriedUser
-        else:
-          myPid = self.controller.get_pid(None)
-          
-          if myPid:
-            # if proc contents are available then fetch the pid from there and
-            # convert it to the username
-            if proc.is_available():
-              try:
-                myUid = proc.get_uid(myPid)
-                if myUid and myUid.isdigit():
-                  result = pwd.getpwuid(int(myUid)).pw_name
-              except: pass
-            
-            # fall back to querying via ps
-            if not result:
-              psResults = system.call("ps -o user %s" % myPid)
-              if psResults and len(psResults) >= 2: result = psResults[1].strip()
+        result = self.controller.get_user(None)
       elif key == "fdLimit":
         # provides -1 if the query fails
         queriedLimit = self.getInfo("process/descriptor-limit", None)
