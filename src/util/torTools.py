@@ -1189,9 +1189,10 @@ class Controller:
         myFingerprint = self.getInfo("fingerprint", None)
         
         if myFingerprint:
-          queryType = "ns" if key == "nsEntry" else "desc"
-          queryResult = self.getInfo("%s/id/%s" % (queryType, myFingerprint), None)
-          if queryResult: result = queryResult.split("\n")
+          if key == "nsEntry":
+            result = self.controller.get_network_status(myFingerprint)
+          else:
+            result = self.controller.get_server_descriptor(myFingerprint)
       elif key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
         # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
@@ -1215,29 +1216,28 @@ class Controller:
         
         result = effectiveBurst
       elif key == "bwObserved":
-        for line in self.getMyDescriptor([]):
-          if line.startswith("bandwidth"):
-            # line should look something like:
-            # bandwidth 40960 102400 47284
-            comp = line.split()
-            
-            if len(comp) == 4 and comp[-1].isdigit():
-              result = int(comp[-1])
-              break
+        myDescriptor = self.getMyDescriptor()
+
+        if myDescriptor:
+          result = myDescriptor.observed_bandwidth
       elif key == "bwMeasured":
         # TODO: Currently there's no client side indication of what type of
         # measurement was used. Include this in results if it's ever available.
         
-        for line in self.getMyNetworkStatus([]):
-          if line.startswith("w Bandwidth="):
-            bwValue = line[12:]
-            if bwValue.isdigit(): result = int(bwValue)
-            break
+        # TODO: I don't believe the following ever worked. The
+        # getMyNetworkStatus() method provides a v2 router status entry but 'w'
+        # lines are part of v3 responses. Oh well, double check this while
+        # rewriting this module.
+
+        myStatusEntry = self.getMyNetworkStatus()
+
+        if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
+          result = myStatusEntry.bandwidth
       elif key == "flags":
-        for line in self.getMyNetworkStatus([]):
-          if line.startswith("s "):
-            result = line[2:].split()
-            break
+        myStatusEntry = self.getMyNetworkStatus()
+
+        if myStatusEntry:
+          result = myStatusEntry.flags
       elif key == "user":
         result = self.controller.get_user(None)
       elif key == "fdLimit":
