@@ -331,23 +331,6 @@ class Controller:
     
     return self._getRelayAttr("hsPorts", default)
   
-  def getMyNetworkStatus(self, default = None):
-    """
-    Provides the network status entry for this relay if available. This is
-    occasionally expanded so results may vary depending on tor's version. For
-    0.2.2.13 they contained entries like the following:
-    
-    r caerSidi p1aag7VwarGxqctS7/fS0y5FU+s 9On1TRGCEpljszPpJR1hKqlzaY8 2010-05-26 09:26:06 76.104.132.98 9001 0
-    s Fast HSDir Named Running Stable Valid
-    w Bandwidth=25300
-    p reject 1-65535
-    
-    Arguments:
-      default - result if the query fails
-    """
-    
-    return self._getRelayAttr("nsEntry", default)
-  
   def getMyBandwidthRate(self, default = None):
     """
     Provides the effective relaying bandwidth rate of this relay. Currently
@@ -960,19 +943,16 @@ class Controller:
     if myFingerprint:
       for desc in event.desc:
         if desc.fingerprint == myFingerprint:
-          self._cachedParam["nsEntry"] = None
           self._cachedParam["flags"] = None
           self._cachedParam["bwMeasured"] = None
           return
     else:
-      self._cachedParam["nsEntry"] = None
       self._cachedParam["flags"] = None
       self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
     self.connLock.acquire()
     
-    self._cachedParam["nsEntry"] = None
     self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
     
@@ -1174,12 +1154,7 @@ class Controller:
     currentVal, result = self._cachedParam.get(key), None
     if currentVal == None and (self.isAlive() or key == "pathPrefix"):
       # still unset - fetch value
-      if key == "nsEntry":
-        myFingerprint = self.getInfo("fingerprint", None)
-        
-        if myFingerprint:
-          result = self.controller.get_network_status(myFingerprint)
-      elif key == "bwRate":
+      if key == "bwRate":
         # effective relayed bandwidth is the minimum of BandwidthRate,
         # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
         effectiveRate = int(self.getOption("BandwidthRate", None))
@@ -1213,20 +1188,25 @@ class Controller:
         # TODO: Currently there's no client side indication of what type of
         # measurement was used. Include this in results if it's ever available.
         
-        # TODO: I don't believe the following ever worked. The
-        # getMyNetworkStatus() method provides a v2 router status entry but 'w'
-        # lines are part of v3 responses. Oh well, double check this while
-        # rewriting this module.
+        # TODO: Tor is documented as providing v2 router status entries but
+        # actually looks to be v3. This needs to be sorted out between stem
+        # and tor.
 
-        myStatusEntry = self.getMyNetworkStatus()
+        myFingerprint = self.getInfo("fingerprint", None)
+        
+        if myFingerprint:
+          myStatusEntry = self.controller.get_network_status(myFingerprint)
 
-        if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
-          result = myStatusEntry.bandwidth
+          if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
+            result = myStatusEntry.bandwidth
       elif key == "flags":
-        myStatusEntry = self.getMyNetworkStatus()
+        myFingerprint = self.getInfo("fingerprint", None)
+        
+        if myFingerprint:
+          myStatusEntry = self.controller.get_network_status(myFingerprint)
 
-        if myStatusEntry:
-          result = myStatusEntry.flags
+          if myStatusEntry:
+            result = myStatusEntry.flags
       elif key == "user":
         result = self.controller.get_user(None)
       elif key == "fdLimit":
