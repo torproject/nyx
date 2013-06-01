@@ -329,7 +329,38 @@ class Controller:
       default - value provided back if unable to query the hidden service ports
     """
     
-    return self._getRelayAttr("hsPorts", default)
+    result = []
+    hs_options = self.controller.get_conf_map("HiddenServiceOptions", {})
+    
+    for entry in hs_options.get("HiddenServicePort", []):
+      # HiddenServicePort entries are of the form...
+      #
+      #   VIRTPORT [TARGET]
+      #
+      # ... with the TARGET being an address, port, or address:port. If the
+      # target port isn't defined then uses the VIRTPORT.
+      
+      hs_port = None
+      
+      if ' ' in entry:
+        virtport, target = entry.split(' ', 1)
+        
+        if ':' in target:
+          hs_port = target.split(':', 1)[1]  # target is an address:port
+        elif target.isdigit():
+          hs_port = target  # target is a port
+        else:
+          hs_port = virtport  # target is an address
+      else:
+        hs_port = entry  # just has the virtual port
+      
+      if hs_port.isdigit():
+        result.append(hsPort)
+    
+    if result:
+      return result
+    else:
+      return default
   
   def getMyBandwidthRate(self, default = None):
     """
@@ -1329,31 +1360,6 @@ class Controller:
                   path.append("0" * 40)
             
             result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
-      elif key == "hsPorts":
-        result = []
-        hsOptions = self.controller.get_conf_map("HiddenServiceOptions", None)
-        
-        if hsOptions and "HiddenServicePort" in hsOptions:
-          for hsEntry in hsOptions["HiddenServicePort"]:
-            # hidden service port entries are of the form:
-            # VIRTPORT [TARGET]
-            # with the TARGET being an IP, port, or IP:Port. If the target port
-            # isn't defined then uses the VIRTPORT.
-            
-            hsPort = None
-            
-            if " " in hsEntry:
-              # parses the target, checking if it's a port or IP:Port combination
-              hsTarget = hsEntry.split()[1]
-              
-              if ":" in hsTarget:
-                hsPort = hsTarget.split(":")[1] # target is the IP:Port
-              elif hsTarget.isdigit():
-                hsPort = hsTarget # target is just the port
-            else: hsPort = hsEntry # just has the virtual port
-            
-            if hsPort.isdigit():
-              result.append(hsPort)
       
       # cache value
       if result != None: self._cachedParam[key] = result
