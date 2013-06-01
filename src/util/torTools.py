@@ -449,7 +449,15 @@ class Controller:
       default - result if the query fails or this relay isn't a part of the consensus yet
     """
     
-    return self._getRelayAttr("flags", default)
+    myFingerprint = self.getInfo("fingerprint", None)
+    
+    if myFingerprint:
+      myStatusEntry = self.controller.get_network_status(myFingerprint)
+      
+      if myStatusEntry:
+        return myStatusEntry.flags
+
+    return default
   
   def getVersion(self):
     """
@@ -486,7 +494,7 @@ class Controller:
     provides None.
     """
     
-    return self._getRelayAttr("user", None)
+    return self.controller.get_user(None)
   
   def getMyFileDescriptorUsage(self):
     """
@@ -534,7 +542,29 @@ class Controller:
     use (unfortunately, this might be out of date).
     """
     
-    return self._getRelayAttr("authorities", [])
+    # There's two configuration options that can overwrite the default
+    # authorities: DirServer and AlternateDirAuthority.
+    
+    # TODO: Both options accept a set of flags to more precisely set what they
+    # overwrite. Ideally this would account for these flags to more accurately
+    # identify authority connections from relays.
+    
+    dirServerCfg = self.getOption("DirServer", [], True)
+    altDirAuthCfg = self.getOption("AlternateDirAuthority", [], True)
+    altAuthoritiesCfg = dirServerCfg + altDirAuthCfg
+    
+    if altAuthoritiesCfg:
+      result = []
+      
+      # entries are of the form:
+      # [nickname] [flags] address:port fingerprint
+      for entry in altAuthoritiesCfg:
+        locationComp = entry.split()[-2] # address:port component
+        result.append(tuple(locationComp.split(":", 1)))
+      
+      return result
+    else:
+      return list(DIR_SERVERS)
   
   def getPathPrefix(self):
     """
@@ -551,7 +581,10 @@ class Controller:
     can't be determined then this provides None.
     """
     
-    return self._getRelayAttr("startTime", None)
+    try:
+      return system.get_start_time(self.controller.get_pid())
+    except:
+      return None
   
   def isExitingAllowed(self, ipAddress, port):
     """
@@ -1002,17 +1035,14 @@ class Controller:
     if myFingerprint:
       for desc in event.desc:
         if desc.fingerprint == myFingerprint:
-          self._cachedParam["flags"] = None
           self._cachedParam["bwMeasured"] = None
           return
     else:
-      self._cachedParam["flags"] = None
       self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
     self.connLock.acquire()
     
-    self._cachedParam["flags"] = None
     self._cachedParam["bwMeasured"] = None
     
     # reconstructs consensus based mappings
@@ -1256,16 +1286,6 @@ class Controller:
 
           if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
             result = myStatusEntry.bandwidth
-      elif key == "flags":
-        myFingerprint = self.getInfo("fingerprint", None)
-        
-        if myFingerprint:
-          myStatusEntry = self.controller.get_network_status(myFingerprint)
-
-          if myStatusEntry:
-            result = myStatusEntry.flags
-      elif key == "user":
-        result = self.controller.get_user(None)
       elif key == "fdLimit":
         # provides -1 if the query fails
         queriedLimit = self.getInfo("process/descriptor-limit", None)
@@ -1310,32 +1330,6 @@ class Controller:
         
         self._pathPrefixLogging = False # prevents logging if fetched again
         result = prefixPath
-      elif key == "startTime":
-        try:
-          result = system.get_start_time(self.controller.get_pid())
-        except:
-          pass
-      elif key == "authorities":
-        # There's two configuration options that can overwrite the default
-        # authorities: DirServer and AlternateDirAuthority.
-        
-        # TODO: Both options accept a set of flags to more precisely set what they
-        # overwrite. Ideally this would account for these flags to more accurately
-        # identify authority connections from relays.
-        
-        dirServerCfg = self.getOption("DirServer", [], True)
-        altDirAuthCfg = self.getOption("AlternateDirAuthority", [], True)
-        altAuthoritiesCfg = dirServerCfg + altDirAuthCfg
-        
-        if altAuthoritiesCfg:
-          result = []
-          
-          # entries are of the form:
-          # [nickname] [flags] address:port fingerprint
-          for entry in altAuthoritiesCfg:
-            locationComp = entry.split()[-2] # address:port component
-            result.append(tuple(locationComp.split(":", 1)))
-        else: result = list(DIR_SERVERS)
       
       # cache value
       if result != None: self._cachedParam[key] = result
