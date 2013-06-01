@@ -858,26 +858,13 @@ class Controller:
     
     result = None
     if self.isAlive():
-      # determine the fingerprint if it isn't yet cached
       if not relayNickname in self._nicknameToFpLookupCache:
-        # Fingerprints are base64 encoded hex with an extra '='. For instance...
-        # GETINFO ns/name/torexp2 ->
-        #   r torexp2 NPfjt8Vjr+drcbbFLQONN3KapNo LxoHteGax7ZNYh/9g/FF8I617fY 2011-04-27 15:20:35 141.161.20.50 9001 0
-        # decode base64 of "NPfjt8Vjr+drcbbFLQONN3KapNo=" ->
-        #   "4\xf7\xe3\xb7\xc5c\xaf\xe7kq\xb6\xc5-\x03\x8d7r\x9a\xa4\xda"
-        # encode hex of the above ->
-        #   "34f7e3b7c563afe76b71b6c52d038d37729aa4da"
+        consensusEntry = self.controller.get_network_status(relayNickname, None)
         
-        relayFingerprint = None
-        consensusEntry = self.getInfo("ns/name/%s" % relayNickname, None)
         if consensusEntry:
-          encodedFp = consensusEntry.split()[2]
-          decodedFp = (encodedFp + "=").decode('base64').encode('hex')
-          relayFingerprint = decodedFp.upper()
-        
-        self._nicknameToFpLookupCache[relayNickname] = relayFingerprint
+          self._nicknameToFpLookupCache[relayNickname] = consensusEntry.fingerprint
       
-      result = self._nicknameToFpLookupCache[relayNickname]
+      result = self._nicknameToFpLookupCache.get(relayNickname)
     
     self.connLock.release()
     
