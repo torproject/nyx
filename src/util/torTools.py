@@ -319,7 +319,35 @@ class Controller:
       default - value provided back if unable to query the circuit-status
     """
     
-    return self._getRelayAttr("circuits", default)
+    # TODO: We're losing caching around this. We should check to see the call
+    # volume of this and probably add it to stem.
+    
+    results = []
+    
+    for entry in self.controller.get_circuits():
+      fingerprints = []
+      
+      for fp, nickname in entry.path:
+        if not fp:
+          fp = self.getNicknameFingerprint(nickname)
+          
+          # It shouldn't be possible for this lookup to fail, but we
+          # need to fill something (callers won't expect our own client
+          # paths to have unknown relays). If this turns out to be wrong
+          # then log a warning.
+          
+          if not fp:
+            log.warn("Unable to determine the fingerprint for a relay in our own circuit: %s" % nickname)
+            fp = "0" * 40
+        
+        fingerprints.append(fp)
+      
+      results.append((int(entry.id), entry.status, entry.purpose, fingerprints))
+    
+    if results:
+      return results
+    else:
+      return default
   
   def getHiddenServicePorts(self, default = []):
     """
@@ -1045,8 +1073,6 @@ class Controller:
     self.connLock.acquire()
     self._fingerprintsAttachedCache = None
     self.connLock.release()
-    
-    self._cachedParam["circuits"] = None
   
   def _getFingerprintMappings(self, descriptors = None):
     """
@@ -1310,56 +1336,6 @@ class Controller:
             locationComp = entry.split()[-2] # address:port component
             result.append(tuple(locationComp.split(":", 1)))
         else: result = list(DIR_SERVERS)
-      elif key == "circuits":
-        # Parses our circuit-status results, for instance
-        #  91 BUILT $E4AE6E2FE320FBBD31924E8577F3289D4BE0B4AD=Qwerty PURPOSE=GENERAL
-        # would belong to a single hop circuit, most likely fetching the
-        # consensus via a directory mirror.
-        # 
-        # The path is made up of "$<fingerprint>[=<nickname]" entries for new
-        # versions of Tor, but in versions prior to 0.2.2.1-alpha this was
-        # just "$<fingerprint>" OR <nickname>. The dolar sign can't be used in
-        # nicknames so this can be used to differentiate.
-        
-        circStatusResults = self.getInfo("circuit-status", None)
-        
-        if circStatusResults == "":
-          result = [] # we don't have any circuits
-        elif circStatusResults != None:
-          result = []
-          
-          for line in circStatusResults.split("\n"):
-            # appends a tuple with the (status, purpose, path)
-            lineComp = line.split(" ")
-            if len(lineComp) < 3: continue
-            
-            # The third parameter is *optionally* the path. This is a pita to
-            # parse out because we need to identify it verses the key=value
-            # entries that might follow. To do this checking if...
-            # - it lacks a '=' then it can't be a key=value entry
-            # - if it has a '=' but starts with a '$' then this should be a
-            #   $fingerprint=nickname entity
-            
-            if lineComp[2].count("=") == 1 and lineComp[2][0] != "$":
-              continue
-            
-            path = []
-            for hopEntry in lineComp[2].split(","):
-              if hopEntry[0] == "$": path.append(hopEntry[1:41])
-              else:
-                relayFingerprint = self.getNicknameFingerprint(hopEntry)
-                
-                # It shouldn't be possible for this lookup to fail, but we
-                # need to fill something (callers won't expect our own client
-                # paths to have unknown relays). If this turns out to be wrong
-                # then log a warning.
-                
-                if relayFingerprint: path.append(relayFingerprint)
-                else:
-                  log.warn("Unable to determine the fingerprint for a relay in our own circuit: %s" % hopEntry)
-                  path.append("0" * 40)
-            
-            result.append((int(lineComp[0]), lineComp[1], lineComp[3][8:], tuple(path)))
       
       # cache value
       if result != None: self._cachedParam[key] = result
