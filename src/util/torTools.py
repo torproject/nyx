@@ -74,7 +74,6 @@ class Controller:
     self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
-    self._fingerprintsAttachedCache = None # cache of relays we're connected to
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._nicknameToFpLookupCache = {}  # lookup cache with nickname -> fingerprint mappings
     self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
@@ -115,7 +114,6 @@ class Controller:
       # reset caches for ip -> fingerprint lookups
       self._fingerprintMappings = None
       self._fingerprintLookupCache = {}
-      self._fingerprintsAttachedCache = None
       self._nicknameLookupCache = {}
       self._nicknameToFpLookupCache = {}
       self._addressLookupCache = {}
@@ -1106,7 +1104,6 @@ class Controller:
     
     # reconstructs consensus based mappings
     self._fingerprintLookupCache = {}
-    self._fingerprintsAttachedCache = None
     self._nicknameLookupCache = {}
     self._nicknameToFpLookupCache = {}
     self._addressLookupCache = {}
@@ -1126,7 +1123,6 @@ class Controller:
     # If we're tracking ip address -> fingerprint mappings then update with
     # the new relays.
     self._fingerprintLookupCache = {}
-    self._fingerprintsAttachedCache = None
     self._descriptorLookupCache = {}
     
     if self._fingerprintMappings != None:
@@ -1157,7 +1153,6 @@ class Controller:
     # CIRC events aren't required, but if one's received then flush this cache
     # since it uses circuit-status results.
     self.connLock.acquire()
-    self._fingerprintsAttachedCache = None
     self.connLock.release()
   
   def _getFingerprintMappings(self, descriptors = None):
@@ -1191,10 +1186,6 @@ class Controller:
       relayPort    - orport of relay (to further narrow the results)
     """
     
-    # Events can reset _fingerprintsAttachedCache to None, so all uses of this
-    # function need to be under the connection lock (skipping that might also
-    # scew with the conn usage of this function...)
-    
     # If we were provided with a string port then convert to an int (so
     # lookups won't mismatch based on type).
     if isinstance(relayPort, str): relayPort = int(relayPort)
@@ -1224,45 +1215,5 @@ class Controller:
         if entryPort == relayPort:
           return entryFingerprint
     
-    # Disambiguates based on our orconn-status and circuit-status results.
-    # This only includes relays we're connected to, so chances are pretty
-    # slim that we'll still have a problem narrowing this down. Note that we
-    # aren't necessarily checking for events that can create new client
-    # circuits (so this cache might be a little dirty).
-    
-    # populates the cache
-    if self._fingerprintsAttachedCache == None:
-      self._fingerprintsAttachedCache = []
-      
-      # orconn-status has entries of the form:
-      # $33173252B70A50FE3928C7453077936D71E45C52=shiven CONNECTED
-      orconnResults = self.getInfo("orconn-status", None)
-      if orconnResults:
-        for line in orconnResults.split("\n"):
-          self._fingerprintsAttachedCache.append(line[1:line.find("=")])
-      
-      # circuit-status results (we only make connections to the first hop)
-      for _, _, _, path in self.getCircuits():
-        self._fingerprintsAttachedCache.append(path[0])
-    
-    # narrow to only relays we have a connection to
-    attachedMatches = []
-    for _, entryFingerprint in potentialMatches:
-      if entryFingerprint in self._fingerprintsAttachedCache:
-        attachedMatches.append(entryFingerprint)
-    
-    if len(attachedMatches) == 1:
-      return attachedMatches[0]
-    
-    for entryPort, entryFingerprint in list(potentialMatches):
-      try:
-        nsEntry = self.controller.get_network_status(entryFingerprint)
-        
-        if not stem.Flag.RUNNING in nsEntry.flags:
-          potentialMatches.remove((entryPort, entryFingerprint))
-      except stem.ControllerError: pass
-    
-    if len(potentialMatches) == 1:
-      return potentialMatches[0][1]
-    else: return None
+    return None
 
