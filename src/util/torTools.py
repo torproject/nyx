@@ -63,7 +63,6 @@ class Controller:
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
-    self._nicknameToFpLookupCache = {}  # lookup cache with nickname -> fingerprint mappings
     self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
@@ -102,7 +101,6 @@ class Controller:
       self._fingerprintMappings = None
       self._fingerprintLookupCache = {}
       self._nicknameLookupCache = {}
-      self._nicknameToFpLookupCache = {}
       self._addressLookupCache = {}
       self._consensusLookupCache = {}
       self._descriptorLookupCache = {}
@@ -292,7 +290,10 @@ class Controller:
       
       for fp, nickname in entry.path:
         if not fp:
-          fp = self.getNicknameFingerprint(nickname)
+          consensusEntry = self.controller.get_network_status(nickname, None)
+          
+          if consensusEntry:
+            fp = consensusEntry.fingerprint
           
           # It shouldn't be possible for this lookup to fail, but we
           # need to fill something (callers won't expect our own client
@@ -832,31 +833,6 @@ class Controller:
     
     return result
   
-  def getNicknameFingerprint(self, relayNickname):
-    """
-    Provides the fingerprint associated with the given relay. This provides
-    None if no such relay exists.
-    
-    Arguments:
-      relayNickname - nickname of the relay
-    """
-    
-    self.connLock.acquire()
-    
-    result = None
-    if self.isAlive():
-      if not relayNickname in self._nicknameToFpLookupCache:
-        consensusEntry = self.controller.get_network_status(relayNickname, None)
-        
-        if consensusEntry:
-          self._nicknameToFpLookupCache[relayNickname] = consensusEntry.fingerprint
-      
-      result = self._nicknameToFpLookupCache.get(relayNickname)
-    
-    self.connLock.release()
-    
-    return result
-  
   def addEventListener(self, listener, *eventTypes):
     """
     Directs further tor controller events to callback functions of the
@@ -954,7 +930,6 @@ class Controller:
     # reconstructs consensus based mappings
     self._fingerprintLookupCache = {}
     self._nicknameLookupCache = {}
-    self._nicknameToFpLookupCache = {}
     self._addressLookupCache = {}
     self._consensusLookupCache = {}
     
