@@ -757,13 +757,10 @@ class Controller:
           myNickname = self.getOption("Nickname", "Unnamed")
           self._nicknameLookupCache[relayFingerprint] = myNickname
         else:
-          # check the consensus for the relay
-          nsEntry = self.getConsensusEntry(relayFingerprint)
+          nsEntry = self.controller.get_network_status(relayFingerprint, None)
           
-          if nsEntry: relayNickname = nsEntry[2:nsEntry.find(" ", 2)]
-          else: relayNickname = None
-          
-          self._nicknameLookupCache[relayFingerprint] = relayNickname
+          if nsEntry:
+            self._nicknameLookupCache[relayFingerprint] = nsEntry.nickname
       
       result = self._nicknameLookupCache[relayFingerprint]
     
