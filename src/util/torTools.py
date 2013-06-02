@@ -109,7 +109,6 @@ class Controller:
       self.controller.add_event_listener(self.ns_event, stem.control.EventType.NS)
       self.controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
       self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
-      self.controller.add_event_listener(self.circ_status_event, stem.control.EventType.CIRC)
       
       # reset caches for ip -> fingerprint lookups
       self._fingerprintMappings = None
@@ -1147,12 +1146,6 @@ class Controller:
         else:
           self._fingerprintMappings[desc.address] = [(desc.or_port, desc.fingerprint)]
     
-    self.connLock.release()
-  
-  def circ_status_event(self, event):
-    # CIRC events aren't required, but if one's received then flush this cache
-    # since it uses circuit-status results.
-    self.connLock.acquire()
     self.connLock.release()
   
   def _getFingerprintMappings(self, descriptors = None):
