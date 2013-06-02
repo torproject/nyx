@@ -132,9 +132,7 @@ class Controller:
     self.connLock.acquire()
     if self.controller:
       self.controller.close()
-      self.controller = None
-      self.connLock.release()
-    else: self.connLock.release()
+    self.connLock.release()
   
   def getController(self):
     return self.controller
