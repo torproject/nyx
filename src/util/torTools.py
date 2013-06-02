@@ -87,9 +87,6 @@ class Controller:
     # only done once for the duration of the application to avoid pointless
     # messages.
     self._pathPrefixLogging = True
-    
-    # cached parameters for custom getters (None if unset or possibly changed)
-    self._cachedParam = {}
   
   def init(self, controller):
     """
@@ -399,7 +396,21 @@ class Controller:
       default - result if the query fails
     """
     
-    return self._getRelayAttr("bwRate", default)
+    # effective relayed bandwidth is the minimum of BandwidthRate,
+    # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
+    effectiveRate = int(self.getOption("BandwidthRate", None))
+    
+    relayRate = self.getOption("RelayBandwidthRate", None)
+    if relayRate and relayRate != "0":
+      effectiveRate = min(effectiveRate, int(relayRate))
+    
+    maxAdvertised = self.getOption("MaxAdvertisedBandwidth", None)
+    if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
+    
+    if effectiveRate is not None:
+      return effectiveRate
+    else:
+      return default
   
   def getMyBandwidthBurst(self, default = None):
     """
@@ -410,7 +421,18 @@ class Controller:
       default - result if the query fails
     """
     
-    return self._getRelayAttr("bwBurst", default)
+    # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
+    effectiveBurst = int(self.getOption("BandwidthBurst", None))
+    
+    relayBurst = self.getOption("RelayBandwidthBurst", None)
+    
+    if relayBurst and relayBurst != "0":
+      effectiveBurst = min(effectiveBurst, int(relayBurst))
+    
+    if effectiveBurst is not None:
+      return effectiveBurst
+    else:
+      return default
   
   def getMyBandwidthObserved(self, default = None):
     """
@@ -424,7 +446,15 @@ class Controller:
       default - result if the query fails
     """
     
-    return self._getRelayAttr("bwObserved", default)
+    myFingerprint = self.getInfo("fingerprint", None)
+    
+    if myFingerprint:
+      myDescriptor = self.controller.get_server_descriptor(myFingerprint)
+      
+      if myDescriptor:
+        result = myDescriptor.observed_bandwidth
+    
+    return default
   
   def getMyBandwidthMeasured(self, default = None):
     """
@@ -439,7 +469,19 @@ class Controller:
       default - result if the query fails
     """
     
-    return self._getRelayAttr("bwMeasured", default)
+    # TODO: Tor is documented as providing v2 router status entries but
+    # actually looks to be v3. This needs to be sorted out between stem
+    # and tor.
+    
+    myFingerprint = self.getInfo("fingerprint", None)
+    
+    if myFingerprint:
+      myStatusEntry = self.controller.get_network_status(myFingerprint)
+      
+      if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
+        return myStatusEntry.bandwidth
+    
+    return default
   
   def getMyFlags(self, default = None):
     """
@@ -525,14 +567,39 @@ class Controller:
     Provides the maximum number of file descriptors this process can have.
     Only the Tor process itself reliably knows this value, and the option for
     getting this was added in Tor 0.2.3.x-final. If that's unavailable then
-    we estimate the file descriptor limit based on other factors.
+    we can only estimate the file descriptor limit based on other factors.
     
     The return result is a tuple of the form:
     (fileDescLimit, isEstimate)
     and if all methods fail then both values are None.
     """
     
-    return self._getRelayAttr("fdLimit", (None, True))
+    # provides -1 if the query fails
+    queriedLimit = self.getInfo("process/descriptor-limit", None)
+    
+    if queriedLimit != None and queriedLimit != "-1":
+      return (int(queriedLimit), False)
+    
+    torUser = self.getMyUser()
+    
+    # This is guessing the open file limit. Unfortunately there's no way
+    # (other than "/usr/proc/bin/pfiles pid | grep rlimit" under Solaris)
+    # to get the file descriptor limit for an arbitrary process.
+    
+    if torUser == "debian-tor":
+      # probably loaded via /etc/init.d/tor which changes descriptor limit
+      return (8192, True)
+    else:
+      # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
+      ulimitResults = system.call("ulimit -Hn")
+      
+      if ulimitResults:
+        ulimit = ulimitResults[0].strip()
+        
+        if ulimit.isdigit():
+          return (int(ulimit), True)
+
+    return (None, None)
   
   def getMyDirAuthorities(self):
     """
@@ -573,7 +640,26 @@ class Controller:
     jail's path.
     """
     
-    return self._getRelayAttr("pathPrefix", "")
+    # make sure the path prefix is valid and exists (providing a notice if not)
+    prefixPath = CONFIG["features.pathPrefix"].strip()
+    
+    if not prefixPath and os.uname()[0] == "FreeBSD":
+      prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
+      
+      if prefixPath and self._pathPrefixLogging:
+        log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
+    
+    if prefixPath:
+      # strips off ending slash from the path
+      if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+      
+      # avoid using paths that don't exist
+      if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
+        log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
+        prefixPath = ""
+    
+    self._pathPrefixLogging = False # prevents logging if fetched again
+    return prefixPath
   
   def getStartTime(self):
     """
@@ -933,7 +1019,6 @@ class Controller:
       if not issueSighup:
         try:
           self.controller.signal(stem.Signal.RELOAD)
-          self._cachedParam = {}
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
           raisedException = IOError(str(exc))
@@ -975,8 +1060,6 @@ class Controller:
             
             if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
             else: raise IOError("failed silently")
-          
-          self._cachedParam = {}
         except IOError, exc:
           raisedException = exc
     
@@ -1017,20 +1100,9 @@ class Controller:
   
   def ns_event(self, event):
     self._consensusLookupCache = {}
-    
-    myFingerprint = self.getInfo("fingerprint", None)
-    if myFingerprint:
-      for desc in event.desc:
-        if desc.fingerprint == myFingerprint:
-          self._cachedParam["bwMeasured"] = None
-          return
-    else:
-      self._cachedParam["bwMeasured"] = None
   
   def new_consensus_event(self, event):
     self.connLock.acquire()
-    
-    self._cachedParam["bwMeasured"] = None
     
     # reconstructs consensus based mappings
     self._fingerprintLookupCache = {}
@@ -1050,9 +1122,6 @@ class Controller:
     
     myFingerprint = self.getInfo("fingerprint", None)
     desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
-    
-    if not myFingerprint or myFingerprint in desc_fingerprints:
-      self._cachedParam["bwObserved"] = None
     
     # If we're tracking ip address -> fingerprint mappings then update with
     # the new relays.
@@ -1196,134 +1265,4 @@ class Controller:
     if len(potentialMatches) == 1:
       return potentialMatches[0][1]
     else: return None
-  
-  def _getRelayAttr(self, key, default, cacheUndefined = True):
-    """
-    Provides information associated with this relay, using the cached value if
-    available and otherwise looking it up.
-    
-    Arguments:
-      key            - parameter being queried
-      default        - value to be returned if undefined
-      cacheUndefined - caches when values are undefined, avoiding further
-                       lookups if true
-    """
-    
-    # Several controller options were added in ticket 2291...
-    # https://trac.torproject.org/projects/tor/ticket/2291
-    # which is only available with newer tor versions (tested them against
-    # Tor v0.2.3.0-alpha-dev). When using these options we need to be
-    # especially careful to have good fallback logic.
-    
-    currentVal = self._cachedParam.get(key)
-    if currentVal != None:
-      if currentVal == UNKNOWN: return default
-      else: return currentVal
-    
-    self.connLock.acquire()
-    
-    # Checks that the value is unset and we're running. One exception to this
-    # is the pathPrefix which doesn't depend on having a connection and may be
-    # needed for the init.
-    currentVal, result = self._cachedParam.get(key), None
-    if currentVal == None and (self.isAlive() or key == "pathPrefix"):
-      # still unset - fetch value
-      if key == "bwRate":
-        # effective relayed bandwidth is the minimum of BandwidthRate,
-        # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-        effectiveRate = int(self.getOption("BandwidthRate", None))
-        
-        relayRate = self.getOption("RelayBandwidthRate", None)
-        if relayRate and relayRate != "0":
-          effectiveRate = min(effectiveRate, int(relayRate))
-        
-        maxAdvertised = self.getOption("MaxAdvertisedBandwidth", None)
-        if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
-        
-        result = effectiveRate
-      elif key == "bwBurst":
-        # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-        effectiveBurst = int(self.getOption("BandwidthBurst", None))
-        
-        relayBurst = self.getOption("RelayBandwidthBurst", None)
-        if relayBurst and relayBurst != "0":
-          effectiveBurst = min(effectiveBurst, int(relayBurst))
-        
-        result = effectiveBurst
-      elif key == "bwObserved":
-        myFingerprint = self.getInfo("fingerprint", None)
-        
-        if myFingerprint:
-          myDescriptor = self.controller.get_server_descriptor(myFingerprint)
-
-          if myDescriptor:
-            result = myDescriptor.observed_bandwidth
-      elif key == "bwMeasured":
-        # TODO: Currently there's no client side indication of what type of
-        # measurement was used. Include this in results if it's ever available.
-        
-        # TODO: Tor is documented as providing v2 router status entries but
-        # actually looks to be v3. This needs to be sorted out between stem
-        # and tor.
-
-        myFingerprint = self.getInfo("fingerprint", None)
-        
-        if myFingerprint:
-          myStatusEntry = self.controller.get_network_status(myFingerprint)
-
-          if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
-            result = myStatusEntry.bandwidth
-      elif key == "fdLimit":
-        # provides -1 if the query fails
-        queriedLimit = self.getInfo("process/descriptor-limit", None)
-        
-        if queriedLimit != None and queriedLimit != "-1":
-          result = (int(queriedLimit), False)
-        else:
-          torUser = self.getMyUser()
-          
-          # This is guessing the open file limit. Unfortunately there's no way
-          # (other than "/usr/proc/bin/pfiles pid | grep rlimit" under Solaris)
-          # to get the file descriptor limit for an arbitrary process.
-          
-          if torUser == "debian-tor":
-            # probably loaded via /etc/init.d/tor which changes descriptor limit
-            result = (8192, True)
-          else:
-            # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
-            ulimitResults = system.call("ulimit -Hn")
-            
-            if ulimitResults:
-              ulimit = ulimitResults[0].strip()
-              if ulimit.isdigit(): result = (int(ulimit), True)
-      elif key == "pathPrefix":
-        # make sure the path prefix is valid and exists (providing a notice if not)
-        prefixPath = CONFIG["features.pathPrefix"].strip()
-        
-        if not prefixPath and os.uname()[0] == "FreeBSD":
-          prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
-
-          if prefixPath and self._pathPrefixLogging:
-            log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
-        
-        if prefixPath:
-          # strips off ending slash from the path
-          if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
-          
-          # avoid using paths that don't exist
-          if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
-            log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
-            prefixPath = ""
-        
-        self._pathPrefixLogging = False # prevents logging if fetched again
-        result = prefixPath
-      
-      # cache value
-      if result != None: self._cachedParam[key] = result
-      elif cacheUndefined: self._cachedParam[key] = UNKNOWN
-    
-    self.connLock.release()
-    
-    if result == None or result == UNKNOWN: return default
-    else: return result
 
