@@ -228,30 +228,13 @@ class Controller:
               list of strings)
     """
     
-    self.setOptions(((param, value),))
-  
-  def setOptions(self, paramList, isReset = False):
-    """
-    Issues a SETCONF to replace a set of configuration options. This takes a
-    list of parameter/new value tuple pairs. Values can be...
-    - a string to set a single value
-    - a list of strings to set a series of values (for instance the ExitPolicy)
-    - None to set the value to 0 or NULL
-    
-    Arguments:
-      paramList - list of parameter/value tuple pairs
-      isReset   - issues a RESETCONF instead of SETCONF, causing any None
-                  mappings to revert the parameter to its default rather than
-                  set it to 0 or NULL
-    """
-    
     self.connLock.acquire()
     
     try:
       if not self.isAlive():
         raise stem.SocketClosed()
       
-      self.controller.set_options(paramList, isReset)
+      self.controller.set_conf(param, value)
     except stem.SocketClosed, exc:
       self.close()
       raise exc
