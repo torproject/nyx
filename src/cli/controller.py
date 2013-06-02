@@ -470,7 +470,7 @@ def heartbeatCheck(isUnresponsive):
   
   conn = torTools.getConn()
   lastHeartbeat = conn.controller.get_latest_heartbeat()
-  if conn.isAlive() and "BW" in conn.getControllerEvents():
+  if conn.isAlive():
     if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
       isUnresponsive = True
       log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))

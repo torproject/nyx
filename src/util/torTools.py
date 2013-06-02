@@ -4,12 +4,9 @@ accessing stem and notifications of state changes to subscribers.
 """
 
 import os
-import pwd
 import time
 import math
-import thread
 import threading
-import Queue
 
 import stem
 import stem.control
@@ -20,14 +17,9 @@ from util import connections
 
 from stem.util import conf, enum, log, proc, str_tools, system
 
-# message logged by default when a controller can't set an event type
-DEFAULT_FAILED_EVENT_MSG = "Unsupported event type: %s"
-
 CONTROLLER = None # singleton Controller instance
 
 UNDEFINED = "<Undefined_ >"
-
-UNKNOWN = "UNKNOWN" # value used by cached information if undefined
 
 CONFIG = conf.config_dict("arm", {
   "features.pathPrefix": "",
@@ -59,14 +51,12 @@ class Controller:
   def __init__(self):
     self.controller = None
     self.connLock = threading.RLock()
-    self.controllerEvents = []          # list of successfully set controller events
     self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
     self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
     self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
     self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
-    self._isReset = False               # internal flag for tracking resets
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
     
     # Logs issues and notices when fetching the path prefix if true. This is
@@ -864,13 +854,6 @@ class Controller:
     """
     
     self.controller.add_status_listener(callback)
-  
-  def getControllerEvents(self):
-    """
-    Provides the events the controller's currently configured to listen for.
-    """
-    
-    return list(self.controllerEvents)
   
   def reload(self):
     """
