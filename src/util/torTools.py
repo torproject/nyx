@@ -992,77 +992,23 @@ class Controller:
     
     return list(self.controllerEvents)
   
-  def reload(self, issueSighup = False):
+  def reload(self):
     """
     This resets tor (sending a RELOAD signal to the control port) causing tor's
-    internal state to be reset and the torrc reloaded. This can either be done
-    by...
-      - the controller via a RELOAD signal (default and suggested)
-          conn.send_signal("RELOAD")
-      - system reload signal (hup)
-          pkill -sighup tor
-    
-    The later isn't really useful unless there's some reason the RELOAD signal
-    won't do the trick. Both methods raise an IOError in case of failure.
-    
-    Arguments:
-      issueSighup - issues a sighup rather than a controller RELOAD signal
+    internal state to be reset and the torrc reloaded.
     """
     
     self.connLock.acquire()
     
-    raisedException = None
-    if self.isAlive():
-      if not issueSighup:
+    try:
+      if self.isAlive():
         try:
           self.controller.signal(stem.Signal.RELOAD)
         except Exception, exc:
           # new torrc parameters caused an error (tor's likely shut down)
-          raisedException = IOError(str(exc))
-      else:
-        try:
-          # Redirects stderr to stdout so we can check error status (output
-          # should be empty if successful). Example error:
-          # pkill: 5592 - Operation not permitted
-          #
-          # note that this may provide multiple errors, even if successful,
-          # hence this:
-          #   - only provide an error if Tor fails to log a sighup
-          #   - provide the error message associated with the tor pid (others
-          #     would be a red herring)
-          if not system.is_available("pkill"):
-            raise IOError("pkill command is unavailable")
-          
-          self._isReset = False
-          pkillCall = os.popen("pkill -sighup ^tor$ 2> /dev/stdout")
-          pkillOutput = pkillCall.readlines()
-          pkillCall.close()
-          
-          # Give the sighupTracker a moment to detect the sighup signal. This
-          # is, of course, a possible concurrency bug. However I'm not sure
-          # of a better method for blocking on this...
-          waitStart = time.time()
-          while time.time() - waitStart < 1:
-            time.sleep(0.1)
-            if self._isReset: break
-          
-          if not self._isReset:
-            errorLine, torPid = "", self.controller.get_pid(None)
-
-            if torPid:
-              for line in pkillOutput:
-                if line.startswith("pkill: %s - " % torPid):
-                  errorLine = line
-                  break
-            
-            if errorLine: raise IOError(" ".join(errorLine.split()[3:]))
-            else: raise IOError("failed silently")
-        except IOError, exc:
-          raisedException = exc
-    
-    self.connLock.release()
-    
-    if raisedException: raise raisedException
+          raise IOError(str(exc))
+    finally:
+      self.connLock.release()
   
   def shutdown(self, force = False):
     """
