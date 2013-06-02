@@ -832,36 +832,6 @@ class Controller:
     
     return result
   
-  def getAllRelayAddresses(self, default = {}):
-    """
-    Provides a mapping of...
-    Relay IP Address -> [(ORPort, Fingerprint)...]
-    
-    for all relays currently in the cached consensus.
-    
-    Arguments:
-      default - value returned if the query fails
-    """
-    
-    self.connLock.acquire()
-    
-    result = default
-    
-    if self.isAlive():
-      # check both if the cached mappings are unset or blank
-      if not self._fingerprintMappings:
-        self._fingerprintMappings = self._getFingerprintMappings()
-      
-      # Make a shallow copy of the results. This doesn't protect the internal
-      # listings, but good enough for the moment.
-      # TODO: change the [(port, fingerprint)...] lists to tuples?
-      if self._fingerprintMappings != {}:
-        result = dict(self._fingerprintMappings)
-    
-    self.connLock.release()
-    
-    return result
-  
   def getNicknameFingerprint(self, relayNickname):
     """
     Provides the fingerprint associated with the given relay. This provides
