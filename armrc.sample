@@ -66,12 +66,6 @@ features.refreshRate 5
 # Confirms promt to confirm when quiting if true
 features.confirmQuit true
 
-# Allows arm to start when there's no running tor instance if true, otherwise
-# we terminate right away. This is ignored if the user provides an option
-# specifying how to connect to tor (ie, a 'startup.interface.*' option or
-# startup argument).
-features.allowDetachedStartup false
-
 # Paremters for the log panel
 # ---------------------------
 # showDateDividers

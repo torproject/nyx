@@ -42,7 +42,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "startup.blindModeEnabled": False,
   "startup.events": "N3",
   "startup.dataDirectory": "~/.arm",
-  "features.allowDetachedStartup": False,
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
 })
@@ -104,7 +103,7 @@ def allowConnectionTypes():
   """
   This provides a tuple with booleans indicating if we should or shouldn't
   attempt to connect by various methods...
-  (allowPortConnection, allowSocketConnection, allowDetachedStart)
+  (allowPortConnection, allowSocketConnection)
   """
   
   confKeys = stem.util.conf.get_config("arm").keys()
@@ -115,12 +114,7 @@ def allowConnectionTypes():
   skipPortConnection = isSocketArgPresent and not isPortArgPresent
   skipSocketConnection = isPortArgPresent and not isSocketArgPresent
   
-  # Flag to indicate if we'll start arm reguardless of being unable to connect
-  # to Tor.
-  
-  allowDetachedStart = CONFIG["features.allowDetachedStartup"] and not isPortArgPresent and not isSocketArgPresent
-  
-  return (not skipPortConnection, not skipSocketConnection, allowDetachedStart)
+  return (not skipPortConnection, not skipSocketConnection)
 
 def _loadConfigurationDescriptions(pathPrefix):
   """
@@ -186,7 +180,7 @@ def _loadConfigurationDescriptions(pathPrefix):
       except IOError, exc:
         stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
 
-def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg="", printError=True):
+def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
   """
   Custom handler for establishing a stem connection (... needs an overhaul).
   """
@@ -214,7 +208,7 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
       # again prompting for the user to enter it
       print incorrectPasswordMsg
       return _getController(controlAddr, controlPort)
-    elif printError:
+    else:
       print exc
     
     return None
@@ -352,14 +346,6 @@ if __name__ == '__main__':
     # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % configPath)
   
-  # prevent arm from starting without a tor instance if...
-  # - we're launching a prompt
-  # - tor is running (otherwise it would be kinda confusing, "tor is running
-  #   but why does arm say that it's shut down?")
-  
-  if len(stem.util.system.get_pid_by_name('tor', multiple = True)) >= 1:
-    config.set("features.allowDetachedStartup", "false")
-  
   # syncs config and parameters, saving changed config options and overwriting
   # undefined parameters with defaults
   for key in param.keys():
@@ -390,7 +376,7 @@ if __name__ == '__main__':
   # arguments for connecting to the other.
   
   controller = None
-  allowPortConnection, allowSocketConnection, allowDetachedStart = allowConnectionTypes()
+  allowPortConnection, allowSocketConnection = allowConnectionTypes()
   
   socketPath = param["startup.interface.socket"]
   if os.path.exists(socketPath) and allowSocketConnection:
@@ -411,7 +397,7 @@ if __name__ == '__main__':
     # sending problems to stdout if they arise
     authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
     incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
-    controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg, not allowDetachedStart)
+    controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
     
     # removing references to the controller password so the memory can be freed
     # (unfortunately python does allow for direct access to the memory so this
@@ -429,7 +415,7 @@ if __name__ == '__main__':
       if pwLineNum != None:
         del config._raw_contents[i]
   
-  if controller is None and not allowDetachedStart: sys.exit(1)
+  if controller is None: sys.exit(1)
   
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
