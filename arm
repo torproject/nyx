@@ -9,6 +9,8 @@ else
   arm_base=$( dirname "$0" )/src/
 fi
 
+TERM=xterm # other terms, like rxvt-unicode-256color, can cause curses to fail
+
 python "${arm_base}prereq.py" $*
 
 if [ $? = 0 ]; then
