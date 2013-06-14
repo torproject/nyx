@@ -6,6 +6,7 @@ user input to the proper panels.
 import os
 import time
 import curses
+import sys
 import threading
 
 import cli.menu.menu
@@ -444,8 +445,10 @@ def shutdownDaemons():
   
   # stops panel daemons
   control = getController()
-  for panelImpl in control.getDaemonPanels(): panelImpl.stop()
-  for panelImpl in control.getDaemonPanels(): panelImpl.join()
+
+  if control:
+    for panelImpl in control.getDaemonPanels(): panelImpl.stop()
+    for panelImpl in control.getDaemonPanels(): panelImpl.join()
   
   # joins on stem threads
   torTools.getConn().close()
@@ -562,6 +565,14 @@ def startTorMonitor(startTime):
   
   try:
     curses.wrapper(drawTorMonitor, startTime)
+  except UnboundLocalError, exc:
+    if os.environ['TERM'] != 'xterm':
+      shutdownDaemons()
+      print 'Unknown $TERM: (%s)' % os.environ['TERM']
+      print 'Either update your terminfo database or run arm using "TERM=xterm arm".'
+      print
+    else:
+      raise exc
   except KeyboardInterrupt:
     # Skip printing stack trace in case of keyboard interrupt. The
     # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
