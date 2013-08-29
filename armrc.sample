@@ -183,7 +183,7 @@ features.graph.showIntermediateBounds true
 # prepopulate
 #   attempts to use tor's state file to prepopulate the bandwidth graph at the
 #   15-minute interval (this requires the minimum of a day's worth of uptime)
-# transferInBystes
+# transferInBytes
 #   shows rate measurments in bytes if true, bits otherwise
 # accounting.show
 #   provides accounting stats if AccountingMax was set
