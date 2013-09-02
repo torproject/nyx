@@ -25,7 +25,7 @@ from stem.control import State, Controller
 
 from arm.util import connections, hostnames, panel, sysTools, torConfig, torTools
 
-from stem.util import conf, enum, log
+from stem.util import conf, enum, log, system
 
 ARM_CONTROLLER = None
 
@@ -546,7 +546,11 @@ def startTorMonitor(startTime):
       
       if torPid:
         # use the tor pid to help narrow connection results
-        torCmdName = sysTools.getProcessName(torPid, "tor")
+        torCmdName = system.get_name_by_pid(torPid)
+        
+        if torCmdName is None:
+          torCmdName = "tor"
+        
         connections.getResolver(torCmdName, torPid, "tor")
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes

@@ -8,7 +8,6 @@ import threading
 
 from stem.util import conf, log, proc, str_tools, system
 
-PROCESS_NAME_CACHE = {} # mapping of pids to their process names
 RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
 
 # Runtimes for system calls, used to estimate cpu usage. Entries are tuples of
@@ -60,55 +59,6 @@ def getFileErrorMsg(exc):
     excStr = excStr[0].lower() + excStr[1:]
   
   return excStr
-
-def getProcessName(pid, default = None, cacheFailure = True):
-  """
-  Provides the name associated with the given process id. This isn't available
-  on all platforms.
-  
-  Arguments:
-    pid          - process id for the process being returned
-    default      - result if the process name can't be retrieved (raises an
-                   IOError on failure instead if undefined)
-    cacheFailure - if the lookup fails and there's a default then caches the
-                   default value to prevent further lookups
-  """
-  
-  if pid in PROCESS_NAME_CACHE:
-    return PROCESS_NAME_CACHE[pid]
-  
-  processName, raisedExc = "", None
-  
-  # fetch it from proc contents if available
-  if proc.is_available():
-    try:
-      processName = proc.get_stats(pid, proc.Stat.COMMAND)[0]
-    except IOError, exc:
-      raisedExc = exc
-  
-  # fall back to querying via ps
-  if not processName:
-    # the ps call formats results as:
-    # COMMAND
-    # tor
-    psCall = system.call("ps -p %s -o command" % pid)
-    
-    if psCall and len(psCall) >= 2 and not " " in psCall[1]:
-      processName, raisedExc = psCall[1].strip(), None
-    else:
-      raisedExc = ValueError("Unexpected output from ps: %s" % psCall)
-  
-  if raisedExc:
-    if default == None: raise raisedExc
-    else:
-      if cacheFailure:
-        PROCESS_NAME_CACHE[pid] = default
-      
-      return default
-  else:
-    processName = os.path.basename(processName)
-    PROCESS_NAME_CACHE[pid] = processName
-    return processName
 
 def getResourceTracker(pid, noSpawn = False):
   """
