@@ -19,12 +19,12 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
 import copy
 import curses
 
-import cli.popups
-import cli.controller
+import arm.popups
+import arm.controller
 
 import stem.control
 
-from util import panel, torTools, uiTools
+from arm.util import panel, torTools, uiTools
 
 from stem.util import conf, enum, str_tools
 
@@ -308,7 +308,7 @@ class GraphPanel(panel.Panel):
       enter / space - set size
     """
     
-    control = cli.controller.getController()
+    control = arm.controller.getController()
     
     panel.CURSES_LOCK.acquire()
     try:
@@ -358,7 +358,7 @@ class GraphPanel(panel.Panel):
         initialSelection = availableStats.index(self.currentDisplay) + 1
       else: initialSelection = 0
       
-      selection = cli.popups.showMenu("Graphed Stats:", options, initialSelection)
+      selection = arm.popups.showMenu("Graphed Stats:", options, initialSelection)
       
       # applies new setting
       if selection == 0: self.setStats(None)
@@ -366,7 +366,7 @@ class GraphPanel(panel.Panel):
     elif key == ord('i') or key == ord('I'):
       # provides menu to pick graph panel update interval
       options = [label for (label, _) in UPDATE_INTERVALS]
-      selection = cli.popups.showMenu("Update Interval:", options, self.updateInterval)
+      selection = arm.popups.showMenu("Update Interval:", options, self.updateInterval)
       if selection != -1: self.updateInterval = selection
     else: isKeystrokeConsumed = False
     

@@ -10,8 +10,8 @@ followed by an entry for each hop in the circuit. For instance:
 
 import curses
 
-from cli.connections import entries, connEntry
-from util import torTools, uiTools
+from arm.connections import entries, connEntry
+from arm.util import torTools, uiTools
 
 class CircEntry(connEntry.ConnectionEntry):
   def __init__(self, circuitID, status, purpose, path):

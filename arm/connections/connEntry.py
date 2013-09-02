@@ -6,8 +6,8 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from util import connections, torTools, uiTools
-from cli.connections import entries
+from arm.util import connections, torTools, uiTools
+from arm.connections import entries
 
 from stem.util import conf, enum, str_tools
 

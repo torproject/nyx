@@ -16,9 +16,9 @@ from stem.control import State
 from stem.response import events
 from stem.util import conf, log, system
 
-import popups
-from version import VERSION
-from util import panel, sysTools, torTools, uiTools
+import arm.popups
+from arm.version import VERSION
+from arm.util import panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",

@@ -25,9 +25,9 @@ import stem.connection
 from stem.control import State, Controller
 from stem.util import conf, str_tools
 
-import starter
-import cli.popups
-import cli.controller
+import arm.starter
+import arm.popups
+import arm.controller
 
 from util import panel, sysTools, torTools, uiTools
 
@@ -129,7 +129,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
     isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-    if not isWide: cli.popups.showMsg("Requesting a new identity", 1)
+    if not isWide: arm.popups.showMsg("Requesting a new identity", 1)
   
   def handleKey(self, key):
     isKeystrokeConsumed = True
@@ -149,9 +149,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
           controller = None
           
           if not allowPortConnection:
-            cli.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+            arm.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       elif not allowPortConnection:
-        cli.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
+        arm.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
       
       if not controller and allowPortConnection:
         # TODO: This has diverged from starter.py's connection, for instance it
@@ -174,7 +174,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if controller:
         torTools.getConn().init(controller)
         log.notice("Reconnected to Tor's control port")
-        cli.popups.showMsg("Tor reconnected", 1)
+        arm.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
@@ -449,7 +449,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # We're toggling between being a relay and client, causing the height
         # of this panel to change. Redraw all content so we don't get
         # overlapping content.
-        cli.controller.getController().redraw()
+        arm.controller.getController().redraw()
       else:
         # just need to redraw ourselves
         self.redraw(True)

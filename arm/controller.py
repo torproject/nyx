@@ -9,21 +9,21 @@ import curses
 import sys
 import threading
 
-import cli.menu.menu
-import cli.popups
-import cli.headerPanel
-import cli.logPanel
-import cli.configPanel
-import cli.torrcPanel
-import cli.graphing.graphPanel
-import cli.graphing.bandwidthStats
-import cli.graphing.connStats
-import cli.graphing.resourceStats
-import cli.connections.connPanel
+import arm.menu.menu
+import arm.popups
+import arm.headerPanel
+import arm.logPanel
+import arm.configPanel
+import arm.torrcPanel
+import arm.graphing.graphPanel
+import arm.graphing.bandwidthStats
+import arm.graphing.connStats
+import arm.graphing.resourceStats
+import arm.connections.connPanel
 
 from stem.control import State, Controller
 
-from util import connections, hostnames, panel, sysTools, torConfig, torTools
+from arm.util import connections, hostnames, panel, sysTools, torConfig, torTools
 
 from stem.util import conf, enum, log
 
@@ -74,31 +74,31 @@ def initController(stdscr, startTime):
   global ARM_CONTROLLER
   
   # initializes the panels
-  stickyPanels = [cli.headerPanel.HeaderPanel(stdscr, startTime),
+  stickyPanels = [arm.headerPanel.HeaderPanel(stdscr, startTime),
                   LabelPanel(stdscr)]
   pagePanels, firstPagePanels = [], []
   
   # first page: graph and log
   if CONFIG["features.panels.show.graph"]:
-    firstPagePanels.append(cli.graphing.graphPanel.GraphPanel(stdscr))
+    firstPagePanels.append(arm.graphing.graphPanel.GraphPanel(stdscr))
   
   if CONFIG["features.panels.show.log"]:
-    expandedEvents = cli.logPanel.expandEvents(CONFIG["startup.events"])
-    firstPagePanels.append(cli.logPanel.LogPanel(stdscr, expandedEvents))
+    expandedEvents = arm.logPanel.expandEvents(CONFIG["startup.events"])
+    firstPagePanels.append(arm.logPanel.LogPanel(stdscr, expandedEvents))
   
   if firstPagePanels: pagePanels.append(firstPagePanels)
   
   # second page: connections
   if not CONFIG["startup.blindModeEnabled"] and CONFIG["features.panels.show.connection"]:
-    pagePanels.append([cli.connections.connPanel.ConnectionPanel(stdscr)])
+    pagePanels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
   
   # third page: config
   if CONFIG["features.panels.show.config"]:
-    pagePanels.append([cli.configPanel.ConfigPanel(stdscr, cli.configPanel.State.TOR)])
+    pagePanels.append([arm.configPanel.ConfigPanel(stdscr, arm.configPanel.State.TOR)])
   
   # fourth page: torrc
   if CONFIG["features.panels.show.torrc"]:
-    pagePanels.append([cli.torrcPanel.TorrcPanel(stdscr, cli.torrcPanel.Config.TORRC)])
+    pagePanels.append([arm.torrcPanel.TorrcPanel(stdscr, arm.torrcPanel.Config.TORRC)])
   
   # initializes the controller
   ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
@@ -108,11 +108,11 @@ def initController(stdscr, startTime):
   
   if graphPanel:
     # statistical monitors for graph
-    bwStats = cli.graphing.bandwidthStats.BandwidthStats()
+    bwStats = arm.graphing.bandwidthStats.BandwidthStats()
     graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
-    graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, cli.graphing.resourceStats.ResourceStats())
+    graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resourceStats.ResourceStats())
     if not CONFIG["startup.blindModeEnabled"]:
-      graphPanel.addStats(GraphStat.CONNECTIONS, cli.graphing.connStats.ConnStats())
+      graphPanel.addStats(GraphStat.CONNECTIONS, arm.graphing.connStats.ConnStats())
     
     # sets graph based on config parameter
     try:
@@ -433,7 +433,7 @@ class Controller:
     
     if isShutdownFlagPresent:
       try: torTools.getConn().shutdown()
-      except IOError, exc: cli.popups.showMsg(str(exc), 3, curses.A_BOLD)
+      except IOError, exc: arm.popups.showMsg(str(exc), 3, curses.A_BOLD)
 
 def shutdownDaemons():
   """
@@ -557,7 +557,7 @@ def startTorMonitor(startTime):
       connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
   
   # provides a notice about any event types tor supports but arm doesn't
-  missingEventTypes = cli.logPanel.getMissingEventTypes()
+  missingEventTypes = arm.logPanel.getMissingEventTypes()
   
   if missingEventTypes:
     pluralLabel = "s" if len(missingEventTypes) > 1 else ""
@@ -643,12 +643,12 @@ def drawTorMonitor(stdscr, startTime):
     elif key == ord('p') or key == ord('P'):
       control.setPaused(not control.isPaused())
     elif key == ord('m') or key == ord('M'):
-      cli.menu.menu.showMenu()
+      arm.menu.menu.showMenu()
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
       if CONFIG["features.confirmQuit"]:
         msg = "Are you sure (q again to confirm)?"
-        confirmationKey = cli.popups.showMsg(msg, attr = curses.A_BOLD)
+        confirmationKey = arm.popups.showMsg(msg, attr = curses.A_BOLD)
         quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
       else: quitConfirmed = True
       
@@ -656,14 +656,14 @@ def drawTorMonitor(stdscr, startTime):
     elif key == ord('x') or key == ord('X'):
       # provides prompt to confirm that arm should issue a sighup
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
-      confirmationKey = cli.popups.showMsg(msg, attr = curses.A_BOLD)
+      confirmationKey = arm.popups.showMsg(msg, attr = curses.A_BOLD)
       
       if confirmationKey in (ord('x'), ord('X')):
         try: torTools.getConn().reload()
         except IOError, exc:
           log.error("Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
     elif key == ord('h') or key == ord('H'):
-      overrideKey = cli.popups.showHelpPopup()
+      overrideKey = arm.popups.showHelpPopup()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed
       control.redraw(True)

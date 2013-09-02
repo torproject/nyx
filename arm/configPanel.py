@@ -6,10 +6,10 @@ and the resulting configuration files saved.
 import curses
 import threading
 
-import cli.controller
+import arm.controller
 import popups
 
-from util import panel, sysTools, torConfig, torTools, uiTools
+from arm.util import panel, sysTools, torConfig, torTools, uiTools
 
 import stem.control
 
@@ -455,7 +455,7 @@ class ConfigPanel(panel.Panel):
         
         popup.win.refresh()
         
-        key = cli.controller.getController().getScreen().getch()
+        key = arm.controller.getController().getScreen().getch()
         if key == curses.KEY_LEFT: selection = max(0, selection - 1)
         elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
       

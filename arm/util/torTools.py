@@ -13,7 +13,7 @@ import stem.control
 import stem.descriptor
 import stem.util.system
 
-from util import connections
+from arm.util import connections
 
 from stem.util import conf, enum, log, proc, str_tools, system
 

@@ -5,9 +5,9 @@ Functions for displaying popups in the interface.
 import curses
 
 import version
-import cli.controller
+import arm.controller
 
-from util import panel, uiTools
+from arm.util import panel, uiTools
 
 def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
   """
@@ -25,7 +25,7 @@ def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
     belowStatic - positions popup below static content if true
   """
   
-  control = cli.controller.getController()
+  control = arm.controller.getController()
   if belowStatic:
     stickyHeight = sum([stickyPanel.getHeight() for stickyPanel in control.getStickyPanels()])
   else: stickyHeight = 0
@@ -47,7 +47,7 @@ def finalize():
   the rest of the display.
   """
   
-  cli.controller.getController().requestRedraw()
+  arm.controller.getController().requestRedraw()
   panel.CURSES_LOCK.release()
 
 def inputPrompt(msg, initialValue = ""):
@@ -61,7 +61,7 @@ def inputPrompt(msg, initialValue = ""):
   """
   
   panel.CURSES_LOCK.acquire()
-  control = cli.controller.getController()
+  control = arm.controller.getController()
   msgPanel = control.getPanel("msg")
   msgPanel.setMessage(msg)
   msgPanel.redraw(True)
@@ -82,7 +82,7 @@ def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
   """
   
   panel.CURSES_LOCK.acquire()
-  control = cli.controller.getController()
+  control = arm.controller.getController()
   control.setMsg(msg, attr, True)
   
   if maxWait == -1: curses.cbreak()
@@ -105,7 +105,7 @@ def showHelpPopup():
   
   exitKey = None
   try:
-    control = cli.controller.getController()
+    control = arm.controller.getController()
     pagePanels = control.getDisplayPanels()
     
     # the first page is the only one with multiple panels, and it looks better
@@ -165,7 +165,7 @@ def showAboutPopup():
   if not popup: return
   
   try:
-    control = cli.controller.getController()
+    control = arm.controller.getController()
     
     popup.win.box()
     popup.addstr(0, 0, "About:", curses.A_STANDOUT)
@@ -230,7 +230,7 @@ def showSortDialog(title, options, oldSelection, optionColors):
       
       popup.win.refresh()
       
-      key = cli.controller.getController().getScreen().getch()
+      key = arm.controller.getController().getScreen().getch()
       if key == curses.KEY_LEFT:
         cursorLoc = max(0, cursorLoc - 1)
       elif key == curses.KEY_RIGHT:
@@ -304,7 +304,7 @@ def showMenu(title, options, oldSelection):
   
   try:
     # hides the title of the first panel on the page
-    control = cli.controller.getController()
+    control = arm.controller.getController()
     topPanel = control.getDisplayPanels(includeSticky = False)[0]
     topPanel.setTitleVisible(False)
     topPanel.redraw(True)

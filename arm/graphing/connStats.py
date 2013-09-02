@@ -2,8 +2,8 @@
 Tracks stats concerning tor's current connections.
 """
 
-from cli.graphing import graphPanel
-from util import connections, torTools
+from arm.graphing import graphPanel
+from arm.util import connections, torTools
 
 from stem.control import State
 

@@ -4,12 +4,12 @@ Display logic for presenting the menu.
 
 import curses
 
-import cli.popups
-import cli.controller
-import cli.menu.item
-import cli.menu.actions
+import arm.popups
+import arm.controller
+import arm.menu.item
+import arm.menu.actions
 
-from util import uiTools
+from arm.util import uiTools
 
 class MenuCursor:
   """
@@ -36,7 +36,7 @@ class MenuCursor:
     return self._selection
   
   def handleKey(self, key):
-    isSelectionSubmenu = isinstance(self._selection, cli.menu.item.Submenu)
+    isSelectionSubmenu = isinstance(self._selection, arm.menu.item.Submenu)
     selectionHierarchy = self._selection.getHierarchy()
     
     if uiTools.isSelectionKey(key):
@@ -70,14 +70,14 @@ class MenuCursor:
       self._isDone = True
 
 def showMenu():
-  popup, _, _ = cli.popups.init(1, belowStatic = False)
+  popup, _, _ = arm.popups.init(1, belowStatic = False)
   if not popup: return
-  control = cli.controller.getController()
+  control = arm.controller.getController()
   
   try:
     # generates the menu and uses the initial selection of the first item in
     # the file menu
-    menu = cli.menu.actions.makeMenu()
+    menu = arm.menu.actions.makeMenu()
     cursor = MenuCursor(menu.getChildren()[0].getChildren()[0])
     
     while not cursor.isDone():
@@ -117,7 +117,7 @@ def showMenu():
       if not cursor.isDone(): control.redraw()
   finally:
     control.setMsg()
-    cli.popups.finalize()
+    arm.popups.finalize()
 
 def _drawSubmenu(cursor, level, top, left):
   selectionHierarchy = cursor.getSelection().getHierarchy()
@@ -139,7 +139,7 @@ def _drawSubmenu(cursor, level, top, left):
   labelFormat = " %%-%is%%-%is%%-%is " % (prefixColSize, middleColSize, suffixColSize)
   menuWidth = len(labelFormat % ("", "", ""))
   
-  popup, _, _ = cli.popups.init(len(submenu.getChildren()), menuWidth, top, left, belowStatic = False)
+  popup, _, _ = arm.popups.init(len(submenu.getChildren()), menuWidth, top, left, belowStatic = False)
   if not popup: return
   
   try:
@@ -160,5 +160,5 @@ def _drawSubmenu(cursor, level, top, left):
     
     # shows the next submenu
     _drawSubmenu(cursor, level + 1, top + selectionTop, left + menuWidth)
-  finally: cli.popups.finalize()
+  finally: arm.popups.finalize()
   

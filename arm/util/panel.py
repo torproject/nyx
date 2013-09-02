@@ -9,7 +9,7 @@ import curses.ascii
 import curses.textpad
 from threading import RLock
 
-from util import textInput, uiTools
+from arm.util import textInput, uiTools
 
 from stem.util import log
 

@@ -5,10 +5,10 @@ Provides a dialog with client locale or exiting port counts.
 import curses
 import operator
 
-import cli.controller
-import cli.popups
+import arm.controller
+import arm.popups
 
-from util import connections, uiTools
+from arm.util import connections, uiTools
 
 from stem.util import enum, log
 
@@ -29,13 +29,13 @@ def showCountDialog(countType, counts):
   noStatsMsg = "Usage stats aren't available yet, press any key..."
   
   if isNoStats:
-    popup, width, height = cli.popups.init(3, len(noStatsMsg) + 4)
+    popup, width, height = arm.popups.init(3, len(noStatsMsg) + 4)
   else:
-    popup, width, height = cli.popups.init(4 + max(1, len(counts)), 80)
+    popup, width, height = arm.popups.init(4 + max(1, len(counts)), 80)
   if not popup: return
   
   try:
-    control = cli.controller.getController()
+    control = arm.controller.getController()
     
     popup.win.box()
     
@@ -98,5 +98,5 @@ def showCountDialog(countType, counts):
     
     curses.cbreak()
     control.getScreen().getch()
-  finally: cli.popups.finalize()
+  finally: arm.popups.finalize()
 

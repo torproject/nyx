@@ -2,8 +2,8 @@
 Tracks the system resource usage (cpu and memory) of the tor process.
 """
 
-from cli.graphing import graphPanel
-from util import sysTools, torTools
+from arm.graphing import graphPanel
+from arm.util import sysTools, torTools
 
 from stem.util import str_tools
 

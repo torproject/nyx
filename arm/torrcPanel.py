@@ -6,9 +6,9 @@ import math
 import curses
 import threading
 
-import popups
+import arm.popups
 
-from util import panel, torConfig, torTools, uiTools
+from arm.util import panel, torConfig, torTools, uiTools
 
 from stem.control import State
 from stem.util import conf, enum

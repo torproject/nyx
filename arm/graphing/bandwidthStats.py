@@ -6,10 +6,10 @@ stats if they're set.
 import time
 import curses
 
-import cli.controller
+import arm.controller
 
-from cli.graphing import graphPanel
-from util import torTools, uiTools
+from arm.graphing import graphPanel
+from arm.util import torTools, uiTools
 
 from stem.control import State
 from stem.util import conf, log, str_tools, system
@@ -102,7 +102,7 @@ class BandwidthStats(graphPanel.GraphStats):
         self.isAccounting = isAccountingEnabled
         
         # redraws the whole screen since our height changed
-        cli.controller.getController().redraw()
+        arm.controller.getController().redraw()
     
     # redraws to reflect changes (this especially noticeable when we have
     # accounting and shut down since it then gives notice of the shutdown)

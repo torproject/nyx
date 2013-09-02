@@ -9,7 +9,7 @@ import threading
 
 import stem.version
 
-from util import sysTools, torTools, uiTools
+from arm.util import sysTools, torTools, uiTools
 
 from stem.util import conf, enum, log, str_tools, system
 

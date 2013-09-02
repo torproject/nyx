@@ -15,14 +15,14 @@ import locale
 import logging
 import platform
 
-import version
-import cli.controller
-import cli.logPanel
-import util.connections
-import util.sysTools
-import util.torConfig
-import util.torTools
-import util.uiTools
+import arm.version
+import arm.controller
+import arm.logPanel
+import arm.util.connections
+import arm.util.sysTools
+import arm.util.torConfig
+import arm.util.torTools
+import arm.util.uiTools
 
 from stem.control import Controller
 
@@ -68,7 +68,7 @@ Terminal status monitor for Tor relays.
 Example:
 arm -b -i 1643          hide connection data, attaching to control port 1643
 arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], CONFIG["startup.interface.socket"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], cli.logPanel.EVENT_LISTING)
+""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], CONFIG["startup.interface.socket"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], arm.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -142,43 +142,43 @@ def _loadConfigurationDescriptions(pathPrefix):
     if descriptorPath:
       try:
         loadStartTime = time.time()
-        util.torConfig.loadOptionDescriptions(descriptorPath)
+        arm.util.torConfig.loadOptionDescriptions(descriptorPath)
         isConfigDescriptionsLoaded = True
         
         stem.util.log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
       except IOError, exc:
-        stem.util.log.info(DESC_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
+        stem.util.log.info(DESC_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
     
     # fetches configuration options from the man page
     if not isConfigDescriptionsLoaded:
       try:
         loadStartTime = time.time()
-        util.torConfig.loadOptionDescriptions()
+        arm.util.torConfig.loadOptionDescriptions()
         isConfigDescriptionsLoaded = True
         
         stem.util.log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
       except IOError, exc:
-        stem.util.log.notice(DESC_READ_MAN_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
+        stem.util.log.notice(DESC_READ_MAN_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
       
       # persists configuration descriptions 
       if isConfigDescriptionsLoaded and descriptorPath:
         try:
           loadStartTime = time.time()
-          util.torConfig.saveOptionDescriptions(descriptorPath)
+          arm.util.torConfig.saveOptionDescriptions(descriptorPath)
           stem.util.log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
         except (IOError, OSError), exc:
-          stem.util.log.notice(DESC_SAVE_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
+          stem.util.log.notice(DESC_SAVE_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
     
     # finally fall back to the cached descriptors provided with arm (this is
     # often the case for tbb and manual builds)
     if not isConfigDescriptionsLoaded:
       try:
         loadStartTime = time.time()
-        loadedVersion = util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
+        loadedVersion = arm.util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
         isConfigDescriptionsLoaded = True
         stem.util.log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
       except IOError, exc:
-        stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
+        stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
 
 def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
   """
@@ -187,7 +187,7 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
   
   controller = None
   try:
-    chroot = util.torTools.getConn().getPathPrefix()
+    chroot = arm.util.torTools.getConn().getPathPrefix()
     controller = Controller.from_port(controlAddr, controlPort)
     
     try:
@@ -221,7 +221,7 @@ def _dumpConfig():
   """
   
   config = stem.util.conf.get_config("arm")
-  conn = util.torTools.getConn()
+  conn = arm.util.torTools.getConn()
   
   # dumps arm's configuration
   armConfigEntry = ""
@@ -255,7 +255,7 @@ def _dumpConfig():
   stem.util.log.debug(armConfigEntry.strip())
   stem.util.log.debug(torConfigEntry.strip())
 
-if __name__ == '__main__':
+def main():
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
   isDebugMode = False
@@ -322,7 +322,7 @@ if __name__ == '__main__':
       
       stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
     except (OSError, IOError), exc:
-      print "Unable to write to debug log file: %s" % util.sysTools.getFileErrorMsg(exc)
+      print "Unable to write to debug log file: %s" % arm.util.sysTools.getFileErrorMsg(exc)
   
   config = stem.util.conf.get_config("arm")
   
@@ -334,14 +334,14 @@ if __name__ == '__main__':
   try:
     config.load("%ssettings.cfg" % pathPrefix)
   except IOError, exc:
-    stem.util.log.warn(NO_INTERNAL_CFG_MSG % util.sysTools.getFileErrorMsg(exc))
+    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
   
   # loads user's personal armrc if available
   if os.path.exists(configPath):
     try:
       config.load(configPath)
     except IOError, exc:
-      stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % util.sysTools.getFileErrorMsg(exc))
+      stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
   else:
     # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % configPath)
@@ -356,7 +356,7 @@ if __name__ == '__main__':
   controlAddr = param["startup.interface.ipAddress"]
   controlPort = param["startup.interface.port"]
   
-  if not util.connections.isValidIpAddress(controlAddr):
+  if not arm.util.connections.isValidIpAddress(controlAddr):
     print "'%s' isn't a valid IP address" % controlAddr
     sys.exit()
   elif controlPort < 0 or controlPort > 65535:
@@ -365,7 +365,7 @@ if __name__ == '__main__':
   
   # validates and expands log event flags
   try:
-    cli.logPanel.expandEvents(param["startup.events"])
+    arm.logPanel.expandEvents(param["startup.events"])
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
@@ -420,7 +420,7 @@ if __name__ == '__main__':
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
-  controllerWrapper = util.torTools.getConn()
+  controllerWrapper = arm.util.torTools.getConn()
   
   torUser = None
   if controller:
@@ -458,8 +458,11 @@ if __name__ == '__main__':
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
   # initializing curses.
-  if util.uiTools.isUnicodeAvailable():
+  if arm.util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
   
-  cli.controller.startTorMonitor(time.time() - initTime)
+  arm.controller.startTorMonitor(time.time() - initTime)
+
+if __name__ == '__main__':
+  main()
 

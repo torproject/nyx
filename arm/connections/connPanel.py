@@ -7,10 +7,10 @@ import time
 import curses
 import threading
 
-import cli.popups
+import arm.popups
 
-from cli.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
-from util import connections, panel, torTools, uiTools
+from arm.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
+from arm.util import connections, panel, torTools, uiTools
 
 from stem.control import State
 from stem.util import conf, enum
@@ -220,7 +220,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     options = list(entries.SortAttr)
     oldSelection = CONFIG["features.connection.order"]
     optionColors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
-    results = cli.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
+    results = arm.popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
     if results: self.setSortOrder(results)
   
   def handleKey(self, key):
@@ -247,7 +247,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if currentOverwrite == None: oldSelection = 0
       else: oldSelection = options.index(currentOverwrite)
       
-      selection = cli.popups.showMenu(title, options, oldSelection)
+      selection = arm.popups.showMenu(title, options, oldSelection)
       
       # applies new setting
       if selection != -1:
@@ -259,10 +259,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       options = list(entries.ListingType)
       
       # dropping the HOSTNAME listing type until we support displaying that content
-      options.remove(cli.connections.entries.ListingType.HOSTNAME)
+      options.remove(arm.connections.entries.ListingType.HOSTNAME)
       
       oldSelection = options.index(self.getListingType())
-      selection = cli.popups.showMenu(title, options, oldSelection)
+      selection = arm.popups.showMenu(title, options, oldSelection)
       
       # applies new setting
       if selection != -1: self.setListingType(options[selection])

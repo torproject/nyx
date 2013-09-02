@@ -2,7 +2,7 @@
 Menu item, representing an option in the drop-down menu.
 """
 
-import cli.controller
+import arm.controller
 
 class MenuItem():
   """
@@ -56,7 +56,7 @@ class MenuItem():
     """
     
     if self._callback:
-      control = cli.controller.getController()
+      control = arm.controller.getController()
       control.setMsg()
       control.redraw()
       self._callback()

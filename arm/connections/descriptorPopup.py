@@ -5,10 +5,10 @@ Popup providing the raw descriptor and consensus information for a relay.
 import math
 import curses
 
-import cli.popups
-import cli.connections.connEntry
+import arm.popups
+import arm.connections.connEntry
 
-from util import panel, torTools, uiTools
+from arm.util import panel, torTools, uiTools
 
 # field keywords used to identify areas for coloring
 LINE_NUM_COLOR = "yellow"
@@ -37,7 +37,7 @@ def showDescriptorPopup(connPanel):
   connPanel.setTitleVisible(False)
   connPanel.redraw(True)
   
-  control = cli.controller.getController()
+  control = arm.controller.getController()
   panel.CURSES_LOCK.acquire()
   isDone = False
   
@@ -50,13 +50,13 @@ def showDescriptorPopup(connPanel):
       if fingerprint == "UNKNOWN": fingerprint = None
       
       displayText = getDisplayText(fingerprint)
-      displayColor = cli.connections.connEntry.CATEGORY_COLOR[selection.getType()]
+      displayColor = arm.connections.connEntry.CATEGORY_COLOR[selection.getType()]
       showLineNumber = fingerprint != None
       
       # determines the maximum popup size the displayText can fill
       pHeight, pWidth = getPreferredSize(displayText, connPanel.maxX, showLineNumber)
       
-      popup, _, height = cli.popups.init(pHeight, pWidth)
+      popup, _, height = arm.popups.init(pHeight, pWidth)
       if not popup: break
       scroll, isChanged = 0, True
       
@@ -87,7 +87,7 @@ def showDescriptorPopup(connPanel):
             # navigation - pass on to connPanel and recreate popup
             connPanel.handleKey(curses.KEY_UP if key == curses.KEY_LEFT else curses.KEY_DOWN)
             break
-      finally: cli.popups.finalize()
+      finally: arm.popups.finalize()
   finally:
     connPanel.setTitleVisible(True)
     connPanel.redraw(True)
