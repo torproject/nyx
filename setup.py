@@ -3,7 +3,7 @@ import os
 import sys
 import gzip
 import tempfile
-from src.version import VERSION
+from arm.version import VERSION
 from distutils.core import setup
 
 def getResources(dst, sourceDir):
@@ -11,13 +11,13 @@ def getResources(dst, sourceDir):
   Provides a list of tuples of the form...
   [(destination, (file1, file2...)), ...]
   
-  for the given contents of the src directory (that's right, distutils isn't
+  for the given contents of the arm directory (that's right, distutils isn't
   smart enough to know how to copy directories).
   """
   
   results = []
   
-  for root, _, files in os.walk(os.path.join("src", sourceDir)):
+  for root, _, files in os.walk(os.path.join("arm", sourceDir)):
     if files:
       fileListing = tuple([os.path.join(root, file) for file in files])
       results.append((os.path.join(dst, root[4:]), fileListing))
@@ -59,7 +59,7 @@ except ValueError: pass # --docPath flag not found
 #   install-purelib=/usr/share
 # which would mean a bit more unnecessary clutter.
 
-manFilename = "src/resoureces/arm.1"
+manFilename = "arm/resoureces/arm.1"
 if "install" in sys.argv:
   sys.argv += ["--install-purelib", "/usr/share"]
   
@@ -68,7 +68,7 @@ if "install" in sys.argv:
   # page instead.
   
   try:
-    manInputFile = open('src/resources/arm.1', 'r')
+    manInputFile = open('arm/resources/arm.1', 'r')
     manContents = manInputFile.read()
     manInputFile.close()
     
@@ -100,17 +100,17 @@ setup(name='arm',
       author_email='atagar@torproject.org',
       url='http://www.atagar.com/arm/',
       packages=installPackages,
-      package_dir={'arm': 'src'},
-      data_files=[("/usr/bin", ["arm"]),
+      package_dir={'arm': 'arm'},
+      data_files=[("/usr/bin", ["run_arm"]),
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm/gui", ["src/gui/arm.xml"]),
-                  ("/usr/share/arm", ["src/settings.cfg", "src/uninstall"])] + 
+                  ("/usr/share/arm/gui", ["arm/gui/arm.xml"]),
+                  ("/usr/share/arm", ["arm/settings.cfg", "arm/uninstall"])] + 
                   getResources("/usr/share/arm", "resources"),
      )
 
 # Cleans up the temporary compressed man page.
-if manFilename != 'src/resoureces/arm.1' and os.path.isfile(manFilename):
+if manFilename != 'arm/resoureces/arm.1' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
 
