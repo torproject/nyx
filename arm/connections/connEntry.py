@@ -421,7 +421,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # mirror).
             
             for _, status, _, path in myCircuits:
-              if path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
+              if path and path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
                 self.cachedType = Category.CIRCUIT # matched a probable guard connection
             
             # if we fell through, we can eliminate ourselves as a guard in the future
@@ -432,7 +432,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # Checks if we match a built, single hop circuit.
             
             for _, status, _, path in myCircuits:
-              if path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
+              if path and path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
                 self.cachedType = Category.DIRECTORY
             
             # if we fell through, eliminate ourselves as a directory connection
