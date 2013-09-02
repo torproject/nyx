@@ -4,9 +4,9 @@ Functions for displaying popups in the interface.
 
 import curses
 
-import version
 import arm.controller
 
+from arm import __version__, __release_date__
 from arm.util import panel, uiTools
 
 def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
@@ -169,7 +169,7 @@ def showAboutPopup():
     
     popup.win.box()
     popup.addstr(0, 0, "About:", curses.A_STANDOUT)
-    popup.addstr(1, 2, "arm, version %s (released %s)" % (version.VERSION, version.LAST_MODIFIED), curses.A_BOLD)
+    popup.addstr(1, 2, "arm, version %s (released %s)" % (__version__, __release_date__), curses.A_BOLD)
     popup.addstr(2, 4, "Written by Damian Johnson (atagar@torproject.org)")
     popup.addstr(3, 4, "Project page: www.atagar.com/arm")
     popup.addstr(5, 2, "Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)")

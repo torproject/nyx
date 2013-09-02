@@ -15,7 +15,6 @@ import locale
 import logging
 import platform
 
-import arm.version
 import arm.controller
 import arm.logPanel
 import arm.util.connections
@@ -24,6 +23,7 @@ import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
 
+from arm import __version__, __release_date__
 from stem.control import Controller
 
 import stem.connection
@@ -295,7 +295,7 @@ def main():
     elif opt in ("-e", "--event"):
       param["startup.events"] = arg                   # set event flags
     elif opt in ("-v", "--version"):
-      print "arm version %s (released %s)\n" % (version.VERSION, version.LAST_MODIFIED)
+      print "arm version %s (released %s)\n" % (__version__, __release_date__)
       sys.exit()
     elif opt in ("-h", "--help"):
       print HELP_MSG

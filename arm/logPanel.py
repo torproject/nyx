@@ -17,7 +17,7 @@ from stem.response import events
 from stem.util import conf, log, system
 
 import arm.popups
-from arm.version import VERSION
+from arm import __version__
 from arm.util import panel, sysTools, torTools, uiTools
 
 TOR_EVENT_TYPES = {
@@ -554,7 +554,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         if not os.path.exists(baseDir): os.makedirs(baseDir)
         
         self.logFile = open(logPath, "a")
-        log.notice("arm %s opening log file (%s)" % (VERSION, logPath))
+        log.notice("arm %s opening log file (%s)" % (__version__, logPath))
       except (IOError, OSError), exc:
         log.error("Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
         self.logFile = None
