@@ -176,7 +176,7 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
     else:
-      manCallResults = system.call("man tor")
+      manCallResults = system.call("man tor", None)
       
       if not manCallResults:
         raise IOError("man page not found")
