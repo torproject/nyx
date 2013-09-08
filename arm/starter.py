@@ -360,17 +360,6 @@ def main():
     # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % args.config)
   
-  # validates that input has a valid ip address and port
-  controlAddr = args.control_address
-  controlPort = args.control_port
-  
-  if not arm.util.connections.isValidIpAddress(controlAddr):
-    print "'%s' isn't a valid IP address" % controlAddr
-    sys.exit()
-  elif controlPort < 0 or controlPort > 65535:
-    print "'%s' isn't a valid port number (ports range 0-65535)" % controlPort
-    sys.exit()
-  
   # validates and expands log event flags
   try:
     arm.logPanel.expandEvents(args.logged_events)
@@ -404,7 +393,7 @@ def main():
     # sending problems to stdout if they arise
     authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
     incorrectPasswordMsg = "Password found in '%s' was incorrect" % args.config
-    controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
+    controller = _getController(args.control_address, args.control_port, authPassword, incorrectPasswordMsg)
     
     # removing references to the controller password so the memory can be freed
     # (unfortunately python does allow for direct access to the memory so this
