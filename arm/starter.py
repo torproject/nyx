@@ -294,7 +294,6 @@ def _dumpConfig():
 def main():
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
-  isDebugMode = False
 
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
   
@@ -334,13 +333,12 @@ def main():
     sys.exit()
   
   for opt, arg in opts:
-    if opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
-    elif opt in ("-b", "--blind"):
+    if opt in ("-b", "--blind"):
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
     elif opt in ("-e", "--event"):
       param["startup.events"] = arg                   # set event flags
   
-  if isDebugMode:
+  if args.debug:
     try:
       stem_logger = stem.util.log.get_logger()
       
@@ -470,7 +468,7 @@ def main():
   _loadConfigurationDescriptions(pathPrefix)
   
   # dump tor and arm configuration when in debug mode
-  if isDebugMode:
+  if args.debug:
     stem.util.log.notice("Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
     _dumpConfig()
   
