@@ -220,34 +220,31 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
   """
   Custom handler for establishing a stem connection (... needs an overhaul).
   """
-  
-  controller = None
+
+  chroot = arm.util.torTools.getPathPrefix()
+
   try:
-    chroot = arm.util.torTools.getPathPrefix()
     controller = Controller.from_port(controlAddr, controlPort)
-    
-    try:
-      controller.authenticate(password = passphrase, chroot_path = chroot)
-    except stem.connection.MissingPassword:
-      try:
-        passphrase = getpass.getpass("Controller password: ")
-        controller.authenticate(password = passphrase, chroot_path = chroot)
-      except:
-        return None
-    
-    return controller
-  except Exception, exc:
-    if controller: controller.close()
-    
-    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
-      # provide a warning that the provided password didn't work, then try
-      # again prompting for the user to enter it
-      print incorrectPasswordMsg
-      return _getController(controlAddr, controlPort)
-    else:
-      print exc
-    
+  except stem.SocketError as exc:
+    print exc
     return None
+
+  try:
+    controller.authenticate(password = passphrase, chroot_path = chroot)
+  except stem.connection.MissingPassword:
+    try:
+      passphrase = getpass.getpass("Controller password: ")
+      controller.authenticate(password = passphrase, chroot_path = chroot)
+    except:
+      # Huh? The old version just silently failed when it got an incorrect password?
+      return None
+  except stem.connection.IncorrectPassword:
+    # provide a warning that the provided password didn't work, then try
+    # again prompting for the user to enter it
+    print incorrectPasswordMsg
+    return _getController(controlAddr, controlPort)
+
+  return controller
 
 def _dumpConfig():
   """
