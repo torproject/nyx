@@ -48,27 +48,8 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "startup.dataDirectory": "~/.arm",
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
+  "msg.help": "",
 })
-
-HELP_MSG = """Usage arm [OPTION]
-Terminal status monitor for Tor relays.
-
-  -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
-  -s, --socket SOCKET_PATH        attach using unix domain socket if present,
-                                    SOCKET_PATH defaults to: %s
-  -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
-                                    defaults to: %s
-  -d, --debug                     writes all arm logs to %s
-  -b, --blind                     disable connection lookups
-  -e, --event EVENT_FLAGS         event types in message log  (default: %s)
-%s
-  -v, --version                   provides version information
-  -h, --help                      presents this help
-
-Example:
-arm -b -i 1643          hide connection data, attaching to control port 1643
-arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], CONFIG["startup.interface.socket"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], arm.logPanel.EVENT_LISTING)
 
 # filename used for cached tor config descriptions
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
@@ -332,6 +313,19 @@ def main():
     print str(exc) + " (for usage provide --help)"
     sys.exit()
   
+  # attempts to fetch attributes for parsing tor's logs, configuration, etc
+  
+  config = stem.util.conf.get_config("arm")
+  
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+  
+  try:
+    config.load("%sarm/settings.cfg" % pathPrefix)
+  except IOError, exc:
+    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
+  
   for opt, arg in opts:
     if opt in ("-i", "--interface"):
       # defines control interface address/port
@@ -362,7 +356,7 @@ def main():
       print "arm version %s (released %s)\n" % (__version__, __release_date__)
       sys.exit()
     elif opt in ("-h", "--help"):
-      print HELP_MSG
+      print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], DEFAULT_CONFIG, LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
       sys.exit()
   
   if isDebugMode:
@@ -387,18 +381,6 @@ def main():
       stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
     except (OSError, IOError), exc:
       print "Unable to write to debug log file: %s" % arm.util.sysTools.getFileErrorMsg(exc)
-  
-  config = stem.util.conf.get_config("arm")
-  
-  # attempts to fetch attributes for parsing tor's logs, configuration, etc
-  pathPrefix = os.path.dirname(sys.argv[0])
-  if pathPrefix and not pathPrefix.endswith("/"):
-    pathPrefix = pathPrefix + "/"
-  
-  try:
-    config.load("%ssettings.cfg" % pathPrefix)
-  except IOError, exc:
-    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
   
   # loads user's personal armrc if available
   if os.path.exists(configPath):
