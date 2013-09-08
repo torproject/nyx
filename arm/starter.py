@@ -297,6 +297,19 @@ def main():
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
 
+  # attempts to fetch attributes for parsing tor's logs, configuration, etc
+  
+  config = stem.util.conf.get_config("arm")
+  
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+
+  try:
+    config.load("%sarm/settings.cfg" % pathPrefix)
+  except IOError, exc:
+    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
+  
   try:
     args = _get_args(sys.argv[1:])
   except getopt.GetoptError as exc:
@@ -306,25 +319,20 @@ def main():
     print exc
     sys.exit(1)
 
+  if args.print_version:
+    print "arm version %s (released %s)\n" % (__version__, __release_date__)
+    sys.exit()
+
+  if args.print_help:
+    print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], DEFAULT_CONFIG, LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
+    sys.exit()
+
   # parses user input, noting any issues
   try:
     opts, _ = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
   except getopt.GetoptError, exc:
     print str(exc) + " (for usage provide --help)"
     sys.exit()
-  
-  # attempts to fetch attributes for parsing tor's logs, configuration, etc
-  
-  config = stem.util.conf.get_config("arm")
-  
-  pathPrefix = os.path.dirname(sys.argv[0])
-  if pathPrefix and not pathPrefix.endswith("/"):
-    pathPrefix = pathPrefix + "/"
-  
-  try:
-    config.load("%sarm/settings.cfg" % pathPrefix)
-  except IOError, exc:
-    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
   
   for opt, arg in opts:
     if opt in ("-i", "--interface"):
@@ -352,12 +360,6 @@ def main():
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
     elif opt in ("-e", "--event"):
       param["startup.events"] = arg                   # set event flags
-    elif opt in ("-v", "--version"):
-      print "arm version %s (released %s)\n" % (__version__, __release_date__)
-      sys.exit()
-    elif opt in ("-h", "--help"):
-      print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], DEFAULT_CONFIG, LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
-      sys.exit()
   
   if isDebugMode:
     try:
