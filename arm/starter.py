@@ -315,10 +315,19 @@ def main():
   param = dict([(key, None) for key in CONFIG.keys()])
   isDebugMode = False
   configPath = DEFAULT_CONFIG # path used for customized configuration
-  
+
+  try:
+    args = _get_args(sys.argv[1:])
+  except getopt.GetoptError as exc:
+    print "%s (for usage provide --help)" % exc
+    sys.exit(1)
+  except ValueError as exc:
+    print exc
+    sys.exit(1)
+
   # parses user input, noting any issues
   try:
-    opts, args = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
+    opts, _ = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
   except getopt.GetoptError, exc:
     print str(exc) + " (for usage provide --help)"
     sys.exit()
