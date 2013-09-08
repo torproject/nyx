@@ -8,11 +8,11 @@ command line parameters.
 
 import collections
 import getopt
+import os
+import sys
 
 import stem.util.connection
 
-import os
-import sys
 import time
 import getpass
 import locale
@@ -36,7 +36,6 @@ import stem.util.log
 import stem.util.system
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
-DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 
 CONFIG = stem.util.conf.config_dict("arm", {
   "startup.controlPassword": None,
@@ -86,7 +85,7 @@ ARGS = {
   'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
-  'config': None,
+  'config': os.path.expanduser("~/.arm/armrc"),
   'debug': False,
   'blind': False,
   'logged_events': 'N3',
@@ -296,7 +295,6 @@ def main():
   startTime = time.time()
   param = dict([(key, None) for key in CONFIG.keys()])
   isDebugMode = False
-  configPath = DEFAULT_CONFIG # path used for customized configuration
 
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
   
@@ -325,7 +323,7 @@ def main():
     sys.exit()
 
   if args.print_help:
-    print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], DEFAULT_CONFIG, LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
+    print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], ARGS['config'], LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
     sys.exit()
 
   # parses user input, noting any issues
@@ -336,8 +334,7 @@ def main():
     sys.exit()
   
   for opt, arg in opts:
-    if opt in ("-c", "--config"): configPath = arg  # sets path of user's config
-    elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
+    if opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
     elif opt in ("-e", "--event"):
@@ -367,14 +364,14 @@ def main():
       print "Unable to write to debug log file: %s" % arm.util.sysTools.getFileErrorMsg(exc)
   
   # loads user's personal armrc if available
-  if os.path.exists(configPath):
+  if os.path.exists(args.config):
     try:
-      config.load(configPath)
+      config.load(args.config)
     except IOError, exc:
       stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
   else:
     # no armrc found, falling back to the defaults in the source
-    stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % configPath)
+    stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % args.config)
   
   # syncs config and parameters, saving changed config options and overwriting
   # undefined parameters with defaults
@@ -425,7 +422,7 @@ def main():
     # sets up stem connection, prompting for the passphrase if necessary and
     # sending problems to stdout if they arise
     authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
-    incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
+    incorrectPasswordMsg = "Password found in '%s' was incorrect" % args.config
     controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
     
     # removing references to the controller password so the memory can be freed
