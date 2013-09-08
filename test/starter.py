@@ -2,6 +2,7 @@
 Unit tests for arm's initialization module.
 """
 
+import getopt
 import unittest
 
 from arm.starter import _get_args, ARGS
@@ -47,6 +48,9 @@ class TestArgumentParsing(unittest.TestCase):
     args = _get_args(['-e', 'we', '-c', '/tmp/cfg'])
     self.assertEqual('we', args.logged_events)
     self.assertEqual('/tmp/cfg', args.config)
+
+  def test_that_we_reject_unrecognized_arguments(self):
+    self.assertRaises(getopt.GetoptError, _get_args, ['--blarg', 'stuff'])
 
   def test_that_we_reject_invalid_interfaces(self):
     invalid_inputs = (
