@@ -223,7 +223,7 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
   
   controller = None
   try:
-    chroot = arm.util.torTools.getConn().getPathPrefix()
+    chroot = arm.util.torTools.getPathPrefix()
     controller = Controller.from_port(controlAddr, controlPort)
     
     try:

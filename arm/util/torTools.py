@@ -31,6 +31,12 @@ REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
 
+# Logs issues and notices when fetching the path prefix if true. This is
+# only done once for the duration of the application to avoid pointless
+# messages.
+
+PATH_PREFIX_LOGGING = True
+
 def getConn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
@@ -40,6 +46,36 @@ def getConn():
   global CONTROLLER
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
+
+def getPathPrefix():
+  """
+  Provides the path prefix that should be used for fetching tor resources.
+  If undefined and Tor is inside a jail under FreeBsd then this provides the
+  jail's path.
+  """
+
+  global PATH_PREFIX_LOGGING
+
+  # make sure the path prefix is valid and exists (providing a notice if not)
+  prefixPath = CONFIG["features.pathPrefix"].strip()
+
+  if not prefixPath and os.uname()[0] == "FreeBSD":
+    prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
+
+    if prefixPath and PATH_PREFIX_LOGGING:
+      log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
+
+  if prefixPath:
+    # strips off ending slash from the path
+    if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+
+    # avoid using paths that don't exist
+    if PATH_PREFIX_LOGGING and prefixPath and not os.path.exists(prefixPath):
+      log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
+      prefixPath = ""
+
+  PATH_PREFIX_LOGGING = False # prevents logging if fetched again
+  return prefixPath
 
 class Controller:
   """
@@ -58,11 +94,6 @@ class Controller:
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
-    
-    # Logs issues and notices when fetching the path prefix if true. This is
-    # only done once for the duration of the application to avoid pointless
-    # messages.
-    self._pathPrefixLogging = True
   
   def init(self, controller):
     """
@@ -557,34 +588,6 @@ class Controller:
           return (int(ulimit), True)
 
     return (None, None)
-  
-  def getPathPrefix(self):
-    """
-    Provides the path prefix that should be used for fetching tor resources.
-    If undefined and Tor is inside a jail under FreeBsd then this provides the
-    jail's path.
-    """
-    
-    # make sure the path prefix is valid and exists (providing a notice if not)
-    prefixPath = CONFIG["features.pathPrefix"].strip()
-    
-    if not prefixPath and os.uname()[0] == "FreeBSD":
-      prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
-      
-      if prefixPath and self._pathPrefixLogging:
-        log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
-    
-    if prefixPath:
-      # strips off ending slash from the path
-      if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
-      
-      # avoid using paths that don't exist
-      if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
-        log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
-        prefixPath = ""
-    
-    self._pathPrefixLogging = False # prevents logging if fetched again
-    return prefixPath
   
   def getStartTime(self):
     """
