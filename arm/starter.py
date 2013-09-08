@@ -40,9 +40,6 @@ DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 
 CONFIG = stem.util.conf.config_dict("arm", {
   "startup.controlPassword": None,
-  "startup.interface.ipAddress": "127.0.0.1",
-  "startup.interface.port": 9051,
-  "startup.interface.socket": "/var/run/tor/control",
   "startup.blindModeEnabled": False,
   "startup.events": "N3",
   "startup.dataDirectory": "~/.arm",
@@ -86,7 +83,9 @@ os.putenv("LANG", "C")
 ARGS = {
   'control_address': '127.0.0.1',
   'control_port': 9051,
+  'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
+  'user_provided_socket': False,
   'config': None,
   'debug': False,
   'blind': False,
@@ -131,8 +130,10 @@ def _get_args(argv):
         raise ValueError("'%s' isn't a valid port number" % port)
 
       args['control_port'] = int(port)
+      args['user_provided_port'] = True
     elif opt in ("-s", "--socket"):
       args['control_socket'] = arg
+      args['user_provided_socket'] = True
     elif opt in ("-c", "--config"):
       args['config'] = arg
     elif opt in ("-d", "--debug"):
@@ -335,26 +336,7 @@ def main():
     sys.exit()
   
   for opt, arg in opts:
-    if opt in ("-i", "--interface"):
-      # defines control interface address/port
-      controlAddr, controlPort = None, None
-      divIndex = arg.find(":")
-      
-      try:
-        if divIndex == -1:
-          controlPort = int(arg)
-        else:
-          controlAddr = arg[0:divIndex]
-          controlPort = int(arg[divIndex + 1:])
-      except ValueError:
-        print "'%s' isn't a valid port number" % arg
-        sys.exit()
-      
-      param["startup.interface.ipAddress"] = controlAddr
-      param["startup.interface.port"] = controlPort
-    elif opt in ("-s", "--socket"):
-      param["startup.interface.socket"] = arg
-    elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
+    if opt in ("-c", "--config"): configPath = arg  # sets path of user's config
     elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
     elif opt in ("-b", "--blind"):
       param["startup.blindModeEnabled"] = True        # prevents connection lookups
@@ -401,8 +383,8 @@ def main():
     else: config.set(key, str(param[key]))
   
   # validates that input has a valid ip address and port
-  controlAddr = param["startup.interface.ipAddress"]
-  controlPort = param["startup.interface.port"]
+  controlAddr = args.control_address
+  controlPort = args.control_port
   
   if not arm.util.connections.isValidIpAddress(controlAddr):
     print "'%s' isn't a valid IP address" % controlAddr
@@ -425,15 +407,8 @@ def main():
   
   controller = None
 
-  confKeys = stem.util.conf.get_config("arm").keys()
-  isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
-  isSocketArgPresent = "startup.interface.socket" in confKeys
-  
-  allowPortConnection = not (isSocketArgPresent and not isPortArgPresent)
-  allowSocketConnection = not (isPortArgPresent and not isSocketArgPresent)
-  
-  socketPath = param["startup.interface.socket"]
-  if os.path.exists(socketPath) and allowSocketConnection:
+  socketPath = args.control_socket
+  if os.path.exists(socketPath) and not args.user_provided_port:
     try:
       # TODO: um... what about passwords?
       # https://trac.torproject.org/6881
@@ -441,12 +416,12 @@ def main():
       controller = Controller.from_socket_file(socketPath)
       controller.authenticate()
     except IOError, exc:
-      if not allowPortConnection:
+      if args.user_provided_socket:
         print "Unable to use socket '%s': %s" % (socketPath, exc)
-  elif not allowPortConnection:
+  elif args.user_provided_socket:
     print "Socket '%s' doesn't exist" % socketPath
   
-  if not controller and allowPortConnection:
+  if not controller and not args.user_provided_socket:
     # sets up stem connection, prompting for the passphrase if necessary and
     # sending problems to stdout if they arise
     authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
