@@ -325,18 +325,8 @@ def main():
     print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], ARGS['config'], LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
     sys.exit()
 
-  # parses user input, noting any issues
-  try:
-    opts, _ = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
-  except getopt.GetoptError, exc:
-    print str(exc) + " (for usage provide --help)"
-    sys.exit()
-  
-  for opt, arg in opts:
-    if opt in ("-b", "--blind"):
-      param["startup.blindModeEnabled"] = True        # prevents connection lookups
-    elif opt in ("-e", "--event"):
-      param["startup.events"] = arg                   # set event flags
+  param["startup.blindModeEnabled"] = args.blind
+  param["startup.events"] = args.logged_events
   
   if args.debug:
     try:
