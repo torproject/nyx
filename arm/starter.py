@@ -171,23 +171,6 @@ def _get_args(argv):
   return Args(**args)
 
 
-def allowConnectionTypes():
-  """
-  This provides a tuple with booleans indicating if we should or shouldn't
-  attempt to connect by various methods...
-  (allowPortConnection, allowSocketConnection)
-  """
-  
-  confKeys = stem.util.conf.get_config("arm").keys()
-  
-  isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
-  isSocketArgPresent = "startup.interface.socket" in confKeys
-  
-  skipPortConnection = isSocketArgPresent and not isPortArgPresent
-  skipSocketConnection = isPortArgPresent and not isSocketArgPresent
-  
-  return (not skipPortConnection, not skipSocketConnection)
-
 def _loadConfigurationDescriptions(pathPrefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
@@ -448,7 +431,13 @@ def main():
   # arguments for connecting to the other.
   
   controller = None
-  allowPortConnection, allowSocketConnection = allowConnectionTypes()
+
+  confKeys = stem.util.conf.get_config("arm").keys()
+  isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
+  isSocketArgPresent = "startup.interface.socket" in confKeys
+  
+  allowPortConnection = not (isSocketArgPresent and not isPortArgPresent)
+  allowSocketConnection = not (isPortArgPresent and not isSocketArgPresent)
   
   socketPath = param["startup.interface.socket"]
   if os.path.exists(socketPath) and allowSocketConnection:
