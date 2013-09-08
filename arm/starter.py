@@ -6,10 +6,14 @@ information. This is the starter for the application, handling and validating
 command line parameters.
 """
 
+import collections
+import getopt
+
+import stem.util.connection
+
 import os
 import sys
 import time
-import getopt
 import getpass
 import locale
 import logging
@@ -46,13 +50,9 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "features.config.descriptions.persist": True,
 })
 
-OPT = "gi:s:c:dbe:vh"
-OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
-
 HELP_MSG = """Usage arm [OPTION]
 Terminal status monitor for Tor relays.
 
-  -p, --prompt                    only start the control interpretor
   -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
   -s, --socket SOCKET_PATH        attach using unix domain socket if present,
                                     SOCKET_PATH defaults to: %s
@@ -98,6 +98,78 @@ ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a
 # can properly parse it).
 
 os.putenv("LANG", "C")
+
+# Our default arguments. The _get_args() function provides a named tuple of
+# this merged with our argv.
+
+ARGS = {
+  'control_address': '127.0.0.1',
+  'control_port': 9051,
+  'control_socket': '/var/run/tor/control',
+  'config': None,
+  'debug': False,
+  'blind': False,
+  'logged_events': 'N3',
+  'print_version': False,
+  'print_help': False,
+}
+
+OPT = "gi:s:c:dbe:vh"
+OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
+
+
+def _get_args(argv):
+  """
+  Parses our arguments, providing a named tuple with their values.
+
+  :param list argv: input arguments to be parsed
+
+  :returns: a **named tuple** with our parsed arguments
+
+  :raises: **ValueError** if we got an invalid argument
+  :raises: **getopt.GetoptError** if the arguments don't conform with what we
+    accept
+  """
+
+  args = dict(ARGS)
+
+  for opt, arg in getopt.getopt(argv, OPT, OPT_EXPANDED)[0]:
+    if opt in ("-i", "--interface"):
+      if ':' in arg:
+        address, port = arg.split(':', 1)
+      else:
+        address, port = None, arg
+
+      if address is not None:
+        if not stem.util.connection.is_valid_ipv4_address(address):
+          raise ValueError("'%s' isn't a valid IPv4 address" % address)
+
+        args['control_address'] = address
+
+      if not stem.util.connection.is_valid_port(port):
+        raise ValueError("'%s' isn't a valid port number" % port)
+
+      args['control_port'] = int(port)
+    elif opt in ("-s", "--socket"):
+      args['control_socket'] = arg
+    elif opt in ("-c", "--config"):
+      args['config'] = arg
+    elif opt in ("-d", "--debug"):
+      args['debug'] = True
+    elif opt in ("-b", "--blind"):
+      args['blind'] = True
+    elif opt in ("-e", "--event"):
+      args['logged_events'] = arg
+    elif opt in ("-v", "--version"):
+      args['print_version'] = True
+    elif opt in ("-h", "--help"):
+      args['print_help'] = True
+
+  # translates our args dict into a named tuple
+
+  Args = collections.namedtuple('Args', args.keys())
+  return Args(**args)
+
 
 def allowConnectionTypes():
   """
