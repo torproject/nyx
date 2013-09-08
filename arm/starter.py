@@ -293,7 +293,6 @@ def _dumpConfig():
 
 def main():
   startTime = time.time()
-  param = dict([(key, None) for key in CONFIG.keys()])
 
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
   
@@ -325,8 +324,8 @@ def main():
     print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], ARGS['config'], LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
     sys.exit()
 
-  param["startup.blindModeEnabled"] = args.blind
-  param["startup.events"] = args.logged_events
+  config.set("startup.blindModeEnabled", str(args.blind))
+  config.set("startup.events", args.logged_events)
   
   if args.debug:
     try:
@@ -361,12 +360,6 @@ def main():
     # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % args.config)
   
-  # syncs config and parameters, saving changed config options and overwriting
-  # undefined parameters with defaults
-  for key in param.keys():
-    if param[key] == None: param[key] = CONFIG[key]
-    else: config.set(key, str(param[key]))
-  
   # validates that input has a valid ip address and port
   controlAddr = args.control_address
   controlPort = args.control_port
@@ -380,7 +373,7 @@ def main():
   
   # validates and expands log event flags
   try:
-    arm.logPanel.expandEvents(param["startup.events"])
+    arm.logPanel.expandEvents(args.logged_events)
   except ValueError, exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
