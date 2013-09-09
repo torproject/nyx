@@ -221,7 +221,7 @@ def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, i
   Custom handler for establishing a stem connection (... needs an overhaul).
   """
 
-  chroot = arm.util.torTools.getPathPrefix()
+  chroot = arm.util.torTools.get_chroot()
 
   try:
     controller = Controller.from_port(controlAddr, controlPort)

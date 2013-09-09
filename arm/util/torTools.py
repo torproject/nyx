@@ -3,10 +3,11 @@ Helper for working with an active tor process. This both provides a wrapper for
 accessing stem and notifications of state changes to subscribers.
 """
 
-import os
-import time
 import math
+import os
+import platform
 import threading
+import time
 
 import stem
 import stem.control
@@ -22,7 +23,7 @@ CONTROLLER = None # singleton Controller instance
 UNDEFINED = "<Undefined_ >"
 
 CONFIG = conf.config_dict("arm", {
-  "features.pathPrefix": "",
+  "tor.chroot": "",
 })
 
 # events used for controller functionality:
@@ -35,7 +36,7 @@ REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
 # only done once for the duration of the application to avoid pointless
 # messages.
 
-PATH_PREFIX_LOGGING = True
+LOG_ABOUT_CHROOTS = True
 
 def getConn():
   """
@@ -47,35 +48,41 @@ def getConn():
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
 
-def getPathPrefix():
+
+def get_chroot():
   """
   Provides the path prefix that should be used for fetching tor resources.
-  If undefined and Tor is inside a jail under FreeBsd then this provides the
+  If undefined and Tor is inside a jail under FreeBSD then this provides the
   jail's path.
+
+  :returns: **str** with the path of the jail tor is running within, this is an
+    empty string if none can be determined
   """
 
-  global PATH_PREFIX_LOGGING
+  global LOG_ABOUT_CHROOTS
 
-  # make sure the path prefix is valid and exists (providing a notice if not)
-  prefixPath = CONFIG["features.pathPrefix"].strip()
+  chroot = CONFIG["tor.chroot"].strip()
 
-  if not prefixPath and os.uname()[0] == "FreeBSD":
-    prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
+  if chroot and not os.path.exists(chroot):
+    if LOG_ABOUT_CHROOTS:
+      log.notice("The prefix path set in your config (%s) doesn't exist." % chroot)
 
-    if prefixPath and PATH_PREFIX_LOGGING:
-      log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
+    chroot = ''
 
-  if prefixPath:
-    # strips off ending slash from the path
-    if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
+  if not chroot and platform.system() == "FreeBSD":
+    jail_chroot = system.get_bsd_jail_path(getConn().controller.get_pid(0))
 
-    # avoid using paths that don't exist
-    if PATH_PREFIX_LOGGING and prefixPath and not os.path.exists(prefixPath):
-      log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
-      prefixPath = ""
+    if jail_chroot and os.path.exists(jail_chroot):
+      chroot = jail_chroot
 
-  PATH_PREFIX_LOGGING = False # prevents logging if fetched again
-  return prefixPath
+      if LOG_ABOUT_CHROOTS:
+        log.info("Adjusting paths to account for Tor running in a FreeBSD jail at: %s" % chroot)
+
+  chroot = chroot.rstrip(os.path.sep)  # strip off trailing slashes
+  LOG_ABOUT_CHROOTS = False  # don't log about further calls
+
+  return chroot
+
 
 class Controller:
   """
