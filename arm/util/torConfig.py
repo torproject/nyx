@@ -13,6 +13,19 @@ from arm.util import sysTools, torTools, uiTools
 
 from stem.util import conf, enum, log, str_tools, system
 
+# filename used for cached tor config descriptions
+CONFIG_DESC_FILENAME = "torConfigDesc.txt"
+
+# messages related to loading the tor configuration descriptions
+DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
+DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
+DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
+DESC_INTERNAL_LOAD_FAILED_MSG = "Unable to load fallback descriptions. Categories and help for Tor's configuration options won't be available. (%s)"
+DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
+DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuration options from its man page (%s)"
+DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
+DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
+
 def conf_handler(key, value):
   if key == "config.important":
     # stores lowercase entries to drop case sensitivity
@@ -32,6 +45,9 @@ CONFIG = conf.config_dict("arm", {
   "torrc.label.time.hour": [],
   "torrc.label.time.day": [],
   "torrc.label.time.week": [],
+  "startup.dataDirectory": "~/.arm",
+  "features.config.descriptions.enabled": True,
+  "features.config.descriptions.persist": True,
 }, conf_handler)
 
 def general_conf_handler(config, key):
@@ -1038,4 +1054,68 @@ def renderTorrc(template, options, commentIndent = 30):
   except StopIteration: pass
   
   return "\n".join(results)
+
+def loadConfigurationDescriptions(pathPrefix):
+  """
+  Attempts to load descriptions for tor's configuration options, fetching them
+  from the man page and persisting them to a file to speed future startups.
+  """
+  
+  # It is important that this is loaded before entering the curses context,
+  # otherwise the man call pegs the cpu for around a minute (I'm not sure
+  # why... curses must mess the terminal in a way that's important to man).
+  
+  if CONFIG["features.config.descriptions.enabled"]:
+    isConfigDescriptionsLoaded = False
+    
+    # determines the path where cached descriptions should be persisted (left
+    # undefined if caching is disabled)
+    descriptorPath = None
+    if CONFIG["features.config.descriptions.persist"]:
+      dataDir = CONFIG["startup.dataDirectory"]
+      if not dataDir.endswith("/"): dataDir += "/"
+      
+      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
+    
+    # attempts to load configuration descriptions cached in the data directory
+    if descriptorPath:
+      try:
+        loadStartTime = time.time()
+        loadOptionDescriptions(descriptorPath)
+        isConfigDescriptionsLoaded = True
+        
+        log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
+      except IOError, exc:
+        log.info(DESC_LOAD_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+    
+    # fetches configuration options from the man page
+    if not isConfigDescriptionsLoaded:
+      try:
+        loadStartTime = time.time()
+        loadOptionDescriptions()
+        isConfigDescriptionsLoaded = True
+        
+        log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
+      except IOError, exc:
+        log.notice(DESC_READ_MAN_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+      
+      # persists configuration descriptions 
+      if isConfigDescriptionsLoaded and descriptorPath:
+        try:
+          loadStartTime = time.time()
+          saveOptionDescriptions(descriptorPath)
+          log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
+        except (IOError, OSError), exc:
+          log.notice(DESC_SAVE_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+    
+    # finally fall back to the cached descriptors provided with arm (this is
+    # often the case for tbb and manual builds)
+    if not isConfigDescriptionsLoaded:
+      try:
+        loadStartTime = time.time()
+        loadedVersion = loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
+        isConfigDescriptionsLoaded = True
+        log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
+      except IOError, exc:
+        log.error(DESC_INTERNAL_LOAD_FAILED_MSG % sysTools.getFileErrorMsg(exc))
 

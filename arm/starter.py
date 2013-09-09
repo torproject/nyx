@@ -41,24 +41,12 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "startup.controlPassword": None,
   "startup.blindModeEnabled": False,
   "startup.events": "N3",
-  "startup.dataDirectory": "~/.arm",
-  "features.config.descriptions.enabled": True,
-  "features.config.descriptions.persist": True,
   "msg.help": "",
 })
 
-# filename used for cached tor config descriptions
-CONFIG_DESC_FILENAME = "torConfigDesc.txt"
-
-# messages related to loading the tor configuration descriptions
-DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
-DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
-DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
-DESC_INTERNAL_LOAD_FAILED_MSG = "Unable to load fallback descriptions. Categories and help for Tor's configuration options won't be available. (%s)"
-DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
-DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuration options from its man page (%s)"
-DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
-DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
+# notices given if the user is running arm or tor as root
+TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
+ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
 
 NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
 STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
@@ -66,10 +54,6 @@ STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize
 
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
-
-# notices given if the user is running arm or tor as root
-TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
-ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
 
 # Makes subcommands provide us with English results (this is important so we
 # can properly parse it).
@@ -150,71 +134,6 @@ def _get_args(argv):
 
   Args = collections.namedtuple('Args', args.keys())
   return Args(**args)
-
-
-def _loadConfigurationDescriptions(pathPrefix):
-  """
-  Attempts to load descriptions for tor's configuration options, fetching them
-  from the man page and persisting them to a file to speed future startups.
-  """
-  
-  # It is important that this is loaded before entering the curses context,
-  # otherwise the man call pegs the cpu for around a minute (I'm not sure
-  # why... curses must mess the terminal in a way that's important to man).
-  
-  if CONFIG["features.config.descriptions.enabled"]:
-    isConfigDescriptionsLoaded = False
-    
-    # determines the path where cached descriptions should be persisted (left
-    # undefined if caching is disabled)
-    descriptorPath = None
-    if CONFIG["features.config.descriptions.persist"]:
-      dataDir = CONFIG["startup.dataDirectory"]
-      if not dataDir.endswith("/"): dataDir += "/"
-      
-      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
-    
-    # attempts to load configuration descriptions cached in the data directory
-    if descriptorPath:
-      try:
-        loadStartTime = time.time()
-        arm.util.torConfig.loadOptionDescriptions(descriptorPath)
-        isConfigDescriptionsLoaded = True
-        
-        stem.util.log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-      except IOError, exc:
-        stem.util.log.info(DESC_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-    
-    # fetches configuration options from the man page
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        arm.util.torConfig.loadOptionDescriptions()
-        isConfigDescriptionsLoaded = True
-        
-        stem.util.log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
-      except IOError, exc:
-        stem.util.log.notice(DESC_READ_MAN_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-      
-      # persists configuration descriptions 
-      if isConfigDescriptionsLoaded and descriptorPath:
-        try:
-          loadStartTime = time.time()
-          arm.util.torConfig.saveOptionDescriptions(descriptorPath)
-          stem.util.log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-        except (IOError, OSError), exc:
-          stem.util.log.notice(DESC_SAVE_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-    
-    # finally fall back to the cached descriptors provided with arm (this is
-    # often the case for tbb and manual builds)
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        loadedVersion = arm.util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
-        isConfigDescriptionsLoaded = True
-        stem.util.log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
-      except IOError, exc:
-        stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
 
 
 def _get_controller(args):
@@ -432,7 +351,7 @@ def main():
     stem.util.log.notice(ARM_ROOT_NOTICE % torUserLabel)
   
   # fetches descriptions for tor's configuration options
-  _loadConfigurationDescriptions(pathPrefix)
+  arm.util.torConfig.loadConfigurationDescriptions(pathPrefix)
   
   # dump tor and arm configuration when in debug mode
   if args.debug:
