@@ -233,7 +233,7 @@ def _get_controller(args):
       return Controller.from_socket_file(args.control_socket)
     except stem.SocketError as exc:
       if args.user_provided_socket:
-        raise ValueError("Unable to connect to %s: %s" % (args.control_socket, exc))
+        raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
   elif args.user_provided_socket:
     raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
 
