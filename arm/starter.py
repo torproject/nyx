@@ -216,35 +216,38 @@ def _loadConfigurationDescriptions(pathPrefix):
       except IOError, exc:
         stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
 
-def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
+
+def _get_controller(args):
   """
-  Custom handler for establishing a stem connection (... needs an overhaul).
+  Provides a Controller for the endpoint specified in the given arguments.
+
+  :param namedtuple args: arguments that arm was started with
+
+  :returns: :class:`~stem.control.Controller` for the given arguments
+
+  :raises: **ValueError** if unable to acquire a controller connection
   """
 
-  chroot = arm.util.torTools.get_chroot()
-
-  try:
-    controller = Controller.from_port(controlAddr, controlPort)
-  except stem.SocketError as exc:
-    print exc
-    return None
-
-  try:
-    controller.authenticate(password = passphrase, chroot_path = chroot)
-  except stem.connection.MissingPassword:
+  if os.path.exists(args.control_socket):
     try:
-      passphrase = getpass.getpass("Controller password: ")
-      controller.authenticate(password = passphrase, chroot_path = chroot)
-    except:
-      # Huh? The old version just silently failed when it got an incorrect password?
-      return None
-  except stem.connection.IncorrectPassword:
-    # provide a warning that the provided password didn't work, then try
-    # again prompting for the user to enter it
-    print incorrectPasswordMsg
-    return _getController(controlAddr, controlPort)
+      return Controller.from_socket_file(args.control_socket)
+    except stem.SocketError as exc:
+      if args.user_provided_socket:
+        raise ValueError("Unable to connect to %s: %s" % (args.control_socket, exc))
+  elif args.user_provided_socket:
+    raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
 
-  return controller
+  try:
+    return Controller.from_port(args.control_address, args.control_port)
+  except stem.SocketError as exc:
+    if args.user_provided_port:
+      raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
+
+  if not stem.util.system.is_running('tor'):
+    raise ValueError("Unable to connect to tor. Are you sure it's running?")
+  else:
+    raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
+
 
 def _dumpConfig():
   """
@@ -364,51 +367,46 @@ def main():
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
     sys.exit()
-  
-  # By default attempts to connect using the control socket if it exists. This
-  # skips attempting to connect by socket or port if the user has given
-  # arguments for connecting to the other.
-  
-  controller = None
 
-  socketPath = args.control_socket
-  if os.path.exists(socketPath) and not args.user_provided_port:
+  try:
+    controller = _get_controller(args)
+  except ValueError as exc:
+    print exc
+    exit(1)
+
+  chroot = arm.util.torTools.get_chroot()
+
+  try:
+    controller.authenticate(password = CONFIG["startup.controlPassword"], chroot_path = chroot)
+  except (stem.connection.MissingPassword, stem.connection.IncorrectPassword) as exc:
+    if isinstance(stem.connection.IncorrectPassword, exc):
+      print "Password found in '%s' was incorrect" % args.config
+
     try:
-      # TODO: um... what about passwords?
-      # https://trac.torproject.org/6881
-      
-      controller = Controller.from_socket_file(socketPath)
-      controller.authenticate()
-    except IOError, exc:
-      if args.user_provided_socket:
-        print "Unable to use socket '%s': %s" % (socketPath, exc)
-  elif args.user_provided_socket:
-    print "Socket '%s' doesn't exist" % socketPath
-  
-  if not controller and not args.user_provided_socket:
-    # sets up stem connection, prompting for the passphrase if necessary and
-    # sending problems to stdout if they arise
-    authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
-    incorrectPasswordMsg = "Password found in '%s' was incorrect" % args.config
-    controller = _getController(args.control_address, args.control_port, authPassword, incorrectPasswordMsg)
-    
-    # removing references to the controller password so the memory can be freed
-    # (unfortunately python does allow for direct access to the memory so this
-    # is the best we can do)
-    del authPassword
-    if "startup.controlPassword" in config._contents:
-      del config._contents["startup.controlPassword"]
-      
-      pwLineNum = None
-      for i in range(len(config._raw_contents)):
-        if config._raw_contents[i].strip().startswith("startup.controlPassword"):
-          pwLineNum = i
-          break
-      
-      if pwLineNum != None:
-        del config._raw_contents[i]
-  
-  if controller is None: sys.exit(1)
+      passphrase = getpass.getpass("Controller password: ")
+      controller.authenticate(password = passphrase, chroot_path = chroot)
+      del passphrase  # removing reference as early as possible to free memory
+    except stem.connection.IncorrectPassword:
+      print "Incorrect password"
+      sys.exit(1)
+    except stem.connection.AuthenticationFailure as exc:
+      print "Unable to authenticate: %s" % exc
+      sys.exit(1)
+
+  # Removing references to the controller password so the memory can be
+  # freed. Without direct memory access this is about the best we can do.
+
+  if "startup.controlPassword" in config._contents:
+    del config._contents["startup.controlPassword"]
+
+    pwLineNum = None
+    for i in range(len(config._raw_contents)):
+      if config._raw_contents[i].strip().startswith("startup.controlPassword"):
+        pwLineNum = i
+        break
+
+    if pwLineNum != None:
+      del config._raw_contents[i]
   
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
