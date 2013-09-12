@@ -1,5 +1,5 @@
 # Startup options
-startup.controlPassword
+tor.password
 startup.blindModeEnabled false
 startup.events N3
 startup.dataDirectory ~/.arm

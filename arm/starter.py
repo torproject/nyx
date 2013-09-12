@@ -38,7 +38,7 @@ import stem.util.system
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  "startup.controlPassword": None,
+  "tor.password": None,
   "startup.blindModeEnabled": False,
   "startup.events": "N3",
   "msg.help": "",
@@ -296,7 +296,7 @@ def main():
   chroot = arm.util.torTools.get_chroot()
 
   try:
-    controller.authenticate(password = CONFIG["startup.controlPassword"], chroot_path = chroot)
+    controller.authenticate(password = CONFIG["tor.password"], chroot_path = chroot)
   except (stem.connection.MissingPassword, stem.connection.IncorrectPassword) as exc:
     if isinstance(stem.connection.IncorrectPassword, exc):
       print "Password found in '%s' was incorrect" % args.config
@@ -315,12 +315,12 @@ def main():
   # Removing references to the controller password so the memory can be
   # freed. Without direct memory access this is about the best we can do.
 
-  if "startup.controlPassword" in config._contents:
-    del config._contents["startup.controlPassword"]
+  if "tor.password" in config._contents:
+    del config._contents["tor.password"]
 
     pwLineNum = None
     for i in range(len(config._raw_contents)):
-      if config._raw_contents[i].strip().startswith("startup.controlPassword"):
+      if config._raw_contents[i].strip().startswith("tor.password"):
         pwLineNum = i
         break
 
