@@ -8,13 +8,13 @@ command line parameters.
 
 import collections
 import getopt
+import getpass
 import os
 import sys
 
 import stem.util.connection
 
 import time
-import getpass
 import locale
 import logging
 import platform
@@ -42,6 +42,11 @@ CONFIG = stem.util.conf.config_dict("arm", {
   "startup.blindModeEnabled": False,
   "startup.events": "N3",
   "msg.help": "",
+  "msg.wrong_port_type": "",
+  "msg.wrong_socket_type": "",
+  "msg.uncrcognized_auth_type": "",
+  "msg.missing_password_bug": "",
+  "msg.unreadable_cookie_file": "",
 })
 
 # notices given if the user is running arm or tor as root
@@ -79,6 +84,16 @@ ARGS = {
 
 OPT = "gi:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
+
+try:
+  pathPrefix = os.path.dirname(sys.argv[0])
+  if pathPrefix and not pathPrefix.endswith("/"):
+    pathPrefix = pathPrefix + "/"
+
+  config = stem.util.conf.get_config("arm")
+  config.load("%sarm/settings.cfg" % pathPrefix)
+except IOError, exc:
+  stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
 
 
 def _get_args(argv):
@@ -168,6 +183,43 @@ def _get_controller(args):
     raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
 
 
+def _authenticate(controller, password):
+  """
+  Authenticates to the given Controller.
+
+  :param stem.control.Controller controller: controller to be authenticated to
+  :param str args: password to authenticate with, **None** if nothing was provided
+
+  :raises: **ValueError** if unable to authenticate
+  """
+
+  chroot = arm.util.torTools.get_chroot()
+
+  try:
+    controller.authenticate(password = password, chroot_path = chroot)
+  except stem.connection.IncorrectSocketType:
+    control_socket = controller.get_socket()
+
+    if isinstance(control_socket, stem.socket.ControlPort):
+      raise ValueError(CONFIG['msg.wrong_port_type'] % control_socket.get_port())
+    else:
+      raise ValueError(CONFIG['msg.wrong_socket_type'])
+  except stem.connection.UnrecognizedAuthMethods as exc:
+    raise ValueError(CONFIG['msg.uncrcognized_auth_type'] % ', '.join(exc.unknown_auth_methods))
+  except stem.connection.IncorrectPassword:
+    raise ValueError("Incorrect password")
+  except stem.connection.MissingPassword:
+    if password:
+      raise ValueError(CONFIG['msg.missing_password_bug'])
+
+    password = getpass.getpass("Tor controller password: ")
+    return _authenticate(controller, password)
+  except stem.connection.UnreadableCookieFile as exc:
+    raise ValueError(CONFIG['msg.unreadable_cookie_file'] % (exc.cookie_path, str(exc)))
+  except stem.connection.AuthenticationFailure as exc:
+    raise ValueError("Unable to authenticate: %s" % exc)
+
+
 def _dumpConfig():
   """
   Dumps the current arm and tor configurations at the DEBUG runlevel. This
@@ -221,11 +273,6 @@ def main():
   if pathPrefix and not pathPrefix.endswith("/"):
     pathPrefix = pathPrefix + "/"
 
-  try:
-    config.load("%sarm/settings.cfg" % pathPrefix)
-  except IOError, exc:
-    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-  
   try:
     args = _get_args(sys.argv[1:])
   except getopt.GetoptError as exc:
@@ -289,28 +336,10 @@ def main():
 
   try:
     controller = _get_controller(args)
+    _authenticate(controller, CONFIG['tor.password'])
   except ValueError as exc:
     print exc
     exit(1)
-
-  chroot = arm.util.torTools.get_chroot()
-
-  try:
-    controller.authenticate(password = CONFIG["tor.password"], chroot_path = chroot)
-  except (stem.connection.MissingPassword, stem.connection.IncorrectPassword) as exc:
-    if isinstance(stem.connection.IncorrectPassword, exc):
-      print "Password found in '%s' was incorrect" % args.config
-
-    try:
-      passphrase = getpass.getpass("Controller password: ")
-      controller.authenticate(password = passphrase, chroot_path = chroot)
-      del passphrase  # removing reference as early as possible to free memory
-    except stem.connection.IncorrectPassword:
-      print "Incorrect password"
-      sys.exit(1)
-    except stem.connection.AuthenticationFailure as exc:
-      print "Unable to authenticate: %s" % exc
-      sys.exit(1)
 
   # Removing references to the controller password so the memory can be
   # freed. Without direct memory access this is about the best we can do.
