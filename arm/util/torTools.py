@@ -3,10 +3,11 @@ Helper for working with an active tor process. This both provides a wrapper for
 accessing stem and notifications of state changes to subscribers.
 """
 
-import os
-import time
 import math
+import os
+import platform
 import threading
+import time
 
 import stem
 import stem.control
@@ -22,7 +23,7 @@ CONTROLLER = None # singleton Controller instance
 UNDEFINED = "<Undefined_ >"
 
 CONFIG = conf.config_dict("arm", {
-  "features.pathPrefix": "",
+  "tor.chroot": "",
 })
 
 # events used for controller functionality:
@@ -30,6 +31,12 @@ CONFIG = conf.config_dict("arm", {
 REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
               "NS": "information related to the consensus will grow stale",
               "NEWCONSENSUS": "information related to the consensus will grow stale"}
+
+# Logs issues and notices when fetching the path prefix if true. This is
+# only done once for the duration of the application to avoid pointless
+# messages.
+
+LOG_ABOUT_CHROOTS = True
 
 def getConn():
   """
@@ -40,6 +47,42 @@ def getConn():
   global CONTROLLER
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
+
+
+def get_chroot():
+  """
+  Provides the path prefix that should be used for fetching tor resources.
+  If undefined and Tor is inside a jail under FreeBSD then this provides the
+  jail's path.
+
+  :returns: **str** with the path of the jail tor is running within, this is an
+    empty string if none can be determined
+  """
+
+  global LOG_ABOUT_CHROOTS
+
+  chroot = CONFIG["tor.chroot"].strip()
+
+  if chroot and not os.path.exists(chroot):
+    if LOG_ABOUT_CHROOTS:
+      log.notice("The prefix path set in your config (%s) doesn't exist." % chroot)
+
+    chroot = ''
+
+  if not chroot and platform.system() == "FreeBSD":
+    jail_chroot = system.get_bsd_jail_path(getConn().controller.get_pid(0))
+
+    if jail_chroot and os.path.exists(jail_chroot):
+      chroot = jail_chroot
+
+      if LOG_ABOUT_CHROOTS:
+        log.info("Adjusting paths to account for Tor running in a FreeBSD jail at: %s" % chroot)
+
+  chroot = chroot.rstrip(os.path.sep)  # strip off trailing slashes
+  LOG_ABOUT_CHROOTS = False  # don't log about further calls
+
+  return chroot
+
 
 class Controller:
   """
@@ -58,11 +101,6 @@ class Controller:
     self._consensusLookupCache = {}     # lookup cache with network status entries
     self._descriptorLookupCache = {}    # lookup cache with relay descriptors
     self._lastNewnym = 0                # time we last sent a NEWNYM signal
-    
-    # Logs issues and notices when fetching the path prefix if true. This is
-    # only done once for the duration of the application to avoid pointless
-    # messages.
-    self._pathPrefixLogging = True
   
   def init(self, controller):
     """
@@ -557,34 +595,6 @@ class Controller:
           return (int(ulimit), True)
 
     return (None, None)
-  
-  def getPathPrefix(self):
-    """
-    Provides the path prefix that should be used for fetching tor resources.
-    If undefined and Tor is inside a jail under FreeBsd then this provides the
-    jail's path.
-    """
-    
-    # make sure the path prefix is valid and exists (providing a notice if not)
-    prefixPath = CONFIG["features.pathPrefix"].strip()
-    
-    if not prefixPath and os.uname()[0] == "FreeBSD":
-      prefixPath = system.get_bsd_jail_path(getConn().controller.get_pid(0))
-      
-      if prefixPath and self._pathPrefixLogging:
-        log.info("Adjusting paths to account for Tor running in a jail at: %s" % prefixPath)
-    
-    if prefixPath:
-      # strips off ending slash from the path
-      if prefixPath.endswith("/"): prefixPath = prefixPath[:-1]
-      
-      # avoid using paths that don't exist
-      if self._pathPrefixLogging and prefixPath and not os.path.exists(prefixPath):
-        log.notice("The prefix path set in your config (%s) doesn't exist." % prefixPath)
-        prefixPath = ""
-    
-    self._pathPrefixLogging = False # prevents logging if fetched again
-    return prefixPath
   
   def getStartTime(self):
     """

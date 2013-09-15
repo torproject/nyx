@@ -665,7 +665,7 @@ def drawTorMonitor(stdscr, startTime):
       if confirmationKey in (ord('x'), ord('X')):
         try: torTools.getConn().reload()
         except IOError, exc:
-          log.error("Error detected when reloading tor: %s" % sysTools.getFileErrorMsg(exc))
+          log.error("Error detected when reloading tor: %s" % exc.strerror)
     elif key == ord('h') or key == ord('H'):
       overrideKey = arm.popups.showHelpPopup()
     elif key == ord('l') - 96:

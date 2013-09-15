@@ -9,7 +9,7 @@ import threading
 import arm.controller
 import popups
 
-from arm.util import panel, sysTools, torConfig, torTools, uiTools
+from arm.util import panel, torConfig, torTools, uiTools
 
 import stem.control
 
@@ -474,7 +474,7 @@ class ConfigPanel(panel.Panel):
             torConfig.saveConf(configLocation, configLines)
             msg = "Saved configuration to %s" % configLocation
           except IOError, exc:
-            msg = "Unable to save configuration (%s)" % sysTools.getFileErrorMsg(exc)
+            msg = "Unable to save configuration (%s)" % exc.strerror
           
           popups.showMsg(msg, 2)
     finally: popups.finalize()

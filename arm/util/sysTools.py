@@ -40,26 +40,6 @@ def getSysCpuUsage():
   runtimeSum = sum([entry[1] for entry in RUNTIMES])
   return runtimeSum / SAMPLING_PERIOD
 
-def getFileErrorMsg(exc):
-  """
-  Strips off the error number prefix for file related IOError messages. For
-  instance, instead of saying:
-  [Errno 2] No such file or directory
-  
-  this would return:
-  no such file or directory
-  
-  Arguments:
-    exc - file related IOError exception
-  """
-  
-  excStr = str(exc)
-  if excStr.startswith("[Errno ") and "] " in excStr:
-    excStr = excStr[excStr.find("] ") + 2:].strip()
-    excStr = excStr[0].lower() + excStr[1:]
-  
-  return excStr
-
 def getResourceTracker(pid, noSpawn = False):
   """
   Provides a running singleton ResourceTracker instance for the given pid.

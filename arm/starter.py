@@ -1,468 +1,385 @@
-#!/usr/bin/env python
-
 """
 Command line application for monitoring Tor relays, providing real time status
-information. This is the starter for the application, handling and validating
-command line parameters.
+information. This starts the applicatin, getting a tor connection and parsing
+arguments.
 """
 
-import os
-import sys
-import time
+import collections
 import getopt
 import getpass
 import locale
 import logging
+import os
 import platform
+import sys
+import time
 
+import arm
 import arm.controller
 import arm.logPanel
-import arm.util.connections
-import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
 
-from arm import __version__, __release_date__
-from stem.control import Controller
-
+import stem
 import stem.connection
+import stem.control
 import stem.util.conf
+import stem.util.connection
 import stem.util.log
 import stem.util.system
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
-DEFAULT_CONFIG = os.path.expanduser("~/.arm/armrc")
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  "startup.controlPassword": None,
-  "startup.interface.ipAddress": "127.0.0.1",
-  "startup.interface.port": 9051,
-  "startup.interface.socket": "/var/run/tor/control",
-  "startup.blindModeEnabled": False,
-  "startup.events": "N3",
-  "startup.dataDirectory": "~/.arm",
-  "features.config.descriptions.enabled": True,
-  "features.config.descriptions.persist": True,
+  'tor.password': None,
+  'startup.blindModeEnabled': False,
+  'startup.events': 'N3',
+  'msg.help': '',
+  'msg.debug_header': '',
+  'msg.wrong_port_type': '',
+  'msg.wrong_socket_type': '',
+  'msg.uncrcognized_auth_type': '',
+  'msg.missing_password_bug': '',
+  'msg.unreadable_cookie_file': '',
+  'msg.tor_is_running_as_root': '',
+  'msg.arm_is_running_as_root': '',
+  'msg.config_not_found': '',
+  'msg.unable_to_read_config': '',
 })
+
+# Our default arguments. The _get_args() function provides a named tuple of
+# this merged with our argv.
+
+ARGS = {
+  'control_address': '127.0.0.1',
+  'control_port': 9051,
+  'user_provided_port': False,
+  'control_socket': '/var/run/tor/control',
+  'user_provided_socket': False,
+  'config': os.path.expanduser("~/.arm/armrc"),
+  'debug': False,
+  'blind': False,
+  'logged_events': 'N3',
+  'print_version': False,
+  'print_help': False,
+}
 
 OPT = "gi:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
-HELP_MSG = """Usage arm [OPTION]
-Terminal status monitor for Tor relays.
+IS_SETTINGS_LOADED = False
 
-  -p, --prompt                    only start the control interpretor
-  -i, --interface [ADDRESS:]PORT  change control interface from %s:%i
-  -s, --socket SOCKET_PATH        attach using unix domain socket if present,
-                                    SOCKET_PATH defaults to: %s
-  -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
-                                    defaults to: %s
-  -d, --debug                     writes all arm logs to %s
-  -b, --blind                     disable connection lookups
-  -e, --event EVENT_FLAGS         event types in message log  (default: %s)
-%s
-  -v, --version                   provides version information
-  -h, --help                      presents this help
 
-Example:
-arm -b -i 1643          hide connection data, attaching to control port 1643
-arm -e we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
-""" % (CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"], CONFIG["startup.interface.socket"], DEFAULT_CONFIG, LOG_DUMP_PATH, CONFIG["startup.events"], arm.logPanel.EVENT_LISTING)
-
-# filename used for cached tor config descriptions
-CONFIG_DESC_FILENAME = "torConfigDesc.txt"
-
-# messages related to loading the tor configuration descriptions
-DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
-DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
-DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
-DESC_INTERNAL_LOAD_FAILED_MSG = "Unable to load fallback descriptions. Categories and help for Tor's configuration options won't be available. (%s)"
-DESC_READ_MAN_SUCCESS_MSG = "Read descriptions for tor's configuration options from its man page (runtime %0.3f)"
-DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuration options from its man page (%s)"
-DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
-DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
-
-NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
-STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
-STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize arm by placing a configuration file at '%s' (see the armrc.sample for its options)."
-
-# torrc entries that are scrubbed when dumping
-PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
-
-# notices given if the user is running arm or tor as root
-TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
-ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
-
-# Makes subcommands provide us with English results (this is important so we
-# can properly parse it).
-
-os.putenv("LANG", "C")
-
-def allowConnectionTypes():
+def _load_settings():
   """
-  This provides a tuple with booleans indicating if we should or shouldn't
-  attempt to connect by various methods...
-  (allowPortConnection, allowSocketConnection)
-  """
-  
-  confKeys = stem.util.conf.get_config("arm").keys()
-  
-  isPortArgPresent = "startup.interface.ipAddress" in confKeys or "startup.interface.port" in confKeys
-  isSocketArgPresent = "startup.interface.socket" in confKeys
-  
-  skipPortConnection = isSocketArgPresent and not isPortArgPresent
-  skipSocketConnection = isPortArgPresent and not isSocketArgPresent
-  
-  return (not skipPortConnection, not skipSocketConnection)
+  Loads arms internal settings from its 'settings.cfg'. This comes bundled with
+  arm and should be considered to be an error if it can't be loaded. If the
+  settings have already been loaded then this is a no-op.
 
-def _loadConfigurationDescriptions(pathPrefix):
+  :raises: **ValueError** if the settings can't be loaded
   """
-  Attempts to load descriptions for tor's configuration options, fetching them
-  from the man page and persisting them to a file to speed future startups.
-  """
-  
-  # It is important that this is loaded before entering the curses context,
-  # otherwise the man call pegs the cpu for around a minute (I'm not sure
-  # why... curses must mess the terminal in a way that's important to man).
-  
-  if CONFIG["features.config.descriptions.enabled"]:
-    isConfigDescriptionsLoaded = False
-    
-    # determines the path where cached descriptions should be persisted (left
-    # undefined if caching is disabled)
-    descriptorPath = None
-    if CONFIG["features.config.descriptions.persist"]:
-      dataDir = CONFIG["startup.dataDirectory"]
-      if not dataDir.endswith("/"): dataDir += "/"
-      
-      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
-    
-    # attempts to load configuration descriptions cached in the data directory
-    if descriptorPath:
-      try:
-        loadStartTime = time.time()
-        arm.util.torConfig.loadOptionDescriptions(descriptorPath)
-        isConfigDescriptionsLoaded = True
-        
-        stem.util.log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-      except IOError, exc:
-        stem.util.log.info(DESC_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-    
-    # fetches configuration options from the man page
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        arm.util.torConfig.loadOptionDescriptions()
-        isConfigDescriptionsLoaded = True
-        
-        stem.util.log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
-      except IOError, exc:
-        stem.util.log.notice(DESC_READ_MAN_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-      
-      # persists configuration descriptions 
-      if isConfigDescriptionsLoaded and descriptorPath:
-        try:
-          loadStartTime = time.time()
-          arm.util.torConfig.saveOptionDescriptions(descriptorPath)
-          stem.util.log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-        except (IOError, OSError), exc:
-          stem.util.log.notice(DESC_SAVE_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-    
-    # finally fall back to the cached descriptors provided with arm (this is
-    # often the case for tbb and manual builds)
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        loadedVersion = arm.util.torConfig.loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
-        isConfigDescriptionsLoaded = True
-        stem.util.log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
-      except IOError, exc:
-        stem.util.log.error(DESC_INTERNAL_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
 
-def _getController(controlAddr="127.0.0.1", controlPort=9051, passphrase=None, incorrectPasswordMsg=""):
-  """
-  Custom handler for establishing a stem connection (... needs an overhaul).
-  """
-  
-  controller = None
-  try:
-    chroot = arm.util.torTools.getConn().getPathPrefix()
-    controller = Controller.from_port(controlAddr, controlPort)
-    
+  global IS_SETTINGS_LOADED
+
+  if not IS_SETTINGS_LOADED:
+    config = stem.util.conf.get_config("arm")
+    settings_path = os.path.join(os.path.dirname(__file__), 'settings.cfg')
+
     try:
-      controller.authenticate(password = passphrase, chroot_path = chroot)
-    except stem.connection.MissingPassword:
-      try:
-        passphrase = getpass.getpass("Controller password: ")
-        controller.authenticate(password = passphrase, chroot_path = chroot)
-      except:
-        return None
-    
-    return controller
-  except Exception, exc:
-    if controller: controller.close()
-    
-    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
-      # provide a warning that the provided password didn't work, then try
-      # again prompting for the user to enter it
-      print incorrectPasswordMsg
-      return _getController(controlAddr, controlPort)
-    else:
-      print exc
-    
-    return None
+      config.load(settings_path)
+      IS_SETTINGS_LOADED = True
+    except IOError as exc:
+      raise ValueError("Unable to load arm's internal configuration (%s): %s" % (settings_path, exc))
 
-def _dumpConfig():
+
+def _get_args(argv):
   """
-  Dumps the current arm and tor configurations at the DEBUG runlevel. This
-  attempts to scrub private information, but naturally the user should double
-  check that I didn't miss anything.
+  Parses our arguments, providing a named tuple with their values.
+
+  :param list argv: input arguments to be parsed
+
+  :returns: a **named tuple** with our parsed arguments
+
+  :raises: **ValueError** if we got an invalid argument
+  :raises: **getopt.GetoptError** if the arguments don't conform with what we
+    accept
   """
-  
-  config = stem.util.conf.get_config("arm")
-  conn = arm.util.torTools.getConn()
-  
-  # dumps arm's configuration
-  armConfigEntry = ""
-  armConfigKeys = list(config.keys())
-  armConfigKeys.sort()
-  
-  for configKey in armConfigKeys:
-    # Skips some config entries that are loaded by default. This fetches
-    # the config values directly to avoid misflagging them as being used by
-    # arm.
-    
-    if not configKey.startswith("config.summary.") and not configKey.startswith("torrc.") and not configKey.startswith("msg."):
-      armConfigEntry += "%s -> %s\n" % (configKey, config.get_value(configKey))
-  
-  if armConfigEntry: armConfigEntry = "Arm Configuration:\n%s" % armConfigEntry
-  else: armConfigEntry = "Arm Configuration: None"
-  
-  # dumps tor's version and configuration
-  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version", None)
-  
-  for line in conn.getInfo("config-text", "").split("\n"):
-    if not line: continue
-    elif " " in line: key, value = line.split(" ", 1)
-    else: key, value = line, ""
-    
-    if key in PRIVATE_TORRC_ENTRIES:
-      torConfigEntry += "%s <scrubbed>\n" % key
+
+  args = dict(ARGS)
+
+  for opt, arg in getopt.getopt(argv, OPT, OPT_EXPANDED)[0]:
+    if opt in ("-i", "--interface"):
+      if ':' in arg:
+        address, port = arg.split(':', 1)
+      else:
+        address, port = None, arg
+
+      if address is not None:
+        if not stem.util.connection.is_valid_ipv4_address(address):
+          raise ValueError("'%s' isn't a valid IPv4 address" % address)
+
+        args['control_address'] = address
+
+      if not stem.util.connection.is_valid_port(port):
+        raise ValueError("'%s' isn't a valid port number" % port)
+
+      args['control_port'] = int(port)
+      args['user_provided_port'] = True
+    elif opt in ("-s", "--socket"):
+      args['control_socket'] = arg
+      args['user_provided_socket'] = True
+    elif opt in ("-c", "--config"):
+      args['config'] = arg
+    elif opt in ("-d", "--debug"):
+      args['debug'] = True
+    elif opt in ("-b", "--blind"):
+      args['blind'] = True
+    elif opt in ("-e", "--event"):
+      args['logged_events'] = arg
+    elif opt in ("-v", "--version"):
+      args['print_version'] = True
+    elif opt in ("-h", "--help"):
+      args['print_help'] = True
+
+  # translates our args dict into a named tuple
+
+  Args = collections.namedtuple('Args', args.keys())
+  return Args(**args)
+
+
+def _get_controller(args):
+  """
+  Provides a Controller for the endpoint specified in the given arguments.
+
+  :param namedtuple args: arguments that arm was started with
+
+  :returns: :class:`~stem.control.Controller` for the given arguments
+
+  :raises: **ValueError** if unable to acquire a controller connection
+  """
+
+  if os.path.exists(args.control_socket):
+    try:
+      return stem.control.Controller.from_socket_file(args.control_socket)
+    except stem.SocketError as exc:
+      if args.user_provided_socket:
+        raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
+  elif args.user_provided_socket:
+    raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
+
+  try:
+    return stem.control.Controller.from_port(args.control_address, args.control_port)
+  except stem.SocketError as exc:
+    if args.user_provided_port:
+      raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
+
+  if not stem.util.system.is_running('tor'):
+    raise ValueError("Unable to connect to tor. Are you sure it's running?")
+  else:
+    raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
+
+
+def _authenticate(controller, password):
+  """
+  Authenticates to the given Controller.
+
+  :param stem.control.Controller controller: controller to be authenticated to
+  :param str args: password to authenticate with, **None** if nothing was provided
+
+  :raises: **ValueError** if unable to authenticate
+  """
+
+  chroot = arm.util.torTools.get_chroot()
+
+  try:
+    controller.authenticate(password = password, chroot_path = chroot)
+  except stem.connection.IncorrectSocketType:
+    control_socket = controller.get_socket()
+
+    if isinstance(control_socket, stem.socket.ControlPort):
+      raise ValueError(CONFIG['msg.wrong_port_type'].format(port = control_socket.get_port()))
     else:
-      torConfigEntry += "%s %s\n" % (key, value)
-  
-  stem.util.log.debug(armConfigEntry.strip())
-  stem.util.log.debug(torConfigEntry.strip())
+      raise ValueError(CONFIG['msg.wrong_socket_type'])
+  except stem.connection.UnrecognizedAuthMethods as exc:
+    raise ValueError(CONFIG['msg.uncrcognized_auth_type'].format(auth_methods = ', '.join(exc.unknown_auth_methods)))
+  except stem.connection.IncorrectPassword:
+    raise ValueError("Incorrect password")
+  except stem.connection.MissingPassword:
+    if password:
+      raise ValueError(CONFIG['msg.missing_password_bug'])
+
+    password = getpass.getpass("Tor controller password: ")
+    return _authenticate(controller, password)
+  except stem.connection.UnreadableCookieFile as exc:
+    raise ValueError(CONFIG['msg.unreadable_cookie_file'].format(path = exc.cookie_path, issue = str(exc)))
+  except stem.connection.AuthenticationFailure as exc:
+    raise ValueError("Unable to authenticate: %s" % exc)
+
+
+def _setup_debug_logging():
+  """
+  Configures us to log at stem's trace level to LOG_DUMP_PATH.
+
+  :raises: **IOError** if we can't log to this location
+  """
+
+  debug_dir = os.path.dirname(LOG_DUMP_PATH)
+
+  if not os.path.exists(debug_dir):
+    os.makedirs(debug_dir)
+
+  debug_handler = logging.FileHandler(LOG_DUMP_PATH, mode = 'w')
+  debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
+  debug_handler.setFormatter(logging.Formatter(
+    fmt = '%(asctime)s [%(levelname)s] %(message)s',
+    datefmt = '%m/%d/%Y %H:%M:%S'
+  ))
+
+  stem.util.log.get_logger().addHandler(debug_handler)
+
+
+def _armrc_dump(armrc_path):
+  """
+  Provides a dump of our armrc or a description of why it can't be read.
+
+  :param str armrc_path: path of the armrc
+
+  :returns: **str** with either a dump or description of our armrc
+  """
+
+  if not os.path.exists(armrc_path):
+    return "[file doesn't exist]"
+
+  try:
+    with open(armrc_path) as armrc_file:
+      return armrc_file.read()
+  except IOError as exc:
+    return "[unable to read file: %s]" % exc.strerror
+
 
 def main():
-  startTime = time.time()
-  param = dict([(key, None) for key in CONFIG.keys()])
-  isDebugMode = False
-  configPath = DEFAULT_CONFIG # path used for customized configuration
-  
-  # parses user input, noting any issues
-  try:
-    opts, args = getopt.getopt(sys.argv[1:], OPT, OPT_EXPANDED)
-  except getopt.GetoptError, exc:
-    print str(exc) + " (for usage provide --help)"
-    sys.exit()
-  
-  for opt, arg in opts:
-    if opt in ("-i", "--interface"):
-      # defines control interface address/port
-      controlAddr, controlPort = None, None
-      divIndex = arg.find(":")
-      
-      try:
-        if divIndex == -1:
-          controlPort = int(arg)
-        else:
-          controlAddr = arg[0:divIndex]
-          controlPort = int(arg[divIndex + 1:])
-      except ValueError:
-        print "'%s' isn't a valid port number" % arg
-        sys.exit()
-      
-      param["startup.interface.ipAddress"] = controlAddr
-      param["startup.interface.port"] = controlPort
-    elif opt in ("-s", "--socket"):
-      param["startup.interface.socket"] = arg
-    elif opt in ("-c", "--config"): configPath = arg  # sets path of user's config
-    elif opt in ("-d", "--debug"): isDebugMode = True # dumps all logs
-    elif opt in ("-b", "--blind"):
-      param["startup.blindModeEnabled"] = True        # prevents connection lookups
-    elif opt in ("-e", "--event"):
-      param["startup.events"] = arg                   # set event flags
-    elif opt in ("-v", "--version"):
-      print "arm version %s (released %s)\n" % (__version__, __release_date__)
-      sys.exit()
-    elif opt in ("-h", "--help"):
-      print HELP_MSG
-      sys.exit()
-  
-  if isDebugMode:
-    try:
-      stem_logger = stem.util.log.get_logger()
-      
-      debugHandler = logging.FileHandler(LOG_DUMP_PATH)
-      debugHandler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
-      debugHandler.setFormatter(logging.Formatter(
-        fmt = '%(asctime)s [%(levelname)s] %(message)s',
-        datefmt = '%m/%d/%Y %H:%M:%S'
-      ))
-      
-      stem_logger.addHandler(debugHandler)
-      
-      currentTime = time.localtime()
-      timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
-      initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
-      pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
-      osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
-      
-      stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
-    except (OSError, IOError), exc:
-      print "Unable to write to debug log file: %s" % arm.util.sysTools.getFileErrorMsg(exc)
-  
+  start_time = time.time()
   config = stem.util.conf.get_config("arm")
-  
-  # attempts to fetch attributes for parsing tor's logs, configuration, etc
-  pathPrefix = os.path.dirname(sys.argv[0])
-  if pathPrefix and not pathPrefix.endswith("/"):
-    pathPrefix = pathPrefix + "/"
-  
+
   try:
-    config.load("%ssettings.cfg" % pathPrefix)
-  except IOError, exc:
-    stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
-  
-  # loads user's personal armrc if available
-  if os.path.exists(configPath):
+    _load_settings()
+    args = _get_args(sys.argv[1:])
+  except getopt.GetoptError as exc:
+    print "%s (for usage provide --help)" % exc
+    sys.exit(1)
+  except ValueError as exc:
+    print exc
+    sys.exit(1)
+
+  if args.print_help:
+    print CONFIG['msg.help'].format(
+      address = ARGS['control_address'],
+      port = ARGS['control_port'],
+      socket = ARGS['control_socket'],
+      config = ARGS['config'],
+      debug_path = LOG_DUMP_PATH,
+      events = ARGS['logged_events'],
+      event_flags = arm.logPanel.EVENT_LISTING,
+    )
+
+    sys.exit()
+
+  if args.print_version:
+    print "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)
+    sys.exit()
+
+  if args.debug:
     try:
-      config.load(configPath)
-    except IOError, exc:
-      stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
+      _setup_debug_logging()
+    except IOError as exc:
+      print "Unable to write to our debug log file (%s): %s" % (LOG_DUMP_PATH, exc.strerror)
+      sys.exit(1)
+
+    stem.util.log.trace(CONFIG['msg.debug_header'].format(
+      arm_version = arm.__version__,
+      stem_version = stem.__version__,
+      python_version = '.'.join(map(str, sys.version_info[:3])),
+      system = platform.system(),
+      platform = " ".join(platform.dist()),
+      armrc_path = args.config,
+      armrc_content = _armrc_dump(args.config),
+    ))
+
+    print "Saving a debug log to %s, please check it for sensitive information before sharing" % LOG_DUMP_PATH
+
+  # loads user's personal armrc if available
+
+  if os.path.exists(args.config):
+    try:
+      config.load(args.config)
+    except IOError as exc:
+      stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = exc.strerror))
   else:
-    # no armrc found, falling back to the defaults in the source
-    stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % configPath)
-  
-  # syncs config and parameters, saving changed config options and overwriting
-  # undefined parameters with defaults
-  for key in param.keys():
-    if param[key] == None: param[key] = CONFIG[key]
-    else: config.set(key, str(param[key]))
-  
-  # validates that input has a valid ip address and port
-  controlAddr = param["startup.interface.ipAddress"]
-  controlPort = param["startup.interface.port"]
-  
-  if not arm.util.connections.isValidIpAddress(controlAddr):
-    print "'%s' isn't a valid IP address" % controlAddr
-    sys.exit()
-  elif controlPort < 0 or controlPort > 65535:
-    print "'%s' isn't a valid port number (ports range 0-65535)" % controlPort
-    sys.exit()
-  
+    stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
+
+  config.set("startup.blindModeEnabled", str(args.blind))
+  config.set("startup.events", args.logged_events)
+
   # validates and expands log event flags
+
   try:
-    arm.logPanel.expandEvents(param["startup.events"])
-  except ValueError, exc:
+    arm.logPanel.expandEvents(args.logged_events)
+  except ValueError as exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
-    sys.exit()
-  
-  # By default attempts to connect using the control socket if it exists. This
-  # skips attempting to connect by socket or port if the user has given
-  # arguments for connecting to the other.
-  
-  controller = None
-  allowPortConnection, allowSocketConnection = allowConnectionTypes()
-  
-  socketPath = param["startup.interface.socket"]
-  if os.path.exists(socketPath) and allowSocketConnection:
-    try:
-      # TODO: um... what about passwords?
-      # https://trac.torproject.org/6881
-      
-      controller = Controller.from_socket_file(socketPath)
-      controller.authenticate()
-    except IOError, exc:
-      if not allowPortConnection:
-        print "Unable to use socket '%s': %s" % (socketPath, exc)
-  elif not allowPortConnection:
-    print "Socket '%s' doesn't exist" % socketPath
-  
-  if not controller and allowPortConnection:
-    # sets up stem connection, prompting for the passphrase if necessary and
-    # sending problems to stdout if they arise
-    authPassword = config.get("startup.controlPassword", CONFIG["startup.controlPassword"])
-    incorrectPasswordMsg = "Password found in '%s' was incorrect" % configPath
-    controller = _getController(controlAddr, controlPort, authPassword, incorrectPasswordMsg)
-    
-    # removing references to the controller password so the memory can be freed
-    # (unfortunately python does allow for direct access to the memory so this
-    # is the best we can do)
-    del authPassword
-    if "startup.controlPassword" in config._contents:
-      del config._contents["startup.controlPassword"]
-      
-      pwLineNum = None
-      for i in range(len(config._raw_contents)):
-        if config._raw_contents[i].strip().startswith("startup.controlPassword"):
-          pwLineNum = i
-          break
-      
-      if pwLineNum != None:
-        del config._raw_contents[i]
-  
-  if controller is None: sys.exit(1)
-  
-  # initializing the connection may require user input (for the password)
-  # skewing the startup time results so this isn't counted
-  initTime = time.time() - startTime
-  controllerWrapper = arm.util.torTools.getConn()
-  
-  torUser = None
-  if controller:
-    controllerWrapper.init(controller)
-    
-    # give a notice if tor is running with root
-    torUser = controllerWrapper.getMyUser()
-    if torUser == "root":
-      stem.util.log.notice(TOR_ROOT_NOTICE)
-  
-  # Give a notice if arm is running with root. Querying connections usually
-  # requires us to have the same permissions as tor so if tor is running as
-  # root then drop this notice (they're already then being warned about tor
-  # being root, anyway).
-  
-  if torUser != "root" and os.getuid() == 0:
-    torUserLabel = torUser if torUser else "<tor user>"
-    stem.util.log.notice(ARM_ROOT_NOTICE % torUserLabel)
-  
+
+    sys.exit(1)
+
+  try:
+    controller = _get_controller(args)
+    _authenticate(controller, CONFIG['tor.password'])
+    arm.util.torTools.getConn().init(controller)
+  except ValueError as exc:
+    print exc
+    exit(1)
+
+  # Removing references to the controller password so the memory can be
+  # freed. Without direct memory access this is about the best we can do.
+
+  config.set('tor.password', '')
+
+  # Give a notice if tor or arm are running with root. Querying connections
+  # usually requires us to have the same permissions as tor so if tor is
+  # running as root then drop this notice (they're already then being warned
+  # about tor being root anyway).
+
+  tor_user = controller.get_user(None)
+
+  if tor_user == "root":
+    stem.util.log.notice(CONFIG['msg.tor_is_running_as_root'])
+  elif os.getuid() == 0:
+    stem.util.log.notice(CONFIG['msg.arm_is_running_as_root'].format(
+      tor_user = tor_user if tor_user else "<tor user>"
+    ))
+
   # fetches descriptions for tor's configuration options
-  _loadConfigurationDescriptions(pathPrefix)
-  
-  # dump tor and arm configuration when in debug mode
-  if isDebugMode:
-    stem.util.log.notice("Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
-    _dumpConfig()
-  
+
+  arm.util.torConfig.loadConfigurationDescriptions(os.path.dirname(__file__))
+
   # Attempts to rename our process from "python setup.py <input args>" to
   # "arm <input args>"
-  
-  try:
-    stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
-  except: pass
-  
+
+  stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
+
+  # Makes subcommands provide us with English results (this is important so we
+  # can properly parse it).
+
+  os.putenv("LANG", "C")
+
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
   # initializing curses.
+
   if arm.util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
-  
-  arm.controller.startTorMonitor(time.time() - initTime)
+
+  arm.controller.startTorMonitor(start_time)
 
 if __name__ == '__main__':
   main()
-

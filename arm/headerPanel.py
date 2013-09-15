@@ -46,9 +46,6 @@ VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "re
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
 CONFIG = conf.config_dict("arm", {
-  "startup.interface.ipAddress": "127.0.0.1",
-  "startup.interface.port": 9051,
-  "startup.interface.socket": "/var/run/tor/control",
   "features.showFdUsage": False,
 })
 
@@ -137,44 +134,46 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      controller = None
-      allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
-      
-      if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
-        try:
-          # TODO: um... what about passwords?
-          controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
-          controller.authenticate()
-        except (IOError, stem.SocketError), exc:
-          controller = None
-          
-          if not allowPortConnection:
-            arm.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
-      elif not allowPortConnection:
-        arm.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
-      
-      if not controller and allowPortConnection:
-        # TODO: This has diverged from starter.py's connection, for instance it
-        # doesn't account for relative cookie paths or multiple authentication
-        # methods. We can't use the starter.py's connection function directly
-        # due to password prompts, but we could certainly make this mess more
-        # manageable.
-        
-        try:
-          ctlAddr, ctlPort = CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"]
-          controller = Controller.from_port(ctlAddr, ctlPort)
-          
-          try:
-            controller.authenticate()
-          except stem.connection.MissingPassword:
-            controller.authenticate(authValue) # already got the password above
-        except Exception, exc:
-          controller = None
-      
-      if controller:
-        torTools.getConn().init(controller)
-        log.notice("Reconnected to Tor's control port")
-        arm.popups.showMsg("Tor reconnected", 1)
+      oldSocket = torTools.getConn().getController().get_socket()
+
+      #controller = None
+      #allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
+      #
+      #if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
+      #  try:
+      #    # TODO: um... what about passwords?
+      #    controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
+      #    controller.authenticate()
+      #  except (IOError, stem.SocketError), exc:
+      #    controller = None
+      #    
+      #    if not allowPortConnection:
+      #      arm.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
+      #elif not allowPortConnection:
+      #  arm.popups.showMsg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
+      #
+      #if not controller and allowPortConnection:
+      #  # TODO: This has diverged from starter.py's connection, for instance it
+      #  # doesn't account for relative cookie paths or multiple authentication
+      #  # methods. We can't use the starter.py's connection function directly
+      #  # due to password prompts, but we could certainly make this mess more
+      #  # manageable.
+      #  
+      #  try:
+      #    ctlAddr, ctlPort = CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"]
+      #    controller = Controller.from_port(ctlAddr, ctlPort)
+      #    
+      #    try:
+      #      controller.authenticate()
+      #    except stem.connection.MissingPassword:
+      #      controller.authenticate(authValue) # already got the password above
+      #  except Exception, exc:
+      #    controller = None
+      #
+      #if controller:
+      #  torTools.getConn().init(controller)
+      #  log.notice("Reconnected to Tor's control port")
+      #  arm.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
     
     return isKeystrokeConsumed
