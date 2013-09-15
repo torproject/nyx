@@ -16,7 +16,6 @@ import time
 
 import arm.controller
 import arm.logPanel
-import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
@@ -85,7 +84,7 @@ try:
   config = stem.util.conf.get_config("arm")
   config.load("%sarm/settings.cfg" % pathPrefix)
 except IOError, exc:
-  stem.util.log.warn(NO_INTERNAL_CFG_MSG % arm.util.sysTools.getFileErrorMsg(exc))
+  stem.util.log.warn(NO_INTERNAL_CFG_MSG % exc.strerror)
 
 
 def _get_args(argv):
@@ -314,15 +313,17 @@ def main():
       osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
       
       stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
-    except (OSError, IOError), exc:
-      print "Unable to write to debug log file: %s" % arm.util.sysTools.getFileErrorMsg(exc)
+    except OSError, exc:
+      print "Unable to write to debug log file: %s" % exc
+    except IOError, exc:
+      print "Unable to write to debug log file: %s" % exc.strerror
   
   # loads user's personal armrc if available
   if os.path.exists(args.config):
     try:
       config.load(args.config)
     except IOError, exc:
-      stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = arm.util.sysTools.getFileErrorMsg(exc)))
+      stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = exc.strerror))
   else:
     # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))

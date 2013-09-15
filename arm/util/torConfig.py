@@ -9,7 +9,7 @@ import threading
 
 import stem.version
 
-from arm.util import sysTools, torTools, uiTools
+from arm.util import torTools, uiTools
 
 from stem.util import conf, enum, log, str_tools, system
 
@@ -727,7 +727,7 @@ class Torrc():
       configFile.close()
     except IOError, exc:
       if logFailure and not self.isLoadFailWarned:
-        log.warn("Unable to load torrc (%s)" % sysTools.getFileErrorMsg(exc))
+        log.warn("Unable to load torrc (%s)" % exc.strerror)
         self.isLoadFailWarned = True
       
       self.valsLock.release()
@@ -1086,7 +1086,7 @@ def loadConfigurationDescriptions(pathPrefix):
         
         log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
       except IOError, exc:
-        log.info(DESC_LOAD_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+        log.info(DESC_LOAD_FAILED_MSG % exc.strerror)
     
     # fetches configuration options from the man page
     if not isConfigDescriptionsLoaded:
@@ -1097,7 +1097,7 @@ def loadConfigurationDescriptions(pathPrefix):
         
         log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
       except IOError, exc:
-        log.notice(DESC_READ_MAN_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+        log.notice(DESC_READ_MAN_FAILED_MSG % exc.strerror)
       
       # persists configuration descriptions 
       if isConfigDescriptionsLoaded and descriptorPath:
@@ -1105,8 +1105,10 @@ def loadConfigurationDescriptions(pathPrefix):
           loadStartTime = time.time()
           saveOptionDescriptions(descriptorPath)
           log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-        except (IOError, OSError), exc:
-          log.notice(DESC_SAVE_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+        except IOError, exc:
+          log.notice(DESC_SAVE_FAILED_MSG % exc.strerror)
+        except OSError, exc:
+          log.notice(DESC_SAVE_FAILED_MSG % exc)
     
     # finally fall back to the cached descriptors provided with arm (this is
     # often the case for tbb and manual builds)
@@ -1117,5 +1119,5 @@ def loadConfigurationDescriptions(pathPrefix):
         isConfigDescriptionsLoaded = True
         log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
       except IOError, exc:
-        log.error(DESC_INTERNAL_LOAD_FAILED_MSG % sysTools.getFileErrorMsg(exc))
+        log.error(DESC_INTERNAL_LOAD_FAILED_MSG % exc.strerror)
 

@@ -18,7 +18,7 @@ from stem.util import conf, log, system
 
 import arm.popups
 from arm import __version__
-from arm.util import panel, sysTools, torTools, uiTools
+from arm.util import panel, torTools, uiTools
 
 TOR_EVENT_TYPES = {
   "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
@@ -555,8 +555,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         
         self.logFile = open(logPath, "a")
         log.notice("arm %s opening log file (%s)" % (__version__, logPath))
-      except (IOError, OSError), exc:
-        log.error("Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+      except IOError, exc:
+        log.error("Unable to write to log file: %s" % exc.strerror)
+        self.logFile = None
+      except OSError, exc:
+        log.error("Unable to write to log file: %s" % exc)
         self.logFile = None
     
     stem_logger = log.get_logger()
@@ -652,7 +655,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.logFile.write(event.getDisplayMessage(True) + "\n")
         self.logFile.flush()
       except IOError, exc:
-        log.error("Unable to write to log file: %s" % sysTools.getFileErrorMsg(exc))
+        log.error("Unable to write to log file: %s" % exc.strerror)
         self.logFile = None
     
     self.valsLock.acquire()
@@ -786,7 +789,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.saveSnapshot(pathInput)
         popups.showMsg("Saved: %s" % pathInput, 2)
       except IOError, exc:
-        popups.showMsg("Unable to save snapshot: %s" % sysTools.getFileErrorMsg(exc), 2)
+        popups.showMsg("Unable to save snapshot: %s" % exc.strerror, 2)
   
   def clear(self):
     """
