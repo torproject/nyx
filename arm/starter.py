@@ -43,6 +43,7 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.unreadable_cookie_file': '',
   'msg.tor_is_running_as_root': '',
   'msg.arm_is_running_as_root': '',
+  'msg.config_not_found': '',
   'msg.unable_to_read_config': '',
 })
 
@@ -265,6 +266,7 @@ def _dumpConfig():
   stem.util.log.debug(armConfigEntry.strip())
   stem.util.log.debug(torConfigEntry.strip())
 
+
 def main():
   startTime = time.time()
 
@@ -314,7 +316,12 @@ def main():
   if args.debug:
     try:
       stem_logger = stem.util.log.get_logger()
-      
+
+      debug_dir = os.path.dirname(LOG_DUMP_PATH)
+
+      if not os.path.exists(debug_dir):
+        os.makedirs(debug_dir)
+
       debugHandler = logging.FileHandler(LOG_DUMP_PATH)
       debugHandler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
       debugHandler.setFormatter(logging.Formatter(
@@ -326,7 +333,7 @@ def main():
       
       currentTime = time.localtime()
       timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
-      initMsg = "Arm %s Debug Dump, %s" % (version.VERSION, timeLabel)
+      initMsg = "Arm %s Debug Dump, %s" % (__version__, timeLabel)
       pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
       osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
       
@@ -414,4 +421,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
