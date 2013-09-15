@@ -8,6 +8,7 @@ import unittest
 from mock import Mock, patch
 
 from arm.starter import (
+  _load_settings,
   _get_args,
   _get_controller,
   _authenticate,
@@ -17,6 +18,8 @@ from arm.starter import (
 import stem
 import stem.connection
 import stem.socket
+
+_load_settings()
 
 class TestArgumentParsing(unittest.TestCase):
   def test_that_we_get_default_values(self):

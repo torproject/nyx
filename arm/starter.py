@@ -46,8 +46,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.unable_to_read_config': '',
 })
 
-NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
-
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
 
@@ -76,15 +74,29 @@ ARGS = {
 OPT = "gi:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
-try:
-  pathPrefix = os.path.dirname(sys.argv[0])
-  if pathPrefix and not pathPrefix.endswith("/"):
-    pathPrefix = pathPrefix + "/"
+IS_SETTINGS_LOADED = False
 
-  config = stem.util.conf.get_config("arm")
-  config.load("%sarm/settings.cfg" % pathPrefix)
-except IOError, exc:
-  stem.util.log.warn(NO_INTERNAL_CFG_MSG % exc.strerror)
+
+def _load_settings():
+  """
+  Loads arms internal settings from its 'settings.cfg'. This comes bundled with
+  arm and should be considered to be an error if it can't be loaded. If the
+  settings have already been loaded then this is a no-op.
+
+  :raises: **ValueError** if the settings can't be loaded
+  """
+
+  global IS_SETTINGS_LOADED
+
+  if not IS_SETTINGS_LOADED:
+    config = stem.util.conf.get_config("arm")
+    settings_path = os.path.join(os.path.dirname(__file__), 'settings.cfg')
+
+    try:
+      config.load(settings_path)
+      IS_SETTINGS_LOADED = True
+    except IOError as exc:
+      raise ValueError("Unable to load arm's internal configuration (%s): %s" % (settings_path, exc))
 
 
 def _get_args(argv):
@@ -192,7 +204,7 @@ def _authenticate(controller, password):
     control_socket = controller.get_socket()
 
     if isinstance(control_socket, stem.socket.ControlPort):
-      raise ValueError(CONFIG['msg.wrong_port_type'] % control_socket.get_port())
+      raise ValueError(CONFIG['msg.wrong_port_type'].format(port = control_socket.get_port()))
     else:
       raise ValueError(CONFIG['msg.wrong_socket_type'])
   except stem.connection.UnrecognizedAuthMethods as exc:
@@ -255,6 +267,12 @@ def _dumpConfig():
 
 def main():
   startTime = time.time()
+
+  try:
+    _load_settings()
+  except ValueError as exc:
+    print exc
+    sys.exit(1)
 
   # attempts to fetch attributes for parsing tor's logs, configuration, etc
   
