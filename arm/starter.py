@@ -2,8 +2,8 @@
 
 """
 Command line application for monitoring Tor relays, providing real time status
-information. This is the starter for the application, handling and validating
-command line parameters.
+information. This starts the applicatin, getting a tor connection and parsing
+arguments.
 """
 
 import collections
@@ -205,7 +205,7 @@ def _authenticate(controller, password):
     else:
       raise ValueError(CONFIG['msg.wrong_socket_type'])
   except stem.connection.UnrecognizedAuthMethods as exc:
-    raise ValueError(CONFIG['msg.uncrcognized_auth_type'] % ', '.join(exc.unknown_auth_methods))
+    raise ValueError(CONFIG['msg.uncrcognized_auth_type'].format(auth_methods = ', '.join(exc.unknown_auth_methods)))
   except stem.connection.IncorrectPassword:
     raise ValueError("Incorrect password")
   except stem.connection.MissingPassword:
@@ -215,7 +215,7 @@ def _authenticate(controller, password):
     password = getpass.getpass("Tor controller password: ")
     return _authenticate(controller, password)
   except stem.connection.UnreadableCookieFile as exc:
-    raise ValueError(CONFIG['msg.unreadable_cookie_file'] % (exc.cookie_path, str(exc)))
+    raise ValueError(CONFIG['msg.unreadable_cookie_file'].format(path = exc.cookie_path, issue = str(exc)))
   except stem.connection.AuthenticationFailure as exc:
     raise ValueError("Unable to authenticate: %s" % exc)
 
@@ -287,7 +287,16 @@ def main():
     sys.exit()
 
   if args.print_help:
-    print CONFIG['msg.help'] % (ARGS['control_address'], ARGS['control_port'], ARGS['control_socket'], ARGS['config'], LOG_DUMP_PATH, ARGS['logged_events'], arm.logPanel.EVENT_LISTING)
+    print CONFIG['msg.help'].format(
+      address = ARGS['control_address'],
+      port = ARGS['control_port'],
+      socket = ARGS['control_socket'],
+      config = ARGS['config'],
+      debug_path = LOG_DUMP_PATH,
+      events = ARGS['logged_events'],
+      event_flags = arm.logPanel.EVENT_LISTING
+    )
+
     sys.exit()
 
   config.set("startup.blindModeEnabled", str(args.blind))
