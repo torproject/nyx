@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 Command line application for monitoring Tor relays, providing real time status
 information. This starts the applicatin, getting a tor connection and parsing
@@ -9,53 +7,47 @@ arguments.
 import collections
 import getopt
 import getpass
-import os
-import sys
-
-import stem.util.connection
-
-import time
 import locale
 import logging
+import os
 import platform
+import sys
+import time
 
 import arm.controller
 import arm.logPanel
-import arm.util.connections
 import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
 
-from arm import __version__, __release_date__
-from stem.control import Controller
-
 import stem.connection
 import stem.util.conf
+import stem.util.connection
 import stem.util.log
 import stem.util.system
+
+from arm import __version__, __release_date__
+from stem.control import Controller
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  "tor.password": None,
-  "startup.blindModeEnabled": False,
-  "startup.events": "N3",
-  "msg.help": "",
-  "msg.wrong_port_type": "",
-  "msg.wrong_socket_type": "",
-  "msg.uncrcognized_auth_type": "",
-  "msg.missing_password_bug": "",
-  "msg.unreadable_cookie_file": "",
+  'tor.password': None,
+  'startup.blindModeEnabled': False,
+  'startup.events': 'N3',
+  'msg.help': '',
+  'msg.wrong_port_type': '',
+  'msg.wrong_socket_type': '',
+  'msg.uncrcognized_auth_type': '',
+  'msg.missing_password_bug': '',
+  'msg.unreadable_cookie_file': '',
+  'msg.tor_is_running_as_root': '',
+  'msg.arm_is_running_as_root': '',
+  'msg.unable_to_read_config': '',
 })
 
-# notices given if the user is running arm or tor as root
-TOR_ROOT_NOTICE = "Tor is currently running with root permissions. This is not a good idea and shouldn't be necessary. See the 'User UID' option from Tor's man page for an easy method of reducing its permissions after startup."
-ARM_ROOT_NOTICE = "Arm is currently running with root permissions. This is not a good idea, and will still work perfectly well if it's run with the same user as Tor (ie, starting with \"sudo -u %s arm\")."
-
 NO_INTERNAL_CFG_MSG = "Failed to load the parsing configuration. This will be problematic for a few things like torrc validation and log duplication detection (%s)"
-STANDARD_CFG_LOAD_FAILED_MSG = "Failed to load configuration (using defaults): \"%s\""
-STANDARD_CFG_NOT_FOUND_MSG = "No armrc loaded, using defaults. You can customize arm by placing a configuration file at '%s' (see the armrc.sample for its options)."
 
 # torrc entries that are scrubbed when dumping
 PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
@@ -330,10 +322,10 @@ def main():
     try:
       config.load(args.config)
     except IOError, exc:
-      stem.util.log.warn(STANDARD_CFG_LOAD_FAILED_MSG % arm.util.sysTools.getFileErrorMsg(exc))
+      stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = arm.util.sysTools.getFileErrorMsg(exc)))
   else:
     # no armrc found, falling back to the defaults in the source
-    stem.util.log.notice(STANDARD_CFG_NOT_FOUND_MSG % args.config)
+    stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
   
   # validates and expands log event flags
   try:
@@ -367,7 +359,7 @@ def main():
     # give a notice if tor is running with root
     torUser = controllerWrapper.getMyUser()
     if torUser == "root":
-      stem.util.log.notice(TOR_ROOT_NOTICE)
+      stem.util.log.notice(CONFIG['msg.tor_is_running_as_root'])
   
   # Give a notice if arm is running with root. Querying connections usually
   # requires us to have the same permissions as tor so if tor is running as
@@ -376,7 +368,7 @@ def main():
   
   if torUser != "root" and os.getuid() == 0:
     torUserLabel = torUser if torUser else "<tor user>"
-    stem.util.log.notice(ARM_ROOT_NOTICE % torUserLabel)
+    stem.util.log.notice(msg.arm_is_running_as_root.format(tor_user = torUserLabel))
   
   # fetches descriptions for tor's configuration options
   arm.util.torConfig.loadConfigurationDescriptions(pathPrefix)
