@@ -14,20 +14,20 @@ import platform
 import sys
 import time
 
+import arm
 import arm.controller
 import arm.logPanel
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
 
+import stem
 import stem.connection
+import stem.control
 import stem.util.conf
 import stem.util.connection
 import stem.util.log
 import stem.util.system
-
-from arm import __version__, __release_date__
-from stem.control import Controller
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 
@@ -36,6 +36,7 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'startup.blindModeEnabled': False,
   'startup.events': 'N3',
   'msg.help': '',
+  'msg.debug_header': '',
   'msg.wrong_port_type': '',
   'msg.wrong_socket_type': '',
   'msg.uncrcognized_auth_type': '',
@@ -46,11 +47,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.config_not_found': '',
   'msg.unable_to_read_config': '',
 })
-
-# Makes subcommands provide us with English results (this is important so we
-# can properly parse it).
-
-os.putenv("LANG", "C")
 
 # Our default arguments. The _get_args() function provides a named tuple of
 # this merged with our argv.
@@ -165,7 +161,7 @@ def _get_controller(args):
 
   if os.path.exists(args.control_socket):
     try:
-      return Controller.from_socket_file(args.control_socket)
+      return stem.control.Controller.from_socket_file(args.control_socket)
     except stem.SocketError as exc:
       if args.user_provided_socket:
         raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
@@ -173,7 +169,7 @@ def _get_controller(args):
     raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
 
   try:
-    return Controller.from_port(args.control_address, args.control_port)
+    return stem.control.Controller.from_port(args.control_address, args.control_port)
   except stem.SocketError as exc:
     if args.user_provided_port:
       raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
@@ -221,24 +217,53 @@ def _authenticate(controller, password):
     raise ValueError("Unable to authenticate: %s" % exc)
 
 
+def _setup_debug_logging():
+  """
+  Configures us to log at stem's trace level to LOG_DUMP_PATH.
+
+  :raises: **IOError** if we can't log to this location
+  """
+
+  debug_dir = os.path.dirname(LOG_DUMP_PATH)
+
+  if not os.path.exists(debug_dir):
+    os.makedirs(debug_dir)
+
+  debug_handler = logging.FileHandler(LOG_DUMP_PATH, mode = 'w')
+  debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
+  debug_handler.setFormatter(logging.Formatter(
+    fmt = '%(asctime)s [%(levelname)s] %(message)s',
+    datefmt = '%m/%d/%Y %H:%M:%S'
+  ))
+
+  stem.util.log.get_logger().addHandler(debug_handler)
+
+
+def _armrc_dump(armrc_path):
+  """
+  Provides a dump of our armrc or a description of why it can't be read.
+
+  :param str armrc_path: path of the armrc
+
+  :returns: **str** with either a dump or description of our armrc
+  """
+
+  if not os.path.exists(armrc_path):
+    return "[file doesn't exist]"
+
+  try:
+    with open(armrc_path) as armrc_file:
+      return armrc_file.read()
+  except IOError as exc:
+    return "[unable to read file: %s]" % exc.strerror
+
+
 def main():
-  startTime = time.time()
+  start_time = time.time()
+  config = stem.util.conf.get_config("arm")
 
   try:
     _load_settings()
-  except ValueError as exc:
-    print exc
-    sys.exit(1)
-
-  # attempts to fetch attributes for parsing tor's logs, configuration, etc
-  
-  config = stem.util.conf.get_config("arm")
-  
-  pathPrefix = os.path.dirname(sys.argv[0])
-  if pathPrefix and not pathPrefix.endswith("/"):
-    pathPrefix = pathPrefix + "/"
-
-  try:
     args = _get_args(sys.argv[1:])
   except getopt.GetoptError as exc:
     print "%s (for usage provide --help)" % exc
@@ -246,10 +271,6 @@ def main():
   except ValueError as exc:
     print exc
     sys.exit(1)
-
-  if args.print_version:
-    print "arm version %s (released %s)\n" % (__version__, __release_date__)
-    sys.exit()
 
   if args.print_help:
     print CONFIG['msg.help'].format(
@@ -259,65 +280,61 @@ def main():
       config = ARGS['config'],
       debug_path = LOG_DUMP_PATH,
       events = ARGS['logged_events'],
-      event_flags = arm.logPanel.EVENT_LISTING
+      event_flags = arm.logPanel.EVENT_LISTING,
     )
 
     sys.exit()
 
-  config.set("startup.blindModeEnabled", str(args.blind))
-  config.set("startup.events", args.logged_events)
-  
+  if args.print_version:
+    print "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)
+    sys.exit()
+
   if args.debug:
     try:
-      stem_logger = stem.util.log.get_logger()
+      _setup_debug_logging()
+    except IOError as exc:
+      print "Unable to write to our debug log file (%s): %s" % (LOG_DUMP_PATH, exc.strerror)
+      sys.exit(1)
 
-      debug_dir = os.path.dirname(LOG_DUMP_PATH)
+    stem.util.log.trace(CONFIG['msg.debug_header'].format(
+      arm_version = arm.__version__,
+      stem_version = stem.__version__,
+      python_version = '.'.join(map(str, sys.version_info[:3])),
+      system = platform.system(),
+      platform = " ".join(platform.dist()),
+      armrc_path = args.config,
+      armrc_content = _armrc_dump(args.config),
+    ))
 
-      if not os.path.exists(debug_dir):
-        os.makedirs(debug_dir)
+    print "Saving a debug log to %s, please check it for sensitive information before sharing" % LOG_DUMP_PATH
 
-      debugHandler = logging.FileHandler(LOG_DUMP_PATH)
-      debugHandler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
-      debugHandler.setFormatter(logging.Formatter(
-        fmt = '%(asctime)s [%(levelname)s] %(message)s',
-        datefmt = '%m/%d/%Y %H:%M:%S'
-      ))
-      
-      stem_logger.addHandler(debugHandler)
-      
-      currentTime = time.localtime()
-      timeLabel = time.strftime("%H:%M:%S %m/%d/%Y (%Z)", currentTime)
-      initMsg = "Arm %s Debug Dump, %s" % (__version__, timeLabel)
-      pythonVersionLabel = "Python Version: %s" % (".".join([str(arg) for arg in sys.version_info[:3]]))
-      osLabel = "Platform: %s (%s)" % (platform.system(), " ".join(platform.dist()))
-      
-      stem.util.log.trace("%s\n%s\n%s\n%s\n" % (initMsg, pythonVersionLabel, osLabel, "-" * 80))
-    except OSError, exc:
-      print "Unable to write to debug log file: %s" % exc
-    except IOError, exc:
-      print "Unable to write to debug log file: %s" % exc.strerror
-  
   # loads user's personal armrc if available
+
   if os.path.exists(args.config):
     try:
       config.load(args.config)
-    except IOError, exc:
+    except IOError as exc:
       stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = exc.strerror))
   else:
-    # no armrc found, falling back to the defaults in the source
     stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
-  
+
+  config.set("startup.blindModeEnabled", str(args.blind))
+  config.set("startup.events", args.logged_events)
+
   # validates and expands log event flags
+
   try:
     arm.logPanel.expandEvents(args.logged_events)
-  except ValueError, exc:
+  except ValueError as exc:
     for flag in str(exc):
       print "Unrecognized event flag: %s" % flag
-    sys.exit()
+
+    sys.exit(1)
 
   try:
     controller = _get_controller(args)
     _authenticate(controller, CONFIG['tor.password'])
+    arm.util.torTools.getConn().init(controller)
   except ValueError as exc:
     print exc
     exit(1)
@@ -327,50 +344,42 @@ def main():
 
   config.set('tor.password', '')
 
-  # initializing the connection may require user input (for the password)
-  # skewing the startup time results so this isn't counted
-  initTime = time.time() - startTime
-  controllerWrapper = arm.util.torTools.getConn()
-  
-  torUser = None
-  if controller:
-    controllerWrapper.init(controller)
-    
-    # give a notice if tor is running with root
-    torUser = controllerWrapper.getMyUser()
-    if torUser == "root":
-      stem.util.log.notice(CONFIG['msg.tor_is_running_as_root'])
-  
-  # Give a notice if arm is running with root. Querying connections usually
-  # requires us to have the same permissions as tor so if tor is running as
-  # root then drop this notice (they're already then being warned about tor
-  # being root, anyway).
-  
-  if torUser != "root" and os.getuid() == 0:
-    torUserLabel = torUser if torUser else "<tor user>"
-    stem.util.log.notice(msg.arm_is_running_as_root.format(tor_user = torUserLabel))
-  
+  # Give a notice if tor or arm are running with root. Querying connections
+  # usually requires us to have the same permissions as tor so if tor is
+  # running as root then drop this notice (they're already then being warned
+  # about tor being root anyway).
+
+  tor_user = controller.get_user(None)
+
+  if tor_user == "root":
+    stem.util.log.notice(CONFIG['msg.tor_is_running_as_root'])
+  elif os.getuid() == 0:
+    stem.util.log.notice(CONFIG['msg.arm_is_running_as_root'].format(
+      tor_user = tor_user if tor_user else "<tor user>"
+    ))
+
   # fetches descriptions for tor's configuration options
-  arm.util.torConfig.loadConfigurationDescriptions(pathPrefix)
-  
-  # dump tor and arm configuration when in debug mode
-  if args.debug:
-    stem.util.log.notice("Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
-  
+
+  arm.util.torConfig.loadConfigurationDescriptions(os.path.dirname(__file__))
+
   # Attempts to rename our process from "python setup.py <input args>" to
   # "arm <input args>"
-  
-  try:
-    stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
-  except: pass
-  
+
+  stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
+
+  # Makes subcommands provide us with English results (this is important so we
+  # can properly parse it).
+
+  os.putenv("LANG", "C")
+
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
   # initializing curses.
+
   if arm.util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
-  
-  arm.controller.startTorMonitor(time.time() - initTime)
+
+  arm.controller.startTorMonitor(start_time)
 
 if __name__ == '__main__':
   main()
