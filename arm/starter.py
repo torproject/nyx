@@ -47,9 +47,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.unable_to_read_config': '',
 })
 
-# torrc entries that are scrubbed when dumping
-PRIVATE_TORRC_ENTRIES = ["HashedControlPassword", "Bridge", "HiddenServiceDir"]
-
 # Makes subcommands provide us with English results (this is important so we
 # can properly parse it).
 
@@ -224,49 +221,6 @@ def _authenticate(controller, password):
     raise ValueError("Unable to authenticate: %s" % exc)
 
 
-def _dumpConfig():
-  """
-  Dumps the current arm and tor configurations at the DEBUG runlevel. This
-  attempts to scrub private information, but naturally the user should double
-  check that I didn't miss anything.
-  """
-  
-  config = stem.util.conf.get_config("arm")
-  conn = arm.util.torTools.getConn()
-  
-  # dumps arm's configuration
-  armConfigEntry = ""
-  armConfigKeys = list(config.keys())
-  armConfigKeys.sort()
-  
-  for configKey in armConfigKeys:
-    # Skips some config entries that are loaded by default. This fetches
-    # the config values directly to avoid misflagging them as being used by
-    # arm.
-    
-    if not configKey.startswith("config.summary.") and not configKey.startswith("torrc.") and not configKey.startswith("msg."):
-      armConfigEntry += "%s -> %s\n" % (configKey, config.get_value(configKey))
-  
-  if armConfigEntry: armConfigEntry = "Arm Configuration:\n%s" % armConfigEntry
-  else: armConfigEntry = "Arm Configuration: None"
-  
-  # dumps tor's version and configuration
-  torConfigEntry = "Tor (%s) Configuration:\n" % conn.getInfo("version", None)
-  
-  for line in conn.getInfo("config-text", "").split("\n"):
-    if not line: continue
-    elif " " in line: key, value = line.split(" ", 1)
-    else: key, value = line, ""
-    
-    if key in PRIVATE_TORRC_ENTRIES:
-      torConfigEntry += "%s <scrubbed>\n" % key
-    else:
-      torConfigEntry += "%s %s\n" % (key, value)
-  
-  stem.util.log.debug(armConfigEntry.strip())
-  stem.util.log.debug(torConfigEntry.strip())
-
-
 def main():
   startTime = time.time()
 
@@ -402,7 +356,6 @@ def main():
   # dump tor and arm configuration when in debug mode
   if args.debug:
     stem.util.log.notice("Saving a debug log to '%s' (please check it for sensitive information before sharing)" % LOG_DUMP_PATH)
-    _dumpConfig()
   
   # Attempts to rename our process from "python setup.py <input args>" to
   # "arm <input args>"
