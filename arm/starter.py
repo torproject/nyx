@@ -344,18 +344,8 @@ def main():
   # Removing references to the controller password so the memory can be
   # freed. Without direct memory access this is about the best we can do.
 
-  if "tor.password" in config._contents:
-    del config._contents["tor.password"]
+  config.set('tor.password', '')
 
-    pwLineNum = None
-    for i in range(len(config._raw_contents)):
-      if config._raw_contents[i].strip().startswith("tor.password"):
-        pwLineNum = i
-        break
-
-    if pwLineNum != None:
-      del config._raw_contents[i]
-  
   # initializing the connection may require user input (for the password)
   # skewing the startup time results so this isn't counted
   initTime = time.time() - startTime
