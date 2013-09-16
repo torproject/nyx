@@ -42,7 +42,7 @@ FLAG_COLORS = {"Authority": "white",  "BadExit": "red",     "BadDirectory": "red
                "Stable": "blue",      "Running": "yellow",  "Unnamed": "magenta",     "Valid": "green",
                "V2Dir": "cyan",       "V3Dir": "white"}
 
-VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",  
+VERSION_STATUS_COLORS = {"new": "blue", "new in series": "blue", "obsolete": "red", "recommended": "green",
                          "old": "red",  "unrecommended": "red",  "unknown": "cyan"}
 
 CONFIG = conf.config_dict("arm", {
@@ -59,78 +59,78 @@ class HeaderPanel(panel.Panel, threading.Thread):
           *fdUsed, fdLimit, isFdLimitEstimate
     sys/  hostname, os, version
     stat/ *%torCpu, *%armCpu, *rss, *%mem
-  
+
   * volatile parameter that'll be reset on each update
   """
-  
+
   def __init__(self, stdscr, startTime):
     panel.Panel.__init__(self, stdscr, "header", 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
-    
+
     self._isTorConnected = torTools.getConn().isAlive()
     self._lastUpdate = -1       # time the content was last revised
     self._halt = False          # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
-    
+
     # Time when the panel was paused or tor was stopped. This is used to
     # freeze the uptime statistic (uptime increments normally when None).
     self._haltTime = None
-    
+
     # The last arm cpu usage sampling taken. This is a tuple of the form:
     # (total arm cpu time, sampling timestamp)
-    # 
+    #
     # The initial cpu total should be zero. However, at startup the cpu time
     # in practice is often greater than the real time causing the initially
     # reported cpu usage to be over 100% (which shouldn't be possible on
     # single core systems).
-    # 
+    #
     # Setting the initial cpu total to the value at this panel's init tends to
     # give smoother results (staying in the same ballpark as the second
     # sampling) so fudging the numbers this way for now.
-    
+
     self._armCpuSampling = (sum(os.times()[:3]), startTime)
-    
+
     # Last sampling received from the ResourceTracker, used to detect when it
     # changes.
     self._lastResourceFetch = -1
-    
+
     # flag to indicate if we've already given file descriptor warnings
     self._isFdSixtyPercentWarned = False
     self._isFdNinetyPercentWarned = False
-    
+
     self.vals = {}
     self.valsLock = threading.RLock()
     self._update(True)
-    
+
     # listens for tor reload (sighup) events
     torTools.getConn().addStatusListener(self.resetListener)
-  
+
   def getHeight(self):
     """
     Provides the height of the content, which is dynamically determined by the
     panel's maximum width.
     """
-    
+
     isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
     if self.vals["tor/orPort"]: return 4 if isWide else 6
     else: return 3 if isWide else 4
-  
+
   def sendNewnym(self):
     """
     Requests a new identity and provides a visual queue.
     """
-    
+
     torTools.getConn().sendNewnym()
-    
+
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
     isWide = self.getParent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
     if not isWide: arm.popups.showMsg("Requesting a new identity", 1)
-  
+
   def handleKey(self, key):
     isKeystrokeConsumed = True
-    
+
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
@@ -146,7 +146,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       #    controller.authenticate()
       #  except (IOError, stem.SocketError), exc:
       #    controller = None
-      #    
+      #
       #    if not allowPortConnection:
       #      arm.popups.showMsg("Unable to reconnect (%s)" % exc, 3)
       #elif not allowPortConnection:
@@ -158,11 +158,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
       #  # methods. We can't use the starter.py's connection function directly
       #  # due to password prompts, but we could certainly make this mess more
       #  # manageable.
-      #  
+      #
       #  try:
       #    ctlAddr, ctlPort = CONFIG["startup.interface.ipAddress"], CONFIG["startup.interface.port"]
       #    controller = Controller.from_port(ctlAddr, ctlPort)
-      #    
+      #
       #    try:
       #      controller.authenticate()
       #    except stem.connection.MissingPassword:
@@ -175,30 +175,30 @@ class HeaderPanel(panel.Panel, threading.Thread):
       #  log.notice("Reconnected to Tor's control port")
       #  arm.popups.showMsg("Tor reconnected", 1)
     else: isKeystrokeConsumed = False
-    
+
     return isKeystrokeConsumed
-  
+
   def draw(self, width, height):
     self.valsLock.acquire()
     isWide = width + 1 >= MIN_DUAL_COL_WIDTH
-    
+
     # space available for content
     if isWide:
       leftWidth = max(width / 2, 77)
       rightWidth = width - leftWidth
     else: leftWidth = rightWidth = width
-    
+
     # Line 1 / Line 1 Left (system and tor version information)
     sysNameLabel = "arm - %s" % self.vals["sys/hostname"]
     contentSpace = min(leftWidth, 40)
-    
+
     if len(sysNameLabel) + 10 <= contentSpace:
       sysTypeLabel = "%s %s" % (self.vals["sys/os"], self.vals["sys/version"])
       sysTypeLabel = uiTools.cropStr(sysTypeLabel, contentSpace - len(sysNameLabel) - 3, 4)
       self.addstr(0, 0, "%s (%s)" % (sysNameLabel, sysTypeLabel))
     else:
       self.addstr(0, 0, uiTools.cropStr(sysNameLabel, contentSpace))
-    
+
     contentSpace = leftWidth - 43
     if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= contentSpace:
       if self.vals["tor/version"] != "Unknown":
@@ -210,14 +210,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(0, 43 + len(labelPrefix) + len(self.vals["tor/versionStatus"]), ")")
     elif 11 <= contentSpace:
       self.addstr(0, 43, uiTools.cropStr("Tor %s" % self.vals["tor/version"], contentSpace, 4))
-    
+
     # Line 2 / Line 2 Left (tor ip/port information)
     x, includeControlPort = 0, True
     if self.vals["tor/orPort"]:
       myAddress = "Unknown"
       if self.vals["tor/orListenAddr"]: myAddress = self.vals["tor/orListenAddr"]
       elif self.vals["tor/address"]: myAddress = self.vals["tor/address"]
-      
+
       # acting as a relay (we can assume certain parameters are set
       dirPortLabel = ", Dir Port: %s" % self.vals["tor/dirPort"] if self.vals["tor/dirPort"] != "0" else ""
       for label in (self.vals["tor/nickname"], " - " + myAddress, ":" + self.vals["tor/orPort"], dirPortLabel):
@@ -232,16 +232,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
         x += 17
       else:
         statusTime = torTools.getConn().controller.get_latest_heartbeat()
-        
+
         if statusTime:
           statusTimeLabel = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(statusTime))
         else: statusTimeLabel = "" # never connected to tor
-        
+
         self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
         self.addstr(1, x + 16, " (%spress r to reconnect)" % statusTimeLabel)
         x += 39 + len(statusTimeLabel)
         includeControlPort = False
-    
+
     if includeControlPort:
       if self.vals["tor/controlPort"] == "0":
         # connected via a control socket
@@ -250,7 +250,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         if self.vals["tor/isAuthPassword"]: authType = "password"
         elif self.vals["tor/isAuthCookie"]: authType = "cookie"
         else: authType = "open"
-        
+
         if x + 19 + len(self.vals["tor/controlPort"]) + len(authType) <= leftWidth:
           authColor = "red" if authType == "open" else "green"
           self.addstr(1, x, ", Control Port (")
@@ -258,12 +258,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
           self.addstr(1, x + 16 + len(authType), "): %s" % self.vals["tor/controlPort"])
         elif x + 16 + len(self.vals["tor/controlPort"]) <= leftWidth:
           self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/controlPort"])
-    
+
     # Line 3 / Line 1 Right (system usage info)
     y, x = (0, leftWidth) if isWide else (2, 0)
     if self.vals["stat/rss"] != "0": memoryLabel = str_tools.get_size_label(int(self.vals["stat/rss"]))
     else: memoryLabel = "0"
-    
+
     uptimeLabel = ""
     if self.vals["tor/startTime"]:
       if self.isPaused() or not self._isTorConnected:
@@ -271,31 +271,31 @@ class HeaderPanel(panel.Panel, threading.Thread):
         uptimeLabel = str_tools.get_short_time_label(self.getPauseTime() - self.vals["tor/startTime"])
       else:
         uptimeLabel = str_tools.get_short_time_label(time.time() - self.vals["tor/startTime"])
-    
+
     sysFields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
                  (27, "mem: %s (%s%%)" % (memoryLabel, self.vals["stat/%mem"])),
                  (47, "pid: %s" % (self.vals["tor/pid"] if self._isTorConnected else "")),
                  (59, "uptime: %s" % uptimeLabel))
-    
+
     for (start, label) in sysFields:
       if start + len(label) <= rightWidth: self.addstr(y, x + start, label)
       else: break
-    
+
     if self.vals["tor/orPort"]:
       # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
       y, x = (1, leftWidth) if isWide else (3, 0)
-      
+
       fingerprintLabel = uiTools.cropStr("fingerprint: %s" % self.vals["tor/fingerprint"], width)
       self.addstr(y, x, fingerprintLabel)
-      
+
       # if there's room and we're able to retrieve both the file descriptor
       # usage and limit then it might be presented
       if width - x - 59 >= 20 and self.vals["tor/fdUsed"] and self.vals["tor/fdLimit"]:
         # display file descriptor usage if we're either configured to do so or
         # running out
-        
+
         fdPercent = 100 * self.vals["tor/fdUsed"] / self.vals["tor/fdLimit"]
-        
+
         if fdPercent >= 60 or CONFIG["features.showFdUsage"]:
           fdPercentLabel, fdPercentFormat = "%i%%" % fdPercent, curses.A_NORMAL
           if fdPercent >= 95:
@@ -304,28 +304,28 @@ class HeaderPanel(panel.Panel, threading.Thread):
             fdPercentFormat = uiTools.getColor("red")
           elif fdPercent >= 60:
             fdPercentFormat = uiTools.getColor("yellow")
-          
+
           estimateChar = "?" if self.vals["tor/isFdLimitEstimate"] else ""
           baseLabel = "file desc: %i / %i%s (" % (self.vals["tor/fdUsed"], self.vals["tor/fdLimit"], estimateChar)
-          
+
           self.addstr(y, x + 59, baseLabel)
           self.addstr(y, x + 59 + len(baseLabel), fdPercentLabel, fdPercentFormat)
           self.addstr(y, x + 59 + len(baseLabel) + len(fdPercentLabel), ")")
-      
+
       # Line 5 / Line 3 Left (flags)
       if self._isTorConnected:
         y, x = (2 if isWide else 4, 0)
         self.addstr(y, x, "flags: ")
         x += 7
-        
+
         if len(self.vals["tor/flags"]) > 0:
           for i in range(len(self.vals["tor/flags"])):
             flag = self.vals["tor/flags"][i]
             flagColor = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
-            
+
             self.addstr(y, x, flag, curses.A_BOLD | uiTools.getColor(flagColor))
             x += len(flag)
-            
+
             if i < len(self.vals["tor/flags"]) - 1:
               self.addstr(y, x, ", ")
               x += 2
@@ -337,33 +337,33 @@ class HeaderPanel(panel.Panel, threading.Thread):
         statusTimeLabel = time.strftime("%H:%M %m/%d/%Y", time.localtime(statusTime))
         self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | uiTools.getColor("red"))
         self.addstr(y, 16, " (%s) - press r to reconnect" % statusTimeLabel)
-      
+
       # Undisplayed / Line 3 Right (exit policy)
       if isWide:
         exitPolicy = self.vals["tor/exitPolicy"]
-        
+
         # adds note when default exit policy is appended
         if exitPolicy == "": exitPolicy = "<default>"
         elif not exitPolicy.endswith((" *:*", " *")): exitPolicy += ", <default>"
-        
+
         self.addstr(2, leftWidth, "exit policy: ")
         x = leftWidth + 13
-        
+
         # color codes accepts to be green, rejects to be red, and default marker to be cyan
         isSimple = len(exitPolicy) > rightWidth - 13
         policies = exitPolicy.split(", ")
         for i in range(len(policies)):
           policy = policies[i].strip()
           policyLabel = policy.replace("accept", "").replace("reject", "").strip() if isSimple else policy
-          
+
           policyColor = "white"
           if policy.startswith("accept"): policyColor = "green"
           elif policy.startswith("reject"): policyColor = "red"
           elif policy.startswith("<default>"): policyColor = "cyan"
-          
+
           self.addstr(2, x, policyLabel, curses.A_BOLD | uiTools.getColor(policyColor))
           x += len(policyLabel)
-          
+
           if i < len(policies) - 1:
             self.addstr(2, x, ", ")
             x += 2
@@ -372,34 +372,34 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if isWide:
         conn = torTools.getConn()
         newnymWait = conn.getNewnymWait()
-        
+
         msg = "press 'n' for a new identity"
         if newnymWait > 0:
           pluralLabel = "s" if newnymWait > 1 else ""
           msg = "building circuits, available again in %i second%s" % (newnymWait, pluralLabel)
-        
+
         self.addstr(1, leftWidth, msg)
-    
+
     self.valsLock.release()
-  
+
   def getPauseTime(self):
     """
     Provides the time Tor stopped if it isn't running. Otherwise this is the
     time we were last paused.
     """
-    
+
     if self._haltTime: return self._haltTime
     else: return panel.Panel.getPauseTime(self)
-  
+
   def run(self):
     """
     Keeps stats updated, checking for new information at a set rate.
     """
-    
+
     lastDraw = time.time() - 1
     while not self._halt:
       currentTime = time.time()
-      
+
       if self.isPaused() or currentTime - lastDraw < 1 or not self._isTorConnected:
         self._cond.acquire()
         if not self._halt: self._cond.wait(0.2)
@@ -409,41 +409,41 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # a new resource usage sampling (the most dynamic stat) or its been
         # twenty seconds since last fetched (so we still refresh occasionally
         # when resource fetches fail).
-        # 
+        #
         # Otherwise, just redraw the panel to change the uptime field.
-        
+
         isChanged = False
         if self.vals["tor/pid"]:
           resourceTracker = sysTools.getResourceTracker(self.vals["tor/pid"])
           isChanged = self._lastResourceFetch != resourceTracker.getRunCount()
-        
+
         if isChanged or currentTime - self._lastUpdate >= 20:
           self._update()
-        
+
         self.redraw(True)
         lastDraw += 1
-  
+
   def stop(self):
     """
     Halts further resolutions and terminates the thread.
     """
-    
+
     self._cond.acquire()
     self._halt = True
     self._cond.notifyAll()
     self._cond.release()
-  
+
   def resetListener(self, controller, eventType, _):
     """
     Updates static parameters on tor reload (sighup) events.
     """
-    
+
     if eventType in (State.INIT, State.RESET):
       initialHeight = self.getHeight()
       self._isTorConnected = True
       self._haltTime = None
       self._update(True)
-      
+
       if self.getHeight() != initialHeight:
         # We're toggling between being a relay and client, causing the height
         # of this panel to change. Redraw all content so we don't get
@@ -457,19 +457,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self._haltTime = time.time()
       self._update()
       self.redraw(True)
-  
+
   def _update(self, setStatic=False):
     """
     Updates stats in the vals mapping. By default this just revises volatile
     attributes.
-    
+
     Arguments:
       setStatic - resets all parameters, including relatively static values
     """
-    
+
     self.valsLock.acquire()
     conn = torTools.getConn()
-    
+
     if setStatic:
       # version is truncated to first part, for instance:
       # 0.2.2.13-alpha (git-feb8c1b5f67f2c6f) -> 0.2.2.13-alpha
@@ -482,10 +482,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["tor/socketPath"] = conn.getOption("ControlSocket", "")
       self.vals["tor/isAuthPassword"] = conn.getOption("HashedControlPassword", None) != None
       self.vals["tor/isAuthCookie"] = conn.getOption("CookieAuthentication", None) == "1"
-      
+
       # orport is reported as zero if unset
       if self.vals["tor/orPort"] == "0": self.vals["tor/orPort"] = ""
-      
+
       # overwrite address if ORListenAddress is set (and possibly orPort too)
       self.vals["tor/orListenAddr"] = ""
       listenAddr = conn.getOption("ORListenAddress", None)
@@ -496,30 +496,30 @@ class HeaderPanel(panel.Panel, threading.Thread):
           self.vals["tor/orPort"] = listenAddr[listenAddr.find(":") + 1:]
         else:
           self.vals["tor/orListenAddr"] = listenAddr
-      
+
       # fetch exit policy (might span over multiple lines)
       policyEntries = []
       for exitPolicy in conn.getOption("ExitPolicy", [], True):
         policyEntries += [policy.strip() for policy in exitPolicy.split(",")]
       self.vals["tor/exitPolicy"] = ", ".join(policyEntries)
-      
+
       # file descriptor limit for the process, if this can't be determined
       # then the limit is None
       fdLimit, fdIsEstimate = conn.getMyFileDescriptorLimit()
       self.vals["tor/fdLimit"] = fdLimit
       self.vals["tor/isFdLimitEstimate"] = fdIsEstimate
-      
+
       # system information
       unameVals = os.uname()
       self.vals["sys/hostname"] = unameVals[1]
       self.vals["sys/os"] = unameVals[0]
       self.vals["sys/version"] = unameVals[2]
-      
+
       self.vals["tor/pid"] = conn.controller.get_pid("")
-      
+
       startTime = conn.getStartTime()
       self.vals["tor/startTime"] = startTime if startTime else ""
-      
+
       # reverts volatile parameters to defaults
       self.vals["tor/fingerprint"] = "Unknown"
       self.vals["tor/flags"] = []
@@ -528,15 +528,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["stat/%armCpu"] = "0"
       self.vals["stat/rss"] = "0"
       self.vals["stat/%mem"] = "0"
-    
+
     # sets volatile parameters
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
     # events. Introduce caching via torTools?
     self.vals["tor/address"] = conn.getInfo("address", "")
-    
+
     self.vals["tor/fingerprint"] = conn.getInfo("fingerprint", self.vals["tor/fingerprint"])
     self.vals["tor/flags"] = conn.getMyFlags(self.vals["tor/flags"])
-    
+
     # Updates file descriptor usage and logs if the usage is high. If we don't
     # have a known limit or it's obviously faulty (being lower than our
     # current usage) then omit file descriptor functionality.
@@ -544,12 +544,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
       fdUsed = conn.getMyFileDescriptorUsage()
       if fdUsed and fdUsed <= self.vals["tor/fdLimit"]: self.vals["tor/fdUsed"] = fdUsed
       else: self.vals["tor/fdUsed"] = 0
-    
+
     if self.vals["tor/fdUsed"] and self.vals["tor/fdLimit"]:
       fdPercent = 100 * self.vals["tor/fdUsed"] / self.vals["tor/fdLimit"]
       estimatedLabel = " estimated" if self.vals["tor/isFdLimitEstimate"] else ""
       msg = "Tor's%s file descriptor usage is at %i%%." % (estimatedLabel, fdPercent)
-      
+
       if fdPercent >= 90 and not self._isFdNinetyPercentWarned:
         self._isFdSixtyPercentWarned, self._isFdNinetyPercentWarned = True, True
         msg += " If you run out Tor will be unable to continue functioning."
@@ -557,11 +557,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
       elif fdPercent >= 60 and not self._isFdSixtyPercentWarned:
         self._isFdSixtyPercentWarned = True
         log.notice(msg)
-    
+
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:
       resourceTracker = sysTools.getResourceTracker(self.vals["tor/pid"])
-      
+
       if resourceTracker.lastQueryFailed():
         self.vals["stat/%torCpu"] = "0"
         self.vals["stat/rss"] = "0"
@@ -572,10 +572,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.vals["stat/%torCpu"] = "%0.1f" % (100 * cpuUsage)
         self.vals["stat/rss"] = str(memUsage)
         self.vals["stat/%mem"] = "%0.1f" % (100 * memUsagePercent)
-    
+
     # determines the cpu time for the arm process (including user and system
     # time of both the primary and child processes)
-    
+
     totalArmCpuTime, currentTime = sum(os.times()[:3]), time.time()
     armCpuDelta = totalArmCpuTime - self._armCpuSampling[0]
     armTimeDelta = currentTime - self._armCpuSampling[1]
@@ -583,7 +583,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     sysCallCpuTime = sysTools.getSysCpuUsage()
     self.vals["stat/%armCpu"] = "%0.1f" % (100 * (pythonCpuTime + sysCallCpuTime))
     self._armCpuSampling = (totalArmCpuTime, currentTime)
-    
+
     self._lastUpdate = currentTime
     self.valsLock.release()
 

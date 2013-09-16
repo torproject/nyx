@@ -10,18 +10,18 @@ def getResources(dst, sourceDir):
   """
   Provides a list of tuples of the form...
   [(destination, (file1, file2...)), ...]
-  
+
   for the given contents of the arm directory (that's right, distutils isn't
   smart enough to know how to copy directories).
   """
-  
+
   results = []
-  
+
   for root, _, files in os.walk(os.path.join("arm", sourceDir)):
     if files:
       fileListing = tuple([os.path.join(root, file) for file in files])
       results.append((os.path.join(dst, root[4:]), fileListing))
-  
+
   return results
 
 # Use 'tor-arm' instead of 'arm' in the path for the sample armrc if we're
@@ -43,7 +43,7 @@ try:
   docPathFlagIndex = sys.argv.index("--docPath")
   if docPathFlagIndex < len(sys.argv) - 1:
     docPath = sys.argv[docPathFlagIndex + 1]
-    
+
     # remove the custom --docPath argument (otherwise the setup call will
     # complain about them)
     del sys.argv[docPathFlagIndex:docPathFlagIndex + 3]
@@ -62,28 +62,28 @@ except ValueError: pass # --docPath flag not found
 manFilename = "arm/resoureces/arm.1"
 if "install" in sys.argv:
   sys.argv += ["--install-purelib", "/usr/share"]
-  
+
   # Compresses the man page. This is a temporary file that we'll install. If
   # something goes wrong then we'll print the issue and use the uncompressed man
   # page instead.
-  
+
   try:
     manInputFile = open('arm/resources/arm.1', 'r')
     manContents = manInputFile.read()
     manInputFile.close()
-    
+
     # temporary destination for the man page guarenteed to be unoccupied (to
     # avoid conflicting with files that are already there)
     tmpFilename = tempfile.mktemp("/arm.1.gz")
-    
+
     # make dir if the path doesn't already exist
     baseDir = os.path.dirname(tmpFilename)
     if not os.path.exists(baseDir): os.makedirs(baseDir)
-    
+
     manOutputFile = gzip.open(tmpFilename, 'wb')
     manOutputFile.write(manContents)
     manOutputFile.close()
-    
+
     # places in tmp rather than a relative path to avoid having this copy appear
     # in the deb and rpm builds
     manFilename = tmpFilename
@@ -105,7 +105,7 @@ setup(name='arm',
                   ("/usr/share/man/man1", [manFilename]),
                   (docPath, ["armrc.sample"]),
                   ("/usr/share/arm/gui", ["arm/gui/arm.xml"]),
-                  ("/usr/share/arm", ["arm/settings.cfg", "arm/uninstall"])] + 
+                  ("/usr/share/arm", ["arm/settings.cfg", "arm/uninstall"])] +
                   getResources("/usr/share/arm", "resources"),
      )
 

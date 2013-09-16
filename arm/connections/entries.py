@@ -27,53 +27,53 @@ class ConnectionPanelEntry:
   in the panel listing. This caches results until the display indicates that
   they should be flushed.
   """
-  
+
   def __init__(self):
     self.lines = []
     self.flushCache = True
-  
+
   def getLines(self):
     """
     Provides the individual lines in the connection listing.
     """
-    
+
     if self.flushCache:
       self.lines = self._getLines(self.lines)
       self.flushCache = False
-    
+
     return self.lines
-  
+
   def _getLines(self, oldResults):
     # implementation of getLines
-    
+
     for line in oldResults:
       line.resetDisplay()
-    
+
     return oldResults
-  
+
   def getSortValues(self, sortAttrs, listingType):
     """
     Provides the value used in comparisons to sort based on the given
     attribute.
-    
+
     Arguments:
       sortAttrs   - list of SortAttr values for the field being sorted on
       listingType - ListingType enumeration for the attribute we're listing
                     entries by
     """
-    
+
     return [self.getSortValue(attr, listingType) for attr in sortAttrs]
-  
+
   def getSortValue(self, attr, listingType):
     """
     Provides the value of a single attribute used for sorting purposes.
-    
+
     Arguments:
       attr        - list of SortAttr values for the field being sorted on
       listingType - ListingType enumeration for the attribute we're listing
                     entries by
     """
-    
+
     if attr == SortAttr.LISTING:
       if listingType == ListingType.IP_ADDRESS:
         # uses the IP address as the primary value, and port as secondary
@@ -86,44 +86,44 @@ class ConnectionPanelEntry:
         return self.getSortValue(SortAttr.FINGERPRINT, listingType)
       elif listingType == ListingType.NICKNAME:
         return self.getSortValue(SortAttr.NICKNAME, listingType)
-    
+
     return ""
-  
+
   def resetDisplay(self):
     """
     Flushes cached display results.
     """
-    
+
     self.flushCache = True
 
 class ConnectionPanelLine:
   """
   Individual line in the connection panel listing.
   """
-  
+
   def __init__(self):
     # cache for displayed information
     self._listingCache = None
     self._listingCacheArgs = (None, None)
-    
+
     self._detailsCache = None
     self._detailsCacheArgs = None
-    
+
     self._descriptorCache = None
     self._descriptorCacheArgs = None
-  
+
   def getListingPrefix(self):
     """
     Provides a list of characters to be appended before the listing entry.
     """
-    
+
     return ()
-  
+
   def getListingEntry(self, width, currentTime, listingType):
     """
     Provides a [(msg, attr)...] tuple list for contents to be displayed in the
     connection panel listing.
-    
+
     Arguments:
       width       - available space to display in
       currentTime - unix timestamp for what the results should consider to be
@@ -131,41 +131,41 @@ class ConnectionPanelLine:
       listingType - ListingType enumeration for the highest priority content
                     to be displayed
     """
-    
+
     if self._listingCacheArgs != (width, listingType):
       self._listingCache = self._getListingEntry(width, currentTime, listingType)
       self._listingCacheArgs = (width, listingType)
-    
+
     return self._listingCache
-  
+
   def _getListingEntry(self, width, currentTime, listingType):
     # implementation of getListingEntry
     return None
-  
+
   def getDetails(self, width):
     """
     Provides a list of [(msg, attr)...] tuple listings with detailed
     information for this connection.
-    
+
     Arguments:
       width - available space to display in
     """
-    
+
     if self._detailsCacheArgs != width:
       self._detailsCache = self._getDetails(width)
       self._detailsCacheArgs = width
-    
+
     return self._detailsCache
-  
+
   def _getDetails(self, width):
     # implementation of getDetails
     return []
-  
+
   def resetDisplay(self):
     """
     Flushes cached display results.
     """
-    
+
     self._listingCacheArgs = (None, None)
     self._detailsCacheArgs = None
 
