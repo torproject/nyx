@@ -514,15 +514,6 @@ def start_arm(start_time):
   :param float start_time: unix timestamp for when arm was started
   """
 
-  # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
-  # checking its resource usage, among other things)
-
-  controller = torTools.getConn().controller
-  tor_pid = controller.get_pid(None)
-
-  if not tor_pid:
-    log.warn("Unable to determine Tor's pid. Some information, like its resource usage will be unavailable.")
-
   # adds events needed for arm functionality to the torTools REQ_EVENTS
   # mapping (they're then included with any setControllerEvents call, and log
   # a more helpful error if unavailable)
@@ -534,6 +525,8 @@ def start_arm(start_time):
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
 
+    controller = torTools.getConn().controller
+
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
@@ -543,6 +536,8 @@ def start_arm(start_time):
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
       torTools.getConn().addStatusListener(connResetListener)
+
+      tor_pid = controller.get_pid(None)
 
       if tor_pid:
         # use the tor pid to help narrow connection results

@@ -46,6 +46,7 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.arm_is_running_as_root': '',
   'msg.config_not_found': '',
   'msg.unable_to_read_config': '',
+  'msg.unable_to_determine_pid': '',
 })
 
 # Our default arguments. The _get_args() function provides a named tuple of
@@ -371,6 +372,13 @@ def main():
   # can properly parse it).
 
   os.putenv("LANG", "C")
+
+  # check that we'll be able to get tor's pid later
+
+  try:
+    controller.get_pid()
+  except ValueError:
+    stem.util.log.warn(CONFIG['msg.unable_to_determine_pid'])
 
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
