@@ -507,20 +507,20 @@ def connResetListener(controller, eventType, _):
       except ValueError:
         pass
 
-def startTorMonitor(startTime):
+def start_arm(start_time):
   """
   Initializes the interface and starts the main draw loop.
 
-  Arguments:
-    startTime - unix time for when arm was started
+  :param float start_time: unix timestamp for when arm was started
   """
 
   # attempts to fetch the tor pid, warning if unsuccessful (this is needed for
   # checking its resource usage, among other things)
-  conn = torTools.getConn()
-  torPid = conn.controller.get_pid(None)
 
-  if not torPid and conn.isAlive():
+  controller = torTools.getConn().controller
+  tor_pid = controller.get_pid(None)
+
+  if not tor_pid:
     log.warn("Unable to determine Tor's pid. Some information, like its resource usage will be unavailable.")
 
   # adds events needed for arm functionality to the torTools REQ_EVENTS
@@ -534,7 +534,7 @@ def startTorMonitor(startTime):
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
 
-    if conn.getOption("DisableDebuggerAttachment", None) == "1":
+    if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
     else:
@@ -542,34 +542,34 @@ def startTorMonitor(startTime):
 
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
-      conn.addStatusListener(connResetListener)
+      torTools.getConn().addStatusListener(connResetListener)
 
-      if torPid:
+      if tor_pid:
         # use the tor pid to help narrow connection results
-        torCmdName = system.get_name_by_pid(torPid)
+        tor_cmd = system.get_name_by_pid(tor_pid)
 
-        if torCmdName is None:
-          torCmdName = "tor"
+        if tor_cmd is None:
+          tor_cmd = "tor"
 
-        connections.getResolver(torCmdName, torPid, "tor")
+        connections.getResolver(tor_cmd, tor_pid, "tor")
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
-        connections.getResolver("tor").setPaused(not conn.isAlive())
+        connections.getResolver("tor").setPaused(not controller.is_alive())
 
       # hack to display a better (arm specific) notice if all resolvers fail
       connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
 
   # provides a notice about any event types tor supports but arm doesn't
-  missingEventTypes = arm.logPanel.getMissingEventTypes()
+  missing_event_types = arm.logPanel.getMissingEventTypes()
 
-  if missingEventTypes:
-    pluralLabel = "s" if len(missingEventTypes) > 1 else ""
-    log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (pluralLabel, ", ".join(missingEventTypes)))
+  if missing_event_types:
+    plural_label = "s" if len(missing_event_types) > 1 else ""
+    log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
 
   try:
-    curses.wrapper(drawTorMonitor, startTime)
-  except UnboundLocalError, exc:
+    curses.wrapper(drawTorMonitor, start_time)
+  except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       shutdownDaemons()
       print 'Unknown $TERM: (%s)' % os.environ['TERM']

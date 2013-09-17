@@ -379,7 +379,7 @@ def main():
   if arm.util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
 
-  arm.controller.startTorMonitor(start_time)
+  arm.controller.start_arm(start_time)
 
 if __name__ == '__main__':
   main()
