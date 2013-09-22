@@ -26,12 +26,6 @@ CONFIG = conf.config_dict("arm", {
   "tor.chroot": "",
 })
 
-# events used for controller functionality:
-# NEWDESC, NS, and NEWCONSENSUS - used for cache invalidation
-REQ_EVENTS = {"NEWDESC": "information related to descriptors will grow stale",
-              "NS": "information related to the consensus will grow stale",
-              "NEWCONSENSUS": "information related to the consensus will grow stale"}
-
 # Logs issues and notices when fetching the path prefix if true. This is
 # only done once for the duration of the application to avoid pointless
 # messages.

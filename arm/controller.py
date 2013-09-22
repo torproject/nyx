@@ -514,12 +514,6 @@ def start_arm(start_time):
   :param float start_time: unix timestamp for when arm was started
   """
 
-  # adds events needed for arm functionality to the torTools REQ_EVENTS
-  # mapping (they're then included with any setControllerEvents call, and log
-  # a more helpful error if unavailable)
-
-  torTools.REQ_EVENTS["BW"] = "bandwidth graph won't function"
-
   if not CONFIG["startup.blindModeEnabled"]:
     # The DisableDebuggerAttachment will prevent our connection panel from really
     # functioning. It'll have circuits, but little else. If this is the case then
@@ -530,8 +524,6 @@ def start_arm(start_time):
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
-    else:
-      torTools.REQ_EVENTS["CIRC"] = "may cause issues in identifying client connections"
 
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
