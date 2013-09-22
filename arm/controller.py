@@ -524,10 +524,11 @@ def start_arm(start_time):
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       connections.getResolver("tor").setPaused(True)
-
+    else:
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
-      torTools.getConn().addStatusListener(connResetListener)
+
+      controller.add_status_listener(connResetListener)
 
       tor_pid = controller.get_pid(None)
 
@@ -543,16 +544,6 @@ def start_arm(start_time):
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
         connections.getResolver("tor").setPaused(not controller.is_alive())
-
-      # hack to display a better (arm specific) notice if all resolvers fail
-      connections.RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
-
-  # provides a notice about any event types tor supports but arm doesn't
-  missing_event_types = arm.logPanel.getMissingEventTypes()
-
-  if missing_event_types:
-    plural_label = "s" if len(missing_event_types) > 1 else ""
-    log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
 
   try:
     curses.wrapper(drawTorMonitor, start_time)

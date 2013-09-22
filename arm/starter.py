@@ -387,6 +387,14 @@ def main():
   if arm.util.uiTools.isUnicodeAvailable():
     locale.setlocale(locale.LC_ALL, "")
 
+  # provides a notice about any event types tor supports but arm doesn't
+
+  missing_event_types = arm.logPanel.getMissingEventTypes()
+
+  if missing_event_types:
+    plural_label = "s" if len(missing_event_types) > 1 else ""
+    stem.util.log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
+
   arm.controller.start_arm(start_time)
 
 if __name__ == '__main__':

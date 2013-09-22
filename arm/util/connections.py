@@ -74,7 +74,7 @@ RUN_BSD_PROCSTAT = "procstat -f %s"
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
 RESOLVER_SERIAL_FAILURE_MSG = "Unable to query connections with %s, trying %s"
-RESOLVER_FINAL_FAILURE_MSG = "All connection resolvers failed"
+RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
 
 def conf_handler(key, value):
   if key.startswith("port.label."):
