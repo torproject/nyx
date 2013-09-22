@@ -107,21 +107,6 @@ CONFIG = conf.config_dict("arm", {
 
 PORT_USAGE = {}
 
-def isValidIpAddress(ipStr):
-  """
-  Returns true if input is a valid IPv4 address, false otherwise.
-  """
-
-  # checks if theres four period separated values
-  if not ipStr.count(".") == 3: return False
-
-  # checks that each value in the octet are decimal values between 0-255
-  for ipComp in ipStr.split("."):
-    if not ipComp.isdigit() or int(ipComp) < 0 or int(ipComp) > 255:
-      return False
-
-  return True
-
 def isIpAddressPrivate(ipAddr):
   """
   Provides true if the IP address belongs on the local network or belongs to
