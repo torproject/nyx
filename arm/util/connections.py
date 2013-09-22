@@ -107,30 +107,6 @@ CONFIG = conf.config_dict("arm", {
 
 PORT_USAGE = {}
 
-def isIpAddressPrivate(ipAddr):
-  """
-  Provides true if the IP address belongs on the local network or belongs to
-  loopback, false otherwise. These include:
-  Private ranges: 10.*, 172.16.* - 172.31.*, 192.168.*
-  Loopback: 127.*
-
-  Arguments:
-    ipAddr - IP address to be checked
-  """
-
-  # checks for any of the simple wildcard ranges
-  if ipAddr.startswith("10.") or ipAddr.startswith("192.168.") or ipAddr.startswith("127."):
-    return True
-
-  # checks for the 172.16.* - 172.31.* range
-  if ipAddr.startswith("172.") and ipAddr.count(".") == 3:
-    secondOctet = ipAddr[4:ipAddr.find(".", 4)]
-
-    if secondOctet.isdigit() and int(secondOctet) >= 16 and int(secondOctet) <= 31:
-      return True
-
-  return False
-
 def ipToInt(ipAddr):
   """
   Provides an integer representation of the ip address, suitable for sorting.

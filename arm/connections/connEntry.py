@@ -6,10 +6,12 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from arm.util import connections, torTools, uiTools
+from arm.util import torTools, uiTools
 from arm.connections import entries
 
-from stem.util import conf, enum, str_tools
+from stem.util import conf, connection, enum, str_tools
+
+from arm.util.connections import ipToInt, getPortUsage
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -183,7 +185,7 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
     elif attr == entries.SortAttr.UPTIME:
       return connLine.startTime
     elif attr == entries.SortAttr.COUNTRY:
-      if connections.isIpAddressPrivate(self.lines[0].foreign.getIpAddr()): return ""
+      if connection.is_private_address(self.lines[0].foreign.getIpAddr()): return ""
       else: return connLine.foreign.getLocale("")
     else:
       return entries.ConnectionPanelEntry.getSortValue(self, attr, listingType)
@@ -251,7 +253,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.includeExpandedIpAddr = includeExpandedIpAddr
 
     # cached immutable values used for sorting
-    self.sortIpAddr = connections.ipToInt(self.foreign.getIpAddr())
+    self.sortIpAddr = ipToInt(self.foreign.getIpAddr())
     self.sortPort = int(self.foreign.getPort())
 
   def getListingEntry(self, width, currentTime, listingType):
@@ -809,7 +811,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       spaceAvailable = maxLength - len(dstAddress) - 3
 
       if self.getType() == Category.EXIT and includePort:
-        purpose = connections.getPortUsage(self.foreign.getPort())
+        purpose = getPortUsage(self.foreign.getPort())
 
         if purpose:
           # BitTorrent is a common protocol to truncate, so just use "Torrent"
@@ -821,7 +823,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           purpose = uiTools.cropStr(purpose, spaceAvailable, endType = uiTools.Ending.HYPHEN)
 
           dstAddress += " (%s)" % purpose
-      elif not connections.isIpAddressPrivate(self.foreign.getIpAddr()):
+      elif not connection.is_private_address(self.foreign.getIpAddr()):
         extraInfo = []
         conn = torTools.getConn()
 
