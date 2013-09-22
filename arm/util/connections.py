@@ -107,22 +107,6 @@ CONFIG = conf.config_dict("arm", {
 
 PORT_USAGE = {}
 
-def ipToInt(ipAddr):
-  """
-  Provides an integer representation of the ip address, suitable for sorting.
-
-  Arguments:
-    ipAddr - ip address to be converted
-  """
-
-  total = 0
-
-  for comp in ipAddr.split("."):
-    total *= 255
-    total += int(comp)
-
-  return total
-
 def getPortUsage(port):
   """
   Provides the common use of a given port. If no useage is known then this

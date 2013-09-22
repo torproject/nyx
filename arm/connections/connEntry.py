@@ -11,7 +11,7 @@ from arm.connections import entries
 
 from stem.util import conf, connection, enum, str_tools
 
-from arm.util.connections import ipToInt, getPortUsage
+from arm.util.connections import getPortUsage
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -253,7 +253,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.includeExpandedIpAddr = includeExpandedIpAddr
 
     # cached immutable values used for sorting
-    self.sortIpAddr = ipToInt(self.foreign.getIpAddr())
+
+    ip_value = 0
+
+    for comp in self.foreign.getIpAddr().split("."):
+      ip_value *= 255
+      ip_value += int(comp)
+
+    self.sortIpAddr = ip_value
     self.sortPort = int(self.foreign.getPort())
 
   def getListingEntry(self, width, currentTime, listingType):
