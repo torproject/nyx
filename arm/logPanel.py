@@ -737,7 +737,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Prompts the user to add a new regex filter.
     """
 
-    regexInput = popups.inputPrompt("Regular expression: ")
+    regexInput = arm.popups.inputPrompt("Regular expression: ")
 
     if regexInput:
       try:
@@ -745,7 +745,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         if regexInput in self.filterOptions: self.filterOptions.remove(regexInput)
         self.filterOptions.insert(0, regexInput)
       except re.error, exc:
-        popups.showMsg("Unable to compile expression: %s" % exc, 2)
+        arm.popups.showMsg("Unable to compile expression: %s" % exc, 2)
 
   def showEventSelectionPrompt(self):
     """
@@ -753,7 +753,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     """
 
     # allow user to enter new types of events to log - unchanged if left blank
-    popup, width, height = popups.init(11, 80)
+    popup, width, height = arm.popups.init(11, 80)
 
     if popup:
       try:
@@ -767,27 +767,27 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         popup.win.refresh()
 
-        userInput = popups.inputPrompt("Events to log: ")
+        userInput = arm.popups.inputPrompt("Events to log: ")
         if userInput:
           userInput = userInput.replace(' ', '') # strips spaces
           try: self.setLoggedEvents(expandEvents(userInput))
           except ValueError, exc:
-            popups.showMsg("Invalid flags: %s" % str(exc), 2)
-      finally: popups.finalize()
+            arm.popups.showMsg("Invalid flags: %s" % str(exc), 2)
+      finally: arm.popups.finalize()
 
   def showSnapshotPrompt(self):
     """
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
 
-    pathInput = popups.inputPrompt("Path to save log snapshot: ")
+    pathInput = arm.popups.inputPrompt("Path to save log snapshot: ")
 
     if pathInput:
       try:
         self.saveSnapshot(pathInput)
-        popups.showMsg("Saved: %s" % pathInput, 2)
+        arm.popups.showMsg("Saved: %s" % pathInput, 2)
       except IOError, exc:
-        popups.showMsg("Unable to save snapshot: %s" % exc.strerror, 2)
+        arm.popups.showMsg("Unable to save snapshot: %s" % exc.strerror, 2)
 
   def clear(self):
     """
@@ -849,7 +849,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self.valsLock.release()
     elif key == ord('c') or key == ord('C'):
       msg = "This will clear the log. Are you sure (c again to confirm)?"
-      keyPress = popups.showMsg(msg, attr = curses.A_BOLD)
+      keyPress = arm.popups.showMsg(msg, attr = curses.A_BOLD)
       if keyPress in (ord('c'), ord('C')): self.clear()
     elif key == ord('f') or key == ord('F'):
       # Provides menu to pick regular expression filters or adding new ones:
@@ -861,7 +861,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       # new filters
       panel.CURSES_LOCK.acquire()
       try:
-        selection = popups.showMenu("Log Filter:", options, oldSelection)
+        selection = arm.popups.showMenu("Log Filter:", options, oldSelection)
 
         # applies new setting
         if selection == 0:
