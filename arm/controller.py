@@ -457,7 +457,7 @@ def shutdownDaemons():
   # internal threadpools being joined might be sleeping
   hostnames.stop()
   resourceTrackers = sysTools.RESOURCE_TRACKERS.values()
-  resolver = connections.getResolver("tor") if connections.isResolverAlive("tor") else None
+  resolver = connections.get_resolver() if connections.get_resolver().is_alive() else None
   for tracker in resourceTrackers: tracker.stop()
   if resolver: resolver.stop()  # sets halt flag (returning immediately)
   for tracker in resourceTrackers: tracker.join()
@@ -490,8 +490,8 @@ def connResetListener(controller, eventType, _):
   pid if started again.
   """
 
-  if connections.isResolverAlive("tor"):
-    resolver = connections.getResolver("tor")
+  if connections.get_resolver().is_alive():
+    resolver = connections.get_resolver()
     resolver.set_paused(eventType == State.CLOSED)
 
     if eventType in (State.INIT, State.RESET):
@@ -503,7 +503,12 @@ def connResetListener(controller, eventType, _):
         torConfig.getTorrc().load(True)
 
       try:
-        resolver.setPid(controller.get_pid())
+        tor_cmd = system.get_name_by_pid(tor_pid)
+
+        if tor_cmd is None:
+          tor_cmd = "tor"
+
+        resolver.set_process(controller.get_pid(), tor_cmd)
       except ValueError:
         pass
 
@@ -523,7 +528,7 @@ def start_arm(start_time):
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
-      connections.getResolver("tor").set_paused(True)
+      connections.get_resolver().set_paused(True)
     else:
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
@@ -539,11 +544,14 @@ def start_arm(start_time):
         if tor_cmd is None:
           tor_cmd = "tor"
 
-        connections.getResolver(tor_cmd, tor_pid, "tor")
+        resolver = connections.get_resolver()
+        resolver.set_process(tor_pid, tor_cmd)
+        log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
+        resolver.start()
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
-        connections.getResolver("tor").set_paused(not controller.is_alive())
+        connections.get_resolver().set_paused(not controller.is_alive())
 
   try:
     curses.wrapper(drawTorMonitor, start_time)

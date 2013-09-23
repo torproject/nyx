@@ -23,15 +23,7 @@ import threading
 
 from stem.util import conf, connection, log, system
 
-# If true this provides new instantiations for resolvers if the old one has
-# been stopped. This can make it difficult ensure all threads are terminated
-# when accessed concurrently.
-RECREATE_HALTED_RESOLVERS = False
-
-RESOLVERS = []                      # connection resolvers available via the singleton constructor
-RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
-RESOLVER_SERIAL_FAILURE_MSG = "Unable to query connections with %s, trying %s"
-RESOLVER_FINAL_FAILURE_MSG = "We were unable to use any of your system's resolvers to get tor's connections. This is fine, but means that the connections page will be empty. This is usually permissions related so if you would like to fix this then run arm with the same user as tor (ie, \"sudo -u <tor user> arm\")."
+RESOLVER = None
 
 def conf_handler(key, value):
   if key.startswith("port.label."):
@@ -58,8 +50,10 @@ def conf_handler(key, value):
         msg = "Unable to parse port range for entry: %s" % key
         log.notice(msg)
 
-CONFIG = conf.config_dict("arm", {
-  "queries.connections.minRate": 5,
+CONFIG = conf.config_dict('arm', {
+  'queries.connections.minRate': 5,
+  'msg.unable_to_use_resolver': '',
+  'msg.unable_to_use_all_resolvers': '',
 }, conf_handler)
 
 PORT_USAGE = {}
@@ -75,52 +69,17 @@ def getPortUsage(port):
 
   return PORT_USAGE.get(port)
 
-def isResolverAlive(processName, processPid = ""):
+def get_resolver():
   """
-  This provides true if a singleton resolver instance exists for the given
-  process/pid combination, false otherwise.
-
-  Arguments:
-    processName - name of the process being checked
-    processPid  - pid of the process being checked, if undefined this matches
-                  against any resolver with the process name
+  Singleton constructor for a connection resolver for tor's process.
   """
 
-  for resolver in RESOLVERS:
-    if not resolver._halt and resolver.processName == processName and (not processPid or resolver.processPid == processPid):
-      return True
+  global RESOLVER
 
-  return False
+  if RESOLVER is None:
+    RESOLVER = ConnectionResolver()
 
-def getResolver(processName, processPid = "", alias=None):
-  """
-  Singleton constructor for resolver instances. If a resolver already exists
-  for the process then it's returned. Otherwise one is created and started.
-
-  Arguments:
-    processName - name of the process being resolved
-    processPid  - pid of the process being resolved, if undefined this matches
-                  against any resolver with the process name
-    alias       - alternative handle under which the resolver can be requested
-  """
-
-  # check if one's already been created
-  requestHandle = alias if alias else processName
-  haltedIndex = -1 # old instance of this resolver with the _halt flag set
-  for i in range(len(RESOLVERS)):
-    resolver = RESOLVERS[i]
-    if resolver.handle == requestHandle and (not processPid or resolver.processPid == processPid):
-      if resolver._halt and RECREATE_HALTED_RESOLVERS: haltedIndex = i
-      else: return resolver
-
-  # make a new resolver
-  r = ConnectionResolver(processName, processPid, handle = requestHandle)
-  r.start()
-
-  # overwrites halted instance of this resolver if it exists, otherwise append
-  if haltedIndex == -1: RESOLVERS.append(r)
-  else: RESOLVERS[haltedIndex] = r
-  return r
+  return RESOLVER
 
 class Daemon(threading.Thread):
   """
@@ -203,193 +162,133 @@ class Daemon(threading.Thread):
 
 class ConnectionResolver(Daemon):
   """
-  Service that periodically queries for a process' current connections. This
-  provides several benefits over on-demand queries:
-  - queries are non-blocking (providing cached results)
-  - falls back to use different resolution methods in case of repeated failures
-  - avoids overly frequent querying of connection data, which can be demanding
-    in terms of system resources
-
-  Unless an overriding method of resolution is requested this defaults to
-  choosing a resolver the following way:
-
-  - Checks the current PATH to determine which resolvers are available. This
-    uses the first of the following that's available:
-      netstat, ss, lsof (picks netstat if none are found)
-
-  - Attempts to resolve using the selection. Single failures are logged at the
-    INFO level, and a series of failures at NOTICE. In the later case this
-    blacklists the resolver, moving on to the next. If all resolvers fail this
-    way then resolution's abandoned and logs a WARN message.
-
-  The time between resolving connections, unless overwritten, is set to be
-  either five seconds or ten times the runtime of the resolver (whichever is
-  larger). This is to prevent systems either strapped for resources or with a
-  vast number of connections from being burdened too heavily by this daemon.
-
-  Parameters:
-    processName       - name of the process being resolved
-    processPid        - pid of the process being resolved
-    overwriteResolver - method of resolution (uses default if None)
-    * defaultResolver - resolver used by default (None if all resolution
-                        methods have been exhausted)
-    resolverOptions   - resolvers to be cycled through (differ by os)
-
-    * read-only
+  Daemon that periodically retrieves the connections made by a process.
   """
 
-  def __init__(self, processName, processPid = "", handle = None):
-    """
-    Initializes a new resolver daemon. When no longer needed it's suggested
-    that this is stopped.
-
-    Arguments:
-      processName - name of the process being resolved
-      processPid  - pid of the process being resolved
-      handle      - name used to query this resolver, this is the processName
-                    if undefined
-    """
-
+  def __init__(self):
     Daemon.__init__(self, CONFIG["queries.connections.minRate"])
 
-    self.processName = processName
-    self.processPid = processPid
-    self.handle = handle if handle else processName
-    self.overwriteResolver = None
+    self._resolvers = connection.get_system_resolvers()
+    self._connections = []
+    self._custom_resolver = None
+    self._resolution_counter = 0  # number of successful connection resolutions
 
-    self.defaultResolver = None
-    self.resolverOptions = connection.get_system_resolvers()
+    self._process_pid = None
+    self._process_name = None
 
-    log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(self.resolverOptions)))
+    # Number of times in a row we've either failed with our current resolver or
+    # concluded that our rate is too low.
 
-    if self.resolverOptions:
-      self.defaultResolver = self.resolverOptions[0]
-
-    self._connections = []        # connection cache (latest results)
-    self._resolutionCounter = 0   # number of successful connection resolutions
-    self._subsiquentFailures = 0  # number of failed resolutions with the default in a row
-    self._resolverBlacklist = []  # resolvers that have failed to resolve
-
-    # Number of sequential times the threshold rate's been too low. This is to
-    # avoid having stray spikes up the rate.
-    self._rateThresholdBroken = 0
-
-  def getOverwriteResolver(self):
-    """
-    Provides the resolver connection resolution is forced to use. This returns
-    None if it's dynamically determined.
-    """
-
-    return self.overwriteResolver
-
-  def setOverwriteResolver(self, overwriteResolver):
-    """
-    Sets the resolver used for connection resolution, if None then this is
-    automatically determined based on what is available.
-
-    Arguments:
-      overwriteResolver - connection resolver to be used
-    """
-
-    self.overwriteResolver = overwriteResolver
+    self._failure_count = 0
+    self._rate_too_low_count = 0
 
   def task(self):
-    isDefault = self.overwriteResolver == None
-    resolver = self.defaultResolver if isDefault else self.overwriteResolver
-
-    # checks if there's nothing to resolve with
-    if not resolver:
-      self.stop()
-      return
+    if self._custom_resolver:
+      resolver = self._custom_resolver
+      is_default_resolver = False
+    elif self._resolvers:
+      resolver = self._resolvers[0]
+      is_default_resolver = True
+    else:
+      return  # nothing to resolve with
 
     try:
-      resolveStart = time.time()
-      time.sleep(2)
-      from stem.util import log
-      connResults = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in connection.get_connections(resolver, process_pid = self.processPid, process_name = self.processName)]
+      start_time = time.time()
+      self._connections = connection.get_connections(resolver, process_pid = self._process_pid, process_name = self._process_name)
+      runtime = time.time() - start_time
 
-      lookupTime = time.time() - resolveStart
+      self._resolution_counter += 1
 
-      self._connections = connResults
-      self._resolutionCounter += 1
+      if is_default_resolver:
+        self._failure_count = 0
 
-      newMinDefaultRate = 100 * lookupTime
-      if self.get_rate() < newMinDefaultRate:
-        if self._rateThresholdBroken >= 3:
-          # adding extra to keep the rate from frequently changing
-          self.set_rate(newMinDefaultRate + 0.5)
+      # Reduce our rate if connection resolution is taking a long time. This is
+      # most often an issue for extremely busy relays.
 
-          log.trace("connection lookup time increasing to %0.1f seconds per call" % newMinDefaultRate)
-        else: self._rateThresholdBroken += 1
-      else: self._rateThresholdBroken = 0
+      min_rate = 100 * runtime
 
-      if isDefault: self._subsiquentFailures = 0
-    except (ValueError, IOError), exc:
-      # this logs in a couple of cases:
-      # - special failures noted by getConnections (most cases are already
-      # logged via system)
-      # - note fail-overs for default resolution methods
-      if str(exc).startswith("No results found using:"):
-        log.info(exc)
+      if self.get_rate() < min_rate:
+        self._rate_too_low_count += 1
 
-      if isDefault:
-        self._subsiquentFailures += 1
+        if self._rate_too_low_count >= 3:
+          min_rate += 1  # little extra padding so we don't frequently update this
+          self.set_rate(min_rate)
+          self._rate_too_low_count = 0
+          log.trace("connection lookup time increasing to %0.1f seconds per call" % min_rate)
+      else:
+        self._rate_too_low_count = 0
+    except IOError as exc:
+      log.info(exc)
 
-        if self._subsiquentFailures >= RESOLVER_FAILURE_TOLERANCE:
-          # failed several times in a row - abandon resolver and move on to another
-          self._resolverBlacklist.append(resolver)
-          self._subsiquentFailures = 0
+      # Fail over to another resolver if we've repeatedly been unable to use
+      # this one.
 
-          # pick another (non-blacklisted) resolver
-          newResolver = None
-          for r in self.resolverOptions:
-            if not r in self._resolverBlacklist:
-              newResolver = r
-              break
+      if is_default_resolver:
+        self._failure_count += 1
 
-          if newResolver:
-            # provide notice that failures have occurred and resolver is changing
-            log.notice(RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver))
+        if self._failure_count >= 3:
+          self._resolvers.pop()
+          self._failure_count = 0
+
+          if self._resolvers:
+            log.notice(CONFIG['msg.unable_to_use_resolver'].format(
+              old_resolver = resolver,
+              new_resolver = self._resolvers[0],
+            ))
           else:
-            # exhausted all resolvers, give warning
-            log.notice(RESOLVER_FINAL_FAILURE_MSG)
+            log.notice(CONFIG['msg.unable_to_use_all_resolvers'])
 
-          self.defaultResolver = newResolver
+  def set_process(self, pid, name):
+    """
+    Sets the process we retrieve connections for.
 
-  def getConnections(self):
+    :param int pid: process id
+    :param str name: name of the process
+    """
+
+    self._process_pid = pid
+    self._process_name = name
+
+  def get_custom_resolver(self):
+    """
+    Provides the custom resolver the user has selected. This is **None** if
+    we're picking resolvers dynamically.
+
+    :returns: :data:`stem.util.connection.Resolver` we're overwritten to use
+    """
+
+    return self._custom_resolver
+
+  def set_custom_resolver(self, resolver):
+    """
+    Sets the resolver used for connection resolution. If **None** then this is
+    automatically determined based on what is available.
+
+    :param stem.util.connection.Resolver resolver: resolver to use
+    """
+
+    self._custom_resolver = resolver
+
+  def get_connections(self):
     """
     Provides the last queried connection results, an empty list if resolver
-    has been halted.
+    has been stopped.
+
+    :returns: **list** of :class:`~stem.util.connection.Connection` we last retrieved
     """
 
-    if self._halt: return []
-    else: return list(self._connections)
+    if self._halt:
+      return []
+    else:
+      return list(self._connections)
 
-  def getResolutionCount(self):
+  def get_resolution_count(self):
     """
     Provides the number of successful resolutions so far. This can be used to
     determine if the connection results are new for the caller or not.
     """
 
-    return self._resolutionCounter
-
-  def getPid(self):
-    """
-    Provides the pid used to narrow down connection resolution. This is an
-    empty string if undefined.
-    """
-
-    return self.processPid
-
-  def setPid(self, processPid):
-    """
-    Sets the pid used to narrow down connection resultions.
-
-    Arguments:
-      processPid - pid for the process we're fetching connections for
-    """
-
-    self.processPid = processPid
+    return self._resolution_counter
 
 
 class AppResolver:

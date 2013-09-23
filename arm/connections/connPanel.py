@@ -241,9 +241,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"
       options = ["auto"] + list(connections.Resolver)
-      connResolver = connections.getResolver("tor")
+      connResolver = connections.get_resolver()
 
-      currentOverwrite = connResolver.overwriteResolver
+      currentOverwrite = connResolver.get_custom_resolver()
       if currentOverwrite == None: oldSelection = 0
       else: oldSelection = options.index(currentOverwrite)
 
@@ -252,7 +252,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # applies new setting
       if selection != -1:
         selectedOption = options[selection] if selection != 0 else None
-        connResolver.overwriteResolver = selectedOption
+        connResolver.set_custom_resolver(selectedOption)
     elif key == ord('l') or key == ord('L'):
       # provides a menu to pick the primary information we list connections by
       title = "List By:"
@@ -312,7 +312,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         lastDraw += CONFIG["features.connection.refreshRate"] * drawTicks
 
   def getHelp(self):
-    resolverUtil = connections.getResolver("tor").overwriteResolver
+    resolverUtil = connections.get_resolver().get_custom_resolver()
     if resolverUtil == None: resolverUtil = "auto"
 
     options = []
@@ -426,10 +426,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.appResolveSinceUpdate = False
 
     # if we don't have an initialized resolver then this is a no-op
-    if not connections.isResolverAlive("tor"): return
+    if not connections.get_resolver().is_alive(): return
 
-    connResolver = connections.getResolver("tor")
-    currentResolutionCount = connResolver.getResolutionCount()
+    connResolver = connections.get_resolver()
+    currentResolutionCount = connResolver.get_resolution_count()
 
     self.valsLock.acquire()
 
@@ -439,7 +439,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # newConnections  [(local ip, local port, foreign ip, foreign port)...]
     # newCircuits     {circuitID => (status, purpose, path)...}
 
-    newConnections = connResolver.getConnections()
+    newConnections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in connResolver.get_connections()]
     newCircuits = {}
 
     for circuitID, status, purpose, path in torTools.getConn().getCircuits():

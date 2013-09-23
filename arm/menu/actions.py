@@ -238,9 +238,9 @@ def makeConnectionsMenu(connPanel):
   connectionsMenu.add(arm.menu.item.MenuItem("Sorting...", connPanel.showSortDialog))
 
   # resolver submenu
-  connResolver = connections.getResolver("tor")
+  connResolver = connections.get_resolver()
   resolverMenu = arm.menu.item.Submenu("Resolver")
-  resolverGroup = arm.menu.item.SelectionGroup(connResolver.setOverwriteResolver, connResolver.getOverwriteResolver())
+  resolverGroup = arm.menu.item.SelectionGroup(connResolver.set_custom_resolver, connResolver.get_custom_resolver())
 
   resolverMenu.add(arm.menu.item.SelectionMenuItem("auto", resolverGroup, None))
 
