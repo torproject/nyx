@@ -17,12 +17,11 @@ options that perform even better (thanks to Fabian Keil and Hans Schnehl):
 - procstat    procstat -f <pid> | grep TCP | grep -v 0.0.0.0:0
 """
 
-import re
 import os
 import time
 import threading
 
-from stem.util import conf, connection, enum, log, proc, system
+from stem.util import conf, connection, log, system
 
 # If true this provides new instantiations for resolvers if the old one has
 # been stopped. This can make it difficult ensure all threads are terminated
@@ -189,23 +188,14 @@ class ConnectionResolver(threading.Thread):
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
-    self.defaultResolver = connection.Resolver.PROC
 
+    self.defaultResolver = None
     self.resolverOptions = connection.get_system_resolvers()
 
-    osType = os.uname()[0]
-    log.info("Operating System: %s, Connection Resolvers: %s" % (osType, ", ".join(self.resolverOptions)))
+    log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(self.resolverOptions)))
 
-    # sets the default resolver to be the first found in the system's PATH
-    # (left as netstat if none are found)
-    for resolver in self.resolverOptions:
-      # Resolver strings correspond to their command with the exception of bsd
-      # resolvers.
-      resolverCmd = resolver.replace(" (bsd)", "")
-
-      if resolver == connection.Resolver.PROC or system.is_available(resolverCmd):
-        self.defaultResolver = resolver
-        break
+    if self.resolverOptions:
+      self.defaultResolver = self.resolverOptions[0]
 
     self._connections = []        # connection cache (latest results)
     self._resolutionCounter = 0   # number of successful connection resolutions
