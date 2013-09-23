@@ -11,6 +11,8 @@ import arm.graphing.graphPanel
 
 from arm.util import connections, torTools, uiTools
 
+import stem.util.connection
+
 from stem.util import conf, str_tools
 
 CONFIG = conf.config_dict("arm", {
@@ -242,7 +244,7 @@ def makeConnectionsMenu(connPanel):
 
   resolverMenu.add(arm.menu.item.SelectionMenuItem("auto", resolverGroup, None))
 
-  for option in connections.Resolver:
+  for option in stem.util.connection.Resolver:
     resolverMenu.add(arm.menu.item.SelectionMenuItem(option, resolverGroup, option))
 
   connectionsMenu.add(resolverMenu)

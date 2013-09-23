@@ -122,7 +122,86 @@ def getResolver(processName, processPid = "", alias=None):
   else: RESOLVERS[haltedIndex] = r
   return r
 
-class ConnectionResolver(threading.Thread):
+class Daemon(threading.Thread):
+  """
+  Daemon that can perform a unit of work at a given rate.
+  """
+
+  def __init__(self, rate):
+    threading.Thread.__init__(self)
+    self.daemon = True
+
+    self._rate = rate
+    self._last_ran = -1  # time when we last ran
+
+    self._is_paused = False
+    self._halt = False  # terminates thread if true
+    self._cond = threading.Condition()  # used for pausing the thread
+
+  def run(self):
+    while not self._halt:
+      time_since_last_ran = time.time() - self._last_ran
+
+      if self._is_paused or time_since_last_ran < self._rate:
+        sleep_duration = max(0.2, self._rate - time_since_last_ran)
+
+        self._cond.acquire()
+        if not self._halt:
+          self._cond.wait(sleep_duration)
+        self._cond.release()
+
+        continue  # done waiting, try again
+
+      self.task()
+      self._last_ran = time.time()
+
+  def task(self):
+    """
+    Task the resolver is meant to perform. This should be implemented by
+    subclasses.
+    """
+
+    pass
+
+  def get_rate(self):
+    """
+    Provides the rate at which we perform our given task.
+
+    :returns: **float** for the rate in seconds at which we perform our task
+    """
+
+    return self._rate
+
+  def set_rate(self, rate):
+    """
+    Sets the rate at which we perform our task in seconds.
+
+    :param float rate: rate at which to perform work in seconds
+    """
+
+    self._rate = rate
+
+  def set_paused(self, pause):
+    """
+    Either resumes or holds off on doing further work.
+
+    :param bool pause: halts work if **True**, resumes otherwise
+    """
+
+    self._is_paused = pause
+
+  def stop(self):
+    """
+    Halts further work and terminates the thread.
+    """
+
+    self._cond.acquire()
+    self._halt = True
+    self._cond.notifyAll()
+    self._cond.release()
+
+
+class ConnectionResolver(Daemon):
   """
   Service that periodically queries for a process' current connections. This
   provides several benefits over on-demand queries:
@@ -151,11 +230,6 @@ class ConnectionResolver(threading.Thread):
   Parameters:
     processName       - name of the process being resolved
     processPid        - pid of the process being resolved
-    resolveRate       - minimum time between resolving connections (in seconds,
-                        None if using the default)
-    * defaultRate     - default time between resolving connections
-    lastLookup        - time connections were last resolved (unix time, -1 if
-                        no resolutions have yet been successful)
     overwriteResolver - method of resolution (uses default if None)
     * defaultResolver - resolver used by default (None if all resolution
                         methods have been exhausted)
@@ -164,7 +238,7 @@ class ConnectionResolver(threading.Thread):
     * read-only
   """
 
-  def __init__(self, processName, processPid = "", resolveRate = None, handle = None):
+  def __init__(self, processName, processPid = "", handle = None):
     """
     Initializes a new resolver daemon. When no longer needed it's suggested
     that this is stopped.
@@ -172,21 +246,15 @@ class ConnectionResolver(threading.Thread):
     Arguments:
       processName - name of the process being resolved
       processPid  - pid of the process being resolved
-      resolveRate - time between resolving connections (in seconds, None if
-                    chosen dynamically)
       handle      - name used to query this resolver, this is the processName
                     if undefined
     """
 
-    threading.Thread.__init__(self)
-    self.setDaemon(True)
+    Daemon.__init__(self, CONFIG["queries.connections.minRate"])
 
     self.processName = processName
     self.processPid = processPid
-    self.resolveRate = resolveRate
     self.handle = handle if handle else processName
-    self.defaultRate = CONFIG["queries.connections.minRate"]
-    self.lastLookup = -1
     self.overwriteResolver = None
 
     self.defaultResolver = None
@@ -199,9 +267,6 @@ class ConnectionResolver(threading.Thread):
 
     self._connections = []        # connection cache (latest results)
     self._resolutionCounter = 0   # number of successful connection resolutions
-    self._isPaused = False
-    self._halt = False            # terminates thread if true
-    self._cond = threading.Condition()  # used for pausing the thread
     self._subsiquentFailures = 0  # number of failed resolutions with the default in a row
     self._resolverBlacklist = []  # resolvers that have failed to resolve
 
@@ -228,83 +293,68 @@ class ConnectionResolver(threading.Thread):
 
     self.overwriteResolver = overwriteResolver
 
-  def run(self):
-    while not self._halt:
-      minWait = self.resolveRate if self.resolveRate else self.defaultRate
-      timeSinceReset = time.time() - self.lastLookup
+  def task(self):
+    isDefault = self.overwriteResolver == None
+    resolver = self.defaultResolver if isDefault else self.overwriteResolver
 
-      if self._isPaused or timeSinceReset < minWait:
-        sleepTime = max(0.2, minWait - timeSinceReset)
+    # checks if there's nothing to resolve with
+    if not resolver:
+      self.stop()
+      return
 
-        self._cond.acquire()
-        if not self._halt: self._cond.wait(sleepTime)
-        self._cond.release()
+    try:
+      resolveStart = time.time()
+      time.sleep(2)
+      from stem.util import log
+      connResults = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in connection.get_connections(resolver, process_pid = self.processPid, process_name = self.processName)]
 
-        continue # done waiting, try again
+      lookupTime = time.time() - resolveStart
 
-      isDefault = self.overwriteResolver == None
-      resolver = self.defaultResolver if isDefault else self.overwriteResolver
+      self._connections = connResults
+      self._resolutionCounter += 1
 
-      # checks if there's nothing to resolve with
-      if not resolver:
-        self.lastLookup = time.time() # avoids a busy wait in this case
-        continue
+      newMinDefaultRate = 100 * lookupTime
+      if self.get_rate() < newMinDefaultRate:
+        if self._rateThresholdBroken >= 3:
+          # adding extra to keep the rate from frequently changing
+          self.set_rate(newMinDefaultRate + 0.5)
 
-      try:
-        resolveStart = time.time()
-        time.sleep(2)
-        from stem.util import log
-        connResults = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in connection.get_connections(resolver, process_pid = self.processPid, process_name = self.processName)]
+          log.trace("connection lookup time increasing to %0.1f seconds per call" % newMinDefaultRate)
+        else: self._rateThresholdBroken += 1
+      else: self._rateThresholdBroken = 0
 
-        lookupTime = time.time() - resolveStart
+      if isDefault: self._subsiquentFailures = 0
+    except (ValueError, IOError), exc:
+      # this logs in a couple of cases:
+      # - special failures noted by getConnections (most cases are already
+      # logged via system)
+      # - note fail-overs for default resolution methods
+      if str(exc).startswith("No results found using:"):
+        log.info(exc)
 
-        self._connections = connResults
-        self._resolutionCounter += 1
+      if isDefault:
+        self._subsiquentFailures += 1
 
-        newMinDefaultRate = 100 * lookupTime
-        if self.defaultRate < newMinDefaultRate:
-          if self._rateThresholdBroken >= 3:
-            # adding extra to keep the rate from frequently changing
-            self.defaultRate = newMinDefaultRate + 0.5
+        if self._subsiquentFailures >= RESOLVER_FAILURE_TOLERANCE:
+          # failed several times in a row - abandon resolver and move on to another
+          self._resolverBlacklist.append(resolver)
+          self._subsiquentFailures = 0
 
-            log.trace("connection lookup time increasing to %0.1f seconds per call" % self.defaultRate)
-          else: self._rateThresholdBroken += 1
-        else: self._rateThresholdBroken = 0
+          # pick another (non-blacklisted) resolver
+          newResolver = None
+          for r in self.resolverOptions:
+            if not r in self._resolverBlacklist:
+              newResolver = r
+              break
 
-        if isDefault: self._subsiquentFailures = 0
-      except (ValueError, IOError), exc:
-        # this logs in a couple of cases:
-        # - special failures noted by getConnections (most cases are already
-        # logged via system)
-        # - note fail-overs for default resolution methods
-        if str(exc).startswith("No results found using:"):
-          log.info(exc)
+          if newResolver:
+            # provide notice that failures have occurred and resolver is changing
+            log.notice(RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver))
+          else:
+            # exhausted all resolvers, give warning
+            log.notice(RESOLVER_FINAL_FAILURE_MSG)
 
-        if isDefault:
-          self._subsiquentFailures += 1
-
-          if self._subsiquentFailures >= RESOLVER_FAILURE_TOLERANCE:
-            # failed several times in a row - abandon resolver and move on to another
-            self._resolverBlacklist.append(resolver)
-            self._subsiquentFailures = 0
-
-            # pick another (non-blacklisted) resolver
-            newResolver = None
-            for r in self.resolverOptions:
-              if not r in self._resolverBlacklist:
-                newResolver = r
-                break
-
-            if newResolver:
-              # provide notice that failures have occurred and resolver is changing
-              log.notice(RESOLVER_SERIAL_FAILURE_MSG % (resolver, newResolver))
-            else:
-              # exhausted all resolvers, give warning
-              log.notice(RESOLVER_FINAL_FAILURE_MSG)
-
-            self.defaultResolver = newResolver
-      finally:
-        self.lastLookup = time.time()
+          self.defaultResolver = newResolver
 
   def getConnections(self):
     """
@@ -341,28 +391,6 @@ class ConnectionResolver(threading.Thread):
 
     self.processPid = processPid
 
-  def setPaused(self, isPause):
-    """
-    Allows or prevents further connection resolutions (this still makes use of
-    cached results).
-
-    Arguments:
-      isPause - puts a freeze on further resolutions if true, allows them to
-                continue otherwise
-    """
-
-    if isPause == self._isPaused: return
-    self._isPaused = isPause
-
-  def stop(self):
-    """
-    Halts further resolutions and terminates the thread.
-    """
-
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
 
 class AppResolver:
   """

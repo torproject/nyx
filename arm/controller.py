@@ -492,7 +492,7 @@ def connResetListener(controller, eventType, _):
 
   if connections.isResolverAlive("tor"):
     resolver = connections.getResolver("tor")
-    resolver.setPaused(eventType == State.CLOSED)
+    resolver.set_paused(eventType == State.CLOSED)
 
     if eventType in (State.INIT, State.RESET):
       # Reload the torrc contents. If the torrc panel is present then it will
@@ -523,7 +523,7 @@ def start_arm(start_time):
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
-      connections.getResolver("tor").setPaused(True)
+      connections.getResolver("tor").set_paused(True)
     else:
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
@@ -543,7 +543,7 @@ def start_arm(start_time):
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
-        connections.getResolver("tor").setPaused(not controller.is_alive())
+        connections.getResolver("tor").set_paused(not controller.is_alive())
 
   try:
     curses.wrapper(drawTorMonitor, start_time)
