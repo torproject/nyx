@@ -22,54 +22,12 @@ import os
 import time
 import threading
 
-from stem.util import conf, enum, log, proc, system
-
-# enums for connection resolution utilities
-Resolver = enum.Enum(("PROC", "proc"),
-                     ("NETSTAT", "netstat"),
-                     ("SS", "ss"),
-                     ("LSOF", "lsof"),
-                     ("SOCKSTAT", "sockstat"),
-                     ("BSD_SOCKSTAT", "sockstat (bsd)"),
-                     ("BSD_PROCSTAT", "procstat (bsd)"))
+from stem.util import conf, connection, enum, log, proc, system
 
 # If true this provides new instantiations for resolvers if the old one has
 # been stopped. This can make it difficult ensure all threads are terminated
 # when accessed concurrently.
 RECREATE_HALTED_RESOLVERS = False
-
-# formatted strings for the commands to be executed with the various resolvers
-# options are:
-# n = prevents dns lookups, p = include process
-# output:
-# tcp  0  0  127.0.0.1:9051  127.0.0.1:53308  ESTABLISHED 9912/tor
-# *note: bsd uses a different variant ('-t' => '-p tcp', but worse an
-#   equivilant -p doesn't exist so this can't function)
-RUN_NETSTAT = "netstat -np"
-
-# n = numeric ports, p = include process, t = tcp sockets, u = udp sockets
-# output:
-# ESTAB  0  0  127.0.0.1:9051  127.0.0.1:53308  users:(("tor",9912,20))
-# *note: under freebsd this command belongs to a spreadsheet program
-RUN_SS = "ss -nptu"
-
-# n = prevent dns lookups, P = show port numbers (not names), i = ip only,
-# -w = no warnings
-# output:
-# tor  3873  atagar  45u  IPv4  40994  0t0  TCP 10.243.55.20:45724->194.154.227.109:9001 (ESTABLISHED)
-#
-# oddly, using the -p flag via:
-# lsof      lsof -nPi -p <pid> | grep "^<process>.*(ESTABLISHED)"
-# is much slower (11-28% in tests I ran)
-RUN_LSOF = "lsof -wnPi"
-
-# output:
-# atagar  tor  3475  tcp4  127.0.0.1:9051  127.0.0.1:38942  ESTABLISHED
-# *note: this isn't available by default under ubuntu
-RUN_SOCKSTAT = "sockstat"
-
-RUN_BSD_SOCKSTAT = "sockstat -4c"
-RUN_BSD_PROCSTAT = "procstat -f %s"
 
 RESOLVERS = []                      # connection resolvers available via the singleton constructor
 RESOLVER_FAILURE_TOLERANCE = 3      # number of subsequent failures before moving on to another resolver
@@ -118,130 +76,6 @@ def getPortUsage(port):
 
   return PORT_USAGE.get(port)
 
-def getResolverCommand(resolutionCmd, processName, processPid = ""):
-  """
-  Provides the command and line filter that would be processed for the given
-  resolver type. This raises a ValueError if either the resolutionCmd isn't
-  recognized or a pid was requited but not provided.
-
-  Arguments:
-    resolutionCmd - command to use in resolving the address
-    processName   - name of the process for which connections are fetched
-    processPid    - process ID (this helps improve accuracy)
-  """
-
-  if not processPid:
-    # the pid is required for procstat resolution
-    if resolutionCmd == Resolver.BSD_PROCSTAT:
-      raise ValueError("procstat resolution requires a pid")
-
-    # if the pid was undefined then match any in that field
-    processPid = "[0-9]*"
-
-  no_op_filter = lambda line: True
-
-  if resolutionCmd == Resolver.PROC: return ("", no_op_filter)
-  elif resolutionCmd == Resolver.NETSTAT:
-    return (
-      RUN_NETSTAT,
-      lambda line: "ESTABLISHED %s/%s" % (processPid, processName) in line
-    )
-  elif resolutionCmd == Resolver.SS:
-    return (
-      RUN_SS,
-      lambda line: ("ESTAB" in line) and ("\"%s\",%s" % (processName, processPid) in line)
-    )
-  elif resolutionCmd == Resolver.LSOF:
-    return (
-      RUN_LSOF,
-      lambda line: re.match("^%s *%s.*((UDP.*)|(\(ESTABLISHED\)))" % (processName, processPid))
-    )
-  elif resolutionCmd == Resolver.SOCKSTAT:
-    return (
-      RUN_SOCKSTAT,
-      lambda line: re.match("%s *%s.*ESTABLISHED" % (processName, processPid))
-    )
-  elif resolutionCmd == Resolver.BSD_SOCKSTAT:
-    return (
-      RUN_BSD_SOCKSTAT,
-      lambda line: re.match("%s *%s" % (processName, processPid))
-    )
-  elif resolutionCmd == Resolver.BSD_PROCSTAT:
-    return (
-      RUN_BSD_PROCSTAT % processPid,
-      lambda line: "TCP" in line and "0.0.0.0:0" not in line
-    )
-  else: raise ValueError("Unrecognized resolution type: %s" % resolutionCmd)
-
-def getConnections(resolutionCmd, processName, processPid = ""):
-  """
-  Retrieves a list of the current connections for a given process, providing a
-  tuple list of the form:
-  [(local_ipAddr1, local_port1, foreign_ipAddr1, foreign_port1), ...]
-  this raises an IOError if no connections are available or resolution fails
-  (in most cases these appear identical). Common issues include:
-    - insufficient permissions
-    - resolution command is unavailable
-    - usage of the command is non-standard (particularly an issue for BSD)
-
-  Arguments:
-    resolutionCmd - command to use in resolving the address
-    processName   - name of the process for which connections are fetched
-    processPid    - process ID (this helps improve accuracy)
-  """
-
-  if resolutionCmd == Resolver.PROC:
-    # Attempts resolution via checking the proc contents.
-    if not processPid:
-      raise ValueError("proc resolution requires a pid")
-
-    try:
-      return proc.get_connections(processPid)
-    except Exception, exc:
-      raise IOError(str(exc))
-  else:
-    # Queries a resolution utility (netstat, lsof, etc). This raises an
-    # IOError if the command fails or isn't available.
-    cmd, cmd_filter = getResolverCommand(resolutionCmd, processName, processPid)
-    results = system.call(cmd)
-    results = filter(cmd_filter, results)
-
-    if not results: raise IOError("No results found using: %s" % cmd)
-
-    # parses results for the resolution command
-    conn = []
-    for line in results:
-      if resolutionCmd == Resolver.LSOF:
-        # Different versions of lsof have different numbers of columns, so
-        # stripping off the optional 'established' entry so we can just use
-        # the last one.
-        comp = line.replace("(ESTABLISHED)", "").strip().split()
-      else: comp = line.split()
-
-      if resolutionCmd == Resolver.NETSTAT:
-        localIp, localPort = comp[3].split(":")
-        foreignIp, foreignPort = comp[4].split(":")
-      elif resolutionCmd == Resolver.SS:
-        localIp, localPort = comp[4].split(":")
-        foreignIp, foreignPort = comp[5].split(":")
-      elif resolutionCmd == Resolver.LSOF:
-        local, foreign = comp[-1].split("->")
-        localIp, localPort = local.split(":")
-        foreignIp, foreignPort = foreign.split(":")
-      elif resolutionCmd == Resolver.SOCKSTAT:
-        localIp, localPort = comp[4].split(":")
-        foreignIp, foreignPort = comp[5].split(":")
-      elif resolutionCmd == Resolver.BSD_SOCKSTAT:
-        localIp, localPort = comp[5].split(":")
-        foreignIp, foreignPort = comp[6].split(":")
-      elif resolutionCmd == Resolver.BSD_PROCSTAT:
-        localIp, localPort = comp[9].split(":")
-        foreignIp, foreignPort = comp[10].split(":")
-
-      conn.append((localIp, localPort, foreignIp, foreignPort))
-
-    return conn
-
 def isResolverAlive(processName, processPid = ""):
   """
   This provides true if a singleton resolver instance exists for the given
@@ -288,30 +122,6 @@ def getResolver(processName, processPid = "", alias=None):
   if haltedIndex == -1: RESOLVERS.append(r)
   else: RESOLVERS[haltedIndex] = r
   return r
-
-def getSystemResolvers(osType = None):
-  """
-  Provides the types of connection resolvers available on this operating
-  system.
-
-  Arguments:
-    osType - operating system type, fetched from the os module if undefined
-  """
-
-  if osType == None: osType = os.uname()[0]
-
-  if osType == "FreeBSD":
-    resolvers = [Resolver.BSD_SOCKSTAT, Resolver.BSD_PROCSTAT, Resolver.LSOF]
-  elif osType in ("OpenBSD", "Darwin"):
-    resolvers = [Resolver.LSOF]
-  else:
-    resolvers = [Resolver.NETSTAT, Resolver.SOCKSTAT, Resolver.LSOF, Resolver.SS]
-
-  # proc resolution, by far, outperforms the others so defaults to this is able
-  if proc.is_available():
-    resolvers = [Resolver.PROC] + resolvers
-
-  return resolvers
 
 class ConnectionResolver(threading.Thread):
   """
@@ -379,11 +189,11 @@ class ConnectionResolver(threading.Thread):
     self.defaultRate = CONFIG["queries.connections.minRate"]
     self.lastLookup = -1
     self.overwriteResolver = None
-    self.defaultResolver = Resolver.PROC
+    self.defaultResolver = connection.Resolver.PROC
+
+    self.resolverOptions = connection.get_system_resolvers()
 
     osType = os.uname()[0]
-    self.resolverOptions = getSystemResolvers(osType)
-
     log.info("Operating System: %s, Connection Resolvers: %s" % (osType, ", ".join(self.resolverOptions)))
 
     # sets the default resolver to be the first found in the system's PATH
@@ -393,7 +203,7 @@ class ConnectionResolver(threading.Thread):
       # resolvers.
       resolverCmd = resolver.replace(" (bsd)", "")
 
-      if resolver == Resolver.PROC or system.is_available(resolverCmd):
+      if resolver == connection.Resolver.PROC or system.is_available(resolverCmd):
         self.defaultResolver = resolver
         break
 
@@ -452,7 +262,10 @@ class ConnectionResolver(threading.Thread):
 
       try:
         resolveStart = time.time()
-        connResults = getConnections(resolver, self.processName, self.processPid)
+        time.sleep(2)
+        from stem.util import log
+        connResults = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in connection.get_connections(resolver, process_pid = self.processPid, process_name = self.processName)]
+
         lookupTime = time.time() - resolveStart
 
         self._connections = connResults

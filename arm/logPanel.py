@@ -566,9 +566,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     stem_logger.addHandler(self)
 
   def emit(self, record):
-    if record.levelname == "ERROR":
-      record.levelname = "ERR"
-    elif record.levelname == "WARNING":
+    if record.levelname == "WARNING":
       record.levelname = "WARN"
 
     eventColor = RUNLEVEL_EVENT_COLOR[record.levelname]
