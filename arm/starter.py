@@ -33,7 +33,6 @@ LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 
 CONFIG = stem.util.conf.config_dict("arm", {
   'tor.password': None,
-  'startup.blindModeEnabled': False,
   'startup.events': 'N3',
   'msg.help': '',
   'msg.debug_header': '',
@@ -319,7 +318,9 @@ def main():
   else:
     stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
 
-  config.set("startup.blindModeEnabled", str(args.blind))
+  if args.blind:
+    config.set('features.panels.show.connection', 'false')
+
   config.set("startup.events", args.logged_events)
 
   # validates and expands log event flags

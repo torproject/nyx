@@ -1,6 +1,5 @@
 # Startup options
 tor.password
-startup.blindModeEnabled false
 startup.events N3
 startup.dataDirectory ~/.arm
 

@@ -38,7 +38,6 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict("arm", {
   "startup.events": "N3",
   "startup.dataDirectory": "~/.arm",
-  "startup.blindModeEnabled": False,
   "features.panels.show.graph": True,
   "features.panels.show.log": True,
   "features.panels.show.connection": True,
@@ -89,7 +88,7 @@ def initController(stdscr, startTime):
   if firstPagePanels: pagePanels.append(firstPagePanels)
 
   # second page: connections
-  if not CONFIG["startup.blindModeEnabled"] and CONFIG["features.panels.show.connection"]:
+  if CONFIG["features.panels.show.connection"]:
     pagePanels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
 
   # third page: config
@@ -111,7 +110,8 @@ def initController(stdscr, startTime):
     bwStats = arm.graphing.bandwidthStats.BandwidthStats()
     graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
     graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resourceStats.ResourceStats())
-    if not CONFIG["startup.blindModeEnabled"]:
+
+    if CONFIG["features.panels.show.connection"]:
       graphPanel.addStats(GraphStat.CONNECTIONS, arm.graphing.connStats.ConnStats())
 
     # sets graph based on config parameter
@@ -519,7 +519,7 @@ def start_arm(start_time):
   :param float start_time: unix timestamp for when arm was started
   """
 
-  if not CONFIG["startup.blindModeEnabled"]:
+  if CONFIG["features.panels.show.connection"]:
     # The DisableDebuggerAttachment will prevent our connection panel from really
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
