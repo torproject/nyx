@@ -259,8 +259,8 @@ def _armrc_dump(armrc_path):
 
 
 def main():
-  start_time = time.time()
   config = stem.util.conf.get_config("arm")
+  config.set('attribute.start_time', str(int(time.time())))
 
   try:
     _load_settings()
@@ -396,7 +396,7 @@ def main():
     plural_label = "s" if len(missing_event_types) > 1 else ""
     stem.util.log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
 
-  arm.controller.start_arm(start_time)
+  arm.controller.start_arm()
 
 if __name__ == '__main__':
   main()

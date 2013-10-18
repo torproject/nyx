@@ -48,6 +48,7 @@ CONFIG = conf.config_dict("arm", {
   "features.confirmQuit": True,
   "features.graph.type": 1,
   "features.graph.bw.prepopulate": True,
+  "attribute.start_time": 0,
 }, conf_handler)
 
 GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
@@ -512,11 +513,9 @@ def connResetListener(controller, eventType, _):
       except ValueError:
         pass
 
-def start_arm(start_time):
+def start_arm():
   """
   Initializes the interface and starts the main draw loop.
-
-  :param float start_time: unix timestamp for when arm was started
   """
 
   if CONFIG["features.panels.show.connection"]:
@@ -554,7 +553,7 @@ def start_arm(start_time):
         connections.get_resolver().set_paused(not controller.is_alive())
 
   try:
-    curses.wrapper(drawTorMonitor, start_time)
+    curses.wrapper(drawTorMonitor)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       shutdownDaemons()
@@ -573,15 +572,15 @@ def start_arm(start_time):
     panel.HALT_ACTIVITY = True
     shutdownDaemons()
 
-def drawTorMonitor(stdscr, startTime):
+def drawTorMonitor(stdscr):
   """
   Main draw loop context.
 
   Arguments:
     stdscr    - curses window
-    startTime - unix time for when arm was started
   """
 
+  startTime = CONFIG['attribute.start_time']
   initController(stdscr, startTime)
   control = getController()
 
