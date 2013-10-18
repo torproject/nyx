@@ -48,6 +48,7 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.config_not_found': '',
   'msg.unable_to_read_config': '',
   'msg.unable_to_determine_pid': '',
+  'msg.unknown_term': '',
 })
 
 # Our default arguments. The _get_args() function provides a named tuple of
@@ -402,10 +403,8 @@ def main():
     curses.wrapper(arm.controller.start_arm)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
-      shutdownDaemons()
-      print 'Unknown $TERM: (%s)' % os.environ['TERM']
-      print 'Either update your terminfo database or run arm using "TERM=xterm arm".'
-      print
+      arm.controller.shutdownDaemons()
+      print CONFIG['msg.unknown_term'].format(term = os.environ['TERM'])
     else:
       raise exc
   except KeyboardInterrupt:
