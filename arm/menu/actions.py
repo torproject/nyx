@@ -8,8 +8,9 @@ import arm.popups
 import arm.controller
 import arm.menu.item
 import arm.graphing.graphPanel
+import arm.util.tracker
 
-from arm.util import connections, torTools, uiTools
+from arm.util import torTools, uiTools
 
 import stem.util.connection
 
@@ -238,7 +239,7 @@ def makeConnectionsMenu(connPanel):
   connectionsMenu.add(arm.menu.item.MenuItem("Sorting...", connPanel.showSortDialog))
 
   # resolver submenu
-  connResolver = connections.get_resolver()
+  connResolver = arm.util.tracker.get_connection_resolver()
   resolverMenu = arm.menu.item.Submenu("Resolver")
   resolverGroup = arm.menu.item.SelectionGroup(connResolver.set_custom_resolver, connResolver.get_custom_resolver())
 

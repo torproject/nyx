@@ -8,6 +8,7 @@ import curses
 import threading
 
 import arm.popups
+import arm.util.tracker
 
 from arm.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
 from arm.util import connections, panel, torTools, uiTools
@@ -241,7 +242,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"
       options = ["auto"] + list(connections.Resolver)
-      connResolver = connections.get_resolver()
+      connResolver = arm.util.tracker.get_connection_resolver()
 
       currentOverwrite = connResolver.get_custom_resolver()
       if currentOverwrite == None: oldSelection = 0
@@ -312,7 +313,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         lastDraw += CONFIG["features.connection.refreshRate"] * drawTicks
 
   def getHelp(self):
-    resolverUtil = connections.get_resolver().get_custom_resolver()
+    resolverUtil = arm.util.tracker.get_connection_resolver().get_custom_resolver()
     if resolverUtil == None: resolverUtil = "auto"
 
     options = []
@@ -426,9 +427,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.appResolveSinceUpdate = False
 
     # if we don't have an initialized resolver then this is a no-op
-    if not connections.get_resolver().is_alive(): return
+    if not arm.util.tracker.get_connection_resolver().is_alive(): return
 
-    connResolver = connections.get_resolver()
+    connResolver = arm.util.tracker.get_connection_resolver()
     currentResolutionCount = connResolver.get_resolution_count()
 
     self.valsLock.acquire()

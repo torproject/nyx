@@ -18,11 +18,11 @@ import time
 import arm
 import arm.controller
 import arm.logPanel
-import arm.util.connections
 import arm.util.panel
 import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
+import arm.util.tracker
 import arm.util.uiTools
 
 import stem
@@ -287,7 +287,7 @@ def _shutdown_daemons():
   # internal threadpools being joined might be sleeping
 
   resource_trackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
-  connection_resolver = arm.util.connections.get_resolver() if arm.util.connections.get_resolver().is_alive() else None
+  connection_resolver = arm.util.tracker.get_connection_resolver() if arm.util.tracker.get_connection_resolver().is_alive() else None
 
   for tracker in resource_trackers:
     tracker.stop()
