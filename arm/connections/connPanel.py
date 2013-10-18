@@ -430,7 +430,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if not arm.util.tracker.get_connection_resolver().is_alive(): return
 
     connResolver = arm.util.tracker.get_connection_resolver()
-    currentResolutionCount = connResolver.get_resolution_count()
+    currentResolutionCount = connResolver.run_counter()
 
     self.valsLock.acquire()
 

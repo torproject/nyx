@@ -5,6 +5,13 @@ Background tasks for gathering informatino about the tor process.
 
   get_connection_resolver - provides a ConnectionResolver for our tor process
 
+  Daemon - common parent for resolvers
+    |- run_counter - number of successful runs
+    |- get_rate - provides the rate at which we run
+    |- set_rate - sets the rate at which we run
+    |- set_paused - pauses or continues work
+    +- stop - stops further work by the daemon
+
   ConnectionResolver - periodically queries tor's connection information
     |- set_process - set the pid and process name used for lookups
     |- get_custom_resolver - provide the custom conntion resolver we're using
@@ -49,6 +56,7 @@ class Daemon(threading.Thread):
 
     self._rate = rate
     self._last_ran = -1  # time when we last ran
+    self._run_counter = 0  # counter for the number of successful runs
 
     self._is_paused = False
     self._halt = False  # terminates thread if true
@@ -68,7 +76,11 @@ class Daemon(threading.Thread):
 
         continue  # done waiting, try again
 
-      self.task()
+      is_successful = self.task()
+
+      if is_successful:
+        self._run_counter += 1
+
       self._last_ran = time.time()
 
   def task(self):
@@ -78,6 +90,14 @@ class Daemon(threading.Thread):
     """
 
     pass
+
+  def run_counter(self):
+    """
+    Provides the number of successful runs so far. This can be used to
+    determine if the daemon's results are new for the caller or not.
+    """
+
+    return self._run_counter
 
   def get_rate(self):
     """
@@ -128,7 +148,6 @@ class ConnectionResolver(Daemon):
     self._resolvers = connection.get_system_resolvers()
     self._connections = []
     self._custom_resolver = None
-    self._resolution_counter = 0  # number of successful connection resolutions
 
     self._process_pid = None
     self._process_name = None
@@ -160,8 +179,6 @@ class ConnectionResolver(Daemon):
 
       runtime = time.time() - start_time
 
-      self._resolution_counter += 1
-
       if is_default_resolver:
         self._failure_count = 0
 
@@ -180,6 +197,8 @@ class ConnectionResolver(Daemon):
           log.debug("connection lookup time increasing to %0.1f seconds per call" % min_rate)
       else:
         self._rate_too_low_count = 0
+
+      return True
     except IOError as exc:
       log.info(exc)
 
@@ -200,6 +219,8 @@ class ConnectionResolver(Daemon):
             ))
           else:
             log.notice(CONFIG['msg.unable_to_use_all_resolvers'])
+
+      return False
 
   def set_process(self, pid, name):
     """
@@ -244,11 +265,3 @@ class ConnectionResolver(Daemon):
       return []
     else:
       return list(self._connections)
-
-  def get_resolution_count(self):
-    """
-    Provides the number of successful resolutions so far. This can be used to
-    determine if the connection results are new for the caller or not.
-    """
-
-    return self._resolution_counter

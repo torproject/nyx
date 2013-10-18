@@ -415,7 +415,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         isChanged = False
         if self.vals["tor/pid"]:
           resourceTracker = sysTools.getResourceTracker(self.vals["tor/pid"])
-          isChanged = self._lastResourceFetch != resourceTracker.getRunCount()
+          isChanged = self._lastResourceFetch != resourceTracker.run_counter()
 
         if isChanged or currentTime - self._lastUpdate >= 20:
           self._update()
@@ -568,7 +568,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.vals["stat/%mem"] = "0"
       else:
         cpuUsage, _, memUsage, memUsagePercent = resourceTracker.getResourceUsage()
-        self._lastResourceFetch = resourceTracker.getRunCount()
+        self._lastResourceFetch = resourceTracker.run_counter()
         self.vals["stat/%torCpu"] = "%0.1f" % (100 * cpuUsage)
         self.vals["stat/rss"] = str(memUsage)
         self.vals["stat/%mem"] = "%0.1f" % (100 * memUsagePercent)

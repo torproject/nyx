@@ -57,7 +57,7 @@ def getResourceTracker(pid, noSpawn = False):
     else: del RESOURCE_TRACKERS[pid]
 
   if noSpawn: return None
-  tracker = ResourceTracker(pid, CONFIG["queries.resourceUsage.rate"])
+  tracker = ResourceTracker(pid)
   RESOURCE_TRACKERS[pid] = tracker
   tracker.start()
   return tracker
@@ -68,21 +68,18 @@ class ResourceTracker(arm.util.tracker.Daemon):
   process.
   """
 
-  def __init__(self, processPid, resolveRate):
+  def __init__(self, processPid):
     """
     Initializes a new resolver daemon. When no longer needed it's suggested
     that this is stopped.
 
     Arguments:
       processPid  - pid of the process being tracked
-      resolveRate - time between resolving resource usage, resolution is
-                    disabled if zero
     """
 
-    arm.util.tracker.Daemon.__init__(self, resolveRate)
+    arm.util.tracker.Daemon.__init__(self, CONFIG["queries.resourceUsage.rate"])
 
     self.processPid = processPid
-    self.resolveRate = resolveRate
 
     self.cpuSampling = 0.0  # latest cpu usage sampling
     self.cpuAvg = 0.0       # total average cpu usage
@@ -98,9 +95,6 @@ class ResourceTracker(arm.util.tracker.Daemon):
     self.lastLookup = -1
     self._valLock = threading.RLock()
 
-    # number of successful calls we've made
-    self._runCount = 0
-
     # sequential times we've failed with this method of resolution
     self._failureCount = 0
 
@@ -115,14 +109,6 @@ class ResourceTracker(arm.util.tracker.Daemon):
     self._valLock.release()
 
     return results
-
-  def getRunCount(self):
-    """
-    Provides the number of times we've successfully fetched the resource
-    usages.
-    """
-
-    return self._runCount
 
   def lastQueryFailed(self):
     """
@@ -217,6 +203,8 @@ class ResourceTracker(arm.util.tracker.Daemon):
       self.memUsagePercentage = newValues["memUsagePercentage"]
       self._lastCpuTotal = newValues["_lastCpuTotal"]
       self.lastLookup = time.time()
-      self._runCount += 1
       self._failureCount = 0
       self._valLock.release()
+      return True
+    else:
+      return False
