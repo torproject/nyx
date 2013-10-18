@@ -268,10 +268,8 @@ def _shutdown_daemons():
   Stops and joins on worker threads.
   """
 
-  # prevents further worker threads from being spawned
-  arm.util.torTools.NO_SPAWN = True
-
   # stops panel daemons
+
   control = arm.controller.getController()
 
   if control:
@@ -282,25 +280,26 @@ def _shutdown_daemons():
       panel_impl.join()
 
   # joins on stem threads
+
   arm.util.torTools.getConn().close()
 
   # joins on utility daemon threads - this might take a moment since the
   # internal threadpools being joined might be sleeping
 
-  resourceTrackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
-  resolver = arm.util.connections.get_resolver() if arm.util.connections.get_resolver().is_alive() else None
+  resource_trackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
+  connection_resolver = arm.util.connections.get_resolver() if arm.util.connections.get_resolver().is_alive() else None
 
-  for tracker in resourceTrackers:
+  for tracker in resource_trackers:
     tracker.stop()
 
-  if resolver:
-    resolver.stop()  # sets halt flag (returning immediately)
+  if connection_resolver:
+    connection_resolver.stop()  # sets halt flag (returning immediately)
 
-  for tracker in resourceTrackers:
+  for tracker in resource_trackers:
     tracker.join()
 
-  if resolver:
-    resolver.join()  # joins on halted resolver
+  if connection_resolver:
+    connection_resolver.join()  # joins on halted resolver
 
 
 def main():
