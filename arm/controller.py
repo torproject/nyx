@@ -92,6 +92,39 @@ def initController(stdscr, startTime):
   if CONFIG["features.panels.show.connection"]:
     pagePanels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
 
+    # The DisableDebuggerAttachment will prevent our connection panel from really
+    # functioning. It'll have circuits, but little else. If this is the case then
+    # notify the user and tell them what they can do to fix it.
+
+    controller = torTools.getConn().controller
+
+    if controller.get_conf("DisableDebuggerAttachment", None) == "1":
+      log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
+      connections.get_resolver().set_paused(True)
+    else:
+      # Configures connection resoultions. This is paused/unpaused according to
+      # if Tor's connected or not.
+
+      controller.add_status_listener(connResetListener)
+
+      tor_pid = controller.get_pid(None)
+
+      if tor_pid:
+        # use the tor pid to help narrow connection results
+        tor_cmd = system.get_name_by_pid(tor_pid)
+
+        if tor_cmd is None:
+          tor_cmd = "tor"
+
+        resolver = connections.get_resolver()
+        resolver.set_process(tor_pid, tor_cmd)
+        log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
+        resolver.start()
+      else:
+        # constructs singleton resolver and, if tor isn't connected, initizes
+        # it to be paused
+        connections.get_resolver().set_paused(not controller.is_alive())
+
   # third page: config
   if CONFIG["features.panels.show.config"]:
     pagePanels.append([arm.configPanel.ConfigPanel(stdscr, arm.configPanel.State.TOR)])
@@ -517,40 +550,6 @@ def start_arm():
   """
   Initializes the interface and starts the main draw loop.
   """
-
-  if CONFIG["features.panels.show.connection"]:
-    # The DisableDebuggerAttachment will prevent our connection panel from really
-    # functioning. It'll have circuits, but little else. If this is the case then
-    # notify the user and tell them what they can do to fix it.
-
-    controller = torTools.getConn().controller
-
-    if controller.get_conf("DisableDebuggerAttachment", None) == "1":
-      log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
-      connections.get_resolver().set_paused(True)
-    else:
-      # Configures connection resoultions. This is paused/unpaused according to
-      # if Tor's connected or not.
-
-      controller.add_status_listener(connResetListener)
-
-      tor_pid = controller.get_pid(None)
-
-      if tor_pid:
-        # use the tor pid to help narrow connection results
-        tor_cmd = system.get_name_by_pid(tor_pid)
-
-        if tor_cmd is None:
-          tor_cmd = "tor"
-
-        resolver = connections.get_resolver()
-        resolver.set_process(tor_pid, tor_cmd)
-        log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
-        resolver.start()
-      else:
-        # constructs singleton resolver and, if tor isn't connected, initizes
-        # it to be paused
-        connections.get_resolver().set_paused(not controller.is_alive())
 
   try:
     curses.wrapper(drawTorMonitor)
