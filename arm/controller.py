@@ -23,7 +23,7 @@ import arm.connections.connPanel
 
 from stem.control import State, Controller
 
-from arm.util import connections, hostnames, panel, sysTools, torConfig, torTools
+from arm.util import connections, panel, torConfig, torTools
 
 from stem.util import conf, enum, log, system
 
@@ -469,34 +469,6 @@ class Controller:
       try: torTools.getConn().shutdown()
       except IOError, exc: arm.popups.showMsg(str(exc), 3, curses.A_BOLD)
 
-def shutdownDaemons():
-  """
-  Stops and joins on worker threads.
-  """
-
-  # prevents further worker threads from being spawned
-  torTools.NO_SPAWN = True
-
-  # stops panel daemons
-  control = getController()
-
-  if control:
-    for panelImpl in control.getDaemonPanels(): panelImpl.stop()
-    for panelImpl in control.getDaemonPanels(): panelImpl.join()
-
-  # joins on stem threads
-  torTools.getConn().close()
-
-  # joins on utility daemon threads - this might take a moment since the
-  # internal threadpools being joined might be sleeping
-  hostnames.stop()
-  resourceTrackers = sysTools.RESOURCE_TRACKERS.values()
-  resolver = connections.get_resolver() if connections.get_resolver().is_alive() else None
-  for tracker in resourceTrackers: tracker.stop()
-  if resolver: resolver.stop()  # sets halt flag (returning immediately)
-  for tracker in resourceTrackers: tracker.join()
-  if resolver: resolver.join()  # joins on halted resolver
-
 def heartbeatCheck(isUnresponsive):
   """
   Logs if its been ten seconds since the last BW event.
@@ -635,5 +607,5 @@ def start_arm(stdscr):
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
 
-  shutdownDaemons()
+  panel.HALT_ACTIVITY = True
 

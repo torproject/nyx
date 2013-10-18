@@ -18,7 +18,10 @@ import time
 import arm
 import arm.controller
 import arm.logPanel
+import arm.util.connections
+import arm.util.hostnames
 import arm.util.panel
+import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
@@ -261,6 +264,48 @@ def _armrc_dump(armrc_path):
     return "[unable to read file: %s]" % exc.strerror
 
 
+def _shutdown_daemons():
+  """
+  Stops and joins on worker threads.
+  """
+
+  # prevents further worker threads from being spawned
+  arm.util.torTools.NO_SPAWN = True
+
+  # stops panel daemons
+  control = arm.controller.getController()
+
+  if control:
+    for panel_impl in control.getDaemonPanels():
+      panel_impl.stop()
+
+    for panel_impl in control.getDaemonPanels():
+      panel_impl.join()
+
+  # joins on stem threads
+  arm.util.torTools.getConn().close()
+
+  # joins on utility daemon threads - this might take a moment since the
+  # internal threadpools being joined might be sleeping
+
+  arm.util.hostnames.stop()
+
+  resourceTrackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
+  resolver = arm.util.connections.get_resolver() if arm.util.connections.get_resolver().is_alive() else None
+
+  for tracker in resourceTrackers:
+    tracker.stop()
+
+  if resolver:
+    resolver.stop()  # sets halt flag (returning immediately)
+
+  for tracker in resourceTrackers:
+    tracker.join()
+
+  if resolver:
+    resolver.join()  # joins on halted resolver
+
+
 def main():
   config = stem.util.conf.get_config("arm")
   config.set('attribute.start_time', str(int(time.time())))
@@ -403,7 +448,6 @@ def main():
     curses.wrapper(arm.controller.start_arm)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
-      arm.controller.shutdownDaemons()
       print CONFIG['msg.unknown_term'].format(term = os.environ['TERM'])
     else:
       raise exc
@@ -415,7 +459,8 @@ def main():
     # is set) but I've never seen it happen in practice.
 
     arm.util.panel.HALT_ACTIVITY = True
-    arm.controller.shutdownDaemons()
+  finally:
+    _shutdown_daemons()
 
 if __name__ == '__main__':
   main()
