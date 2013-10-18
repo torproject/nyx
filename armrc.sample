@@ -250,23 +250,7 @@ features.connection.showColumn.nickname true
 features.connection.showColumn.destination true
 features.connection.showColumn.expandedIp true
 
-# Thread pool size for hostname resolutions
-# Determines the maximum number of concurrent requests. Upping this to around
-# thirty or so seems to be problematic, causing intermittently seizing.
-
-queries.hostnames.poolSize 5
-
-# Method of resolving hostnames
-# If true, uses python's internal "socket.gethostbyaddr" to resolve addresses
-# rather than the host command. This is ignored if the system's unable to make
-# parallel requests. Resolving this way seems to be much slower than host calls
-# in practice.
-
-queries.hostnames.useSocketModule false
-
 # Caching parameters
-cache.hostnames.size 700000
-cache.hostnames.trimSize 200000
 cache.logPanel.size 1000
 cache.armLog.size 1000
 cache.armLog.trimSize 200

@@ -19,7 +19,6 @@ import arm
 import arm.controller
 import arm.logPanel
 import arm.util.connections
-import arm.util.hostnames
 import arm.util.panel
 import arm.util.sysTools
 import arm.util.torConfig
@@ -287,8 +286,6 @@ def _shutdown_daemons():
 
   # joins on utility daemon threads - this might take a moment since the
   # internal threadpools being joined might be sleeping
-
-  arm.util.hostnames.stop()
 
   resourceTrackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
   resolver = arm.util.connections.get_resolver() if arm.util.connections.get_resolver().is_alive() else None
