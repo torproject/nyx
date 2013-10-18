@@ -5,6 +5,7 @@ arguments.
 """
 
 import collections
+import curses
 import getopt
 import getpass
 import locale
@@ -17,6 +18,7 @@ import time
 import arm
 import arm.controller
 import arm.logPanel
+import arm.util.panel
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.uiTools
@@ -396,7 +398,25 @@ def main():
     plural_label = "s" if len(missing_event_types) > 1 else ""
     stem.util.log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
 
-  arm.controller.start_arm()
+  try:
+    curses.wrapper(arm.controller.start_arm)
+  except UnboundLocalError as exc:
+    if os.environ['TERM'] != 'xterm':
+      shutdownDaemons()
+      print 'Unknown $TERM: (%s)' % os.environ['TERM']
+      print 'Either update your terminfo database or run arm using "TERM=xterm arm".'
+      print
+    else:
+      raise exc
+  except KeyboardInterrupt:
+    # Skip printing stack trace in case of keyboard interrupt. The
+    # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
+    # (which would leave the user's terminal in a screwed up state). There is
+    # still a tiny timing issue here (after the exception but before the flag
+    # is set) but I've never seen it happen in practice.
+
+    arm.util.panel.HALT_ACTIVITY = True
+    arm.controller.shutdownDaemons()
 
 if __name__ == '__main__':
   main()

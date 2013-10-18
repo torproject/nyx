@@ -546,32 +546,7 @@ def connResetListener(controller, eventType, _):
       except ValueError:
         pass
 
-def start_arm():
-  """
-  Initializes the interface and starts the main draw loop.
-  """
-
-  try:
-    curses.wrapper(drawTorMonitor)
-  except UnboundLocalError as exc:
-    if os.environ['TERM'] != 'xterm':
-      shutdownDaemons()
-      print 'Unknown $TERM: (%s)' % os.environ['TERM']
-      print 'Either update your terminfo database or run arm using "TERM=xterm arm".'
-      print
-    else:
-      raise exc
-  except KeyboardInterrupt:
-    # Skip printing stack trace in case of keyboard interrupt. The
-    # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
-    # (which would leave the user's terminal in a screwed up state). There is
-    # still a tiny timing issue here (after the exception but before the flag
-    # is set) but I've never seen it happen in practice.
-
-    panel.HALT_ACTIVITY = True
-    shutdownDaemons()
-
-def drawTorMonitor(stdscr):
+def start_arm(stdscr):
   """
   Main draw loop context.
 
