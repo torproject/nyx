@@ -2,8 +2,10 @@
 Tracks the system resource usage (cpu and memory) of the tor process.
 """
 
+import arm.util.tracker
+
 from arm.graphing import graphPanel
-from arm.util import sysTools, torTools
+from arm.util import torTools
 
 from stem.util import str_tools
 
@@ -42,12 +44,13 @@ class ResourceStats(graphPanel.GraphStats):
 
     primary, secondary = 0, 0
     if self.queryPid:
-      resourceTracker = sysTools.getResourceTracker()
+      resourceTracker = arm.util.tracker.get_resource_tracker()
 
-      if resourceTracker and not resourceTracker.lastQueryFailed():
-        primary, _, secondary, _ = resourceTracker.getResourceUsage()
+      if resourceTracker and not resourceTracker.last_query_failed():
+        primary, _, secondary, _ = resourceTracker.get_resource_usage()
         primary *= 100        # decimal percentage to whole numbers
         secondary /= 1048576  # translate size to MB so axis labels are short
+        self.runCount = resourceTracker.run_counter()
 
     self._processEvent(primary, secondary)
 

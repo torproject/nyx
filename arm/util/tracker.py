@@ -3,7 +3,8 @@ Background tasks for gathering informatino about the tor process.
 
 ::
 
-  get_connection_resolver - provides a ConnectionResolver for our tor process
+  get_connection_tracker - provides a ConnectionResolver for our tor process
+  get_resource_tracker - provides a ResourceTracker for our tor process
 
   Daemon - common parent for resolvers
     |- run_counter - number of successful runs
@@ -12,38 +13,73 @@ Background tasks for gathering informatino about the tor process.
     |- set_paused - pauses or continues work
     +- stop - stops further work by the daemon
 
-  ConnectionResolver - periodically queries tor's connection information
+  ConnectionResolver - periodically checks the connections established by tor
     |- set_process - set the pid and process name used for lookups
     |- get_custom_resolver - provide the custom conntion resolver we're using
     |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
-    |- get_connections - provides our latest connection results
-    +- get_resolution_count - number of times we've fetched connection information
+    +- get_connections - provides our latest connection results
+
+  ResourceTracker - periodically checks the resource usage of tor
+    |- set_process - set the pid used for lookups
+    |- get_resource_usage - provides our latest resource usage results
+    +- last_query_failed - checks if we failed to fetch newer results
 """
 
+import collections
 import time
 import threading
 
-from stem.util import conf, connection, log
+from stem.util import conf, connection, log, proc, str_tools, system
 
-CONNECTION_RESOLVER = None
-
-CONFIG = conf.config_dict('arm', {
+CONFIG = conf.config_dict("arm", {
+  "queries.resourceUsage.rate": 5,
   'queries.connections.minRate': 5,
   'msg.unable_to_use_resolver': '',
   'msg.unable_to_use_all_resolvers': '',
 })
 
-def get_connection_resolver():
+CONNECTION_TRACKER = None
+RESOURCE_TRACKER = None
+
+# Process resources we poll...
+#
+#  cpu_sample - average cpu usage since we last checked
+#  cpu_average - average cpu usage since we first started tracking the process
+#  memory_bytes - memory usage of the process in bytes
+#  memory_precent - percentage of our memory used by this process
+
+Resources = collections.namedtuple('Resources', [
+  'cpu_sample',
+  'cpu_average',
+  'memory_bytes',
+  'memory_percent',
+])
+
+def get_connection_tracker():
   """
-  Singleton constructor for a connection resolver for tor's process.
+  Singleton for tracking the connections established by tor.
   """
 
-  global CONNECTION_RESOLVER
+  global CONNECTION_TRACKER
 
-  if CONNECTION_RESOLVER is None:
-    CONNECTION_RESOLVER = ConnectionResolver()
+  if CONNECTION_TRACKER is None:
+    CONNECTION_TRACKER = ConnectionResolver()
 
-  return CONNECTION_RESOLVER
+  return CONNECTION_TRACKER
+
+
+def get_resource_tracker():
+  """
+  Singleton for tracking the resource usage of our tor process.
+  """
+
+  global RESOURCE_TRACKER
+
+  if RESOURCE_TRACKER is None:
+    RESOURCE_TRACKER = ResourceTracker()
+
+  return RESOURCE_TRACKER
+
 
 class Daemon(threading.Thread):
   """
@@ -139,7 +175,7 @@ class Daemon(threading.Thread):
 
 class ConnectionResolver(Daemon):
   """
-  Daemon that periodically retrieves the connections made by a process.
+  Periodically retrieves the connections established by tor.
   """
 
   def __init__(self):
@@ -265,3 +301,142 @@ class ConnectionResolver(Daemon):
       return []
     else:
       return list(self._connections)
+
+class ResourceTracker(Daemon):
+  """
+  Periodically retrieves the resource usage of tor.
+  """
+
+  def __init__(self):
+    Daemon.__init__(self, CONFIG["queries.resourceUsage.rate"])
+
+    self._procss_pid = None
+    self._last_sample = None
+
+    # resolves usage via proc results if true, ps otherwise
+    self._use_proc = proc.is_available()
+
+    # used to get the deltas when querying cpu time
+    self._last_cpu_total = 0
+
+    self.last_lookup = -1
+    self._val_lock = threading.RLock()
+
+    # sequential times we've failed with this method of resolution
+    self._failure_count = 0
+
+  def set_process(self, pid):
+    """
+    Sets the process we retrieve resources for.
+
+    :param int pid: process id
+    """
+
+    self._process_pid = pid
+
+  def get_resource_usage(self):
+    """
+    Provides the last cached resource usage as a named tuple of the form:
+    (cpuUsage_sampling, cpuUsage_avg, memUsage_bytes, memUsage_percent)
+    """
+
+    with self._val_lock:
+      return self._last_sample if self._last_sample else Resources(0.0, 0.0, 0, 0.0)
+
+  def last_query_failed(self):
+    """
+    Provides true if, since we fetched the currently cached results, we've
+    failed to get new results. False otherwise.
+    """
+
+    return self._failure_count != 0
+
+  def task(self):
+    if self._procss_pid is None:
+      return
+
+    time_since_reset = time.time() - self.last_lookup
+    new_values = {}
+
+    try:
+      if self._use_proc:
+        utime, stime, start_time = proc.get_stats(self._procss_pid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
+        total_cpu_time = float(utime) + float(stime)
+        cpu_delta = total_cpu_time - self._last_cpu_total
+        new_values["cpuSampling"] = cpu_delta / time_since_reset
+        new_values["cpuAvg"] = total_cpu_time / (time.time() - float(start_time))
+        new_values["_lastCpuTotal"] = total_cpu_time
+
+        mem_usage = int(proc.get_memory_usage(self._procss_pid)[0])
+        total_memory = proc.get_physical_memory()
+        new_values["memUsage"] = mem_usage
+        new_values["memUsagePercentage"] = float(mem_usage) / total_memory
+      else:
+        # the ps call formats results as:
+        #
+        #     TIME     ELAPSED   RSS %MEM
+        # 3-08:06:32 21-00:00:12 121844 23.5
+        #
+        # or if Tor has only recently been started:
+        #
+        #     TIME      ELAPSED    RSS %MEM
+        #  0:04.40        37:57  18772  0.9
+
+        ps_call = system.call("ps -p %s -o cputime,etime,rss,%%mem" % self._procss_pid)
+
+        is_successful = False
+        if ps_call and len(ps_call) >= 2:
+          stats = ps_call[1].strip().split()
+
+          if len(stats) == 4:
+            try:
+              total_cpu_time = str_tools.parse_short_time_label(stats[0])
+              uptime = str_tools.parse_short_time_label(stats[1])
+              cpu_delta = total_cpu_time - self._last_cpu_total
+              new_values["cpuSampling"] = cpu_delta / time_since_reset
+              new_values["cpuAvg"] = total_cpu_time / uptime
+              new_values["_lastCpuTotal"] = total_cpu_time
+
+              new_values["memUsage"] = int(stats[2]) * 1024 # ps size is in kb
+              new_values["memUsagePercentage"] = float(stats[3]) / 100.0
+              is_successful = True
+            except ValueError, exc: pass
+
+        if not is_successful:
+          raise IOError("unrecognized output from ps: %s" % ps_call)
+    except IOError, exc:
+      new_values = {}
+      self._failure_count += 1
+
+      if self._use_proc:
+        if self._failure_count >= 3:
+          # We've failed three times resolving via proc. Warn, and fall back
+          # to ps resolutions.
+          log.info("Failed three attempts to get process resource usage from proc, falling back to ps (%s)" % exc)
+
+          self._use_proc = False
+          self._failure_count = 1 # prevents last_query_failed() from thinking that we succeeded
+        else:
+          # wait a bit and try again
+          log.debug("Unable to query process resource usage from proc (%s)" % exc)
+      else:
+        # exponential backoff on making failed ps calls
+        sleep_time = 0.01 * (2 ** self._failure_count) + self._failure_count
+        log.debug("Unable to query process resource usage from ps, waiting %0.2f seconds (%s)" % (sleep_time, exc))
+
+    # sets the new values
+    if new_values:
+      # If this is the first run then the cpuSampling stat is meaningless
+      # (there isn't a previous tick to sample from so it's zero at this
+      # point). Setting it to the average, which is a fairer estimate.
+      if self.last_lookup == -1:
+        new_values["cpuSampling"] = new_values["cpuAvg"]
+
+      with self.val_lock:
+        self._last_sample = Resources(new_values["cpuSampling"], new_values["cpuAvg"], new_values["memUsage"], new_values["memUsagePercentage"])
+        self._last_cpu_total = new_values["_lastCpuTotal"]
+        self.last_lookup = time.time()
+        self._failure_count = 0
+        return True
+    else:
+      return False

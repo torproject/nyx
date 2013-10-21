@@ -242,7 +242,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"
       options = ["auto"] + list(connections.Resolver)
-      connResolver = arm.util.tracker.get_connection_resolver()
+      connResolver = arm.util.tracker.get_connection_tracker()
 
       currentOverwrite = connResolver.get_custom_resolver()
       if currentOverwrite == None: oldSelection = 0
@@ -313,7 +313,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         lastDraw += CONFIG["features.connection.refreshRate"] * drawTicks
 
   def getHelp(self):
-    resolverUtil = arm.util.tracker.get_connection_resolver().get_custom_resolver()
+    resolverUtil = arm.util.tracker.get_connection_tracker().get_custom_resolver()
     if resolverUtil == None: resolverUtil = "auto"
 
     options = []
@@ -427,9 +427,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.appResolveSinceUpdate = False
 
     # if we don't have an initialized resolver then this is a no-op
-    if not arm.util.tracker.get_connection_resolver().is_alive(): return
+    if not arm.util.tracker.get_connection_tracker().is_alive(): return
 
-    connResolver = arm.util.tracker.get_connection_resolver()
+    connResolver = arm.util.tracker.get_connection_tracker()
     currentResolutionCount = connResolver.run_counter()
 
     self.valsLock.acquire()

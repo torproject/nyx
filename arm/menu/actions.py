@@ -239,7 +239,7 @@ def makeConnectionsMenu(connPanel):
   connectionsMenu.add(arm.menu.item.MenuItem("Sorting...", connPanel.showSortDialog))
 
   # resolver submenu
-  connResolver = arm.util.tracker.get_connection_resolver()
+  connResolver = arm.util.tracker.get_connection_tracker()
   resolverMenu = arm.menu.item.Submenu("Resolver")
   resolverGroup = arm.menu.item.SelectionGroup(connResolver.set_custom_resolver, connResolver.get_custom_resolver())
 

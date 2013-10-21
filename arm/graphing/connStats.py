@@ -41,7 +41,7 @@ class ConnStats(graphPanel.GraphStats):
 
     inboundCount, outboundCount = 0, 0
 
-    for entry in arm.util.tracker.get_connection_resolver().get_connections():
+    for entry in arm.util.tracker.get_connection_tracker().get_connections():
       localPort = entry.local_port
       if localPort in (self.orPort, self.dirPort): inboundCount += 1
       elif localPort == self.controlPort: pass # control connection

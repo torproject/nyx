@@ -19,6 +19,8 @@ import time
 import curses
 import threading
 
+import arm.util.tracker
+
 import stem
 import stem.connection
 
@@ -414,7 +416,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
         isChanged = False
         if self.vals["tor/pid"]:
-          resourceTracker = sysTools.getResourceTracker()
+          resourceTracker = arm.util.tracker.get_resource_tracker()
           resourceTracker.set_process(self.vals["tor/pid"])
           isChanged = self._lastResourceFetch != resourceTracker.run_counter()
 
@@ -561,15 +563,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:
-      resourceTracker = sysTools.getResourceTracker()
+      resourceTracker = arm.util.tracker.get_resource_tracker()
       resourceTracker.set_process(self.vals["tor/pid"])
 
-      if resourceTracker.lastQueryFailed():
+      if resourceTracker.last_query_failed():
         self.vals["stat/%torCpu"] = "0"
         self.vals["stat/rss"] = "0"
         self.vals["stat/%mem"] = "0"
       else:
-        cpuUsage, _, memUsage, memUsagePercent = resourceTracker.getResourceUsage()
+        cpuUsage, _, memUsage, memUsagePercent = resourceTracker.get_resource_usage()
         self._lastResourceFetch = resourceTracker.run_counter()
         self.vals["stat/%torCpu"] = "%0.1f" % (100 * cpuUsage)
         self.vals["stat/rss"] = str(memUsage)

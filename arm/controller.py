@@ -101,7 +101,7 @@ def initController(stdscr, startTime):
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
-      arm.util.tracker.get_connection_resolver().set_paused(True)
+      arm.util.tracker.get_connection_tracker().set_paused(True)
     else:
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
@@ -117,14 +117,14 @@ def initController(stdscr, startTime):
         if tor_cmd is None:
           tor_cmd = "tor"
 
-        resolver = arm.util.tracker.get_connection_resolver()
+        resolver = arm.util.tracker.get_connection_tracker()
         resolver.set_process(tor_pid, tor_cmd)
         log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
         resolver.start()
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
-        arm.util.tracker.get_connection_resolver().set_paused(not controller.is_alive())
+        arm.util.tracker.get_connection_tracker().set_paused(not controller.is_alive())
 
   # third page: config
   if CONFIG["features.panels.show.config"]:
@@ -497,7 +497,7 @@ def connResetListener(controller, eventType, _):
   pid if started again.
   """
 
-  resolver = arm.util.tracker.get_connection_resolver()
+  resolver = arm.util.tracker.get_connection_tracker()
 
   if resolver.is_alive():
     resolver.set_paused(eventType == State.CLOSED)
