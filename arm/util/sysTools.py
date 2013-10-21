@@ -2,7 +2,7 @@
 Helper functions for working with the underlying system.
 """
 
-import os
+import collections
 import time
 import threading
 
@@ -17,6 +17,20 @@ RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
 # (time called, runtime)
 RUNTIMES = []
 SAMPLING_PERIOD = 5 # time of the sampling period
+
+# Process resources we poll...
+#
+#  cpu_sample - average cpu usage since we last checked
+#  cpu_average - average cpu usage since we first started tracking the process
+#  memory_bytes - memory usage of the process in bytes
+#  memory_precent - percentage of our memory used by this process
+
+Resources = collections.namedtuple('Resources', [
+  'cpu_sample',
+  'cpu_average',
+  'memory_bytes',
+  'memory_percent',
+])
 
 CONFIG = conf.config_dict("arm", {
   "queries.resourceUsage.rate": 5,
@@ -81,10 +95,7 @@ class ResourceTracker(arm.util.tracker.Daemon):
 
     self.processPid = processPid
 
-    self.cpuSampling = 0.0  # latest cpu usage sampling
-    self.cpuAvg = 0.0       # total average cpu usage
-    self.memUsage = 0       # last sampled memory usage in bytes
-    self.memUsagePercentage = 0.0 # percentage cpu usage
+    self._last_sample = None
 
     # resolves usage via proc results if true, ps otherwise
     self._useProc = proc.is_available()
@@ -100,15 +111,19 @@ class ResourceTracker(arm.util.tracker.Daemon):
 
   def getResourceUsage(self):
     """
-    Provides the last cached resource usage as a tuple of the form:
+    Provides the last cached resource usage as a named tuple of the form:
     (cpuUsage_sampling, cpuUsage_avg, memUsage_bytes, memUsage_percent)
     """
 
     self._valLock.acquire()
-    results = (self.cpuSampling, self.cpuAvg, self.memUsage, self.memUsagePercentage)
+
+    if self._last_sample is None:
+      result = Resources(0.0, 0.0, 0, 0.0)
+    else:
+      result = self._last_sample
     self._valLock.release()
 
-    return results
+    return result
 
   def lastQueryFailed(self):
     """
@@ -197,10 +212,7 @@ class ResourceTracker(arm.util.tracker.Daemon):
         newValues["cpuSampling"] = newValues["cpuAvg"]
 
       self._valLock.acquire()
-      self.cpuSampling = newValues["cpuSampling"]
-      self.cpuAvg = newValues["cpuAvg"]
-      self.memUsage = newValues["memUsage"]
-      self.memUsagePercentage = newValues["memUsagePercentage"]
+      self._last_sample = Resources(newValues["cpuSampling"], newValues["cpuAvg"], newValues["memUsage"], newValues["memUsagePercentage"])
       self._lastCpuTotal = newValues["_lastCpuTotal"]
       self.lastLookup = time.time()
       self._failureCount = 0
