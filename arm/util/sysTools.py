@@ -71,7 +71,8 @@ def getResourceTracker(pid, noSpawn = False):
     else: del RESOURCE_TRACKERS[pid]
 
   if noSpawn: return None
-  tracker = ResourceTracker(pid)
+  tracker = ResourceTracker()
+  tracker.set_process(pid)
   RESOURCE_TRACKERS[pid] = tracker
   tracker.start()
   return tracker
@@ -82,19 +83,15 @@ class ResourceTracker(arm.util.tracker.Daemon):
   process.
   """
 
-  def __init__(self, processPid):
+  def __init__(self):
     """
     Initializes a new resolver daemon. When no longer needed it's suggested
     that this is stopped.
-
-    Arguments:
-      processPid  - pid of the process being tracked
     """
 
     arm.util.tracker.Daemon.__init__(self, CONFIG["queries.resourceUsage.rate"])
 
-    self.processPid = processPid
-
+    self._procss_pid = None
     self._last_sample = None
 
     # resolves usage via proc results if true, ps otherwise
@@ -108,6 +105,15 @@ class ResourceTracker(arm.util.tracker.Daemon):
 
     # sequential times we've failed with this method of resolution
     self._failureCount = 0
+
+  def set_process(self, pid):
+    """ 
+    Sets the process we retrieve resources for.
+
+    :param int pid: process id
+    """
+
+    self._process_pid = pid 
 
   def getResourceUsage(self):
     """
@@ -139,14 +145,14 @@ class ResourceTracker(arm.util.tracker.Daemon):
     newValues = {}
     try:
       if self._useProc:
-        utime, stime, startTime = proc.get_stats(self.processPid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
+        utime, stime, startTime = proc.get_stats(self._procss_pid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
         totalCpuTime = float(utime) + float(stime)
         cpuDelta = totalCpuTime - self._lastCpuTotal
         newValues["cpuSampling"] = cpuDelta / timeSinceReset
         newValues["cpuAvg"] = totalCpuTime / (time.time() - float(startTime))
         newValues["_lastCpuTotal"] = totalCpuTime
 
-        memUsage = int(proc.get_memory_usage(self.processPid)[0])
+        memUsage = int(proc.get_memory_usage(self._procss_pid)[0])
         totalMemory = proc.get_physical_memory()
         newValues["memUsage"] = memUsage
         newValues["memUsagePercentage"] = float(memUsage) / totalMemory
@@ -161,7 +167,7 @@ class ResourceTracker(arm.util.tracker.Daemon):
         #     TIME      ELAPSED    RSS %MEM
         #  0:04.40        37:57  18772  0.9
 
-        psCall = system.call("ps -p %s -o cputime,etime,rss,%%mem" % self.processPid)
+        psCall = system.call("ps -p %s -o cputime,etime,rss,%%mem" % self._procss_pid)
 
         isSuccessful = False
         if psCall and len(psCall) >= 2:
