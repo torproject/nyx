@@ -10,7 +10,7 @@ import arm.util.tracker
 
 from stem.util import conf, log, proc, str_tools, system
 
-RESOURCE_TRACKERS = {}  # mapping of pids to their resource tracker instances
+RESOURCE_TRACKER = None
 
 # Runtimes for system calls, used to estimate cpu usage. Entries are tuples of
 # the form:
@@ -56,26 +56,17 @@ def getSysCpuUsage():
   runtimeSum = sum([entry[1] for entry in RUNTIMES])
   return runtimeSum / SAMPLING_PERIOD
 
-def getResourceTracker(pid, noSpawn = False):
+def getResourceTracker():
   """
-  Provides a running singleton ResourceTracker instance for the given pid.
-
-  Arguments:
-    pid     - pid of the process being tracked
-    noSpawn - returns None rather than generating a singleton instance if True
+  Singleton for tracking the resource usage of our tor process.
   """
 
-  if pid in RESOURCE_TRACKERS:
-    tracker = RESOURCE_TRACKERS[pid]
-    if tracker.isAlive(): return tracker
-    else: del RESOURCE_TRACKERS[pid]
+  global RESOURCE_TRACKER
 
-  if noSpawn: return None
-  tracker = ResourceTracker()
-  tracker.set_process(pid)
-  RESOURCE_TRACKERS[pid] = tracker
-  tracker.start()
-  return tracker
+  if RESOURCE_TRACKER is None:
+    RESOURCE_TRACKER = ResourceTracker()
+
+  return RESOURCE_TRACKER
 
 class ResourceTracker(arm.util.tracker.Daemon):
   """
@@ -140,6 +131,9 @@ class ResourceTracker(arm.util.tracker.Daemon):
     return self._failureCount != 0
 
   def task(self):
+    if self._procss_pid is None:
+      return
+
     timeSinceReset = time.time() - self.lastLookup
 
     newValues = {}

@@ -42,7 +42,7 @@ class ResourceStats(graphPanel.GraphStats):
 
     primary, secondary = 0, 0
     if self.queryPid:
-      resourceTracker = sysTools.getResourceTracker(self.queryPid, True)
+      resourceTracker = sysTools.getResourceTracker()
 
       if resourceTracker and not resourceTracker.lastQueryFailed():
         primary, _, secondary, _ = resourceTracker.getResourceUsage()

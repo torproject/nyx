@@ -286,17 +286,17 @@ def _shutdown_daemons():
   # joins on utility daemon threads - this might take a moment since the
   # internal threadpools being joined might be sleeping
 
-  resource_trackers = arm.util.sysTools.RESOURCE_TRACKERS.values()
+  resource_tracker = arm.util.sysTools.getResourceTracker() if arm.util.sysTools.getResourceTracker().is_alive() else None
   connection_resolver = arm.util.tracker.get_connection_resolver() if arm.util.tracker.get_connection_resolver().is_alive() else None
 
-  for tracker in resource_trackers:
-    tracker.stop()
+  if resource_tracker:
+    resource_tracker.stop()
 
   if connection_resolver:
     connection_resolver.stop()  # sets halt flag (returning immediately)
 
-  for tracker in resource_trackers:
-    tracker.join()
+  if resource_tracker:
+    resource_tracker.join()
 
   if connection_resolver:
     connection_resolver.join()  # joins on halted resolver
