@@ -84,7 +84,8 @@ def get_resource_tracker():
 
 class Daemon(threading.Thread):
   """
-  Daemon that can perform a unit of work at a given rate.
+  Daemon that can perform a given action at a set rate. Subclasses are expected
+  to implement our _task() method with the work to be done.
   """
 
   def __init__(self, rate):
@@ -92,8 +93,8 @@ class Daemon(threading.Thread):
     self.setDaemon(True)
 
     self._daemon_lock = threading.RLock()
-    self._process_name = None
     self._process_pid = None
+    self._process_name = None
 
     self._rate = rate
     self._last_ran = -1  # time when we last ran
@@ -138,21 +139,26 @@ class Daemon(threading.Thread):
 
     :param int process_pid: pid of the process we're tracking
     :param str process_name: name of the process we're tracking
+
+    :returns: **bool** indicating if our run was successful or not
     """
 
     pass
 
   def run_counter(self):
     """
-    Provides the number of successful runs so far. This can be used to
-    determine if the daemon's results are new for the caller or not.
+    Provides the number of times we've successful runs so far. This can be used
+    by callers to determine if our results have been seen by them before or
+    not.
+
+    :returns: **int** for the run count we're on
     """
 
     return self._run_counter
 
   def get_rate(self):
     """
-    Provides the rate at which we perform our given task.
+    Provides the rate at which we perform our task.
 
     :returns: **float** for the rate in seconds at which we perform our task
     """
@@ -192,11 +198,8 @@ class Daemon(threading.Thread):
         tor_pid = controller.get_pid(None)
         tor_cmd = system.get_name_by_pid(tor_pid) if tor_pid else None
 
-        if tor_cmd is None:
-          tor_cmd = 'tor'
-
-        self._process_name = tor_cmd
         self._process_pid = tor_pid
+        self._process_name = tor_cmd if tor_cmd else 'tor'
 
 
 class ConnectionTracker(Daemon):
