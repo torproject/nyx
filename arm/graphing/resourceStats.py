@@ -17,6 +17,7 @@ class ResourceStats(graphPanel.GraphStats):
   def __init__(self):
     graphPanel.GraphStats.__init__(self)
     self.queryPid = torTools.getConn().controller.get_pid(None)
+    self.lastCounter = None
 
   def clone(self, newCopy=None):
     if not newCopy: newCopy = ResourceStats()
@@ -46,8 +47,9 @@ class ResourceStats(graphPanel.GraphStats):
     if self.queryPid:
       resourceTracker = arm.util.tracker.get_resource_tracker()
 
-      if resourceTracker and not resourceTracker.last_query_failed():
+      if resourceTracker and resourceTracker.run_counter() != self.lastCounter:
         resources = resourceTracker.get_resource_usage()
+        self.lastCounter = resourceTracker.run_counter()
         primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
         secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
         self.runCount = resourceTracker.run_counter()

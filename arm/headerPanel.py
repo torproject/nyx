@@ -564,16 +564,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if self.vals["tor/pid"]:
       resourceTracker = arm.util.tracker.get_resource_tracker()
 
-      if resourceTracker.last_query_failed():
-        self.vals["stat/%torCpu"] = "0"
-        self.vals["stat/rss"] = "0"
-        self.vals["stat/%mem"] = "0"
-      else:
-        resources = resourceTracker.get_resource_usage()
-        self._lastResourceFetch = resourceTracker.run_counter()
-        self.vals["stat/%torCpu"] = "%0.1f" % (100 * resources.cpu_sample)
-        self.vals["stat/rss"] = str(resources.memory_bytes)
-        self.vals["stat/%mem"] = "%0.1f" % (100 * resources.memory_percent)
+      resources = resourceTracker.get_resource_usage()
+      self._lastResourceFetch = resourceTracker.run_counter()
+      self.vals["stat/%torCpu"] = "%0.1f" % (100 * resources.cpu_sample)
+      self.vals["stat/rss"] = str(resources.memory_bytes)
+      self.vals["stat/%mem"] = "%0.1f" % (100 * resources.memory_percent)
 
     # determines the cpu time for the arm process (including user and system
     # time of both the primary and child processes)

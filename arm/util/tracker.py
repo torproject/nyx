@@ -19,8 +19,7 @@ Background tasks for gathering informatino about the tor process.
     +- get_connections - provides our latest connection results
 
   ResourceTracker - periodically checks the resource usage of tor
-    |- get_resource_usage - provides our latest resource usage results
-    +- last_query_failed - checks if we failed to fetch newer results
+    +- get_resource_usage - provides our latest resource usage results
 """
 
 import collections
@@ -89,10 +88,10 @@ class Daemon(threading.Thread):
   """
 
   def __init__(self, rate):
-    threading.Thread.__init__(self)
+    super(Daemon, self).__init__()
     self.setDaemon(True)
 
-    self._daemon_lock = threading.RLock()
+    self._process_lock = threading.RLock()
     self._process_pid = None
     self._process_name = None
 
@@ -121,7 +120,7 @@ class Daemon(threading.Thread):
 
         continue  # done waiting, try again
 
-      with self._daemon_lock:
+      with self._process_lock:
         if self._process_pid is not None:
           is_successful = self._task(self._process_pid, self._process_name)
         else:
@@ -193,7 +192,7 @@ class Daemon(threading.Thread):
       self._pause_condition.notifyAll()
 
   def _tor_status_listener(self, controller, event_type, _):
-    with self._daemon_lock:
+    with self._process_lock:
       if not self._halt and event_type in (State.INIT, State.RESET):
         tor_pid = controller.get_pid(None)
         tor_cmd = system.get_name_by_pid(tor_pid) if tor_pid else None
@@ -208,10 +207,10 @@ class ConnectionTracker(Daemon):
   """
 
   def __init__(self):
-    Daemon.__init__(self, CONFIG['queries.connections.rate'])
+    super(ConnectionTracker, self).__init__(CONFIG['queries.connections.rate'])
 
-    self._resolvers = connection.get_system_resolvers()
     self._connections = []
+    self._resolvers = connection.get_system_resolvers()
     self._custom_resolver = None
 
     # Number of times in a row we've either failed with our current resolver or
@@ -228,7 +227,7 @@ class ConnectionTracker(Daemon):
       resolver = self._resolvers[0]
       is_default_resolver = True
     else:
-      return  # nothing to resolve with
+      return False  # nothing to resolve with
 
     try:
       start_time = time.time()
@@ -289,7 +288,7 @@ class ConnectionTracker(Daemon):
     Provides the custom resolver the user has selected. This is **None** if
     we're picking resolvers dynamically.
 
-    :returns: :data:`stem.util.connection.Resolver` we're overwritten to use
+    :returns: :data:`~stem.util.connection.Resolver` we're overwritten to use
     """
 
     return self._custom_resolver
@@ -306,10 +305,10 @@ class ConnectionTracker(Daemon):
 
   def get_connections(self):
     """
-    Provides the last queried connection results, an empty list if resolver
-    has been stopped.
+    Provides a listing of tor's latest connections.
 
-    :returns: **list** of :class:`~stem.util.connection.Connection` we last retrieved
+    :returns: **list** of :class:`~stem.util.connection.Connection` we last
+      retrieved, an empty list if our tracker's been stopped
     """
 
     if self._halt:
@@ -317,15 +316,16 @@ class ConnectionTracker(Daemon):
     else:
       return list(self._connections)
 
+
 class ResourceTracker(Daemon):
   """
   Periodically retrieves the resource usage of tor.
   """
 
   def __init__(self):
-    Daemon.__init__(self, CONFIG['queries.resources.rate'])
+    super(ResourceTracker, self).__init__(CONFIG['queries.resources.rate'])
 
-    self._last_sample = None
+    self._resources = None
 
     # resolves usage via proc results if true, ps otherwise
     self._use_proc = proc.is_available()
@@ -340,20 +340,13 @@ class ResourceTracker(Daemon):
 
   def get_resource_usage(self):
     """
-    Provides the last cached resource usage as a named tuple of the form:
-    (cpuUsage_sampling, cpuUsage_avg, memUsage_bytes, memUsage_percent)
+    Provides tor's latest resource usage.
+
+    :returns: latest :data:`~arm.util.tracker.Resources` we've polled
     """
 
-    with self._daemon_lock:
-      return self._last_sample if self._last_sample else Resources(0.0, 0.0, 0, 0.0)
-
-  def last_query_failed(self):
-    """
-    Provides true if, since we fetched the currently cached results, we've
-    failed to get new results. False otherwise.
-    """
-
-    return self._failure_count != 0
+    result = self._resources
+    return result if result else Resources(0.0, 0.0, 0, 0.0)
 
   def _task(self, process_pid, process_name):
     if process_pid is None:
@@ -419,7 +412,7 @@ class ResourceTracker(Daemon):
           log.info("Failed three attempts to get process resource usage from proc, falling back to ps (%s)" % exc)
 
           self._use_proc = False
-          self._failure_count = 1 # prevents last_query_failed() from thinking that we succeeded
+          self._failure_count = 0
         else:
           # wait a bit and try again
           log.debug("Unable to query process resource usage from proc (%s)" % exc)
@@ -437,7 +430,7 @@ class ResourceTracker(Daemon):
         new_values["cpuSampling"] = new_values["cpuAvg"]
 
       with self.val_lock:
-        self._last_sample = Resources(new_values["cpuSampling"], new_values["cpuAvg"], new_values["memUsage"], new_values["memUsagePercentage"])
+        self._resources = Resources(new_values["cpuSampling"], new_values["cpuAvg"], new_values["memUsage"], new_values["memUsagePercentage"])
         self._last_cpu_total = new_values["_lastCpuTotal"]
         self.last_lookup = time.time()
         self._failure_count = 0
