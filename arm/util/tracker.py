@@ -89,10 +89,7 @@ class Daemon(threading.Thread):
 
   def __init__(self, rate):
     threading.Thread.__init__(self)
-    self.daemon = True
-
-    # PID and process name of the tor process we're tracking. These should only
-    # be used under the daemon's lock.
+    self.setDaemon(True)
 
     self._daemon_lock = threading.RLock()
     self._process_name = None
@@ -124,17 +121,17 @@ class Daemon(threading.Thread):
         continue  # done waiting, try again
 
       with self._daemon_lock:
-        is_successful = self._task()
+        is_successful = self._task(self._process_pid, self._process_name)
 
       if is_successful:
         self._run_counter += 1
 
       self._last_ran = time.time()
 
-  def _task(self):
+  def _task(self, process_pid, process_name):
     """
     Task the resolver is meant to perform. This should be implemented by
-    subclasses. This is executed under the daemon's lock.
+    subclasses.
     """
 
     pass
@@ -214,7 +211,7 @@ class ConnectionTracker(Daemon):
     self._failure_count = 0
     self._rate_too_low_count = 0
 
-  def _task(self):
+  def _task(self, process_pid, process_name):
     if self._custom_resolver:
       resolver = self._custom_resolver
       is_default_resolver = False
@@ -229,8 +226,8 @@ class ConnectionTracker(Daemon):
 
       self._connections = connection.get_connections(
         resolver,
-        process_pid = self._process_pid,
-        process_name = self._process_name,
+        process_pid = process_pid,
+        process_name = process_name,
       )
 
       runtime = time.time() - start_time
@@ -319,7 +316,6 @@ class ResourceTracker(Daemon):
   def __init__(self):
     Daemon.__init__(self, CONFIG["queries.resourceUsage.rate"])
 
-    self._procss_pid = None
     self._last_sample = None
 
     # resolves usage via proc results if true, ps otherwise
@@ -350,8 +346,8 @@ class ResourceTracker(Daemon):
 
     return self._failure_count != 0
 
-  def _task(self):
-    if self._procss_pid is None:
+  def _task(self, process_pid, process_name):
+    if process_pid is None:
       return
 
     time_since_reset = time.time() - self.last_lookup
@@ -359,14 +355,14 @@ class ResourceTracker(Daemon):
 
     try:
       if self._use_proc:
-        utime, stime, start_time = proc.get_stats(self._procss_pid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
+        utime, stime, start_time = proc.get_stats(process_pid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
         total_cpu_time = float(utime) + float(stime)
         cpu_delta = total_cpu_time - self._last_cpu_total
         new_values["cpuSampling"] = cpu_delta / time_since_reset
         new_values["cpuAvg"] = total_cpu_time / (time.time() - float(start_time))
         new_values["_lastCpuTotal"] = total_cpu_time
 
-        mem_usage = int(proc.get_memory_usage(self._procss_pid)[0])
+        mem_usage = int(proc.get_memory_usage(process_pid)[0])
         total_memory = proc.get_physical_memory()
         new_values["memUsage"] = mem_usage
         new_values["memUsagePercentage"] = float(mem_usage) / total_memory
@@ -381,7 +377,7 @@ class ResourceTracker(Daemon):
         #     TIME      ELAPSED    RSS %MEM
         #  0:04.40        37:57  18772  0.9
 
-        ps_call = system.call("ps -p %s -o cputime,etime,rss,%%mem" % self._procss_pid)
+        ps_call = system.call("ps -p %s -o cputime,etime,rss,%%mem" % process_pid)
 
         is_successful = False
         if ps_call and len(ps_call) >= 2:
