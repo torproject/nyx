@@ -118,7 +118,6 @@ def initController(stdscr, startTime):
           tor_cmd = "tor"
 
         resolver = arm.util.tracker.get_connection_tracker()
-        resolver.set_process(tor_pid, tor_cmd)
         log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
         resolver.start()
       else:
@@ -509,16 +508,6 @@ def connResetListener(controller, eventType, _):
 
       if getController().getPanel("torrc") == None:
         torConfig.getTorrc().load(True)
-
-      try:
-        tor_cmd = system.get_name_by_pid(tor_pid)
-
-        if tor_cmd is None:
-          tor_cmd = "tor"
-
-        resolver.set_process(controller.get_pid(), tor_cmd)
-      except ValueError:
-        pass
 
 def start_arm(stdscr):
   """

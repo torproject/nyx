@@ -14,13 +14,11 @@ Background tasks for gathering informatino about the tor process.
     +- stop - stops further work by the daemon
 
   ConnectionResolver - periodically checks the connections established by tor
-    |- set_process - set the pid and process name used for lookups
     |- get_custom_resolver - provide the custom conntion resolver we're using
     |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
     +- get_connections - provides our latest connection results
 
   ResourceTracker - periodically checks the resource usage of tor
-    |- set_process - set the pid used for lookups
     |- get_resource_usage - provides our latest resource usage results
     +- last_query_failed - checks if we failed to fetch newer results
 """
@@ -29,6 +27,9 @@ import collections
 import time
 import threading
 
+import arm.util.torTools
+
+from stem.control import State
 from stem.util import conf, connection, log, proc, str_tools, system
 
 CONFIG = conf.config_dict("arm", {
@@ -90,6 +91,9 @@ class Daemon(threading.Thread):
     threading.Thread.__init__(self)
     self.daemon = True
 
+    self._process_name = None
+    self._process_pid = None
+
     self._rate = rate
     self._last_ran = -1  # time when we last ran
     self._run_counter = 0  # counter for the number of successful runs
@@ -97,6 +101,10 @@ class Daemon(threading.Thread):
     self._is_paused = False
     self._halt = False  # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
+
+    controller = arm.util.torTools.getConn().controller
+    controller.add_status_listener(self._tor_status_listener)
+    self._tor_status_listener(controller, State.INIT, None)
 
   def run(self):
     while not self._halt:
@@ -172,6 +180,17 @@ class Daemon(threading.Thread):
     self._cond.notifyAll()
     self._cond.release()
 
+  def _tor_status_listener(self, controller, event_type, _):
+    if event_type in (State.INIT, State.RESET):
+      tor_pid = controller.get_pid(None)
+      tor_cmd = system.get_name_by_pid(tor_pid) if tor_pid else None
+
+      if tor_cmd is None:
+        tor_cmd = 'tor'
+
+      self._process_name = tor_cmd
+      self._process_pid = tor_pid
+
 
 class ConnectionResolver(Daemon):
   """
@@ -184,9 +203,6 @@ class ConnectionResolver(Daemon):
     self._resolvers = connection.get_system_resolvers()
     self._connections = []
     self._custom_resolver = None
-
-    self._process_pid = None
-    self._process_name = None
 
     # Number of times in a row we've either failed with our current resolver or
     # concluded that our rate is too low.
@@ -258,17 +274,6 @@ class ConnectionResolver(Daemon):
 
       return False
 
-  def set_process(self, pid, name):
-    """
-    Sets the process we retrieve connections for.
-
-    :param int pid: process id
-    :param str name: name of the process
-    """
-
-    self._process_pid = pid
-    self._process_name = name
-
   def get_custom_resolver(self):
     """
     Provides the custom resolver the user has selected. This is **None** if
@@ -324,15 +329,6 @@ class ResourceTracker(Daemon):
 
     # sequential times we've failed with this method of resolution
     self._failure_count = 0
-
-  def set_process(self, pid):
-    """
-    Sets the process we retrieve resources for.
-
-    :param int pid: process id
-    """
-
-    self._process_pid = pid
 
   def get_resource_usage(self):
     """

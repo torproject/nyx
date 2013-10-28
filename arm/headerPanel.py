@@ -417,7 +417,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
         isChanged = False
         if self.vals["tor/pid"]:
           resourceTracker = arm.util.tracker.get_resource_tracker()
-          resourceTracker.set_process(self.vals["tor/pid"])
           isChanged = self._lastResourceFetch != resourceTracker.run_counter()
 
         if isChanged or currentTime - self._lastUpdate >= 20:
@@ -564,7 +563,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # ps or proc derived resource usage stats
     if self.vals["tor/pid"]:
       resourceTracker = arm.util.tracker.get_resource_tracker()
-      resourceTracker.set_process(self.vals["tor/pid"])
 
       if resourceTracker.last_query_failed():
         self.vals["stat/%torCpu"] = "0"
