@@ -121,10 +121,13 @@ class Daemon(threading.Thread):
         continue  # done waiting, try again
 
       with self._daemon_lock:
-        is_successful = self._task(self._process_pid, self._process_name)
+        if self._process_pid is not None:
+          is_successful = self._task(self._process_pid, self._process_name)
+        else:
+          is_successful = False
 
-      if is_successful:
-        self._run_counter += 1
+        if is_successful:
+          self._run_counter += 1
 
       self._last_ran = time.time()
 
@@ -132,6 +135,9 @@ class Daemon(threading.Thread):
     """
     Task the resolver is meant to perform. This should be implemented by
     subclasses.
+
+    :param int process_pid: pid of the process we're tracking
+    :param str process_name: name of the process we're tracking
     """
 
     pass
