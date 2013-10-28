@@ -571,11 +571,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.vals["stat/rss"] = "0"
         self.vals["stat/%mem"] = "0"
       else:
-        cpuUsage, _, memUsage, memUsagePercent = resourceTracker.get_resource_usage()
+        resources = resourceTracker.get_resource_usage()
         self._lastResourceFetch = resourceTracker.run_counter()
-        self.vals["stat/%torCpu"] = "%0.1f" % (100 * cpuUsage)
-        self.vals["stat/rss"] = str(memUsage)
-        self.vals["stat/%mem"] = "%0.1f" % (100 * memUsagePercent)
+        self.vals["stat/%torCpu"] = "%0.1f" % (100 * resources.cpu_sample)
+        self.vals["stat/rss"] = str(resources.memory_bytes)
+        self.vals["stat/%mem"] = "%0.1f" % (100 * resources.memory_percent)
 
     # determines the cpu time for the arm process (including user and system
     # time of both the primary and child processes)

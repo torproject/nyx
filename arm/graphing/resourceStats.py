@@ -47,9 +47,9 @@ class ResourceStats(graphPanel.GraphStats):
       resourceTracker = arm.util.tracker.get_resource_tracker()
 
       if resourceTracker and not resourceTracker.last_query_failed():
-        primary, _, secondary, _ = resourceTracker.get_resource_usage()
-        primary *= 100        # decimal percentage to whole numbers
-        secondary /= 1048576  # translate size to MB so axis labels are short
+        resources = resourceTracker.get_resource_usage()
+        primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
+        secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
         self.runCount = resourceTracker.run_counter()
 
     self._processEvent(primary, secondary)
