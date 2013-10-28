@@ -4,8 +4,10 @@ startup.events N3
 startup.dataDirectory ~/.arm
 
 # Seconds between querying information
-queries.resourceUsage.rate 5
-queries.connections.minRate 5
+
+queries.resources.rate 5
+queries.connections.rate 5
+
 queries.refreshRate.rate 5
 
 # allows individual panels to be included/excluded
@@ -14,11 +16,6 @@ features.panels.show.log true
 features.panels.show.connection true
 features.panels.show.config true
 features.panels.show.torrc true
-
-# Read the proc contents directly instead of calling ps, netstat, and other
-# resolvers. This provides very sizable performance benefits (around 90%
-# faster lookups) but this is only available on Linux.
-queries.useProc true
 
 # Renders the interface with color if set and the terminal supports it
 features.colorInterface true

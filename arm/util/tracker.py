@@ -33,8 +33,8 @@ from stem.control import State
 from stem.util import conf, connection, log, proc, str_tools, system
 
 CONFIG = conf.config_dict('arm', {
-  'queries.resourceUsage.rate': 5,
-  'queries.connections.minRate': 5,
+  'queries.resources.rate': 5,
+  'queries.connections.rate': 5,
   'msg.unable_to_use_resolver': '',
   'msg.unable_to_use_all_resolvers': '',
 })
@@ -208,7 +208,7 @@ class ConnectionTracker(Daemon):
   """
 
   def __init__(self):
-    Daemon.__init__(self, CONFIG["queries.connections.minRate"])
+    Daemon.__init__(self, CONFIG['queries.connections.rate'])
 
     self._resolvers = connection.get_system_resolvers()
     self._connections = []
@@ -323,7 +323,7 @@ class ResourceTracker(Daemon):
   """
 
   def __init__(self):
-    Daemon.__init__(self, CONFIG["queries.resourceUsage.rate"])
+    Daemon.__init__(self, CONFIG['queries.resources.rate'])
 
     self._last_sample = None
 
