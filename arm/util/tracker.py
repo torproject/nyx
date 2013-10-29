@@ -20,6 +20,17 @@ Background tasks for gathering informatino about the tor process.
 
   ResourceTracker - periodically checks the resource usage of tor
     +- get_resource_usage - provides our latest resource usage results
+
+.. data:: Resources
+
+  Resource usage information retrieved about the tor process.
+
+  :var float cpu_sample: average cpu usage since we last checked
+  :var float cpu_average: average cpu usage since we first started tracking the process
+  :var float cpu_total: total cpu time the process has used since starting
+  :var int memory_bytes: memory usage of the process in bytes
+  :var float memory_precent: percentage of our memory used by this process
+  :var float timestamp: unix timestamp for when this information was fetched
 """
 
 import collections
@@ -41,18 +52,13 @@ CONFIG = conf.config_dict('arm', {
 CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
 
-# Process resources we poll...
-#
-#  cpu_sample - average cpu usage since we last checked
-#  cpu_average - average cpu usage since we first started tracking the process
-#  memory_bytes - memory usage of the process in bytes
-#  memory_precent - percentage of our memory used by this process
-
 Resources = collections.namedtuple('Resources', [
   'cpu_sample',
   'cpu_average',
+  'cpu_total',
   'memory_bytes',
   'memory_percent',
+  'timestamp',
 ])
 
 def get_connection_tracker():
@@ -330,11 +336,6 @@ class ResourceTracker(Daemon):
     # resolves usage via proc results if true, ps otherwise
     self._use_proc = proc.is_available()
 
-    # used to get the deltas when querying cpu time
-    self._last_cpu_total = 0
-
-    self.last_lookup = -1
-
     # sequential times we've failed with this method of resolution
     self._failure_count = 0
 
@@ -346,20 +347,20 @@ class ResourceTracker(Daemon):
     """
 
     result = self._resources
-    return result if result else Resources(0.0, 0.0, 0, 0.0)
+    return result if result else Resources(0.0, 0.0, 0.0, 0, 0.0, 0.0)
 
   def _task(self, process_pid, process_name):
-    if process_pid is None:
-      return
+    last_cpu_total = self._resources.cpu_total if self._resources else 0
+    last_lookup = self._resources.timestamp if self._resources else -1
 
-    time_since_reset = time.time() - self.last_lookup
+    time_since_reset = time.time() - last_lookup
     new_values = {}
 
     try:
       if self._use_proc:
         utime, stime, start_time = proc.get_stats(process_pid, proc.Stat.CPU_UTIME, proc.Stat.CPU_STIME, proc.Stat.START_TIME)
         total_cpu_time = float(utime) + float(stime)
-        cpu_delta = total_cpu_time - self._last_cpu_total
+        cpu_delta = total_cpu_time - last_cpu_total
         new_values["cpuSampling"] = cpu_delta / time_since_reset
         new_values["cpuAvg"] = total_cpu_time / (time.time() - float(start_time))
         new_values["_lastCpuTotal"] = total_cpu_time
@@ -379,7 +380,7 @@ class ResourceTracker(Daemon):
         #     TIME      ELAPSED    RSS %MEM
         #  0:04.40        37:57  18772  0.9
 
-        ps_call = system.call("ps -p %s -o cputime,etime,rss,%%mem" % process_pid)
+        ps_call = system.call("ps -p {pid} -o cputime,etime,rss,%mem".format(pid = process_pid))
 
         is_successful = False
         if ps_call and len(ps_call) >= 2:
@@ -389,7 +390,7 @@ class ResourceTracker(Daemon):
             try:
               total_cpu_time = str_tools.parse_short_time_label(stats[0])
               uptime = str_tools.parse_short_time_label(stats[1])
-              cpu_delta = total_cpu_time - self._last_cpu_total
+              cpu_delta = total_cpu_time - last_cpu_total
               new_values["cpuSampling"] = cpu_delta / time_since_reset
               new_values["cpuAvg"] = total_cpu_time / uptime
               new_values["_lastCpuTotal"] = total_cpu_time
@@ -426,13 +427,19 @@ class ResourceTracker(Daemon):
       # If this is the first run then the cpuSampling stat is meaningless
       # (there isn't a previous tick to sample from so it's zero at this
       # point). Setting it to the average, which is a fairer estimate.
-      if self.last_lookup == -1:
+      if last_lookup == -1:
         new_values["cpuSampling"] = new_values["cpuAvg"]
 
       with self.val_lock:
-        self._resources = Resources(new_values["cpuSampling"], new_values["cpuAvg"], new_values["memUsage"], new_values["memUsagePercentage"])
-        self._last_cpu_total = new_values["_lastCpuTotal"]
-        self.last_lookup = time.time()
+        self._resources = Resources(
+          cpu_sample = new_values["cpuSampling"],
+          cpu_average = new_values["cpuAvg"],
+          cpu_total = new_values["_lastCpuTotal"],
+          memory_bytes = new_values["memUsage"],
+          memory_precent = new_values["memUsagePercentage"],
+          timestamp = time.time(),
+        )
+
         self._failure_count = 0
         return True
     else:
