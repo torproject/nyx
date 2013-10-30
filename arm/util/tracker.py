@@ -90,7 +90,7 @@ def get_resource_tracker():
   return RESOURCE_TRACKER
 
 
-def _ps_for_process(pid):
+def _resources_via_ps(pid):
   """
   Fetches resource usage information about a given process via ps. This returns
   a tuple of the form...
@@ -131,6 +131,37 @@ def _ps_for_process(pid):
         pass
 
   raise IOError("unrecognized output from ps: %s" % ps_call)
+
+
+def _resources_via_proc(pid):
+  """
+  Fetches resource usage information about a given process via proc. This
+  returns a tuple of the form...
+
+    (total_cpu_time, uptime, memory_in_bytes, memory_in_percent)
+
+  :param int pid: process to be queried
+
+  :returns: **tuple** with the resource usage information
+
+  :raises: **IOError** if unsuccessful
+  """
+
+  utime, stime, start_time = proc.get_stats(
+    pid,
+    proc.Stat.CPU_UTIME,
+    proc.Stat.CPU_STIME,
+    proc.Stat.START_TIME,
+  )
+
+  total_cpu_time = float(utime) + float(stime)
+  memory_in_bytes = proc.get_memory_usage(process_pid)[0]
+  total_memory = proc.get_physical_memory()
+
+  uptime = time.time() - float(start_time)
+  memory_in_percent = float(mem_usage) / total_memory
+
+  return (total_cpu_time, uptime, memory_in_bytes, memory_in_percent)
 
 
 class Daemon(threading.Thread):
@@ -393,10 +424,22 @@ class ResourceTracker(Daemon):
 
   def _task(self, process_pid, process_name):
     try:
-      if self._use_proc:
-        self._resources = self._proc_results(process_pid)
+      resolver = _resources_via_proc if self._use_proc else _resources_via_ps
+      total_cpu_time, uptime, memory_in_bytes, memory_in_percent = resolver(process_pid)
+
+      if self._resources:
+        cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
       else:
-        self._resources = self._ps_results(process_pid)
+        cpu_sample = 0.0  # we need a prior datapoint to give a sampling
+
+      self._resources = Resources(
+        cpu_sample = cpu_sample,
+        cpu_average = total_cpu_time / uptime,
+        cpu_total = total_cpu_time,
+        memory_bytes = memory_in_bytes,
+        memory_precent = memory_in_percent,
+        timestamp = time.time(),
+      )
 
       self._failure_count = 0
       return True
@@ -433,62 +476,3 @@ class ResourceTracker(Daemon):
           log.debug(CONFIG['msg.unable_to_get_resources'].format(resolver = 'ps', exc = exc))
 
       return False
-
-  def _proc_results(self, process_pid):
-    """
-    Resolves the process resource usage via proc.
-
-    :returns: **Resource** instance for its present resource usage
-
-    :throws: **IOError** if unable to retrieve information from proc
-    """
-
-    utime, stime, start_time = proc.get_stats(
-      process_pid,
-      proc.Stat.CPU_UTIME,
-      proc.Stat.CPU_STIME,
-      proc.Stat.START_TIME,
-    )
-
-    total_cpu_time = float(utime) + float(stime)
-    mem_usage = proc.get_memory_usage(process_pid)[0]
-    total_memory = proc.get_physical_memory()
-
-    if self._resources:
-      cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
-    else:
-      cpu_sample = 0.0  # we need a prior datapoint to give a sampling
-
-    return Resources(
-      cpu_sample = cpu_sample,
-      cpu_average = total_cpu_time / (time.time() - float(start_time)),
-      cpu_total = total_cpu_time,
-      memory_bytes = mem_usage,
-      memory_precent = float(mem_usage) / total_memory,
-      timestamp = time.time(),
-    )
-
-  def _ps_results(self, process_pid):
-    """
-    Resolves the process resource usage via ps.
-
-    :returns: **Resource** instance for its present resource usage
-
-    :throws: **IOError** if unable to retrieve information from proc
-    """
-
-    total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _ps_for_process(process_pid)
-
-    if self._resources:
-      cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
-    else:
-      cpu_sample = 0.0  # we need a prior datapoint to give a sampling
-
-    return Resources(
-      cpu_sample = cpu_sample,
-      cpu_average = total_cpu_time / uptime,
-      cpu_total = total_cpu_time,
-      memory_bytes = memory_in_bytes,
-      memory_precent = memory_in_percent,
-      timestamp = time.time(),
-    )
