@@ -90,6 +90,49 @@ def get_resource_tracker():
   return RESOURCE_TRACKER
 
 
+def _ps_for_process(pid):
+  """
+  Fetches resource usage information about a given process via ps. This returns
+  a tuple of the form...
+
+    (total_cpu_time, uptime, memory_in_bytes, memory_in_percent)
+
+  :param int pid: process to be queried
+
+  :returns: **tuple** with the resource usage information
+
+  :raises: **IOError** if unsuccessful
+  """
+
+  # ps results are of the form...
+  #
+  #     TIME     ELAPSED   RSS %MEM
+  # 3-08:06:32 21-00:00:12 121844 23.5
+  #
+  # ... or if Tor has only recently been started...
+  #
+  #     TIME      ELAPSED    RSS %MEM
+  #  0:04.40        37:57  18772  0.9
+
+  ps_call = system.call("ps -p {pid} -o cputime,etime,rss,%mem".format(pid = pid))
+
+  if ps_call and len(ps_call) >= 2:
+    stats = ps_call[1].strip().split()
+
+    if len(stats) == 4:
+      try:
+        total_cpu_time = str_tools.parse_short_time_label(stats[0])
+        uptime = str_tools.parse_short_time_label(stats[1])
+        memory_bytes = int(stats[2]) * 1024  # ps size is in kb
+        memory_precent = float(stats[3]) / 100.0
+
+        return (total_cpu_time, uptime, memory_bytes, memory_precent)
+      except ValueError:
+        pass
+
+  raise IOError("unrecognized output from ps: %s" % ps_call)
+
+
 class Daemon(threading.Thread):
   """
   Daemon that can perform a given action at a set rate. Subclasses are expected
@@ -434,40 +477,18 @@ class ResourceTracker(Daemon):
     :throws: **IOError** if unable to retrieve information from proc
     """
 
-    # ps results are of the form...
-    #
-    #     TIME     ELAPSED   RSS %MEM
-    # 3-08:06:32 21-00:00:12 121844 23.5
-    #
-    # ... or if Tor has only recently been started...
-    #
-    #     TIME      ELAPSED    RSS %MEM
-    #  0:04.40        37:57  18772  0.9
+    total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _ps_for_process(process_pid)
 
-    ps_call = system.call("ps -p {pid} -o cputime,etime,rss,%mem".format(pid = process_pid))
+    if self._resources:
+      cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
+    else:
+      cpu_sample = 0.0  # we need a prior datapoint to give a sampling
 
-    if ps_call and len(ps_call) >= 2:
-      stats = ps_call[1].strip().split()
-
-      if len(stats) == 4:
-        try:
-          total_cpu_time = str_tools.parse_short_time_label(stats[0])
-          uptime = str_tools.parse_short_time_label(stats[1])
-
-          if self._resources:
-            cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
-          else:
-            cpu_sample = 0.0  # we need a prior datapoint to give a sampling
-
-          return Resources(
-            cpu_sample = cpu_sample,
-            cpu_average = total_cpu_time / uptime,
-            cpu_total = total_cpu_time,
-            memory_bytes = int(stats[2]) * 1024,  # ps size is in kb
-            memory_precent = float(stats[3]) / 100.0,
-            timestamp = time.time(),
-          )
-        except ValueError:
-          pass
-
-    raise IOError("unrecognized output from ps: %s" % ps_call)
+    return Resources(
+      cpu_sample = cpu_sample,
+      cpu_average = total_cpu_time / uptime,
+      cpu_total = total_cpu_time,
+      memory_bytes = memory_in_bytes,
+      memory_precent = memory_in_percent,
+      timestamp = time.time(),
+    )
