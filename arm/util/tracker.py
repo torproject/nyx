@@ -47,6 +47,8 @@ CONFIG = conf.config_dict('arm', {
   'queries.connections.rate': 5,
   'msg.unable_to_use_resolver': '',
   'msg.unable_to_use_all_resolvers': '',
+  'msg.unable_to_get_resources': '',
+  'msg.abort_getting_resources': '',
 })
 
 CONNECTION_TRACKER = None
@@ -365,17 +367,27 @@ class ResourceTracker(Daemon):
 
           self._use_proc = False
           self._failure_count = 0
-          log.info("Failed three attempts to get process resource usage from proc, falling back to ps (%s)" % exc)
+
+          log.info(CONFIG['msg.abort_getting_resources'].format(
+            resolver = 'proc',
+            response = 'falling back to ps',
+            exc = exc,
+          ))
         else:
-          log.debug("Unable to query process resource usage from proc (%s)" % exc)
+          log.debug(CONFIG['msg.unable_to_get_resources'].format(resolver = 'proc', exc = exc))
       else:
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          log.info("Failed three attempts to get process resource usage from ps, giving up on getting resource usage information (%s)" % exc)
+          log.info(CONFIG['msg.abort_getting_resources'].format(
+            resolver = 'ps',
+            response = 'giving up on getting resource usage information',
+            exc = exc,
+          ))
+
           self.stop()
         else:
-          log.debug("Unable to query process resource usage from ps (%s)" % exc)
+          log.debug(CONFIG['msg.unable_to_get_resources'].format(resolver = 'ps', exc = exc))
 
       return False
 
