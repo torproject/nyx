@@ -3,6 +3,7 @@ import unittest
 
 from arm.starter import _get_args, ARGS
 
+
 class TestArgumentParsing(unittest.TestCase):
   def test_that_we_get_default_values(self):
     args = _get_args([])
@@ -63,5 +64,3 @@ class TestArgumentParsing(unittest.TestCase):
 
     for invalid_input in invalid_inputs:
       self.assertRaises(ValueError, _get_args, ['--interface', invalid_input])
-
-

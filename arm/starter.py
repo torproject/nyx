@@ -34,9 +34,9 @@ import stem.util.log
 import stem.util.system
 
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
+SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  'settings_loaded': False,
   'tor.password': None,
   'startup.events': 'N3',
   'msg.help': '',
@@ -75,23 +75,28 @@ OPT = "i:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 
-def _load_settings():
+def _load_settings(config = 'arm'):
   """
-  Loads arms internal settings from its 'settings.cfg'. This comes bundled with
-  arm and should be considered to be an error if it can't be loaded. If the
-  settings have already been loaded then this is a no-op.
+  Loads arm's internal settings from its 'settings.cfg'. This comes bundled
+  with arm and should be considered to be an error if it can't be loaded. If
+  the settings have already been loaded then this is a no-op.
+
+  :param str config: configuration config to load the parameters into
+
+  :returns: **stem.util.conf.Config** for the given handle
 
   :raises: **ValueError** if the settings can't be loaded
   """
 
-  if not CONFIG['settings_loaded']:
-    config = stem.util.conf.get_config("arm")
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.cfg')
+  config = stem.util.conf.get_config(config)
 
+  if not config.get('settings_loaded', False):
     try:
-      config.load(settings_path)
+      config.load(SETTINGS_PATH)
     except IOError as exc:
-      raise ValueError("Unable to load arm's internal configuration (%s): %s" % (settings_path, exc))
+      raise ValueError("Unable to load arm's internal configuration (%s): %s" % (SETTINGS_PATH, exc))
+
+  return config
 
 
 def _get_args(argv):

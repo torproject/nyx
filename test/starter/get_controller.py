@@ -8,6 +8,7 @@ import stem
 import stem.connection
 import stem.socket
 
+
 class TestGetController(unittest.TestCase):
   @patch('os.path.exists', Mock(return_value = True))
   @patch('stem.util.system.is_running')

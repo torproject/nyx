@@ -4,10 +4,8 @@ from mock import Mock, patch
 
 from arm.starter import (
   _load_settings,
-  _get_args,
   _get_controller,
   _authenticate,
-  ARGS,
 )
 
 import stem
@@ -15,6 +13,7 @@ import stem.connection
 import stem.socket
 
 _load_settings()
+
 
 class TestAuthenticate(unittest.TestCase):
   @patch('arm.util.torTools.get_chroot')
@@ -80,4 +79,3 @@ class TestAuthenticate(unittest.TestCase):
     except ValueError, exc:
       if not msg in str(exc):
         self.fail("Expected...\n\n%s\n\n... which couldn't be found in...\n\n%s" % (msg, exc))
-
