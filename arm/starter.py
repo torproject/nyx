@@ -36,6 +36,7 @@ import stem.util.system
 LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 
 CONFIG = stem.util.conf.config_dict("arm", {
+  'settings_loaded': False,
   'tor.password': None,
   'startup.events': 'N3',
   'msg.help': '',
@@ -70,10 +71,8 @@ ARGS = {
   'print_help': False,
 }
 
-OPT = "gi:s:c:dbe:vh"
+OPT = "i:s:c:dbe:vh"
 OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
-
-IS_SETTINGS_LOADED = False
 
 
 def _load_settings():
@@ -85,15 +84,12 @@ def _load_settings():
   :raises: **ValueError** if the settings can't be loaded
   """
 
-  global IS_SETTINGS_LOADED
-
-  if not IS_SETTINGS_LOADED:
+  if not CONFIG['settings_loaded']:
     config = stem.util.conf.get_config("arm")
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
     try:
       config.load(settings_path)
-      IS_SETTINGS_LOADED = True
     except IOError as exc:
       raise ValueError("Unable to load arm's internal configuration (%s): %s" % (settings_path, exc))
 
