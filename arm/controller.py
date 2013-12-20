@@ -64,6 +64,25 @@ def getController():
 
   return ARM_CONTROLLER
 
+def stop_controller():
+  """
+  Halts our Controller, providing back the thread doing so.
+  """
+
+  def halt_controller():
+    control = getController()
+
+    if control:
+      for panel_impl in control.getDaemonPanels():
+        panel_impl.stop()
+
+      for panel_impl in control.getDaemonPanels():
+        panel_impl.join()
+
+  halt_thread = threading.Thread(target = halt_controller)
+  halt_thread.start()
+  return halt_thread
+
 def initController(stdscr, startTime):
   """
   Spawns the controller, and related panels for it.

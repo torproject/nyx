@@ -14,12 +14,12 @@ import os
 import platform
 import sys
 import time
+import threading
 
 import arm
 import arm.controller
 import arm.logPanel
 import arm.util.panel
-import arm.util.sysTools
 import arm.util.torConfig
 import arm.util.torTools
 import arm.util.tracker
@@ -269,38 +269,17 @@ def _shutdown_daemons():
   Stops and joins on worker threads.
   """
 
-  # stops panel daemons
+  halt_tor_controller = threading.Thread(target = arm.util.torTools.getConn().close)
+  halt_tor_controller.start()
 
-  control = arm.controller.getController()
+  halt_threads = [
+    arm.controller.stop_controller(),
+    arm.util.tracker.stop_trackers(),
+    halt_tor_controller,
+  ]
 
-  if control:
-    for panel_impl in control.getDaemonPanels():
-      panel_impl.stop()
-
-    for panel_impl in control.getDaemonPanels():
-      panel_impl.join()
-
-  # joins on stem threads
-
-  arm.util.torTools.getConn().close()
-
-  # joins on utility daemon threads - this might take a moment since the
-  # internal threadpools being joined might be sleeping
-
-  resource_tracker = arm.util.tracker.get_resource_tracker() if arm.util.tracker.get_resource_tracker().is_alive() else None
-  connection_resolver = arm.util.tracker.get_connection_tracker() if arm.util.tracker.get_connection_tracker().is_alive() else None
-
-  if resource_tracker:
-    resource_tracker.stop()
-
-  if connection_resolver:
-    connection_resolver.stop()  # sets halt flag (returning immediately)
-
-  if resource_tracker:
-    resource_tracker.join()
-
-  if connection_resolver:
-    connection_resolver.join()  # joins on halted resolver
+  for thread in halt_threads:
+    thread.join()
 
 
 def main():

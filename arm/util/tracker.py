@@ -6,6 +6,8 @@ Background tasks for gathering informatino about the tor process.
   get_connection_tracker - provides a ConnectionTracker for our tor process
   get_resource_tracker - provides a ResourceTracker for our tor process
 
+  stop_trackers - halts any active trackers
+
   Daemon - common parent for resolvers
     |- run_counter - number of successful runs
     |- get_rate - provides the rate at which we run
@@ -88,6 +90,30 @@ def get_resource_tracker():
     RESOURCE_TRACKER = ResourceTracker()
 
   return RESOURCE_TRACKER
+
+
+def stop_trackers():
+  """
+  Halts active trackers, providing back the thread shutting them down.
+
+  :returns: **threading.Thread** shutting down the daemons
+  """
+
+  def halt_trackers():
+    trackers = filter(lambda t: t.is_alive(), [
+      get_resource_tracker(),
+      get_connection_tracker(),
+    ])
+
+    for tracker in trackers:
+      tracker.stop()
+
+    for tracker in trackers:
+      tracker.join()
+
+  halt_thread = threading.Thread(target = halt_trackers)
+  halt_thread.start()
+  return halt_thread
 
 
 def _resources_via_ps(pid):
