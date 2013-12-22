@@ -256,9 +256,6 @@ def main():
   else:
     stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
 
-  if args.blind:
-    config.set('features.panels.show.connection', 'false')
-
   config.set("startup.events", args.logged_events)
 
   # validates and expands log event flags

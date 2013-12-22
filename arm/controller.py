@@ -171,7 +171,7 @@ def initController(stdscr, startTime):
     try:
       initialStats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
       graphPanel.setStats(initialStats)
-    except ValueError: pass # invalid stats, maybe connections when in blind mode
+    except ValueError: pass # invalid stats, maybe connections when lookups are disabled
 
     # prepopulates bandwidth values from state file
     if CONFIG["features.graph.bw.prepopulate"] and torTools.getConn().isAlive():

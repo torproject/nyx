@@ -22,7 +22,6 @@ DEFAULT_ARGS = {
   'user_provided_socket': False,
   'config': os.path.expanduser("~/.arm/armrc"),
   'debug_path': None,
-  'blind': False,
   'logged_events': 'N3',
   'print_version': False,
   'print_help': False,
@@ -35,7 +34,6 @@ OPT_EXPANDED = [
   "socket=",
   "config=",
   "debug=",
-  "blind",
   "event=",
   "version",
   "help",
@@ -82,8 +80,6 @@ def parse(argv):
       args['config'] = arg
     elif opt in ("-d", "--debug"):
       args['debug_path'] = os.path.expanduser(arg)
-    elif opt in ("-b", "--blind"):
-      args['blind'] = True
     elif opt in ("-e", "--event"):
       args['logged_events'] = arg
     elif opt in ("-v", "--version"):

@@ -24,9 +24,8 @@ class TestArgumentParsing(unittest.TestCase):
     self.assertEqual('/tmp/my_socket', args.control_socket)
     self.assertEqual('/tmp/my_config', args.config)
 
-    args = parse(['--debug', '/tmp/dump', '--blind'])
+    args = parse(['--debug', '/tmp/dump'])
     self.assertEqual('/tmp/dump', args.debug_path)
-    self.assertEqual(True, args.blind)
 
     args = parse(['--event', 'D1'])
     self.assertEqual('D1', args.logged_events)
@@ -38,8 +37,7 @@ class TestArgumentParsing(unittest.TestCase):
     self.assertEqual(True, args.print_help)
 
   def test_examples(self):
-    args = parse(['-b', '-i', '1643'])
-    self.assertEqual(True, args.blind)
+    args = parse(['-i', '1643'])
     self.assertEqual(1643, args.control_port)
 
     args = parse(['-e', 'we', '-c', '/tmp/cfg'])
