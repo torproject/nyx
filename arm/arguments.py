@@ -10,7 +10,7 @@ import stem.connection
 import stem.util.conf
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  'attribute.debug_log_path': '',
+  'debug_log_path': '',
   'msg.event_types': '',
   'msg.help': '',
 })
@@ -110,7 +110,7 @@ def get_help():
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
     config = DEFAULT_ARGS['config'],
-    debug_path = CONFIG['attribute.debug_log_path'],
+    debug_path = CONFIG['debug_log_path'],
     events = DEFAULT_ARGS['logged_events'],
     event_flags = CONFIG['msg.event_types'],
   )

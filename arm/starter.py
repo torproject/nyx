@@ -36,7 +36,7 @@ import stem.util.system
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  'attribute.debug_log_path': '',
+  'debug_log_path': '',
   'tor.password': None,
   'startup.events': 'N3',
   'msg.debug_header': '',
@@ -149,17 +149,18 @@ def _authenticate(controller, password):
 
 def _setup_debug_logging():
   """
-  Configures us to log at stem's trace level to 'attribute.debug_log_path'.
+  Configures us to log at stem's trace level to debug log path.
 
   :raises: **IOError** if we can't log to this location
   """
 
-  debug_dir = os.path.dirname(CONFIG['attribute.debug_log_path'])
+  debug_path = os.path.expanduser(CONFIG['debug_log_path'])
+  debug_dir = os.path.dirname(debug_path)
 
   if not os.path.exists(debug_dir):
     os.makedirs(debug_dir)
 
-  debug_handler = logging.FileHandler(CONFIG['attribute.debug_log_path'], mode = 'w')
+  debug_handler = logging.FileHandler(debug_path, mode = 'w')
   debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
   debug_handler.setFormatter(logging.Formatter(
     fmt = '%(asctime)s [%(levelname)s] %(message)s',
@@ -209,7 +210,6 @@ def _shutdown_daemons():
 def main():
   config = stem.util.conf.get_config("arm")
   config.set('attribute.start_time', str(int(time.time())))
-  config.set('attribute.debug_log_path', os.path.expanduser("~/.arm/log"))
 
   try:
     _load_settings()
@@ -233,7 +233,7 @@ def main():
     try:
       _setup_debug_logging()
     except IOError as exc:
-      print "Unable to write to our debug log file (%s): %s" % (CONFIG['attribute.debug_log_path'], exc.strerror)
+      print "Unable to write to our debug log file (%s): %s" % (CONFIG['debug_log_path'], exc.strerror)
       sys.exit(1)
 
     stem.util.log.trace(CONFIG['msg.debug_header'].format(
@@ -246,7 +246,7 @@ def main():
       armrc_content = _armrc_dump(args.config),
     ))
 
-    print "Saving a debug log to %s, please check it for sensitive information before sharing" % CONFIG['attribute.debug_log_path']
+    print "Saving a debug log to %s, please check it for sensitive information before sharing" % CONFIG['debug_log_path']
 
   # loads user's personal armrc if available
 
