@@ -54,136 +54,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
 })
 
 
-def _get_controller(args):
-  """
-  Provides a Controller for the endpoint specified in the given arguments.
-
-  :param namedtuple args: arguments that arm was started with
-
-  :returns: :class:`~stem.control.Controller` for the given arguments
-
-  :raises: **ValueError** if unable to acquire a controller connection
-  """
-
-  if os.path.exists(args.control_socket):
-    try:
-      return stem.control.Controller.from_socket_file(args.control_socket)
-    except stem.SocketError as exc:
-      if args.user_provided_socket:
-        raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
-  elif args.user_provided_socket:
-    raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
-
-  try:
-    return stem.control.Controller.from_port(args.control_address, args.control_port)
-  except stem.SocketError as exc:
-    if args.user_provided_port:
-      raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
-
-  if not stem.util.system.is_running('tor'):
-    raise ValueError("Unable to connect to tor. Are you sure it's running?")
-  else:
-    raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
-
-
-def _authenticate(controller, password):
-  """
-  Authenticates to the given Controller.
-
-  :param stem.control.Controller controller: controller to be authenticated to
-  :param str password: password to authenticate with, **None** if nothing was
-    provided
-
-  :raises: **ValueError** if unable to authenticate
-  """
-
-  try:
-    controller.authenticate(password = password, chroot_path = CONFIG['tor.chroot'])
-  except stem.connection.IncorrectSocketType:
-    control_socket = controller.get_socket()
-
-    if isinstance(control_socket, stem.socket.ControlPort):
-      raise ValueError(CONFIG['msg.wrong_port_type'].format(port = control_socket.get_port()))
-    else:
-      raise ValueError(CONFIG['msg.wrong_socket_type'])
-  except stem.connection.UnrecognizedAuthMethods as exc:
-    raise ValueError(CONFIG['msg.uncrcognized_auth_type'].format(auth_methods = ', '.join(exc.unknown_auth_methods)))
-  except stem.connection.IncorrectPassword:
-    raise ValueError("Incorrect password")
-  except stem.connection.MissingPassword:
-    if password:
-      raise ValueError(CONFIG['msg.missing_password_bug'])
-
-    password = getpass.getpass("Tor controller password: ")
-    return _authenticate(controller, password)
-  except stem.connection.UnreadableCookieFile as exc:
-    raise ValueError(CONFIG['msg.unreadable_cookie_file'].format(path = exc.cookie_path, issue = str(exc)))
-  except stem.connection.AuthenticationFailure as exc:
-    raise ValueError("Unable to authenticate: %s" % exc)
-
-
-def _setup_debug_logging(args):
-  """
-  Configures us to log at stem's trace level to debug log path, and notes some
-  general diagnostic information.
-
-  :param namedtuple args: arguments that arm was started with
-
-  :raises: **IOError** if we can't log to this location
-  """
-
-  debug_dir = os.path.dirname(args.debug_path)
-
-  if not os.path.exists(debug_dir):
-    os.makedirs(debug_dir)
-
-  debug_handler = logging.FileHandler(args.debug_path, mode = 'w')
-  debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
-  debug_handler.setFormatter(logging.Formatter(
-    fmt = '%(asctime)s [%(levelname)s] %(message)s',
-    datefmt = '%m/%d/%Y %H:%M:%S'
-  ))
-
-  stem.util.log.get_logger().addHandler(debug_handler)
-
-  if not os.path.exists(args.config):
-    armrc_content = "[file doesn't exist]"
-  else:
-    try:
-      with open(args.config) as armrc_file:
-        armrc_content = armrc_file.read()
-    except IOError as exc:
-      armrc_content = "[unable to read file: %s]" % exc.strerror
-
-  stem.util.log.trace(CONFIG['msg.debug_header'].format(
-    arm_version = arm.__version__,
-    stem_version = stem.__version__,
-    python_version = '.'.join(map(str, sys.version_info[:3])),
-    system = platform.system(),
-    platform = " ".join(platform.dist()),
-    armrc_path = args.config,
-    armrc_content = armrc_content,
-  ))
-
-
-def _shutdown_daemons():
-  """
-  Stops and joins on worker threads.
-  """
-
-  halt_tor_controller = threading.Thread(target = arm.util.torTools.getConn().close)
-  halt_tor_controller.start()
-
-  halt_threads = [
-    arm.controller.stop_controller(),
-    arm.util.tracker.stop_trackers(),
-    halt_tor_controller,
-  ]
-
-  for thread in halt_threads:
-    thread.join()
-
-
 def main():
   config = stem.util.conf.get_config("arm")
   config.set('attribute.start_time', str(int(time.time())))
@@ -339,7 +209,138 @@ def main():
 
     arm.util.panel.HALT_ACTIVITY = True
   finally:
-    _shutdown_daemons()
+    _shutdown_daemons(controller)
+
+def _get_controller(args):
+  """
+  Provides a Controller for the endpoint specified in the given arguments.
+
+  :param namedtuple args: arguments that arm was started with
+
+  :returns: :class:`~stem.control.Controller` for the given arguments
+
+  :raises: **ValueError** if unable to acquire a controller connection
+  """
+
+  if os.path.exists(args.control_socket):
+    try:
+      return stem.control.Controller.from_socket_file(args.control_socket)
+    except stem.SocketError as exc:
+      if args.user_provided_socket:
+        raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
+  elif args.user_provided_socket:
+    raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
+
+  try:
+    return stem.control.Controller.from_port(args.control_address, args.control_port)
+  except stem.SocketError as exc:
+    if args.user_provided_port:
+      raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
+
+  if not stem.util.system.is_running('tor'):
+    raise ValueError("Unable to connect to tor. Are you sure it's running?")
+  else:
+    raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
+
+
+def _authenticate(controller, password):
+  """
+  Authenticates to the given Controller.
+
+  :param stem.control.Controller controller: controller to be authenticated
+  :param str password: password to authenticate with, **None** if nothing was
+    provided
+
+  :raises: **ValueError** if unable to authenticate
+  """
+
+  try:
+    controller.authenticate(password = password, chroot_path = CONFIG['tor.chroot'])
+  except stem.connection.IncorrectSocketType:
+    control_socket = controller.get_socket()
+
+    if isinstance(control_socket, stem.socket.ControlPort):
+      raise ValueError(CONFIG['msg.wrong_port_type'].format(port = control_socket.get_port()))
+    else:
+      raise ValueError(CONFIG['msg.wrong_socket_type'])
+  except stem.connection.UnrecognizedAuthMethods as exc:
+    raise ValueError(CONFIG['msg.uncrcognized_auth_type'].format(auth_methods = ', '.join(exc.unknown_auth_methods)))
+  except stem.connection.IncorrectPassword:
+    raise ValueError("Incorrect password")
+  except stem.connection.MissingPassword:
+    if password:
+      raise ValueError(CONFIG['msg.missing_password_bug'])
+
+    password = getpass.getpass("Tor controller password: ")
+    return _authenticate(controller, password)
+  except stem.connection.UnreadableCookieFile as exc:
+    raise ValueError(CONFIG['msg.unreadable_cookie_file'].format(path = exc.cookie_path, issue = str(exc)))
+  except stem.connection.AuthenticationFailure as exc:
+    raise ValueError("Unable to authenticate: %s" % exc)
+
+
+def _setup_debug_logging(args):
+  """
+  Configures us to log at stem's trace level to debug log path, and notes some
+  general diagnostic information.
+
+  :param namedtuple args: arguments that arm was started with
+
+  :raises: **IOError** if we can't log to this location
+  """
+
+  debug_dir = os.path.dirname(args.debug_path)
+
+  if not os.path.exists(debug_dir):
+    os.makedirs(debug_dir)
+
+  debug_handler = logging.FileHandler(args.debug_path, mode = 'w')
+  debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
+  debug_handler.setFormatter(logging.Formatter(
+    fmt = '%(asctime)s [%(levelname)s] %(message)s',
+    datefmt = '%m/%d/%Y %H:%M:%S'
+  ))
+
+  stem.util.log.get_logger().addHandler(debug_handler)
+
+  if not os.path.exists(args.config):
+    armrc_content = "[file doesn't exist]"
+  else:
+    try:
+      with open(args.config) as armrc_file:
+        armrc_content = armrc_file.read()
+    except IOError as exc:
+      armrc_content = "[unable to read file: %s]" % exc.strerror
+
+  stem.util.log.trace(CONFIG['msg.debug_header'].format(
+    arm_version = arm.__version__,
+    stem_version = stem.__version__,
+    python_version = '.'.join(map(str, sys.version_info[:3])),
+    system = platform.system(),
+    platform = " ".join(platform.dist()),
+    armrc_path = args.config,
+    armrc_content = armrc_content,
+  ))
+
+
+def _shutdown_daemons(controller):
+  """
+  Stops and joins on worker threads.
+  """
+
+  halt_tor_controller = threading.Thread(target = controller.close)
+  halt_tor_controller.setDaemon(True)
+  halt_tor_controller.start()
+
+  halt_threads = [
+    arm.controller.stop_controller(),
+    arm.util.tracker.stop_trackers(),
+    halt_tor_controller,
+  ]
+
+  for thread in halt_threads:
+    thread.join()
+
 
 if __name__ == '__main__':
   main()
