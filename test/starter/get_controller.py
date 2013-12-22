@@ -2,7 +2,8 @@ import unittest
 
 from mock import Mock, patch
 
-from arm.starter import _get_args, _get_controller
+from arm.arguments import parse
+from arm.starter import _get_controller
 
 import stem
 import stem.connection
@@ -39,11 +40,11 @@ class TestGetController(unittest.TestCase):
   def test_getting_a_control_port(self, from_port_mock):
     from_port_mock.return_value = 'success'
 
-    self.assertEqual('success', _get_controller(_get_args([])))
+    self.assertEqual('success', _get_controller(parse([])))
     from_port_mock.assert_called_once_with('127.0.0.1', 9051)
     from_port_mock.reset_mock()
 
-    self.assertEqual('success', _get_controller(_get_args(['--interface', '255.0.0.10:80'])))
+    self.assertEqual('success', _get_controller(parse(['--interface', '255.0.0.10:80'])))
     from_port_mock.assert_called_once_with('255.0.0.10', 80)
 
   @patch('os.path.exists', Mock(return_value = True))
@@ -51,16 +52,16 @@ class TestGetController(unittest.TestCase):
   def test_getting_a_control_socket(self, from_socket_file_mock):
     from_socket_file_mock.return_value = 'success'
 
-    self.assertEqual('success', _get_controller(_get_args([])))
+    self.assertEqual('success', _get_controller(parse([])))
     from_socket_file_mock.assert_called_once_with('/var/run/tor/control')
     from_socket_file_mock.reset_mock()
 
-    self.assertEqual('success', _get_controller(_get_args(['--socket', '/tmp/my_socket'])))
+    self.assertEqual('success', _get_controller(parse(['--socket', '/tmp/my_socket'])))
     from_socket_file_mock.assert_called_once_with('/tmp/my_socket')
 
   def _assert_get_controller_fails_with(self, args, msg):
     try:
-      _get_controller(_get_args(args))
+      _get_controller(parse(args))
       self.fail()
     except ValueError, exc:
       self.assertEqual(msg, str(exc))

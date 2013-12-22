@@ -4,7 +4,6 @@ information. This starts the applicatin, getting a tor connection and parsing
 arguments.
 """
 
-import collections
 import curses
 import getopt
 import getpass
@@ -17,6 +16,7 @@ import time
 import threading
 
 import arm
+import arm.arguments
 import arm.controller
 import arm.logPanel
 import arm.util.panel
@@ -33,13 +33,12 @@ import stem.util.connection
 import stem.util.log
 import stem.util.system
 
-LOG_DUMP_PATH = os.path.expanduser("~/.arm/log")
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
+  'attribute.debug_log_path': '',
   'tor.password': None,
   'startup.events': 'N3',
-  'msg.help': '',
   'msg.debug_header': '',
   'msg.wrong_port_type': '',
   'msg.wrong_socket_type': '',
@@ -53,26 +52,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
   'msg.unable_to_determine_pid': '',
   'msg.unknown_term': '',
 })
-
-# Our default arguments. The _get_args() function provides a named tuple of
-# this merged with our argv.
-
-ARGS = {
-  'control_address': '127.0.0.1',
-  'control_port': 9051,
-  'user_provided_port': False,
-  'control_socket': '/var/run/tor/control',
-  'user_provided_socket': False,
-  'config': os.path.expanduser("~/.arm/armrc"),
-  'debug': False,
-  'blind': False,
-  'logged_events': 'N3',
-  'print_version': False,
-  'print_help': False,
-}
-
-OPT = "i:s:c:dbe:vh"
-OPT_EXPANDED = ["interface=", "socket=", "config=", "debug", "blind", "event=", "version", "help"]
 
 
 def _load_settings(config = 'arm'):
@@ -97,61 +76,6 @@ def _load_settings(config = 'arm'):
       raise ValueError("Unable to load arm's internal configuration (%s): %s" % (SETTINGS_PATH, exc))
 
   return config
-
-
-def _get_args(argv):
-  """
-  Parses our arguments, providing a named tuple with their values.
-
-  :param list argv: input arguments to be parsed
-
-  :returns: a **named tuple** with our parsed arguments
-
-  :raises: **ValueError** if we got an invalid argument
-  :raises: **getopt.GetoptError** if the arguments don't conform with what we
-    accept
-  """
-
-  args = dict(ARGS)
-
-  for opt, arg in getopt.getopt(argv, OPT, OPT_EXPANDED)[0]:
-    if opt in ("-i", "--interface"):
-      if ':' in arg:
-        address, port = arg.split(':', 1)
-      else:
-        address, port = None, arg
-
-      if address is not None:
-        if not stem.util.connection.is_valid_ipv4_address(address):
-          raise ValueError("'%s' isn't a valid IPv4 address" % address)
-
-        args['control_address'] = address
-
-      if not stem.util.connection.is_valid_port(port):
-        raise ValueError("'%s' isn't a valid port number" % port)
-
-      args['control_port'] = int(port)
-      args['user_provided_port'] = True
-    elif opt in ("-s", "--socket"):
-      args['control_socket'] = arg
-      args['user_provided_socket'] = True
-    elif opt in ("-c", "--config"):
-      args['config'] = arg
-    elif opt in ("-d", "--debug"):
-      args['debug'] = True
-    elif opt in ("-b", "--blind"):
-      args['blind'] = True
-    elif opt in ("-e", "--event"):
-      args['logged_events'] = arg
-    elif opt in ("-v", "--version"):
-      args['print_version'] = True
-    elif opt in ("-h", "--help"):
-      args['print_help'] = True
-
-  # translates our args dict into a named tuple
-
-  Args = collections.namedtuple('Args', args.keys())
-  return Args(**args)
 
 
 def _get_controller(args):
@@ -225,17 +149,17 @@ def _authenticate(controller, password):
 
 def _setup_debug_logging():
   """
-  Configures us to log at stem's trace level to LOG_DUMP_PATH.
+  Configures us to log at stem's trace level to 'attribute.debug_log_path'.
 
   :raises: **IOError** if we can't log to this location
   """
 
-  debug_dir = os.path.dirname(LOG_DUMP_PATH)
+  debug_dir = os.path.dirname(CONFIG['attribute.debug_log_path'])
 
   if not os.path.exists(debug_dir):
     os.makedirs(debug_dir)
 
-  debug_handler = logging.FileHandler(LOG_DUMP_PATH, mode = 'w')
+  debug_handler = logging.FileHandler(CONFIG['attribute.debug_log_path'], mode = 'w')
   debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
   debug_handler.setFormatter(logging.Formatter(
     fmt = '%(asctime)s [%(levelname)s] %(message)s',
@@ -285,10 +209,11 @@ def _shutdown_daemons():
 def main():
   config = stem.util.conf.get_config("arm")
   config.set('attribute.start_time', str(int(time.time())))
+  config.set('attribute.debug_log_path', os.path.expanduser("~/.arm/log"))
 
   try:
     _load_settings()
-    args = _get_args(sys.argv[1:])
+    args = arm.arguments.parse(sys.argv[1:])
   except getopt.GetoptError as exc:
     print "%s (for usage provide --help)" % exc
     sys.exit(1)
@@ -297,16 +222,7 @@ def main():
     sys.exit(1)
 
   if args.print_help:
-    print CONFIG['msg.help'].format(
-      address = ARGS['control_address'],
-      port = ARGS['control_port'],
-      socket = ARGS['control_socket'],
-      config = ARGS['config'],
-      debug_path = LOG_DUMP_PATH,
-      events = ARGS['logged_events'],
-      event_flags = arm.logPanel.EVENT_LISTING,
-    )
-
+    print arm.arguments.get_help()
     sys.exit()
 
   if args.print_version:
@@ -317,7 +233,7 @@ def main():
     try:
       _setup_debug_logging()
     except IOError as exc:
-      print "Unable to write to our debug log file (%s): %s" % (LOG_DUMP_PATH, exc.strerror)
+      print "Unable to write to our debug log file (%s): %s" % (CONFIG['attribute.debug_log_path'], exc.strerror)
       sys.exit(1)
 
     stem.util.log.trace(CONFIG['msg.debug_header'].format(
@@ -330,7 +246,7 @@ def main():
       armrc_content = _armrc_dump(args.config),
     ))
 
-    print "Saving a debug log to %s, please check it for sensitive information before sharing" % LOG_DUMP_PATH
+    print "Saving a debug log to %s, please check it for sensitive information before sharing" % CONFIG['attribute.debug_log_path']
 
   # loads user's personal armrc if available
 
