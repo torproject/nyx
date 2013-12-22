@@ -28,16 +28,6 @@ TOR_EVENT_TYPES = {
   "e": "ERR",     "c": "CIRC",             "p": "NS",           "v": "STATUS_SERVER",
                   "j": "CLIENTS_SEEN",     "q": "ORCONN"}
 
-EVENT_LISTING = """        d DEBUG      a ADDRMAP           k DESCCHANGED   s STREAM
-        i INFO       f AUTHDIR_NEWDESCS  g GUARD         r STREAM_BW
-        n NOTICE     h BUILDTIMEOUT_SET  l NEWCONSENSUS  t STATUS_CLIENT
-        w WARN       b BW                m NEWDESC       u STATUS_GENERAL
-        e ERR        c CIRC              p NS            v STATUS_SERVER
-                     j CLIENTS_SEEN      q ORCONN
-          DINWE tor runlevel+            A All Events
-          12345 arm runlevel+            X No Events
-                                         U Unknown Events"""
-
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "magenta", log.INFO: "blue", log.NOTICE: "green",
                         log.WARN: "yellow", log.ERR: "red"}
 DAYBREAK_EVENT = "DAYBREAK" # special event for marking when the date changes
@@ -66,6 +56,7 @@ CONFIG = conf.config_dict("arm", {
   "features.log.maxRefreshRate": 300,
   "features.log.regex": [],
   "cache.logPanel.size": 1000,
+  "msg.event_types": '',
 }, conf_handler)
 
 DUPLICATE_MSG = " [%i duplicate%s hidden]"
@@ -760,7 +751,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         # displays the available flags
         popup.win.box()
         popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
-        eventLines = EVENT_LISTING.split("\n")
+        eventLines = CONFIG['msg.event_types'].split("\n")
 
         for i in range(len(eventLines)):
           popup.addstr(i + 1, 1, eventLines[i][6:])
