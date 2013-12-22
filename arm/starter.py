@@ -122,19 +122,22 @@ def _authenticate(controller, password):
     raise ValueError("Unable to authenticate: %s" % exc)
 
 
-def _setup_debug_logging(debug_path):
+def _setup_debug_logging(args):
   """
-  Configures us to log at stem's trace level to debug log path.
+  Configures us to log at stem's trace level to debug log path, and notes some
+  general diagnostic information.
+
+  :param namedtuple args: startup arguments
 
   :raises: **IOError** if we can't log to this location
   """
 
-  debug_dir = os.path.dirname(debug_path)
+  debug_dir = os.path.dirname(args.debug_path)
 
   if not os.path.exists(debug_dir):
     os.makedirs(debug_dir)
 
-  debug_handler = logging.FileHandler(debug_path, mode = 'w')
+  debug_handler = logging.FileHandler(args.debug_path, mode = 'w')
   debug_handler.setLevel(stem.util.log.logging_level(stem.util.log.TRACE))
   debug_handler.setFormatter(logging.Formatter(
     fmt = '%(asctime)s [%(levelname)s] %(message)s',
@@ -143,24 +146,24 @@ def _setup_debug_logging(debug_path):
 
   stem.util.log.get_logger().addHandler(debug_handler)
 
+  if not os.path.exists(args.config):
+    armrc_content = "[file doesn't exist]"
+  else:
+    try:
+      with open(args.config) as armrc_file:
+        armrc_content = armrc_file.read()
+    except IOError as exc:
+      armrc_content = "[unable to read file: %s]" % exc.strerror
 
-def _armrc_dump(armrc_path):
-  """
-  Provides a dump of our armrc or a description of why it can't be read.
-
-  :param str armrc_path: path of the armrc
-
-  :returns: **str** with either a dump or description of our armrc
-  """
-
-  if not os.path.exists(armrc_path):
-    return "[file doesn't exist]"
-
-  try:
-    with open(armrc_path) as armrc_file:
-      return armrc_file.read()
-  except IOError as exc:
-    return "[unable to read file: %s]" % exc.strerror
+  stem.util.log.trace(CONFIG['msg.debug_header'].format(
+    arm_version = arm.__version__,
+    stem_version = stem.__version__,
+    python_version = '.'.join(map(str, sys.version_info[:3])),
+    system = platform.system(),
+    platform = " ".join(platform.dist()),
+    armrc_path = args.config,
+    armrc_content = armrc_content,
+  ))
 
 
 def _shutdown_daemons():
@@ -210,22 +213,11 @@ def main():
 
   if args.debug_path is not None:
     try:
-      _setup_debug_logging()
+      _setup_debug_logging(args)
+      print "Saving a debug log to %s, please check it for sensitive information before sharing" % args.debug_path
     except IOError as exc:
       print "Unable to write to our debug log file (%s): %s" % (args.debug_path, exc.strerror)
       sys.exit(1)
-
-    stem.util.log.trace(CONFIG['msg.debug_header'].format(
-      arm_version = arm.__version__,
-      stem_version = stem.__version__,
-      python_version = '.'.join(map(str, sys.version_info[:3])),
-      system = platform.system(),
-      platform = " ".join(platform.dist()),
-      armrc_path = args.config,
-      armrc_content = _armrc_dump(args.config),
-    ))
-
-    print "Saving a debug log to %s, please check it for sensitive information before sharing" % args.debug_path
 
   # loads user's personal armrc if available
 
