@@ -53,30 +53,6 @@ CONFIG = stem.util.conf.config_dict("arm", {
 })
 
 
-def _load_settings(config = 'arm'):
-  """
-  Loads arm's internal settings from its 'settings.cfg'. This comes bundled
-  with arm and should be considered to be an error if it can't be loaded. If
-  the settings have already been loaded then this is a no-op.
-
-  :param str config: configuration config to load the parameters into
-
-  :returns: **stem.util.conf.Config** for the given handle
-
-  :raises: **ValueError** if the settings can't be loaded
-  """
-
-  config = stem.util.conf.get_config(config)
-
-  if not config.get('settings_loaded', False):
-    try:
-      config.load(SETTINGS_PATH)
-    except IOError as exc:
-      raise ValueError("Unable to load arm's internal configuration (%s): %s" % (SETTINGS_PATH, exc))
-
-  return config
-
-
 def _get_controller(args):
   """
   Provides a Controller for the endpoint specified in the given arguments.
@@ -210,7 +186,12 @@ def main():
   config.set('attribute.start_time', str(int(time.time())))
 
   try:
-    _load_settings()
+    config.load(SETTINGS_PATH)
+  except IOError as exc:
+    print "Unable to load arm's internal configuration (%s): %s" % (SETTINGS_PATH, exc)
+    sys.exit(1)
+
+  try:
     args = arm.arguments.parse(sys.argv[1:])
   except getopt.GetoptError as exc:
     print "%s (for usage provide --help)" % exc

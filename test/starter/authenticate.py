@@ -3,7 +3,6 @@ import unittest
 from mock import Mock, patch
 
 from arm.starter import (
-  _load_settings,
   _get_controller,
   _authenticate,
 )
@@ -11,8 +10,6 @@ from arm.starter import (
 import stem
 import stem.connection
 import stem.socket
-
-_load_settings()
 
 
 class TestAuthenticate(unittest.TestCase):
