@@ -48,6 +48,7 @@ CONFIG = conf.config_dict("arm", {
   "startup.dataDirectory": "~/.arm",
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
+  "tor.chroot": '',
 }, conf_handler)
 
 def general_conf_handler(config, key):
@@ -359,7 +360,7 @@ def getConfigLocation():
 
   conn = torTools.getConn()
   configLocation = conn.getInfo("config-file", None)
-  torPid, torPrefix = conn.controller.get_pid(None), torTools.get_chroot()
+  torPid, torPrefix = conn.controller.get_pid(None), CONFIG['tor.chroot']
   if not configLocation: raise IOError("unable to query the torrc location")
 
   try:

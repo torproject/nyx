@@ -5,32 +5,17 @@ accessing stem and notifications of state changes to subscribers.
 
 import math
 import os
-import platform
 import threading
 import time
 
 import stem
 import stem.control
-import stem.descriptor
-import stem.util.system
 
-from arm.util import connections
-
-from stem.util import conf, enum, log, proc, str_tools, system
+from stem.util import log, proc, system
 
 CONTROLLER = None # singleton Controller instance
 
 UNDEFINED = "<Undefined_ >"
-
-CONFIG = conf.config_dict("arm", {
-  "tor.chroot": "",
-})
-
-# Logs issues and notices when fetching the path prefix if true. This is
-# only done once for the duration of the application to avoid pointless
-# messages.
-
-LOG_ABOUT_CHROOTS = True
 
 def getConn():
   """
@@ -41,41 +26,6 @@ def getConn():
   global CONTROLLER
   if CONTROLLER == None: CONTROLLER = Controller()
   return CONTROLLER
-
-
-def get_chroot():
-  """
-  Provides the path prefix that should be used for fetching tor resources.
-  If undefined and Tor is inside a jail under FreeBSD then this provides the
-  jail's path.
-
-  :returns: **str** with the path of the jail tor is running within, this is an
-    empty string if none can be determined
-  """
-
-  global LOG_ABOUT_CHROOTS
-
-  chroot = CONFIG["tor.chroot"].strip()
-
-  if chroot and not os.path.exists(chroot):
-    if LOG_ABOUT_CHROOTS:
-      log.notice("The prefix path set in your config (%s) doesn't exist." % chroot)
-
-    chroot = ''
-
-  if not chroot and platform.system() == "FreeBSD":
-    jail_chroot = system.get_bsd_jail_path(getConn().controller.get_pid(0))
-
-    if jail_chroot and os.path.exists(jail_chroot):
-      chroot = jail_chroot
-
-      if LOG_ABOUT_CHROOTS:
-        log.info("Adjusting paths to account for Tor running in a FreeBSD jail at: %s" % chroot)
-
-  chroot = chroot.rstrip(os.path.sep)  # strip off trailing slashes
-  LOG_ABOUT_CHROOTS = False  # don't log about further calls
-
-  return chroot
 
 
 class Controller:

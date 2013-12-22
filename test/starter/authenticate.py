@@ -10,23 +10,25 @@ from arm.starter import (
 import stem
 import stem.connection
 import stem.socket
+import stem.util.conf
 
 
 class TestAuthenticate(unittest.TestCase):
-  @patch('arm.util.torTools.get_chroot')
-  def test_success(self, get_chroot_mock):
+  def setUp(self):
+    arm_conf = stem.util.conf.get_config('arm')
+    arm_conf.set('tor.chroot', '')  # no chroot
+
+  def test_success(self):
     controller = Mock()
 
-    get_chroot_mock.return_value = ''  # no chroot
     _authenticate(controller, None)
     controller.authenticate.assert_called_with(password = None, chroot_path = '')
     controller.authenticate.reset_mock()
 
-    get_chroot_mock.return_value = '/my/chroot'
+    stem.util.conf.get_config('arm').set('tor.chroot', '/my/chroot')
     _authenticate(controller, 's3krit!!!')
     controller.authenticate.assert_called_with(password = 's3krit!!!', chroot_path = '/my/chroot')
 
-  @patch('arm.util.torTools.get_chroot', Mock(return_value = ''))
   @patch('getpass.getpass')
   def test_success_with_password_prompt(self, getpass_mock):
     controller = Mock()
@@ -46,7 +48,6 @@ class TestAuthenticate(unittest.TestCase):
     controller.authenticate.assert_any_call(password = None, chroot_path = '')
     controller.authenticate.assert_any_call(password = 'my_password', chroot_path = '')
 
-  @patch('arm.util.torTools.get_chroot', Mock(return_value = ''))
   def test_failure(self):
     controller = Mock()
 

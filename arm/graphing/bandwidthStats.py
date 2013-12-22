@@ -23,6 +23,7 @@ CONFIG = conf.config_dict("arm", {
   "features.graph.bw.accounting.show": True,
   "features.graph.bw.accounting.rate": 10,
   "features.graph.bw.accounting.isTimeLong": False,
+  "tor.chroot": "",
 }, conf_handler)
 
 DL_COLOR, UL_COLOR = "green", "cyan"
@@ -151,7 +152,8 @@ class BandwidthStats(graphPanel.GraphStats):
       return False
 
     # attempt to open the state file
-    try: stateFile = open("%s%s/state" % (torTools.get_chroot(), dataDir), "r")
+    try:
+      stateFile = open("%s%s/state" % (CONFIG['tor.chroot'], dataDir), "r")
     except IOError:
       msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
       log.notice(msg)

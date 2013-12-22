@@ -36,6 +36,7 @@ import stem.util.system
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
+  'tor.chroot': '',
   'tor.password': None,
   'startup.events': 'N3',
   'msg.debug_header': '',
@@ -90,15 +91,14 @@ def _authenticate(controller, password):
   Authenticates to the given Controller.
 
   :param stem.control.Controller controller: controller to be authenticated to
-  :param str args: password to authenticate with, **None** if nothing was provided
+  :param str password: password to authenticate with, **None** if nothing was
+    provided
 
   :raises: **ValueError** if unable to authenticate
   """
 
-  chroot = arm.util.torTools.get_chroot()
-
   try:
-    controller.authenticate(password = password, chroot_path = chroot)
+    controller.authenticate(password = password, chroot_path = CONFIG['tor.chroot'])
   except stem.connection.IncorrectSocketType:
     control_socket = controller.get_socket()
 
@@ -127,7 +127,7 @@ def _setup_debug_logging(args):
   Configures us to log at stem's trace level to debug log path, and notes some
   general diagnostic information.
 
-  :param namedtuple args: startup arguments
+  :param namedtuple args: arguments that arm was started with
 
   :raises: **IOError** if we can't log to this location
   """
@@ -229,7 +229,17 @@ def main():
   else:
     stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
 
-  config.set("startup.events", args.logged_events)
+  config.set('startup.events', args.logged_events)
+
+  # check that the chroot exists and strip trailing slashes
+
+  chroot = CONFIG['tor.chroot'].strip().rstrip(os.path.sep)
+
+  if chroot and not os.path.exists(chroot):
+    stem.util.log.notice("The chroot path set in your config (%s) doesn't exist." % chroot)
+    config.set('tor.chroot', '')
+  else:
+    config.set('tor.chroot', chroot)  # use the normalized path
 
   # validates and expands log event flags
 
@@ -288,6 +298,15 @@ def main():
     controller.get_pid()
   except ValueError:
     stem.util.log.warn(CONFIG['msg.unable_to_determine_pid'])
+
+  # If we're running under FreeBSD then check the system for a chroot path.
+
+  if not CONFIG['tor.chroot'] and platform.system() == 'FreeBSD':
+    jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
+
+    if jail_chroot and os.path.exists(jail_chroot):
+      stem.util.log.info("Adjusting paths to account for Tor running in a FreeBSD jail at: %s" % jail_chroot)
+      config.set('tor.chroot', jail_chroot)
 
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
