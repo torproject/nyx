@@ -36,7 +36,6 @@ import stem.util.system
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  'debug_log_path': '',
   'tor.password': None,
   'startup.events': 'N3',
   'msg.debug_header': '',
@@ -147,14 +146,13 @@ def _authenticate(controller, password):
     raise ValueError("Unable to authenticate: %s" % exc)
 
 
-def _setup_debug_logging():
+def _setup_debug_logging(debug_path):
   """
   Configures us to log at stem's trace level to debug log path.
 
   :raises: **IOError** if we can't log to this location
   """
 
-  debug_path = os.path.expanduser(CONFIG['debug_log_path'])
   debug_dir = os.path.dirname(debug_path)
 
   if not os.path.exists(debug_dir):
@@ -229,11 +227,11 @@ def main():
     print "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)
     sys.exit()
 
-  if args.debug:
+  if args.debug_path is not None:
     try:
       _setup_debug_logging()
     except IOError as exc:
-      print "Unable to write to our debug log file (%s): %s" % (CONFIG['debug_log_path'], exc.strerror)
+      print "Unable to write to our debug log file (%s): %s" % (args.debug_path, exc.strerror)
       sys.exit(1)
 
     stem.util.log.trace(CONFIG['msg.debug_header'].format(
@@ -246,7 +244,7 @@ def main():
       armrc_content = _armrc_dump(args.config),
     ))
 
-    print "Saving a debug log to %s, please check it for sensitive information before sharing" % CONFIG['debug_log_path']
+    print "Saving a debug log to %s, please check it for sensitive information before sharing" % args.debug_path
 
   # loads user's personal armrc if available
 

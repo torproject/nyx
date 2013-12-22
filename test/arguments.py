@@ -24,8 +24,8 @@ class TestArgumentParsing(unittest.TestCase):
     self.assertEqual('/tmp/my_socket', args.control_socket)
     self.assertEqual('/tmp/my_config', args.config)
 
-    args = parse(['--debug', '--blind'])
-    self.assertEqual(True, args.debug)
+    args = parse(['--debug', '/tmp/dump', '--blind'])
+    self.assertEqual('/tmp/dump', args.debug_path)
     self.assertEqual(True, args.blind)
 
     args = parse(['--event', 'D1'])

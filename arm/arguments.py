@@ -10,7 +10,6 @@ import stem.connection
 import stem.util.conf
 
 CONFIG = stem.util.conf.config_dict("arm", {
-  'debug_log_path': '',
   'msg.event_types': '',
   'msg.help': '',
 })
@@ -22,20 +21,20 @@ DEFAULT_ARGS = {
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
   'config': os.path.expanduser("~/.arm/armrc"),
-  'debug': False,
+  'debug_path': None,
   'blind': False,
   'logged_events': 'N3',
   'print_version': False,
   'print_help': False,
 }
 
-OPT = "i:s:c:dbe:vh"
+OPT = "i:s:c:d:be:vh"
 
 OPT_EXPANDED = [
   "interface=",
   "socket=",
   "config=",
-  "debug",
+  "debug=",
   "blind",
   "event=",
   "version",
@@ -82,7 +81,7 @@ def parse(argv):
     elif opt in ("-c", "--config"):
       args['config'] = arg
     elif opt in ("-d", "--debug"):
-      args['debug'] = True
+      args['debug_path'] = os.path.expanduser(arg)
     elif opt in ("-b", "--blind"):
       args['blind'] = True
     elif opt in ("-e", "--event"):
@@ -110,7 +109,6 @@ def get_help():
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
     config = DEFAULT_ARGS['config'],
-    debug_path = CONFIG['debug_log_path'],
     events = DEFAULT_ARGS['logged_events'],
     event_flags = CONFIG['msg.event_types'],
   )
