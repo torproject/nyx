@@ -6,6 +6,8 @@ import collections
 import getopt
 import os
 
+import arm
+
 import stem.connection
 import stem.util.conf
 
@@ -108,3 +110,13 @@ def get_help():
     events = DEFAULT_ARGS['logged_events'],
     event_flags = CONFIG['msg.event_types'],
   )
+
+
+def get_version():
+  """
+  Provides our --version information.
+
+  :returns: **str** with our versioning information
+  """
+
+  return "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)

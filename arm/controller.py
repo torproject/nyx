@@ -49,7 +49,7 @@ CONFIG = conf.config_dict("arm", {
   "features.confirmQuit": True,
   "features.graph.type": 1,
   "features.graph.bw.prepopulate": True,
-  "attribute.start_time": 0,
+  "start_time": 0,
 }, conf_handler)
 
 GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
@@ -536,7 +536,7 @@ def start_arm(stdscr):
     stdscr    - curses window
   """
 
-  startTime = CONFIG['attribute.start_time']
+  startTime = CONFIG['start_time']
   initController(stdscr, startTime)
   control = getController()
 

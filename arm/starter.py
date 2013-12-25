@@ -56,7 +56,7 @@ CONFIG = stem.util.conf.config_dict("arm", {
 
 def main():
   config = stem.util.conf.get_config("arm")
-  config.set('attribute.start_time', str(int(time.time())))
+  config.set('start_time', str(int(time.time())))
 
   try:
     config.load(SETTINGS_PATH)
@@ -76,9 +76,8 @@ def main():
   if args.print_help:
     print arm.arguments.get_help()
     sys.exit()
-
-  if args.print_version:
-    print "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)
+  elif args.print_version:
+    print arm.arguments.get_version()
     sys.exit()
 
   if args.debug_path is not None:
@@ -328,14 +327,14 @@ def _shutdown_daemons(controller):
   Stops and joins on worker threads.
   """
 
-  halt_tor_controller = threading.Thread(target = controller.close)
-  halt_tor_controller.setDaemon(True)
-  halt_tor_controller.start()
+  close_controller = threading.Thread(target = controller.close)
+  close_controller.setDaemon(True)
+  close_controller.start()
 
   halt_threads = [
     arm.controller.stop_controller(),
     arm.util.tracker.stop_trackers(),
-    halt_tor_controller,
+    close_controller,
   ]
 
   for thread in halt_threads:
