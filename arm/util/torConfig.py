@@ -27,24 +27,24 @@ DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3
 DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
 def conf_handler(key, value):
-  if key == "config.important":
+  if key == "torrc.important":
     # stores lowercase entries to drop case sensitivity
     return [entry.lower() for entry in value]
 
 CONFIG = conf.config_dict("arm", {
   "features.torrc.validate": True,
-  "config.important": [],
+  "torrc.important": [],
   "torrc.alias": {},
-  "torrc.label.size.b": [],
-  "torrc.label.size.kb": [],
-  "torrc.label.size.mb": [],
-  "torrc.label.size.gb": [],
-  "torrc.label.size.tb": [],
-  "torrc.label.time.sec": [],
-  "torrc.label.time.min": [],
-  "torrc.label.time.hour": [],
-  "torrc.label.time.day": [],
-  "torrc.label.time.week": [],
+  "torrc.units.size.b": [],
+  "torrc.units.size.kb": [],
+  "torrc.units.size.mb": [],
+  "torrc.units.size.gb": [],
+  "torrc.units.size.tb": [],
+  "torrc.units.time.sec": [],
+  "torrc.units.time.min": [],
+  "torrc.units.time.hour": [],
+  "torrc.units.time.day": [],
+  "torrc.units.time.week": [],
   "startup.dataDirectory": "~/.arm",
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
@@ -54,11 +54,11 @@ CONFIG = conf.config_dict("arm", {
 def general_conf_handler(config, key):
   value = config.get(key)
 
-  if key.startswith("config.summary."):
+  if key.startswith("torrc.summary."):
     # we'll look for summary keys with a lowercase config name
     CONFIG[key.lower()] = value
-  elif key.startswith("torrc.label.") and value:
-    # all the torrc.label.* values are comma separated lists
+  elif key.startswith("torrc.units.") and value:
+    # all the torrc.units.* values are comma separated lists
     return [entry.strip() for entry in value[0].split(",")]
 
 conf.get_config("arm").add_listener(general_conf_handler, backfill = True)
@@ -306,7 +306,7 @@ def getConfigSummary(option):
     option - tor config option
   """
 
-  return CONFIG.get("config.summary.%s" % option.lower())
+  return CONFIG.get("torrc.summary.%s" % option.lower())
 
 def isImportant(option):
   """
@@ -317,7 +317,7 @@ def isImportant(option):
     option - tor config option
   """
 
-  return option.lower() in CONFIG["config.important"]
+  return option.lower() in CONFIG["torrc.important"]
 
 def getConfigDescription(option):
   """
@@ -662,11 +662,11 @@ def _getUnitType(unit):
   """
 
   for label in SIZE_MULT:
-    if unit in CONFIG["torrc.label.size." + label]:
+    if unit in CONFIG["torrc.units.size." + label]:
       return SIZE_MULT[label], ValueType.SIZE
 
   for label in TIME_MULT:
-    if unit in CONFIG["torrc.label.time." + label]:
+    if unit in CONFIG["torrc.units.time." + label]:
       return TIME_MULT[label], ValueType.TIME
 
   return None, ValueType.UNRECOGNIZED

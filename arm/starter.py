@@ -33,7 +33,7 @@ import stem.util.connection
 import stem.util.log
 import stem.util.system
 
-from arm.util import msg, trace, notice, warn
+from arm.util import msg, trace, notice, warn, load_settings
 
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
@@ -48,7 +48,7 @@ def main():
   config.set('start_time', str(int(time.time())))
 
   try:
-    config.load(SETTINGS_PATH)
+    load_settings()
   except IOError as exc:
     print msg('config.unable_to_load_settings', path = SETTINGS_PATH, error = exc)
     sys.exit(1)

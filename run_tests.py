@@ -10,8 +10,7 @@ the test coverage we can achieve, but exercising what we can.
 import os
 import unittest
 
-import stem.util.conf
-
+from arm.util import load_settings
 
 def clean_orphaned_pyc():
   for root, _, files in os.walk(os.path.dirname(__file__)):
@@ -28,8 +27,7 @@ def clean_orphaned_pyc():
 
 
 def main():
-  settings_path = os.path.join(os.path.dirname(__file__), 'arm', 'settings.cfg')
-  stem.util.conf.get_config('arm').load(settings_path)
+  load_settings()
 
   clean_orphaned_pyc()
 

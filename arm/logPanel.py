@@ -176,7 +176,7 @@ def loadLogMessages():
 
   COMMON_LOG_MESSAGES = {}
   for confKey in armConf.keys():
-    if confKey.startswith("msg."):
+    if confKey.startswith("dedup."):
       eventType = confKey[4:].upper()
       messages = armConf.get(confKey, [])
       COMMON_LOG_MESSAGES[eventType] = messages

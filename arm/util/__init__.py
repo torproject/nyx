@@ -6,8 +6,12 @@ and safely working with curses (hiding some of the gory details).
 
 __all__ = ["connections", "panel", "sysTools", "textInput", "torConfig", "torTools", "tracker", "uiTools"]
 
+import os
+
 import stem.util.conf
 import stem.util.log
+
+BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
 
 def msg(message, **attr):
   """
@@ -51,6 +55,25 @@ def warn(msg, **attr):
 def error(msg, **attr):
   _log(stem.util.log.ERROR, msg, **attr)
 
+
+def load_settings():
+  """
+  Loads arms internal settings. This should be treated as a fatal failure if
+  unsuccessful.
+
+  :raises: **IOError** if we're unable to read or parse our internal
+    configurations
+  """
+
+  config = stem.util.conf.get_config('arm')
+
+  if not config.get('settings_loaded', False):
+    config_dir = os.path.join(BASE_DIR, 'config')
+
+    for config_file in os.listdir(config_dir):
+      config.load(os.path.join(config_dir, config_file))
+
+    config.set('settings_loaded', 'true')
 
 def _log(runlevel, message, **attr):
   """
