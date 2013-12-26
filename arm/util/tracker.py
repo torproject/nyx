@@ -44,13 +44,11 @@ import arm.util.torTools
 from stem.control import State
 from stem.util import conf, connection, log, proc, str_tools, system
 
+from arm.util import debug, info, notice
+
 CONFIG = conf.config_dict('arm', {
   'queries.resources.rate': 5,
   'queries.connections.rate': 5,
-  'msg.unable_to_use_resolver': '',
-  'msg.unable_to_use_all_resolvers': '',
-  'msg.unable_to_get_resources': '',
-  'msg.abort_getting_resources': '',
 })
 
 CONNECTION_TRACKER = None
@@ -383,12 +381,12 @@ class ConnectionTracker(Daemon):
           self._failure_count = 0
 
           if self._resolvers:
-            log.notice(CONFIG['msg.unable_to_use_resolver'].format(
+            notice('tracker.unable_to_use_resolver',
               old_resolver = resolver,
               new_resolver = self._resolvers[0],
-            ))
+            )
           else:
-            log.notice(CONFIG['msg.unable_to_use_all_resolvers'])
+            notice('tracker.unable_to_use_all_resolvers')
 
       return False
 
@@ -480,25 +478,25 @@ class ResourceTracker(Daemon):
           self._use_proc = False
           self._failure_count = 0
 
-          log.info(CONFIG['msg.abort_getting_resources'].format(
+          info('tracker.abort_getting_resources',
             resolver = 'proc',
             response = 'falling back to ps',
             exc = exc,
-          ))
+          )
         else:
-          log.debug(CONFIG['msg.unable_to_get_resources'].format(resolver = 'proc', exc = exc))
+          debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
       else:
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          log.info(CONFIG['msg.abort_getting_resources'].format(
+          info('tracker.abort_getting_resources',
             resolver = 'ps',
             response = 'giving up on getting resource usage information',
             exc = exc,
-          ))
+          )
 
           self.stop()
         else:
-          log.debug(CONFIG['msg.unable_to_get_resources'].format(resolver = 'ps', exc = exc))
+          debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
 
       return False

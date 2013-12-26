@@ -33,41 +33,30 @@ import stem.util.connection
 import stem.util.log
 import stem.util.system
 
+from arm.util import msg, trace, notice, warn
+
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
 CONFIG = stem.util.conf.config_dict("arm", {
   'tor.chroot': '',
   'tor.password': None,
-  'startup.events': 'N3',
-  'msg.debug_header': '',
-  'msg.wrong_port_type': '',
-  'msg.wrong_socket_type': '',
-  'msg.uncrcognized_auth_type': '',
-  'msg.missing_password_bug': '',
-  'msg.unreadable_cookie_file': '',
-  'msg.tor_is_running_as_root': '',
-  'msg.arm_is_running_as_root': '',
-  'msg.config_not_found': '',
-  'msg.unable_to_read_config': '',
-  'msg.unable_to_determine_pid': '',
-  'msg.unknown_term': '',
 })
 
 
 def main():
-  config = stem.util.conf.get_config("arm")
+  config = stem.util.conf.get_config('arm')
   config.set('start_time', str(int(time.time())))
 
   try:
     config.load(SETTINGS_PATH)
   except IOError as exc:
-    print "Unable to load arm's internal configuration (%s): %s" % (SETTINGS_PATH, exc)
+    print msg('config.unable_to_load_settings', path = SETTINGS_PATH, error = exc)
     sys.exit(1)
 
   try:
     args = arm.arguments.parse(sys.argv[1:])
   except getopt.GetoptError as exc:
-    print "%s (for usage provide --help)" % exc
+    print msg('usage.invalid_arguments', error = exc)
     sys.exit(1)
   except ValueError as exc:
     print exc
@@ -83,9 +72,9 @@ def main():
   if args.debug_path is not None:
     try:
       _setup_debug_logging(args)
-      print "Saving a debug log to %s, please check it for sensitive information before sharing" % args.debug_path
+      print msg('debug.saving_to_path', path = args.debug_path)
     except IOError as exc:
-      print "Unable to write to our debug log file (%s): %s" % (args.debug_path, exc.strerror)
+      print msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror)
       sys.exit(1)
 
   # loads user's personal armrc if available
@@ -94,9 +83,9 @@ def main():
     try:
       config.load(args.config)
     except IOError as exc:
-      stem.util.log.warn(CONFIG['msg.unable_to_read_config'].format(error = exc.strerror))
+      warn('config.unable_to_read_file', error = exc.strerror)
   else:
-    stem.util.log.notice(CONFIG['msg.config_not_found'].format(path = args.config))
+    notice('config.nothing_loaded', path = args.config)
 
   config.set('startup.events', args.logged_events)
 
@@ -105,7 +94,7 @@ def main():
   chroot = CONFIG['tor.chroot'].strip().rstrip(os.path.sep)
 
   if chroot and not os.path.exists(chroot):
-    stem.util.log.notice("The chroot path set in your config (%s) doesn't exist." % chroot)
+    stem.util.log.notice(msg('setup.chroot_doesnt_exist', path = chroot))
     config.set('tor.chroot', '')
   else:
     config.set('tor.chroot', chroot)  # use the normalized path
@@ -116,7 +105,7 @@ def main():
     arm.logPanel.expandEvents(args.logged_events)
   except ValueError as exc:
     for flag in str(exc):
-      print "Unrecognized event flag: %s" % flag
+      print msg('usage.unrecognized_log_flag', flag = flag)
 
     sys.exit(1)
 
@@ -141,11 +130,9 @@ def main():
   tor_user = controller.get_user(None)
 
   if tor_user == "root":
-    stem.util.log.notice(CONFIG['msg.tor_is_running_as_root'])
+    notice('setup.tor_is_running_as_root')
   elif os.getuid() == 0:
-    stem.util.log.notice(CONFIG['msg.arm_is_running_as_root'].format(
-      tor_user = tor_user if tor_user else "<tor user>"
-    ))
+    notice('setup.arm_is_running_as_root', tor_user = tor_user if tor_user else "<tor user>")
 
   # fetches descriptions for tor's configuration options
 
@@ -166,7 +153,7 @@ def main():
   try:
     controller.get_pid()
   except ValueError:
-    stem.util.log.warn(CONFIG['msg.unable_to_determine_pid'])
+    warn('setup.unable_to_determine_pid')
 
   # If we're running under FreeBSD then check the system for a chroot path.
 
@@ -174,7 +161,7 @@ def main():
     jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
-      stem.util.log.info("Adjusting paths to account for Tor running in a FreeBSD jail at: %s" % jail_chroot)
+      info('setup.set_freebsd_chroot', path = jail_chroot)
       config.set('tor.chroot', jail_chroot)
 
   # If using our LANG variable for rendering multi-byte characters lets us
@@ -189,14 +176,13 @@ def main():
   missing_event_types = arm.logPanel.getMissingEventTypes()
 
   if missing_event_types:
-    plural_label = "s" if len(missing_event_types) > 1 else ""
-    stem.util.log.info("arm doesn't recognize the following event type%s: %s (log 'UNKNOWN' events to see them)" % (plural_label, ", ".join(missing_event_types)))
+    info('setup.unknown_event_types', event_types = ', '.join(missing_event_types))
 
   try:
     curses.wrapper(arm.controller.start_arm)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
-      print CONFIG['msg.unknown_term'].format(term = os.environ['TERM'])
+      print msg('setup.unknown_term', term = os.environ['TERM'])
     else:
       raise exc
   except KeyboardInterrupt:
@@ -226,20 +212,20 @@ def _get_controller(args):
       return stem.control.Controller.from_socket_file(args.control_socket)
     except stem.SocketError as exc:
       if args.user_provided_socket:
-        raise ValueError("Unable to connect to '%s': %s" % (args.control_socket, exc))
+        raise ValueError(msg('connect.unable_to_use_socket', path = args.control_socket, error = exc))
   elif args.user_provided_socket:
-    raise ValueError("The socket file you specified (%s) doesn't exist" % args.control_socket)
+    raise ValueError(msg('connect.socket_doesnt_exist', path = args.control_socket))
 
   try:
     return stem.control.Controller.from_port(args.control_address, args.control_port)
   except stem.SocketError as exc:
     if args.user_provided_port:
-      raise ValueError("Unable to connect to %s:%i: %s" % (args.control_address, args.control_port, exc))
+      raise ValueError(msg('connect.unable_to_use_port', address = args.control_address, port = args.control_port, error = exc))
 
   if not stem.util.system.is_running('tor'):
-    raise ValueError("Unable to connect to tor. Are you sure it's running?")
+    raise ValueError(msg('connect.tor_isnt_running'))
   else:
-    raise ValueError("Unable to connect to tor. Maybe it's running without a ControlPort?")
+    raise ValueError(msg('connect.no_control_port'))
 
 
 def _authenticate(controller, password):
@@ -259,23 +245,23 @@ def _authenticate(controller, password):
     control_socket = controller.get_socket()
 
     if isinstance(control_socket, stem.socket.ControlPort):
-      raise ValueError(CONFIG['msg.wrong_port_type'].format(port = control_socket.get_port()))
+      raise ValueError(msg('connect.wrong_port_type', port = control_socket.get_port()))
     else:
-      raise ValueError(CONFIG['msg.wrong_socket_type'])
+      raise ValueError(msg('connect.wrong_socket_type'))
   except stem.connection.UnrecognizedAuthMethods as exc:
-    raise ValueError(CONFIG['msg.uncrcognized_auth_type'].format(auth_methods = ', '.join(exc.unknown_auth_methods)))
+    raise ValueError(msg('uncrcognized_auth_type', auth_methods = ', '.join(exc.unknown_auth_methods)))
   except stem.connection.IncorrectPassword:
-    raise ValueError("Incorrect password")
+    raise ValueError(msg('connect.incorrect_password'))
   except stem.connection.MissingPassword:
     if password:
-      raise ValueError(CONFIG['msg.missing_password_bug'])
+      raise ValueError(msg('connect.missing_password_bug'))
 
-    password = getpass.getpass("Tor controller password: ")
+    password = getpass.getpass(msg('connect.password_prompt') + ' ')
     return _authenticate(controller, password)
   except stem.connection.UnreadableCookieFile as exc:
-    raise ValueError(CONFIG['msg.unreadable_cookie_file'].format(path = exc.cookie_path, issue = str(exc)))
+    raise ValueError(msg('connect.unreadable_cookie_file', path = exc.cookie_path, issue = str(exc)))
   except stem.connection.AuthenticationFailure as exc:
-    raise ValueError("Unable to authenticate: %s" % exc)
+    raise ValueError(msg('connect.general_auth_failure', error = exc))
 
 
 def _setup_debug_logging(args):
@@ -311,7 +297,7 @@ def _setup_debug_logging(args):
     except IOError as exc:
       armrc_content = "[unable to read file: %s]" % exc.strerror
 
-  stem.util.log.trace(CONFIG['msg.debug_header'].format(
+  trace('debug.header',
     arm_version = arm.__version__,
     stem_version = stem.__version__,
     python_version = '.'.join(map(str, sys.version_info[:3])),
@@ -319,7 +305,7 @@ def _setup_debug_logging(args):
     platform = " ".join(platform.dist()),
     armrc_path = args.config,
     armrc_content = armrc_content,
-  ))
+  )
 
 
 def _shutdown_daemons(controller):

@@ -56,7 +56,7 @@ CONFIG = conf.config_dict("arm", {
   "features.log.maxRefreshRate": 300,
   "features.log.regex": [],
   "cache.logPanel.size": 1000,
-  "msg.event_types": '',
+  "msg.misc.event_types": '',
   "tor.chroot": '',
 }, conf_handler)
 
@@ -752,7 +752,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         # displays the available flags
         popup.win.box()
         popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
-        eventLines = CONFIG['msg.event_types'].split("\n")
+        eventLines = CONFIG['msg.misc.event_types'].split("\n")
 
         for i in range(len(eventLines)):
           popup.addstr(i + 1, 1, eventLines[i][6:])

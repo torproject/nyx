@@ -9,12 +9,8 @@ import os
 import arm
 
 import stem.connection
-import stem.util.conf
 
-CONFIG = stem.util.conf.config_dict("arm", {
-  'msg.event_types': '',
-  'msg.help': '',
-})
+from arm.util import msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -102,13 +98,13 @@ def get_help():
   :returns: **str** with our usage information
   """
 
-  return CONFIG['msg.help'].format(
+  return msg('usage.help_output',
     address = DEFAULT_ARGS['control_address'],
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
     config = DEFAULT_ARGS['config'],
     events = DEFAULT_ARGS['logged_events'],
-    event_flags = CONFIG['msg.event_types'],
+    event_flags = msg('misc.event_types'),
   )
 
 
@@ -119,4 +115,7 @@ def get_version():
   :returns: **str** with our versioning information
   """
 
-  return "arm version %s (released %s)\n" % (arm.__version__, arm.__release_date__)
+  return msg('usage.version_output',
+    version = arm.__version__,
+    date = arm.__release_date__,
+  )
