@@ -21,7 +21,6 @@ import arm.controller
 import arm.logPanel
 import arm.util.panel
 import arm.util.torConfig
-import arm.util.torTools
 import arm.util.tracker
 import arm.util.uiTools
 
@@ -33,7 +32,7 @@ import stem.util.connection
 import stem.util.log
 import stem.util.system
 
-from arm.util import msg, trace, notice, warn, load_settings
+from arm.util import init_controller, msg, trace, info, notice, warn, load_settings
 
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
 
@@ -112,7 +111,7 @@ def main():
   try:
     controller = _get_controller(args)
     _authenticate(controller, CONFIG['tor.password'])
-    arm.util.torTools.getConn().init(controller)
+    init_controller(controller)
   except ValueError as exc:
     print exc
     exit(1)

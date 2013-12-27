@@ -8,10 +8,40 @@ __all__ = ["connections", "panel", "sysTools", "textInput", "torConfig", "torToo
 
 import os
 
+import arm.util.torTools
+
 import stem.util.conf
 import stem.util.log
 
+TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
+
+
+def tor_controller():
+  """
+  Singleton for getting our tor controller connection.
+
+  :returns: :class:`~stem.control.Controller` arm is using
+  """
+
+  return TOR_CONTROLLER
+
+
+def init_controller(controller):
+  """
+  Registers an initialized tor controller.
+
+  :param stem.control.Controller controller: tor controller for arm to use
+  """
+
+  global TOR_CONTROLLER
+  TOR_CONTROLLER = controller
+
+  # TODO: Our controller() method will gradually replace the torTools module,
+  # but until that we need to initialize it too.
+
+  arm.util.torTools.getConn().init(controller)
+
 
 def msg(message, **attr):
   """
@@ -74,6 +104,7 @@ def load_settings():
       config.load(os.path.join(config_dir, config_file))
 
     config.set('settings_loaded', 'true')
+
 
 def _log(runlevel, message, **attr):
   """

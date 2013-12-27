@@ -39,12 +39,10 @@ import collections
 import time
 import threading
 
-import arm.util.torTools
-
 from stem.control import State
 from stem.util import conf, connection, log, proc, str_tools, system
 
-from arm.util import debug, info, notice
+from arm.util import tor_controller, debug, info, notice
 
 CONFIG = conf.config_dict('arm', {
   'queries.resources.rate': 5,
@@ -210,7 +208,7 @@ class Daemon(threading.Thread):
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
 
-    controller = arm.util.torTools.getConn().controller
+    controller = tor_controller()
     controller.add_status_listener(self._tor_status_listener)
     self._tor_status_listener(controller, State.INIT, None)
 
