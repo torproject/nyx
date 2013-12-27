@@ -34,8 +34,6 @@ import stem.util.system
 
 from arm.util import init_controller, msg, trace, info, notice, warn, load_settings
 
-SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.cfg')
-
 CONFIG = stem.util.conf.config_dict("arm", {
   'tor.chroot': '',
   'tor.password': None,
@@ -49,11 +47,12 @@ def main():
   try:
     load_settings()
   except IOError as exc:
-    print msg('config.unable_to_load_settings', path = SETTINGS_PATH, error = exc)
+    print msg('config.unable_to_load_settings', error = exc)
     sys.exit(1)
 
   try:
     args = arm.arguments.parse(sys.argv[1:])
+    config.set('startup.events', args.logged_events)
   except getopt.GetoptError as exc:
     print msg('usage.invalid_arguments', error = exc)
     sys.exit(1)
@@ -76,27 +75,8 @@ def main():
       print msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror)
       sys.exit(1)
 
-  # loads user's personal armrc if available
-
-  if os.path.exists(args.config):
-    try:
-      config.load(args.config)
-    except IOError as exc:
-      warn('config.unable_to_read_file', error = exc.strerror)
-  else:
-    notice('config.nothing_loaded', path = args.config)
-
-  config.set('startup.events', args.logged_events)
-
-  # check that the chroot exists and strip trailing slashes
-
-  chroot = CONFIG['tor.chroot'].strip().rstrip(os.path.sep)
-
-  if chroot and not os.path.exists(chroot):
-    stem.util.log.notice(msg('setup.chroot_doesnt_exist', path = chroot))
-    config.set('tor.chroot', '')
-  else:
-    config.set('tor.chroot', chroot)  # use the normalized path
+  _load_armrc(args.config)
+  _validate_chroot()
 
   # validates and expands log event flags
 
@@ -121,17 +101,8 @@ def main():
 
   config.set('tor.password', '')
 
-  # Give a notice if tor or arm are running with root. Querying connections
-  # usually requires us to have the same permissions as tor so if tor is
-  # running as root then drop this notice (they're already then being warned
-  # about tor being root anyway).
-
-  tor_user = controller.get_user(None)
-
-  if tor_user == "root":
-    notice('setup.tor_is_running_as_root')
-  elif os.getuid() == 0:
-    notice('setup.arm_is_running_as_root', tor_user = tor_user if tor_user else "<tor user>")
+  _setup_freebsd_chroot(controller)
+  _warn_if_root(controller)
 
   # fetches descriptions for tor's configuration options
 
@@ -153,15 +124,6 @@ def main():
     controller.get_pid()
   except ValueError:
     warn('setup.unable_to_determine_pid')
-
-  # If we're running under FreeBSD then check the system for a chroot path.
-
-  if not CONFIG['tor.chroot'] and platform.system() == 'FreeBSD':
-    jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
-
-    if jail_chroot and os.path.exists(jail_chroot):
-      info('setup.set_freebsd_chroot', path = jail_chroot)
-      config.set('tor.chroot', jail_chroot)
 
   # If using our LANG variable for rendering multi-byte characters lets us
   # get unicode support then then use it. This needs to be done before
@@ -305,6 +267,71 @@ def _setup_debug_logging(args):
     armrc_path = args.config,
     armrc_content = armrc_content,
   )
+
+
+def _load_armrc(path):
+  """
+  Loads user's personal armrc if it's available.
+  """
+
+  if os.path.exists(path):
+    try:
+      config = stem.util.conf.get_config('arm')
+      config.load(path)
+    except IOError as exc:
+      warn('config.unable_to_read_file', error = exc.strerror)
+  else:
+    notice('config.nothing_loaded', path = path)
+
+
+def _validate_chroot():
+  """
+  Ensure that the chroot exists and strip trailing slashes.
+  """
+
+  config = stem.util.conf.get_config('arm')
+  chroot = CONFIG['tor.chroot'].strip().rstrip(os.path.sep)
+
+  if chroot and not os.path.exists(chroot):
+    notice('setup.chroot_doesnt_exist', path = chroot)
+    config.set('tor.chroot', '')
+  else:
+    config.set('tor.chroot', chroot)  # use the normalized path
+
+
+def _setup_freebsd_chroot(controller):
+  """
+  If we're running under FreeBSD then check the system for a chroot path.
+
+  :param stem.control.Controller controller: tor controller connection
+  """
+
+  if not CONFIG['tor.chroot'] and platform.system() == 'FreeBSD':
+    jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
+
+    if jail_chroot and os.path.exists(jail_chroot):
+      info('setup.set_freebsd_chroot', path = jail_chroot)
+
+      config = stem.util.conf.get_config('arm')
+      config.set('tor.chroot', jail_chroot)
+
+
+def _warn_if_root(controller):
+  """
+  Give a notice if tor or arm are running with root. Querying connections
+  usually requires us to have the same permissions as tor so if tor is
+  running as root then just warning about that.
+
+  :param stem.control.Controller controller: tor controller connection
+  """
+
+  tor_user = controller.get_user(None)
+
+  if tor_user == "root":
+    notice('setup.tor_is_running_as_root')
+  elif os.getuid() == 0:
+    tor_user = tor_user if tor_user else "<tor user>"
+    notice('setup.arm_is_running_as_root', tor_user = tor_user)
 
 
 def _shutdown_daemons(controller):

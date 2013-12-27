@@ -360,7 +360,7 @@ class ConnectionTracker(Daemon):
           min_rate += 1  # little extra padding so we don't frequently update this
           self.set_rate(min_rate)
           self._rate_too_low_count = 0
-          log.debug("connection lookup time increasing to %0.1f seconds per call" % min_rate)
+          debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
       else:
         self._rate_too_low_count = 0
 
