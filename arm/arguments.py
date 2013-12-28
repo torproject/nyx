@@ -9,7 +9,6 @@ import os
 import arm
 
 import stem.connection
-import stem.util.log
 
 from arm.util import msg
 
@@ -26,25 +25,25 @@ DEFAULT_ARGS = {
   'print_help': False,
 }
 
-OPT = "i:s:c:d:bl:vh"
+OPT = 'i:s:c:d:bl:vh'
 
 OPT_EXPANDED = [
-  "interface=",
-  "socket=",
-  "config=",
-  "debug=",
-  "log=",
-  "version",
-  "help",
+  'interface=',
+  'socket=',
+  'config=',
+  'debug=',
+  'log=',
+  'version',
+  'help',
 ]
 
 TOR_EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
-  "i": "INFO",    "f": "AUTHDIR_NEWDESCS", "g": "GUARD",        "r": "STREAM_BW",
-  "n": "NOTICE",  "h": "BUILDTIMEOUT_SET", "l": "NEWCONSENSUS", "t": "STATUS_CLIENT",
-  "w": "WARN",    "b": "BW",               "m": "NEWDESC",      "u": "STATUS_GENERAL",
-  "e": "ERR",     "c": "CIRC",             "p": "NS",           "v": "STATUS_SERVER",
-                  "j": "CLIENTS_SEEN",     "q": "ORCONN"}
+  'd': 'DEBUG',   'a': 'ADDRMAP',          'k': 'DESCCHANGED',  's': 'STREAM',
+  'i': 'INFO',    'f': 'AUTHDIR_NEWDESCS', 'g': 'GUARD',        'r': 'STREAM_BW',
+  'n': 'NOTICE',  'h': 'BUILDTIMEOUT_SET', 'l': 'NEWCONSENSUS', 't': 'STATUS_CLIENT',
+  'w': 'WARN',    'b': 'BW',               'm': 'NEWDESC',      'u': 'STATUS_GENERAL',
+  'e': 'ERR',     'c': 'CIRC',             'p': 'NS',           'v': 'STATUS_SERVER',
+                  'j': 'CLIENTS_SEEN',     'q': 'ORCONN'}
 
 
 def parse(argv):
@@ -151,45 +150,47 @@ def expand_events(flags):
   ::
 
     >>> expand_events('inUt')
-    ["INFO", "NOTICE", "UNKNOWN", "STREAM_BW"]
+    set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT'])
 
     >>> expand_events('N4')
-    ["NOTICE", "WARN", "ERR", "ARM_WARN", "ARM_ERR"]
+    set(['NOTICE', 'WARN', 'ERR', 'ARM_WARN', 'ARM_ERR'])
 
     >>> expand_events('cfX')
-    []
+    set([])
 
   :param str flags: character flags to be expanded
+
+  :returns: **set** of the expanded event types
 
   :raises: **ValueError** with invalid input if any flags are unrecognized
   """
 
   expanded_events, invalid_flags = set(), ''
-  arm_runlevels = ['ARM_' + runlevel for runlevel in stem.util.log.Runlevel]
+
+  tor_runlevels = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+  arm_runlevels = ['ARM_' + runlevel for runlevel in tor_runlevels]
 
   for flag in flags:
     if flag == 'A':
-      expanded_events = set(list(TOR_EVENT_TYPES) + arm_runlevels + ['UNKNOWN'])
-      break
+      return set(list(TOR_EVENT_TYPES) + arm_runlevels + ['UNKNOWN'])
     elif flag == 'X':
-      expanded_events = set()
-      break
+      return set()
     elif flag in 'DINWE12345':
       # all events for a runlevel and higher
 
       if flag in 'D1':
-        runlevel_index = 1
+        runlevel_index = 0
       elif flag in 'I2':
-        runlevel_index = 2
+        runlevel_index = 1
       elif flag in 'N3':
-        runlevel_index = 3
+        runlevel_index = 2
       elif flag in 'W4':
-        runlevel_index = 4
+        runlevel_index = 3
       elif flag in 'E5':
-        runlevel_index = 5
+        runlevel_index = 4
 
       if flag in 'DINWE':
-        runlevels = list(stem.util.log.Runlevel)[runlevel_index:]
+        runlevels = tor_runlevels[runlevel_index:]
       elif flag in '12345':
         runlevels = arm_runlevels[runlevel_index:]
 
@@ -202,6 +203,6 @@ def expand_events(flags):
       invalid_flags += flag
 
   if invalid_flags:
-    raise ValueError(invalid_flags)
+    raise ValueError(''.join(set(invalid_flags)))
   else:
     return expanded_events

@@ -1,7 +1,7 @@
 import getopt
 import unittest
 
-from arm.arguments import parse, DEFAULT_ARGS
+from arm.arguments import DEFAULT_ARGS, parse, expand_events
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestArgumentParsing(unittest.TestCase):
     args = parse(['--debug', '/tmp/dump'])
     self.assertEqual('/tmp/dump', args.debug_path)
 
-    args = parse(['--event', 'D1'])
+    args = parse(['--log', 'D1'])
     self.assertEqual('D1', args.logged_events)
 
     args = parse(['--version'])
@@ -40,7 +40,7 @@ class TestArgumentParsing(unittest.TestCase):
     args = parse(['-i', '1643'])
     self.assertEqual(1643, args.control_port)
 
-    args = parse(['-e', 'we', '-c', '/tmp/cfg'])
+    args = parse(['-l', 'we', '-c', '/tmp/cfg'])
     self.assertEqual('we', args.logged_events)
     self.assertEqual('/tmp/cfg', args.config)
 
@@ -62,3 +62,42 @@ class TestArgumentParsing(unittest.TestCase):
 
     for invalid_input in invalid_inputs:
       self.assertRaises(ValueError, parse, ['--interface', invalid_input])
+
+class TestExpandEvents(unittest.TestCase):
+  def test_examples(self):
+    self.assertEqual(set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT']), expand_events('inUt'))
+    self.assertEqual(set(['NOTICE', 'WARN', 'ERR', 'ARM_WARN', 'ARM_ERR']), expand_events('N4'))
+    self.assertEqual(set(), expand_events('cfX'))
+
+  def test_runlevel_expansion(self):
+    self.assertEqual(set(['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']), expand_events('D'))
+    self.assertEqual(set(['INFO', 'NOTICE', 'WARN', 'ERR']), expand_events('I'))
+    self.assertEqual(set(['NOTICE', 'WARN', 'ERR']), expand_events('N'))
+    self.assertEqual(set(['WARN', 'ERR']), expand_events('W'))
+    self.assertEqual(set(['ERR']), expand_events('E'))
+
+    self.assertEqual(set(['ARM_DEBUG', 'ARM_INFO', 'ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('1'))
+    self.assertEqual(set(['ARM_INFO', 'ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('2'))
+    self.assertEqual(set(['ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('3'))
+    self.assertEqual(set(['ARM_WARN', 'ARM_ERR']), expand_events('4'))
+    self.assertEqual(set(['ARM_ERR']), expand_events('5'))
+
+  def test_short_circuit_options(self):
+    # Check that the 'A' and 'X' options short circuit normal parsing,
+    # providing results even if there's other invalid options.
+
+    self.assertEqual(set(), expand_events('z*X*z'))
+    self.assertEqual(28, len(expand_events('z*A*z')))
+
+  def test_invalid_flags(self):
+    self._expect_invalid_flags('D1*', '*')
+    self._expect_invalid_flags('*D1', '*')
+    self._expect_invalid_flags('zzD1zz', 'z')
+    self._expect_invalid_flags('z*D1*z', 'z*')
+
+  def _expect_invalid_flags(self, argument, expected):
+    try:
+      expand_events(argument)
+      self.fail()
+    except ValueError as exc:
+      self.assertEqual(set(expected), set(str(exc)))
