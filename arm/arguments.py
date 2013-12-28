@@ -9,6 +9,7 @@ import os
 import arm
 
 import stem.connection
+import stem.util.log
 
 from arm.util import msg
 
@@ -25,17 +26,25 @@ DEFAULT_ARGS = {
   'print_help': False,
 }
 
-OPT = "i:s:c:d:be:vh"
+OPT = "i:s:c:d:bl:vh"
 
 OPT_EXPANDED = [
   "interface=",
   "socket=",
   "config=",
   "debug=",
-  "event=",
+  "log=",
   "version",
   "help",
 ]
+
+TOR_EVENT_TYPES = {
+  "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
+  "i": "INFO",    "f": "AUTHDIR_NEWDESCS", "g": "GUARD",        "r": "STREAM_BW",
+  "n": "NOTICE",  "h": "BUILDTIMEOUT_SET", "l": "NEWCONSENSUS", "t": "STATUS_CLIENT",
+  "w": "WARN",    "b": "BW",               "m": "NEWDESC",      "u": "STATUS_GENERAL",
+  "e": "ERR",     "c": "CIRC",             "p": "NS",           "v": "STATUS_SERVER",
+                  "j": "CLIENTS_SEEN",     "q": "ORCONN"}
 
 
 def parse(argv):
@@ -54,7 +63,7 @@ def parse(argv):
   args = dict(DEFAULT_ARGS)
 
   for opt, arg in getopt.getopt(argv, OPT, OPT_EXPANDED)[0]:
-    if opt in ("-i", "--interface"):
+    if opt in ('-i', '--interface'):
       if ':' in arg:
         address, port = arg.split(':', 1)
       else:
@@ -62,27 +71,32 @@ def parse(argv):
 
       if address is not None:
         if not stem.util.connection.is_valid_ipv4_address(address):
-          raise ValueError("'%s' isn't a valid IPv4 address" % address)
+          raise ValueError(msg('usage.not_a_valid_address', address_input = address))
 
         args['control_address'] = address
 
       if not stem.util.connection.is_valid_port(port):
-        raise ValueError("'%s' isn't a valid port number" % port)
+        raise ValueError(msg('usage.not_a_valid_port', port_input = port))
 
       args['control_port'] = int(port)
       args['user_provided_port'] = True
-    elif opt in ("-s", "--socket"):
+    elif opt in ('-s', '--socket'):
       args['control_socket'] = arg
       args['user_provided_socket'] = True
-    elif opt in ("-c", "--config"):
+    elif opt in ('-c', '--config'):
       args['config'] = arg
-    elif opt in ("-d", "--debug"):
+    elif opt in ('-d', '--debug'):
       args['debug_path'] = os.path.expanduser(arg)
-    elif opt in ("-e", "--event"):
+    elif opt in ('-l', '--log'):
+      try:
+        expand_events(arg)
+      except ValueError as exc:
+        raise ValueError(msg('usage.unrecognized_log_flags', flags = exc))
+
       args['logged_events'] = arg
-    elif opt in ("-v", "--version"):
+    elif opt in ('-v', '--version'):
       args['print_version'] = True
-    elif opt in ("-h", "--help"):
+    elif opt in ('-h', '--help'):
       args['print_help'] = True
 
   # translates our args dict into a named tuple
@@ -119,3 +133,75 @@ def get_version():
     version = arm.__version__,
     date = arm.__release_date__,
   )
+
+
+def expand_events(flags):
+  """
+  Expands event abbreviations to their full names. Beside mappings provided in
+  TOR_EVENT_TYPES this recognizes the following special events and aliases:
+
+  * A - all events
+  * X - no events
+  * U - UKNOWN events
+  * DINWE - runlevel and higher
+  * 12345 - arm/stem runlevel and higher (ARM_DEBUG - ARM_ERR)
+
+  For example...
+
+  ::
+
+    >>> expand_events('inUt')
+    ["INFO", "NOTICE", "UNKNOWN", "STREAM_BW"]
+
+    >>> expand_events('N4')
+    ["NOTICE", "WARN", "ERR", "ARM_WARN", "ARM_ERR"]
+
+    >>> expand_events('cfX')
+    []
+
+  :param str flags: character flags to be expanded
+
+  :raises: **ValueError** with invalid input if any flags are unrecognized
+  """
+
+  expanded_events, invalid_flags = set(), ''
+  arm_runlevels = ['ARM_' + runlevel for runlevel in stem.util.log.Runlevel]
+
+  for flag in flags:
+    if flag == 'A':
+      expanded_events = set(list(TOR_EVENT_TYPES) + arm_runlevels + ['UNKNOWN'])
+      break
+    elif flag == 'X':
+      expanded_events = set()
+      break
+    elif flag in 'DINWE12345':
+      # all events for a runlevel and higher
+
+      if flag in 'D1':
+        runlevel_index = 1
+      elif flag in 'I2':
+        runlevel_index = 2
+      elif flag in 'N3':
+        runlevel_index = 3
+      elif flag in 'W4':
+        runlevel_index = 4
+      elif flag in 'E5':
+        runlevel_index = 5
+
+      if flag in 'DINWE':
+        runlevels = list(stem.util.log.Runlevel)[runlevel_index:]
+      elif flag in '12345':
+        runlevels = arm_runlevels[runlevel_index:]
+
+      expanded_events.update(set(runlevels))
+    elif flag == 'U':
+      expanded_events.add('UNKNOWN')
+    elif flag in TOR_EVENT_TYPES:
+      expanded_events.add(TOR_EVENT_TYPES[flag])
+    else:
+      invalid_flags += flag
+
+  if invalid_flags:
+    raise ValueError(invalid_flags)
+  else:
+    return expanded_events

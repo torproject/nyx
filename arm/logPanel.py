@@ -16,17 +16,10 @@ from stem.control import State
 from stem.response import events
 from stem.util import conf, log, system
 
+import arm.arguments
 import arm.popups
 from arm import __version__
 from arm.util import panel, torTools, uiTools
-
-TOR_EVENT_TYPES = {
-  "d": "DEBUG",   "a": "ADDRMAP",          "k": "DESCCHANGED",  "s": "STREAM",
-  "i": "INFO",    "f": "AUTHDIR_NEWDESCS", "g": "GUARD",        "r": "STREAM_BW",
-  "n": "NOTICE",  "h": "BUILDTIMEOUT_SET", "l": "NEWCONSENSUS", "t": "STATUS_CLIENT",
-  "w": "WARN",    "b": "BW",               "m": "NEWDESC",      "u": "STATUS_GENERAL",
-  "e": "ERR",     "c": "CIRC",             "p": "NS",           "v": "STATUS_SERVER",
-                  "j": "CLIENTS_SEEN",     "q": "ORCONN"}
 
 RUNLEVEL_EVENT_COLOR = {log.DEBUG: "magenta", log.INFO: "blue", log.NOTICE: "green",
                         log.WARN: "yellow", log.ERR: "red"}
@@ -97,60 +90,6 @@ def daysSince(timestamp=None):
   if timestamp == None: timestamp = time.time()
   return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
-def expandEvents(eventAbbr):
-  """
-  Expands event abbreviations to their full names. Beside mappings provided in
-  TOR_EVENT_TYPES this recognizes the following special events and aliases:
-  U - UKNOWN events
-  A - all events
-  X - no events
-  DINWE - runlevel and higher
-  12345 - arm/stem runlevel and higher (ARM_DEBUG - ARM_ERR)
-  Raises ValueError with invalid input if any part isn't recognized.
-
-  Examples:
-  "inUt" -> ["INFO", "NOTICE", "UNKNOWN", "STREAM_BW"]
-  "N4" -> ["NOTICE", "WARN", "ERR", "ARM_WARN", "ARM_ERR"]
-  "cfX" -> []
-
-  Arguments:
-    eventAbbr - flags to be parsed to event types
-  """
-
-  expandedEvents, invalidFlags = set(), ""
-
-  for flag in eventAbbr:
-    if flag == "A":
-      armRunlevels = ["ARM_" + runlevel for runlevel in log.Runlevel]
-      expandedEvents = set(list(TOR_EVENT_TYPES) + armRunlevels + ["UNKNOWN"])
-      break
-    elif flag == "X":
-      expandedEvents = set()
-      break
-    elif flag in "DINWE12345":
-      # all events for a runlevel and higher
-      if flag in "D1": runlevelIndex = 1
-      elif flag in "I2": runlevelIndex = 2
-      elif flag in "N3": runlevelIndex = 3
-      elif flag in "W4": runlevelIndex = 4
-      elif flag in "E5": runlevelIndex = 5
-
-      if flag in "DINWE":
-        runlevelSet = [runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
-        expandedEvents = expandedEvents.union(set(runlevelSet))
-      elif flag in "12345":
-        runlevelSet = ["ARM_" + runlevel for runlevel in list(log.Runlevel)[runlevelIndex:]]
-        expandedEvents = expandedEvents.union(set(runlevelSet))
-    elif flag == "U":
-      expandedEvents.add("UNKNOWN")
-    elif flag in TOR_EVENT_TYPES:
-      expandedEvents.add(TOR_EVENT_TYPES[flag])
-    else:
-      invalidFlags += flag
-
-  if invalidFlags: raise ValueError(invalidFlags)
-  else: return expandedEvents
-
 def getMissingEventTypes():
   """
   Provides the event types the current tor connection supports but arm
@@ -162,7 +101,7 @@ def getMissingEventTypes():
 
   if torEventTypes:
     torEventTypes = torEventTypes.split(" ")
-    armEventTypes = TOR_EVENT_TYPES.values()
+    armEventTypes = arm.arguments.TOR_EVENT_TYPES.values()
     return [event for event in torEventTypes if not event in armEventTypes]
   else: return None # GETINFO call failed
 
@@ -621,7 +560,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       color = "magenta"
     elif isinstance(event, events.GuardEvent):
       color = "yellow"
-    elif not event.type in TOR_EVENT_TYPES.values():
+    elif not event.type in arm.arguments.TOR_EVENT_TYPES.values():
       color = "red" # unknown event type
 
     self.registerEvent(LogEntry(event.arrived_at, event.type, msg, color))
@@ -762,7 +701,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         userInput = arm.popups.inputPrompt("Events to log: ")
         if userInput:
           userInput = userInput.replace(' ', '') # strips spaces
-          try: self.setLoggedEvents(expandEvents(userInput))
+          try: self.setLoggedEvents(arm.arguments.expand_events(userInput))
           except ValueError, exc:
             arm.popups.showMsg("Invalid flags: %s" % str(exc), 2)
       finally: arm.popups.finalize()
@@ -1107,7 +1046,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       events.add("WARN")
       events.remove("WARNING")
 
-    torEvents = events.intersection(set(TOR_EVENT_TYPES.values()))
+    torEvents = events.intersection(set(arm.arguments.TOR_EVENT_TYPES.values()))
     armEvents = events.intersection(set(["ARM_%s" % runlevel for runlevel in log.Runlevel.keys()]))
 
     # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type

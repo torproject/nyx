@@ -9,6 +9,7 @@ import curses
 import sys
 import threading
 
+import arm.arguments
 import arm.menu.menu
 import arm.popups
 import arm.headerPanel
@@ -103,7 +104,7 @@ def initController(stdscr, startTime):
     firstPagePanels.append(arm.graphing.graphPanel.GraphPanel(stdscr))
 
   if CONFIG["features.panels.show.log"]:
-    expandedEvents = arm.logPanel.expandEvents(CONFIG["startup.events"])
+    expandedEvents = arm.arguments.expand_events(CONFIG["startup.events"])
     firstPagePanels.append(arm.logPanel.LogPanel(stdscr, expandedEvents))
 
   if firstPagePanels: pagePanels.append(firstPagePanels)

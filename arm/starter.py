@@ -34,7 +34,7 @@ import stem.util.system
 
 from arm.util import init_controller, msg, trace, info, notice, warn, load_settings
 
-CONFIG = stem.util.conf.config_dict("arm", {
+CONFIG = stem.util.conf.config_dict('arm', {
   'tor.chroot': '',
   'tor.password': None,
 })
@@ -77,16 +77,6 @@ def main():
 
   _load_armrc(args.config)
   _validate_chroot()
-
-  # validates and expands log event flags
-
-  try:
-    arm.logPanel.expandEvents(args.logged_events)
-  except ValueError as exc:
-    for flag in str(exc):
-      print msg('usage.unrecognized_log_flag', flag = flag)
-
-    sys.exit(1)
 
   try:
     controller = _get_controller(args)
@@ -247,11 +237,12 @@ def _setup_debug_logging(args):
     datefmt = '%m/%d/%Y %H:%M:%S'
   ))
 
-  stem.util.log.get_logger().addHandler(debug_handler)
+  logger = stem.util.log.get_logger()
+  logger.addHandler(debug_handler)
 
-  if not os.path.exists(args.config):
-    armrc_content = "[file doesn't exist]"
-  else:
+  armrc_content = "[file doesn't exist]"
+
+  if os.path.exists(args.config):
     try:
       with open(args.config) as armrc_file:
         armrc_content = armrc_file.read()
@@ -290,7 +281,7 @@ def _validate_chroot():
   """
 
   config = stem.util.conf.get_config('arm')
-  chroot = CONFIG['tor.chroot'].strip().rstrip(os.path.sep)
+  chroot = config.get('tor.chroot', '').strip().rstrip(os.path.sep)
 
   if chroot and not os.path.exists(chroot):
     notice('setup.chroot_doesnt_exist', path = chroot)
@@ -306,13 +297,13 @@ def _setup_freebsd_chroot(controller):
   :param stem.control.Controller controller: tor controller connection
   """
 
-  if not CONFIG['tor.chroot'] and platform.system() == 'FreeBSD':
+  config = stem.util.conf.get_config('arm')
+
+  if not config.get('tor.chroot', None) and platform.system() == 'FreeBSD':
     jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
       info('setup.set_freebsd_chroot', path = jail_chroot)
-
-      config = stem.util.conf.get_config('arm')
       config.set('tor.chroot', jail_chroot)
 
 
