@@ -18,7 +18,6 @@ import threading
 import arm
 import arm.arguments
 import arm.controller
-import arm.logPanel
 import arm.util.panel
 import arm.util.torConfig
 import arm.util.tracker
@@ -124,7 +123,7 @@ def main():
 
   # provides a notice about any event types tor supports but arm doesn't
 
-  missing_event_types = arm.logPanel.getMissingEventTypes()
+  missing_event_types = arm.arguments.missing_event_types()
 
   if missing_event_types:
     info('setup.unknown_event_types', event_types = ', '.join(missing_event_types))

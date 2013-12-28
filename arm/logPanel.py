@@ -90,21 +90,6 @@ def daysSince(timestamp=None):
   if timestamp == None: timestamp = time.time()
   return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
-def getMissingEventTypes():
-  """
-  Provides the event types the current tor connection supports but arm
-  doesn't. This provides an empty list if no event types are missing, and None
-  if the GETINFO query fails.
-  """
-
-  torEventTypes = torTools.getConn().getInfo("events/names", None)
-
-  if torEventTypes:
-    torEventTypes = torEventTypes.split(" ")
-    armEventTypes = arm.arguments.TOR_EVENT_TYPES.values()
-    return [event for event in torEventTypes if not event in armEventTypes]
-  else: return None # GETINFO call failed
-
 def loadLogMessages():
   """
   Fetches a mapping of common log messages to their runlevels from the config.
@@ -1051,7 +1036,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # adds events unrecognized by arm if we're listening to the 'UNKNOWN' type
     if "UNKNOWN" in events:
-      torEvents.update(set(getMissingEventTypes()))
+      torEvents.update(set(arm.arguments.missing_event_types()))
 
     torConn = torTools.getConn()
     torConn.removeEventListener(self.registerTorEvent)

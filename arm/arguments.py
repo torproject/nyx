@@ -10,7 +10,7 @@ import arm
 
 import stem.connection
 
-from arm.util import msg
+from arm.util import tor_controller, msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -206,3 +206,22 @@ def expand_events(flags):
     raise ValueError(''.join(set(invalid_flags)))
   else:
     return expanded_events
+
+
+def missing_event_types():
+  """
+  Provides the event types the current tor connection supports but arm
+  doesn't. This provides an empty list if no event types are missing or the
+  GETINFO query fails.
+
+  :returns: **list** of missing event types
+  """
+
+  response = tor_controller().get_info('events/names', None)
+
+  if response is None:
+    return []  # GETINFO query failed
+
+  tor_event_types = response.split(' ')
+  recognized_types = TOR_EVENT_TYPES.values()
+  return filter(lambda x: x not in recognized_types, tor_event_types)
