@@ -109,7 +109,7 @@ def isUnicodeAvailable():
       #
       # so if the LANG isn't unicode then setting this would be pointless.
 
-      isLangUnicode = "utf-" in os.environ.get("LANG", "").lower()
+      isLangUnicode = "utf-" in os.getenv("LANG", "").lower()
       IS_UNICODE_SUPPORTED = isLangUnicode and _isWideCharactersAvailable()
     else: IS_UNICODE_SUPPORTED = False
 

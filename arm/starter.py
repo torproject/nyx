@@ -1,11 +1,10 @@
 """
 Command line application for monitoring Tor relays, providing real time status
-information. This starts the applicatin, getting a tor connection and parsing
-arguments.
+information. This starts the application, parsing arguments and getting a Tor
+connection.
 """
 
 import curses
-import getopt
 import getpass
 import locale
 import logging
@@ -27,21 +26,16 @@ import stem
 import stem.connection
 import stem.control
 import stem.util.conf
-import stem.util.connection
 import stem.util.log
 import stem.util.system
 
-from arm.util import init_controller, msg, trace, info, notice, warn, load_settings
+from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, load_settings
 
-CONFIG = stem.util.conf.config_dict('arm', {
-  'tor.chroot': '',
-  'tor.password': None,
-})
+CONFIG = stem.util.conf.get_config('arm')
 
 
 def main():
-  config = stem.util.conf.get_config('arm')
-  config.set('start_time', str(int(time.time())))
+  CONFIG.set('start_time', str(int(time.time())))
 
   try:
     load_settings()
@@ -51,10 +45,7 @@ def main():
 
   try:
     args = arm.arguments.parse(sys.argv[1:])
-    config.set('startup.events', args.logged_events)
-  except getopt.GetoptError as exc:
-    print msg('usage.invalid_arguments', error = exc)
-    sys.exit(1)
+    CONFIG.set('startup.events', args.logged_events)
   except ValueError as exc:
     print exc
     sys.exit(1)
@@ -74,59 +65,25 @@ def main():
       print msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror)
       sys.exit(1)
 
-  _load_armrc(args.config)
-  _validate_chroot()
+  _load_user_armrc(args.config)
 
   try:
     controller = _get_controller(args)
-    _authenticate(controller, CONFIG['tor.password'])
+    _authenticate(controller, CONFIG.get('tor.password', None))
     init_controller(controller)
   except ValueError as exc:
     print exc
     exit(1)
 
-  # Removing references to the controller password so the memory can be
-  # freed. Without direct memory access this is about the best we can do.
-
-  config.set('tor.password', '')
-
-  _setup_freebsd_chroot(controller)
   _warn_if_root(controller)
-
-  # fetches descriptions for tor's configuration options
-
-  arm.util.torConfig.loadConfigurationDescriptions(os.path.dirname(__file__))
-
-  # Attempts to rename our process from "python setup.py <input args>" to
-  # "arm <input args>"
-
-  stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
-
-  # Makes subcommands provide us with English results (this is important so we
-  # can properly parse it).
-
-  os.putenv("LANG", "C")
-
-  # check that we'll be able to get tor's pid later
-
-  try:
-    controller.get_pid()
-  except ValueError:
-    warn('setup.unable_to_determine_pid')
-
-  # If using our LANG variable for rendering multi-byte characters lets us
-  # get unicode support then then use it. This needs to be done before
-  # initializing curses.
-
-  if arm.util.uiTools.isUnicodeAvailable():
-    locale.setlocale(locale.LC_ALL, "")
-
-  # provides a notice about any event types tor supports but arm doesn't
-
-  missing_event_types = arm.arguments.missing_event_types()
-
-  if missing_event_types:
-    info('setup.unknown_event_types', event_types = ', '.join(missing_event_types))
+  _warn_if_unable_to_get_pid(controller)
+  _setup_freebsd_chroot(controller)
+  _notify_of_unknown_events()
+  _clear_password()
+  _load_tor_config_descriptions()
+  _use_english_subcommands()
+  _use_unicode()
+  _set_process_name()
 
   try:
     curses.wrapper(arm.controller.start_arm)
@@ -136,25 +93,15 @@ def main():
     else:
       raise exc
   except KeyboardInterrupt:
-    # Skip printing stack trace in case of keyboard interrupt. The
-    # HALT_ACTIVITY attempts to prevent daemons from triggering a curses redraw
-    # (which would leave the user's terminal in a screwed up state). There is
-    # still a tiny timing issue here (after the exception but before the flag
-    # is set) but I've never seen it happen in practice.
-
-    arm.util.panel.HALT_ACTIVITY = True
+    pass  # skip printing a stack trace
   finally:
+    arm.util.panel.HALT_ACTIVITY = True
     _shutdown_daemons(controller)
+
 
 def _get_controller(args):
   """
   Provides a Controller for the endpoint specified in the given arguments.
-
-  :param namedtuple args: arguments that arm was started with
-
-  :returns: :class:`~stem.control.Controller` for the given arguments
-
-  :raises: **ValueError** if unable to acquire a controller connection
   """
 
   if os.path.exists(args.control_socket):
@@ -181,16 +128,10 @@ def _get_controller(args):
 def _authenticate(controller, password):
   """
   Authenticates to the given Controller.
-
-  :param stem.control.Controller controller: controller to be authenticated
-  :param str password: password to authenticate with, **None** if nothing was
-    provided
-
-  :raises: **ValueError** if unable to authenticate
   """
 
   try:
-    controller.authenticate(password = password, chroot_path = CONFIG['tor.chroot'])
+    controller.authenticate(password = password, chroot_path = CONFIG.get('tor.chroot', ''))
   except stem.connection.IncorrectSocketType:
     control_socket = controller.get_socket()
 
@@ -218,10 +159,6 @@ def _setup_debug_logging(args):
   """
   Configures us to log at stem's trace level to debug log path, and notes some
   general diagnostic information.
-
-  :param namedtuple args: arguments that arm was started with
-
-  :raises: **IOError** if we can't log to this location
   """
 
   debug_dir = os.path.dirname(args.debug_path)
@@ -253,75 +190,131 @@ def _setup_debug_logging(args):
     stem_version = stem.__version__,
     python_version = '.'.join(map(str, sys.version_info[:3])),
     system = platform.system(),
-    platform = " ".join(platform.dist()),
+    platform = ' '.join(platform.dist()),
     armrc_path = args.config,
     armrc_content = armrc_content,
   )
 
 
-def _load_armrc(path):
+def _load_user_armrc(path):
   """
   Loads user's personal armrc if it's available.
   """
 
   if os.path.exists(path):
     try:
-      config = stem.util.conf.get_config('arm')
-      config.load(path)
+      CONFIG.load(path)
+
+      # If the user provided us with a chroot then validate and normalize the
+      # path.
+
+      chroot = CONFIG.get('tor.chroot', '').strip().rstrip(os.path.sep)
+
+      if chroot and not os.path.exists(chroot):
+        notice('setup.chroot_doesnt_exist', path = chroot)
+        CONFIG.set('tor.chroot', '')
+      else:
+        CONFIG.set('tor.chroot', chroot)  # use the normalized path
     except IOError as exc:
       warn('config.unable_to_read_file', error = exc.strerror)
   else:
     notice('config.nothing_loaded', path = path)
 
 
-def _validate_chroot():
+def _warn_if_root(controller):
   """
-  Ensure that the chroot exists and strip trailing slashes.
+  Give a notice if tor or arm are running with root.
   """
 
-  config = stem.util.conf.get_config('arm')
-  chroot = config.get('tor.chroot', '').strip().rstrip(os.path.sep)
+  tor_user = controller.get_user(None)
 
-  if chroot and not os.path.exists(chroot):
-    notice('setup.chroot_doesnt_exist', path = chroot)
-    config.set('tor.chroot', '')
-  else:
-    config.set('tor.chroot', chroot)  # use the normalized path
+  if tor_user == 'root':
+    notice('setup.tor_is_running_as_root')
+  elif os.getuid() == 0:
+    tor_user = tor_user if tor_user else '<tor user>'
+    notice('setup.arm_is_running_as_root', tor_user = tor_user)
+
+
+def _warn_if_unable_to_get_pid(controller):
+  """
+  Provide a warning if we're unable to determine tor's pid. This in turn will
+  limit our ability to query information about the process later.
+  """
+
+  try:
+    controller.get_pid()
+  except ValueError:
+    warn('setup.unable_to_determine_pid')
 
 
 def _setup_freebsd_chroot(controller):
   """
   If we're running under FreeBSD then check the system for a chroot path.
-
-  :param stem.control.Controller controller: tor controller connection
   """
 
-  config = stem.util.conf.get_config('arm')
-
-  if not config.get('tor.chroot', None) and platform.system() == 'FreeBSD':
+  if not CONFIG.get('tor.chroot', None) and platform.system() == 'FreeBSD':
     jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
       info('setup.set_freebsd_chroot', path = jail_chroot)
-      config.set('tor.chroot', jail_chroot)
+      CONFIG.set('tor.chroot', jail_chroot)
 
 
-def _warn_if_root(controller):
+def _notify_of_unknown_events():
   """
-  Give a notice if tor or arm are running with root. Querying connections
-  usually requires us to have the same permissions as tor so if tor is
-  running as root then just warning about that.
-
-  :param stem.control.Controller controller: tor controller connection
+  Provides a notice about any event types tor supports but arm doesn't.
   """
 
-  tor_user = controller.get_user(None)
+  missing_events = arm.arguments.missing_event_types()
 
-  if tor_user == "root":
-    notice('setup.tor_is_running_as_root')
-  elif os.getuid() == 0:
-    tor_user = tor_user if tor_user else "<tor user>"
-    notice('setup.arm_is_running_as_root', tor_user = tor_user)
+  if missing_events:
+    info('setup.unknown_event_types', event_types = ', '.join(missing_events))
+
+
+def _clear_password():
+  """
+  Removing the reference to our controller password so the memory can be freed.
+  Without direct memory access this is about the best we can do to clear it.
+  """
+
+  CONFIG.set('tor.password', '')
+
+
+def _load_tor_config_descriptions():
+  """
+  Attempt to determine descriptions for tor's configuration options.
+  """
+
+  arm.util.torConfig.loadConfigurationDescriptions(BASE_DIR)
+
+
+def _use_english_subcommands():
+  """
+  Make subcommands we run (ps, netstat, etc) provide us with English results.
+  This is important so we can parse the output.
+  """
+
+  os.putenv('LANG', 'C')
+
+
+def _use_unicode():
+  """
+  If using our LANG variable for rendering multi-byte characters lets us
+  get unicode support then then use it. This needs to be done before
+  initializing curses.
+  """
+
+  if arm.util.uiTools.isUnicodeAvailable():
+    locale.setlocale(locale.LC_ALL, '')
+
+
+def _set_process_name():
+  """
+  Attempts to rename our process from "python setup.py <input args>" to
+  "arm <input args>".
+  """
+
+  stem.util.system.set_process_name("arm\0%s" % "\0".join(sys.argv[1:]))
 
 
 def _shutdown_daemons(controller):

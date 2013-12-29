@@ -1,4 +1,3 @@
-import getopt
 import unittest
 
 from mock import Mock, patch
@@ -47,7 +46,7 @@ class TestArgumentParsing(unittest.TestCase):
     self.assertEqual('/tmp/cfg', args.config)
 
   def test_that_we_reject_unrecognized_arguments(self):
-    self.assertRaises(getopt.GetoptError, parse, ['--blarg', 'stuff'])
+    self.assertRaises(ValueError, parse, ['--blarg', 'stuff'])
 
   def test_that_we_reject_invalid_interfaces(self):
     invalid_inputs = (

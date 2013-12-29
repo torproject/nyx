@@ -618,5 +618,3 @@ def start_arm(stdscr):
         isKeystrokeConsumed = panelImpl.handleKey(key)
         if isKeystrokeConsumed: break
 
-  panel.HALT_ACTIVITY = True
-

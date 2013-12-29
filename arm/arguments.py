@@ -55,13 +55,16 @@ def parse(argv):
   :returns: a **named tuple** with our parsed arguments
 
   :raises: **ValueError** if we got an invalid argument
-  :raises: **getopt.GetoptError** if the arguments don't conform with what we
-    accept
   """
 
   args = dict(DEFAULT_ARGS)
 
-  for opt, arg in getopt.getopt(argv, OPT, OPT_EXPANDED)[0]:
+  try:
+    getopt_results = getopt.getopt(argv, OPT, OPT_EXPANDED)[0]
+  except getopt.GetoptError as exc:
+    raise ValueError(msg('usage.invalid_arguments', error = exc))
+
+  for opt, arg in getopt_results:
     if opt in ('-i', '--interface'):
       if ':' in arg:
         address, port = arg.split(':', 1)
