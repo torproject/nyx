@@ -5,7 +5,6 @@ connection.
 """
 
 import curses
-import getpass
 import locale
 import logging
 import os
@@ -19,17 +18,16 @@ import arm.arguments
 import arm.controller
 import arm.util.panel
 import arm.util.torConfig
+import arm.util.torTools
 import arm.util.tracker
 import arm.util.uiTools
 
 import stem
-import stem.connection
-import stem.control
 import stem.util.conf
 import stem.util.log
 import stem.util.system
 
-from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, load_settings
+from arm.util import BASE_DIR, init_controller, authenticate, msg, trace, info, notice, warn, load_settings
 
 CONFIG = stem.util.conf.get_config('arm')
 
@@ -68,9 +66,13 @@ def main():
   _load_user_armrc(args.config)
 
   try:
-    controller = _get_controller(args)
-    _authenticate(controller, CONFIG.get('tor.password', None))
-    init_controller(controller)
+    controller = init_controller(args)
+    authenticate(controller, CONFIG.get('tor.password', None), CONFIG.get('tor.chroot', ''))
+
+    # TODO: Our tor_controller() method will gradually replace the torTools
+    # module, but until that we need to initialize it too.
+
+    arm.util.torTools.getConn().init(controller)
   except ValueError as exc:
     print exc
     exit(1)
@@ -97,62 +99,6 @@ def main():
   finally:
     arm.util.panel.HALT_ACTIVITY = True
     _shutdown_daemons(controller)
-
-
-def _get_controller(args):
-  """
-  Provides a Controller for the endpoint specified in the given arguments.
-  """
-
-  if os.path.exists(args.control_socket):
-    try:
-      return stem.control.Controller.from_socket_file(args.control_socket)
-    except stem.SocketError as exc:
-      if args.user_provided_socket:
-        raise ValueError(msg('connect.unable_to_use_socket', path = args.control_socket, error = exc))
-  elif args.user_provided_socket:
-    raise ValueError(msg('connect.socket_doesnt_exist', path = args.control_socket))
-
-  try:
-    return stem.control.Controller.from_port(args.control_address, args.control_port)
-  except stem.SocketError as exc:
-    if args.user_provided_port:
-      raise ValueError(msg('connect.unable_to_use_port', address = args.control_address, port = args.control_port, error = exc))
-
-  if not stem.util.system.is_running('tor'):
-    raise ValueError(msg('connect.tor_isnt_running'))
-  else:
-    raise ValueError(msg('connect.no_control_port'))
-
-
-def _authenticate(controller, password):
-  """
-  Authenticates to the given Controller.
-  """
-
-  try:
-    controller.authenticate(password = password, chroot_path = CONFIG.get('tor.chroot', ''))
-  except stem.connection.IncorrectSocketType:
-    control_socket = controller.get_socket()
-
-    if isinstance(control_socket, stem.socket.ControlPort):
-      raise ValueError(msg('connect.wrong_port_type', port = control_socket.get_port()))
-    else:
-      raise ValueError(msg('connect.wrong_socket_type'))
-  except stem.connection.UnrecognizedAuthMethods as exc:
-    raise ValueError(msg('uncrcognized_auth_type', auth_methods = ', '.join(exc.unknown_auth_methods)))
-  except stem.connection.IncorrectPassword:
-    raise ValueError(msg('connect.incorrect_password'))
-  except stem.connection.MissingPassword:
-    if password:
-      raise ValueError(msg('connect.missing_password_bug'))
-
-    password = getpass.getpass(msg('connect.password_prompt') + ' ')
-    return _authenticate(controller, password)
-  except stem.connection.UnreadableCookieFile as exc:
-    raise ValueError(msg('connect.unreadable_cookie_file', path = exc.cookie_path, issue = str(exc)))
-  except stem.connection.AuthenticationFailure as exc:
-    raise ValueError(msg('connect.general_auth_failure', error = exc))
 
 
 def _setup_debug_logging(args):

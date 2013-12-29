@@ -2,31 +2,25 @@ import unittest
 
 from mock import Mock, patch
 
-from arm.starter import (
-  _get_controller,
-  _authenticate,
+from arm.util import (
+  init_controller,
+  authenticate,
 )
 
 import stem
 import stem.connection
 import stem.socket
-import stem.util.conf
 
 
 class TestAuthenticate(unittest.TestCase):
-  def setUp(self):
-    arm_conf = stem.util.conf.get_config('arm')
-    arm_conf.set('tor.chroot', '')  # no chroot
-
   def test_success(self):
     controller = Mock()
 
-    _authenticate(controller, None)
+    authenticate(controller, None)
     controller.authenticate.assert_called_with(password = None, chroot_path = '')
     controller.authenticate.reset_mock()
 
-    stem.util.conf.get_config('arm').set('tor.chroot', '/my/chroot')
-    _authenticate(controller, 's3krit!!!')
+    authenticate(controller, 's3krit!!!', '/my/chroot')
     controller.authenticate.assert_called_with(password = 's3krit!!!', chroot_path = '/my/chroot')
 
   @patch('getpass.getpass')
@@ -44,7 +38,7 @@ class TestAuthenticate(unittest.TestCase):
     controller.authenticate.side_effect = authenticate_mock
     getpass_mock.return_value = 'my_password'
 
-    _authenticate(controller, None)
+    authenticate(controller, None)
     controller.authenticate.assert_any_call(password = None, chroot_path = '')
     controller.authenticate.assert_any_call(password = 'my_password', chroot_path = '')
 
@@ -72,7 +66,7 @@ class TestAuthenticate(unittest.TestCase):
 
   def _assert_authenticate_fails_with(self, controller, msg):
     try:
-      _get_controller(_authenticate(controller, None))
+      init_controller(authenticate(controller, None))
       self.fail()
     except ValueError, exc:
       if not msg in str(exc):

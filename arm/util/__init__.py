@@ -6,10 +6,14 @@ and safely working with curses (hiding some of the gory details).
 
 __all__ = ["connections", "panel", "sysTools", "textInput", "torConfig", "torTools", "tracker", "uiTools"]
 
+import getpass
 import os
 
 import arm.util.torTools
 
+import stem
+import stem.connection
+import stem.control
 import stem.util.conf
 import stem.util.log
 
@@ -27,20 +31,57 @@ def tor_controller():
   return TOR_CONTROLLER
 
 
-def init_controller(controller):
+def init_controller(args):
   """
-  Registers an initialized tor controller.
+  Provides a Controller for the endpoint specified in the given arguments.
 
-  :param stem.control.Controller controller: tor controller for arm to use
+  :param namedtuple args: arguments that arm was started with
+
+  :returns: :class:`~stem.control.Controller` for the given arguments
+
+  :raises: **ValueError** if unable to acquire a controller connection
   """
 
   global TOR_CONTROLLER
-  TOR_CONTROLLER = controller
+  TOR_CONTROLLER = _get_controller(args)
+  return TOR_CONTROLLER
 
-  # TODO: Our controller() method will gradually replace the torTools module,
-  # but until that we need to initialize it too.
 
-  arm.util.torTools.getConn().init(controller)
+def authenticate(controller, password, chroot_path = ''):
+  """
+  Authenticates to the given Controller.
+
+  :param stem.control.Controller controller: controller to be authenticated
+  :param str password: password to authenticate with, **None** if nothing was
+    provided
+  :param str chroot_path: chroot tor resides within
+
+  :raises: **ValueError** if unable to authenticate
+  """
+
+  try:
+    controller.authenticate(password = password, chroot_path = chroot_path)
+  except stem.connection.IncorrectSocketType:
+    control_socket = controller.get_socket()
+
+    if isinstance(control_socket, stem.socket.ControlPort):
+      raise ValueError(msg('connect.wrong_port_type', port = control_socket.get_port()))
+    else:
+      raise ValueError(msg('connect.wrong_socket_type'))
+  except stem.connection.UnrecognizedAuthMethods as exc:
+    raise ValueError(msg('uncrcognized_auth_type', auth_methods = ', '.join(exc.unknown_auth_methods)))
+  except stem.connection.IncorrectPassword:
+    raise ValueError(msg('connect.incorrect_password'))
+  except stem.connection.MissingPassword:
+    if password:
+      raise ValueError(msg('connect.missing_password_bug'))
+
+    password = getpass.getpass(msg('connect.password_prompt') + ' ')
+    return authenticate(controller, password)
+  except stem.connection.UnreadableCookieFile as exc:
+    raise ValueError(msg('connect.unreadable_cookie_file', path = exc.cookie_path, issue = str(exc)))
+  except stem.connection.AuthenticationFailure as exc:
+    raise ValueError(msg('connect.general_auth_failure', error = exc))
 
 
 def msg(message, **attr):
@@ -116,3 +157,29 @@ def _log(runlevel, message, **attr):
   """
 
   stem.util.log.log(runlevel, msg(message, **attr))
+
+
+def _get_controller(args):
+  """
+  Provides a Controller for the endpoint specified in the given arguments.
+  """
+
+  if os.path.exists(args.control_socket):
+    try:
+      return stem.control.Controller.from_socket_file(args.control_socket)
+    except stem.SocketError as exc:
+      if args.user_provided_socket:
+        raise ValueError(msg('connect.unable_to_use_socket', path = args.control_socket, error = exc))
+  elif args.user_provided_socket:
+    raise ValueError(msg('connect.socket_doesnt_exist', path = args.control_socket))
+
+  try:
+    return stem.control.Controller.from_port(args.control_address, args.control_port)
+  except stem.SocketError as exc:
+    if args.user_provided_port:
+      raise ValueError(msg('connect.unable_to_use_port', address = args.control_address, port = args.control_port, error = exc))
+
+  if not stem.util.system.is_running('tor'):
+    raise ValueError(msg('connect.tor_isnt_running'))
+  else:
+    raise ValueError(msg('connect.no_control_port'))
