@@ -1,7 +1,9 @@
 import getopt
 import unittest
 
-from arm.arguments import DEFAULT_ARGS, parse, expand_events
+from mock import Mock, patch
+
+from arm.arguments import DEFAULT_ARGS, parse, expand_events, missing_event_types
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -63,6 +65,7 @@ class TestArgumentParsing(unittest.TestCase):
     for invalid_input in invalid_inputs:
       self.assertRaises(ValueError, parse, ['--interface', invalid_input])
 
+
 class TestExpandEvents(unittest.TestCase):
   def test_examples(self):
     self.assertEqual(set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT']), expand_events('inUt'))
@@ -101,3 +104,29 @@ class TestExpandEvents(unittest.TestCase):
       self.fail()
     except ValueError as exc:
       self.assertEqual(set(expected), set(str(exc)))
+
+
+class TestMissingEventTypes(unittest.TestCase):
+  @patch('arm.arguments.tor_controller')
+  def test_with_a_failed_query(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = None
+    controller_mock.return_value = controller
+
+    self.assertEqual([], missing_event_types())
+
+  @patch('arm.arguments.tor_controller')
+  def test_without_unrecognized_events(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR'
+    controller_mock.return_value = controller
+
+    self.assertEqual([], missing_event_types())
+
+  @patch('arm.arguments.tor_controller')
+  def test_with_unrecognized_events(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'EVENT1 DEBUG INFO NOTICE WARN EVENT2 ERR EVENT3'
+    controller_mock.return_value = controller
+
+    self.assertEqual(['EVENT1', 'EVENT2', 'EVENT3'], missing_event_types())
