@@ -6,7 +6,6 @@ user input to the proper panels.
 import os
 import time
 import curses
-import sys
 import threading
 
 import arm.arguments
@@ -23,9 +22,9 @@ import arm.graphing.resourceStats
 import arm.connections.connPanel
 import arm.util.tracker
 
-from stem.control import State, Controller
+from stem.control import State
 
-from arm.util import connections, panel, torConfig, torTools
+from arm.util import panel, torConfig, torTools
 
 from stem.util import conf, enum, log, system
 

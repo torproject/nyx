@@ -22,18 +22,15 @@ import threading
 import arm.util.tracker
 
 import stem
-import stem.connection
 
-from stem.control import State, Controller
-from stem.util import conf, str_tools
+from stem.control import State
+from stem.util import conf, log, str_tools
 
 import arm.starter
 import arm.popups
 import arm.controller
 
 from util import panel, sysTools, torTools, uiTools
-
-from stem.util import log, str_tools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -136,8 +133,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and torTools.getConn().isNewnymAvailable():
       self.sendNewnym()
     elif key in (ord('r'), ord('R')) and not self._isTorConnected:
-      oldSocket = torTools.getConn().getController().get_socket()
-
+      #oldSocket = torTools.getConn().getController().get_socket()
+      #
       #controller = None
       #allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       #

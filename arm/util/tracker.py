@@ -177,11 +177,11 @@ def _resources_via_proc(pid):
   )
 
   total_cpu_time = float(utime) + float(stime)
-  memory_in_bytes = proc.get_memory_usage(process_pid)[0]
+  memory_in_bytes = proc.get_memory_usage(pid)[0]
   total_memory = proc.get_physical_memory()
 
   uptime = time.time() - float(start_time)
-  memory_in_percent = float(mem_usage) / total_memory
+  memory_in_percent = float(memory_in_bytes) / total_memory
 
   return (total_cpu_time, uptime, memory_in_bytes, memory_in_percent)
 

@@ -319,7 +319,7 @@ class Controller:
         hs_port = entry  # just has the virtual port
 
       if hs_port.isdigit():
-        result.append(hsPort)
+        result.append(hs_port)
 
     if result:
       return result
@@ -391,7 +391,7 @@ class Controller:
       myDescriptor = self.controller.get_server_descriptor(myFingerprint)
 
       if myDescriptor:
-        result = myDescriptor.observed_bandwidth
+        return myDescriptor.observed_bandwidth
 
     return default
 
@@ -450,7 +450,7 @@ class Controller:
 
     try:
       return self.controller.get_version()
-    except stem.SocketClosed, exc:
+    except stem.SocketClosed:
       self.close()
       return None
     except:
@@ -587,7 +587,7 @@ class Controller:
     result = None
     if self.isAlive():
       try:
-        result = self.controller.get_exit_policy(param)
+        result = self.controller.get_exit_policy(None)
       except:
         pass
 
@@ -878,7 +878,6 @@ class Controller:
   def new_desc_event(self, event):
     self.connLock.acquire()
 
-    myFingerprint = self.getInfo("fingerprint", None)
     desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
 
     # If we're tracking ip address -> fingerprint mappings then update with

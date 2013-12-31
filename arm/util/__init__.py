@@ -9,8 +9,6 @@ __all__ = ["connections", "panel", "sysTools", "textInput", "torConfig", "torToo
 import getpass
 import os
 
-import arm.util.torTools
-
 import stem
 import stem.connection
 import stem.control

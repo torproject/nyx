@@ -109,7 +109,7 @@ class TorrcPanel(panel.Panel):
 
     self._lastContentHeightArgs = None
     self.redraw(True)
-    popups.showMsg(resultMsg, 1)
+    arm.popups.showMsg(resultMsg, 1)
 
   def handleKey(self, key):
     self.valsLock.acquire()

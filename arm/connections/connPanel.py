@@ -60,7 +60,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     if not CONFIG["features.connection.showIps"] and CONFIG["features.connection.listingType"] == 0:
       armConf = conf.get_config("arm")
-      armConf.set("features.connection.listingType", enumeration.keys()[Listing.index_of(Listing.FINGERPRINT)])
+      armConf.set("features.connection.listingType", Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
 
     self._scroller = uiTools.Scroller(True)
     self._title = "Connections:" # title line of the panel

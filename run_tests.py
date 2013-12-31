@@ -100,6 +100,9 @@ def get_pyflakes_issues(paths):
 def main():
   load_settings()
 
+  test_config = stem.util.conf.get_config("test")
+  test_config.load(os.path.join(ARM_BASE, "test", "settings.cfg"))
+
   clean_orphaned_pyc()
 
   tests = unittest.defaultTestLoader.discover('test', pattern='*.py')
