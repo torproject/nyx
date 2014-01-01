@@ -379,7 +379,8 @@ class ConnectionTracker(Daemon):
           self._failure_count = 0
 
           if self._resolvers:
-            notice('tracker.unable_to_use_resolver',
+            notice(
+              'tracker.unable_to_use_resolver',
               old_resolver = resolver,
               new_resolver = self._resolvers[0],
             )
@@ -476,7 +477,8 @@ class ResourceTracker(Daemon):
           self._use_proc = False
           self._failure_count = 0
 
-          info('tracker.abort_getting_resources',
+          info(
+            'tracker.abort_getting_resources',
             resolver = 'proc',
             response = 'falling back to ps',
             exc = exc,
@@ -487,7 +489,8 @@ class ResourceTracker(Daemon):
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          info('tracker.abort_getting_resources',
+          info(
+            'tracker.abort_getting_resources',
             resolver = 'ps',
             response = 'giving up on getting resource usage information',
             exc = exc,

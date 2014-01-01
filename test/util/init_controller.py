@@ -63,5 +63,5 @@ class TestGetController(unittest.TestCase):
     try:
       init_controller(parse(args))
       self.fail()
-    except ValueError, exc:
+    except ValueError as exc:
       self.assertEqual(msg, str(exc))

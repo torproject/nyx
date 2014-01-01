@@ -68,6 +68,6 @@ class TestAuthenticate(unittest.TestCase):
     try:
       init_controller(authenticate(controller, None))
       self.fail()
-    except ValueError, exc:
+    except ValueError as exc:
       if not msg in str(exc):
         self.fail("Expected...\n\n%s\n\n... which couldn't be found in...\n\n%s" % (msg, exc))

@@ -131,7 +131,8 @@ def _setup_debug_logging(args):
     except IOError as exc:
       armrc_content = "[unable to read file: %s]" % exc.strerror
 
-  trace('debug.header',
+  trace(
+    'debug.header',
     arm_version = arm.__version__,
     stem_version = stem.__version__,
     python_version = '.'.join(map(str, sys.version_info[:3])),

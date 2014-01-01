@@ -38,12 +38,30 @@ OPT_EXPANDED = [
 ]
 
 TOR_EVENT_TYPES = {
-  'd': 'DEBUG',   'a': 'ADDRMAP',          'k': 'DESCCHANGED',  's': 'STREAM',
-  'i': 'INFO',    'f': 'AUTHDIR_NEWDESCS', 'g': 'GUARD',        'r': 'STREAM_BW',
-  'n': 'NOTICE',  'h': 'BUILDTIMEOUT_SET', 'l': 'NEWCONSENSUS', 't': 'STATUS_CLIENT',
-  'w': 'WARN',    'b': 'BW',               'm': 'NEWDESC',      'u': 'STATUS_GENERAL',
-  'e': 'ERR',     'c': 'CIRC',             'p': 'NS',           'v': 'STATUS_SERVER',
-                  'j': 'CLIENTS_SEEN',     'q': 'ORCONN'}
+  'd': 'DEBUG',
+  'i': 'INFO',
+  'n': 'NOTICE',
+  'w': 'WARN',
+  'e': 'ERR',
+
+  'a': 'ADDRMAP',
+  'f': 'AUTHDIR_NEWDESCS',
+  'h': 'BUILDTIMEOUT_SET',
+  'b': 'BW',
+  'c': 'CIRC',
+  'j': 'CLIENTS_SEEN',
+  'k': 'DESCCHANGED',
+  'g': 'GUARD',
+  'l': 'NEWCONSENSUS',
+  'm': 'NEWDESC',
+  'p': 'NS',
+  'q': 'ORCONN',
+  's': 'STREAM',
+  'r': 'STREAM_BW',
+  't': 'STATUS_CLIENT',
+  'u': 'STATUS_GENERAL',
+  'v': 'STATUS_SERVER',
+}
 
 
 def parse(argv):
@@ -114,7 +132,8 @@ def get_help():
   :returns: **str** with our usage information
   """
 
-  return msg('usage.help_output',
+  return msg(
+    'usage.help_output',
     address = DEFAULT_ARGS['control_address'],
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
@@ -131,7 +150,8 @@ def get_version():
   :returns: **str** with our versioning information
   """
 
-  return msg('usage.version_output',
+  return msg(
+    'usage.version_output',
     version = arm.__version__,
     date = arm.__release_date__,
   )
