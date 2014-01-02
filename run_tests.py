@@ -12,6 +12,7 @@ import re
 import unittest
 
 import stem.util.conf
+import stem.util.system
 
 from arm.util import load_settings
 
@@ -140,43 +141,42 @@ def get_stylistic_issues(paths):
     style_checker = pep8.StyleGuide(ignore = CONFIG["pep8.ignore"], reporter = StyleReport)
     style_checker.check_files(filter(lambda path: path not in CONFIG["pep8.blacklist"], _python_files(paths)))
 
-  for path in paths:
-    for file_path in _get_files_with_suffix(path):
-      if file_path in CONFIG["pep8.blacklist"]:
-        continue
+  for path in _python_files(paths):
+    if path in CONFIG["pep8.blacklist"]:
+      continue
 
-      with open(file_path) as f:
-        file_contents = f.read()
+    with open(path) as f:
+      file_contents = f.read()
 
-      lines, prev_indent = file_contents.split("\n"), 0
-      is_block_comment = False
+    lines, prev_indent = file_contents.split("\n"), 0
+    is_block_comment = False
 
-      for index, line in enumerate(lines):
-        whitespace, content = re.match("^(\s*)(.*)$", line).groups()
+    for index, line in enumerate(lines):
+      whitespace, content = re.match("^(\s*)(.*)$", line).groups()
 
-        # TODO: This does not check that block indentations are two spaces
-        # because differentiating source from string blocks ("""foo""") is more
-        # of a pita than I want to deal with right now.
+      # TODO: This does not check that block indentations are two spaces
+      # because differentiating source from string blocks ("""foo""") is more
+      # of a pita than I want to deal with right now.
 
-        if '"""' in content:
-          is_block_comment = not is_block_comment
+      if '"""' in content:
+        is_block_comment = not is_block_comment
 
-        if "\t" in whitespace:
-          issues.setdefault(file_path, []).append((index + 1, "indentation has a tab"))
-        elif "\r" in content:
-          issues.setdefault(file_path, []).append((index + 1, "contains a windows newline"))
-        elif content != content.rstrip():
-          issues.setdefault(file_path, []).append((index + 1, "line has trailing whitespace"))
-        elif content.lstrip().startswith("except") and content.endswith(", exc:"):
-          # Python 2.6 - 2.7 supports two forms for exceptions...
-          #
-          #   except ValueError, exc:
-          #   except ValueError as exc:
-          #
-          # The former is the old method and no longer supported in python 3
-          # going forward.
+      if "\t" in whitespace:
+        issues.setdefault(path, []).append((index + 1, "indentation has a tab"))
+      elif "\r" in content:
+        issues.setdefault(path, []).append((index + 1, "contains a windows newline"))
+      elif content != content.rstrip():
+        issues.setdefault(path, []).append((index + 1, "line has trailing whitespace"))
+      elif content.lstrip().startswith("except") and content.endswith(", exc:"):
+        # Python 2.6 - 2.7 supports two forms for exceptions...
+        #
+        #   except ValueError, exc:
+        #   except ValueError as exc:
+        #
+        # The former is the old method and no longer supported in python 3
+        # going forward.
 
-          issues.setdefault(file_path, []).append((index + 1, "except clause should use 'as', not comma"))
+        issues.setdefault(path, []).append((index + 1, "except clause should use 'as', not comma"))
 
   return issues
 
@@ -235,30 +235,9 @@ def get_pyflakes_issues(paths):
   return issues
 
 
-def _get_files_with_suffix(base_path, suffix = ".py"):
-  """
-  Iterates over files in a given directory, providing filenames with a certain
-  suffix.
-
-  :param str base_path: directory to be iterated over
-  :param str suffix: filename suffix to look for
-
-  :returns: iterator that yields the absolute path for files with the given suffix
-  """
-
-  if os.path.isfile(base_path):
-    if base_path.endswith(suffix):
-      yield base_path
-  else:
-    for root, _, files in os.walk(base_path):
-      for filename in files:
-        if filename.endswith(suffix):
-          yield os.path.join(root, filename)
-
-
 def _python_files(paths):
   for path in paths:
-    for file_path in _get_files_with_suffix(path):
+    for file_path in stem.util.system.files_with_suffix(path, '.py'):
       yield file_path
 
 
