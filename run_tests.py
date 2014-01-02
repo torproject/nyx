@@ -12,7 +12,6 @@ import re
 import unittest
 
 import stem.util.conf
-import stem.util.system
 
 from arm.util import load_settings
 
@@ -27,6 +26,7 @@ ARM_BASE = os.path.dirname(__file__)
 SRC_PATHS = [os.path.join(ARM_BASE, path) for path in (
   'arm',
   'test',
+  'run_tests.py',
 )]
 
 
@@ -46,10 +46,10 @@ def main():
 
   static_check_issues = {}
 
-  if stem.util.system.is_available("pyflakes"):
+  if is_pyflakes_available():
     static_check_issues.update(get_pyflakes_issues(SRC_PATHS))
 
-  if stem.util.system.is_available("pep8"):
+  if is_pep8_available():
     static_check_issues.update(get_stylistic_issues(SRC_PATHS))
 
   if static_check_issues:
