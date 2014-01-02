@@ -79,6 +79,34 @@ def clean_orphaned_pyc():
           os.remove(pyc_path)
 
 
+def is_pyflakes_available():
+  """
+  Checks if pyflakes is availalbe.
+
+  :returns: **True** if we can use pyflakes and **False** otherwise
+  """
+
+  try:
+    import pyflakes
+    return True
+  except ImportError:
+    return False
+
+
+def is_pep8_available():
+  """
+  Checks if pep8 is availalbe.
+
+  :returns: **True** if we can use pep8 and **False** otherwise
+  """
+
+  try:
+    import pep8
+    return True
+  except ImportError:
+    return False
+
+
 def get_stylistic_issues(paths):
   """
   Checks for stylistic issues that are an issue according to the parts of PEP8
@@ -94,26 +122,25 @@ def get_stylistic_issues(paths):
   :returns: **dict** of the form ``path => [(line_number, message)...]``
   """
 
-  ignored_issues = ','.join(CONFIG["pep8.ignore"])
   issues = {}
 
+  if is_pep8_available():
+    import pep8
+
+    class StyleReport(pep8.BaseReport):
+      def __init__(self, options):
+        super(StyleReport, self).__init__(options)
+
+      def error(self, line_number, offset, text, check):
+        code = super(StyleReport, self).error(line_number, offset, text, check)
+
+        if code:
+          issues.setdefault(self.filename, []).append((offset + line_number, "%s %s" % (code, text)))
+
+    style_checker = pep8.StyleGuide(ignore = CONFIG["pep8.ignore"], reporter = StyleReport)
+    style_checker.check_files(filter(lambda path: path not in CONFIG["pep8.blacklist"], _python_files(paths)))
+
   for path in paths:
-    pep8_output = stem.util.system.call(
-      "pep8 --ignore %s %s" % (ignored_issues, path),
-      ignore_exit_status = True,
-    )
-
-    for line in pep8_output:
-      line_match = re.match("^(.*):(\d+):(\d+): (.*)$", line)
-
-      if line_match:
-        path, line, _, issue = line_match.groups()
-
-        if path in CONFIG["pep8.blacklist"]:
-          continue
-
-        issues.setdefault(path, []).append((int(line), issue))
-
     for file_path in _get_files_with_suffix(path):
       if file_path in CONFIG["pep8.blacklist"]:
         continue
@@ -121,21 +148,25 @@ def get_stylistic_issues(paths):
       with open(file_path) as f:
         file_contents = f.read()
 
-      lines, file_issues, prev_indent = file_contents.split("\n"), [], 0
+      lines, prev_indent = file_contents.split("\n"), 0
       is_block_comment = False
 
       for index, line in enumerate(lines):
         whitespace, content = re.match("^(\s*)(.*)$", line).groups()
 
+        # TODO: This does not check that block indentations are two spaces
+        # because differentiating source from string blocks ("""foo""") is more
+        # of a pita than I want to deal with right now.
+
         if '"""' in content:
           is_block_comment = not is_block_comment
 
         if "\t" in whitespace:
-          file_issues.append((index + 1, "indentation has a tab"))
+          issues.setdefault(file_path, []).append((index + 1, "indentation has a tab"))
         elif "\r" in content:
-          file_issues.append((index + 1, "contains a windows newline"))
+          issues.setdefault(file_path, []).append((index + 1, "contains a windows newline"))
         elif content != content.rstrip():
-          file_issues.append((index + 1, "line has trailing whitespace"))
+          issues.setdefault(file_path, []).append((index + 1, "line has trailing whitespace"))
         elif content.lstrip().startswith("except") and content.endswith(", exc:"):
           # Python 2.6 - 2.7 supports two forms for exceptions...
           #
@@ -145,10 +176,7 @@ def get_stylistic_issues(paths):
           # The former is the old method and no longer supported in python 3
           # going forward.
 
-          file_issues.append((index + 1, "except clause should use 'as', not comma"))
-
-      if file_issues:
-        issues[file_path] = file_issues
+          issues.setdefault(file_path, []).append((index + 1, "except clause should use 'as', not comma"))
 
   return issues
 
@@ -162,47 +190,47 @@ def get_pyflakes_issues(paths):
   :returns: dict of the form ``path => [(line_number, message)...]``
   """
 
-  pyflakes_ignore = {}
-
-  for line in CONFIG["pyflakes.ignore"]:
-    path, issue = line.split("=>")
-    pyflakes_ignore.setdefault(path.strip(), []).append(issue.strip())
-
-  def is_ignored(path, issue):
-    # Paths in pyflakes_ignore are relative, so we need to check to see if our
-    # path ends with any of them.
-
-    for ignore_path in pyflakes_ignore:
-      if path.endswith(ignore_path) and issue in pyflakes_ignore[ignore_path]:
-        return True
-
-    return False
-
-  # Pyflakes issues are of the form...
-  #
-  #   FILE:LINE: ISSUE
-  #
-  # ... for instance...
-  #
-  #   stem/prereq.py:73: 'long_to_bytes' imported but unused
-  #   stem/control.py:957: undefined name 'entry'
-
   issues = {}
 
-  for path in paths:
-    pyflakes_output = stem.util.system.call(
-      "pyflakes %s" % path,
-      ignore_exit_status = True,
-    )
+  if is_pyflakes_available():
+    import pyflakes.api
+    import pyflakes.reporter
 
-    for line in pyflakes_output:
-      line_match = re.match("^(.*):(\d+): (.*)$", line)
+    class Reporter(pyflakes.reporter.Reporter):
+      def __init__(self):
+        self._ignored_issues = {}
 
-      if line_match:
-        path, line, issue = line_match.groups()
+        for line in CONFIG["pyflakes.ignore"]:
+          path, issue = line.split("=>")
+          self._ignored_issues.setdefault(path.strip(), []).append(issue.strip())
 
-        if not is_ignored(path, issue):
-          issues.setdefault(path, []).append((int(line), issue))
+      def unexpectedError(self, filename, msg):
+        self._register_issue(filename, None, msg)
+
+      def syntaxError(self, filename, msg, lineno, offset, text):
+        self._register_issue(filename, lineno, msg)
+
+      def flake(self, msg):
+        self._register_issue(msg.filename, msg.lineno, msg.message % msg.message_args)
+
+      def _is_ignored(self, path, issue):
+        # Paths in pyflakes_ignore are relative, so we need to check to see if our
+        # path ends with any of them.
+
+        for ignored_path, ignored_issues in self._ignored_issues.items():
+          if path.endswith(ignored_path) and issue in ignored_issues:
+            return True
+
+        return False
+
+      def _register_issue(self, path, line_number, issue):
+        if not self._is_ignored(path, issue):
+          issues.setdefault(path, []).append((line_number, issue))
+
+    reporter = Reporter()
+
+    for path in _python_files(paths):
+      pyflakes.api.checkPath(path, reporter)
 
   return issues
 
@@ -226,6 +254,12 @@ def _get_files_with_suffix(base_path, suffix = ".py"):
       for filename in files:
         if filename.endswith(suffix):
           yield os.path.join(root, filename)
+
+
+def _python_files(paths):
+  for path in paths:
+    for file_path in _get_files_with_suffix(path):
+      yield file_path
 
 
 if __name__ == '__main__':

@@ -21,8 +21,6 @@ import threading
 
 import arm.util.tracker
 
-import stem
-
 from stem.control import State
 from stem.util import conf, log, str_tools
 
@@ -173,6 +171,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       #  torTools.getConn().init(controller)
       #  log.notice("Reconnected to Tor's control port")
       #  arm.popups.showMsg("Tor reconnected", 1)
+
+      pass
     else: isKeystrokeConsumed = False
 
     return isKeystrokeConsumed
