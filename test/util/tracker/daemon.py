@@ -1,8 +1,9 @@
+import time
 import unittest
 
 from arm.util.tracker import Daemon
 
-from mock import patch
+from mock import Mock, patch
 
 
 class TestDaemon(unittest.TestCase):
@@ -17,7 +18,7 @@ class TestDaemon(unittest.TestCase):
 
     daemon = Daemon(0.05)
 
-    self.assertEqual(0.05, daemon._rate)
+    self.assertEqual(0.05, daemon.get_rate())
     self.assertEqual(12345, daemon._process_pid)
     self.assertEqual('local_tor', daemon._process_name)
 
@@ -45,3 +46,31 @@ class TestDaemon(unittest.TestCase):
     daemon = Daemon(0.05)
     self.assertEqual(None, daemon._process_pid)
     self.assertEqual('tor', daemon._process_name)
+    self.assertEqual(0, system_mock.call_count)
+
+  @patch('arm.util.tracker.tor_controller', Mock(return_value = Mock()))
+  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
+  def test_daemon_calls_task(self):
+    # Check that our Daemon calls the task method at the given rate.
+
+    with Daemon(0.01) as daemon:
+      time.sleep(0.05)
+      self.assertTrue(2 < daemon.run_counter())
+
+  @patch('arm.util.tracker.tor_controller', Mock(return_value = Mock()))
+  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
+  def test_pausing_daemon(self):
+    # Check that we can pause and unpause daemon.
+
+    with Daemon(0.01) as daemon:
+      time.sleep(0.05)
+      self.assertTrue(2 < daemon.run_counter())
+
+      daemon.set_paused(True)
+      daemon._run_counter = 0
+      time.sleep(0.05)
+      self.assertEqual(0, daemon.run_counter())
+
+      daemon.set_paused(False)
+      time.sleep(0.05)
+      self.assertTrue(2 < daemon.run_counter())

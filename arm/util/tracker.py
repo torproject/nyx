@@ -218,7 +218,7 @@ class Daemon(threading.Thread):
       time_since_last_ran = time.time() - self._last_ran
 
       if self._is_paused or time_since_last_ran < self._rate:
-        sleep_duration = max(0.2, self._rate - time_since_last_ran)
+        sleep_duration = max(0.02, self._rate - time_since_last_ran)
 
         with self._pause_condition:
           if not self._halt:
@@ -248,7 +248,7 @@ class Daemon(threading.Thread):
     :returns: **bool** indicating if our run was successful or not
     """
 
-    pass
+    return True
 
   def run_counter(self):
     """
@@ -305,6 +305,14 @@ class Daemon(threading.Thread):
 
         self._process_pid = tor_pid
         self._process_name = tor_cmd if tor_cmd else 'tor'
+
+  def __enter__(self):
+    self.start()
+    return self
+
+  def __exit__(self, exit_type, value, traceback):
+    self.stop()
+    self.join()
 
 
 class ConnectionTracker(Daemon):
