@@ -1,5 +1,5 @@
 """
-Background tasks for gathering informatino about the tor process.
+Background tasks for gathering information about the tor process.
 
 ::
 
@@ -108,6 +108,7 @@ def stop_trackers():
       tracker.join()
 
   halt_thread = threading.Thread(target = halt_trackers)
+  halt_thread.setDaemon(True)
   halt_thread.start()
   return halt_thread
 

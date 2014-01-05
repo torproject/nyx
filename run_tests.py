@@ -48,10 +48,14 @@ def main():
   static_check_issues = {}
 
   if is_pyflakes_available():
-    static_check_issues.update(get_pyflakes_issues(SRC_PATHS))
+    for path, issues in get_pyflakes_issues(SRC_PATHS).items():
+      for issue in issues:
+        static_check_issues.setdefault(path, []).append(issue)
 
   if is_pep8_available():
-    static_check_issues.update(get_stylistic_issues(SRC_PATHS))
+    for path, issues in get_stylistic_issues(SRC_PATHS).items():
+      for issue in issues:
+        static_check_issues.setdefault(path, []).append(issue)
 
   if static_check_issues:
     print "STATIC CHECKS"
