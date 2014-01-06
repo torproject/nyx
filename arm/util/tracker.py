@@ -31,7 +31,7 @@ Background tasks for gathering information about the tor process.
   :var float cpu_average: average cpu usage since we first started tracking the process
   :var float cpu_total: total cpu time the process has used since starting
   :var int memory_bytes: memory usage of the process in bytes
-  :var float memory_precent: percentage of our memory used by this process
+  :var float memory_percent: percentage of our memory used by this process
   :var float timestamp: unix timestamp for when this information was fetched
 """
 
@@ -70,7 +70,7 @@ def get_connection_tracker():
   global CONNECTION_TRACKER
 
   if CONNECTION_TRACKER is None:
-    CONNECTION_TRACKER = ConnectionTracker()
+    CONNECTION_TRACKER = ConnectionTracker(CONFIG['queries.connections.rate'])
 
   return CONNECTION_TRACKER
 
@@ -83,7 +83,7 @@ def get_resource_tracker():
   global RESOURCE_TRACKER
 
   if RESOURCE_TRACKER is None:
-    RESOURCE_TRACKER = ResourceTracker()
+    RESOURCE_TRACKER = ResourceTracker(CONFIG['queries.resources.rate'])
 
   return RESOURCE_TRACKER
 
@@ -147,9 +147,9 @@ def _resources_via_ps(pid):
         total_cpu_time = str_tools.parse_short_time_label(stats[0])
         uptime = str_tools.parse_short_time_label(stats[1])
         memory_bytes = int(stats[2]) * 1024  # ps size is in kb
-        memory_precent = float(stats[3]) / 100.0
+        memory_percent = float(stats[3]) / 100.0
 
-        return (total_cpu_time, uptime, memory_bytes, memory_precent)
+        return (total_cpu_time, uptime, memory_bytes, memory_percent)
       except ValueError:
         pass
 
@@ -320,8 +320,8 @@ class ConnectionTracker(Daemon):
   Periodically retrieves the connections established by tor.
   """
 
-  def __init__(self):
-    super(ConnectionTracker, self).__init__(CONFIG['queries.connections.rate'])
+  def __init__(self, rate):
+    super(ConnectionTracker, self).__init__(rate)
 
     self._connections = []
     self._resolvers = connection.get_system_resolvers()
@@ -437,8 +437,8 @@ class ResourceTracker(Daemon):
   Periodically retrieves the resource usage of tor.
   """
 
-  def __init__(self):
-    super(ResourceTracker, self).__init__(CONFIG['queries.resources.rate'])
+  def __init__(self, rate):
+    super(ResourceTracker, self).__init__(rate)
 
     self._resources = None
     self._use_proc = proc.is_available()  # determines if we use proc or ps for lookups
@@ -469,7 +469,7 @@ class ResourceTracker(Daemon):
         cpu_average = total_cpu_time / uptime,
         cpu_total = total_cpu_time,
         memory_bytes = memory_in_bytes,
-        memory_precent = memory_in_percent,
+        memory_percent = memory_in_percent,
         timestamp = time.time(),
       )
 
