@@ -1,67 +1,7 @@
-"""
-Fetches connection data (IP addresses and ports) associated with a given
-process. This sort of data can be retrieved via a variety of common *nix
-utilities:
-- netstat   netstat -np | grep "ESTABLISHED <pid>/<process>"
-- sockstat  sockstat | egrep "<process> *<pid>.*ESTABLISHED"
-- lsof      lsof -wnPi | egrep "^<process> *<pid>.*((UDP.*)|(\(ESTABLISHED\)))"
-- ss        ss -nptu | grep "ESTAB.*\"<process>\",<pid>"
-
-all queries dump its stderr (directing it to /dev/null). Results include UDP
-and established TCP connections.
-
-FreeBSD lacks support for the needed netstat flags and has a completely
-different program for 'ss'. However, lsof works and there's a couple other
-options that perform even better (thanks to Fabian Keil and Hans Schnehl):
-- sockstat    sockstat -4c | grep '<process> *<pid>'
-- procstat    procstat -f <pid> | grep TCP | grep -v 0.0.0.0:0
-"""
-
 import os
 import threading
 
-from stem.util import conf, log, system
-
-def conf_handler(key, value):
-  if key.startswith("port.label."):
-    portEntry = key[11:]
-
-    divIndex = portEntry.find("-")
-    if divIndex == -1:
-      # single port
-      if portEntry.isdigit():
-        PORT_USAGE[portEntry] = value
-      else:
-        msg = "Port value isn't numeric for entry: %s" % key
-        log.notice(msg)
-    else:
-      try:
-        # range of ports (inclusive)
-        minPort = int(portEntry[:divIndex])
-        maxPort = int(portEntry[divIndex + 1:])
-        if minPort > maxPort: raise ValueError()
-
-        for port in range(minPort, maxPort + 1):
-          PORT_USAGE[str(port)] = value
-      except ValueError:
-        msg = "Unable to parse port range for entry: %s" % key
-        log.notice(msg)
-
-CONFIG = conf.config_dict('arm', {
-}, conf_handler)
-
-PORT_USAGE = {}
-
-def getPortUsage(port):
-  """
-  Provides the common use of a given port. If no useage is known then this
-  provides None.
-
-  Arguments:
-    port - port number to look up
-  """
-
-  return PORT_USAGE.get(port)
+from stem.util import system
 
 class AppResolver:
   """

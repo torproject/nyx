@@ -8,9 +8,9 @@ import operator
 import arm.controller
 import arm.popups
 
-from arm.util import connections, uiTools
+from arm.util import uiTools
 
-from stem.util import enum, log
+from stem.util import connection, enum, log
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
 EXIT_USAGE_WIDTH = 15
@@ -74,7 +74,7 @@ def showCountDialog(countType, counts):
 
         # includes a port usage column
         if countType == CountType.EXIT_PORT:
-          usage = connections.getPortUsage(k)
+          usage = connection.port_usage(k)
 
           if usage:
             keyFormat = "%%-%is   %%s" % (keyWidth - EXIT_USAGE_WIDTH)

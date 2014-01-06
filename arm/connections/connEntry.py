@@ -11,8 +11,6 @@ from arm.connections import entries
 
 from stem.util import conf, connection, enum, str_tools
 
-from arm.util.connections import getPortUsage
-
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
 #   Outbound     Relay connection, leaving us.
@@ -818,7 +816,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       spaceAvailable = maxLength - len(dstAddress) - 3
 
       if self.getType() == Category.EXIT and includePort:
-        purpose = getPortUsage(self.foreign.getPort())
+        purpose = connection.port_usage(self.foreign.getPort())
 
         if purpose:
           # BitTorrent is a common protocol to truncate, so just use "Torrent"
