@@ -107,12 +107,13 @@ class TestResourceTracker(unittest.TestCase):
       self.assertEqual(0.0, resources.memory_percent)
       self.assertEqual(0.0, resources.timestamp)
 
-      time.sleep(0.05)
+      while daemon.run_counter() < 1:
+        time.sleep(0.01)
+
       self.assertEqual(False, daemon._use_proc)
 
       resources = daemon.get_resource_usage()
 
-      self.assertEqual(1, daemon.run_counter())
       self.assertEqual(0.0, resources.cpu_sample)
       self.assertEqual(43.875, resources.cpu_average)
       self.assertEqual(105.3, resources.cpu_total)

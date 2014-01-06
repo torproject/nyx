@@ -384,7 +384,7 @@ class ConnectionTracker(Daemon):
         self._failure_count += 1
 
         if self._failure_count >= 3:
-          self._resolvers.pop()
+          self._resolvers.pop(0)
           self._failure_count = 0
 
           if self._resolvers:
