@@ -187,6 +187,81 @@ def _resources_via_proc(pid):
   return (total_cpu_time, uptime, memory_in_bytes, memory_in_percent)
 
 
+def _process_for_ports(local_ports, remote_ports):
+  """
+  Provides the name of the process using the given ports.
+
+  :param list local_ports: local port numbers to look up
+  :param list remote_ports: remote port numbers to look up
+
+  :returns: **dict** mapping the ports to the associated process names
+
+  :raises: **IOError** if unsuccessful
+  """
+
+  def _parse_lsof_line(line):
+    line_comp = line.split()
+
+    if not line:
+      return None, None, None  # blank line
+    elif len(line_comp) != 10:
+      raise ValueError('lines are expected to have ten fields')
+    elif line_comp[9] != '(ESTABLISHED)':
+      return None, None, None  # connection isn't established
+
+    cmd = line_comp[0]
+    port_map = line_comp[8]
+
+    if '->' not in port_map:
+      raise ValueError("'%s' is expected to be a '->' separated mapping" % port_map)
+
+    local, remote = port_map.split('->', 1)
+
+    if ':' not in local or ':' not in remote:
+      raise ValueError("'%s' is expected to be 'address:port' entries" % port_map)
+
+    local_port = local.split(':', 1)[1]
+    remote_port = remote.split(':', 1)[1]
+
+    if not connection.is_valid_port(local_port):
+      raise ValueError("'%s' isn't a valid port" % local_port)
+    elif not connection.is_valid_port(remote_port):
+      raise ValueError("'%s' isn't a valid port" % remote_port)
+
+    return int(local_port), int(remote_port), cmd
+
+  # atagar@fenrir:~/Desktop/arm$ lsof -i tcp:51849 -i tcp:37277
+  # COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+  # tor     2001 atagar   14u  IPv4  14048      0t0  TCP localhost:9051->localhost:37277 (ESTABLISHED)
+  # tor     2001 atagar   15u  IPv4  22024      0t0  TCP localhost:9051->localhost:51849 (ESTABLISHED)
+  # python  2462 atagar    3u  IPv4  14047      0t0  TCP localhost:37277->localhost:9051 (ESTABLISHED)
+  # python  3444 atagar    3u  IPv4  22023      0t0  TCP localhost:51849->localhost:9051 (ESTABLISHED)
+
+  lsof_cmd = 'lsof -nP ' + ' '.join(['-i tcp:%s' % port for port in (local_ports + remote_ports)])
+  lsof_call = system.call(lsof_cmd)
+
+  if lsof_call:
+    results = {}
+
+    if lsof_call[0].startswith('COMMAND  '):
+      lsof_call = lsof_call[1:]  # strip the title line
+
+    for line in lsof_call:
+      try:
+        local_port, remote_port, cmd = _parse_lsof_line(line)
+
+        if local_port in local_ports:
+          results[local_port] = cmd
+        elif remote_port in remote_ports:
+          results[remote_port] = cmd
+      except ValueError as exc:
+        raise IOError("unrecognized output from lsof (%s): %s" % (exc, line))
+
+    return results
+
+  raise IOError("no results from lsof")
+
+
 class Daemon(threading.Thread):
   """
   Daemon that can perform a given action at a set rate. Subclasses are expected
