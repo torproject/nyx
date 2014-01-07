@@ -5,8 +5,9 @@ startup.dataDirectory ~/.arm
 
 # Seconds between querying information
 
-queries.resources.rate 5
 queries.connections.rate 5
+queries.resources.rate 5
+queries.port_usage.rate 5
 
 queries.refreshRate.rate 5
 

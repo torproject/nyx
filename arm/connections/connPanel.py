@@ -11,10 +11,10 @@ import arm.popups
 import arm.util.tracker
 
 from arm.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
-from arm.util import connections, panel, torTools, uiTools
+from arm.util import panel, torTools, tracker, uiTools
 
 from stem.control import State
-from stem.util import conf, enum
+from stem.util import conf, connection, enum
 
 # height of the detail panel content, not counting top and bottom border
 DETAILS_HEIGHT = 7
@@ -106,7 +106,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._lastResourceFetch = -1
 
     # resolver for the command/pid associated with SOCKS, HIDDEN, and CONTROL connections
-    self._appResolver = connections.AppResolver("arm")
+    self._appResolver = tracker.get_port_usage_tracker()
 
     # rate limits appResolver queries to once per update
     self.appResolveSinceUpdate = False
@@ -241,7 +241,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif key == ord('u') or key == ord('U'):
       # provides a menu to pick the connection resolver
       title = "Resolver Util:"
-      options = ["auto"] + list(connections.Resolver)
+      options = ["auto"] + list(connection.Resolver)
       connResolver = arm.util.tracker.get_connection_tracker()
 
       currentOverwrite = connResolver.get_custom_resolver()
@@ -553,8 +553,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     # Queue up resolution for the unresolved ports (skips if it's still working
     # on the last query).
-    if appPorts and not self._appResolver.isResolving:
-      self._appResolver.resolve(appPorts)
+    if appPorts and not self._appResolver.is_alive():
+      self._appResolver.get_processes_using_ports(appPorts)
 
     # Fetches results. If the query finishes quickly then this is what we just
     # asked for, otherwise these belong to an earlier resolution.
@@ -564,7 +564,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # The isAppResolving flag lets the unresolved entries indicate if there's
     # a lookup in progress for them or not.
 
-    appResults = self._appResolver.getResults(0.2)
+    time.sleep(0.2)  # TODO: previous resolver only blocked while awaiting a lookup
+    appResults = self._appResolver.get_processes_using_ports(appPorts)
 
     for line in unresolvedLines:
       isLocal = line.getType() == connEntry.Category.HIDDEN
@@ -581,7 +582,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             line.appPid = pid
             line.isAppResolving = False
       else:
-        line.isAppResolving = self._appResolver.isResolving
+        line.isAppResolving = self._appResolver.is_alive
 
     if flagQuery:
       self.appResolveSinceUpdate = True

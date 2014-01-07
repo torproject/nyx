@@ -45,12 +45,14 @@ from stem.util import conf, connection, log, proc, str_tools, system
 from arm.util import tor_controller, debug, info, notice
 
 CONFIG = conf.config_dict('arm', {
-  'queries.resources.rate': 5,
   'queries.connections.rate': 5,
+  'queries.resources.rate': 5,
+  'queries.port_usage.rate': 5,
 })
 
 CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
+PORT_USAGE_TRACKER = None
 
 Resources = collections.namedtuple('Resources', [
   'cpu_sample',
@@ -86,6 +88,19 @@ def get_resource_tracker():
     RESOURCE_TRACKER = ResourceTracker(CONFIG['queries.resources.rate'])
 
   return RESOURCE_TRACKER
+
+
+def get_port_usage_tracker():
+  """
+  Singleton for tracking the process using a set of ports.
+  """
+
+  global PORT_USAGE_TRACKER
+
+  if PORT_USAGE_TRACKER is None:
+    PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['queries.port_usage.rate'])
+
+  return PORT_USAGE_TRACKER
 
 
 def stop_trackers():
@@ -583,5 +598,65 @@ class ResourceTracker(Daemon):
           self.stop()
         else:
           debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
+
+      return False
+
+
+class PortUsageTracker(Daemon):
+  """
+  Periodically retrieves the processes using a set of ports.
+  """
+
+  def __init__(self, rate):
+    super(PortUsageTracker, self).__init__(rate)
+
+    self._last_requested_ports = []
+    self._processes_for_ports = {}
+    self._failure_count = 0  # number of times in a row we've failed to get results
+
+  def get_processes_using_ports(self, ports):
+    """
+    Registers a given set of ports for further lookups, and returns the last
+    set of 'port => process' mappings we retrieved. Note that this means that
+    we will not return the requested ports unless they're requested again after
+    a successful lookup has been performed.
+
+    :param list ports: port numbers to look up
+
+    :returns: **dict** mapping port numbers to the process using it
+    """
+
+    self._last_requested_ports = ports
+    return self._processes_for_ports
+
+  def _task(self, process_pid, process_name):
+    ports = self._last_requested_ports
+
+    if not ports:
+      return True
+
+    result = {}
+
+    # Use cached results from our last lookup if available.
+
+    for port, process in self._processes_for_ports.items():
+      if port in ports:
+        result[port] = process
+        ports.remove(port)
+
+    try:
+      result.update(_process_for_ports(ports, ports))
+
+      self._processes_for_ports = result
+      self._failure_count = 0
+      return True
+    except IOError as exc:
+      self._failure_count += 1
+
+      if self._failure_count >= 3:
+        info('tracker.abort_getting_port_usage', exc = exc)
+        self.stop()
+      else:
+        debug('tracker.unable_to_get_port_usages', exc = exc)
 
       return False

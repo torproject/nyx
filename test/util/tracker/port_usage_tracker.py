@@ -1,6 +1,7 @@
+import time
 import unittest
 
-from arm.util.tracker import _process_for_ports
+from arm.util.tracker import PortUsageTracker, _process_for_ports
 
 from mock import Mock, patch
 
@@ -79,3 +80,38 @@ class TestPortUsageTracker(unittest.TestCase):
     for test_input in test_inputs:
       call_mock.return_value = test_input.split('\n')
       self.assertRaises(IOError, _process_for_ports, [80], [443])
+
+  @patch('arm.util.tracker.tor_controller')
+  @patch('arm.util.tracker._process_for_ports')
+  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
+  def test_fetching_samplings(self, process_for_ports_mock, tor_controller_mock):
+    tor_controller_mock().get_pid.return_value = 12345
+    process_for_ports_mock.return_value = {37277: 'python', 51849: 'tor'}
+
+    with PortUsageTracker(0.02) as daemon:
+      time.sleep(0.01)
+
+      self.assertEqual({}, daemon.get_processes_using_ports([37277, 51849]))
+      time.sleep(0.04)
+
+      self.assertEqual({37277: 'python', 51849: 'tor'}, daemon.get_processes_using_ports([37277, 51849]))
+
+  @patch('arm.util.tracker.tor_controller')
+  @patch('arm.util.tracker._process_for_ports')
+  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
+  def test_resolver_failover(self, process_for_ports_mock, tor_controller_mock):
+    tor_controller_mock().get_pid.return_value = 12345
+    process_for_ports_mock.side_effect = IOError()
+
+    with PortUsageTracker(0.01) as daemon:
+      # We shouldn't attempt lookups (nor encounter failures) without ports to
+      # query.
+
+      time.sleep(0.05)
+      self.assertEqual(0, daemon._failure_count)
+
+      daemon.get_processes_using_ports([37277, 51849])
+      time.sleep(0.03)
+      self.assertTrue(daemon.is_alive())
+      time.sleep(0.1)
+      self.assertFalse(daemon.is_alive())
