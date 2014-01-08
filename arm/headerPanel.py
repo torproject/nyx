@@ -28,7 +28,7 @@ import arm.starter
 import arm.popups
 import arm.controller
 
-from util import panel, sysTools, torTools, uiTools
+from util import panel, torTools, uiTools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -574,7 +574,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     armCpuDelta = totalArmCpuTime - self._armCpuSampling[0]
     armTimeDelta = currentTime - self._armCpuSampling[1]
     pythonCpuTime = armCpuDelta / armTimeDelta
-    sysCallCpuTime = sysTools.getSysCpuUsage()
+    sysCallCpuTime = 0.0  # TODO: add a wrapper around call() to get this
     self.vals["stat/%armCpu"] = "%0.1f" % (100 * (pythonCpuTime + sysCallCpuTime))
     self._armCpuSampling = (totalArmCpuTime, currentTime)
 
