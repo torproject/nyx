@@ -12,6 +12,6 @@ fi
 python "${arm_base}prereq.py" $*
 
 if [ $? = 0 ]; then
-  exec python -W ignore::DeprecationWarning "runner.py" $*
+  exec python "runner.py" $*
 fi
 
