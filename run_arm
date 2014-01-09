@@ -1,17 +1,47 @@
-#!/bin/sh
+#!/usr/bin/env python
+# Copyright 2014, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
 
-# Also looking in /bin/arm because of the UsrMove feature on Fedora...
-# https://trac.torproject.org/5973
+import sys
 
-if [ "$0" = /usr/bin/arm ] || [ "$0" = /bin/arm ]; then
-  arm_base=/usr/share/arm/
-else
-  arm_base=$( dirname "$0" )/arm/
-fi
+import arm.starter
 
-python "${arm_base}prereq.py" $*
+def main():
+  try:
+    _check_prereq()
+  except ImportError as exc:
+    print exc
+    sys.exit(1)
 
-if [ $? = 0 ]; then
-  exec python "runner.py" $*
-fi
+  arm.starter.main()
 
+
+def _check_prereq():
+  """
+  Checks for arm's prerequisistes...
+
+    * python 2.6 or later
+    * stem
+    * curses
+
+  :raises: **ImportError** if any of our prerequisites aren't met
+  """
+
+  major_version, minor_version = sys.version_info[0:2]
+
+  if major_version < 2 or (major_version == 2 and minor_version < 6):
+    raise ImportError("arm requires python version 2.6 or greater")
+
+  try:
+    import stem
+  except ImportError:
+    raise ImportError("arm requires stem, try running 'sudo apt-get install python-stem'")
+
+  try:
+    import curses
+  except ImportError:
+    raise ImportError("arm requires curses, try running 'sudo apt-get install python-curses'")
+
+
+if __name__ == '__main__':
+  main()

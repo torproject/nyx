@@ -28,6 +28,7 @@ SRC_PATHS = [os.path.join(ARM_BASE, path) for path in (
   'arm',
   'test',
   'run_tests.py',
+  'run_arm',
 )]
 
 
