@@ -72,7 +72,7 @@ def main():
     # TODO: Our tor_controller() method will gradually replace the torTools
     # module, but until that we need to initialize it too.
 
-    arm.util.torTools.getConn().init(controller)
+    arm.util.torTools.get_conn().init(controller)
   except ValueError as exc:
     print exc
     exit(1)
@@ -232,7 +232,7 @@ def _load_tor_config_descriptions():
   Attempt to determine descriptions for tor's configuration options.
   """
 
-  arm.util.torConfig.loadConfigurationDescriptions(BASE_DIR)
+  arm.util.torConfig.load_configuration_descriptions(BASE_DIR)
 
 
 def _use_english_subcommands():

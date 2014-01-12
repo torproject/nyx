@@ -13,18 +13,22 @@ import stem.control
 
 from stem.util import log, proc, system
 
-CONTROLLER = None # singleton Controller instance
+CONTROLLER = None  # singleton Controller instance
 
 UNDEFINED = "<Undefined_ >"
 
-def getConn():
+
+def get_conn():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
   uninitialized, needing a stem Controller before it's fully functional.
   """
 
   global CONTROLLER
-  if CONTROLLER == None: CONTROLLER = Controller()
+
+  if CONTROLLER is None:
+    CONTROLLER = Controller()
+
   return CONTROLLER
 
 
@@ -37,14 +41,14 @@ class Controller:
 
   def __init__(self):
     self.controller = None
-    self.connLock = threading.RLock()
-    self._fingerprintMappings = None    # mappings of ip -> [(port, fingerprint), ...]
-    self._fingerprintLookupCache = {}   # lookup cache with (ip, port) -> fingerprint mappings
-    self._nicknameLookupCache = {}      # lookup cache with fingerprint -> nickname mappings
-    self._addressLookupCache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
-    self._consensusLookupCache = {}     # lookup cache with network status entries
-    self._descriptorLookupCache = {}    # lookup cache with relay descriptors
-    self._lastNewnym = 0                # time we last sent a NEWNYM signal
+    self.conn_lock = threading.RLock()
+    self._fingerprint_mappings = None     # mappings of ip -> [(port, fingerprint), ...]
+    self._fingerprint_lookup_cache = {}   # lookup cache with (ip, port) -> fingerprint mappings
+    self._nickname_lookup_cache = {}      # lookup cache with fingerprint -> nickname mappings
+    self._address_lookup_cache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
+    self._consensus_lookup_cache = {}     # lookup cache with network status entries
+    self._descriptor_lookup_cache = {}    # lookup cache with relay descriptors
+    self._last_newnym = 0                 # time we last sent a NEWNYM signal
 
   def init(self, controller):
     """
@@ -59,9 +63,11 @@ class Controller:
     # re-attached. This is a point of regression until we do... :(
 
     if controller.is_alive() and controller != self.controller:
-      self.connLock.acquire()
+      self.conn_lock.acquire()
 
-      if self.controller: self.close() # shut down current connection
+      if self.controller:
+        self.close()  # shut down current connection
+
       self.controller = controller
       log.info("Stem connected to tor version %s" % self.controller.get_version())
 
@@ -70,48 +76,55 @@ class Controller:
       self.controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
 
       # reset caches for ip -> fingerprint lookups
-      self._fingerprintMappings = None
-      self._fingerprintLookupCache = {}
-      self._nicknameLookupCache = {}
-      self._addressLookupCache = {}
-      self._consensusLookupCache = {}
-      self._descriptorLookupCache = {}
+
+      self._fingerprint_mappings = None
+      self._fingerprint_lookup_cache = {}
+      self._nickname_lookup_cache = {}
+      self._address_lookup_cache = {}
+      self._consensus_lookup_cache = {}
+      self._descriptor_lookup_cache = {}
 
       # time that we sent our last newnym signal
-      self._lastNewnym = 0
 
-      self.connLock.release()
+      self._last_newnym = 0
+
+      self.conn_lock.release()
 
   def close(self):
     """
     Closes the current stem instance and notifies listeners.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
+
     if self.controller:
       self.controller.close()
-    self.connLock.release()
 
-  def getController(self):
+    self.conn_lock.release()
+
+  def get_controller(self):
     return self.controller
 
-  def isAlive(self):
+  def is_alive(self):
     """
     Returns True if this has been initialized with a working stem instance,
     False otherwise.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = False
-    if self.controller:
-      if self.controller.is_alive(): result = True
-      else: self.close()
 
-    self.connLock.release()
+    if self.controller:
+      if self.controller.is_alive():
+        result = True
+      else:
+        self.close()
+
+    self.conn_lock.release()
     return result
 
-  def getInfo(self, param, default = UNDEFINED):
+  def get_info(self, param, default = UNDEFINED):
     """
     Queries the control port for the given GETINFO option, providing the
     default if the response is undefined or fails for any reason (error
@@ -122,10 +135,10 @@ class Controller:
       default - result if the query fails
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     try:
-      if not self.isAlive():
+      if not self.is_alive():
         if default != UNDEFINED:
           return default
         else:
@@ -135,13 +148,13 @@ class Controller:
         return self.controller.get_info(param, default)
       else:
         return self.controller.get_info(param)
-    except stem.SocketClosed, exc:
+    except stem.SocketClosed as exc:
       self.close()
       raise exc
     finally:
-      self.connLock.release()
+      self.conn_lock.release()
 
-  def getOption(self, param, default = UNDEFINED, multiple = False):
+  def get_option(self, param, default = UNDEFINED, multiple = False):
     """
     Queries the control port for the given configuration option, providing the
     default if the response is undefined or fails for any reason. If multiple
@@ -155,10 +168,10 @@ class Controller:
                   this just provides the first result
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     try:
-      if not self.isAlive():
+      if not self.is_alive():
         if default != UNDEFINED:
           return default
         else:
@@ -168,13 +181,13 @@ class Controller:
         return self.controller.get_conf(param, default, multiple)
       else:
         return self.controller.get_conf(param, multiple = multiple)
-    except stem.SocketClosed, exc:
+    except stem.SocketClosed as exc:
       self.close()
       raise exc
     finally:
-      self.connLock.release()
+      self.conn_lock.release()
 
-  def setOption(self, param, value = None):
+  def set_option(self, param, value = None):
     """
     Issues a SETCONF to set the given option/value pair. An exeptions raised
     if it fails to be set. If no value is provided then this sets the option to
@@ -186,67 +199,69 @@ class Controller:
               list of strings)
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     try:
-      if not self.isAlive():
+      if not self.is_alive():
         raise stem.SocketClosed()
 
       self.controller.set_conf(param, value)
-    except stem.SocketClosed, exc:
+    except stem.SocketClosed as exc:
       self.close()
       raise exc
     finally:
-      self.connLock.release()
+      self.conn_lock.release()
 
-  def saveConf(self):
+  def save_conf(self):
     """
     Calls tor's SAVECONF method.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
-    if self.isAlive():
+    if self.is_alive():
       self.controller.save_conf()
 
-    self.connLock.release()
+    self.conn_lock.release()
 
-  def sendNewnym(self):
+  def send_newnym(self):
     """
     Sends a newnym request to Tor. These are rate limited so if it occures
     more than once within a ten second window then the second is delayed.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
-    if self.isAlive():
-      self._lastNewnym = time.time()
+    if self.is_alive():
+      self._last_newnym = time.time()
       self.controller.signal(stem.Signal.NEWNYM)
 
-    self.connLock.release()
+    self.conn_lock.release()
 
-  def isNewnymAvailable(self):
+  def is_newnym_available(self):
     """
     True if Tor will immediately respect a newnym request, false otherwise.
     """
 
-    if self.isAlive():
-      return self.getNewnymWait() == 0
-    else: return False
+    if self.is_alive():
+      return self.get_newnym_wait() == 0
+    else:
+      return False
 
-  def getNewnymWait(self):
+  def get_newnym_wait(self):
     """
     Provides the number of seconds until a newnym signal would be respected.
     """
 
     # newnym signals can occure at the rate of one every ten seconds
     # TODO: this can't take other controllers into account :(
-    return max(0, math.ceil(self._lastNewnym + 10 - time.time()))
 
-  def getCircuits(self, default = []):
+    return max(0, math.ceil(self._last_newnym + 10 - time.time()))
+
+  def get_circuits(self, default = []):
     """
     This provides a list with tuples of the form:
-    (circuitID, status, purpose, (fingerprint1, fingerprint2...))
+    (circuit_id, status, purpose, (fingerprint1, fingerprint2...))
 
     Arguments:
       default - value provided back if unable to query the circuit-status
@@ -262,10 +277,10 @@ class Controller:
 
       for fp, nickname in entry.path:
         if not fp:
-          consensusEntry = self.controller.get_network_status(nickname, None)
+          consensus_entry = self.controller.get_network_status(nickname, None)
 
-          if consensusEntry:
-            fp = consensusEntry.fingerprint
+          if consensus_entry:
+            fp = consensus_entry.fingerprint
 
           # It shouldn't be possible for this lookup to fail, but we
           # need to fill something (callers won't expect our own client
@@ -285,7 +300,7 @@ class Controller:
     else:
       return default
 
-  def getHiddenServicePorts(self, default = []):
+  def get_hidden_service_ports(self, default = []):
     """
     Provides the target ports hidden services are configured to use.
 
@@ -326,7 +341,7 @@ class Controller:
     else:
       return default
 
-  def getMyBandwidthRate(self, default = None):
+  def get_my_bandwidth_rate(self, default = None):
     """
     Provides the effective relaying bandwidth rate of this relay. Currently
     this doesn't account for SETCONF events.
@@ -337,21 +352,25 @@ class Controller:
 
     # effective relayed bandwidth is the minimum of BandwidthRate,
     # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-    effectiveRate = int(self.getOption("BandwidthRate", None))
 
-    relayRate = self.getOption("RelayBandwidthRate", None)
-    if relayRate and relayRate != "0":
-      effectiveRate = min(effectiveRate, int(relayRate))
+    effective_rate = int(self.get_option("BandwidthRate", None))
 
-    maxAdvertised = self.getOption("MaxAdvertisedBandwidth", None)
-    if maxAdvertised: effectiveRate = min(effectiveRate, int(maxAdvertised))
+    relay_rate = self.get_option("RelayBandwidthRate", None)
 
-    if effectiveRate is not None:
-      return effectiveRate
+    if relay_rate and relay_rate != "0":
+      effective_rate = min(effective_rate, int(relay_rate))
+
+    max_advertised = self.get_option("MaxAdvertisedBandwidth", None)
+
+    if max_advertised:
+      effective_rate = min(effective_rate, int(max_advertised))
+
+    if effective_rate is not None:
+      return effective_rate
     else:
       return default
 
-  def getMyBandwidthBurst(self, default = None):
+  def get_my_bandwidth_burst(self, default = None):
     """
     Provides the effective bandwidth burst rate of this relay. Currently this
     doesn't account for SETCONF events.
@@ -361,19 +380,19 @@ class Controller:
     """
 
     # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-    effectiveBurst = int(self.getOption("BandwidthBurst", None))
+    effective_burst = int(self.get_option("BandwidthBurst", None))
 
-    relayBurst = self.getOption("RelayBandwidthBurst", None)
+    relay_burst = self.get_option("RelayBandwidthBurst", None)
 
-    if relayBurst and relayBurst != "0":
-      effectiveBurst = min(effectiveBurst, int(relayBurst))
+    if relay_burst and relay_burst != "0":
+      effective_burst = min(effective_burst, int(relay_burst))
 
-    if effectiveBurst is not None:
-      return effectiveBurst
+    if effective_burst is not None:
+      return effective_burst
     else:
       return default
 
-  def getMyBandwidthObserved(self, default = None):
+  def get_my_bandwidth_observed(self, default = None):
     """
     Provides the relay's current observed bandwidth (the throughput determined
     from historical measurements on the client side). This is used in the
@@ -385,17 +404,17 @@ class Controller:
       default - result if the query fails
     """
 
-    myFingerprint = self.getInfo("fingerprint", None)
+    my_fingerprint = self.get_info("fingerprint", None)
 
-    if myFingerprint:
-      myDescriptor = self.controller.get_server_descriptor(myFingerprint)
+    if my_fingerprint:
+      my_descriptor = self.controller.get_server_descriptor(my_fingerprint)
 
-      if myDescriptor:
-        return myDescriptor.observed_bandwidth
+      if my_descriptor:
+        return my_descriptor.observed_bandwidth
 
     return default
 
-  def getMyBandwidthMeasured(self, default = None):
+  def get_my_bandwidth_measured(self, default = None):
     """
     Provides the relay's current measured bandwidth (the throughput as noted by
     the directory authorities and used by clients for relay selection). This is
@@ -412,17 +431,17 @@ class Controller:
     # actually looks to be v3. This needs to be sorted out between stem
     # and tor.
 
-    myFingerprint = self.getInfo("fingerprint", None)
+    my_fingerprint = self.get_info("fingerprint", None)
 
-    if myFingerprint:
-      myStatusEntry = self.controller.get_network_status(myFingerprint)
+    if my_fingerprint:
+      my_status_entry = self.controller.get_network_status(my_fingerprint)
 
-      if myStatusEntry and hasattr(myStatusEntry, 'bandwidth'):
-        return myStatusEntry.bandwidth
+      if my_status_entry and hasattr(my_status_entry, 'bandwidth'):
+        return my_status_entry.bandwidth
 
     return default
 
-  def getMyFlags(self, default = None):
+  def get_my_flags(self, default = None):
     """
     Provides the flags held by this relay.
 
@@ -430,23 +449,23 @@ class Controller:
       default - result if the query fails or this relay isn't a part of the consensus yet
     """
 
-    myFingerprint = self.getInfo("fingerprint", None)
+    my_fingerprint = self.get_info("fingerprint", None)
 
-    if myFingerprint:
-      myStatusEntry = self.controller.get_network_status(myFingerprint)
+    if my_fingerprint:
+      my_status_entry = self.controller.get_network_status(my_fingerprint)
 
-      if myStatusEntry:
-        return myStatusEntry.flags
+      if my_status_entry:
+        return my_status_entry.flags
 
     return default
 
-  def getVersion(self):
+  def get_version(self):
     """
     Provides the version of our tor instance, this is None if we don't have a
     connection.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     try:
       return self.controller.get_version()
@@ -456,20 +475,20 @@ class Controller:
     except:
       return None
     finally:
-      self.connLock.release()
+      self.conn_lock.release()
 
-  def isGeoipUnavailable(self):
+  def is_geoip_unavailable(self):
     """
     Provides true if we've concluded that our geoip database is unavailable,
     false otherwise.
     """
 
-    if self.isAlive():
+    if self.is_alive():
       return self.controller.is_geoip_unavailable()
     else:
       return False
 
-  def getMyUser(self):
+  def get_my_user(self):
     """
     Provides the user this process is running under. If unavailable this
     provides None.
@@ -477,7 +496,7 @@ class Controller:
 
     return self.controller.get_user(None)
 
-  def getMyFileDescriptorUsage(self):
+  def get_my_file_descriptor_usage(self):
     """
     Provides the number of file descriptors currently being used by this
     process. This returns None if this can't be determined.
@@ -487,21 +506,24 @@ class Controller:
     # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
     # I'm not sure about other platforms (like BSD) so erroring out there.
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive() and proc.is_available():
-      myPid = self.controller.get_pid(None)
 
-      if myPid:
-        try: result = len(os.listdir("/proc/%s/fd" % myPid))
-        except: pass
+    if self.is_alive() and proc.is_available():
+      my_pid = self.controller.get_pid(None)
 
-    self.connLock.release()
+      if my_pid:
+        try:
+          result = len(os.listdir("/proc/%s/fd" % my_pid))
+        except:
+          pass
+
+    self.conn_lock.release()
 
     return result
 
-  def getMyFileDescriptorLimit(self):
+  def get_my_file_descriptor_limit(self):
     """
     Provides the maximum number of file descriptors this process can have.
     Only the Tor process itself reliably knows this value, and the option for
@@ -514,33 +536,33 @@ class Controller:
     """
 
     # provides -1 if the query fails
-    queriedLimit = self.getInfo("process/descriptor-limit", None)
+    queried_limit = self.get_info("process/descriptor-limit", None)
 
-    if queriedLimit != None and queriedLimit != "-1":
-      return (int(queriedLimit), False)
+    if queried_limit is not None and queried_limit != "-1":
+      return (int(queried_limit), False)
 
-    torUser = self.getMyUser()
+    tor_user = self.get_my_user()
 
     # This is guessing the open file limit. Unfortunately there's no way
     # (other than "/usr/proc/bin/pfiles pid | grep rlimit" under Solaris)
     # to get the file descriptor limit for an arbitrary process.
 
-    if torUser == "debian-tor":
+    if tor_user == "debian-tor":
       # probably loaded via /etc/init.d/tor which changes descriptor limit
       return (8192, True)
     else:
       # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
-      ulimitResults = system.call("ulimit -Hn")
+      ulimit_results = system.call("ulimit -Hn")
 
-      if ulimitResults:
-        ulimit = ulimitResults[0].strip()
+      if ulimit_results:
+        ulimit = ulimit_results[0].strip()
 
         if ulimit.isdigit():
           return (int(ulimit), True)
 
     return (None, None)
 
-  def getStartTime(self):
+  def get_start_time(self):
     """
     Provides the unix time for when the tor process first started. If this
     can't be determined then this provides None.
@@ -551,98 +573,104 @@ class Controller:
     except:
       return None
 
-  def isExitingAllowed(self, ipAddress, port):
+  def is_exiting_allowed(self, ip_address, port):
     """
     Checks if the given destination can be exited to by this relay, returning
     True if so and False otherwise.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = False
-    if self.isAlive():
+
+    if self.is_alive():
       # If we allow any exiting then this could be relayed DNS queries,
       # otherwise the policy is checked. Tor still makes DNS connections to
       # test when exiting isn't allowed, but nothing is relayed over them.
       # I'm registering these as non-exiting to avoid likely user confusion:
       # https://trac.torproject.org/projects/tor/ticket/965
 
-      our_policy = self.getExitPolicy()
+      our_policy = self.get_exit_policy()
 
-      if our_policy and our_policy.is_exiting_allowed() and port == "53": result = True
-      else: result = our_policy and our_policy.can_exit_to(ipAddress, port)
+      if our_policy and our_policy.is_exiting_allowed() and port == "53":
+        result = True
+      else:
+        result = our_policy and our_policy.can_exit_to(ip_address, port)
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def getExitPolicy(self):
+  def get_exit_policy(self):
     """
     Provides an ExitPolicy instance for the head of this relay's exit policy
     chain. If there's no active connection then this provides None.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
+
+    if self.is_alive():
       try:
         result = self.controller.get_exit_policy(None)
       except:
         pass
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def getConsensusEntry(self, relayFingerprint):
+  def get_consensus_entry(self, relay_fingerprint):
     """
     Provides the most recently available consensus information for the given
     relay. This is none if no such information exists.
 
     Arguments:
-      relayFingerprint - fingerprint of the relay
+      relay_fingerprint - fingerprint of the relay
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
-      if not relayFingerprint in self._consensusLookupCache:
-        nsEntry = self.getInfo("ns/id/%s" % relayFingerprint, None)
-        self._consensusLookupCache[relayFingerprint] = nsEntry
 
-      result = self._consensusLookupCache[relayFingerprint]
+    if self.is_alive():
+      if not relay_fingerprint in self._consensus_lookup_cache:
+        ns_entry = self.get_info("ns/id/%s" % relay_fingerprint, None)
+        self._consensus_lookup_cache[relay_fingerprint] = ns_entry
 
-    self.connLock.release()
+      result = self._consensus_lookup_cache[relay_fingerprint]
+
+    self.conn_lock.release()
 
     return result
 
-  def getDescriptorEntry(self, relayFingerprint):
+  def get_descriptor_entry(self, relay_fingerprint):
     """
     Provides the most recently available descriptor information for the given
     relay. Unless FetchUselessDescriptors is set this may frequently be
     unavailable. If no such descriptor is available then this returns None.
 
     Arguments:
-      relayFingerprint - fingerprint of the relay
+      relay_fingerprint - fingerprint of the relay
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
-      if not relayFingerprint in self._descriptorLookupCache:
-        descEntry = self.getInfo("desc/id/%s" % relayFingerprint, None)
-        self._descriptorLookupCache[relayFingerprint] = descEntry
 
-      result = self._descriptorLookupCache[relayFingerprint]
+    if self.is_alive():
+      if not relay_fingerprint in self._descriptor_lookup_cache:
+        desc_entry = self.get_info("desc/id/%s" % relay_fingerprint, None)
+        self._descriptor_lookup_cache[relay_fingerprint] = desc_entry
 
-    self.connLock.release()
+      result = self._descriptor_lookup_cache[relay_fingerprint]
+
+    self.conn_lock.release()
 
     return result
 
-  def getRelayFingerprint(self, relayAddress, relayPort = None, getAllMatches = False):
+  def get_relay_fingerprint(self, relay_address, relay_port = None, get_all_matches = False):
     """
     Provides the fingerprint associated with the given address. If there's
     multiple potential matches or the mapping is unknown then this returns
@@ -651,69 +679,72 @@ class Controller:
     we have a connection with.
 
     Arguments:
-      relayAddress  - address of relay to be returned
-      relayPort     - orport of relay (to further narrow the results)
-      getAllMatches - ignores the relayPort and provides all of the
+      relay_address  - address of relay to be returned
+      relay_port     - orport of relay (to further narrow the results)
+      get_all_matches - ignores the relay_port and provides all of the
                       (port, fingerprint) tuples matching the given
                       address
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
-      if getAllMatches:
-        # populates the ip -> fingerprint mappings if not yet available
-        if self._fingerprintMappings == None:
-          self._fingerprintMappings = self._getFingerprintMappings()
 
-        if relayAddress in self._fingerprintMappings:
-          result = self._fingerprintMappings[relayAddress]
-        else: result = []
+    if self.is_alive():
+      if get_all_matches:
+        # populates the ip -> fingerprint mappings if not yet available
+        if self._fingerprint_mappings is None:
+          self._fingerprint_mappings = self._get_fingerprint_mappings()
+
+        if relay_address in self._fingerprint_mappings:
+          result = self._fingerprint_mappings[relay_address]
+        else:
+          result = []
       else:
         # query the fingerprint if it isn't yet cached
-        if not (relayAddress, relayPort) in self._fingerprintLookupCache:
-          relayFingerprint = self._getRelayFingerprint(relayAddress, relayPort)
-          self._fingerprintLookupCache[(relayAddress, relayPort)] = relayFingerprint
+        if not (relay_address, relay_port) in self._fingerprint_lookup_cache:
+          relay_fingerprint = self._get_relay_fingerprint(relay_address, relay_port)
+          self._fingerprint_lookup_cache[(relay_address, relay_port)] = relay_fingerprint
 
-        result = self._fingerprintLookupCache[(relayAddress, relayPort)]
+        result = self._fingerprint_lookup_cache[(relay_address, relay_port)]
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def getRelayNickname(self, relayFingerprint):
+  def get_relay_nickname(self, relay_fingerprint):
     """
     Provides the nickname associated with the given relay. This provides None
     if no such relay exists, and "Unnamed" if the name hasn't been set.
 
     Arguments:
-      relayFingerprint - fingerprint of the relay
+      relay_fingerprint - fingerprint of the relay
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
+
+    if self.is_alive():
       # query the nickname if it isn't yet cached
-      if not relayFingerprint in self._nicknameLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint", None):
+      if not relay_fingerprint in self._nickname_lookup_cache:
+        if relay_fingerprint == self.get_info("fingerprint", None):
           # this is us, simply check the config
-          myNickname = self.getOption("Nickname", "Unnamed")
-          self._nicknameLookupCache[relayFingerprint] = myNickname
+          my_nickname = self.get_option("Nickname", "Unnamed")
+          self._nickname_lookup_cache[relay_fingerprint] = my_nickname
         else:
-          nsEntry = self.controller.get_network_status(relayFingerprint, None)
+          ns_entry = self.controller.get_network_status(relay_fingerprint, None)
 
-          if nsEntry:
-            self._nicknameLookupCache[relayFingerprint] = nsEntry.nickname
+          if ns_entry:
+            self._nickname_lookup_cache[relay_fingerprint] = ns_entry.nickname
 
-      result = self._nicknameLookupCache[relayFingerprint]
+      result = self._nickname_lookup_cache[relay_fingerprint]
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def getRelayExitPolicy(self, relayFingerprint):
+  def get_relay_exit_policy(self, relay_fingerprint):
     """
     Provides the ExitPolicy instance associated with the given relay. The tor
     consensus entries don't indicate if private addresses are rejected or
@@ -722,89 +753,97 @@ class Controller:
     policy.
 
     Arguments:
-      relayFingerprint - fingerprint of the relay
+      relay_fingerprint - fingerprint of the relay
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = None
-    if self.isAlive():
+
+    if self.is_alive():
       # attempts to fetch the policy via the descriptor
-      descriptor = self.controller.get_server_descriptor(relayFingerprint, None)
+      descriptor = self.controller.get_server_descriptor(relay_fingerprint, None)
 
       if descriptor:
         result = descriptor.exit_policy
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def getRelayAddress(self, relayFingerprint, default = None):
+  def get_relay_address(self, relay_fingerprint, default = None):
     """
     Provides the (IP Address, ORPort) tuple for a given relay. If the lookup
     fails then this returns the default.
 
     Arguments:
-      relayFingerprint - fingerprint of the relay
+      relay_fingerprint - fingerprint of the relay
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     result = default
-    if self.isAlive():
-      # query the address if it isn't yet cached
-      if not relayFingerprint in self._addressLookupCache:
-        if relayFingerprint == self.getInfo("fingerprint", None):
-          # this is us, simply check the config
-          myAddress = self.getInfo("address", None)
-          myOrPort = self.getOption("ORPort", None)
 
-          if myAddress and myOrPort:
-            self._addressLookupCache[relayFingerprint] = (myAddress, myOrPort)
+    if self.is_alive():
+      # query the address if it isn't yet cached
+      if not relay_fingerprint in self._address_lookup_cache:
+        if relay_fingerprint == self.get_info("fingerprint", None):
+          # this is us, simply check the config
+          my_address = self.get_info("address", None)
+          my_or_port = self.get_option("ORPort", None)
+
+          if my_address and my_or_port:
+            self._address_lookup_cache[relay_fingerprint] = (my_address, my_or_port)
         else:
           # check the consensus for the relay
-          nsEntry = self.getConsensusEntry(relayFingerprint)
+          ns_entry = self.get_consensus_entry(relay_fingerprint)
 
-          if nsEntry:
-            nsLineComp = nsEntry.split("\n")[0].split(" ")
+          if ns_entry:
+            ns_line_comp = ns_entry.split("\n")[0].split(" ")
 
-            if len(nsLineComp) >= 8:
-              self._addressLookupCache[relayFingerprint] = (nsLineComp[6], nsLineComp[7])
+            if len(ns_line_comp) >= 8:
+              self._address_lookup_cache[relay_fingerprint] = (ns_line_comp[6], ns_line_comp[7])
 
-      result = self._addressLookupCache.get(relayFingerprint, default)
+      result = self._address_lookup_cache.get(relay_fingerprint, default)
 
-    self.connLock.release()
+    self.conn_lock.release()
 
     return result
 
-  def addEventListener(self, listener, *eventTypes):
+  def add_event_listener(self, listener, *event_types):
     """
     Directs further tor controller events to callback functions of the
     listener. If a new control connection is initialized then this listener is
     reattached.
     """
 
-    self.connLock.acquire()
-    if self.isAlive(): self.controller.add_event_listener(listener, *eventTypes)
-    self.connLock.release()
+    self.conn_lock.acquire()
 
-  def removeEventListener(self, listener):
+    if self.is_alive():
+      self.controller.add_event_listener(listener, *event_types)
+
+    self.conn_lock.release()
+
+  def remove_event_listener(self, listener):
     """
     Stops the given event listener from being notified of further events.
     """
 
-    self.connLock.acquire()
-    if self.isAlive(): self.controller.remove_event_listener(listener)
-    self.connLock.release()
+    self.conn_lock.acquire()
 
-  def addStatusListener(self, callback):
+    if self.is_alive():
+      self.controller.remove_event_listener(listener)
+
+    self.conn_lock.release()
+
+  def add_status_listener(self, callback):
     """
     Directs further events related to tor's controller status to the callback
     function.
 
     Arguments:
       callback - functor that'll accept the events, expected to be of the form:
-                 myFunction(controller, eventType)
+                 myFunction(controller, event_type)
     """
 
     self.controller.add_status_listener(callback)
@@ -815,17 +854,17 @@ class Controller:
     internal state to be reset and the torrc reloaded.
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     try:
-      if self.isAlive():
+      if self.is_alive():
         try:
           self.controller.signal(stem.Signal.RELOAD)
-        except Exception, exc:
+        except Exception as exc:
           # new torrc parameters caused an error (tor's likely shut down)
           raise IOError(str(exc))
     finally:
-      self.connLock.release()
+      self.conn_lock.release()
 
   def shutdown(self, force = False):
     """
@@ -837,12 +876,13 @@ class Controller:
       force - triggers an immediate shutdown for relays if True
     """
 
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
-    raisedException = None
-    if self.isAlive():
+    raised_exception = None
+
+    if self.is_alive():
       try:
-        isRelay = self.getOption("ORPort", None) != None
+        is_relay = self.get_option("ORPort", None) is not None
 
         if force:
           self.controller.signal(stem.Signal.HALT)
@@ -850,66 +890,79 @@ class Controller:
           self.controller.signal(stem.Signal.SHUTDOWN)
 
         # shuts down control connection if we aren't making a delayed shutdown
-        if force or not isRelay: self.close()
-      except Exception, exc:
-        raisedException = IOError(str(exc))
 
-    self.connLock.release()
+        if force or not is_relay:
+          self.close()
+      except Exception as exc:
+        raised_exception = IOError(str(exc))
 
-    if raisedException: raise raisedException
+    self.conn_lock.release()
+
+    if raised_exception:
+      raise raised_exception
 
   def ns_event(self, event):
-    self._consensusLookupCache = {}
+    self._consensus_lookup_cache = {}
 
   def new_consensus_event(self, event):
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     # reconstructs consensus based mappings
-    self._fingerprintLookupCache = {}
-    self._nicknameLookupCache = {}
-    self._addressLookupCache = {}
-    self._consensusLookupCache = {}
 
-    if self._fingerprintMappings != None:
-      self._fingerprintMappings = self._getFingerprintMappings(event.desc)
+    self._fingerprint_lookup_cache = {}
+    self._nickname_lookup_cache = {}
+    self._address_lookup_cache = {}
+    self._consensus_lookup_cache = {}
 
-    self.connLock.release()
+    if self._fingerprint_mappings is not None:
+      self._fingerprint_mappings = self._get_fingerprint_mappings(event.desc)
+
+    self.conn_lock.release()
 
   def new_desc_event(self, event):
-    self.connLock.acquire()
+    self.conn_lock.acquire()
 
     desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
 
     # If we're tracking ip address -> fingerprint mappings then update with
     # the new relays.
-    self._fingerprintLookupCache = {}
-    self._descriptorLookupCache = {}
 
-    if self._fingerprintMappings != None:
+    self._fingerprint_lookup_cache = {}
+    self._descriptor_lookup_cache = {}
+
+    if self._fingerprint_mappings is not None:
       for fingerprint in desc_fingerprints:
         # gets consensus data for the new descriptor
-        try: desc = self.controller.get_network_status(fingerprint)
-        except stem.ControllerError: continue
+
+        try:
+          desc = self.controller.get_network_status(fingerprint)
+        except stem.ControllerError:
+          continue
 
         # updates fingerprintMappings with new data
-        if desc.address in self._fingerprintMappings:
+
+        if desc.address in self._fingerprint_mappings:
           # if entry already exists with the same orport, remove it
-          orportMatch = None
-          for entryPort, entryFingerprint in self._fingerprintMappings[desc.address]:
-            if entryPort == desc.or_port:
-              orportMatch = (entryPort, entryFingerprint)
+
+          orport_match = None
+
+          for entry_port, entry_fingerprint in self._fingerprint_mappings[desc.address]:
+            if entry_port == desc.or_port:
+              orport_match = (entry_port, entry_fingerprint)
               break
 
-          if orportMatch: self._fingerprintMappings[desc.address].remove(orportMatch)
+          if orport_match:
+            self._fingerprint_mappings[desc.address].remove(orport_match)
 
           # add the new entry
-          self._fingerprintMappings[desc.address].append((desc.or_port, desc.fingerprint))
+
+          self._fingerprint_mappings[desc.address].append((desc.or_port, desc.fingerprint))
         else:
-          self._fingerprintMappings[desc.address] = [(desc.or_port, desc.fingerprint)]
+          self._fingerprint_mappings[desc.address] = [(desc.or_port, desc.fingerprint)]
 
-    self.connLock.release()
+    self.conn_lock.release()
 
-  def _getFingerprintMappings(self, descriptors = None):
+  def _get_fingerprint_mappings(self, descriptors = None):
     """
     Provides IP address to (port, fingerprint) tuple mappings for all of the
     currently cached relays.
@@ -919,55 +972,68 @@ class Controller:
     """
 
     results = {}
-    if self.isAlive():
+
+    if self.is_alive():
       # fetch the current network status if not provided
+
       if not descriptors:
-        try: descriptors = self.controller.get_network_statuses()
-        except stem.ControllerError: descriptors = []
+        try:
+          descriptors = self.controller.get_network_statuses()
+        except stem.ControllerError:
+          descriptors = []
 
       # construct mappings of ips to relay data
+
       for desc in descriptors:
         results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
 
     return results
 
-  def _getRelayFingerprint(self, relayAddress, relayPort):
+  def _get_relay_fingerprint(self, relay_address, relay_port):
     """
     Provides the fingerprint associated with the address/port combination.
 
     Arguments:
-      relayAddress - address of relay to be returned
-      relayPort    - orport of relay (to further narrow the results)
+      relay_address - address of relay to be returned
+      relay_port    - orport of relay (to further narrow the results)
     """
 
     # If we were provided with a string port then convert to an int (so
     # lookups won't mismatch based on type).
-    if isinstance(relayPort, str): relayPort = int(relayPort)
+
+    if isinstance(relay_port, str):
+      relay_port = int(relay_port)
 
     # checks if this matches us
-    if relayAddress == self.getInfo("address", None):
-      if not relayPort or relayPort == self.getOption("ORPort", None):
-        return self.getInfo("fingerprint", None)
+
+    if relay_address == self.get_info("address", None):
+      if not relay_port or relay_port == self.get_option("ORPort", None):
+        return self.get_info("fingerprint", None)
 
     # if we haven't yet populated the ip -> fingerprint mappings then do so
-    if self._fingerprintMappings == None:
-      self._fingerprintMappings = self._getFingerprintMappings()
 
-    potentialMatches = self._fingerprintMappings.get(relayAddress)
-    if not potentialMatches: return None # no relay matches this ip address
+    if self._fingerprint_mappings is None:
+      self._fingerprint_mappings = self._get_fingerprint_mappings()
 
-    if len(potentialMatches) == 1:
+    potential_matches = self._fingerprint_mappings.get(relay_address)
+
+    if not potential_matches:
+      return None  # no relay matches this ip address
+
+    if len(potential_matches) == 1:
       # There's only one relay belonging to this ip address. If the port
       # matches then we're done.
-      match = potentialMatches[0]
 
-      if relayPort and match[0] != relayPort: return None
-      else: return match[1]
-    elif relayPort:
+      match = potential_matches[0]
+
+      if relay_port and match[0] != relay_port:
+        return None
+      else:
+        return match[1]
+    elif relay_port:
       # Multiple potential matches, so trying to match based on the port.
-      for entryPort, entryFingerprint in potentialMatches:
-        if entryPort == relayPort:
-          return entryFingerprint
+      for entry_port, entry_fingerprint in potential_matches:
+        if entry_port == relay_port:
+          return entry_fingerprint
 
     return None
-

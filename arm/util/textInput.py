@@ -9,14 +9,15 @@ import curses
 
 PASS = -1
 
+
 class TextInputValidator:
   """
-  Basic interface for validators. Implementations should override the handleKey
+  Basic interface for validators. Implementations should override the handle_key
   method.
   """
 
-  def __init__(self, nextValidator = None):
-    self.nextValidator = nextValidator
+  def __init__(self, next_validator = None):
+    self.next_validator = next_validator
 
   def validate(self, key, textbox):
     """
@@ -30,15 +31,16 @@ class TextInputValidator:
       textbox - curses Textbox instance the input came from
     """
 
-    result = self.handleKey(key, textbox)
+    result = self.handle_key(key, textbox)
 
     if result != PASS:
       return result
-    elif self.nextValidator:
-      return self.nextValidator.validate(key, textbox)
-    else: return key
+    elif self.next_validator:
+      return self.next_validator.validate(key, textbox)
+    else:
+      return key
 
-  def handleKey(self, key, textbox):
+  def handle_key(self, key, textbox):
     """
     Process the given keycode with this validator, returning the keycode for
     the textbox to process, and PASS if this doesn't want to modify it.
@@ -50,6 +52,7 @@ class TextInputValidator:
 
     return PASS
 
+
 class BasicValidator(TextInputValidator):
   """
   Interceptor for keystrokes given to a textbox, doing the following:
@@ -59,7 +62,7 @@ class BasicValidator(TextInputValidator):
   - home and end keys move to the start/end of the line
   """
 
-  def handleKey(self, key, textbox):
+  def handle_key(self, key, textbox):
     y, x = textbox.win.getyx()
 
     if curses.ascii.isprint(key) and x < textbox.maxx:
@@ -73,32 +76,37 @@ class BasicValidator(TextInputValidator):
       #   because keycodes read by textbox.win.inch() includes formatting,
       #   causing the curses.ascii.isprint() check it does to fail.
 
-      currentInput = textbox.gather()
-      textbox.win.addstr(y, x + 1, currentInput[x:textbox.maxx - 1])
-      textbox.win.move(y, x) # reverts cursor movement during gather call
+      current_input = textbox.gather()
+      textbox.win.addstr(y, x + 1, current_input[x:textbox.maxx - 1])
+      textbox.win.move(y, x)  # reverts cursor movement during gather call
     elif key == 27:
       # curses.ascii.BEL is a character codes that causes textpad to terminate
+
       return curses.ascii.BEL
     elif key == curses.KEY_HOME:
       textbox.win.move(y, 0)
       return None
     elif key in (curses.KEY_END, curses.KEY_RIGHT):
-      msgLen = len(textbox.gather())
-      textbox.win.move(y, x) # reverts cursor movement during gather call
+      msg_length = len(textbox.gather())
+      textbox.win.move(y, x)  # reverts cursor movement during gather call
 
-      if key == curses.KEY_END and msgLen > 0 and x < msgLen - 1:
+      if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
         # if we're in the content then move to the end
-        textbox.win.move(y, msgLen - 1)
+
+        textbox.win.move(y, msg_length - 1)
         return None
-      elif key == curses.KEY_RIGHT and x >= msgLen - 1:
+      elif key == curses.KEY_RIGHT and x >= msg_length - 1:
         # don't move the cursor if there's no content after it
+
         return None
     elif key == 410:
       # if we're resizing the display during text entry then cancel it
       # (otherwise the input field is filled with nonprintable characters)
+
       return curses.ascii.BEL
 
     return PASS
+
 
 class HistoryValidator(TextInputValidator):
   """
@@ -106,48 +114,57 @@ class HistoryValidator(TextInputValidator):
   previous commands.
   """
 
-  def __init__(self, commandBacklog = [], nextValidator = None):
-    TextInputValidator.__init__(self, nextValidator)
+  def __init__(self, command_backlog = [], next_validator = None):
+    TextInputValidator.__init__(self, next_validator)
 
     # contents that can be scrolled back through, newest to oldest
-    self.commandBacklog = commandBacklog
+
+    self.command_backlog = command_backlog
 
     # selected item from the backlog, -1 if we're not on a backlog item
-    self.selectionIndex = -1
+
+    self.selection_index = -1
 
     # the fields input prior to selecting a backlog item
-    self.customInput = ""
 
-  def handleKey(self, key, textbox):
+    self.custom_input = ""
+
+  def handle_key(self, key, textbox):
     if key in (curses.KEY_UP, curses.KEY_DOWN):
       offset = 1 if key == curses.KEY_UP else -1
-      newSelection = self.selectionIndex + offset
+      new_selection = self.selection_index + offset
 
       # constrains the new selection to valid bounds
-      newSelection = max(-1, newSelection)
-      newSelection = min(len(self.commandBacklog) - 1, newSelection)
+
+      new_selection = max(-1, new_selection)
+      new_selection = min(len(self.command_backlog) - 1, new_selection)
 
       # skips if this is a no-op
-      if self.selectionIndex == newSelection:
+
+      if self.selection_index == new_selection:
         return None
 
       # saves the previous input if we weren't on the backlog
-      if self.selectionIndex == -1:
-        self.customInput = textbox.gather().strip()
 
-      if newSelection == -1: newInput = self.customInput
-      else: newInput = self.commandBacklog[newSelection]
+      if self.selection_index == -1:
+        self.custom_input = textbox.gather().strip()
+
+      if new_selection == -1:
+        new_input = self.custom_input
+      else:
+        new_input = self.command_backlog[new_selection]
 
       y, _ = textbox.win.getyx()
-      _, maxX = textbox.win.getmaxyx()
+      _, max_x = textbox.win.getmaxyx()
       textbox.win.clear()
-      textbox.win.addstr(y, 0, newInput[:maxX - 1])
-      textbox.win.move(y, min(len(newInput), maxX - 1))
+      textbox.win.addstr(y, 0, new_input[:max_x - 1])
+      textbox.win.move(y, min(len(new_input), max_x - 1))
 
-      self.selectionIndex = newSelection
+      self.selection_index = new_selection
       return None
 
     return PASS
+
 
 class TabCompleter(TextInputValidator):
   """
@@ -156,40 +173,41 @@ class TabCompleter(TextInputValidator):
   provides matches.
   """
 
-  def __init__(self, completer, nextValidator = None):
-    TextInputValidator.__init__(self, nextValidator)
+  def __init__(self, completer, next_validator = None):
+    TextInputValidator.__init__(self, next_validator)
 
     # functor that accepts a string and gives a list of matches
+
     self.completer = completer
 
-  def handleKey(self, key, textbox):
+  def handle_key(self, key, textbox):
     # Matches against the tab key. The ord('\t') is nine, though strangely none
     # of the curses.KEY_*TAB constants match this...
+
     if key == 9:
-      currentContents = textbox.gather().strip()
-      matches = self.completer(currentContents)
-      newInput = None
+      current_contents = textbox.gather().strip()
+      matches = self.completer(current_contents)
+      new_input = None
 
       if len(matches) == 1:
         # only a single match, fill it in
-        newInput = matches[0]
+        new_input = matches[0]
       elif len(matches) > 1:
         # looks for a common prefix we can complete
-        commonPrefix = os.path.commonprefix(matches) # weird that this comes from path...
+        common_prefix = os.path.commonprefix(matches)  # weird that this comes from path...
 
-        if commonPrefix != currentContents:
-          newInput = commonPrefix
+        if common_prefix != current_contents:
+          new_input = common_prefix
 
         # TODO: somehow display matches... this is not gonna be fun
 
-      if newInput:
+      if new_input:
         y, _ = textbox.win.getyx()
-        _, maxX = textbox.win.getmaxyx()
+        _, max_x = textbox.win.getmaxyx()
         textbox.win.clear()
-        textbox.win.addstr(y, 0, newInput[:maxX - 1])
-        textbox.win.move(y, min(len(newInput), maxX - 1))
+        textbox.win.addstr(y, 0, new_input[:max_x - 1])
+        textbox.win.move(y, min(len(new_input), max_x - 1))
 
       return None
 
     return PASS
-

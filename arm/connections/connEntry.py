@@ -22,17 +22,26 @@ from stem.util import conf, connection, enum, str_tools
 #   Control      Tor controller (arm, vidalia, etc).
 
 Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "HIDDEN", "SOCKS", "CIRCUIT", "DIRECTORY", "CONTROL")
-CATEGORY_COLOR = {Category.INBOUND: "green",      Category.OUTBOUND: "blue",
-                  Category.EXIT: "red",           Category.HIDDEN: "magenta",
-                  Category.SOCKS: "yellow",       Category.CIRCUIT: "cyan",
-                  Category.DIRECTORY: "magenta",  Category.CONTROL: "red"}
+
+CATEGORY_COLOR = {
+  Category.INBOUND: "green",
+  Category.OUTBOUND: "blue",
+  Category.EXIT: "red",
+  Category.HIDDEN: "magenta",
+  Category.SOCKS: "yellow",
+  Category.CIRCUIT: "cyan",
+  Category.DIRECTORY: "magenta",
+  Category.CONTROL: "red",
+}
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
+
 LABEL_FORMAT = "%s  -->  %s  %s%s"
-LABEL_MIN_PADDING = 2 # min space between listing label and following data
+LABEL_MIN_PADDING = 2  # min space between listing label and following data
 
 # sort value for scrubbed ip addresses
+
 SCRUBBED_IP_VAL = 255 ** 4
 
 CONFIG = conf.config_dict("arm", {
@@ -45,6 +54,7 @@ CONFIG = conf.config_dict("arm", {
   "features.connection.showColumn.expandedIp": True,
 })
 
+
 class Endpoint:
   """
   Collection of attributes associated with a connection endpoint. This is a
@@ -52,33 +62,35 @@ class Endpoint:
   performance.
   """
 
-  def __init__(self, ipAddr, port):
-    self.ipAddr = ipAddr
+  def __init__(self, address, port):
+    self.address = address
     self.port = port
 
     # if true, we treat the port as an definitely not being an ORPort when
     # searching for matching fingerprints (otherwise we use it to possably
     # narrow results when unknown)
-    self.isNotORPort = True
+
+    self.is_not_or_port = True
 
     # if set then this overwrites fingerprint lookups
-    self.fingerprintOverwrite = None
 
-  def getIpAddr(self):
+    self.fingerprint_overwrite = None
+
+  def get_address(self):
     """
     Provides the IP address of the endpoint.
     """
 
-    return self.ipAddr
+    return self.address
 
-  def getPort(self):
+  def get_port(self):
     """
     Provides the port of the endpoint.
     """
 
     return self.port
 
-  def getHostname(self, default = None):
+  def get_hostname(self, default = None):
     """
     Provides the hostname associated with the relay's address. This is a
     non-blocking call and returns None if the address either can't be resolved
@@ -90,7 +102,7 @@ class Endpoint:
 
     # TODO: skipping all hostname resolution to be safe for now
     #try:
-    #  myHostname = hostnames.resolve(self.ipAddr)
+    #  myHostname = hostnames.resolve(self.address)
     #except:
     #  # either a ValueError or IOError depending on the source of the lookup failure
     #  myHostname = None
@@ -100,7 +112,7 @@ class Endpoint:
 
     return default
 
-  def getLocale(self, default=None):
+  def get_locale(self, default=None):
     """
     Provides the two letter country code for the IP address' locale.
 
@@ -108,44 +120,51 @@ class Endpoint:
       default - return value if no locale information is available
     """
 
-    conn = torTools.getConn()
-    return conn.getInfo("ip-to-country/%s" % self.ipAddr, default)
+    conn = torTools.get_conn()
+    return conn.get_info("ip-to-country/%s" % self.address, default)
 
-  def getFingerprint(self):
+  def get_fingerprint(self):
     """
     Provides the fingerprint of the relay, returning "UNKNOWN" if it can't be
     determined.
     """
 
-    if self.fingerprintOverwrite:
-      return self.fingerprintOverwrite
+    if self.fingerprint_overwrite:
+      return self.fingerprint_overwrite
 
-    conn = torTools.getConn()
-    myFingerprint = conn.getRelayFingerprint(self.ipAddr)
+    conn = torTools.get_conn()
+    my_fingerprint = conn.get_relay_fingerprint(self.address)
 
     # If there were multiple matches and our port is likely the ORPort then
     # try again with that to narrow the results.
-    if not myFingerprint and not self.isNotORPort:
-      myFingerprint = conn.getRelayFingerprint(self.ipAddr, self.port)
 
-    if myFingerprint: return myFingerprint
-    else: return "UNKNOWN"
+    if not my_fingerprint and not self.is_not_or_port:
+      my_fingerprint = conn.get_relay_fingerprint(self.address, self.port)
 
-  def getNickname(self):
+    if my_fingerprint:
+      return my_fingerprint
+    else:
+      return "UNKNOWN"
+
+  def get_nickname(self):
     """
     Provides the nickname of the relay, retuning "UNKNOWN" if it can't be
     determined.
     """
 
-    myFingerprint = self.getFingerprint()
+    my_fingerprint = self.get_fingerprint()
 
-    if myFingerprint != "UNKNOWN":
-      conn = torTools.getConn()
-      myNickname = conn.getRelayNickname(myFingerprint)
+    if my_fingerprint != "UNKNOWN":
+      conn = torTools.get_conn()
+      my_nickname = conn.get_relay_nickname(my_fingerprint)
 
-      if myNickname: return myNickname
-      else: return "UNKNOWN"
-    else: return "UNKNOWN"
+      if my_nickname:
+        return my_nickname
+      else:
+        return "UNKNOWN"
+    else:
+      return "UNKNOWN"
+
 
 class ConnectionEntry(entries.ConnectionPanelEntry):
   """
@@ -154,56 +173,68 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
   application, and controller categories.
   """
 
-  def __init__(self, lIpAddr, lPort, fIpAddr, fPort):
+  def __init__(self, local_address, local_port, remote_address, remote_port):
     entries.ConnectionPanelEntry.__init__(self)
-    self.lines = [ConnectionLine(lIpAddr, lPort, fIpAddr, fPort)]
+    self.lines = [ConnectionLine(local_address, local_port, remote_address, remote_port)]
 
-  def getSortValue(self, attr, listingType):
+  def get_sort_value(self, attr, listing_type):
     """
     Provides the value of a single attribute used for sorting purposes.
     """
 
-    connLine = self.lines[0]
+    connection_line = self.lines[0]
+
     if attr == entries.SortAttr.IP_ADDRESS:
-      if connLine.isPrivate(): return SCRUBBED_IP_VAL # orders at the end
-      return connLine.sortIpAddr
+      if connection_line.is_private():
+        return SCRUBBED_IP_VAL  # orders at the end
+
+      return connection_line.sort_address
     elif attr == entries.SortAttr.PORT:
-      return connLine.sortPort
+      return connection_line.sort_port
     elif attr == entries.SortAttr.HOSTNAME:
-      if connLine.isPrivate(): return ""
-      return connLine.foreign.getHostname("")
+      if connection_line.is_private():
+        return ""
+
+      return connection_line.foreign.get_hostname("")
     elif attr == entries.SortAttr.FINGERPRINT:
-      return connLine.foreign.getFingerprint()
+      return connection_line.foreign.get_fingerprint()
     elif attr == entries.SortAttr.NICKNAME:
-      myNickname = connLine.foreign.getNickname()
-      if myNickname == "UNKNOWN": return "z" * 20 # orders at the end
-      else: return myNickname.lower()
+      my_nickname = connection_line.foreign.get_nickname()
+
+      if my_nickname == "UNKNOWN":
+        return "z" * 20  # orders at the end
+      else:
+        return my_nickname.lower()
     elif attr == entries.SortAttr.CATEGORY:
-      return Category.index_of(connLine.getType())
+      return Category.index_of(connection_line.get_type())
     elif attr == entries.SortAttr.UPTIME:
-      return connLine.startTime
+      return connection_line.start_time
     elif attr == entries.SortAttr.COUNTRY:
-      if connection.is_private_address(self.lines[0].foreign.getIpAddr()): return ""
-      else: return connLine.foreign.getLocale("")
+      if connection.is_private_address(self.lines[0].foreign.get_address()):
+        return ""
+      else:
+        return connection_line.foreign.get_locale("")
     else:
-      return entries.ConnectionPanelEntry.getSortValue(self, attr, listingType)
+      return entries.ConnectionPanelEntry.get_sort_value(self, attr, listing_type)
+
 
 class ConnectionLine(entries.ConnectionPanelLine):
   """
   Display component of the ConnectionEntry.
   """
 
-  def __init__(self, lIpAddr, lPort, fIpAddr, fPort, includePort=True, includeExpandedIpAddr=True):
+  def __init__(self, local_address, local_port, remote_address, remote_port, include_port=True, include_expanded_addresses=True):
     entries.ConnectionPanelLine.__init__(self)
 
-    self.local = Endpoint(lIpAddr, lPort)
-    self.foreign = Endpoint(fIpAddr, fPort)
-    self.startTime = time.time()
-    self.isInitialConnection = False
+    self.local = Endpoint(local_address, local_port)
+    self.foreign = Endpoint(remote_address, remote_port)
+    self.start_time = time.time()
+    self.is_initial_connection = False
 
     # overwrite the local fingerprint with ours
-    conn = torTools.getConn()
-    self.local.fingerprintOverwrite = conn.getInfo("fingerprint", None)
+
+    conn = torTools.get_conn()
+    self.local.fingerprint_overwrite = conn.get_info("fingerprint", None)
 
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -211,57 +242,61 @@ class ConnectionLine(entries.ConnectionPanelLine):
     #   directory - matches an established single-hop circuit (probably a
     #               directory mirror)
 
-    self._possibleClient = True
-    self._possibleDirectory = True
+    self._possible_client = True
+    self._possible_directory = True
 
     # attributes for SOCKS, HIDDEN, and CONTROL connections
-    self.appName = None
-    self.appPid = None
-    self.isAppResolving = False
 
-    myOrPort = conn.getOption("ORPort", None)
-    myDirPort = conn.getOption("DirPort", None)
-    mySocksPort = conn.getOption("SocksPort", "9050")
-    myCtlPort = conn.getOption("ControlPort", None)
-    myHiddenServicePorts = conn.getHiddenServicePorts()
+    self.application_name = None
+    self.application_pid = None
+    self.is_application_resolving = False
+
+    my_or_port = conn.get_option("ORPort", None)
+    my_dir_port = conn.get_option("DirPort", None)
+    my_socks_port = conn.get_option("SocksPort", "9050")
+    my_ctl_port = conn.get_option("ControlPort", None)
+    my_hidden_service_ports = conn.get_hidden_service_ports()
 
     # the ORListenAddress can overwrite the ORPort
-    listenAddr = conn.getOption("ORListenAddress", None)
-    if listenAddr and ":" in listenAddr:
-      myOrPort = listenAddr[listenAddr.find(":") + 1:]
 
-    if lPort in (myOrPort, myDirPort):
-      self.baseType = Category.INBOUND
-      self.local.isNotORPort = False
-    elif lPort == mySocksPort:
-      self.baseType = Category.SOCKS
-    elif fPort in myHiddenServicePorts:
-      self.baseType = Category.HIDDEN
-    elif lPort == myCtlPort:
-      self.baseType = Category.CONTROL
+    listen_addr = conn.get_option("ORListenAddress", None)
+
+    if listen_addr and ":" in listen_addr:
+      my_or_port = listen_addr[listen_addr.find(":") + 1:]
+
+    if local_port in (my_or_port, my_dir_port):
+      self.base_type = Category.INBOUND
+      self.local.is_not_or_port = False
+    elif local_port == my_socks_port:
+      self.base_type = Category.SOCKS
+    elif remote_port in my_hidden_service_ports:
+      self.base_type = Category.HIDDEN
+    elif local_port == my_ctl_port:
+      self.base_type = Category.CONTROL
     else:
-      self.baseType = Category.OUTBOUND
-      self.foreign.isNotORPort = False
+      self.base_type = Category.OUTBOUND
+      self.foreign.is_not_or_port = False
 
-    self.cachedType = None
+    self.cached_type = None
 
     # includes the port or expanded ip address field when displaying listing
     # information if true
-    self.includePort = includePort
-    self.includeExpandedIpAddr = includeExpandedIpAddr
+
+    self.include_port = include_port
+    self.include_expanded_addresses = include_expanded_addresses
 
     # cached immutable values used for sorting
 
     ip_value = 0
 
-    for comp in self.foreign.getIpAddr().split("."):
+    for comp in self.foreign.get_address().split("."):
       ip_value *= 255
       ip_value += int(comp)
 
-    self.sortIpAddr = ip_value
-    self.sortPort = int(self.foreign.getPort())
+    self.sort_address = ip_value
+    self.sort_port = int(self.foreign.get_port())
 
-  def getListingEntry(self, width, currentTime, listingType):
+  def get_listing_entry(self, width, current_time, listing_type):
     """
     Provides the tuple list for this connection's listing. Lines are composed
     of the following components:
@@ -289,33 +324,36 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     Arguments:
       width       - maximum length of the line
-      currentTime - unix timestamp for what the results should consider to be
+      current_time - unix timestamp for what the results should consider to be
                     the current time
-      listingType - primary attribute we're listing connections by
+      listing_type - primary attribute we're listing connections by
     """
 
     # fetch our (most likely cached) display entry for the listing
-    myListing = entries.ConnectionPanelLine.getListingEntry(self, width, currentTime, listingType)
+
+    my_listing = entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
     # fill in the current uptime and return the results
+
     if CONFIG["features.connection.markInitialConnections"]:
-      timePrefix = "+" if self.isInitialConnection else " "
-    else: timePrefix = ""
+      time_prefix = "+" if self.is_initial_connection else " "
+    else:
+      time_prefix = ""
 
-    timeLabel = timePrefix + "%5s" % str_tools.get_time_label(currentTime - self.startTime, 1)
-    myListing[2] = (timeLabel, myListing[2][1])
+    time_label = time_prefix + "%5s" % str_tools.get_time_label(current_time - self.start_time, 1)
+    my_listing[2] = (time_label, my_listing[2][1])
 
-    return myListing
+    return my_listing
 
-  def isUnresolvedApp(self):
+  def is_unresolved_application(self):
     """
     True if our display uses application information that hasn't yet been resolved.
     """
 
-    return self.appName == None and self.getType() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
+    return self.application_name is None and self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
 
-  def _getListingEntry(self, width, currentTime, listingType):
-    entryType = self.getType()
+  def _get_listing_entry(self, width, current_time, listing_type):
+    entry_type = self.get_type()
 
     # Lines are split into the following components in reverse:
     # init gap - " "
@@ -325,18 +363,19 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    lineFormat = uiTools.getColor(CATEGORY_COLOR[entryType])
-    timeWidth = 6 if CONFIG["features.connection.markInitialConnections"] else 5
+    line_format = uiTools.get_color(CATEGORY_COLOR[entry_type])
+    time_width = 6 if CONFIG["features.connection.markInitialConnections"] else 5
 
-    drawEntry = [(" ", lineFormat),
-                 (self._getListingContent(width - (12 + timeWidth) - 1, listingType), lineFormat),
-                 (" " * timeWidth, lineFormat),
-                 (" (", lineFormat),
-                 (entryType.upper(), lineFormat | curses.A_BOLD),
-                 (")" + " " * (9 - len(entryType)), lineFormat)]
-    return drawEntry
+    draw_entry = [(" ", line_format),
+                  (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
+                  (" " * time_width, line_format),
+                  (" (", line_format),
+                  (entry_type.upper(), line_format | curses.A_BOLD),
+                  (")" + " " * (9 - len(entry_type)), line_format)]
 
-  def _getDetails(self, width):
+    return draw_entry
+
+  def _get_details(self, width):
     """
     Provides details on the connection, correlated against available consensus
     data.
@@ -345,36 +384,39 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detailFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[self.getType()])
-    return [(line, detailFormat) for line in self._getDetailContent(width)]
+    detail_format = curses.A_BOLD | uiTools.get_color(CATEGORY_COLOR[self.get_type()])
+    return [(line, detail_format) for line in self._get_detail_content(width)]
 
-  def resetDisplay(self):
-    entries.ConnectionPanelLine.resetDisplay(self)
-    self.cachedType = None
+  def reset_display(self):
+    entries.ConnectionPanelLine.reset_display(self)
+    self.cached_type = None
 
-  def isPrivate(self):
+  def is_private(self):
     """
     Returns true if the endpoint is private, possibly belonging to a client
     connection or exit traffic.
     """
 
-    if not CONFIG["features.connection.showIps"]: return True
+    if not CONFIG["features.connection.showIps"]:
+      return True
 
     # This is used to scrub private information from the interface. Relaying
     # etiquette (and wiretapping laws) say these are bad things to look at so
     # DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
 
-    myType = self.getType()
+    my_type = self.get_type()
 
-    if myType == Category.INBOUND:
+    if my_type == Category.INBOUND:
       # if we're a guard or bridge and the connection doesn't belong to a
       # known relay then it might be client traffic
 
-      conn = torTools.getConn()
-      if "Guard" in conn.getMyFlags([]) or conn.getOption("BridgeRelay", None) == "1":
-        allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
-        return allMatches == []
-    elif myType == Category.EXIT:
+      conn = torTools.get_conn()
+
+      if "Guard" in conn.get_my_flags([]) or conn.get_option("BridgeRelay", None) == "1":
+        all_matches = conn.get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+
+        return all_matches == []
+    elif my_type == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else, however, is.
 
@@ -382,12 +424,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # (since DNS is the only UDP connections Tor will relay), however this
       # will take a bit more work to propagate the information up from the
       # connection resolver.
-      return self.foreign.getPort() != "53"
+
+      return self.foreign.get_port() != "53"
 
     # for everything else this isn't a concern
+
     return False
 
-  def getType(self):
+  def get_type(self):
     """
     Provides our best guess at the current type of the connection. This
     depends on consensus results, our current client circuits, etc. Results
@@ -396,8 +440,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # caches both to simplify the calls and to keep the type consistent until
     # we want to reflect changes
-    if not self.cachedType:
-      if self.baseType == Category.OUTBOUND:
+
+    if not self.cached_type:
+      if self.base_type == Category.OUTBOUND:
         # Currently the only non-static categories are OUTBOUND vs...
         # - EXIT since this depends on the current consensus
         # - CIRCUIT if this is likely to belong to our guard usage
@@ -406,164 +451,178 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # The exitability, circuits, and fingerprints are all cached by the
         # torTools util keeping this a quick lookup.
 
-        conn = torTools.getConn()
-        destFingerprint = self.foreign.getFingerprint()
+        conn = torTools.get_conn()
+        destination_fingerprint = self.foreign.get_fingerprint()
 
-        if destFingerprint == "UNKNOWN":
+        if destination_fingerprint == "UNKNOWN":
           # Not a known relay. This might be an exit connection.
 
-          if conn.isExitingAllowed(self.foreign.getIpAddr(), self.foreign.getPort()):
-            self.cachedType = Category.EXIT
-        elif self._possibleClient or self._possibleDirectory:
+          if conn.is_exiting_allowed(self.foreign.get_address(), self.foreign.get_port()):
+            self.cached_type = Category.EXIT
+        elif self._possible_client or self._possible_directory:
           # This belongs to a known relay. If we haven't eliminated ourselves as
           # a possible client or directory connection then check if it still
           # holds true.
 
-          myCircuits = conn.getCircuits()
+          my_circuits = conn.get_circuits()
 
-          if self._possibleClient:
+          if self._possible_client:
             # Checks that this belongs to the first hop in a circuit that's
             # either unestablished or longer than a single hop (ie, anything but
             # a built 1-hop connection since those are most likely a directory
             # mirror).
 
-            for _, status, _, path in myCircuits:
-              if path and path[0] == destFingerprint and (status != "BUILT" or len(path) > 1):
-                self.cachedType = Category.CIRCUIT # matched a probable guard connection
+            for _, status, _, path in my_circuits:
+              if path and path[0] == destination_fingerprint and (status != "BUILT" or len(path) > 1):
+                self.cached_type = Category.CIRCUIT  # matched a probable guard connection
 
             # if we fell through, we can eliminate ourselves as a guard in the future
-            if not self.cachedType:
-              self._possibleClient = False
+            if not self.cached_type:
+              self._possible_client = False
 
-          if self._possibleDirectory:
+          if self._possible_directory:
             # Checks if we match a built, single hop circuit.
 
-            for _, status, _, path in myCircuits:
-              if path and path[0] == destFingerprint and status == "BUILT" and len(path) == 1:
-                self.cachedType = Category.DIRECTORY
+            for _, status, _, path in my_circuits:
+              if path and path[0] == destination_fingerprint and status == "BUILT" and len(path) == 1:
+                self.cached_type = Category.DIRECTORY
 
             # if we fell through, eliminate ourselves as a directory connection
-            if not self.cachedType:
-              self._possibleDirectory = False
+            if not self.cached_type:
+              self._possible_directory = False
 
-      if not self.cachedType:
-        self.cachedType = self.baseType
+      if not self.cached_type:
+        self.cached_type = self.base_type
 
-    return self.cachedType
+    return self.cached_type
 
-  def getEtcContent(self, width, listingType):
+  def get_etc_content(self, width, listing_type):
     """
     Provides the optional content for the connection.
 
     Arguments:
       width       - maximum length of the line
-      listingType - primary attribute we're listing connections by
+      listing_type - primary attribute we're listing connections by
     """
 
     # for applications show the command/pid
-    if self.getType() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      displayLabel = ""
 
-      if self.appName:
-        if self.appPid: displayLabel = "%s (%s)" % (self.appName, self.appPid)
-        else: displayLabel = self.appName
-      elif self.isAppResolving:
-        displayLabel = "resolving..."
-      else: displayLabel = "UNKNOWN"
+    if self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+      display_label = ""
 
-      if len(displayLabel) < width:
-        return ("%%-%is" % width) % displayLabel
-      else: return ""
+      if self.application_name:
+        if self.application_pid:
+          display_label = "%s (%s)" % (self.application_name, self.application_pid)
+        else:
+          display_label = self.application_name
+      elif self.is_application_resolving:
+        display_label = "resolving..."
+      else:
+        display_label = "UNKNOWN"
+
+      if len(display_label) < width:
+        return ("%%-%is" % width) % display_label
+      else:
+        return ""
 
     # for everything else display connection/consensus information
-    dstAddress = self.getDestinationLabel(26, includeLocale = True)
-    etc, usedSpace = "", 0
-    if listingType == entries.ListingType.IP_ADDRESS:
-      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
-        # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
 
-      if width > usedSpace + 10 and CONFIG["features.connection.showColumn.nickname"]:
+    destination_address = self.get_destination_label(26, include_locale = True)
+    etc, used_space = "", 0
+
+    if listing_type == entries.ListingType.IP_ADDRESS:
+      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+        # show fingerprint (column width: 42 characters)
+
+        etc += "%-40s  " % self.foreign.get_fingerprint()
+        used_space += 42
+
+      if width > used_space + 10 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: remainder)
-        nicknameSpace = width - usedSpace
-        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-        usedSpace += nicknameSpace + 2
-    elif listingType == entries.ListingType.HOSTNAME:
-      if width > usedSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
+
+        nickname_space = width - used_space
+        nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        etc += ("%%-%is  " % nickname_space) % nickname_label
+        used_space += nickname_space + 2
+    elif listing_type == entries.ListingType.HOSTNAME:
+      if width > used_space + 28 and CONFIG["features.connection.showColumn.destination"]:
         # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % dstAddress
-        usedSpace += 28
+        etc += "%-26s  " % destination_address
+        used_space += 28
 
-      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
         # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
+        etc += "%-40s  " % self.foreign.get_fingerprint()
+        used_space += 42
 
-      if width > usedSpace + 17 and CONFIG["features.connection.showColumn.nickname"]:
+      if width > used_space + 17 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: min 17 characters, uses half of the remainder)
-        nicknameSpace = 15 + (width - (usedSpace + 17)) / 2
-        nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-        etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-        usedSpace += (nicknameSpace + 2)
-    elif listingType == entries.ListingType.FINGERPRINT:
-      if width > usedSpace + 17:
+        nickname_space = 15 + (width - (used_space + 17)) / 2
+        nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        etc += ("%%-%is  " % nickname_space) % nickname_label
+        used_space += (nickname_space + 2)
+    elif listing_type == entries.ListingType.FINGERPRINT:
+      if width > used_space + 17:
         # show nickname (column width: min 17 characters, consumes any remaining space)
-        nicknameSpace = width - usedSpace - 2
+
+        nickname_space = width - used_space - 2
 
         # if there's room then also show a column with the destination
         # ip/port/locale (column width: 28 characters)
-        isIpLocaleIncluded = width > usedSpace + 45
-        isIpLocaleIncluded &= CONFIG["features.connection.showColumn.destination"]
-        if isIpLocaleIncluded: nicknameSpace -= 28
+
+        is_locale_included = width > used_space + 45
+        is_locale_included &= CONFIG["features.connection.showColumn.destination"]
+
+        if is_locale_included:
+          nickname_space -= 28
 
         if CONFIG["features.connection.showColumn.nickname"]:
-          nicknameLabel = uiTools.cropStr(self.foreign.getNickname(), nicknameSpace, 0)
-          etc += ("%%-%is  " % nicknameSpace) % nicknameLabel
-          usedSpace += nicknameSpace + 2
+          nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+          etc += ("%%-%is  " % nickname_space) % nickname_label
+          used_space += nickname_space + 2
 
-        if isIpLocaleIncluded:
-          etc += "%-26s  " % dstAddress
-          usedSpace += 28
+        if is_locale_included:
+          etc += "%-26s  " % destination_address
+          used_space += 28
     else:
-      if width > usedSpace + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
         # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.getFingerprint()
-        usedSpace += 42
+        etc += "%-40s  " % self.foreign.get_fingerprint()
+        used_space += 42
 
-      if width > usedSpace + 28 and CONFIG["features.connection.showColumn.destination"]:
+      if width > used_space + 28 and CONFIG["features.connection.showColumn.destination"]:
         # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % dstAddress
-        usedSpace += 28
+        etc += "%-26s  " % destination_address
+        used_space += 28
 
     return ("%%-%is" % width) % etc
 
-  def _getListingContent(self, width, listingType):
+  def _get_listing_content(self, width, listing_type):
     """
     Provides the source, destination, and extra info for our listing.
 
     Arguments:
       width       - maximum length of the line
-      listingType - primary attribute we're listing connections by
+      listing_type - primary attribute we're listing connections by
     """
 
-    conn = torTools.getConn()
-    myType = self.getType()
-    dstAddress = self.getDestinationLabel(26, includeLocale = True)
+    conn = torTools.get_conn()
+    my_type = self.get_type()
+    destination_address = self.get_destination_label(26, include_locale = True)
 
     # The required widths are the sum of the following:
     # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
     # - base data for the listing
     # - that extra field plus any previous
 
-    usedSpace = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
-    localPort = ":%s" % self.local.getPort() if self.includePort else ""
+    used_space = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
+    local_port = ":%s" % self.local.get_port() if self.include_port else ""
 
     src, dst, etc = "", "", ""
-    if listingType == entries.ListingType.IP_ADDRESS:
-      myExternalIpAddr = conn.getInfo("address", self.local.getIpAddr())
-      addrDiffer = myExternalIpAddr != self.local.getIpAddr()
+
+    if listing_type == entries.ListingType.IP_ADDRESS:
+      my_external_address = conn.get_info("address", self.local.get_address())
+      address_differ = my_external_address != self.local.get_address()
 
       # Expanding doesn't make sense, if the connection isn't actually
       # going through Tor's external IP address. As there isn't a known
@@ -573,105 +632,126 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # the source and destination addresses are both private, but that might
       # not be perfectly reliable either.
 
-      isExpansionType = not myType in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
+      is_expansion_type = not my_type in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
 
-      if isExpansionType: srcAddress = myExternalIpAddr + localPort
-      else: srcAddress = self.local.getIpAddr() + localPort
+      if is_expansion_type:
+        src_address = my_external_address + local_port
+      else:
+        src_address = self.local.get_address() + local_port
 
-      if myType in (Category.SOCKS, Category.CONTROL):
+      if my_type in (Category.SOCKS, Category.CONTROL):
         # Like inbound connections these need their source and destination to
         # be swapped. However, this only applies when listing by IP or hostname
         # (their fingerprint and nickname are both for us). Reversing the
         # fields here to keep the same column alignments.
 
-        src = "%-21s" % dstAddress
-        dst = "%-26s" % srcAddress
+        src = "%-21s" % destination_address
+        dst = "%-26s" % src_address
       else:
-        src = "%-21s" % srcAddress # ip:port = max of 21 characters
-        dst = "%-26s" % dstAddress # ip:port (xx) = max of 26 characters
+        src = "%-21s" % src_address  # ip:port = max of 21 characters
+        dst = "%-26s" % destination_address  # ip:port (xx) = max of 26 characters
 
-      usedSpace += len(src) + len(dst) # base data requires 47 characters
+      used_space += len(src) + len(dst)  # base data requires 47 characters
 
       # Showing the fingerprint (which has the width of 42) has priority over
       # an expanded address field. Hence check if we either have space for
       # both or wouldn't be showing the fingerprint regardless.
 
-      isExpandedAddrVisible = width > usedSpace + 28
-      if isExpandedAddrVisible and CONFIG["features.connection.showColumn.fingerprint"]:
-        isExpandedAddrVisible = width < usedSpace + 42 or width > usedSpace + 70
+      is_expanded_address_visible = width > used_space + 28
 
-      if addrDiffer and isExpansionType and isExpandedAddrVisible and self.includeExpandedIpAddr and CONFIG["features.connection.showColumn.expandedIp"]:
+      if is_expanded_address_visible and CONFIG["features.connection.showColumn.fingerprint"]:
+        is_expanded_address_visible = width < used_space + 42 or width > used_space + 70
+
+      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses and CONFIG["features.connection.showColumn.expandedIp"]:
         # include the internal address in the src (extra 28 characters)
-        internalAddress = self.local.getIpAddr() + localPort
+
+        internal_address = self.local.get_address() + local_port
 
         # If this is an inbound connection then reverse ordering so it's:
         # <foreign> --> <external> --> <internal>
         # when the src and dst are swapped later
 
-        if myType == Category.INBOUND: src = "%-21s  -->  %s" % (src, internalAddress)
-        else: src = "%-21s  -->  %s" % (internalAddress, src)
+        if my_type == Category.INBOUND:
+          src = "%-21s  -->  %s" % (src, internal_address)
+        else:
+          src = "%-21s  -->  %s" % (internal_address, src)
 
-        usedSpace += 28
+        used_space += 28
 
-      etc = self.getEtcContent(width - usedSpace, listingType)
-      usedSpace += len(etc)
-    elif listingType == entries.ListingType.HOSTNAME:
+      etc = self.get_etc_content(width - used_space, listing_type)
+      used_space += len(etc)
+    elif listing_type == entries.ListingType.HOSTNAME:
       # 15 characters for source, and a min of 40 reserved for the destination
       # TODO: when actually functional the src and dst need to be swapped for
       # SOCKS and CONTROL connections
-      src = "localhost%-6s" % localPort
-      usedSpace += len(src)
-      minHostnameSpace = 40
 
-      etc = self.getEtcContent(width - usedSpace - minHostnameSpace, listingType)
-      usedSpace += len(etc)
+      src = "localhost%-6s" % local_port
+      used_space += len(src)
+      min_hostname_space = 40
 
-      hostnameSpace = width - usedSpace
-      usedSpace = width # prevents padding at the end
-      if self.isPrivate():
-        dst = ("%%-%is" % hostnameSpace) % "<scrubbed>"
+      etc = self.get_etc_content(width - used_space - min_hostname_space, listing_type)
+      used_space += len(etc)
+
+      hostname_space = width - used_space
+      used_space = width  # prevents padding at the end
+
+      if self.is_private():
+        dst = ("%%-%is" % hostname_space) % "<scrubbed>"
       else:
-        hostname = self.foreign.getHostname(self.foreign.getIpAddr())
-        portLabel = ":%-5s" % self.foreign.getPort() if self.includePort else ""
+        hostname = self.foreign.get_hostname(self.foreign.get_address())
+        port_label = ":%-5s" % self.foreign.get_port() if self.include_port else ""
 
         # truncates long hostnames and sets dst to <hostname>:<port>
-        hostname = uiTools.cropStr(hostname, hostnameSpace, 0)
-        dst = ("%%-%is" % hostnameSpace) % (hostname + portLabel)
-    elif listingType == entries.ListingType.FINGERPRINT:
+
+        hostname = uiTools.crop_str(hostname, hostname_space, 0)
+        dst = ("%%-%is" % hostname_space) % (hostname + port_label)
+    elif listing_type == entries.ListingType.FINGERPRINT:
       src = "localhost"
-      if myType == Category.CONTROL: dst = "localhost"
-      else: dst = self.foreign.getFingerprint()
+
+      if my_type == Category.CONTROL:
+        dst = "localhost"
+      else:
+        dst = self.foreign.get_fingerprint()
+
       dst = "%-40s" % dst
 
-      usedSpace += len(src) + len(dst) # base data requires 49 characters
+      used_space += len(src) + len(dst)  # base data requires 49 characters
 
-      etc = self.getEtcContent(width - usedSpace, listingType)
-      usedSpace += len(etc)
+      etc = self.get_etc_content(width - used_space, listing_type)
+      used_space += len(etc)
     else:
       # base data requires 50 min characters
-      src = self.local.getNickname()
-      if myType == Category.CONTROL: dst = self.local.getNickname()
-      else: dst = self.foreign.getNickname()
-      minBaseSpace = 50
+      src = self.local.get_nickname()
 
-      etc = self.getEtcContent(width - usedSpace - minBaseSpace, listingType)
-      usedSpace += len(etc)
+      if my_type == Category.CONTROL:
+        dst = self.local.get_nickname()
+      else:
+        dst = self.foreign.get_nickname()
 
-      baseSpace = width - usedSpace
-      usedSpace = width # prevents padding at the end
+      min_base_space = 50
 
-      if len(src) + len(dst) > baseSpace:
-        src = uiTools.cropStr(src, baseSpace / 3)
-        dst = uiTools.cropStr(dst, baseSpace - len(src))
+      etc = self.get_etc_content(width - used_space - min_base_space, listing_type)
+      used_space += len(etc)
+
+      base_space = width - used_space
+      used_space = width  # prevents padding at the end
+
+      if len(src) + len(dst) > base_space:
+        src = uiTools.crop_str(src, base_space / 3)
+        dst = uiTools.crop_str(dst, base_space - len(src))
 
       # pads dst entry to its max space
-      dst = ("%%-%is" % (baseSpace - len(src))) % dst
 
-    if myType == Category.INBOUND: src, dst = dst, src
-    padding = " " * (width - usedSpace + LABEL_MIN_PADDING)
+      dst = ("%%-%is" % (base_space - len(src))) % dst
+
+    if my_type == Category.INBOUND:
+      src, dst = dst, src
+
+    padding = " " * (width - used_space + LABEL_MIN_PADDING)
+
     return LABEL_FORMAT % (src, dst, etc, padding)
 
-  def _getDetailContent(self, width):
+  def _get_detail_content(self, width):
     """
     Provides a list with detailed information for this connection.
 
@@ -680,8 +760,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
 
     lines = [""] * 7
-    lines[0] = "address: %s" % self.getDestinationLabel(width - 11)
-    lines[1] = "locale: %s" % ("??" if self.isPrivate() else self.foreign.getLocale("??"))
+    lines[0] = "address: %s" % self.get_destination_label(width - 11)
+    lines[1] = "locale: %s" % ("??" if self.is_private() else self.foreign.get_locale("??"))
 
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
@@ -690,101 +770,118 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # - if no consensus data is available then say so (probably a client or
     #   exit connection)
 
-    fingerprint = self.foreign.getFingerprint()
-    conn = torTools.getConn()
+    fingerprint = self.foreign.get_fingerprint()
+    conn = torTools.get_conn()
 
     if fingerprint != "UNKNOWN":
       # single match - display information available about it
-      nsEntry = conn.getConsensusEntry(fingerprint)
-      descEntry = conn.getDescriptorEntry(fingerprint)
+
+      ns_entry = conn.get_consensus_entry(fingerprint)
+      desc_entry = conn.get_descriptor_entry(fingerprint)
 
       # append the fingerprint to the second line
+
       lines[1] = "%-13sfingerprint: %s" % (lines[1], fingerprint)
 
-      if nsEntry:
+      if ns_entry:
         # example consensus entry:
         # r murble R8sCM1ar1sS2GulQYFVmvN95xsk RJr6q+wkTFG+ng5v2bdCbVVFfA4 2011-02-21 00:25:32 195.43.157.85 443 0
         # s Exit Fast Guard Named Running Stable Valid
         # w Bandwidth=2540
         # p accept 20-23,43,53,79-81,88,110,143,194,443
 
-        nsLines = nsEntry.split("\n")
+        ns_lines = ns_entry.split("\n")
 
-        firstLineComp = nsLines[0].split(" ")
-        if len(firstLineComp) >= 9:
-          _, nickname, _, _, pubDate, pubTime, _, orPort, dirPort = firstLineComp[:9]
-        else: nickname, pubDate, pubTime, orPort, dirPort = "", "", "", "", ""
+        first_line_comp = ns_lines[0].split(" ")
+
+        if len(first_line_comp) >= 9:
+          _, nickname, _, _, published_date, published_time, _, or_port, dir_port = first_line_comp[:9]
+        else:
+          nickname, published_date, published_time, or_port, dir_port = "", "", "", "", ""
 
         flags = "unknown"
-        if len(nsLines) >= 2 and nsLines[1].startswith("s "):
-          flags = nsLines[1][2:]
 
-        exitPolicy = conn.getRelayExitPolicy(fingerprint)
+        if len(ns_lines) >= 2 and ns_lines[1].startswith("s "):
+          flags = ns_lines[1][2:]
 
-        if exitPolicy: policyLabel = exitPolicy.summary()
-        else: policyLabel = "unknown"
+        exit_policy = conn.get_relay_exit_policy(fingerprint)
 
-        dirPortLabel = "" if dirPort == "0" else "dirport: %s" % dirPort
-        lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, orPort, dirPortLabel)
-        lines[3] = "published: %s %s" % (pubTime, pubDate)
+        if exit_policy:
+          policy_label = exit_policy.summary()
+        else:
+          policy_label = "unknown"
+
+        dir_port_label = "" if dir_port == "0" else "dirport: %s" % dir_port
+        lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, or_port, dir_port_label)
+        lines[3] = "published: %s %s" % (published_time, published_date)
         lines[4] = "flags: %s" % flags.replace(" ", ", ")
-        lines[5] = "exit policy: %s" % policyLabel
+        lines[5] = "exit policy: %s" % policy_label
 
-      if descEntry:
-        torVersion, platform, contact = "", "", ""
+      if desc_entry:
+        tor_version, platform, contact = "", "", ""
 
-        for descLine in descEntry.split("\n"):
-          if descLine.startswith("platform"):
+        for desc_line in desc_entry.split("\n"):
+          if desc_line.startswith("platform"):
             # has the tor version and platform, ex:
             # platform Tor 0.2.1.29 (r318f470bc5f2ad43) on Linux x86_64
 
-            torVersion = descLine[13:descLine.find(" ", 13)]
-            platform = descLine[descLine.rfind(" on ") + 4:]
-          elif descLine.startswith("contact"):
-            contact = descLine[8:]
+            tor_version = desc_line[13:desc_line.find(" ", 13)]
+            platform = desc_line[desc_line.rfind(" on ") + 4:]
+          elif desc_line.startswith("contact"):
+            contact = desc_line[8:]
 
             # clears up some highly common obscuring
-            for alias in (" at ", " AT "): contact = contact.replace(alias, "@")
-            for alias in (" dot ", " DOT "): contact = contact.replace(alias, ".")
 
-            break # contact lines come after the platform
+            for alias in (" at ", " AT "):
+              contact = contact.replace(alias, "@")
 
-        lines[3] = "%-35s os: %-14s version: %s" % (lines[3], platform, torVersion)
+            for alias in (" dot ", " DOT "):
+              contact = contact.replace(alias, ".")
+
+            break  # contact lines come after the platform
+
+        lines[3] = "%-35s os: %-14s version: %s" % (lines[3], platform, tor_version)
 
         # contact information is an optional field
-        if contact: lines[6] = "contact: %s" % contact
-    else:
-      allMatches = conn.getRelayFingerprint(self.foreign.getIpAddr(), getAllMatches = True)
 
-      if allMatches:
+        if contact:
+          lines[6] = "contact: %s" % contact
+    else:
+      all_matches = conn.get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+
+      if all_matches:
         # multiple matches
         lines[2] = "Multiple matches, possible fingerprints are:"
 
-        for i in range(len(allMatches)):
-          isLastLine = i == 3
+        for i in range(len(all_matches)):
+          is_last_line = i == 3
 
-          relayPort, relayFingerprint = allMatches[i]
-          lineText = "%i. or port: %-5s fingerprint: %s" % (i, relayPort, relayFingerprint)
+          relay_port, relay_fingerprint = all_matches[i]
+          line_text = "%i. or port: %-5s fingerprint: %s" % (i, relay_port, relay_fingerprint)
 
           # if there's multiple lines remaining at the end then give a count
-          remainingRelays = len(allMatches) - i
-          if isLastLine and remainingRelays > 1:
-            lineText = "... %i more" % remainingRelays
 
-          lines[3 + i] = lineText
+          remaining_relays = len(all_matches) - i
 
-          if isLastLine: break
+          if is_last_line and remaining_relays > 1:
+            line_text = "... %i more" % remaining_relays
+
+          lines[3 + i] = line_text
+
+          if is_last_line:
+            break
       else:
         # no consensus entry for this ip address
         lines[2] = "No consensus data found"
 
     # crops any lines that are too long
+
     for i in range(len(lines)):
-      lines[i] = uiTools.cropStr(lines[i], width - 2)
+      lines[i] = uiTools.crop_str(lines[i], width - 2)
 
     return lines
 
-  def getDestinationLabel(self, maxLength, includeLocale=False, includeHostname=False):
+  def get_destination_label(self, max_length, include_locale = False, include_hostname = False):
     """
     Provides a short description of the destination. This is made up of two
     components, the base <ip addr>:<port> and an extra piece of information in
@@ -797,60 +894,64 @@ class ConnectionLine(entries.ConnectionPanelLine):
     - nothing otherwise
 
     Arguments:
-      maxLength       - maximum length of the string returned
-      includeLocale   - possibly includes the locale
-      includeHostname - possibly includes the hostname
+      max_length       - maximum length of the string returned
+      include_locale   - possibly includes the locale
+      include_hostname - possibly includes the hostname
     """
 
-    # the port and port derived data can be hidden by config or without includePort
-    includePort = self.includePort and (CONFIG["features.connection.showExitPort"] or self.getType() != Category.EXIT)
+    # the port and port derived data can be hidden by config or without include_port
+
+    include_port = self.include_port and (CONFIG["features.connection.showExitPort"] or self.get_type() != Category.EXIT)
 
     # destination of the connection
-    ipLabel = "<scrubbed>" if self.isPrivate() else self.foreign.getIpAddr()
-    portLabel = ":%s" % self.foreign.getPort() if includePort else ""
-    dstAddress = ipLabel + portLabel
+
+    address_label = "<scrubbed>" if self.is_private() else self.foreign.get_address()
+    port_label = ":%s" % self.foreign.get_port() if include_port else ""
+    destination_address = address_label + port_label
 
     # Only append the extra info if there's at least a couple characters of
     # space (this is what's needed for the country codes).
-    if len(dstAddress) + 5 <= maxLength:
-      spaceAvailable = maxLength - len(dstAddress) - 3
 
-      if self.getType() == Category.EXIT and includePort:
-        purpose = connection.port_usage(self.foreign.getPort())
+    if len(destination_address) + 5 <= max_length:
+      space_available = max_length - len(destination_address) - 3
+
+      if self.get_type() == Category.EXIT and include_port:
+        purpose = connection.port_usage(self.foreign.get_port())
 
         if purpose:
           # BitTorrent is a common protocol to truncate, so just use "Torrent"
           # if there's not enough room.
-          if len(purpose) > spaceAvailable and purpose == "BitTorrent":
+
+          if len(purpose) > space_available and purpose == "BitTorrent":
             purpose = "Torrent"
 
           # crops with a hyphen if too long
-          purpose = uiTools.cropStr(purpose, spaceAvailable, endType = uiTools.Ending.HYPHEN)
 
-          dstAddress += " (%s)" % purpose
-      elif not connection.is_private_address(self.foreign.getIpAddr()):
-        extraInfo = []
-        conn = torTools.getConn()
+          purpose = uiTools.crop_str(purpose, space_available, end_type = uiTools.Ending.HYPHEN)
 
-        if includeLocale and not conn.isGeoipUnavailable():
-          foreignLocale = self.foreign.getLocale("??")
-          extraInfo.append(foreignLocale)
-          spaceAvailable -= len(foreignLocale) + 2
+          destination_address += " (%s)" % purpose
+      elif not connection.is_private_address(self.foreign.get_address()):
+        extra_info = []
+        conn = torTools.get_conn()
 
-        if includeHostname:
-          dstHostname = self.foreign.getHostname()
+        if include_locale and not conn.is_geoip_unavailable():
+          foreign_locale = self.foreign.get_locale("??")
+          extra_info.append(foreign_locale)
+          space_available -= len(foreign_locale) + 2
 
-          if dstHostname:
+        if include_hostname:
+          destination_hostname = self.foreign.get_hostname()
+
+          if destination_hostname:
             # determines the full space available, taking into account the ", "
             # dividers if there's multiple pieces of extra data
 
-            maxHostnameSpace = spaceAvailable - 2 * len(extraInfo)
-            dstHostname = uiTools.cropStr(dstHostname, maxHostnameSpace)
-            extraInfo.append(dstHostname)
-            spaceAvailable -= len(dstHostname)
+            max_hostname_space = space_available - 2 * len(extra_info)
+            destination_hostname = uiTools.crop_str(destination_hostname, max_hostname_space)
+            extra_info.append(destination_hostname)
+            space_available -= len(destination_hostname)
 
-        if extraInfo:
-          dstAddress += " (%s)" % ", ".join(extraInfo)
+        if extra_info:
+          destination_address += " (%s)" % ", ".join(extra_info)
 
-    return dstAddress[:maxLength]
-
+    return destination_address[:max_length]

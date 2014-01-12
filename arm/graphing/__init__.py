@@ -2,5 +2,4 @@
 Graphing panel resources.
 """
 
-__all__ = ["graphPanel", "bandwidthStats", "connStats", "resourceStats"]
-
+__all__ = ["graph_panel", "bandwidthStats", "connStats", "resourceStats"]

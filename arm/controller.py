@@ -30,15 +30,17 @@ from stem.util import conf, enum, log, system
 
 ARM_CONTROLLER = None
 
+
 def conf_handler(key, value):
   if key == "features.redrawRate":
     return max(1, value)
   elif key == "features.refreshRate":
     return max(0, value)
 
+
 CONFIG = conf.config_dict("arm", {
   "startup.events": "N3",
-  "startup.dataDirectory": "~/.arm",
+  "startup.data_directory": "~/.arm",
   "features.panels.show.graph": True,
   "features.panels.show.log": True,
   "features.panels.show.connection": True,
@@ -55,14 +57,17 @@ CONFIG = conf.config_dict("arm", {
 GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
 
 # maps 'features.graph.type' config values to the initial types
+
 GRAPH_INIT_STATS = {1: GraphStat.BANDWIDTH, 2: GraphStat.CONNECTIONS, 3: GraphStat.SYSTEM_RESOURCES}
 
-def getController():
+
+def get_controller():
   """
   Provides the arm controller instance.
   """
 
   return ARM_CONTROLLER
+
 
 def stop_controller():
   """
@@ -70,20 +75,21 @@ def stop_controller():
   """
 
   def halt_controller():
-    control = getController()
+    control = get_controller()
 
     if control:
-      for panel_impl in control.getDaemonPanels():
+      for panel_impl in control.get_daemon_panels():
         panel_impl.stop()
 
-      for panel_impl in control.getDaemonPanels():
+      for panel_impl in control.get_daemon_panels():
         panel_impl.join()
 
   halt_thread = threading.Thread(target = halt_controller)
   halt_thread.start()
   return halt_thread
 
-def initController(stdscr, startTime):
+
+def init_controller(stdscr, start_time):
   """
   Spawns the controller, and related panels for it.
 
@@ -94,29 +100,34 @@ def initController(stdscr, startTime):
   global ARM_CONTROLLER
 
   # initializes the panels
-  stickyPanels = [arm.headerPanel.HeaderPanel(stdscr, startTime),
-                  LabelPanel(stdscr)]
-  pagePanels, firstPagePanels = [], []
+
+  sticky_panels = [
+    arm.headerPanel.HeaderPanel(stdscr, start_time),
+    LabelPanel(stdscr),
+  ]
+
+  page_panels, first_page_panels = [], []
 
   # first page: graph and log
   if CONFIG["features.panels.show.graph"]:
-    firstPagePanels.append(arm.graphing.graphPanel.GraphPanel(stdscr))
+    first_page_panels.append(arm.graphing.graphPanel.GraphPanel(stdscr))
 
   if CONFIG["features.panels.show.log"]:
-    expandedEvents = arm.arguments.expand_events(CONFIG["startup.events"])
-    firstPagePanels.append(arm.logPanel.LogPanel(stdscr, expandedEvents))
+    expanded_events = arm.arguments.expand_events(CONFIG["startup.events"])
+    first_page_panels.append(arm.logPanel.LogPanel(stdscr, expanded_events))
 
-  if firstPagePanels: pagePanels.append(firstPagePanels)
+  if first_page_panels:
+    page_panels.append(first_page_panels)
 
   # second page: connections
   if CONFIG["features.panels.show.connection"]:
-    pagePanels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
+    page_panels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
 
     # The DisableDebuggerAttachment will prevent our connection panel from really
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
 
-    controller = torTools.getConn().controller
+    controller = torTools.get_conn().controller
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
@@ -125,7 +136,7 @@ def initController(stdscr, startTime):
       # Configures connection resoultions. This is paused/unpaused according to
       # if Tor's connected or not.
 
-      controller.add_status_listener(connResetListener)
+      controller.add_status_listener(conn_reset_listener)
 
       tor_pid = controller.get_pid(None)
 
@@ -142,41 +153,53 @@ def initController(stdscr, startTime):
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
+
         arm.util.tracker.get_connection_tracker().set_paused(not controller.is_alive())
 
   # third page: config
+
   if CONFIG["features.panels.show.config"]:
-    pagePanels.append([arm.configPanel.ConfigPanel(stdscr, arm.configPanel.State.TOR)])
+    page_panels.append([arm.configPanel.ConfigPanel(stdscr, arm.configPanel.State.TOR)])
 
   # fourth page: torrc
+
   if CONFIG["features.panels.show.torrc"]:
-    pagePanels.append([arm.torrcPanel.TorrcPanel(stdscr, arm.torrcPanel.Config.TORRC)])
+    page_panels.append([arm.torrcPanel.TorrcPanel(stdscr, arm.torrcPanel.Config.TORRC)])
 
   # initializes the controller
-  ARM_CONTROLLER = Controller(stdscr, stickyPanels, pagePanels)
+
+  ARM_CONTROLLER = Controller(stdscr, sticky_panels, page_panels)
 
   # additional configuration for the graph panel
-  graphPanel = ARM_CONTROLLER.getPanel("graph")
 
-  if graphPanel:
+  graph_panel = ARM_CONTROLLER.get_panel("graph")
+
+  if graph_panel:
     # statistical monitors for graph
-    bwStats = arm.graphing.bandwidthStats.BandwidthStats()
-    graphPanel.addStats(GraphStat.BANDWIDTH, bwStats)
-    graphPanel.addStats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resourceStats.ResourceStats())
+
+    bw_stats = arm.graphing.bandwidthStats.BandwidthStats()
+    graph_panel.add_stats(GraphStat.BANDWIDTH, bw_stats)
+    graph_panel.add_stats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resourceStats.ResourceStats())
 
     if CONFIG["features.panels.show.connection"]:
-      graphPanel.addStats(GraphStat.CONNECTIONS, arm.graphing.connStats.ConnStats())
+      graph_panel.add_stats(GraphStat.CONNECTIONS, arm.graphing.connStats.ConnStats())
 
     # sets graph based on config parameter
+
     try:
-      initialStats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
-      graphPanel.setStats(initialStats)
-    except ValueError: pass # invalid stats, maybe connections when lookups are disabled
+      initial_stats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
+      graph_panel.set_stats(initial_stats)
+    except ValueError:
+      pass  # invalid stats, maybe connections when lookups are disabled
 
     # prepopulates bandwidth values from state file
-    if CONFIG["features.graph.bw.prepopulate"] and torTools.getConn().isAlive():
-      isSuccessful = bwStats.prepopulateFromState()
-      if isSuccessful: graphPanel.updateInterval = 4
+
+    if CONFIG["features.graph.bw.prepopulate"] and torTools.get_conn().is_alive():
+      is_successful = bw_stats.prepopulate_from_state()
+
+      if is_successful:
+        graph_panel.update_interval = 4
+
 
 class LabelPanel(panel.Panel):
   """
@@ -185,10 +208,10 @@ class LabelPanel(panel.Panel):
 
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "msg", 0, height=1)
-    self.msgText = ""
-    self.msgAttr = curses.A_NORMAL
+    self.msg_text = ""
+    self.msg_attr = curses.A_NORMAL
 
-  def setMessage(self, msg, attr = None):
+  def set_message(self, msg, attr = None):
     """
     Sets the message being displayed by the panel.
 
@@ -197,112 +220,115 @@ class LabelPanel(panel.Panel):
       attr - attribute for the label, normal text if undefined
     """
 
-    if attr == None: attr = curses.A_NORMAL
-    self.msgText = msg
-    self.msgAttr = attr
+    if attr is None:
+      attr = curses.A_NORMAL
+
+    self.msg_text = msg
+    self.msg_attr = attr
 
   def draw(self, width, height):
-    self.addstr(0, 0, self.msgText, self.msgAttr)
+    self.addstr(0, 0, self.msg_text, self.msg_attr)
+
 
 class Controller:
   """
   Tracks the global state of the interface
   """
 
-  def __init__(self, stdscr, stickyPanels, pagePanels):
+  def __init__(self, stdscr, sticky_panels, page_panels):
     """
     Creates a new controller instance. Panel lists are ordered as they appear,
     top to bottom on the page.
 
     Arguments:
       stdscr       - curses window
-      stickyPanels - panels shown at the top of each page
-      pagePanels   - list of pages, each being a list of the panels on it
+      sticky_panels - panels shown at the top of each page
+      page_panels   - list of pages, each being a list of the panels on it
     """
 
     self._screen = stdscr
-    self._stickyPanels = stickyPanels
-    self._pagePanels = pagePanels
+    self._sticky_panels = sticky_panels
+    self._page_panels = page_panels
     self._page = 0
-    self._isPaused = False
-    self._forceRedraw = False
-    self._isDone = False
-    self._lastDrawn = 0
-    self.setMsg() # initializes our control message
+    self._is_paused = False
+    self._force_redraw = False
+    self._is_done = False
+    self._last_drawn = 0
+    self.set_msg()  # initializes our control message
 
-  def getScreen(self):
+  def get_screen(self):
     """
     Provides our curses window.
     """
 
     return self._screen
 
-  def getPageCount(self):
+  def get_page_count(self):
     """
     Provides the number of pages the interface has. This may be zero if all
     page panels have been disabled.
     """
 
-    return len(self._pagePanels)
+    return len(self._page_panels)
 
-  def getPage(self):
+  def get_page(self):
     """
     Provides the number belonging to this page. Page numbers start at zero.
     """
 
     return self._page
 
-  def setPage(self, pageNumber):
+  def set_page(self, page_number):
     """
     Sets the selected page, raising a ValueError if the page number is invalid.
 
     Arguments:
-      pageNumber - page number to be selected
+      page_number - page number to be selected
     """
 
-    if pageNumber < 0 or pageNumber >= self.getPageCount():
-      raise ValueError("Invalid page number: %i" % pageNumber)
+    if page_number < 0 or page_number >= self.get_page_count():
+      raise ValueError("Invalid page number: %i" % page_number)
 
-    if pageNumber != self._page:
-      self._page = pageNumber
-      self._forceRedraw = True
-      self.setMsg()
+    if page_number != self._page:
+      self._page = page_number
+      self._force_redraw = True
+      self.set_msg()
 
-  def nextPage(self):
+  def next_page(self):
     """
     Increments the page number.
     """
 
-    self.setPage((self._page + 1) % len(self._pagePanels))
+    self.set_page((self._page + 1) % len(self._page_panels))
 
-  def prevPage(self):
+  def prev_page(self):
     """
     Decrements the page number.
     """
 
-    self.setPage((self._page - 1) % len(self._pagePanels))
+    self.set_page((self._page - 1) % len(self._page_panels))
 
-  def isPaused(self):
+  def is_paused(self):
     """
     True if the interface is paused, false otherwise.
     """
 
-    return self._isPaused
+    return self._is_paused
 
-  def setPaused(self, isPause):
+  def set_paused(self, is_pause):
     """
     Sets the interface to be paused or unpaused.
     """
 
-    if isPause != self._isPaused:
-      self._isPaused = isPause
-      self._forceRedraw = True
-      self.setMsg()
+    if is_pause != self._is_paused:
+      self._is_paused = is_pause
+      self._force_redraw = True
+      self.set_msg()
 
-      for panelImpl in self.getAllPanels():
-        panelImpl.setPaused(isPause)
+      for panel_impl in self.get_all_panels():
+        panel_impl.set_paused(is_pause)
 
-  def getPanel(self, name):
+  def get_panel(self, name):
     """
     Provides the panel with the given identifier. This returns None if no such
     panel exists.
@@ -311,61 +337,64 @@ class Controller:
       name - name of the panel to be fetched
     """
 
-    for panelImpl in self.getAllPanels():
-      if panelImpl.getName() == name:
-        return panelImpl
+    for panel_impl in self.get_all_panels():
+      if panel_impl.get_name() == name:
+        return panel_impl
 
     return None
 
-  def getStickyPanels(self):
+  def get_sticky_panels(self):
     """
     Provides the panels visibile at the top of every page.
     """
 
-    return list(self._stickyPanels)
+    return list(self._sticky_panels)
 
-  def getDisplayPanels(self, pageNumber = None, includeSticky = True):
+  def get_display_panels(self, page_number = None, include_sticky = True):
     """
     Provides all panels belonging to a page and sticky content above it. This
     is ordered they way they are presented (top to bottom) on the page.
 
     Arguments:
-      pageNumber    - page number of the panels to be returned, the current
+      page_number    - page number of the panels to be returned, the current
                       page if None
-      includeSticky - includes sticky panels in the results if true
+      include_sticky - includes sticky panels in the results if true
     """
 
-    returnPage = self._page if pageNumber == None else pageNumber
+    return_page = self._page if page_number is None else page_number
 
-    if self._pagePanels:
-      if includeSticky:
-        return self._stickyPanels + self._pagePanels[returnPage]
-      else: return list(self._pagePanels[returnPage])
-    else: return self._stickyPanels if includeSticky else []
+    if self._page_panels:
+      if include_sticky:
+        return self._sticky_panels + self._page_panels[return_page]
+      else:
+        return list(self._page_panels[return_page])
+    else:
+      return self._sticky_panels if include_sticky else []
 
-  def getDaemonPanels(self):
+  def get_daemon_panels(self):
     """
     Provides thread panels.
     """
 
-    threadPanels = []
-    for panelImpl in self.getAllPanels():
-      if isinstance(panelImpl, threading.Thread):
-        threadPanels.append(panelImpl)
+    thread_panels = []
 
-    return threadPanels
+    for panel_impl in self.get_all_panels():
+      if isinstance(panel_impl, threading.Thread):
+        thread_panels.append(panel_impl)
 
-  def getAllPanels(self):
+    return thread_panels
+
+  def get_all_panels(self):
     """
     Provides all panels in the interface.
     """
 
-    allPanels = list(self._stickyPanels)
+    all_panels = list(self._sticky_panels)
 
-    for page in self._pagePanels:
-      allPanels += list(page)
+    for page in self._page_panels:
+      all_panels += list(page)
 
-    return allPanels
+    return all_panels
 
   def redraw(self, force = True):
     """
@@ -376,47 +405,52 @@ class Controller:
               the request when there arne't changes to be displayed
     """
 
-    force |= self._forceRedraw
-    self._forceRedraw = False
+    force |= self._force_redraw
+    self._force_redraw = False
 
-    currentTime = time.time()
+    current_time = time.time()
+
     if CONFIG["features.refreshRate"] != 0:
-      if self._lastDrawn + CONFIG["features.refreshRate"] <= currentTime:
+      if self._last_drawn + CONFIG["features.refreshRate"] <= current_time:
         force = True
 
-    displayPanels = self.getDisplayPanels()
+    display_panels = self.get_display_panels()
 
-    occupiedContent = 0
-    for panelImpl in displayPanels:
-      panelImpl.setTop(occupiedContent)
-      occupiedContent += panelImpl.getHeight()
+    occupied_content = 0
+
+    for panel_impl in display_panels:
+      panel_impl.set_top(occupied_content)
+      occupied_content += panel_impl.get_height()
 
     # apparently curses may cache display contents unless we explicitely
     # request a redraw here...
     # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
-    if force: self._screen.clear()
 
-    for panelImpl in displayPanels:
-      panelImpl.redraw(force)
+    if force:
+      self._screen.clear()
 
-    if force: self._lastDrawn = currentTime
+    for panel_impl in display_panels:
+      panel_impl.redraw(force)
 
-  def requestRedraw(self):
+    if force:
+      self._last_drawn = current_time
+
+  def request_redraw(self):
     """
     Requests that all content is redrawn when the interface is next rendered.
     """
 
-    self._forceRedraw = True
+    self._force_redraw = True
 
-  def getLastRedrawTime(self):
+  def get_last_redraw_time(self):
     """
     Provides the time when the content was last redrawn, zero if the content
     has never been drawn.
     """
 
-    return self._lastDrawn
+    return self._last_drawn
 
-  def setMsg(self, msg = None, attr = None, redraw = False):
+  def set_msg(self, msg = None, attr = None, redraw = False):
     """
     Sets the message displayed in the interfaces control panel. This uses our
     default prompt if no arguments are provided.
@@ -428,40 +462,47 @@ class Controller:
                content is next normally drawn
     """
 
-    if msg == None:
+    if msg is None:
       msg = ""
 
-      if attr == None:
-        if not self._isPaused:
-          msg = "page %i / %i - m: menu, p: pause, h: page help, q: quit" % (self._page + 1, len(self._pagePanels))
+      if attr is None:
+        if not self._is_paused:
+          msg = "page %i / %i - m: menu, p: pause, h: page help, q: quit" % (self._page + 1, len(self._page_panels))
           attr = curses.A_NORMAL
         else:
           msg = "Paused"
           attr = curses.A_STANDOUT
 
-    controlPanel = self.getPanel("msg")
-    controlPanel.setMessage(msg, attr)
+    control_panel = self.get_panel("msg")
+    control_panel.set_message(msg, attr)
 
-    if redraw: controlPanel.redraw(True)
-    else: self._forceRedraw = True
+    if redraw:
+      control_panel.redraw(True)
+    else:
+      self._force_redraw = True
 
-  def getDataDirectory(self):
+  def get_data_directory(self):
     """
     Provides the path where arm's resources are being placed. The path ends
     with a slash and is created if it doesn't already exist.
     """
 
-    dataDir = os.path.expanduser(CONFIG["startup.dataDirectory"])
-    if not dataDir.endswith("/"): dataDir += "/"
-    if not os.path.exists(dataDir): os.makedirs(dataDir)
-    return dataDir
+    data_dir = os.path.expanduser(CONFIG["startup.data_directory"])
 
-  def isDone(self):
+    if not data_dir.endswith("/"):
+      data_dir += "/"
+
+    if not os.path.exists(data_dir):
+      os.makedirs(data_dir)
+
+    return data_dir
+
+  def is_done(self):
     """
     True if arm should be terminated, false otherwise.
     """
 
-    return self._isDone
+    return self._is_done
 
   def quit(self):
     """
@@ -470,46 +511,51 @@ class Controller:
     down too.
     """
 
-    self._isDone = True
+    self._is_done = True
 
     # check if the torrc has a "ARM_SHUTDOWN" comment flag, if so then shut
     # down the instance
 
-    isShutdownFlagPresent = False
-    torrcContents = torConfig.getTorrc().getContents()
+    is_shutdown_flag_present = False
+    torrc_contents = torConfig.get_torrc().get_contents()
 
-    if torrcContents:
-      for line in torrcContents:
+    if torrc_contents:
+      for line in torrc_contents:
         if "# ARM_SHUTDOWN" in line:
-          isShutdownFlagPresent = True
+          is_shutdown_flag_present = True
           break
 
-    if isShutdownFlagPresent:
-      try: torTools.getConn().shutdown()
-      except IOError, exc: arm.popups.showMsg(str(exc), 3, curses.A_BOLD)
+    if is_shutdown_flag_present:
+      try:
+        torTools.get_conn().shutdown()
+      except IOError as exc:
+        arm.popups.show_msg(str(exc), 3, curses.A_BOLD)
 
-def heartbeatCheck(isUnresponsive):
+
+def heartbeat_check(is_unresponsive):
   """
   Logs if its been ten seconds since the last BW event.
 
   Arguments:
-    isUnresponsive - flag for if we've indicated to be responsive or not
+    is_unresponsive - flag for if we've indicated to be responsive or not
   """
 
-  conn = torTools.getConn()
-  lastHeartbeat = conn.controller.get_latest_heartbeat()
-  if conn.isAlive():
-    if not isUnresponsive and (time.time() - lastHeartbeat) >= 10:
-      isUnresponsive = True
-      log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(lastHeartbeat))
-    elif isUnresponsive and (time.time() - lastHeartbeat) < 10:
+  conn = torTools.get_conn()
+  last_heartbeat = conn.controller.get_latest_heartbeat()
+
+  if conn.is_alive():
+    if not is_unresponsive and (time.time() - last_heartbeat) >= 10:
+      is_unresponsive = True
+      log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(last_heartbeat))
+    elif is_unresponsive and (time.time() - last_heartbeat) < 10:
       # really shouldn't happen (meant Tor froze for a bit)
-      isUnresponsive = False
+      is_unresponsive = False
       log.notice("Relay resumed")
 
-  return isUnresponsive
+  return is_unresponsive
 
-def connResetListener(controller, eventType, _):
+
+def conn_reset_listener(controller, event_type, _):
   """
   Pauses connection resolution when tor's shut down, and resumes with the new
   pid if started again.
@@ -518,15 +564,16 @@ def connResetListener(controller, eventType, _):
   resolver = arm.util.tracker.get_connection_tracker()
 
   if resolver.is_alive():
-    resolver.set_paused(eventType == State.CLOSED)
+    resolver.set_paused(event_type == State.CLOSED)
 
-    if eventType in (State.INIT, State.RESET):
+    if event_type in (State.INIT, State.RESET):
       # Reload the torrc contents. If the torrc panel is present then it will
       # do this instead since it wants to do validation and redraw _after_ the
       # new contents are loaded.
 
-      if getController().getPanel("torrc") == None:
-        torConfig.getTorrc().load(True)
+      if get_controller().get_panel("torrc") is None:
+        torConfig.get_torrc().load(True)
+
 
 def start_arm(stdscr):
   """
@@ -536,84 +583,104 @@ def start_arm(stdscr):
     stdscr    - curses window
   """
 
-  startTime = CONFIG['start_time']
-  initController(stdscr, startTime)
-  control = getController()
+  start_time = CONFIG['start_time']
+  init_controller(stdscr, start_time)
+  control = get_controller()
 
   # provides notice about any unused config keys
+
   for key in conf.get_config("arm").unused_keys():
     log.notice("Unused configuration entry: %s" % key)
 
   # tells daemon panels to start
-  for panelImpl in control.getDaemonPanels(): panelImpl.start()
+
+  for panel_impl in control.get_daemon_panels():
+    panel_impl.start()
 
   # allows for background transparency
-  try: curses.use_default_colors()
-  except curses.error: pass
+
+  try:
+    curses.use_default_colors()
+  except curses.error:
+    pass
 
   # makes the cursor invisible
-  try: curses.curs_set(0)
-  except curses.error: pass
+
+  try:
+    curses.curs_set(0)
+  except curses.error:
+    pass
 
   # logs the initialization time
-  log.info("arm started (initialization took %0.3f seconds)" % (time.time() - startTime))
+
+  log.info("arm started (initialization took %0.3f seconds)" % (time.time() - start_time))
 
   # main draw loop
-  overrideKey = None     # uses this rather than waiting on user input
-  isUnresponsive = False # flag for heartbeat responsiveness check
 
-  while not control.isDone():
-    displayPanels = control.getDisplayPanels()
-    isUnresponsive = heartbeatCheck(isUnresponsive)
+  override_key = None      # uses this rather than waiting on user input
+  is_unresponsive = False  # flag for heartbeat responsiveness check
+
+  while not control.is_done():
+    display_panels = control.get_display_panels()
+    is_unresponsive = heartbeat_check(is_unresponsive)
 
     # sets panel visability
-    for panelImpl in control.getAllPanels():
-      panelImpl.setVisible(panelImpl in displayPanels)
+
+    for panel_impl in control.get_all_panels():
+      panel_impl.set_visible(panel_impl in display_panels)
 
     # redraws the interface if it's needed
+
     control.redraw(False)
     stdscr.refresh()
 
     # wait for user keyboard input until timeout, unless an override was set
-    if overrideKey:
-      key, overrideKey = overrideKey, None
+
+    if override_key:
+      key, override_key = override_key, None
     else:
       curses.halfdelay(CONFIG["features.redrawRate"] * 10)
       key = stdscr.getch()
 
     if key == curses.KEY_RIGHT:
-      control.nextPage()
+      control.next_page()
     elif key == curses.KEY_LEFT:
-      control.prevPage()
+      control.prev_page()
     elif key == ord('p') or key == ord('P'):
-      control.setPaused(not control.isPaused())
+      control.set_paused(not control.is_paused())
     elif key == ord('m') or key == ord('M'):
-      arm.menu.menu.showMenu()
+      arm.menu.menu.show_menu()
     elif key == ord('q') or key == ord('Q'):
       # provides prompt to confirm that arm should exit
+
       if CONFIG["features.confirmQuit"]:
         msg = "Are you sure (q again to confirm)?"
-        confirmationKey = arm.popups.showMsg(msg, attr = curses.A_BOLD)
-        quitConfirmed = confirmationKey in (ord('q'), ord('Q'))
-      else: quitConfirmed = True
+        confirmation_key = arm.popups.show_msg(msg, attr = curses.A_BOLD)
+        quit_confirmed = confirmation_key in (ord('q'), ord('Q'))
+      else:
+        quit_confirmed = True
 
-      if quitConfirmed: control.quit()
+      if quit_confirmed:
+        control.quit()
     elif key == ord('x') or key == ord('X'):
       # provides prompt to confirm that arm should issue a sighup
-      msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
-      confirmationKey = arm.popups.showMsg(msg, attr = curses.A_BOLD)
 
-      if confirmationKey in (ord('x'), ord('X')):
-        try: torTools.getConn().reload()
-        except IOError, exc:
+      msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
+      confirmation_key = arm.popups.show_msg(msg, attr = curses.A_BOLD)
+
+      if confirmation_key in (ord('x'), ord('X')):
+        try:
+          torTools.get_conn().reload()
+        except IOError as exc:
           log.error("Error detected when reloading tor: %s" % exc.strerror)
     elif key == ord('h') or key == ord('H'):
-      overrideKey = arm.popups.showHelpPopup()
+      override_key = arm.popups.show_help_popup()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed
       control.redraw(True)
     else:
-      for panelImpl in displayPanels:
-        isKeystrokeConsumed = panelImpl.handleKey(key)
-        if isKeystrokeConsumed: break
+      for panel_impl in display_panels:
+        is_keystroke_consumed = panel_impl.handle_key(key)
 
+        if is_keystroke_consumed:
+          break

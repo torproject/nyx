@@ -6,4 +6,3 @@ __all__ = ["starter", "prereq", "version", "configPanel", "controller", "headerP
 
 __version__ = '1.4.6_dev'
 __release_date__ = 'April 28, 2011'
-

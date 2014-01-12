@@ -18,31 +18,48 @@ from stem.util import conf, enum, str_tools
 # TODO: The arm use cases are incomplete since they currently can't be
 # modified, have their descriptions fetched, or even get a complete listing
 # of what's available.
-State = enum.Enum("TOR", "ARM") # state to be presented
+
+State = enum.Enum("TOR", "ARM")  # state to be presented
 
 # mappings of option categories to the color for their entries
-CATEGORY_COLOR = {torConfig.Category.GENERAL: "green",
-                  torConfig.Category.CLIENT: "blue",
-                  torConfig.Category.RELAY: "yellow",
-                  torConfig.Category.DIRECTORY: "magenta",
-                  torConfig.Category.AUTHORITY: "red",
-                  torConfig.Category.HIDDEN_SERVICE: "cyan",
-                  torConfig.Category.TESTING: "white",
-                  torConfig.Category.UNKNOWN: "white"}
+
+CATEGORY_COLOR = {
+  torConfig.Category.GENERAL: "green",
+  torConfig.Category.CLIENT: "blue",
+  torConfig.Category.RELAY: "yellow",
+  torConfig.Category.DIRECTORY: "magenta",
+  torConfig.Category.AUTHORITY: "red",
+  torConfig.Category.HIDDEN_SERVICE: "cyan",
+  torConfig.Category.TESTING: "white",
+  torConfig.Category.UNKNOWN: "white",
+}
 
 # attributes of a ConfigEntry
-Field = enum.Enum("CATEGORY", "OPTION", "VALUE", "TYPE", "ARG_USAGE",
-                  "SUMMARY", "DESCRIPTION", "MAN_ENTRY", "IS_DEFAULT")
 
-FIELD_ATTR = {Field.CATEGORY: ("Category", "red"),
-              Field.OPTION: ("Option Name", "blue"),
-              Field.VALUE: ("Value", "cyan"),
-              Field.TYPE: ("Arg Type", "green"),
-              Field.ARG_USAGE: ("Arg Usage", "yellow"),
-              Field.SUMMARY: ("Summary", "green"),
-              Field.DESCRIPTION: ("Description", "white"),
-              Field.MAN_ENTRY: ("Man Page Entry", "blue"),
-              Field.IS_DEFAULT: ("Is Default", "magenta")}
+Field = enum.Enum(
+  "CATEGORY",
+  "OPTION",
+  "VALUE",
+  "TYPE",
+  "ARG_USAGE",
+  "SUMMARY",
+  "DESCRIPTION",
+  "MAN_ENTRY",
+  "IS_DEFAULT",
+)
+
+FIELD_ATTR = {
+  Field.CATEGORY: ("Category", "red"),
+  Field.OPTION: ("Option Name", "blue"),
+  Field.VALUE: ("Value", "cyan"),
+  Field.TYPE: ("Arg Type", "green"),
+  Field.ARG_USAGE: ("Arg Usage", "yellow"),
+  Field.SUMMARY: ("Summary", "green"),
+  Field.DESCRIPTION: ("Description", "white"),
+  Field.MAN_ENTRY: ("Man Page Entry", "blue"),
+  Field.IS_DEFAULT: ("Is Default", "magenta"),
+}
+
 
 def conf_handler(key, value):
   if key == "features.config.selectionDetails.height":
@@ -54,6 +71,7 @@ def conf_handler(key, value):
   elif key == "features.config.order":
     return conf.parse_enum_csv(key, value[0], Field, 3)
 
+
 CONFIG = conf.config_dict("arm", {
   "features.config.order": [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
   "features.config.selectionDetails.height": 6,
@@ -64,49 +82,54 @@ CONFIG = conf.config_dict("arm", {
   "features.config.state.colWidth.value": 15,
 }, conf_handler)
 
-def getFieldFromLabel(fieldLabel):
+
+def get_field_from_label(field_label):
   """
   Converts field labels back to their enumeration, raising a ValueError if it
   doesn't exist.
   """
 
-  for entryEnum in FIELD_ATTR:
-    if fieldLabel == FIELD_ATTR[entryEnum][0]:
-      return entryEnum
+  for entry_enum in FIELD_ATTR:
+    if field_label == FIELD_ATTR[entry_enum][0]:
+      return entry_enum
+
 
 class ConfigEntry():
   """
   Configuration option in the panel.
   """
 
-  def __init__(self, option, type, isDefault):
+  def __init__(self, option, type, is_default):
     self.fields = {}
     self.fields[Field.OPTION] = option
     self.fields[Field.TYPE] = type
-    self.fields[Field.IS_DEFAULT] = isDefault
+    self.fields[Field.IS_DEFAULT] = is_default
 
     # Fetches extra infromation from external sources (the arm config and tor
     # man page). These are None if unavailable for this config option.
-    summary = torConfig.getConfigSummary(option)
-    manEntry = torConfig.getConfigDescription(option)
 
-    if manEntry:
-      self.fields[Field.MAN_ENTRY] = manEntry.index
-      self.fields[Field.CATEGORY] = manEntry.category
-      self.fields[Field.ARG_USAGE] = manEntry.argUsage
-      self.fields[Field.DESCRIPTION] = manEntry.description
+    summary = torConfig.get_config_summary(option)
+    man_entry = torConfig.get_config_description(option)
+
+    if man_entry:
+      self.fields[Field.MAN_ENTRY] = man_entry.index
+      self.fields[Field.CATEGORY] = man_entry.category
+      self.fields[Field.ARG_USAGE] = man_entry.arg_usage
+      self.fields[Field.DESCRIPTION] = man_entry.description
     else:
-      self.fields[Field.MAN_ENTRY] = 99999 # sorts non-man entries last
+      self.fields[Field.MAN_ENTRY] = 99999  # sorts non-man entries last
       self.fields[Field.CATEGORY] = torConfig.Category.UNKNOWN
       self.fields[Field.ARG_USAGE] = ""
       self.fields[Field.DESCRIPTION] = ""
 
     # uses the full man page description if a summary is unavailable
-    self.fields[Field.SUMMARY] = summary if summary != None else self.fields[Field.DESCRIPTION]
+
+    self.fields[Field.SUMMARY] = summary if summary is not None else self.fields[Field.DESCRIPTION]
 
     # cache of what's displayed for this configuration option
-    self.labelCache = None
-    self.labelCacheArgs = None
+
+    self.label_cache = None
+    self.label_cache_args = None
 
   def get(self, field):
     """
@@ -116,10 +139,12 @@ class ConfigEntry():
       field - enum for the field to be provided back
     """
 
-    if field == Field.VALUE: return self._getValue()
-    else: return self.fields[field]
+    if field == Field.VALUE:
+      return self._get_value()
+    else:
+      return self.fields[field]
 
-  def getAll(self, fields):
+  def get_all(self, fields):
     """
     Provides back a list with the given field values.
 
@@ -129,58 +154,63 @@ class ConfigEntry():
 
     return [self.get(field) for field in fields]
 
-  def getLabel(self, optionWidth, valueWidth, summaryWidth):
+  def get_label(self, option_width, value_width, summary_width):
     """
     Provides display string of the configuration entry with the given
     constraints on the width of the contents.
 
     Arguments:
-      optionWidth  - width of the option column
-      valueWidth   - width of the value column
-      summaryWidth - width of the summary column
+      option_width  - width of the option column
+      value_width   - width of the value column
+      summary_width - width of the summary column
     """
 
     # Fetching the display entries is very common so this caches the values.
     # Doing this substantially drops cpu usage when scrolling (by around 40%).
 
-    argSet = (optionWidth, valueWidth, summaryWidth)
-    if not self.labelCache or self.labelCacheArgs != argSet:
-      optionLabel = uiTools.cropStr(self.get(Field.OPTION), optionWidth)
-      valueLabel = uiTools.cropStr(self.get(Field.VALUE), valueWidth)
-      summaryLabel = uiTools.cropStr(self.get(Field.SUMMARY), summaryWidth, None)
-      lineTextLayout = "%%-%is %%-%is %%-%is" % (optionWidth, valueWidth, summaryWidth)
-      self.labelCache = lineTextLayout % (optionLabel, valueLabel, summaryLabel)
-      self.labelCacheArgs = argSet
+    arg_set = (option_width, value_width, summary_width)
 
-    return self.labelCache
+    if not self.label_cache or self.label_cache_args != arg_set:
+      option_label = uiTools.crop_str(self.get(Field.OPTION), option_width)
+      value_label = uiTools.crop_str(self.get(Field.VALUE), value_width)
+      summary_label = uiTools.crop_str(self.get(Field.SUMMARY), summary_width, None)
+      line_text_layout = "%%-%is %%-%is %%-%is" % (option_width, value_width, summary_width)
+      self.label_cache = line_text_layout % (option_label, value_label, summary_label)
+      self.label_cache_args = arg_set
 
-  def isUnset(self):
+    return self.label_cache
+
+  def is_unset(self):
     """
     True if we have no value, false otherwise.
     """
 
-    confValue = torTools.getConn().getOption(self.get(Field.OPTION), [], True)
-    return not bool(confValue)
+    conf_value = torTools.get_conn().get_option(self.get(Field.OPTION), [], True)
 
-  def _getValue(self):
+    return not bool(conf_value)
+
+  def _get_value(self):
     """
     Provides the current value of the configuration entry, taking advantage of
     the torTools caching to effectively query the accurate value. This uses the
     value's type to provide a user friendly representation if able.
     """
 
-    confValue = ", ".join(torTools.getConn().getOption(self.get(Field.OPTION), [], True))
+    conf_value = ", ".join(torTools.get_conn().get_option(self.get(Field.OPTION), [], True))
 
     # provides nicer values for recognized types
-    if not confValue: confValue = "<none>"
-    elif self.get(Field.TYPE) == "Boolean" and confValue in ("0", "1"):
-      confValue = "False" if confValue == "0" else "True"
-    elif self.get(Field.TYPE) == "DataSize" and confValue.isdigit():
-      confValue = str_tools.get_size_label(int(confValue))
-    elif self.get(Field.TYPE) == "TimeInterval" and confValue.isdigit():
-      confValue = str_tools.get_time_label(int(confValue), is_long = True)
 
-    return confValue
+    if not conf_value:
+      conf_value = "<none>"
+    elif self.get(Field.TYPE) == "Boolean" and conf_value in ("0", "1"):
+      conf_value = "False" if conf_value == "0" else "True"
+    elif self.get(Field.TYPE) == "DataSize" and conf_value.isdigit():
+      conf_value = str_tools.get_size_label(int(conf_value))
+    elif self.get(Field.TYPE) == "TimeInterval" and conf_value.isdigit():
+      conf_value = str_tools.get_time_label(int(conf_value), is_long = True)
+
+    return conf_value
+
 
 class ConfigPanel(panel.Panel):
   """
@@ -188,99 +218,111 @@ class ConfigPanel(panel.Panel):
   be selected and edited.
   """
 
-  def __init__(self, stdscr, configType):
+  def __init__(self, stdscr, config_type):
     panel.Panel.__init__(self, stdscr, "configuration", 0)
 
-    self.configType = configType
-    self.confContents = []
-    self.confImportantContents = []
+    self.config_type = config_type
+    self.conf_contents = []
+    self.conf_important_contents = []
     self.scroller = uiTools.Scroller(True)
-    self.valsLock = threading.RLock()
+    self.vals_lock = threading.RLock()
 
     # shows all configuration options if true, otherwise only the ones with
     # the 'important' flag are shown
-    self.showAll = False
+
+    self.show_all = False
 
     # initializes config contents if we're connected
-    conn = torTools.getConn()
-    conn.addStatusListener(self.resetListener)
-    if conn.isAlive(): self.resetListener(None, stem.control.State.INIT, None)
 
-  def resetListener(self, controller, eventType, _):
+    conn = torTools.get_conn()
+    conn.add_status_listener(self.reset_listener)
+
+    if conn.is_alive():
+      self.reset_listener(None, stem.control.State.INIT, None)
+
+  def reset_listener(self, controller, event_type, _):
     # fetches configuration options if a new instance, otherewise keeps our
     # current contents
 
-    if eventType == stem.control.State.INIT:
-      self._loadConfigOptions()
+    if event_type == stem.control.State.INIT:
+      self._load_config_options()
 
-  def _loadConfigOptions(self):
+  def _load_config_options(self):
     """
     Fetches the configuration options available from tor or arm.
     """
 
-    self.confContents = []
-    self.confImportantContents = []
+    self.conf_contents = []
+    self.conf_important_contents = []
 
-    if self.configType == State.TOR:
-      conn, configOptionLines = torTools.getConn(), []
-      customOptions = torConfig.getCustomOptions()
-      configOptionQuery = conn.getInfo("config/names", None)
+    if self.config_type == State.TOR:
+      conn, config_option_lines = torTools.get_conn(), []
+      custom_options = torConfig.get_custom_options()
+      config_option_query = conn.get_info("config/names", None)
 
-      if configOptionQuery:
-        configOptionLines = configOptionQuery.strip().split("\n")
+      if config_option_query:
+        config_option_lines = config_option_query.strip().split("\n")
 
-      for line in configOptionLines:
+      for line in config_option_lines:
         # lines are of the form "<option> <type>[ <documentation>]", like:
         # UseEntryGuards Boolean
         # documentation is aparently only in older versions (for instance,
         # 0.2.1.25)
-        lineComp = line.strip().split(" ")
-        confOption, confType = lineComp[0], lineComp[1]
+
+        line_comp = line.strip().split(" ")
+        conf_option, conf_type = line_comp[0], line_comp[1]
 
         # skips private and virtual entries if not configured to show them
-        if not CONFIG["features.config.state.showPrivateOptions"] and confOption.startswith("__"):
+
+        if not CONFIG["features.config.state.showPrivateOptions"] and conf_option.startswith("__"):
           continue
-        elif not CONFIG["features.config.state.showVirtualOptions"] and confType == "Virtual":
+        elif not CONFIG["features.config.state.showVirtualOptions"] and conf_type == "Virtual":
           continue
 
-        self.confContents.append(ConfigEntry(confOption, confType, not confOption in customOptions))
-    elif self.configType == State.ARM:
+        self.conf_contents.append(ConfigEntry(conf_option, conf_type, not conf_option in custom_options))
+
+    elif self.config_type == State.ARM:
       # loaded via the conf utility
-      armConf = conf.get_config("arm")
-      for key in armConf.keys():
-        pass # TODO: implement
+
+      arm_config = conf.get_config("arm")
+
+      for key in arm_config.keys():
+        pass  # TODO: implement
 
     # mirror listing with only the important configuration options
-    self.confImportantContents = []
-    for entry in self.confContents:
-      if torConfig.isImportant(entry.get(Field.OPTION)):
-        self.confImportantContents.append(entry)
+
+    self.conf_important_contents = []
+
+    for entry in self.conf_contents:
+      if torConfig.is_important(entry.get(Field.OPTION)):
+        self.conf_important_contents.append(entry)
 
     # if there aren't any important options then show everything
-    if not self.confImportantContents:
-      self.confImportantContents = self.confContents
 
-    self.setSortOrder() # initial sorting of the contents
+    if not self.conf_important_contents:
+      self.conf_important_contents = self.conf_contents
 
-  def getSelection(self):
+    self.set_sort_order()  # initial sorting of the contents
+
+  def get_selection(self):
     """
     Provides the currently selected entry.
     """
 
-    return self.scroller.getCursorSelection(self._getConfigOptions())
+    return self.scroller.get_cursor_selection(self._get_config_options())
 
-  def setFiltering(self, isFiltered):
+  def set_filtering(self, is_filtered):
     """
     Sets if configuration options are filtered or not.
 
     Arguments:
-      isFiltered - if true then only relatively important options will be
+      is_filtered - if true then only relatively important options will be
                    shown, otherwise everything is shown
     """
 
-    self.showAll = not isFiltered
+    self.show_all = not is_filtered
 
-  def setSortOrder(self, ordering = None):
+  def set_sort_order(self, ordering = None):
     """
     Sets the configuration attributes we're sorting by and resorts the
     contents.
@@ -290,133 +332,163 @@ class ConfigPanel(panel.Panel):
                  set ordering
     """
 
-    self.valsLock.acquire()
-    if ordering: CONFIG["features.config.order"] = ordering
-    self.confContents.sort(key=lambda i: (i.getAll(CONFIG["features.config.order"])))
-    self.confImportantContents.sort(key=lambda i: (i.getAll(CONFIG["features.config.order"])))
-    self.valsLock.release()
+    self.vals_lock.acquire()
 
-  def showSortDialog(self):
+    if ordering:
+      CONFIG["features.config.order"] = ordering
+
+    self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG["features.config.order"])))
+    self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG["features.config.order"])))
+    self.vals_lock.release()
+
+  def show_sort_dialog(self):
     """
     Provides the sort dialog for our configuration options.
     """
 
     # set ordering for config options
-    titleLabel = "Config Option Ordering:"
+
+    title_label = "Config Option Ordering:"
     options = [FIELD_ATTR[field][0] for field in Field]
-    oldSelection = [FIELD_ATTR[field][0] for field in CONFIG["features.config.order"]]
-    optionColors = dict([FIELD_ATTR[field] for field in Field])
-    results = popups.showSortDialog(titleLabel, options, oldSelection, optionColors)
+    old_selection = [FIELD_ATTR[field][0] for field in CONFIG["features.config.order"]]
+    option_colors = dict([FIELD_ATTR[field] for field in Field])
+    results = popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
     if results:
       # converts labels back to enums
-      resultEnums = [getFieldFromLabel(label) for label in results]
-      self.setSortOrder(resultEnums)
+      result_enums = [get_field_from_label(label) for label in results]
+      self.set_sort_order(result_enums)
 
-  def handleKey(self, key):
-    self.valsLock.acquire()
-    isKeystrokeConsumed = True
-    if uiTools.isScrollKey(key):
-      pageHeight = self.getPreferredSize()[0] - 1
-      detailPanelHeight = CONFIG["features.config.selectionDetails.height"]
-      if detailPanelHeight > 0 and detailPanelHeight + 2 <= pageHeight:
-        pageHeight -= (detailPanelHeight + 1)
+  def handle_key(self, key):
+    self.vals_lock.acquire()
+    is_keystroke_consumed = True
 
-      isChanged = self.scroller.handleKey(key, self._getConfigOptions(), pageHeight)
-      if isChanged: self.redraw(True)
-    elif uiTools.isSelectionKey(key) and self._getConfigOptions():
+    if uiTools.is_scroll_key(key):
+      page_height = self.get_preferred_size()[0] - 1
+      detail_panel_height = CONFIG["features.config.selectionDetails.height"]
+
+      if detail_panel_height > 0 and detail_panel_height + 2 <= page_height:
+        page_height -= (detail_panel_height + 1)
+
+      is_changed = self.scroller.handle_key(key, self._get_config_options(), page_height)
+
+      if is_changed:
+        self.redraw(True)
+    elif uiTools.is_selection_key(key) and self._get_config_options():
       # Prompts the user to edit the selected configuration value. The
       # interface is locked to prevent updates between setting the value
       # and showing any errors.
 
       panel.CURSES_LOCK.acquire()
+
       try:
-        selection = self.getSelection()
-        configOption = selection.get(Field.OPTION)
-        if selection.isUnset(): initialValue = ""
-        else: initialValue = selection.get(Field.VALUE)
+        selection = self.get_selection()
+        config_option = selection.get(Field.OPTION)
 
-        promptMsg = "%s Value (esc to cancel): " % configOption
-        isPrepopulated = CONFIG["features.config.prepopulateEditValues"]
-        newValue = popups.inputPrompt(promptMsg, initialValue if isPrepopulated else "")
+        if selection.is_unset():
+          initial_value = ""
+        else:
+          initial_value = selection.get(Field.VALUE)
 
-        if newValue != None and newValue != initialValue:
+        prompt_msg = "%s Value (esc to cancel): " % config_option
+        is_prepopulated = CONFIG["features.config.prepopulateEditValues"]
+        new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else "")
+
+        if new_value is not None and new_value != initial_value:
           try:
             if selection.get(Field.TYPE) == "Boolean":
               # if the value's a boolean then allow for 'true' and 'false' inputs
-              if newValue.lower() == "true": newValue = "1"
-              elif newValue.lower() == "false": newValue = "0"
-            elif selection.get(Field.TYPE) == "LineList":
-              # setOption accepts list inputs when there's multiple values
-              newValue = newValue.split(",")
 
-            torTools.getConn().setOption(configOption, newValue)
+              if new_value.lower() == "true":
+                new_value = "1"
+              elif new_value.lower() == "false":
+                new_value = "0"
+            elif selection.get(Field.TYPE) == "LineList":
+              # set_option accepts list inputs when there's multiple values
+              new_value = new_value.split(",")
+
+            torTools.get_conn().set_option(config_option, new_value)
 
             # forces the label to be remade with the new value
-            selection.labelCache = None
 
-            # resets the isDefault flag
-            customOptions = torConfig.getCustomOptions()
-            selection.fields[Field.IS_DEFAULT] = not configOption in customOptions
+            selection.label_cache = None
+
+            # resets the is_default flag
+
+            custom_options = torConfig.get_custom_options()
+            selection.fields[Field.IS_DEFAULT] = not config_option in custom_options
 
             self.redraw(True)
-          except Exception, exc:
-            popups.showMsg("%s (press any key)" % exc)
+          except Exception as exc:
+            popups.show_msg("%s (press any key)" % exc)
       finally:
         panel.CURSES_LOCK.release()
     elif key == ord('a') or key == ord('A'):
-      self.showAll = not self.showAll
+      self.show_all = not self.show_all
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
-      self.showSortDialog()
+      self.show_sort_dialog()
     elif key == ord('v') or key == ord('V'):
-      self.showWriteDialog()
-    else: isKeystrokeConsumed = False
+      self.show_write_dialog()
+    else:
+      is_keystroke_consumed = False
 
-    self.valsLock.release()
-    return isKeystrokeConsumed
+    self.vals_lock.release()
+    return is_keystroke_consumed
 
-  def showWriteDialog(self):
+  def show_write_dialog(self):
     """
     Provies an interface to confirm if the configuration is saved and, if so,
     where.
     """
 
     # display a popup for saving the current configuration
-    configLines = torConfig.getCustomOptions(True)
-    popup, width, height = popups.init(len(configLines) + 2)
-    if not popup: return
+
+    config_lines = torConfig.get_custom_options(True)
+    popup, width, height = popups.init(len(config_lines) + 2)
+
+    if not popup:
+      return
 
     try:
       # displayed options (truncating the labels if there's limited room)
-      if width >= 30: selectionOptions = ("Save", "Save As...", "Cancel")
-      else: selectionOptions = ("Save", "Save As", "X")
+
+      if width >= 30:
+        selection_options = ("Save", "Save As...", "Cancel")
+      else:
+        selection_options = ("Save", "Save As", "X")
 
       # checks if we can show options beside the last line of visible content
-      isOptionLineSeparate = False
-      lastIndex = min(height - 2, len(configLines) - 1)
+
+      is_option_line_separate = False
+      last_index = min(height - 2, len(config_lines) - 1)
 
       # if we don't have room to display the selection options and room to
       # grow then display the selection options on its own line
-      if width < (30 + len(configLines[lastIndex])):
-        popup.setHeight(height + 1)
-        popup.redraw(True) # recreates the window instance
-        newHeight, _ = popup.getPreferredSize()
 
-        if newHeight > height:
-          height = newHeight
-          isOptionLineSeparate = True
+      if width < (30 + len(config_lines[last_index])):
+        popup.set_height(height + 1)
+        popup.redraw(True)  # recreates the window instance
+        new_height, _ = popup.get_preferred_size()
+
+        if new_height > height:
+          height = new_height
+          is_option_line_separate = True
 
       key, selection = 0, 2
-      while not uiTools.isSelectionKey(key):
+
+      while not uiTools.is_selection_key(key):
         # if the popup has been resized then recreate it (needed for the
         # proper border height)
-        newHeight, newWidth = popup.getPreferredSize()
-        if (height, width) != (newHeight, newWidth):
-          height, width = newHeight, newWidth
+
+        new_height, new_width = popup.get_preferred_size()
+
+        if (height, width) != (new_height, new_width):
+          height, width = new_height, new_width
           popup.redraw(True)
 
         # if there isn't room to display the popup then cancel it
+
         if height <= 2:
           selection = 2
           break
@@ -425,61 +497,75 @@ class ConfigPanel(panel.Panel):
         popup.win.box()
         popup.addstr(0, 0, "Configuration being saved:", curses.A_STANDOUT)
 
-        visibleConfigLines = height - 3 if isOptionLineSeparate else height - 2
-        for i in range(visibleConfigLines):
-          line = uiTools.cropStr(configLines[i], width - 2)
+        visible_config_lines = height - 3 if is_option_line_separate else height - 2
+
+        for i in range(visible_config_lines):
+          line = uiTools.crop_str(config_lines[i], width - 2)
 
           if " " in line:
             option, arg = line.split(" ", 1)
-            popup.addstr(i + 1, 1, option, curses.A_BOLD | uiTools.getColor("green"))
-            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | uiTools.getColor("cyan"))
+            popup.addstr(i + 1, 1, option, curses.A_BOLD | uiTools.get_color("green"))
+            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | uiTools.get_color("cyan"))
           else:
-            popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.getColor("green"))
+            popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.get_color("green"))
 
         # draws selection options (drawn right to left)
-        drawX = width - 1
-        for i in range(len(selectionOptions) - 1, -1, -1):
-          optionLabel = selectionOptions[i]
-          drawX -= (len(optionLabel) + 2)
+
+        draw_x = width - 1
+
+        for i in range(len(selection_options) - 1, -1, -1):
+          option_label = selection_options[i]
+          draw_x -= (len(option_label) + 2)
 
           # if we've run out of room then drop the option (this will only
           # occure on tiny displays)
-          if drawX < 1: break
 
-          selectionFormat = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-          popup.addstr(height - 2, drawX, "[")
-          popup.addstr(height - 2, drawX + 1, optionLabel, selectionFormat | curses.A_BOLD)
-          popup.addstr(height - 2, drawX + len(optionLabel) + 1, "]")
+          if draw_x < 1:
+            break
 
-          drawX -= 1 # space gap between the options
+          selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+          popup.addstr(height - 2, draw_x, "[")
+          popup.addstr(height - 2, draw_x + 1, option_label, selection_format | curses.A_BOLD)
+          popup.addstr(height - 2, draw_x + len(option_label) + 1, "]")
+
+          draw_x -= 1  # space gap between the options
 
         popup.win.refresh()
 
-        key = arm.controller.getController().getScreen().getch()
-        if key == curses.KEY_LEFT: selection = max(0, selection - 1)
-        elif key == curses.KEY_RIGHT: selection = min(len(selectionOptions) - 1, selection + 1)
+        key = arm.controller.get_controller().get_screen().getch()
+
+        if key == curses.KEY_LEFT:
+          selection = max(0, selection - 1)
+        elif key == curses.KEY_RIGHT:
+          selection = min(len(selection_options) - 1, selection + 1)
 
       if selection in (0, 1):
-        loadedTorrc, promptCanceled = torConfig.getTorrc(), False
-        try: configLocation = loadedTorrc.getConfigLocation()
-        except IOError: configLocation = ""
+        loaded_torrc, prompt_canceled = torConfig.get_torrc(), False
+
+        try:
+          config_location = loaded_torrc.get_config_location()
+        except IOError:
+          config_location = ""
 
         if selection == 1:
           # prompts user for a configuration location
-          configLocation = popups.inputPrompt("Save to (esc to cancel): ", configLocation)
-          if not configLocation: promptCanceled = True
+          config_location = popups.input_prompt("Save to (esc to cancel): ", config_location)
 
-        if not promptCanceled:
+          if not config_location:
+            prompt_canceled = True
+
+        if not prompt_canceled:
           try:
-            torConfig.saveConf(configLocation, configLines)
-            msg = "Saved configuration to %s" % configLocation
-          except IOError, exc:
+            torConfig.save_conf(config_location, config_lines)
+            msg = "Saved configuration to %s" % config_location
+          except IOError as exc:
             msg = "Unable to save configuration (%s)" % exc.strerror
 
-          popups.showMsg(msg, 2)
-    finally: popups.finalize()
+          popups.show_msg(msg, 2)
+    finally:
+      popups.finalize()
 
-  def getHelp(self):
+  def get_help(self):
     options = []
     options.append(("up arrow", "scroll up a line", None))
     options.append(("down arrow", "scroll down a line", None))
@@ -492,123 +578,149 @@ class ConfigPanel(panel.Panel):
     return options
 
   def draw(self, width, height):
-    self.valsLock.acquire()
+    self.vals_lock.acquire()
 
     # panel with details for the current selection
-    detailPanelHeight = CONFIG["features.config.selectionDetails.height"]
-    isScrollbarVisible = False
-    if detailPanelHeight == 0 or detailPanelHeight + 2 >= height:
+
+    detail_panel_height = CONFIG["features.config.selectionDetails.height"]
+    is_scrollbar_visible = False
+
+    if detail_panel_height == 0 or detail_panel_height + 2 >= height:
       # no detail panel
-      detailPanelHeight = 0
-      scrollLoc = self.scroller.getScrollLoc(self._getConfigOptions(), height - 1)
-      cursorSelection = self.getSelection()
-      isScrollbarVisible = len(self._getConfigOptions()) > height - 1
+
+      detail_panel_height = 0
+      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1)
+      cursor_selection = self.get_selection()
+      is_scrollbar_visible = len(self._get_config_options()) > height - 1
     else:
       # Shrink detail panel if there isn't sufficient room for the whole
       # thing. The extra line is for the bottom border.
-      detailPanelHeight = min(height - 1, detailPanelHeight + 1)
-      scrollLoc = self.scroller.getScrollLoc(self._getConfigOptions(), height - 1 - detailPanelHeight)
-      cursorSelection = self.getSelection()
-      isScrollbarVisible = len(self._getConfigOptions()) > height - detailPanelHeight - 1
 
-      if cursorSelection != None:
-        self._drawSelectionPanel(cursorSelection, width, detailPanelHeight, isScrollbarVisible)
+      detail_panel_height = min(height - 1, detail_panel_height + 1)
+      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1 - detail_panel_height)
+      cursor_selection = self.get_selection()
+      is_scrollbar_visible = len(self._get_config_options()) > height - detail_panel_height - 1
+
+      if cursor_selection is not None:
+        self._draw_selection_panel(cursor_selection, width, detail_panel_height, is_scrollbar_visible)
 
     # draws the top label
-    if self.isTitleVisible():
-      configType = "Tor" if self.configType == State.TOR else "Arm"
-      hiddenMsg = "press 'a' to hide most options" if self.showAll else "press 'a' to show all options"
-      titleLabel = "%s Configuration (%s):" % (configType, hiddenMsg)
-      self.addstr(0, 0, titleLabel, curses.A_STANDOUT)
+
+    if self.is_title_visible():
+      config_type = "Tor" if self.config_type == State.TOR else "Arm"
+      hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
+      title_label = "%s Configuration (%s):" % (config_type, hidden_msg)
+      self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
     # draws left-hand scroll bar if content's longer than the height
-    scrollOffset = 1
-    if isScrollbarVisible:
-      scrollOffset = 3
-      self.addScrollBar(scrollLoc, scrollLoc + height - detailPanelHeight - 1, len(self._getConfigOptions()), 1 + detailPanelHeight)
 
-    optionWidth = CONFIG["features.config.state.colWidth.option"]
-    valueWidth = CONFIG["features.config.state.colWidth.value"]
-    descriptionWidth = max(0, width - scrollOffset - optionWidth - valueWidth - 2)
+    scroll_offset = 1
+
+    if is_scrollbar_visible:
+      scroll_offset = 3
+      self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_height - 1, len(self._get_config_options()), 1 + detail_panel_height)
+
+    option_width = CONFIG["features.config.state.colWidth.option"]
+    value_width = CONFIG["features.config.state.colWidth.value"]
+    description_width = max(0, width - scroll_offset - option_width - value_width - 2)
 
     # if the description column is overly long then use its space for the
     # value instead
-    if descriptionWidth > 80:
-      valueWidth += descriptionWidth - 80
-      descriptionWidth = 80
 
-    for lineNum in range(scrollLoc, len(self._getConfigOptions())):
-      entry = self._getConfigOptions()[lineNum]
-      drawLine = lineNum + detailPanelHeight + 1 - scrollLoc
+    if description_width > 80:
+      value_width += description_width - 80
+      description_width = 80
 
-      lineFormat = curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD
-      if entry.get(Field.CATEGORY): lineFormat |= uiTools.getColor(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
-      if entry == cursorSelection: lineFormat |= curses.A_STANDOUT
+    for line_number in range(scroll_location, len(self._get_config_options())):
+      entry = self._get_config_options()[line_number]
+      draw_line = line_number + detail_panel_height + 1 - scroll_location
 
-      lineText = entry.getLabel(optionWidth, valueWidth, descriptionWidth)
-      self.addstr(drawLine, scrollOffset, lineText, lineFormat)
+      line_format = curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD
 
-      if drawLine >= height: break
+      if entry.get(Field.CATEGORY):
+        line_format |= uiTools.get_color(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
 
-    self.valsLock.release()
+      if entry == cursor_selection:
+        line_format |= curses.A_STANDOUT
 
-  def _getConfigOptions(self):
-    return self.confContents if self.showAll else self.confImportantContents
+      line_text = entry.get_label(option_width, value_width, description_width)
+      self.addstr(draw_line, scroll_offset, line_text, line_format)
 
-  def _drawSelectionPanel(self, selection, width, detailPanelHeight, isScrollbarVisible):
+      if draw_line >= height:
+        break
+
+    self.vals_lock.release()
+
+  def _get_config_options(self):
+    return self.conf_contents if self.show_all else self.conf_important_contents
+
+  def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
     """
     Renders a panel for the selected configuration option.
     """
 
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
-    uiTools.drawBox(self, 0, 0, width, detailPanelHeight + 1)
-    if isScrollbarVisible: self.addch(detailPanelHeight, 1, curses.ACS_TTEE)
 
-    selectionFormat = curses.A_BOLD | uiTools.getColor(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
+    uiTools.draw_box(self, 0, 0, width, detail_panel_height + 1)
+
+    if is_scrollbar_visible:
+      self.addch(detail_panel_height, 1, curses.ACS_TTEE)
+
+    selection_format = curses.A_BOLD | uiTools.get_color(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
 
     # first entry:
     # <option> (<category> Option)
-    optionLabel =" (%s Option)" % selection.get(Field.CATEGORY)
-    self.addstr(1, 2, selection.get(Field.OPTION) + optionLabel, selectionFormat)
+
+    option_label = " (%s Option)" % selection.get(Field.CATEGORY)
+    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, selection_format)
 
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
-    if detailPanelHeight >= 3:
-      valueAttr = []
-      valueAttr.append("default" if selection.get(Field.IS_DEFAULT) else "custom")
-      valueAttr.append(selection.get(Field.TYPE))
-      valueAttr.append("usage: %s" % (selection.get(Field.ARG_USAGE)))
-      valueAttrLabel = ", ".join(valueAttr)
 
-      valueLabelWidth = width - 12 - len(valueAttrLabel)
-      valueLabel = uiTools.cropStr(selection.get(Field.VALUE), valueLabelWidth)
+    if detail_panel_height >= 3:
+      value_attr = []
+      value_attr.append("default" if selection.get(Field.IS_DEFAULT) else "custom")
+      value_attr.append(selection.get(Field.TYPE))
+      value_attr.append("usage: %s" % (selection.get(Field.ARG_USAGE)))
+      value_attr_label = ", ".join(value_attr)
 
-      self.addstr(2, 2, "Value: %s (%s)" % (valueLabel, valueAttrLabel), selectionFormat)
+      value_label_width = width - 12 - len(value_attr_label)
+      value_label = uiTools.crop_str(selection.get(Field.VALUE), value_label_width)
+
+      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), selection_format)
 
     # remainder is filled with the man page description
-    descriptionHeight = max(0, detailPanelHeight - 3)
-    descriptionContent = "Description: " + selection.get(Field.DESCRIPTION)
 
-    for i in range(descriptionHeight):
+    description_height = max(0, detail_panel_height - 3)
+    description_content = "Description: " + selection.get(Field.DESCRIPTION)
+
+    for i in range(description_height):
       # checks if we're done writing the description
-      if not descriptionContent: break
+
+      if not description_content:
+        break
 
       # there's a leading indent after the first line
-      if i > 0: descriptionContent = "  " + descriptionContent
+
+      if i > 0:
+        description_content = "  " + description_content
 
       # we only want to work with content up until the next newline
-      if "\n" in descriptionContent:
-        lineContent, descriptionContent = descriptionContent.split("\n", 1)
-      else: lineContent, descriptionContent = descriptionContent, ""
 
-      if i != descriptionHeight - 1:
+      if "\n" in description_content:
+        line_content, description_content = description_content.split("\n", 1)
+      else:
+        line_content, description_content = description_content, ""
+
+      if i != description_height - 1:
         # there's more lines to display
-        msg, remainder = uiTools.cropStr(lineContent, width - 3, 4, 4, uiTools.Ending.HYPHEN, True)
-        descriptionContent = remainder.strip() + descriptionContent
+
+        msg, remainder = uiTools.crop_str(line_content, width - 3, 4, 4, uiTools.Ending.HYPHEN, True)
+        description_content = remainder.strip() + description_content
       else:
         # this is the last line, end it with an ellipse
-        msg = uiTools.cropStr(lineContent, width - 3, 4, 4)
 
-      self.addstr(3 + i, 2, msg, selectionFormat)
+        msg = uiTools.crop_str(line_content, width - 3, 4, 4)
 
+      self.addstr(3 + i, 2, msg, selection_format)

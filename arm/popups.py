@@ -9,7 +9,8 @@ import arm.controller
 from arm import __version__, __release_date__
 from arm.util import panel, uiTools
 
-def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
+
+def init(height = -1, width = -1, top = 0, left = 0, below_static = True):
   """
   Preparation for displaying a popup. This creates a popup with a valid
   subwindow instance. If that's successful then the curses lock is acquired
@@ -22,24 +23,30 @@ def init(height = -1, width = -1, top = 0, left = 0, belowStatic = True):
     width       - maximum width of the popup
     top         - top position, relative to the sticky content
     left        - left position from the screen
-    belowStatic - positions popup below static content if true
+    below_static - positions popup below static content if true
   """
 
-  control = arm.controller.getController()
-  if belowStatic:
-    stickyHeight = sum([stickyPanel.getHeight() for stickyPanel in control.getStickyPanels()])
-  else: stickyHeight = 0
+  control = arm.controller.get_controller()
 
-  popup = panel.Panel(control.getScreen(), "popup", top + stickyHeight, left, height, width)
-  popup.setVisible(True)
+  if below_static:
+    sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
+  else:
+    sticky_height = 0
+
+  popup = panel.Panel(control.get_screen(), "popup", top + sticky_height, left, height, width)
+  popup.set_visible(True)
 
   # Redraws the popup to prepare a subwindow instance. If none is spawned then
   # the panel can't be drawn (for instance, due to not being visible).
+
   popup.redraw(True)
-  if popup.win != None:
+
+  if popup.win is not None:
     panel.CURSES_LOCK.acquire()
-    return (popup, popup.maxX - 1, popup.maxY)
-  else: return (None, 0, 0)
+    return (popup, popup.max_x - 1, popup.max_y)
+  else:
+    return (None, 0, 0)
+
 
 def finalize():
   """
@@ -47,53 +54,60 @@ def finalize():
   the rest of the display.
   """
 
-  arm.controller.getController().requestRedraw()
+  arm.controller.get_controller().request_redraw()
   panel.CURSES_LOCK.release()
 
-def inputPrompt(msg, initialValue = ""):
+
+def input_prompt(msg, initial_value = ""):
   """
   Prompts the user to enter a string on the control line (which usually
   displays the page number and basic controls).
 
   Arguments:
     msg          - message to prompt the user for input with
-    initialValue - initial value of the field
+    initial_value - initial value of the field
   """
 
   panel.CURSES_LOCK.acquire()
-  control = arm.controller.getController()
-  msgPanel = control.getPanel("msg")
-  msgPanel.setMessage(msg)
-  msgPanel.redraw(True)
-  userInput = msgPanel.getstr(0, len(msg), initialValue)
-  control.setMsg()
+  control = arm.controller.get_controller()
+  msg_panel = control.get_panel("msg")
+  msg_panel.set_message(msg)
+  msg_panel.redraw(True)
+  user_input = msg_panel.getstr(0, len(msg), initial_value)
+  control.set_msg()
   panel.CURSES_LOCK.release()
-  return userInput
 
-def showMsg(msg, maxWait = -1, attr = curses.A_STANDOUT):
+  return user_input
+
+
+def show_msg(msg, max_wait = -1, attr = curses.A_STANDOUT):
   """
   Displays a single line message on the control line for a set time. Pressing
   any key will end the message. This returns the key pressed.
 
   Arguments:
     msg     - message to be displayed to the user
-    maxWait - time to show the message, indefinite if -1
+    max_wait - time to show the message, indefinite if -1
     attr    - attributes with which to draw the message
   """
 
   panel.CURSES_LOCK.acquire()
-  control = arm.controller.getController()
-  control.setMsg(msg, attr, True)
+  control = arm.controller.get_controller()
+  control.set_msg(msg, attr, True)
 
-  if maxWait == -1: curses.cbreak()
-  else: curses.halfdelay(maxWait * 10)
-  keyPress = control.getScreen().getch()
-  control.setMsg()
+  if max_wait == -1:
+    curses.cbreak()
+  else:
+    curses.halfdelay(max_wait * 10)
+
+  key_press = control.get_screen().getch()
+  control.set_msg()
   panel.CURSES_LOCK.release()
 
-  return keyPress
+  return key_press
 
-def showHelpPopup():
+
+def show_help_popup():
   """
   Presents a popup with instructions for the current page's hotkeys. This
   returns the user input used to close the popup. If the popup didn't close
@@ -101,33 +115,44 @@ def showHelpPopup():
   """
 
   popup, _, height = init(9, 80)
-  if not popup: return
 
-  exitKey = None
+  if not popup:
+    return
+
+  exit_key = None
+
   try:
-    control = arm.controller.getController()
-    pagePanels = control.getDisplayPanels()
+    control = arm.controller.get_controller()
+    page_panels = control.get_display_panels()
 
     # the first page is the only one with multiple panels, and it looks better
     # with the log entries first, so reversing the order
-    pagePanels.reverse()
 
-    helpOptions = []
-    for entry in pagePanels:
-      helpOptions += entry.getHelp()
+    page_panels.reverse()
+
+    help_options = []
+
+    for entry in page_panels:
+      help_options += entry.get_help()
 
     # test doing afterward in case of overwriting
-    popup.win.box()
-    popup.addstr(0, 0, "Page %i Commands:" % (control.getPage() + 1), curses.A_STANDOUT)
 
-    for i in range(len(helpOptions)):
-      if i / 2 >= height - 2: break
+    popup.win.box()
+    popup.addstr(0, 0, "Page %i Commands:" % (control.get_page() + 1), curses.A_STANDOUT)
+
+    for i in range(len(help_options)):
+      if i / 2 >= height - 2:
+        break
 
       # draws entries in the form '<key>: <description>[ (<selection>)]', for
       # instance...
       # u: duplicate log entries (hidden)
-      key, description, selection = helpOptions[i]
-      if key: description = ": " + description
+
+      key, description, selection = help_options[i]
+
+      if key:
+        description = ": " + description
+
       row = (i / 2) + 1
       col = 2 if i % 2 == 0 else 41
 
@@ -142,30 +167,36 @@ def showHelpPopup():
         popup.addstr(row, col + 2 + len(selection), ")")
 
     # tells user to press a key if the lower left is unoccupied
-    if len(helpOptions) < 13 and height == 9:
+
+    if len(help_options) < 13 and height == 9:
       popup.addstr(7, 2, "Press any key...")
 
     popup.win.refresh()
     curses.cbreak()
-    exitKey = control.getScreen().getch()
-  finally: finalize()
+    exit_key = control.get_screen().getch()
+  finally:
+    finalize()
 
-  if not uiTools.isSelectionKey(exitKey) and \
-    not uiTools.isScrollKey(exitKey) and \
-    not exitKey in (curses.KEY_LEFT, curses.KEY_RIGHT):
-    return exitKey
-  else: return None
+  if not uiTools.is_selection_key(exit_key) and \
+    not uiTools.is_scroll_key(exit_key) and \
+    not exit_key in (curses.KEY_LEFT, curses.KEY_RIGHT):
+    return exit_key
+  else:
+    return None
 
-def showAboutPopup():
+
+def show_about_popup():
   """
   Presents a popup with author and version information.
   """
 
   popup, _, height = init(9, 80)
-  if not popup: return
+
+  if not popup:
+    return
 
   try:
-    control = arm.controller.getController()
+    control = arm.controller.get_controller()
 
     popup.win.box()
     popup.addstr(0, 0, "About:", curses.A_STANDOUT)
@@ -177,10 +208,12 @@ def showAboutPopup():
     popup.win.refresh()
 
     curses.cbreak()
-    control.getScreen().getch()
-  finally: finalize()
+    control.get_screen().getch()
+  finally:
+    finalize()
 
-def showSortDialog(title, options, oldSelection, optionColors):
+
+def show_sort_dialog(title, options, old_selection, option_colors):
   """
   Displays a sorting dialog of the form:
 
@@ -196,65 +229,78 @@ def showSortDialog(title, options, oldSelection, optionColors):
   Arguments:
     title   - title displayed for the popup window
     options      - ordered listing of option labels
-    oldSelection - current ordering
-    optionColors - mappings of options to their color
+    old_selection - current ordering
+    option_colors - mappings of options to their color
   """
 
   popup, _, _ = init(9, 80)
-  if not popup: return
-  newSelections = []  # new ordering
+
+  if not popup:
+    return
+
+  new_selections = []  # new ordering
 
   try:
-    cursorLoc = 0     # index of highlighted option
-    curses.cbreak()   # wait indefinitely for key presses (no timeout)
+    cursor_location = 0     # index of highlighted option
+    curses.cbreak()         # wait indefinitely for key presses (no timeout)
 
-    selectionOptions = list(options)
-    selectionOptions.append("Cancel")
+    selection_options = list(options)
+    selection_options.append("Cancel")
 
-    while len(newSelections) < len(oldSelection):
+    while len(new_selections) < len(old_selection):
       popup.win.erase()
       popup.win.box()
       popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-      _drawSortSelection(popup, 1, 2, "Current Order: ", oldSelection, optionColors)
-      _drawSortSelection(popup, 2, 2, "New Order: ", newSelections, optionColors)
+      _draw_sort_selection(popup, 1, 2, "Current Order: ", old_selection, option_colors)
+      _draw_sort_selection(popup, 2, 2, "New Order: ", new_selections, option_colors)
 
       # presents remaining options, each row having up to four options with
       # spacing of nineteen cells
+
       row, col = 4, 0
-      for i in range(len(selectionOptions)):
-        optionFormat = curses.A_STANDOUT if cursorLoc == i else curses.A_NORMAL
-        popup.addstr(row, col * 19 + 2, selectionOptions[i], optionFormat)
+
+      for i in range(len(selection_options)):
+        option_format = curses.A_STANDOUT if cursor_location == i else curses.A_NORMAL
+        popup.addstr(row, col * 19 + 2, selection_options[i], option_format)
         col += 1
-        if col == 4: row, col = row + 1, 0
+
+        if col == 4:
+          row, col = row + 1, 0
 
       popup.win.refresh()
 
-      key = arm.controller.getController().getScreen().getch()
+      key = arm.controller.get_controller().get_screen().getch()
+
       if key == curses.KEY_LEFT:
-        cursorLoc = max(0, cursorLoc - 1)
+        cursor_location = max(0, cursor_location - 1)
       elif key == curses.KEY_RIGHT:
-        cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 1)
+        cursor_location = min(len(selection_options) - 1, cursor_location + 1)
       elif key == curses.KEY_UP:
-        cursorLoc = max(0, cursorLoc - 4)
+        cursor_location = max(0, cursor_location - 4)
       elif key == curses.KEY_DOWN:
-        cursorLoc = min(len(selectionOptions) - 1, cursorLoc + 4)
-      elif uiTools.isSelectionKey(key):
-        selection = selectionOptions[cursorLoc]
+        cursor_location = min(len(selection_options) - 1, cursor_location + 4)
+      elif uiTools.is_selection_key(key):
+        selection = selection_options[cursor_location]
 
-        if selection == "Cancel": break
+        if selection == "Cancel":
+          break
         else:
-          newSelections.append(selection)
-          selectionOptions.remove(selection)
-          cursorLoc = min(cursorLoc, len(selectionOptions) - 1)
-      elif key == 27: break # esc - cancel
-  finally: finalize()
+          new_selections.append(selection)
+          selection_options.remove(selection)
+          cursor_location = min(cursor_location, len(selection_options) - 1)
+      elif key == 27:
+        break  # esc - cancel
+  finally:
+    finalize()
 
-  if len(newSelections) == len(oldSelection):
-    return newSelections
-  else: return None
+  if len(new_selections) == len(old_selection):
+    return new_selections
+  else:
+    return None
 
-def _drawSortSelection(popup, y, x, prefix, options, optionColors):
+
+def _draw_sort_selection(popup, y, x, prefix, options, option_colors):
   """
   Draws a series of comma separated sort selections. The whole line is bold
   and sort options also have their specified color. Example:
@@ -267,24 +313,26 @@ def _drawSortSelection(popup, y, x, prefix, options, optionColors):
     x            - horizontal location
     prefix       - initial string description
     options      - sort options to be shown
-    optionColors - mappings of options to their color
+    option_colors - mappings of options to their color
   """
 
   popup.addstr(y, x, prefix, curses.A_BOLD)
   x += len(prefix)
 
   for i in range(len(options)):
-    sortType = options[i]
-    sortColor = uiTools.getColor(optionColors.get(sortType, "white"))
-    popup.addstr(y, x, sortType, sortColor | curses.A_BOLD)
-    x += len(sortType)
+    sort_type = options[i]
+    sort_color = uiTools.get_color(option_colors.get(sort_type, "white"))
+    popup.addstr(y, x, sort_type, sort_color | curses.A_BOLD)
+    x += len(sort_type)
 
     # comma divider between options, if this isn't the last
+
     if i < len(options) - 1:
       popup.addstr(y, x, ", ", curses.A_BOLD)
       x += 2
 
-def showMenu(title, options, oldSelection):
+
+def show_menu(title, options, old_selection):
   """
   Provides menu with options laid out in a single column. User can cancel
   selection with the escape key, in which case this proives -1. Otherwise this
@@ -293,25 +341,29 @@ def showMenu(title, options, oldSelection):
   Arguments:
     title        - title displayed for the popup window
     options      - ordered listing of options to display
-    oldSelection - index of the initially selected option (uses the first
+    old_selection - index of the initially selected option (uses the first
                    selection without a carrot if -1)
   """
 
-  maxWidth = max(map(len, options)) + 9
-  popup, _, _ = init(len(options) + 2, maxWidth)
-  if not popup: return
-  key, selection = 0, oldSelection if oldSelection != -1 else 0
+  max_width = max(map(len, options)) + 9
+  popup, _, _ = init(len(options) + 2, max_width)
+
+  if not popup:
+    return
+
+  key, selection = 0, old_selection if old_selection != -1 else 0
 
   try:
     # hides the title of the first panel on the page
-    control = arm.controller.getController()
-    topPanel = control.getDisplayPanels(includeSticky = False)[0]
-    topPanel.setTitleVisible(False)
-    topPanel.redraw(True)
+
+    control = arm.controller.get_controller()
+    top_panel = control.get_display_panels(include_sticky = False)[0]
+    top_panel.set_title_visible(False)
+    top_panel.redraw(True)
 
     curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
-    while not uiTools.isSelectionKey(key):
+    while not uiTools.is_selection_key(key):
       popup.win.erase()
       popup.win.box()
       popup.addstr(0, 0, title, curses.A_STANDOUT)
@@ -319,19 +371,22 @@ def showMenu(title, options, oldSelection):
       for i in range(len(options)):
         label = options[i]
         format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-        tab = "> " if i == oldSelection else "  "
+        tab = "> " if i == old_selection else "  "
         popup.addstr(i + 1, 2, tab)
         popup.addstr(i + 1, 4, " %s " % label, format)
 
       popup.win.refresh()
 
-      key = control.getScreen().getch()
-      if key == curses.KEY_UP: selection = max(0, selection - 1)
-      elif key == curses.KEY_DOWN: selection = min(len(options) - 1, selection + 1)
-      elif key == 27: selection, key = -1, curses.KEY_ENTER # esc - cancel
+      key = control.get_screen().getch()
+
+      if key == curses.KEY_UP:
+        selection = max(0, selection - 1)
+      elif key == curses.KEY_DOWN:
+        selection = min(len(options) - 1, selection + 1)
+      elif key == 27:
+        selection, key = -1, curses.KEY_ENTER  # esc - cancel
   finally:
-    topPanel.setTitleVisible(True)
+    top_panel.set_title_visible(True)
     finalize()
 
   return selection
-

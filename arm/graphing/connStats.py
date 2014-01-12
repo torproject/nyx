@@ -9,6 +9,7 @@ from arm.util import torTools
 
 from stem.control import State
 
+
 class ConnStats(graphPanel.GraphStats):
   """
   Tracks number of connections, counting client and directory connections as
@@ -19,44 +20,53 @@ class ConnStats(graphPanel.GraphStats):
     graphPanel.GraphStats.__init__(self)
 
     # listens for tor reload (sighup) events which can reset the ports tor uses
-    conn = torTools.getConn()
-    self.orPort, self.dirPort, self.controlPort = "0", "0", "0"
-    self.resetListener(conn.getController(), State.INIT, None) # initialize port values
-    conn.addStatusListener(self.resetListener)
 
-  def clone(self, newCopy=None):
-    if not newCopy: newCopy = ConnStats()
-    return graphPanel.GraphStats.clone(self, newCopy)
+    conn = torTools.get_conn()
+    self.or_port, self.dir_port, self.control_port = "0", "0", "0"
+    self.reset_listener(conn.get_controller(), State.INIT, None)  # initialize port values
+    conn.add_status_listener(self.reset_listener)
 
-  def resetListener(self, controller, eventType, _):
-    if eventType in (State.INIT, State.RESET):
-      self.orPort = controller.get_conf("ORPort", "0")
-      self.dirPort = controller.get_conf("DirPort", "0")
-      self.controlPort = controller.get_conf("ControlPort", "0")
+  def clone(self, new_copy=None):
+    if not new_copy:
+      new_copy = ConnStats()
 
-  def eventTick(self):
+    return graphPanel.GraphStats.clone(self, new_copy)
+
+  def reset_listener(self, controller, event_type, _):
+    if event_type in (State.INIT, State.RESET):
+      self.or_port = controller.get_conf("ORPort", "0")
+      self.dir_port = controller.get_conf("DirPort", "0")
+      self.control_port = controller.get_conf("ControlPort", "0")
+
+  def event_tick(self):
     """
     Fetches connection stats from cached information.
     """
 
-    inboundCount, outboundCount = 0, 0
+    inbound_count, outbound_count = 0, 0
 
     for entry in arm.util.tracker.get_connection_tracker().get_connections():
-      localPort = entry.local_port
-      if localPort in (self.orPort, self.dirPort): inboundCount += 1
-      elif localPort == self.controlPort: pass # control connection
-      else: outboundCount += 1
+      local_port = entry.local_port
 
-    self._processEvent(inboundCount, outboundCount)
+      if local_port in (self.or_port, self.dir_port):
+        inbound_count += 1
+      elif local_port == self.control_port:
+        pass  # control connection
+      else:
+        outbound_count += 1
 
-  def getTitle(self, width):
+    self._process_event(inbound_count, outbound_count)
+
+  def get_title(self, width):
     return "Connection Count:"
 
-  def getHeaderLabel(self, width, isPrimary):
-    avg = (self.primaryTotal if isPrimary else self.secondaryTotal) / max(1, self.tick)
-    if isPrimary: return "Inbound (%s, avg: %s):" % (self.lastPrimary, avg)
-    else: return "Outbound (%s, avg: %s):" % (self.lastSecondary, avg)
+  def get_header_label(self, width, is_primary):
+    avg = (self.primary_total if is_primary else self.secondary_total) / max(1, self.tick)
 
-  def getRefreshRate(self):
+    if is_primary:
+      return "Inbound (%s, avg: %s):" % (self.last_primary, avg)
+    else:
+      return "Outbound (%s, avg: %s):" % (self.last_secondary, avg)
+
+  def get_refresh_rate(self):
     return 5
-

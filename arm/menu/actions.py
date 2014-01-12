@@ -20,34 +20,36 @@ CONFIG = conf.config_dict("arm", {
   "features.log.showDuplicateEntries": False,
 })
 
-def makeMenu():
+
+def make_menu():
   """
   Constructs the base menu and all of its contents.
   """
 
-  baseMenu = arm.menu.item.Submenu("")
-  baseMenu.add(makeActionsMenu())
-  baseMenu.add(makeViewMenu())
+  base_menu = arm.menu.item.Submenu("")
+  base_menu.add(make_actions_menu())
+  base_menu.add(make_view_menu())
 
-  control = arm.controller.getController()
+  control = arm.controller.get_controller()
 
-  for pagePanel in control.getDisplayPanels(includeSticky = False):
-    if pagePanel.getName() == "graph":
-      baseMenu.add(makeGraphMenu(pagePanel))
-    elif pagePanel.getName() == "log":
-      baseMenu.add(makeLogMenu(pagePanel))
-    elif pagePanel.getName() == "connections":
-      baseMenu.add(makeConnectionsMenu(pagePanel))
-    elif pagePanel.getName() == "configuration":
-      baseMenu.add(makeConfigurationMenu(pagePanel))
-    elif pagePanel.getName() == "torrc":
-      baseMenu.add(makeTorrcMenu(pagePanel))
+  for page_panel in control.get_display_panels(include_sticky = False):
+    if page_panel.get_name() == "graph":
+      base_menu.add(make_graph_menu(page_panel))
+    elif page_panel.get_name() == "log":
+      base_menu.add(make_log_menu(page_panel))
+    elif page_panel.get_name() == "connections":
+      base_menu.add(make_connections_menu(page_panel))
+    elif page_panel.get_name() == "configuration":
+      base_menu.add(make_configuration_menu(page_panel))
+    elif page_panel.get_name() == "torrc":
+      base_menu.add(make_torrc_menu(page_panel))
 
-  baseMenu.add(makeHelpMenu())
+  base_menu.add(make_help_menu())
 
-  return baseMenu
+  return base_menu
 
-def makeActionsMenu():
+
+def make_actions_menu():
   """
   Submenu consisting of...
     Close Menu
@@ -57,26 +59,30 @@ def makeActionsMenu():
     Exit
   """
 
-  control = arm.controller.getController()
-  conn = torTools.getConn()
-  headerPanel = control.getPanel("header")
-  actionsMenu = arm.menu.item.Submenu("Actions")
-  actionsMenu.add(arm.menu.item.MenuItem("Close Menu", None))
-  actionsMenu.add(arm.menu.item.MenuItem("New Identity", headerPanel.sendNewnym))
+  control = arm.controller.get_controller()
+  conn = torTools.get_conn()
+  header_panel = control.get_panel("header")
+  actions_menu = arm.menu.item.Submenu("Actions")
+  actions_menu.add(arm.menu.item.MenuItem("Close Menu", None))
+  actions_menu.add(arm.menu.item.MenuItem("New Identity", header_panel.send_newnym))
 
-  if conn.isAlive():
-    actionsMenu.add(arm.menu.item.MenuItem("Stop Tor", conn.shutdown))
+  if conn.is_alive():
+    actions_menu.add(arm.menu.item.MenuItem("Stop Tor", conn.shutdown))
 
-  actionsMenu.add(arm.menu.item.MenuItem("Reset Tor", conn.reload))
+  actions_menu.add(arm.menu.item.MenuItem("Reset Tor", conn.reload))
 
-  if control.isPaused(): label, arg = "Unpause", False
-  else: label, arg = "Pause", True
-  actionsMenu.add(arm.menu.item.MenuItem(label, functools.partial(control.setPaused, arg)))
+  if control.is_paused():
+    label, arg = "Unpause", False
+  else:
+    label, arg = "Pause", True
 
-  actionsMenu.add(arm.menu.item.MenuItem("Exit", control.quit))
-  return actionsMenu
+  actions_menu.add(arm.menu.item.MenuItem(label, functools.partial(control.set_paused, arg)))
+  actions_menu.add(arm.menu.item.MenuItem("Exit", control.quit))
 
-def makeViewMenu():
+  return actions_menu
+
+
+def make_view_menu():
   """
   Submenu consisting of...
     [X] <Page 1>
@@ -85,44 +91,46 @@ def makeViewMenu():
         Color (Submenu)
   """
 
-  viewMenu = arm.menu.item.Submenu("View")
-  control = arm.controller.getController()
+  view_menu = arm.menu.item.Submenu("View")
+  control = arm.controller.get_controller()
 
-  if control.getPageCount() > 0:
-    pageGroup = arm.menu.item.SelectionGroup(control.setPage, control.getPage())
+  if control.get_page_count() > 0:
+    page_group = arm.menu.item.SelectionGroup(control.set_page, control.get_page())
 
-    for i in range(control.getPageCount()):
-      pagePanels = control.getDisplayPanels(pageNumber = i, includeSticky = False)
-      label = " / ".join([str_tools._to_camel_case(panel.getName()) for panel in pagePanels])
+    for i in range(control.get_page_count()):
+      page_panels = control.get_display_panels(page_number = i, include_sticky = False)
+      label = " / ".join([str_tools._to_camel_case(panel.get_name()) for panel in page_panels])
 
-      viewMenu.add(arm.menu.item.SelectionMenuItem(label, pageGroup, i))
+      view_menu.add(arm.menu.item.SelectionMenuItem(label, page_group, i))
 
-  if uiTools.isColorSupported():
-    colorMenu = arm.menu.item.Submenu("Color")
-    colorGroup = arm.menu.item.SelectionGroup(uiTools.setColorOverride, uiTools.getColorOverride())
+  if uiTools.is_color_supported():
+    color_menu = arm.menu.item.Submenu("Color")
+    color_group = arm.menu.item.SelectionGroup(uiTools.set_color_override, uiTools.get_color_override())
 
-    colorMenu.add(arm.menu.item.SelectionMenuItem("All", colorGroup, None))
+    color_menu.add(arm.menu.item.SelectionMenuItem("All", color_group, None))
 
     for color in uiTools.COLOR_LIST:
-      colorMenu.add(arm.menu.item.SelectionMenuItem(str_tools._to_camel_case(color), colorGroup, color))
+      color_menu.add(arm.menu.item.SelectionMenuItem(str_tools._to_camel_case(color), color_group, color))
 
-    viewMenu.add(colorMenu)
+    view_menu.add(color_menu)
 
-  return viewMenu
+  return view_menu
 
-def makeHelpMenu():
+
+def make_help_menu():
   """
   Submenu consisting of...
     Hotkeys
     About
   """
 
-  helpMenu = arm.menu.item.Submenu("Help")
-  helpMenu.add(arm.menu.item.MenuItem("Hotkeys", arm.popups.showHelpPopup))
-  helpMenu.add(arm.menu.item.MenuItem("About", arm.popups.showAboutPopup))
-  return helpMenu
+  help_menu = arm.menu.item.Submenu("Help")
+  help_menu.add(arm.menu.item.MenuItem("Hotkeys", arm.popups.show_help_popup))
+  help_menu.add(arm.menu.item.MenuItem("About", arm.popups.show_about_popup))
+  return help_menu
 
-def makeGraphMenu(graphPanel):
+
+def make_graph_menu(graph_panel):
   """
   Submenu for the graph panel, consisting of...
     [X] <Stat 1>
@@ -133,47 +141,52 @@ def makeGraphMenu(graphPanel):
         Bounds (Submenu)
 
   Arguments:
-    graphPanel - instance of the graph panel
+    graph_panel - instance of the graph panel
   """
 
-  graphMenu = arm.menu.item.Submenu("Graph")
+  graph_menu = arm.menu.item.Submenu("Graph")
 
   # stats options
-  statGroup = arm.menu.item.SelectionGroup(graphPanel.setStats, graphPanel.getStats())
-  availableStats = graphPanel.stats.keys()
-  availableStats.sort()
 
-  for statKey in ["None"] + availableStats:
-    label = str_tools._to_camel_case(statKey, divider = " ")
-    statKey = None if statKey == "None" else statKey
-    graphMenu.add(arm.menu.item.SelectionMenuItem(label, statGroup, statKey))
+  stat_group = arm.menu.item.SelectionGroup(graph_panel.set_stats, graph_panel.get_stats())
+  available_stats = graph_panel.stats.keys()
+  available_stats.sort()
+
+  for stat_key in ["None"] + available_stats:
+    label = str_tools._to_camel_case(stat_key, divider = " ")
+    stat_key = None if stat_key == "None" else stat_key
+    graph_menu.add(arm.menu.item.SelectionMenuItem(label, stat_group, stat_key))
 
   # resizing option
-  graphMenu.add(arm.menu.item.MenuItem("Resize...", graphPanel.resizeGraph))
+
+  graph_menu.add(arm.menu.item.MenuItem("Resize...", graph_panel.resize_graph))
 
   # interval submenu
-  intervalMenu = arm.menu.item.Submenu("Interval")
-  intervalGroup = arm.menu.item.SelectionGroup(graphPanel.setUpdateInterval, graphPanel.getUpdateInterval())
+
+  interval_menu = arm.menu.item.Submenu("Interval")
+  interval_group = arm.menu.item.SelectionGroup(graph_panel.set_update_interval, graph_panel.get_update_interval())
 
   for i in range(len(arm.graphing.graphPanel.UPDATE_INTERVALS)):
     label = arm.graphing.graphPanel.UPDATE_INTERVALS[i][0]
     label = str_tools._to_camel_case(label, divider = " ")
-    intervalMenu.add(arm.menu.item.SelectionMenuItem(label, intervalGroup, i))
+    interval_menu.add(arm.menu.item.SelectionMenuItem(label, interval_group, i))
 
-  graphMenu.add(intervalMenu)
+  graph_menu.add(interval_menu)
 
   # bounds submenu
-  boundsMenu = arm.menu.item.Submenu("Bounds")
-  boundsGroup = arm.menu.item.SelectionGroup(graphPanel.setBoundsType, graphPanel.getBoundsType())
 
-  for boundsType in arm.graphing.graphPanel.Bounds:
-    boundsMenu.add(arm.menu.item.SelectionMenuItem(boundsType, boundsGroup, boundsType))
+  bounds_menu = arm.menu.item.Submenu("Bounds")
+  bounds_group = arm.menu.item.SelectionGroup(graph_panel.set_bounds_type, graph_panel.get_bounds_type())
 
-  graphMenu.add(boundsMenu)
+  for bounds_type in arm.graphing.graphPanel.Bounds:
+    bounds_menu.add(arm.menu.item.SelectionMenuItem(bounds_type, bounds_group, bounds_type))
 
-  return graphMenu
+  graph_menu.add(bounds_menu)
 
-def makeLogMenu(logPanel):
+  return graph_menu
+
+
+def make_log_menu(log_panel):
   """
   Submenu for the log panel, consisting of...
     Events...
@@ -183,35 +196,39 @@ def makeLogMenu(logPanel):
     Filter (Submenu)
 
   Arguments:
-    logPanel - instance of the log panel
+    log_panel - instance of the log panel
   """
 
-  logMenu = arm.menu.item.Submenu("Log")
+  log_menu = arm.menu.item.Submenu("Log")
 
-  logMenu.add(arm.menu.item.MenuItem("Events...", logPanel.showEventSelectionPrompt))
-  logMenu.add(arm.menu.item.MenuItem("Snapshot...", logPanel.showSnapshotPrompt))
-  logMenu.add(arm.menu.item.MenuItem("Clear", logPanel.clear))
+  log_menu.add(arm.menu.item.MenuItem("Events...", log_panel.show_event_selection_prompt))
+  log_menu.add(arm.menu.item.MenuItem("Snapshot...", log_panel.show_snapshot_prompt))
+  log_menu.add(arm.menu.item.MenuItem("Clear", log_panel.clear))
 
   if CONFIG["features.log.showDuplicateEntries"]:
     label, arg = "Hide", False
-  else: label, arg = "Show", True
-  logMenu.add(arm.menu.item.MenuItem("%s Duplicates" % label, functools.partial(logPanel.setDuplicateVisability, arg)))
+  else:
+    label, arg = "Show", True
+
+  log_menu.add(arm.menu.item.MenuItem("%s Duplicates" % label, functools.partial(log_panel.set_duplicate_visability, arg)))
 
   # filter submenu
-  filterMenu = arm.menu.item.Submenu("Filter")
-  filterGroup = arm.menu.item.SelectionGroup(logPanel.makeFilterSelection, logPanel.getFilter())
 
-  filterMenu.add(arm.menu.item.SelectionMenuItem("None", filterGroup, None))
+  filter_menu = arm.menu.item.Submenu("Filter")
+  filter_group = arm.menu.item.SelectionGroup(log_panel.make_filter_selection, log_panel.get_filter())
 
-  for option in logPanel.filterOptions:
-    filterMenu.add(arm.menu.item.SelectionMenuItem(option, filterGroup, option))
+  filter_menu.add(arm.menu.item.SelectionMenuItem("None", filter_group, None))
 
-  filterMenu.add(arm.menu.item.MenuItem("New...", logPanel.showFilterPrompt))
-  logMenu.add(filterMenu)
+  for option in log_panel.filter_options:
+    filter_menu.add(arm.menu.item.SelectionMenuItem(option, filter_group, option))
 
-  return logMenu
+  filter_menu.add(arm.menu.item.MenuItem("New...", log_panel.show_filter_prompt))
+  log_menu.add(filter_menu)
 
-def makeConnectionsMenu(connPanel):
+  return log_menu
+
+
+def make_connections_menu(conn_panel):
   """
   Submenu for the connections panel, consisting of...
     [X] IP Address
@@ -221,38 +238,42 @@ def makeConnectionsMenu(connPanel):
         Resolver (Submenu)
 
   Arguments:
-    connPanel - instance of the connections panel
+    conn_panel - instance of the connections panel
   """
 
-  connectionsMenu = arm.menu.item.Submenu("Connections")
+  connections_menu = arm.menu.item.Submenu("Connections")
 
   # listing options
-  listingGroup = arm.menu.item.SelectionGroup(connPanel.setListingType, connPanel.getListingType())
 
-  listingOptions = list(arm.connections.entries.ListingType)
-  listingOptions.remove(arm.connections.entries.ListingType.HOSTNAME)
+  listing_group = arm.menu.item.SelectionGroup(conn_panel.set_listing_type, conn_panel.get_listing_type())
 
-  for option in listingOptions:
-    connectionsMenu.add(arm.menu.item.SelectionMenuItem(option, listingGroup, option))
+  listing_options = list(arm.connections.entries.ListingType)
+  listing_options.remove(arm.connections.entries.ListingType.HOSTNAME)
+
+  for option in listing_options:
+    connections_menu.add(arm.menu.item.SelectionMenuItem(option, listing_group, option))
 
   # sorting option
-  connectionsMenu.add(arm.menu.item.MenuItem("Sorting...", connPanel.showSortDialog))
+
+  connections_menu.add(arm.menu.item.MenuItem("Sorting...", conn_panel.show_sort_dialog))
 
   # resolver submenu
-  connResolver = arm.util.tracker.get_connection_tracker()
-  resolverMenu = arm.menu.item.Submenu("Resolver")
-  resolverGroup = arm.menu.item.SelectionGroup(connResolver.set_custom_resolver, connResolver.get_custom_resolver())
 
-  resolverMenu.add(arm.menu.item.SelectionMenuItem("auto", resolverGroup, None))
+  conn_resolver = arm.util.tracker.get_connection_tracker()
+  resolver_menu = arm.menu.item.Submenu("Resolver")
+  resolver_group = arm.menu.item.SelectionGroup(conn_resolver.set_custom_resolver, conn_resolver.get_custom_resolver())
+
+  resolver_menu.add(arm.menu.item.SelectionMenuItem("auto", resolver_group, None))
 
   for option in stem.util.connection.Resolver:
-    resolverMenu.add(arm.menu.item.SelectionMenuItem(option, resolverGroup, option))
+    resolver_menu.add(arm.menu.item.SelectionMenuItem(option, resolver_group, option))
 
-  connectionsMenu.add(resolverMenu)
+  connections_menu.add(resolver_menu)
 
-  return connectionsMenu
+  return connections_menu
 
-def makeConfigurationMenu(configPanel):
+
+def make_configuration_menu(config_panel):
   """
   Submenu for the configuration panel, consisting of...
     Save Config...
@@ -260,20 +281,24 @@ def makeConfigurationMenu(configPanel):
     Filter / Unfilter Options
 
   Arguments:
-    configPanel - instance of the configuration panel
+    config_panel - instance of the configuration panel
   """
 
-  configMenu = arm.menu.item.Submenu("Configuration")
-  configMenu.add(arm.menu.item.MenuItem("Save Config...", configPanel.showWriteDialog))
-  configMenu.add(arm.menu.item.MenuItem("Sorting...", configPanel.showSortDialog))
+  config_menu = arm.menu.item.Submenu("Configuration")
+  config_menu.add(arm.menu.item.MenuItem("Save Config...", config_panel.show_write_dialog))
+  config_menu.add(arm.menu.item.MenuItem("Sorting...", config_panel.show_sort_dialog))
 
-  if configPanel.showAll: label, arg = "Filter", True
-  else: label, arg = "Unfilter", False
-  configMenu.add(arm.menu.item.MenuItem("%s Options" % label, functools.partial(configPanel.setFiltering, arg)))
+  if config_panel.show_all:
+    label, arg = "Filter", True
+  else:
+    label, arg = "Unfilter", False
 
-  return configMenu
+  config_menu.add(arm.menu.item.MenuItem("%s Options" % label, functools.partial(config_panel.set_filtering, arg)))
 
-def makeTorrcMenu(torrcPanel):
+  return config_menu
+
+
+def make_torrc_menu(torrc_panel):
   """
   Submenu for the torrc panel, consisting of...
     Reload
@@ -281,19 +306,23 @@ def makeTorrcMenu(torrcPanel):
     Show / Hide Line Numbers
 
   Arguments:
-    torrcPanel - instance of the torrc panel
+    torrc_panel - instance of the torrc panel
   """
 
-  torrcMenu = arm.menu.item.Submenu("Torrc")
-  torrcMenu.add(arm.menu.item.MenuItem("Reload", torrcPanel.reloadTorrc))
+  torrc_menu = arm.menu.item.Submenu("Torrc")
+  torrc_menu.add(arm.menu.item.MenuItem("Reload", torrc_panel.reload_torrc))
 
-  if torrcPanel.stripComments: label, arg = "Show", True
-  else: label, arg = "Hide", False
-  torrcMenu.add(arm.menu.item.MenuItem("%s Comments" % label, functools.partial(torrcPanel.setCommentsVisible, arg)))
+  if torrc_panel.strip_comments:
+    label, arg = "Show", True
+  else:
+    label, arg = "Hide", False
 
-  if torrcPanel.showLineNum: label, arg = "Hide", False
-  else: label, arg = "Show", True
-  torrcMenu.add(arm.menu.item.MenuItem("%s Line Numbers" % label, functools.partial(torrcPanel.setLineNumberVisible, arg)))
+  torrc_menu.add(arm.menu.item.MenuItem("%s Comments" % label, functools.partial(torrc_panel.set_comments_visible, arg)))
 
-  return torrcMenu
+  if torrc_panel.show_line_num:
+    label, arg = "Hide", False
+  else:
+    label, arg = "Show", True
+  torrc_menu.add(arm.menu.item.MenuItem("%s Line Numbers" % label, functools.partial(torrc_panel.set_line_number_visible, arg)))
 
+  return torrc_menu

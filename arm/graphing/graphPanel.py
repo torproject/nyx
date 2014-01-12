@@ -29,11 +29,19 @@ from arm.util import panel, torTools, uiTools
 from stem.util import conf, enum, str_tools
 
 # time intervals at which graphs can be updated
-UPDATE_INTERVALS = [("each second", 1), ("5 seconds", 5),   ("30 seconds", 30),
-                    ("minutely", 60),   ("15 minute", 900), ("30 minute", 1800),
-                    ("hourly", 3600),   ("daily", 86400)]
 
-DEFAULT_CONTENT_HEIGHT = 4 # space needed for labeling above and below the graph
+UPDATE_INTERVALS = [
+  ("each second", 1),
+  ("5 seconds", 5),
+  ("30 seconds", 30),
+  ("minutely", 60),
+  ("15 minute", 900),
+  ("30 minute", 1800),
+  ("hourly", 3600),
+  ("daily", 86400),
+]
+
+DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = "green", "cyan"
 MIN_GRAPH_HEIGHT = 1
 
@@ -41,28 +49,33 @@ MIN_GRAPH_HEIGHT = 1
 #   Bounds.GLOBAL_MAX - global maximum (highest value ever seen)
 #   Bounds.LOCAL_MAX - local maximum (highest value currently on the graph)
 #   Bounds.TIGHT - local maximum and minimum
+
 Bounds = enum.Enum("GLOBAL_MAX", "LOCAL_MAX", "TIGHT")
 
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
+
 def conf_handler(key, value):
   if key == "features.graph.height":
     return max(MIN_GRAPH_HEIGHT, value)
-  elif key == "features.graph.maxWidth":
+  elif key == "features.graph.max_width":
     return max(1, value)
   elif key == "features.graph.interval":
     return max(0, min(len(UPDATE_INTERVALS) - 1, value))
   elif key == "features.graph.bound":
     return max(0, min(2, value))
 
+
 # used for setting defaults when initializing GraphStats and GraphPanel instances
+
 CONFIG = conf.config_dict("arm", {
   "features.graph.height": 7,
   "features.graph.interval": 0,
   "features.graph.bound": 1,
-  "features.graph.maxWidth": 150,
+  "features.graph.max_width": 150,
   "features.graph.showIntermediateBounds": True,
 }, conf_handler)
+
 
 class GraphStats:
   """
@@ -77,55 +90,63 @@ class GraphStats:
     """
 
     # panel to be redrawn when updated (set when added to GraphPanel)
-    self._graphPanel = None
-    self.isSelected = False
-    self.isPauseBuffer = False
+
+    self._graph_panel = None
+    self.is_selected = False
+    self.is_pause_buffer = False
 
     # tracked stats
-    self.tick = 0                                 # number of processed events
-    self.lastPrimary, self.lastSecondary = 0, 0   # most recent registered stats
-    self.primaryTotal, self.secondaryTotal = 0, 0 # sum of all stats seen
+
+    self.tick = 0                                    # number of processed events
+    self.last_primary, self.last_secondary = 0, 0    # most recent registered stats
+    self.primary_total, self.secondary_total = 0, 0  # sum of all stats seen
 
     # timescale dependent stats
-    self.maxCol = CONFIG["features.graph.maxWidth"]
-    self.maxPrimary, self.maxSecondary = {}, {}
-    self.primaryCounts, self.secondaryCounts = {}, {}
+
+    self.max_column = CONFIG["features.graph.max_width"]
+    self.max_primary, self.max_secondary = {}, {}
+    self.primary_counts, self.secondary_counts = {}, {}
 
     for i in range(len(UPDATE_INTERVALS)):
       # recent rates for graph
-      self.maxPrimary[i] = 0
-      self.maxSecondary[i] = 0
+
+      self.max_primary[i] = 0
+      self.max_secondary[i] = 0
 
       # historic stats for graph, first is accumulator
       # iterative insert needed to avoid making shallow copies (nasty, nasty gotcha)
-      self.primaryCounts[i] = (self.maxCol + 1) * [0]
-      self.secondaryCounts[i] = (self.maxCol + 1) * [0]
+
+      self.primary_counts[i] = (self.max_column + 1) * [0]
+      self.secondary_counts[i] = (self.max_column + 1) * [0]
 
     # tracks BW events
-    torTools.getConn().addEventListener(self.bandwidth_event, stem.control.EventType.BW)
 
-  def clone(self, newCopy=None):
+    torTools.get_conn().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+
+  def clone(self, new_copy=None):
     """
     Provides a deep copy of this instance.
 
     Arguments:
-      newCopy - base instance to build copy off of
+      new_copy - base instance to build copy off of
     """
 
-    if not newCopy: newCopy = GraphStats()
-    newCopy.tick = self.tick
-    newCopy.lastPrimary = self.lastPrimary
-    newCopy.lastSecondary = self.lastSecondary
-    newCopy.primaryTotal = self.primaryTotal
-    newCopy.secondaryTotal = self.secondaryTotal
-    newCopy.maxPrimary = dict(self.maxPrimary)
-    newCopy.maxSecondary = dict(self.maxSecondary)
-    newCopy.primaryCounts = copy.deepcopy(self.primaryCounts)
-    newCopy.secondaryCounts = copy.deepcopy(self.secondaryCounts)
-    newCopy.isPauseBuffer = True
-    return newCopy
+    if not new_copy:
+      new_copy = GraphStats()
 
-  def eventTick(self):
+    new_copy.tick = self.tick
+    new_copy.last_primary = self.last_primary
+    new_copy.last_secondary = self.last_secondary
+    new_copy.primary_total = self.primary_total
+    new_copy.secondary_total = self.secondary_total
+    new_copy.max_primary = dict(self.max_primary)
+    new_copy.max_secondary = dict(self.max_secondary)
+    new_copy.primary_counts = copy.deepcopy(self.primary_counts)
+    new_copy.secondary_counts = copy.deepcopy(self.secondary_counts)
+    new_copy.is_pause_buffer = True
+    return new_copy
+
+  def event_tick(self):
     """
     Called when it's time to process another event. All graphs use tor BW
     events to keep in sync with each other (this happens once a second).
@@ -133,47 +154,48 @@ class GraphStats:
 
     pass
 
-  def isNextTickRedraw(self):
+  def is_next_tick_redraw(self):
     """
-    Provides true if the following tick (call to _processEvent) will result in
+    Provides true if the following tick (call to _process_event) will result in
     being redrawn.
     """
 
-    if self._graphPanel and self.isSelected and not self._graphPanel.isPaused():
+    if self._graph_panel and self.is_selected and not self._graph_panel.is_paused():
       # use the minimum of the current refresh rate and the panel's
-      updateRate = UPDATE_INTERVALS[self._graphPanel.updateInterval][1]
-      return (self.tick + 1) % min(updateRate, self.getRefreshRate()) == 0
-    else: return False
+      update_rate = UPDATE_INTERVALS[self._graph_panel.update_interval][1]
+      return (self.tick + 1) % min(update_rate, self.get_refresh_rate()) == 0
+    else:
+      return False
 
-  def getTitle(self, width):
+  def get_title(self, width):
     """
     Provides top label.
     """
 
     return ""
 
-  def getHeaderLabel(self, width, isPrimary):
+  def get_header_label(self, width, is_primary):
     """
     Provides labeling presented at the top of the graph.
     """
 
     return ""
 
-  def getColor(self, isPrimary):
+  def get_color(self, is_primary):
     """
     Provides the color to be used for the graph and stats.
     """
 
-    return DEFAULT_COLOR_PRIMARY if isPrimary else DEFAULT_COLOR_SECONDARY
+    return DEFAULT_COLOR_PRIMARY if is_primary else DEFAULT_COLOR_SECONDARY
 
-  def getContentHeight(self):
+  def get_content_height(self):
     """
     Provides the height content should take up (not including the graph).
     """
 
     return DEFAULT_CONTENT_HEIGHT
 
-  def getRefreshRate(self):
+  def get_refresh_rate(self):
     """
     Provides the number of ticks between when the stats have new values to be
     redrawn.
@@ -181,7 +203,7 @@ class GraphStats:
 
     return 1
 
-  def isVisible(self):
+  def is_visible(self):
     """
     True if the stat has content to present, false if it should be hidden.
     """
@@ -196,39 +218,44 @@ class GraphStats:
     pass
 
   def bandwidth_event(self, event):
-    if not self.isPauseBuffer: self.eventTick()
+    if not self.is_pause_buffer:
+      self.event_tick()
 
-  def _processEvent(self, primary, secondary):
+  def _process_event(self, primary, secondary):
     """
     Includes new stats in graphs and notifies associated GraphPanel of changes.
     """
 
-    isRedraw = self.isNextTickRedraw()
+    is_redraw = self.is_next_tick_redraw()
 
-    self.lastPrimary, self.lastSecondary = primary, secondary
-    self.primaryTotal += primary
-    self.secondaryTotal += secondary
+    self.last_primary, self.last_secondary = primary, secondary
+    self.primary_total += primary
+    self.secondary_total += secondary
 
     # updates for all time intervals
+
     self.tick += 1
+
     for i in range(len(UPDATE_INTERVALS)):
       lable, timescale = UPDATE_INTERVALS[i]
 
-      self.primaryCounts[i][0] += primary
-      self.secondaryCounts[i][0] += secondary
+      self.primary_counts[i][0] += primary
+      self.secondary_counts[i][0] += secondary
 
       if self.tick % timescale == 0:
-        self.maxPrimary[i] = max(self.maxPrimary[i], self.primaryCounts[i][0] / timescale)
-        self.primaryCounts[i][0] /= timescale
-        self.primaryCounts[i].insert(0, 0)
-        del self.primaryCounts[i][self.maxCol + 1:]
+        self.max_primary[i] = max(self.max_primary[i], self.primary_counts[i][0] / timescale)
+        self.primary_counts[i][0] /= timescale
+        self.primary_counts[i].insert(0, 0)
+        del self.primary_counts[i][self.max_column + 1:]
 
-        self.maxSecondary[i] = max(self.maxSecondary[i], self.secondaryCounts[i][0] / timescale)
-        self.secondaryCounts[i][0] /= timescale
-        self.secondaryCounts[i].insert(0, 0)
-        del self.secondaryCounts[i][self.maxCol + 1:]
+        self.max_secondary[i] = max(self.max_secondary[i], self.secondary_counts[i][0] / timescale)
+        self.secondary_counts[i][0] /= timescale
+        self.secondary_counts[i].insert(0, 0)
+        del self.secondary_counts[i][self.max_column + 1:]
 
-    if isRedraw and self._graphPanel: self._graphPanel.redraw(True)
+    if is_redraw and self._graph_panel:
+      self._graph_panel.redraw(True)
+
 
 class GraphPanel(panel.Panel):
   """
@@ -238,69 +265,70 @@ class GraphPanel(panel.Panel):
 
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, "graph", 0)
-    self.updateInterval = CONFIG["features.graph.interval"]
+    self.update_interval = CONFIG["features.graph.interval"]
     self.bounds = list(Bounds)[CONFIG["features.graph.bound"]]
-    self.graphHeight = CONFIG["features.graph.height"]
-    self.currentDisplay = None    # label of the stats currently being displayed
-    self.stats = {}               # available stats (mappings of label -> instance)
-    self.setPauseAttr("stats")
+    self.graph_height = CONFIG["features.graph.height"]
+    self.current_display = None    # label of the stats currently being displayed
+    self.stats = {}                # available stats (mappings of label -> instance)
+    self.set_pause_attr("stats")
 
-  def getUpdateInterval(self):
+  def get_update_interval(self):
     """
     Provides the rate that we update the graph at.
     """
 
-    return self.updateInterval
+    return self.update_interval
 
-  def setUpdateInterval(self, updateInterval):
+  def set_update_interval(self, update_interval):
     """
     Sets the rate that we update the graph at.
 
     Arguments:
-      updateInterval - update time enum
+      update_interval - update time enum
     """
 
-    self.updateInterval = updateInterval
+    self.update_interval = update_interval
 
-  def getBoundsType(self):
+  def get_bounds_type(self):
     """
     Provides the type of graph bounds used.
     """
 
     return self.bounds
 
-  def setBoundsType(self, boundsType):
+  def set_bounds_type(self, bounds_type):
     """
     Sets the type of graph boundaries we use.
 
     Arguments:
-      boundsType - graph bounds enum
+      bounds_type - graph bounds enum
     """
 
-    self.bounds = boundsType
+    self.bounds = bounds_type
 
-  def getHeight(self):
+  def get_height(self):
     """
     Provides the height requested by the currently displayed GraphStats (zero
     if hidden).
     """
 
-    if self.currentDisplay and self.stats[self.currentDisplay].isVisible():
-      return self.stats[self.currentDisplay].getContentHeight() + self.graphHeight
-    else: return 0
+    if self.current_display and self.stats[self.current_display].is_visible():
+      return self.stats[self.current_display].get_content_height() + self.graph_height
+    else:
+      return 0
 
-  def setGraphHeight(self, newGraphHeight):
+  def set_graph_height(self, new_graph_height):
     """
     Sets the preferred height used for the graph (restricted to the
     MIN_GRAPH_HEIGHT minimum).
 
     Arguments:
-      newGraphHeight - new height for the graph
+      new_graph_height - new height for the graph
     """
 
-    self.graphHeight = max(MIN_GRAPH_HEIGHT, newGraphHeight)
+    self.graph_height = max(MIN_GRAPH_HEIGHT, new_graph_height)
 
-  def resizeGraph(self):
+  def resize_graph(self):
     """
     Prompts for user input to resize the graph panel. Options include...
       down arrow - grow graph
@@ -308,211 +336,261 @@ class GraphPanel(panel.Panel):
       enter / space - set size
     """
 
-    control = arm.controller.getController()
+    control = arm.controller.get_controller()
 
     panel.CURSES_LOCK.acquire()
+
     try:
       while True:
         msg = "press the down/up to resize the graph, and enter when done"
-        control.setMsg(msg, curses.A_BOLD, True)
+        control.set_msg(msg, curses.A_BOLD, True)
         curses.cbreak()
-        key = control.getScreen().getch()
+        key = control.get_screen().getch()
 
         if key == curses.KEY_DOWN:
           # don't grow the graph if it's already consuming the whole display
           # (plus an extra line for the graph/log gap)
-          maxHeight = self.parent.getmaxyx()[0] - self.top
-          currentHeight = self.getHeight()
 
-          if currentHeight < maxHeight + 1:
-            self.setGraphHeight(self.graphHeight + 1)
+          max_height = self.parent.getmaxyx()[0] - self.top
+          current_height = self.get_height()
+
+          if current_height < max_height + 1:
+            self.set_graph_height(self.graph_height + 1)
         elif key == curses.KEY_UP:
-          self.setGraphHeight(self.graphHeight - 1)
-        elif uiTools.isSelectionKey(key): break
+          self.set_graph_height(self.graph_height - 1)
+        elif uiTools.is_selection_key(key):
+          break
 
         control.redraw()
     finally:
-      control.setMsg()
+      control.set_msg()
       panel.CURSES_LOCK.release()
 
-  def handleKey(self, key):
-    isKeystrokeConsumed = True
+  def handle_key(self, key):
+    is_keystroke_consumed = True
+
     if key == ord('r') or key == ord('R'):
-      self.resizeGraph()
+      self.resize_graph()
     elif key == ord('b') or key == ord('B'):
       # uses the next boundary type
       self.bounds = Bounds.next(self.bounds)
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
       # provides a menu to pick the graphed stats
-      availableStats = self.stats.keys()
-      availableStats.sort()
+
+      available_stats = self.stats.keys()
+      available_stats.sort()
 
       # uses sorted, camel cased labels for the options
+
       options = ["None"]
-      for label in availableStats:
+
+      for label in available_stats:
         words = label.split()
         options.append(" ".join(word[0].upper() + word[1:] for word in words))
 
-      if self.currentDisplay:
-        initialSelection = availableStats.index(self.currentDisplay) + 1
-      else: initialSelection = 0
+      if self.current_display:
+        initial_selection = available_stats.index(self.current_display) + 1
+      else:
+        initial_selection = 0
 
-      selection = arm.popups.showMenu("Graphed Stats:", options, initialSelection)
+      selection = arm.popups.show_menu("Graphed Stats:", options, initial_selection)
 
       # applies new setting
-      if selection == 0: self.setStats(None)
-      elif selection != -1: self.setStats(availableStats[selection - 1])
+
+      if selection == 0:
+        self.set_stats(None)
+      elif selection != -1:
+        self.set_stats(available_stats[selection - 1])
     elif key == ord('i') or key == ord('I'):
       # provides menu to pick graph panel update interval
+
       options = [label for (label, _) in UPDATE_INTERVALS]
-      selection = arm.popups.showMenu("Update Interval:", options, self.updateInterval)
-      if selection != -1: self.updateInterval = selection
-    else: isKeystrokeConsumed = False
+      selection = arm.popups.show_menu("Update Interval:", options, self.update_interval)
 
-    return isKeystrokeConsumed
+      if selection != -1:
+        self.update_interval = selection
+    else:
+      is_keystroke_consumed = False
 
-  def getHelp(self):
-    if self.currentDisplay: graphedStats = self.currentDisplay
-    else: graphedStats = "none"
+    return is_keystroke_consumed
+
+  def get_help(self):
+    if self.current_display:
+      graphed_stats = self.current_display
+    else:
+      graphed_stats = "none"
 
     options = []
     options.append(("r", "resize graph", None))
-    options.append(("s", "graphed stats", graphedStats))
+    options.append(("s", "graphed stats", graphed_stats))
     options.append(("b", "graph bounds", self.bounds.lower()))
-    options.append(("i", "graph update interval", UPDATE_INTERVALS[self.updateInterval][0]))
+    options.append(("i", "graph update interval", UPDATE_INTERVALS[self.update_interval][0]))
     return options
 
   def draw(self, width, height):
     """ Redraws graph panel """
 
-    if self.currentDisplay:
-      param = self.getAttr("stats")[self.currentDisplay]
-      graphCol = min((width - 10) / 2, param.maxCol)
+    if self.current_display:
+      param = self.get_attr("stats")[self.current_display]
+      graph_column = min((width - 10) / 2, param.max_column)
 
-      primaryColor = uiTools.getColor(param.getColor(True))
-      secondaryColor = uiTools.getColor(param.getColor(False))
+      primary_color = uiTools.get_color(param.get_color(True))
+      secondary_color = uiTools.get_color(param.get_color(False))
 
-      if self.isTitleVisible(): self.addstr(0, 0, param.getTitle(width), curses.A_STANDOUT)
+      if self.is_title_visible():
+        self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
 
       # top labels
-      left, right = param.getHeaderLabel(width / 2, True), param.getHeaderLabel(width / 2, False)
-      if left: self.addstr(1, 0, left, curses.A_BOLD | primaryColor)
-      if right: self.addstr(1, graphCol + 5, right, curses.A_BOLD | secondaryColor)
+
+      left, right = param.get_header_label(width / 2, True), param.get_header_label(width / 2, False)
+
+      if left:
+        self.addstr(1, 0, left, curses.A_BOLD | primary_color)
+
+      if right:
+        self.addstr(1, graph_column + 5, right, curses.A_BOLD | secondary_color)
 
       # determines max/min value on the graph
+
       if self.bounds == Bounds.GLOBAL_MAX:
-        primaryMaxBound = int(param.maxPrimary[self.updateInterval])
-        secondaryMaxBound = int(param.maxSecondary[self.updateInterval])
+        primary_max_bound = int(param.max_primary[self.update_interval])
+        secondary_max_bound = int(param.max_secondary[self.update_interval])
       else:
         # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
-        if graphCol < 2:
+        if graph_column < 2:
           # nothing being displayed
-          primaryMaxBound, secondaryMaxBound = 0, 0
+          primary_max_bound, secondary_max_bound = 0, 0
         else:
-          primaryMaxBound = int(max(param.primaryCounts[self.updateInterval][1:graphCol + 1]))
-          secondaryMaxBound = int(max(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
+          primary_max_bound = int(max(param.primary_counts[self.update_interval][1:graph_column + 1]))
+          secondary_max_bound = int(max(param.secondary_counts[self.update_interval][1:graph_column + 1]))
 
-      primaryMinBound = secondaryMinBound = 0
+      primary_min_bound = secondary_min_bound = 0
+
       if self.bounds == Bounds.TIGHT:
-        primaryMinBound = int(min(param.primaryCounts[self.updateInterval][1:graphCol + 1]))
-        secondaryMinBound = int(min(param.secondaryCounts[self.updateInterval][1:graphCol + 1]))
+        primary_min_bound = int(min(param.primary_counts[self.update_interval][1:graph_column + 1]))
+        secondary_min_bound = int(min(param.secondary_counts[self.update_interval][1:graph_column + 1]))
 
         # if the max = min (ie, all values are the same) then use zero lower
         # bound so a graph is still displayed
-        if primaryMinBound == primaryMaxBound: primaryMinBound = 0
-        if secondaryMinBound == secondaryMaxBound: secondaryMinBound = 0
+
+        if primary_min_bound == primary_max_bound:
+          primary_min_bound = 0
+
+        if secondary_min_bound == secondary_max_bound:
+          secondary_min_bound = 0
 
       # displays upper and lower bounds
-      self.addstr(2, 0, "%4i" % primaryMaxBound, primaryColor)
-      self.addstr(self.graphHeight + 1, 0, "%4i" % primaryMinBound, primaryColor)
 
-      self.addstr(2, graphCol + 5, "%4i" % secondaryMaxBound, secondaryColor)
-      self.addstr(self.graphHeight + 1, graphCol + 5, "%4i" % secondaryMinBound, secondaryColor)
+      self.addstr(2, 0, "%4i" % primary_max_bound, primary_color)
+      self.addstr(self.graph_height + 1, 0, "%4i" % primary_min_bound, primary_color)
+
+      self.addstr(2, graph_column + 5, "%4i" % secondary_max_bound, secondary_color)
+      self.addstr(self.graph_height + 1, graph_column + 5, "%4i" % secondary_min_bound, secondary_color)
 
       # displays intermediate bounds on every other row
+
       if CONFIG["features.graph.showIntermediateBounds"]:
-        ticks = (self.graphHeight - 3) / 2
+        ticks = (self.graph_height - 3) / 2
+
         for i in range(ticks):
-          row = self.graphHeight - (2 * i) - 3
-          if self.graphHeight % 2 == 0 and i >= (ticks / 2): row -= 1
+          row = self.graph_height - (2 * i) - 3
 
-          if primaryMinBound != primaryMaxBound:
-            primaryVal = (primaryMaxBound - primaryMinBound) * (self.graphHeight - row - 1) / (self.graphHeight - 1)
-            if not primaryVal in (primaryMinBound, primaryMaxBound): self.addstr(row + 2, 0, "%4i" % primaryVal, primaryColor)
+          if self.graph_height % 2 == 0 and i >= (ticks / 2):
+            row -= 1
 
-          if secondaryMinBound != secondaryMaxBound:
-            secondaryVal = (secondaryMaxBound - secondaryMinBound) * (self.graphHeight - row - 1) / (self.graphHeight - 1)
-            if not secondaryVal in (secondaryMinBound, secondaryMaxBound): self.addstr(row + 2, graphCol + 5, "%4i" % secondaryVal, secondaryColor)
+          if primary_min_bound != primary_max_bound:
+            primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+
+            if not primary_val in (primary_min_bound, primary_max_bound):
+              self.addstr(row + 2, 0, "%4i" % primary_val, primary_color)
+
+          if secondary_min_bound != secondary_max_bound:
+            secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+
+            if not secondary_val in (secondary_min_bound, secondary_max_bound):
+              self.addstr(row + 2, graph_column + 5, "%4i" % secondary_val, secondary_color)
 
       # creates bar graph (both primary and secondary)
-      for col in range(graphCol):
-        colCount = int(param.primaryCounts[self.updateInterval][col + 1]) - primaryMinBound
-        colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, primaryMaxBound) - primaryMinBound))
-        for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + 5, " ", curses.A_STANDOUT | primaryColor)
 
-        colCount = int(param.secondaryCounts[self.updateInterval][col + 1]) - secondaryMinBound
-        colHeight = min(self.graphHeight, self.graphHeight * colCount / (max(1, secondaryMaxBound) - secondaryMinBound))
-        for row in range(colHeight): self.addstr(self.graphHeight + 1 - row, col + graphCol + 10, " ", curses.A_STANDOUT | secondaryColor)
+      for col in range(graph_column):
+        column_count = int(param.primary_counts[self.update_interval][col + 1]) - primary_min_bound
+        column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
+
+        for row in range(column_height):
+          self.addstr(self.graph_height + 1 - row, col + 5, " ", curses.A_STANDOUT | primary_color)
+
+        column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
+        column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
+
+        for row in range(column_height):
+          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, " ", curses.A_STANDOUT | secondary_color)
 
       # bottom labeling of x-axis
-      intervalSec = 1 # seconds per labeling
+
+      interval_sec = 1  # seconds per labeling
+
       for i in range(len(UPDATE_INTERVALS)):
-        if i == self.updateInterval: intervalSec = UPDATE_INTERVALS[i][1]
+        if i == self.update_interval:
+          interval_sec = UPDATE_INTERVALS[i][1]
 
-      intervalSpacing = 10 if graphCol >= WIDE_LABELING_GRAPH_COL else 5
-      unitsLabel, decimalPrecision = None, 0
-      for i in range((graphCol - 4) / intervalSpacing):
-        loc = (i + 1) * intervalSpacing
-        timeLabel = str_tools.get_time_label(loc * intervalSec, decimalPrecision)
+      interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
+      units_label, decimal_precision = None, 0
 
-        if not unitsLabel: unitsLabel = timeLabel[-1]
-        elif unitsLabel != timeLabel[-1]:
+      for i in range((graph_column - 4) / interval_spacing):
+        loc = (i + 1) * interval_spacing
+        time_label = str_tools.get_time_label(loc * interval_sec, decimal_precision)
+
+        if not units_label:
+          units_label = time_label[-1]
+        elif units_label != time_label[-1]:
           # upped scale so also up precision of future measurements
-          unitsLabel = timeLabel[-1]
-          decimalPrecision += 1
+          units_label = time_label[-1]
+          decimal_precision += 1
         else:
           # if constrained on space then strips labeling since already provided
-          timeLabel = timeLabel[:-1]
+          time_label = time_label[:-1]
 
-        self.addstr(self.graphHeight + 2, 4 + loc, timeLabel, primaryColor)
-        self.addstr(self.graphHeight + 2, graphCol + 10 + loc, timeLabel, secondaryColor)
+        self.addstr(self.graph_height + 2, 4 + loc, time_label, primary_color)
+        self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, secondary_color)
 
-      param.draw(self, width, height) # allows current stats to modify the display
+      param.draw(self, width, height)  # allows current stats to modify the display
 
-  def addStats(self, label, stats):
+  def add_stats(self, label, stats):
     """
     Makes GraphStats instance available in the panel.
     """
 
-    stats._graphPanel = self
+    stats._graph_panel = self
     self.stats[label] = stats
 
-  def getStats(self):
+  def get_stats(self):
     """
     Provides the currently selected stats label.
     """
 
-    return self.currentDisplay
+    return self.current_display
 
-  def setStats(self, label):
+  def set_stats(self, label):
     """
     Sets the currently displayed stats instance, hiding panel if None.
     """
 
-    if label != self.currentDisplay:
-      if self.currentDisplay: self.stats[self.currentDisplay].isSelected = False
+    if label != self.current_display:
+      if self.current_display:
+        self.stats[self.current_display].is_selected = False
 
       if not label:
-        self.currentDisplay = None
+        self.current_display = None
       elif label in self.stats.keys():
-        self.currentDisplay = label
-        self.stats[self.currentDisplay].isSelected = True
-      else: raise ValueError("Unrecognized stats label: %s" % label)
+        self.current_display = label
+        self.stats[self.current_display].is_selected = True
+      else:
+        raise ValueError("Unrecognized stats label: %s" % label)
 
-  def copyAttr(self, attr):
+  def copy_attr(self, attr):
     if attr == "stats":
       # uses custom clone method to copy GraphStats instances
       return dict([(key, self.stats[key].clone()) for key in self.stats])
-    else: return panel.Panel.copyAttr(self, attr)
-
+    else:
+      return panel.Panel.copy_attr(self, attr)

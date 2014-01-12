@@ -4,6 +4,7 @@ Menu item, representing an option in the drop-down menu.
 
 import arm.controller
 
+
 class MenuItem():
   """
   Option in a drop-down menu.
@@ -14,7 +15,7 @@ class MenuItem():
     self._callback = callback
     self._parent = None
 
-  def getLabel(self):
+  def get_label(self):
     """
     Provides a tuple of three strings representing the prefix, label, and
     suffix for this item.
@@ -22,32 +23,34 @@ class MenuItem():
 
     return ("", self._label, "")
 
-  def getParent(self):
+  def get_parent(self):
     """
     Provides the Submenu we're contained within.
     """
 
     return self._parent
 
-  def getHierarchy(self):
+  def get_hierarchy(self):
     """
     Provides a list with all of our parents, up to the root.
     """
 
-    myHierarchy = [self]
-    while myHierarchy[-1].getParent():
-      myHierarchy.append(myHierarchy[-1].getParent())
+    my_hierarchy = [self]
+    while my_hierarchy[-1].get_parent():
+      my_hierarchy.append(my_hierarchy[-1].get_parent())
 
-    myHierarchy.reverse()
-    return myHierarchy
+    my_hierarchy.reverse()
+    return my_hierarchy
 
-  def getRoot(self):
+  def get_root(self):
     """
     Provides the base submenu we belong to.
     """
 
-    if self._parent: return self._parent.getRoot()
-    else: return self
+    if self._parent:
+      return self._parent.get_root()
+    else:
+      return self
 
   def select(self):
     """
@@ -56,8 +59,8 @@ class MenuItem():
     """
 
     if self._callback:
-      control = arm.controller.getController()
-      control.setMsg()
+      control = arm.controller.get_controller()
+      control.set_msg()
       control.redraw()
       self._callback()
     return True
@@ -68,7 +71,7 @@ class MenuItem():
     if we don't have a parent.
     """
 
-    return self._getSibling(1)
+    return self._get_sibling(1)
 
   def prev(self):
     """
@@ -76,9 +79,9 @@ class MenuItem():
     if we don't have a parent.
     """
 
-    return self._getSibling(-1)
+    return self._get_sibling(-1)
 
-  def _getSibling(self, offset):
+  def _get_sibling(self, offset):
     """
     Provides our sibling with a given index offset from us, raising a
     ValueError if we don't have a parent.
@@ -88,21 +91,23 @@ class MenuItem():
     """
 
     if self._parent:
-      mySiblings = self._parent.getChildren()
+      my_siblings = self._parent.get_children()
 
       try:
-        myIndex = mySiblings.index(self)
-        return mySiblings[(myIndex + offset) % len(mySiblings)]
+        my_index = my_siblings.index(self)
+        return my_siblings[(my_index + offset) % len(my_siblings)]
       except ValueError:
         # We expect a bidirectional references between submenus and their
         # children. If we don't have this then our menu's screwed up.
 
-        msg = "The '%s' submenu doesn't contain '%s' (children: '%s')" % (self, self._parent, "', '".join(mySiblings))
+        msg = "The '%s' submenu doesn't contain '%s' (children: '%s')" % (self, self._parent, "', '".join(my_siblings))
         raise ValueError(msg)
-    else: raise ValueError("Menu option '%s' doesn't have a parent" % self)
+    else:
+      raise ValueError("Menu option '%s' doesn't have a parent" % self)
 
   def __str__(self):
     return self._label
+
 
 class Submenu(MenuItem):
   """
@@ -113,37 +118,37 @@ class Submenu(MenuItem):
     MenuItem.__init__(self, label, None)
     self._children = []
 
-  def getLabel(self):
+  def get_label(self):
     """
     Provides our label with a ">" suffix to indicate that we have suboptions.
     """
 
-    myLabel = MenuItem.getLabel(self)[1]
-    return ("", myLabel, " >")
+    my_label = MenuItem.get_label(self)[1]
+    return ("", my_label, " >")
 
-  def add(self, menuItem):
+  def add(self, menu_item):
     """
     Adds the given menu item to our listing. This raises a ValueError if the
     item already has a parent.
 
     Arguments:
-      menuItem - menu option to be added
+      menu_item - menu option to be added
     """
 
-    if menuItem.getParent():
-      raise ValueError("Menu option '%s' already has a parent" % menuItem)
+    if menu_item.get_parent():
+      raise ValueError("Menu option '%s' already has a parent" % menu_item)
     else:
-      menuItem._parent = self
-      self._children.append(menuItem)
+      menu_item._parent = self
+      self._children.append(menu_item)
 
-  def getChildren(self):
+  def get_children(self):
     """
     Provides the menu and submenus we contain.
     """
 
     return list(self._children)
 
-  def isEmpty(self):
+  def is_empty(self):
     """
     True if we have no children, false otherwise.
     """
@@ -153,14 +158,16 @@ class Submenu(MenuItem):
   def select(self):
     return False
 
+
 class SelectionGroup():
   """
   Radio button groups that SelectionMenuItems can belong to.
   """
 
-  def __init__(self, action, selectedArg):
+  def __init__(self, action, selected_arg):
     self.action = action
-    self.selectedArg = selectedArg
+    self.selected_arg = selected_arg
+
 
 class SelectionMenuItem(MenuItem):
   """
@@ -173,29 +180,28 @@ class SelectionMenuItem(MenuItem):
     self._group = group
     self._arg = arg
 
-  def isSelected(self):
+  def is_selected(self):
     """
     True if we're the selected item, false otherwise.
     """
 
-    return self._arg == self._group.selectedArg
+    return self._arg == self._group.selected_arg
 
-  def getLabel(self):
+  def get_label(self):
     """
     Provides our label with a "[X]" prefix if selected and "[ ]" if not.
     """
 
-    myLabel = MenuItem.getLabel(self)[1]
-    myPrefix = "[X] " if self.isSelected() else "[ ] "
-    return (myPrefix, myLabel, "")
+    my_label = MenuItem.get_label(self)[1]
+    my_prefix = "[X] " if self.is_selected() else "[ ] "
+    return (my_prefix, my_label, "")
 
   def select(self):
     """
     Performs the group's setter action with our argument.
     """
 
-    if not self.isSelected():
+    if not self.is_selected():
       self._group.action(self._arg)
 
     return True
-

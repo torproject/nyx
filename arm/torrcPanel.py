@@ -13,18 +13,21 @@ from arm.util import panel, torConfig, torTools, uiTools
 from stem.control import State
 from stem.util import conf, enum
 
+
 def conf_handler(key, value):
-  if key == "features.config.file.maxLinesPerEntry":
+  if key == "features.config.file.max_lines_per_entry":
     return max(1, value)
+
 
 CONFIG = conf.config_dict("arm", {
   "features.config.file.showScrollbars": True,
-  "features.config.file.maxLinesPerEntry": 8,
+  "features.config.file.max_lines_per_entry": 8,
 }, conf_handler)
 
 # TODO: The armrc use case is incomplete. There should be equivilant reloading
 # and validation capabilities to the torrc.
-Config = enum.Enum("TORRC", "ARMRC") # configuration file types that can be displayed
+Config = enum.Enum("TORRC", "ARMRC")  # configuration file types that can be displayed
+
 
 class TorrcPanel(panel.Panel):
   """
@@ -32,280 +35,319 @@ class TorrcPanel(panel.Panel):
   area.
   """
 
-  def __init__(self, stdscr, configType):
+  def __init__(self, stdscr, config_type):
     panel.Panel.__init__(self, stdscr, "torrc", 0)
 
-    self.valsLock = threading.RLock()
-    self.configType = configType
+    self.vals_lock = threading.RLock()
+    self.config_type = config_type
     self.scroll = 0
-    self.showLineNum = True     # shows left aligned line numbers
-    self.stripComments = False  # drops comments and extra whitespace
+    self.show_line_num = True     # shows left aligned line numbers
+    self.strip_comments = False   # drops comments and extra whitespace
 
     # height of the content when last rendered (the cached value is invalid if
-    # _lastContentHeightArgs is None or differs from the current dimensions)
-    self._lastContentHeight = 1
-    self._lastContentHeightArgs = None
+    # _last_content_height_args is None or differs from the current dimensions)
+
+    self._last_content_height = 1
+    self._last_content_height_args = None
 
     # listens for tor reload (sighup) events
-    conn = torTools.getConn()
-    conn.addStatusListener(self.resetListener)
-    if conn.isAlive(): self.resetListener(None, State.INIT, None)
 
-  def resetListener(self, controller, eventType, _):
+    conn = torTools.get_conn()
+    conn.add_status_listener(self.reset_listener)
+
+    if conn.is_alive():
+      self.reset_listener(None, State.INIT, None)
+
+  def reset_listener(self, controller, event_type, _):
     """
     Reloads and displays the torrc on tor reload (sighup) events.
     """
 
-    if eventType == State.INIT:
+    if event_type == State.INIT:
       # loads the torrc and provides warnings in case of validation errors
-      try:
-        loadedTorrc = torConfig.getTorrc()
-        loadedTorrc.load(True)
-        loadedTorrc.logValidationIssues()
-        self.redraw(True)
-      except: pass
-    elif eventType == State.RESET:
-      try:
-        torConfig.getTorrc().load(True)
-        self.redraw(True)
-      except: pass
 
-  def setCommentsVisible(self, isVisible):
+      try:
+        loaded_torrc = torConfig.get_torrc()
+        loaded_torrc.load(True)
+        loaded_torrc.log_validation_issues()
+        self.redraw(True)
+      except:
+        pass
+    elif event_type == State.RESET:
+      try:
+        torConfig.get_torrc().load(True)
+        self.redraw(True)
+      except:
+        pass
+
+  def set_comments_visible(self, is_visible):
     """
     Sets if comments and blank lines are shown or stripped.
 
     Arguments:
-      isVisible - displayed comments and blank lines if true, strips otherwise
+      is_visible - displayed comments and blank lines if true, strips otherwise
     """
 
-    self.stripComments = not isVisible
-    self._lastContentHeightArgs = None
+    self.strip_comments = not is_visible
+    self._last_content_height_args = None
     self.redraw(True)
 
-  def setLineNumberVisible(self, isVisible):
+  def set_line_number_visible(self, is_visible):
     """
     Sets if line numbers are shown or hidden.
 
     Arguments:
-      isVisible - displays line numbers if true, hides otherwise
+      is_visible - displays line numbers if true, hides otherwise
     """
 
-    self.showLineNum = isVisible
-    self._lastContentHeightArgs = None
+    self.show_line_num = is_visible
+    self._last_content_height_args = None
     self.redraw(True)
 
-  def reloadTorrc(self):
+  def reload_torrc(self):
     """
     Reloads the torrc, displaying an indicator of success or failure.
     """
 
     try:
-      torConfig.getTorrc().load()
-      self._lastContentHeightArgs = None
+      torConfig.get_torrc().load()
+      self._last_content_height_args = None
       self.redraw(True)
-      resultMsg = "torrc reloaded"
+      result_msg = "torrc reloaded"
     except IOError:
-      resultMsg = "failed to reload torrc"
+      result_msg = "failed to reload torrc"
 
-    self._lastContentHeightArgs = None
+    self._last_content_height_args = None
     self.redraw(True)
-    arm.popups.showMsg(resultMsg, 1)
+    arm.popups.show_msg(result_msg, 1)
 
-  def handleKey(self, key):
-    self.valsLock.acquire()
-    isKeystrokeConsumed = True
-    if uiTools.isScrollKey(key):
-      pageHeight = self.getPreferredSize()[0] - 1
-      newScroll = uiTools.getScrollPosition(key, self.scroll, pageHeight, self._lastContentHeight)
+  def handle_key(self, key):
+    self.vals_lock.acquire()
+    is_keystroke_consumed = True
+    if uiTools.is_scroll_key(key):
+      page_height = self.get_preferred_size()[0] - 1
+      new_scroll = uiTools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
 
-      if self.scroll != newScroll:
-        self.scroll = newScroll
+      if self.scroll != new_scroll:
+        self.scroll = new_scroll
         self.redraw(True)
     elif key == ord('n') or key == ord('N'):
-      self.setLineNumberVisible(not self.showLineNum)
+      self.set_line_number_visible(not self.show_line_num)
     elif key == ord('s') or key == ord('S'):
-      self.setCommentsVisible(self.stripComments)
+      self.set_comments_visible(self.strip_comments)
     elif key == ord('r') or key == ord('R'):
-      self.reloadTorrc()
-    else: isKeystrokeConsumed = False
+      self.reload_torrc()
+    else:
+      is_keystroke_consumed = False
 
-    self.valsLock.release()
-    return isKeystrokeConsumed
+    self.vals_lock.release()
+    return is_keystroke_consumed
 
-  def setVisible(self, isVisible):
-    if not isVisible:
-      self._lastContentHeightArgs = None # redraws when next displayed
+  def set_visible(self, is_visible):
+    if not is_visible:
+      self._last_content_height_args = None  # redraws when next displayed
 
-    panel.Panel.setVisible(self, isVisible)
+    panel.Panel.set_visible(self, is_visible)
 
-  def getHelp(self):
+  def get_help(self):
     options = []
     options.append(("up arrow", "scroll up a line", None))
     options.append(("down arrow", "scroll down a line", None))
     options.append(("page up", "scroll up a page", None))
     options.append(("page down", "scroll down a page", None))
-    options.append(("s", "comment stripping", "on" if self.stripComments else "off"))
-    options.append(("n", "line numbering", "on" if self.showLineNum else "off"))
+    options.append(("s", "comment stripping", "on" if self.strip_comments else "off"))
+    options.append(("n", "line numbering", "on" if self.show_line_num else "off"))
     options.append(("r", "reload torrc", None))
     options.append(("x", "reset tor (issue sighup)", None))
     return options
 
   def draw(self, width, height):
-    self.valsLock.acquire()
+    self.vals_lock.acquire()
 
-    # If true, we assume that the cached value in self._lastContentHeight is
+    # If true, we assume that the cached value in self._last_content_height is
     # still accurate, and stop drawing when there's nothing more to display.
-    # Otherwise the self._lastContentHeight is suspect, and we'll process all
+    # Otherwise the self._last_content_height is suspect, and we'll process all
     # the content to check if it's right (and redraw again with the corrected
     # height if not).
-    trustLastContentHeight = self._lastContentHeightArgs == (width, height)
+
+    trust_last_content_height = self._last_content_height_args == (width, height)
 
     # restricts scroll location to valid bounds
-    self.scroll = max(0, min(self.scroll, self._lastContentHeight - height + 1))
 
-    renderedContents, corrections, confLocation = None, {}, None
-    if self.configType == Config.TORRC:
-      loadedTorrc = torConfig.getTorrc()
-      loadedTorrc.getLock().acquire()
-      confLocation = loadedTorrc.getConfigLocation()
+    self.scroll = max(0, min(self.scroll, self._last_content_height - height + 1))
 
-      if not loadedTorrc.isLoaded():
-        renderedContents = ["### Unable to load the torrc ###"]
+    rendered_contents, corrections, conf_location = None, {}, None
+
+    if self.config_type == Config.TORRC:
+      loaded_torrc = torConfig.get_torrc()
+      loaded_torrc.get_lock().acquire()
+      conf_location = loaded_torrc.get_config_location()
+
+      if not loaded_torrc.is_loaded():
+        rendered_contents = ["### Unable to load the torrc ###"]
       else:
-        renderedContents = loadedTorrc.getDisplayContents(self.stripComments)
+        rendered_contents = loaded_torrc.get_display_contents(self.strip_comments)
 
         # constructs a mapping of line numbers to the issue on it
-        corrections = dict((lineNum, (issue, msg)) for lineNum, issue, msg in loadedTorrc.getCorrections())
 
-      loadedTorrc.getLock().release()
+        corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in loaded_torrc.get_corrections())
+
+      loaded_torrc.get_lock().release()
     else:
-      loadedArmrc = conf.get_config("arm")
-      confLocation = loadedArmrc._path
-      renderedContents = list(loadedArmrc._raw_contents)
+      loaded_armrc = conf.get_config("arm")
+      conf_location = loaded_armrc._path
+      rendered_contents = list(loaded_armrc._raw_contents)
 
     # offset to make room for the line numbers
-    lineNumOffset = 0
-    if self.showLineNum:
-      if len(renderedContents) == 0: lineNumOffset = 2
-      else: lineNumOffset = int(math.log10(len(renderedContents))) + 2
+
+    line_number_offset = 0
+
+    if self.show_line_num:
+      if len(rendered_contents) == 0:
+        line_number_offset = 2
+      else:
+        line_number_offset = int(math.log10(len(rendered_contents))) + 2
 
     # draws left-hand scroll bar if content's longer than the height
-    scrollOffset = 0
-    if CONFIG["features.config.file.showScrollbars"] and self._lastContentHeight > height - 1:
-      scrollOffset = 3
-      self.addScrollBar(self.scroll, self.scroll + height - 1, self._lastContentHeight, 1)
 
-    displayLine = -self.scroll + 1 # line we're drawing on
+    scroll_offset = 0
+
+    if CONFIG["features.config.file.showScrollbars"] and self._last_content_height > height - 1:
+      scroll_offset = 3
+      self.add_scroll_bar(self.scroll, self.scroll + height - 1, self._last_content_height, 1)
+
+    display_line = -self.scroll + 1  # line we're drawing on
 
     # draws the top label
-    if self.isTitleVisible():
-      sourceLabel = "Tor" if self.configType == Config.TORRC else "Arm"
-      locationLabel = " (%s)" % confLocation if confLocation else ""
-      self.addstr(0, 0, "%s Configuration File%s:" % (sourceLabel, locationLabel), curses.A_STANDOUT)
 
-    isMultiline = False # true if we're in the middle of a multiline torrc entry
-    for lineNumber in range(0, len(renderedContents)):
-      lineText = renderedContents[lineNumber]
-      lineText = lineText.rstrip() # remove ending whitespace
+    if self.is_title_visible():
+      source_label = "Tor" if self.config_type == Config.TORRC else "Arm"
+      location_label = " (%s)" % conf_location if conf_location else ""
+      self.addstr(0, 0, "%s Configuration File%s:" % (source_label, location_label), curses.A_STANDOUT)
+
+    is_multiline = False  # true if we're in the middle of a multiline torrc entry
+
+    for line_number in range(0, len(rendered_contents)):
+      line_text = rendered_contents[line_number]
+      line_text = line_text.rstrip()  # remove ending whitespace
 
       # blank lines are hidden when stripping comments
-      if self.stripComments and not lineText: continue
+
+      if self.strip_comments and not line_text:
+        continue
 
       # splits the line into its component (msg, format) tuples
-      lineComp = {"option": ["", curses.A_BOLD | uiTools.getColor("green")],
-                  "argument": ["", curses.A_BOLD | uiTools.getColor("cyan")],
-                  "correction": ["", curses.A_BOLD | uiTools.getColor("cyan")],
-                  "comment": ["", uiTools.getColor("white")]}
+
+      line_comp = {
+        "option": ["", curses.A_BOLD | uiTools.get_color("green")],
+        "argument": ["", curses.A_BOLD | uiTools.get_color("cyan")],
+        "correction": ["", curses.A_BOLD | uiTools.get_color("cyan")],
+        "comment": ["", uiTools.get_color("white")],
+      }
 
       # parses the comment
-      commentIndex = lineText.find("#")
-      if commentIndex != -1:
-        lineComp["comment"][0] = lineText[commentIndex:]
-        lineText = lineText[:commentIndex]
+
+      comment_index = line_text.find("#")
+
+      if comment_index != -1:
+        line_comp["comment"][0] = line_text[comment_index:]
+        line_text = line_text[:comment_index]
 
       # splits the option and argument, preserving any whitespace around them
-      strippedLine = lineText.strip()
-      optionIndex = strippedLine.find(" ")
-      if isMultiline:
+
+      stripped_line = line_text.strip()
+      option_index = stripped_line.find(" ")
+
+      if is_multiline:
         # part of a multiline entry started on a previous line so everything
         # is part of the argument
-        lineComp["argument"][0] = lineText
-      elif optionIndex == -1:
+        line_comp["argument"][0] = line_text
+      elif option_index == -1:
         # no argument provided
-        lineComp["option"][0] = lineText
+        line_comp["option"][0] = line_text
       else:
-        optionText = strippedLine[:optionIndex]
-        optionEnd = lineText.find(optionText) + len(optionText)
-        lineComp["option"][0] = lineText[:optionEnd]
-        lineComp["argument"][0] = lineText[optionEnd:]
+        option_text = stripped_line[:option_index]
+        option_end = line_text.find(option_text) + len(option_text)
+        line_comp["option"][0] = line_text[:option_end]
+        line_comp["argument"][0] = line_text[option_end:]
 
       # flags following lines as belonging to this multiline entry if it ends
       # with a slash
-      if strippedLine: isMultiline = strippedLine.endswith("\\")
+
+      if stripped_line:
+        is_multiline = stripped_line.endswith("\\")
 
       # gets the correction
-      if lineNumber in corrections:
-        lineIssue, lineIssueMsg = corrections[lineNumber]
 
-        if lineIssue in (torConfig.ValidationError.DUPLICATE, torConfig.ValidationError.IS_DEFAULT):
-          lineComp["option"][1] = curses.A_BOLD | uiTools.getColor("blue")
-          lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("blue")
-        elif lineIssue == torConfig.ValidationError.MISMATCH:
-          lineComp["argument"][1] = curses.A_BOLD | uiTools.getColor("red")
-          lineComp["correction"][0] = " (%s)" % lineIssueMsg
+      if line_number in corrections:
+        line_issue, line_issue_msg = corrections[line_number]
+
+        if line_issue in (torConfig.ValidationError.DUPLICATE, torConfig.ValidationError.IS_DEFAULT):
+          line_comp["option"][1] = curses.A_BOLD | uiTools.get_color("blue")
+          line_comp["argument"][1] = curses.A_BOLD | uiTools.get_color("blue")
+        elif line_issue == torConfig.ValidationError.MISMATCH:
+          line_comp["argument"][1] = curses.A_BOLD | uiTools.get_color("red")
+          line_comp["correction"][0] = " (%s)" % line_issue_msg
         else:
           # For some types of configs the correction field is simply used to
           # provide extra data (for instance, the type for tor state fields).
-          lineComp["correction"][0] = " (%s)" % lineIssueMsg
-          lineComp["correction"][1] = curses.A_BOLD | uiTools.getColor("magenta")
+
+          line_comp["correction"][0] = " (%s)" % line_issue_msg
+          line_comp["correction"][1] = curses.A_BOLD | uiTools.get_color("magenta")
 
       # draws the line number
-      if self.showLineNum and displayLine < height and displayLine >= 1:
-        lineNumStr = ("%%%ii" % (lineNumOffset - 1)) % (lineNumber + 1)
-        self.addstr(displayLine, scrollOffset, lineNumStr, curses.A_BOLD | uiTools.getColor("yellow"))
+
+      if self.show_line_num and display_line < height and display_line >= 1:
+        line_number_str = ("%%%ii" % (line_number_offset - 1)) % (line_number + 1)
+        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD | uiTools.get_color("yellow"))
 
       # draws the rest of the components with line wrap
-      cursorLoc, lineOffset = lineNumOffset + scrollOffset, 0
-      maxLinesPerEntry = CONFIG["features.config.file.maxLinesPerEntry"]
-      displayQueue = [lineComp[entry] for entry in ("option", "argument", "correction", "comment")]
 
-      while displayQueue:
-        msg, format = displayQueue.pop(0)
+      cursor_location, line_offset = line_number_offset + scroll_offset, 0
+      max_lines_per_entry = CONFIG["features.config.file.max_lines_per_entry"]
+      display_queue = [line_comp[entry] for entry in ("option", "argument", "correction", "comment")]
 
-        maxMsgSize, includeBreak = width - cursorLoc, False
-        if len(msg) >= maxMsgSize:
+      while display_queue:
+        msg, format = display_queue.pop(0)
+
+        max_msg_size, include_break = width - cursor_location, False
+
+        if len(msg) >= max_msg_size:
           # message is too long - break it up
-          if lineOffset == maxLinesPerEntry - 1:
-            msg = uiTools.cropStr(msg, maxMsgSize)
-          else:
-            includeBreak = True
-            msg, remainder = uiTools.cropStr(msg, maxMsgSize, 4, 4, uiTools.Ending.HYPHEN, True)
-            displayQueue.insert(0, (remainder.strip(), format))
 
-        drawLine = displayLine + lineOffset
-        if msg and drawLine < height and drawLine >= 1:
-          self.addstr(drawLine, cursorLoc, msg, format)
+          if line_offset == max_lines_per_entry - 1:
+            msg = uiTools.crop_str(msg, max_msg_size)
+          else:
+            include_break = True
+            msg, remainder = uiTools.crop_str(msg, max_msg_size, 4, 4, uiTools.Ending.HYPHEN, True)
+            display_queue.insert(0, (remainder.strip(), format))
+
+        draw_line = display_line + line_offset
+
+        if msg and draw_line < height and draw_line >= 1:
+          self.addstr(draw_line, cursor_location, msg, format)
 
         # If we're done, and have added content to this line, then start
         # further content on the next line.
-        cursorLoc += len(msg)
-        includeBreak |= not displayQueue and cursorLoc != lineNumOffset + scrollOffset
 
-        if includeBreak:
-          lineOffset += 1
-          cursorLoc = lineNumOffset + scrollOffset
+        cursor_location += len(msg)
+        include_break |= not display_queue and cursor_location != line_number_offset + scroll_offset
 
-      displayLine += max(lineOffset, 1)
+        if include_break:
+          line_offset += 1
+          cursor_location = line_number_offset + scroll_offset
 
-      if trustLastContentHeight and displayLine >= height: break
+      display_line += max(line_offset, 1)
 
-    if not trustLastContentHeight:
-      self._lastContentHeightArgs = (width, height)
-      newContentHeight = displayLine + self.scroll - 1
+      if trust_last_content_height and display_line >= height:
+        break
 
-      if self._lastContentHeight != newContentHeight:
-        self._lastContentHeight = newContentHeight
+    if not trust_last_content_height:
+      self._last_content_height_args = (width, height)
+      new_content_height = display_line + self.scroll - 1
+
+      if self._last_content_height != new_content_height:
+        self._last_content_height = new_content_height
         self.redraw(True)
 
-    self.valsLock.release()
-
+    self.vals_lock.release()

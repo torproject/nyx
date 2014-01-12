@@ -13,23 +13,25 @@ import curses
 from arm.connections import entries, connEntry
 from arm.util import torTools, uiTools
 
+
 class CircEntry(connEntry.ConnectionEntry):
-  def __init__(self, circuitID, status, purpose, path):
+  def __init__(self, circuit_id, status, purpose, path):
     connEntry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
 
-    self.circuitID = circuitID
+    self.circuit_id = circuit_id
     self.status = status
 
     # drops to lowercase except the first letter
+
     if len(purpose) >= 2:
       purpose = purpose[0].upper() + purpose[1:].lower()
 
-    self.lines = [CircHeaderLine(self.circuitID, purpose)]
+    self.lines = [CircHeaderLine(self.circuit_id, purpose)]
 
     # Overwrites attributes of the initial line to make it more fitting as the
     # header for our listing.
 
-    self.lines[0].baseType = connEntry.Category.CIRCUIT
+    self.lines[0].base_type = connEntry.Category.CIRCUIT
 
     self.update(status, path)
 
@@ -46,27 +48,32 @@ class CircEntry(connEntry.ConnectionEntry):
 
     self.status = status
     self.lines = [self.lines[0]]
-    conn = torTools.getConn()
+    conn = torTools.get_conn()
 
-    if status == "BUILT" and not self.lines[0].isBuilt:
-      exitIp, exitORPort = conn.getRelayAddress(path[-1], ("192.168.0.1", "0"))
-      self.lines[0].setExit(exitIp, exitORPort, path[-1])
+    if status == "BUILT" and not self.lines[0].is_built:
+      exit_ip, exit_port = conn.get_relay_address(path[-1], ("192.168.0.1", "0"))
+      self.lines[0].set_exit(exit_ip, exit_port, path[-1])
 
     for i in range(len(path)):
-      relayFingerprint = path[i]
-      relayIp, relayOrPort = conn.getRelayAddress(relayFingerprint, ("192.168.0.1", "0"))
+      relay_fingerprint = path[i]
+      relay_ip, relay_port = conn.get_relay_address(relay_fingerprint, ("192.168.0.1", "0"))
 
       if i == len(path) - 1:
-        if status == "BUILT": placementType = "Exit"
-        else: placementType = "Extending"
-      elif i == 0: placementType = "Guard"
-      else: placementType = "Middle"
+        if status == "BUILT":
+          placement_type = "Exit"
+        else:
+          placement_type = "Extending"
+      elif i == 0:
+        placement_type = "Guard"
+      else:
+        placement_type = "Middle"
 
-      placementLabel = "%i / %s" % (i + 1, placementType)
+      placement_label = "%i / %s" % (i + 1, placement_type)
 
-      self.lines.append(CircLine(relayIp, relayOrPort, relayFingerprint, placementLabel))
+      self.lines.append(CircLine(relay_ip, relay_port, relay_fingerprint, placement_label))
 
-    self.lines[-1].isLast = True
+    self.lines[-1].is_last = True
+
 
 class CircHeaderLine(connEntry.ConnectionLine):
   """
@@ -74,44 +81,49 @@ class CircHeaderLine(connEntry.ConnectionLine):
   lines except that its etc field has circuit attributes.
   """
 
-  def __init__(self, circuitID, purpose):
+  def __init__(self, circuit_id, purpose):
     connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", "0.0.0.0", "0", False, False)
-    self.circuitID = circuitID
+    self.circuit_id = circuit_id
     self.purpose = purpose
-    self.isBuilt = False
+    self.is_built = False
 
-  def setExit(self, exitIpAddr, exitPort, exitFingerprint):
-    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", exitIpAddr, exitPort, False, False)
-    self.isBuilt = True
-    self.foreign.fingerprintOverwrite = exitFingerprint
+  def set_exit(self, exit_address, exit_port, exit_fingerprint):
+    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", exit_address, exit_port, False, False)
+    self.is_built = True
+    self.foreign.fingerprint_overwrite = exit_fingerprint
 
-  def getType(self):
+  def get_type(self):
     return connEntry.Category.CIRCUIT
 
-  def getDestinationLabel(self, maxLength, includeLocale=False, includeHostname=False):
-    if not self.isBuilt: return "Building..."
-    return connEntry.ConnectionLine.getDestinationLabel(self, maxLength, includeLocale, includeHostname)
+  def get_destination_label(self, max_length, include_locale=False, include_hostname=False):
+    if not self.is_built:
+      return "Building..."
 
-  def getEtcContent(self, width, listingType):
+    return connEntry.ConnectionLine.get_destination_label(self, max_length, include_locale, include_hostname)
+
+  def get_etc_content(self, width, listing_type):
     """
     Attempts to provide all circuit related stats. Anything that can't be
     shown completely (not enough room) is dropped.
     """
 
-    etcAttr = ["Purpose: %s" % self.purpose, "Circuit ID: %i" % self.circuitID]
+    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %i" % self.circuit_id]
 
-    for i in range(len(etcAttr), -1, -1):
-      etcLabel = ", ".join(etcAttr[:i])
-      if len(etcLabel) <= width:
-        return ("%%-%is" % width) % etcLabel
+    for i in range(len(etc_attr), -1, -1):
+      etc_label = ", ".join(etc_attr[:i])
+
+      if len(etc_label) <= width:
+        return ("%%-%is" % width) % etc_label
 
     return ""
 
-  def getDetails(self, width):
-    if not self.isBuilt:
-      detailFormat = curses.A_BOLD | uiTools.getColor(connEntry.CATEGORY_COLOR[self.getType()])
-      return [("Building Circuit...", detailFormat)]
-    else: return connEntry.ConnectionLine.getDetails(self, width)
+  def get_details(self, width):
+    if not self.is_built:
+      detail_format = curses.A_BOLD | uiTools.get_color(connEntry.CATEGORY_COLOR[self.get_type()])
+      return [("Building Circuit...", detail_format)]
+    else:
+      return connEntry.ConnectionLine.get_details(self, width)
+
 
 class CircLine(connEntry.ConnectionLine):
   """
@@ -120,23 +132,26 @@ class CircLine(connEntry.ConnectionLine):
   caching, etc).
   """
 
-  def __init__(self, fIpAddr, fPort, fFingerprint, placementLabel):
-    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", fIpAddr, fPort)
-    self.foreign.fingerprintOverwrite = fFingerprint
-    self.placementLabel = placementLabel
-    self.includePort = False
+  def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label):
+    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", remote_address, remote_port)
+    self.foreign.fingerprint_overwrite = remote_fingerprint
+    self.placement_label = placement_label
+    self.include_port = False
 
     # determines the sort of left hand bracketing we use
-    self.isLast = False
 
-  def getType(self):
+    self.is_last = False
+
+  def get_type(self):
     return connEntry.Category.CIRCUIT
 
-  def getListingPrefix(self):
-    if self.isLast: return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
-    else: return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+  def get_listing_prefix(self):
+    if self.is_last:
+      return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
+    else:
+      return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
 
-  def getListingEntry(self, width, currentTime, listingType):
+  def get_listing_entry(self, width, current_time, listing_type):
     """
     Provides the [(msg, attr)...] listing for this relay in the circuilt
     listing. Lines are composed of the following components:
@@ -146,51 +161,56 @@ class CircLine(connEntry.ConnectionLine):
 
     Arguments:
       width       - maximum length of the line
-      currentTime - the current unix time (ignored)
-      listingType - primary attribute we're listing connections by
+      current_time - the current unix time (ignored)
+      listing_type - primary attribute we're listing connections by
     """
 
-    return entries.ConnectionPanelLine.getListingEntry(self, width, currentTime, listingType)
+    return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
-  def _getListingEntry(self, width, currentTime, listingType):
-    lineFormat = uiTools.getColor(connEntry.CATEGORY_COLOR[self.getType()])
+  def _get_listing_entry(self, width, current_time, listing_type):
+    line_format = uiTools.get_color(connEntry.CATEGORY_COLOR[self.get_type()])
 
     # The required widths are the sum of the following:
     # initial space (1 character)
     # bracketing (3 characters)
-    # placementLabel (14 characters)
+    # placement_label (14 characters)
     # gap between etc and placement label (5 characters)
 
-    baselineSpace = 14 + 5
+    baseline_space = 14 + 5
 
     dst, etc = "", ""
-    if listingType == entries.ListingType.IP_ADDRESS:
+
+    if listing_type == entries.ListingType.IP_ADDRESS:
       # TODO: include hostname when that's available
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
-      dst = "%-53s" % self.getDestinationLabel(53, includeLocale = True)
+
+      dst = "%-53s" % self.get_destination_label(53, include_locale = True)
 
       # fills the nickname into the empty space here
-      dst = "%s%-25s   " % (dst[:25], uiTools.cropStr(self.foreign.getNickname(), 25, 0))
 
-      etc = self.getEtcContent(width - baselineSpace - len(dst), listingType)
-    elif listingType == entries.ListingType.HOSTNAME:
+      dst = "%s%-25s   " % (dst[:25], uiTools.crop_str(self.foreign.get_nickname(), 25, 0))
+
+      etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
+    elif listing_type == entries.ListingType.HOSTNAME:
       # min space for the hostname is 40 characters
-      etc = self.getEtcContent(width - baselineSpace - 40, listingType)
-      dstLayout = "%%-%is" % (width - baselineSpace - len(etc))
-      dst = dstLayout % self.foreign.getHostname(self.foreign.getIpAddr())
-    elif listingType == entries.ListingType.FINGERPRINT:
+
+      etc = self.get_etc_content(width - baseline_space - 40, listing_type)
+      dst_layout = "%%-%is" % (width - baseline_space - len(etc))
+      dst = dst_layout % self.foreign.get_hostname(self.foreign.get_address())
+    elif listing_type == entries.ListingType.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
-      dst = "%-55s" % self.foreign.getFingerprint()
-      etc = self.getEtcContent(width - baselineSpace - len(dst), listingType)
+
+      dst = "%-55s" % self.foreign.get_fingerprint()
+      etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     else:
       # min space for the nickname is 56 characters
-      etc = self.getEtcContent(width - baselineSpace - 56, listingType)
-      dstLayout = "%%-%is" % (width - baselineSpace - len(etc))
-      dst = dstLayout % self.foreign.getNickname()
 
-    return ((dst + etc, lineFormat),
-            (" " * (width - baselineSpace - len(dst) - len(etc) + 5), lineFormat),
-            ("%-14s" % self.placementLabel, lineFormat))
+      etc = self.get_etc_content(width - baseline_space - 56, listing_type)
+      dst_layout = "%%-%is" % (width - baseline_space - len(etc))
+      dst = dst_layout % self.foreign.get_nickname()
 
+    return ((dst + etc, line_format),
+            (" " * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
+            ("%-14s" % self.placement_label, line_format))

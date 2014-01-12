@@ -14,9 +14,11 @@ from arm.util import torTools, uiTools
 from stem.util import conf, enum, log, str_tools, system
 
 # filename used for cached tor config descriptions
+
 CONFIG_DESC_FILENAME = "torConfigDesc.txt"
 
 # messages related to loading the tor configuration descriptions
+
 DESC_LOAD_SUCCESS_MSG = "Loaded configuration descriptions from '%s' (runtime: %0.3f)"
 DESC_LOAD_FAILED_MSG = "Unable to load configuration descriptions (%s)"
 DESC_INTERNAL_LOAD_SUCCESS_MSG = "Falling back to descriptions for Tor %s"
@@ -26,10 +28,12 @@ DESC_READ_MAN_FAILED_MSG = "Unable to get the descriptions of Tor's configuratio
 DESC_SAVE_SUCCESS_MSG = "Saved configuration descriptions to '%s' (runtime: %0.3f)"
 DESC_SAVE_FAILED_MSG = "Unable to save configuration descriptions (%s)"
 
+
 def conf_handler(key, value):
   if key == "torrc.important":
     # stores lowercase entries to drop case sensitivity
     return [entry.lower() for entry in value]
+
 
 CONFIG = conf.config_dict("arm", {
   "features.torrc.validate": True,
@@ -45,11 +49,12 @@ CONFIG = conf.config_dict("arm", {
   "torrc.units.time.hour": [],
   "torrc.units.time.day": [],
   "torrc.units.time.week": [],
-  "startup.dataDirectory": "~/.arm",
+  "startup.data_directory": "~/.arm",
   "features.config.descriptions.enabled": True,
   "features.config.descriptions.persist": True,
   "tor.chroot": '',
 }, conf_handler)
+
 
 def general_conf_handler(config, key):
   value = config.get(key)
@@ -61,9 +66,11 @@ def general_conf_handler(config, key):
     # all the torrc.units.* values are comma separated lists
     return [entry.strip() for entry in value[0].split(",")]
 
+
 conf.get_config("arm").add_listener(general_conf_handler, backfill = True)
 
 # enums and values for numeric torrc entries
+
 ValueType = enum.Enum("UNRECOGNIZED", "SIZE", "TIME")
 SIZE_MULT = {"b": 1, "kb": 1024, "mb": 1048576, "gb": 1073741824, "tb": 1099511627776}
 TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
@@ -73,47 +80,57 @@ TIME_MULT = {"sec": 1, "min": 60, "hour": 3600, "day": 86400, "week": 604800}
 # MISMATCH   - the value doesn't match tor's current state
 # MISSING    - value differs from its default but is missing from the torrc
 # IS_DEFAULT - the configuration option matches tor's default
+
 ValidationError = enum.Enum("DUPLICATE", "MISMATCH", "MISSING", "IS_DEFAULT")
 
 # descriptions of tor's configuration options fetched from its man page
+
 CONFIG_DESCRIPTIONS_LOCK = threading.RLock()
 CONFIG_DESCRIPTIONS = {}
 
 # categories for tor configuration options
+
 Category = enum.Enum("GENERAL", "CLIENT", "RELAY", "DIRECTORY", "AUTHORITY", "HIDDEN_SERVICE", "TESTING", "UNKNOWN")
 
-TORRC = None # singleton torrc instance
-MAN_OPT_INDENT = 7 # indentation before options in the man page
-MAN_EX_INDENT = 15 # indentation used for man page examples
-PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n" # splits config entries when saving to a file
-MULTILINE_PARAM = None # cached multiline parameters (lazily loaded)
+TORRC = None  # singleton torrc instance
+MAN_OPT_INDENT = 7  # indentation before options in the man page
+MAN_EX_INDENT = 15  # indentation used for man page examples
+PERSIST_ENTRY_DIVIDER = "-" * 80 + "\n"  # splits config entries when saving to a file
+MULTILINE_PARAM = None  # cached multiline parameters (lazily loaded)
 
 # torrc options that bind to ports
+
 PORT_OPT = ("SocksPort", "ORPort", "DirPort", "ControlPort", "TransPort")
+
 
 class ManPageEntry:
   """
   Information provided about a tor configuration option in its man page entry.
   """
 
-  def __init__(self, option, index, category, argUsage, description):
+  def __init__(self, option, index, category, arg_usage, description):
     self.option = option
     self.index = index
     self.category = category
-    self.argUsage = argUsage
+    self.arg_usage = arg_usage
     self.description = description
 
-def getTorrc():
+
+def get_torrc():
   """
   Singleton constructor for a Controller. Be aware that this starts as being
   unloaded, needing the torrc contents to be loaded before being functional.
   """
 
   global TORRC
-  if TORRC == None: TORRC = Torrc()
+
+  if TORRC is None:
+    TORRC = Torrc()
+
   return TORRC
 
-def loadOptionDescriptions(loadPath = None, checkVersion = True):
+
+def load_option_descriptions(load_path = None, check_version = True):
   """
   Fetches and parses descriptions for tor's configuration options from its man
   page. This can be a somewhat lengthy call, and raises an IOError if issues
@@ -125,151 +142,183 @@ def loadOptionDescriptions(loadPath = None, checkVersion = True):
   is around 200ms).
 
   Arguments:
-    loadPath     - if set, this attempts to fetch the configuration
+    load_path     - if set, this attempts to fetch the configuration
                    descriptions from the given path instead of the man page
-    checkVersion - discards the results if true and tor's version doens't
+    check_version - discards the results if true and tor's version doens't
                    match the cached descriptors, otherwise accepts anyway
   """
 
   CONFIG_DESCRIPTIONS_LOCK.acquire()
   CONFIG_DESCRIPTIONS.clear()
 
-  raisedExc = None
-  loadedVersion = ""
+  raised_exc = None
+  loaded_version = ""
+
   try:
-    if loadPath:
+    if load_path:
       # Input file is expected to be of the form:
       # <option>
       # <arg description>
       # <description, possibly multiple lines>
       # <PERSIST_ENTRY_DIVIDER>
-      inputFile = open(loadPath, "r")
-      inputFileContents = inputFile.readlines()
-      inputFile.close()
+      input_file = open(load_path, "r")
+      input_file_contents = input_file.readlines()
+      input_file.close()
 
       try:
-        versionLine = inputFileContents.pop(0).rstrip()
+        version_line = input_file_contents.pop(0).rstrip()
 
-        if versionLine.startswith("Tor Version "):
-          fileVersion = versionLine[12:]
-          loadedVersion = fileVersion
-          torVersion = torTools.getConn().getInfo("version", "")
+        if version_line.startswith("Tor Version "):
+          file_version = version_line[12:]
+          loaded_version = file_version
+          tor_version = torTools.get_conn().get_info("version", "")
 
-          if checkVersion and fileVersion != torVersion:
-            msg = "wrong version, tor is %s but the file's from %s" % (torVersion, fileVersion)
+          if check_version and file_version != tor_version:
+            msg = "wrong version, tor is %s but the file's from %s" % (tor_version, file_version)
             raise IOError(msg)
         else:
           raise IOError("unable to parse version")
 
-        while inputFileContents:
+        while input_file_contents:
           # gets category enum, failing if it doesn't exist
-          category = inputFileContents.pop(0).rstrip()
+          category = input_file_contents.pop(0).rstrip()
+
           if not category in Category:
-            baseMsg = "invalid category in input file: '%s'"
-            raise IOError(baseMsg % category)
+            base_msg = "invalid category in input file: '%s'"
+            raise IOError(base_msg % category)
 
           # gets the position in the man page
-          indexArg, indexStr = -1, inputFileContents.pop(0).rstrip()
+          index_arg, index_str = -1, input_file_contents.pop(0).rstrip()
 
-          if indexStr.startswith("index: "):
-            indexStr = indexStr[7:]
+          if index_str.startswith("index: "):
+            index_str = index_str[7:]
 
-            if indexStr.isdigit(): indexArg = int(indexStr)
-            else: raise IOError("non-numeric index value: %s" % indexStr)
-          else: raise IOError("malformed index argument: %s"% indexStr)
+            if index_str.isdigit():
+              index_arg = int(index_str)
+            else:
+              raise IOError("non-numeric index value: %s" % index_str)
+          else:
+            raise IOError("malformed index argument: %s" % index_str)
 
-          option = inputFileContents.pop(0).rstrip()
-          argument = inputFileContents.pop(0).rstrip()
+          option = input_file_contents.pop(0).rstrip()
+          argument = input_file_contents.pop(0).rstrip()
 
-          description, loadedLine = "", inputFileContents.pop(0)
-          while loadedLine != PERSIST_ENTRY_DIVIDER:
-            description += loadedLine
+          description, loaded_line = "", input_file_contents.pop(0)
 
-            if inputFileContents: loadedLine = inputFileContents.pop(0)
-            else: break
+          while loaded_line != PERSIST_ENTRY_DIVIDER:
+            description += loaded_line
 
-          CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(option, indexArg, category, argument, description.rstrip())
+            if input_file_contents:
+              loaded_line = input_file_contents.pop(0)
+            else:
+              break
+
+          CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(option, index_arg, category, argument, description.rstrip())
       except IndexError:
         CONFIG_DESCRIPTIONS.clear()
         raise IOError("input file format is invalid")
     else:
-      manCallResults = system.call("man tor", None)
+      man_call_results = system.call("man tor", None)
 
-      if not manCallResults:
+      if not man_call_results:
         raise IOError("man page not found")
 
       # Fetches all options available with this tor instance. This isn't
-      # vital, and the validOptions are left empty if the call fails.
-      conn, validOptions = torTools.getConn(), []
-      configOptionQuery = conn.getInfo("config/names", None)
-      if configOptionQuery:
-        for line in configOptionQuery.strip().split("\n"):
-          validOptions.append(line[:line.find(" ")].lower())
+      # vital, and the valid_options are left empty if the call fails.
 
-      optionCount, lastOption, lastArg = 0, None, None
-      lastCategory, lastDescription = Category.GENERAL, ""
-      for line in manCallResults:
-        line = uiTools.getPrintable(line)
-        strippedLine = line.strip()
+      conn, valid_options = torTools.get_conn(), []
+      config_option_query = conn.get_info("config/names", None)
+
+      if config_option_query:
+        for line in config_option_query.strip().split("\n"):
+          valid_options.append(line[:line.find(" ")].lower())
+
+      option_count, last_option, last_arg = 0, None, None
+      last_category, last_description = Category.GENERAL, ""
+
+      for line in man_call_results:
+        line = uiTools.get_printable(line)
+        stripped_line = line.strip()
 
         # we have content, but an indent less than an option (ignore line)
-        #if strippedLine and not line.startswith(" " * MAN_OPT_INDENT): continue
+        #if stripped_line and not line.startswith(" " * MAN_OPT_INDENT): continue
 
         # line starts with an indent equivilant to a new config option
-        isOptIndent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
 
-        isCategoryLine = not line.startswith(" ") and "OPTIONS" in line
+        is_opt_indent = line.startswith(" " * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != " "
+
+        is_category_line = not line.startswith(" ") and "OPTIONS" in line
 
         # if this is a category header or a new option, add an entry using the
         # buffered results
-        if isOptIndent or isCategoryLine:
+
+        if is_opt_indent or is_category_line:
           # Filters the line based on if the option is recognized by tor or
           # not. This isn't necessary for arm, so if unable to make the check
           # then we skip filtering (no loss, the map will just have some extra
           # noise).
-          strippedDescription = lastDescription.strip()
-          if lastOption and (not validOptions or lastOption.lower() in validOptions):
-            CONFIG_DESCRIPTIONS[lastOption.lower()] = ManPageEntry(lastOption, optionCount, lastCategory, lastArg, strippedDescription)
-            optionCount += 1
-          lastDescription = ""
+
+          stripped_description = last_description.strip()
+
+          if last_option and (not valid_options or last_option.lower() in valid_options):
+            CONFIG_DESCRIPTIONS[last_option.lower()] = ManPageEntry(last_option, option_count, last_category, last_arg, stripped_description)
+            option_count += 1
+
+          last_description = ""
 
           # parses the option and argument
+
           line = line.strip()
-          divIndex = line.find(" ")
-          if divIndex != -1:
-            lastOption, lastArg = line[:divIndex], line[divIndex + 1:]
+          div_index = line.find(" ")
+
+          if div_index != -1:
+            last_option, last_arg = line[:div_index], line[div_index + 1:]
 
           # if this is a category header then switch it
-          if isCategoryLine:
-            if line.startswith("OPTIONS"): lastCategory = Category.GENERAL
-            elif line.startswith("CLIENT"): lastCategory = Category.CLIENT
-            elif line.startswith("SERVER"): lastCategory = Category.RELAY
-            elif line.startswith("DIRECTORY SERVER"): lastCategory = Category.DIRECTORY
-            elif line.startswith("DIRECTORY AUTHORITY SERVER"): lastCategory = Category.AUTHORITY
-            elif line.startswith("HIDDEN SERVICE"): lastCategory = Category.HIDDEN_SERVICE
-            elif line.startswith("TESTING NETWORK"): lastCategory = Category.TESTING
+
+          if is_category_line:
+            if line.startswith("OPTIONS"):
+              last_category = Category.GENERAL
+            elif line.startswith("CLIENT"):
+              last_category = Category.CLIENT
+            elif line.startswith("SERVER"):
+              last_category = Category.RELAY
+            elif line.startswith("DIRECTORY SERVER"):
+              last_category = Category.DIRECTORY
+            elif line.startswith("DIRECTORY AUTHORITY SERVER"):
+              last_category = Category.AUTHORITY
+            elif line.startswith("HIDDEN SERVICE"):
+              last_category = Category.HIDDEN_SERVICE
+            elif line.startswith("TESTING NETWORK"):
+              last_category = Category.TESTING
             else:
               log.notice("Unrecognized category in the man page: %s" % line.strip())
         else:
           # Appends the text to the running description. Empty lines and lines
           # starting with a specific indentation are used for formatting, for
           # instance the ExitPolicy and TestingTorNetwork entries.
-          if lastDescription and lastDescription[-1] != "\n":
-            lastDescription += " "
 
-          if not strippedLine:
-            lastDescription += "\n\n"
+          if last_description and last_description[-1] != "\n":
+            last_description += " "
+
+          if not stripped_line:
+            last_description += "\n\n"
           elif line.startswith(" " * MAN_EX_INDENT):
-            lastDescription += "    %s\n" % strippedLine
-          else: lastDescription += strippedLine
-  except IOError, exc:
-    raisedExc = exc
+            last_description += "    %s\n" % stripped_line
+          else:
+            last_description += stripped_line
+  except IOError as exc:
+    raised_exc = exc
 
   CONFIG_DESCRIPTIONS_LOCK.release()
-  if raisedExc: raise raisedExc
-  else: return loadedVersion
 
-def saveOptionDescriptions(path):
+  if raised_exc:
+    raise raised_exc
+  else:
+    return loaded_version
+
+
+def save_option_descriptions(path):
   """
   Preserves the current configuration descriptors to the given path. This
   raises an IOError or OSError if unable to do so.
@@ -279,25 +328,33 @@ def saveOptionDescriptions(path):
   """
 
   # make dir if the path doesn't already exist
-  baseDir = os.path.dirname(path)
-  if not os.path.exists(baseDir): os.makedirs(baseDir)
-  outputFile = open(path, "w")
+
+  base_dir = os.path.dirname(path)
+
+  if not os.path.exists(base_dir):
+    os.makedirs(base_dir)
+
+  output_file = open(path, "w")
 
   CONFIG_DESCRIPTIONS_LOCK.acquire()
-  sortedOptions = CONFIG_DESCRIPTIONS.keys()
-  sortedOptions.sort()
+  sorted_options = CONFIG_DESCRIPTIONS.keys()
+  sorted_options.sort()
 
-  torVersion = torTools.getConn().getInfo("version", "")
-  outputFile.write("Tor Version %s\n" % torVersion)
-  for i in range(len(sortedOptions)):
-    manEntry = getConfigDescription(sortedOptions[i])
-    outputFile.write("%s\nindex: %i\n%s\n%s\n%s\n" % (manEntry.category, manEntry.index, manEntry.option, manEntry.argUsage, manEntry.description))
-    if i != len(sortedOptions) - 1: outputFile.write(PERSIST_ENTRY_DIVIDER)
+  tor_version = torTools.get_conn().get_info("version", "")
+  output_file.write("Tor Version %s\n" % tor_version)
 
-  outputFile.close()
+  for i in range(len(sorted_options)):
+    man_entry = get_config_description(sorted_options[i])
+    output_file.write("%s\nindex: %i\n%s\n%s\n%s\n" % (man_entry.category, man_entry.index, man_entry.option, man_entry.arg_usage, man_entry.description))
+
+    if i != len(sorted_options) - 1:
+      output_file.write(PERSIST_ENTRY_DIVIDER)
+
+  output_file.close()
   CONFIG_DESCRIPTIONS_LOCK.release()
 
-def getConfigSummary(option):
+
+def get_config_summary(option):
   """
   Provides a short summary description of the configuration option. If none is
   known then this proivdes None.
@@ -308,7 +365,8 @@ def getConfigSummary(option):
 
   return CONFIG.get("torrc.summary.%s" % option.lower())
 
-def isImportant(option):
+
+def is_important(option):
   """
   Provides True if the option has the 'important' flag in the configuration,
   False otherwise.
@@ -319,7 +377,8 @@ def isImportant(option):
 
   return option.lower() in CONFIG["torrc.important"]
 
-def getConfigDescription(option):
+
+def get_config_description(option):
   """
   Provides ManPageEntry instances populated with information fetched from the
   tor man page. This provides None if no such option has been loaded. If the
@@ -333,13 +392,15 @@ def getConfigDescription(option):
   CONFIG_DESCRIPTIONS_LOCK.acquire()
 
   if option.lower() in CONFIG_DESCRIPTIONS:
-    returnVal = CONFIG_DESCRIPTIONS[option.lower()]
-  else: returnVal = None
+    return_val = CONFIG_DESCRIPTIONS[option.lower()]
+  else:
+    return_val = None
 
   CONFIG_DESCRIPTIONS_LOCK.release()
-  return returnVal
+  return return_val
 
-def getConfigOptions():
+
+def get_config_options():
   """
   Provides the configuration options from the loaded man page. This is an empty
   list if no man page has been loaded.
@@ -347,29 +408,33 @@ def getConfigOptions():
 
   CONFIG_DESCRIPTIONS_LOCK.acquire()
 
-  returnVal = [CONFIG_DESCRIPTIONS[opt].option for opt in CONFIG_DESCRIPTIONS]
+  return_val = [CONFIG_DESCRIPTIONS[opt].option for opt in CONFIG_DESCRIPTIONS]
 
   CONFIG_DESCRIPTIONS_LOCK.release()
-  return returnVal
+  return return_val
 
-def getConfigLocation():
+
+def get_config_location():
   """
   Provides the location of the torrc, raising an IOError with the reason if the
   path can't be determined.
   """
 
-  conn = torTools.getConn()
-  configLocation = conn.getInfo("config-file", None)
-  torPid, torPrefix = conn.controller.get_pid(None), CONFIG['tor.chroot']
-  if not configLocation: raise IOError("unable to query the torrc location")
+  conn = torTools.get_conn()
+  config_location = conn.get_info("config-file", None)
+  tor_pid, tor_prefix = conn.controller.get_pid(None), CONFIG['tor.chroot']
+
+  if not config_location:
+    raise IOError("unable to query the torrc location")
 
   try:
-    torCwd = system.get_cwd(torPid)
-    return torPrefix + system.expand_path(configLocation, torCwd)
-  except IOError, exc:
+    tor_cwd = system.get_cwd(tor_pid)
+    return tor_prefix + system.expand_path(config_location, tor_cwd)
+  except IOError as exc:
     raise IOError("querying tor's pwd failed because %s" % exc)
 
-def getMultilineParameters():
+
+def get_multiline_parameters():
   """
   Provides parameters that can be defined multiple times in the torrc without
   overwriting the value.
@@ -377,38 +442,44 @@ def getMultilineParameters():
 
   # fetches config options with the LINELIST (aka 'LineList'), LINELIST_S (aka
   # 'Dependent'), and LINELIST_V (aka 'Virtual') types
-  global MULTILINE_PARAM
-  if MULTILINE_PARAM == None:
-    conn, multilineEntries = torTools.getConn(), []
 
-    configOptionQuery = conn.getInfo("config/names", None)
-    if configOptionQuery:
-      for line in configOptionQuery.strip().split("\n"):
-        confOption, confType = line.strip().split(" ", 1)
-        if confType in ("LineList", "Dependant", "Virtual"):
-          multilineEntries.append(confOption)
+  global MULTILINE_PARAM
+
+  if MULTILINE_PARAM is None:
+    conn, multiline_entries = torTools.get_conn(), []
+
+    config_option_query = conn.get_info("config/names", None)
+
+    if config_option_query:
+      for line in config_option_query.strip().split("\n"):
+        conf_option, conf_type = line.strip().split(" ", 1)
+
+        if conf_type in ("LineList", "Dependant", "Virtual"):
+          multiline_entries.append(conf_option)
     else:
       # unable to query tor connection, so not caching results
       return ()
 
-    MULTILINE_PARAM = multilineEntries
+    MULTILINE_PARAM = multiline_entries
 
   return tuple(MULTILINE_PARAM)
 
-def getCustomOptions(includeValue = False):
+
+def get_custom_options(include_value = False):
   """
   Provides the torrc parameters that differ from their defaults.
 
   Arguments:
-    includeValue - provides the current value with results if true, otherwise
+    include_value - provides the current value with results if true, otherwise
                    this just contains the options
   """
 
-  configText = torTools.getConn().getInfo("config-text", "").strip()
-  configLines = configText.split("\n")
+  config_text = torTools.get_conn().get_info("config-text", "").strip()
+  config_lines = config_text.split("\n")
 
   # removes any duplicates
-  configLines = list(set(configLines))
+
+  config_lines = list(set(config_lines))
 
   # The "GETINFO config-text" query only provides options that differ
   # from Tor's defaults with the exception of its Log and Nickname entries
@@ -419,19 +490,28 @@ def getCustomOptions(includeValue = False):
   # due to special patching applied to it, as per:
   # https://trac.torproject.org/projects/tor/ticket/4602
 
-  try: configLines.remove("Log notice stdout")
-  except ValueError: pass
+  try:
+    config_lines.remove("Log notice stdout")
+  except ValueError:
+    pass
 
-  try: configLines.remove("Log notice file /var/log/tor/log")
-  except ValueError: pass
+  try:
+    config_lines.remove("Log notice file /var/log/tor/log")
+  except ValueError:
+    pass
 
-  try: configLines.remove("Nickname %s" % socket.gethostname())
-  except ValueError: pass
+  try:
+    config_lines.remove("Nickname %s" % socket.gethostname())
+  except ValueError:
+    pass
 
-  if includeValue: return configLines
-  else: return [line[:line.find(" ")] for line in configLines]
+  if include_value:
+    return config_lines
+  else:
+    return [line[:line.find(" ")] for line in config_lines]
 
-def saveConf(destination = None, contents = None):
+
+def save_conf(destination = None, contents = None):
   """
   Saves the configuration to the given path. If this is equivilant to
   issuing a SAVECONF (the contents and destination match what tor's using)
@@ -446,13 +526,17 @@ def saveConf(destination = None, contents = None):
   if destination:
     destination = os.path.abspath(destination)
 
-  # fills default config values, and sets isSaveconf to false if they differ
+  # fills default config values, and sets is_saveconf to false if they differ
   # from the arguments
-  isSaveconf, startTime = True, time.time()
 
-  currentConfig = getCustomOptions(True)
-  if not contents: contents = currentConfig
-  else: isSaveconf &= contents == currentConfig
+  is_saveconf, start_time = True, time.time()
+
+  current_config = get_custom_options(True)
+
+  if not contents:
+    contents = current_config
+  else:
+    is_saveconf &= contents == current_config
 
   # The "GETINFO config-text" option was introduced in Tor version 0.2.2.7. If
   # we're writing custom contents then this is fine, but if we're trying to
@@ -464,51 +548,70 @@ def saveConf(destination = None, contents = None):
     # double check that "GETINFO config-text" is unavailable rather than just
     # giving an empty result
 
-    if torTools.getConn().getInfo("config-text", None) == None:
+    if torTools.get_conn().get_info("config-text", None) is None:
       raise IOError("determining the torrc requires Tor version 0.2.2.7")
 
-  currentLocation = None
-  try:
-    currentLocation = getConfigLocation()
-    if not destination: destination = currentLocation
-    else: isSaveconf &= destination == currentLocation
-  except IOError: pass
+  current_location = None
 
-  if not destination: raise IOError("unable to determine the torrc's path")
-  logMsg = "Saved config by %%s to %s (runtime: %%0.4f)" % destination
+  try:
+    current_location = get_config_location()
+
+    if not destination:
+      destination = current_location
+    else:
+      is_saveconf &= destination == current_location
+  except IOError:
+    pass
+
+  if not destination:
+    raise IOError("unable to determine the torrc's path")
+
+  log_msg = "Saved config by %%s to %s (runtime: %%0.4f)" % destination
 
   # attempts SAVECONF if we're updating our torrc with the current state
-  if isSaveconf:
+
+  if is_saveconf:
     try:
-      torTools.getConn().saveConf()
+      torTools.get_conn().save_conf()
 
-      try: getTorrc().load()
-      except IOError: pass
+      try:
+        get_torrc().load()
+      except IOError:
+        pass
 
-      log.debug(logMsg % ("SAVECONF", time.time() - startTime))
-      return # if successful then we're done
+      log.debug(log_msg % ("SAVECONF", time.time() - start_time))
+      return  # if successful then we're done
     except:
       pass
 
   # if the SAVECONF fails or this is a custom save then write contents directly
+
   try:
     # make dir if the path doesn't already exist
-    baseDir = os.path.dirname(destination)
-    if not os.path.exists(baseDir): os.makedirs(baseDir)
+
+    base_dir = os.path.dirname(destination)
+
+    if not os.path.exists(base_dir):
+      os.makedirs(base_dir)
 
     # saves the configuration to the file
-    configFile = open(destination, "w")
-    configFile.write("\n".join(contents))
-    configFile.close()
-  except (IOError, OSError), exc:
+
+    config_file = open(destination, "w")
+    config_file.write("\n".join(contents))
+    config_file.close()
+  except (IOError, OSError) as exc:
     raise IOError(exc)
 
   # reloads the cached torrc if overwriting it
-  if destination == currentLocation:
-    try: getTorrc().load()
-    except IOError: pass
 
-  log.debug(logMsg % ("directly writing", time.time() - startTime))
+  if destination == current_location:
+    try:
+      get_torrc().load()
+    except IOError:
+      pass
+
+  log.debug(log_msg % ("directly writing", time.time() - start_time))
+
 
 def validate(contents = None):
   """
@@ -520,139 +623,168 @@ def validate(contents = None):
     contents - torrc contents
   """
 
-  conn = torTools.getConn()
-  customOptions = getCustomOptions()
-  issuesFound, seenOptions = [], []
+  conn = torTools.get_conn()
+  custom_options = get_custom_options()
+  issues_found, seen_options = [], []
 
   # Strips comments and collapses multiline multi-line entries, for more
   # information see:
   # https://trac.torproject.org/projects/tor/ticket/1929
-  strippedContents, multilineBuffer = [], ""
-  for line in _stripComments(contents):
-    if not line: strippedContents.append("")
+
+  stripped_contents, multiline_buffer = [], ""
+
+  for line in _strip_comments(contents):
+    if not line:
+      stripped_contents.append("")
     else:
-      line = multilineBuffer + line
-      multilineBuffer = ""
+      line = multiline_buffer + line
+      multiline_buffer = ""
 
       if line.endswith("\\"):
-        multilineBuffer = line[:-1]
-        strippedContents.append("")
+        multiline_buffer = line[:-1]
+        stripped_contents.append("")
       else:
-        strippedContents.append(line.strip())
+        stripped_contents.append(line.strip())
 
-  for lineNumber in range(len(strippedContents) - 1, -1, -1):
-    lineText = strippedContents[lineNumber]
-    if not lineText: continue
+  for line_number in range(len(stripped_contents) - 1, -1, -1):
+    line_text = stripped_contents[line_number]
 
-    lineComp = lineText.split(None, 1)
-    if len(lineComp) == 2: option, value = lineComp
-    else: option, value = lineText, ""
+    if not line_text:
+      continue
+
+    line_comp = line_text.split(None, 1)
+
+    if len(line_comp) == 2:
+      option, value = line_comp
+    else:
+      option, value = line_text, ""
 
     # Tor is case insensetive when parsing its torrc. This poses a bit of an
     # issue for us because we want all of our checks to be case insensetive
     # too but also want messages to match the normal camel-case conventions.
     #
-    # Using the customOptions to account for this. It contains the tor reported
+    # Using the custom_options to account for this. It contains the tor reported
     # options (camel case) and is either a matching set or the following defaut
     # value check will fail. Hence using that hash to correct the case.
     #
     # TODO: when refactoring for stem make this less confusing...
 
-    for customOpt in customOptions:
-      if customOpt.lower() == option.lower():
-        option = customOpt
+    for custom_opt in custom_options:
+      if custom_opt.lower() == option.lower():
+        option = custom_opt
         break
 
     # if an aliased option then use its real name
+
     if option in CONFIG["torrc.alias"]:
       option = CONFIG["torrc.alias"][option]
 
     # most parameters are overwritten if defined multiple times
-    if option in seenOptions and not option in getMultilineParameters():
-      issuesFound.append((lineNumber, ValidationError.DUPLICATE, option))
+
+    if option in seen_options and not option in get_multiline_parameters():
+      issues_found.append((line_number, ValidationError.DUPLICATE, option))
       continue
-    else: seenOptions.append(option)
+    else:
+      seen_options.append(option)
 
     # checks if the value isn't necessary due to matching the defaults
-    if not option in customOptions:
-      issuesFound.append((lineNumber, ValidationError.IS_DEFAULT, option))
+
+    if not option in custom_options:
+      issues_found.append((line_number, ValidationError.IS_DEFAULT, option))
 
     # replace aliases with their recognized representation
+
     if option in CONFIG["torrc.alias"]:
       option = CONFIG["torrc.alias"][option]
 
     # tor appears to replace tabs with a space, for instance:
     # "accept\t*:563" is read back as "accept *:563"
+
     value = value.replace("\t", " ")
 
     # parse value if it's a size or time, expanding the units
-    value, valueType = _parseConfValue(value)
+
+    value, value_type = _parse_conf_value(value)
 
     # issues GETCONF to get the values tor's currently configured to use
-    torValues = conn.getOption(option, [], True)
+
+    tor_values = conn.get_option(option, [], True)
 
     # multiline entries can be comma separated values (for both tor and conf)
-    valueList = [value]
-    if option in getMultilineParameters():
-      valueList = [val.strip() for val in value.split(",")]
 
-      fetchedValues, torValues = torValues, []
-      for fetchedValue in fetchedValues:
-        for fetchedEntry in fetchedValue.split(","):
-          fetchedEntry = fetchedEntry.strip()
-          if not fetchedEntry in torValues:
-            torValues.append(fetchedEntry)
+    value_list = [value]
 
-    for val in valueList:
+    if option in get_multiline_parameters():
+      value_list = [val.strip() for val in value.split(",")]
+
+      fetched_values, tor_values = tor_values, []
+      for fetched_value in fetched_values:
+        for fetched_entry in fetched_value.split(","):
+          fetched_entry = fetched_entry.strip()
+
+          if not fetched_entry in tor_values:
+            tor_values.append(fetched_entry)
+
+    for val in value_list:
       # checks if both the argument and tor's value are empty
-      isBlankMatch = not val and not torValues
 
-      if not isBlankMatch and not val in torValues:
+      is_blank_match = not val and not tor_values
+
+      if not is_blank_match and not val in tor_values:
         # converts corrections to reader friedly size values
-        displayValues = torValues
-        if valueType == ValueType.SIZE:
-          displayValues = [str_tools.get_size_label(int(val)) for val in torValues]
-        elif valueType == ValueType.TIME:
-          displayValues = [str_tools.get_time_label(int(val)) for val in torValues]
 
-        issuesFound.append((lineNumber, ValidationError.MISMATCH, ", ".join(displayValues)))
+        display_values = tor_values
+
+        if value_type == ValueType.SIZE:
+          display_values = [str_tools.get_size_label(int(val)) for val in tor_values]
+        elif value_type == ValueType.TIME:
+          display_values = [str_tools.get_time_label(int(val)) for val in tor_values]
+
+        issues_found.append((line_number, ValidationError.MISMATCH, ", ".join(display_values)))
 
   # checks if any custom options are missing from the torrc
-  for option in customOptions:
+
+  for option in custom_options:
     # In new versions the 'DirReqStatistics' option is true by default and
     # disabled on startup if geoip lookups are unavailable. If this option is
     # missing then that's most likely the reason.
     #
     # https://trac.torproject.org/projects/tor/ticket/4237
 
-    if option == "DirReqStatistics": continue
+    if option == "DirReqStatistics":
+      continue
 
-    if not option in seenOptions:
-      issuesFound.append((None, ValidationError.MISSING, option))
+    if not option in seen_options:
+      issues_found.append((None, ValidationError.MISSING, option))
 
-  return issuesFound
+  return issues_found
 
-def _parseConfValue(confArg):
+
+def _parse_conf_value(conf_arg):
   """
   Converts size or time values to their lowest units (bytes or seconds) which
   is what GETCONF calls provide. The returned is a tuple of the value and unit
   type.
 
   Arguments:
-    confArg - torrc argument
+    conf_arg - torrc argument
   """
 
-  if confArg.count(" ") == 1:
-    val, unit = confArg.lower().split(" ", 1)
-    if not val.isdigit(): return confArg, ValueType.UNRECOGNIZED
-    mult, multType = _getUnitType(unit)
+  if conf_arg.count(" ") == 1:
+    val, unit = conf_arg.lower().split(" ", 1)
 
-    if mult != None:
-      return str(int(val) * mult), multType
+    if not val.isdigit():
+      return conf_arg, ValueType.UNRECOGNIZED
 
-  return confArg, ValueType.UNRECOGNIZED
+    mult, mult_type = _get_unit_type(unit)
 
-def _getUnitType(unit):
+    if mult is not None:
+      return str(int(val) * mult), mult_type
+
+  return conf_arg, ValueType.UNRECOGNIZED
+
+
+def _get_unit_type(unit):
   """
   Provides the type and multiplier for an argument's unit. The multiplier is
   None if the unit isn't recognized.
@@ -671,7 +803,8 @@ def _getUnitType(unit):
 
   return None, ValueType.UNRECOGNIZED
 
-def _stripComments(contents):
+
+def _strip_comments(contents):
   """
   Removes comments and extra whitespace from the given torrc contents.
 
@@ -679,11 +812,16 @@ def _stripComments(contents):
     contents - torrc contents
   """
 
-  strippedContents = []
+  stripped_contents = []
+
   for line in contents:
-    if line and "#" in line: line = line[:line.find("#")]
-    strippedContents.append(line.strip())
-  return strippedContents
+    if line and "#" in line:
+      line = line[:line.find("#")]
+
+    stripped_contents.append(line.strip())
+
+  return stripped_contents
+
 
 class Torrc():
   """
@@ -692,76 +830,76 @@ class Torrc():
 
   def __init__(self):
     self.contents = None
-    self.configLocation = None
-    self.valsLock = threading.RLock()
+    self.config_location = None
+    self.vals_lock = threading.RLock()
 
     # cached results for the current contents
-    self.displayableContents = None
-    self.strippedContents = None
+    self.displayable_contents = None
+    self.stripped_contents = None
     self.corrections = None
 
     # flag to indicate if we've given a load failure warning before
-    self.isLoadFailWarned = False
+    self.is_foad_fail_warned = False
 
-  def load(self, logFailure = False):
+  def load(self, log_failure = False):
     """
     Loads or reloads the torrc contents, raising an IOError if there's a
     problem.
 
     Arguments:
-      logFailure - if the torrc fails to load and we've never provided a
+      log_failure - if the torrc fails to load and we've never provided a
                    warning for this before then logs a warning
     """
 
-    self.valsLock.acquire()
+    self.vals_lock.acquire()
 
     # clears contents and caches
-    self.contents, self.configLocation = None, None
-    self.displayableContents = None
-    self.strippedContents = None
+    self.contents, self.config_location = None, None
+    self.displayable_contents = None
+    self.stripped_contents = None
     self.corrections = None
 
     try:
-      self.configLocation = getConfigLocation()
-      configFile = open(self.configLocation, "r")
-      self.contents = configFile.readlines()
-      configFile.close()
-    except IOError, exc:
-      if logFailure and not self.isLoadFailWarned:
+      self.config_location = get_config_location()
+      config_file = open(self.config_location, "r")
+      self.contents = config_file.readlines()
+      config_file.close()
+    except IOError as exc:
+      if log_failure and not self.is_foad_fail_warned:
         log.warn("Unable to load torrc (%s)" % exc.strerror)
-        self.isLoadFailWarned = True
+        self.is_foad_fail_warned = True
 
-      self.valsLock.release()
+      self.vals_lock.release()
       raise exc
 
-    self.valsLock.release()
+    self.vals_lock.release()
 
-  def isLoaded(self):
+  def is_loaded(self):
     """
     Provides true if there's loaded contents, false otherwise.
     """
 
-    return self.contents != None
+    return self.contents is not None
 
-  def getConfigLocation(self):
+  def get_config_location(self):
     """
     Provides the location of the loaded configuration contents. This may be
     available, even if the torrc failed to be loaded.
     """
 
-    return self.configLocation
+    return self.config_location
 
-  def getContents(self):
+  def get_contents(self):
     """
     Provides the contents of the configuration file.
     """
 
-    self.valsLock.acquire()
-    returnVal = list(self.contents) if self.contents else None
-    self.valsLock.release()
-    return returnVal
+    self.vals_lock.acquire()
+    return_val = list(self.contents) if self.contents else None
+    self.vals_lock.release()
+    return return_val
 
-  def getDisplayContents(self, strip = False):
+  def get_display_contents(self, strip = False):
     """
     Provides the contents of the configuration file, formatted in a rendering
     frindly fashion:
@@ -774,183 +912,194 @@ class Torrc():
       strip - removes comments and extra whitespace if true
     """
 
-    self.valsLock.acquire()
+    self.vals_lock.acquire()
 
-    if not self.isLoaded(): returnVal = None
+    if not self.is_loaded():
+      return_val = None
     else:
-      if self.displayableContents == None:
+      if self.displayable_contents is None:
         # restricts contents to displayable characters
-        self.displayableContents = []
+        self.displayable_contents = []
 
-        for lineNum in range(len(self.contents)):
-          lineText = self.contents[lineNum]
-          lineText = lineText.replace("\t", "   ")
-          lineText = uiTools.getPrintable(lineText)
-          self.displayableContents.append(lineText)
+        for line_number in range(len(self.contents)):
+          line_text = self.contents[line_number]
+          line_text = line_text.replace("\t", "   ")
+          line_text = uiTools.get_printable(line_text)
+          self.displayable_contents.append(line_text)
 
       if strip:
-        if self.strippedContents == None:
-          self.strippedContents = _stripComments(self.displayableContents)
+        if self.stripped_contents is None:
+          self.stripped_contents = _strip_comments(self.displayable_contents)
 
-        returnVal = list(self.strippedContents)
-      else: returnVal = list(self.displayableContents)
+        return_val = list(self.stripped_contents)
+      else:
+        return_val = list(self.displayable_contents)
 
-    self.valsLock.release()
-    return returnVal
+    self.vals_lock.release()
+    return return_val
 
-  def getCorrections(self):
+  def get_corrections(self):
     """
     Performs validation on the loaded contents and provides back the
     corrections. If validation is disabled then this won't provide any
     results.
     """
 
-    self.valsLock.acquire()
+    self.vals_lock.acquire()
 
-    if not self.isLoaded(): returnVal = None
+    if not self.is_loaded():
+      return_val = None
     else:
-      torVersion = torTools.getConn().getVersion()
-      skipValidation = not CONFIG["features.torrc.validate"]
-      skipValidation |= (torVersion is None or not torVersion >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
+      tor_version = torTools.get_conn().get_version()
+      skip_validation = not CONFIG["features.torrc.validate"]
+      skip_validation |= (tor_version is None or not tor_version >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
 
-      if skipValidation:
+      if skip_validation:
         log.info("Skipping torrc validation (requires tor 0.2.2.7-alpha)")
-        returnVal = {}
+        return_val = {}
       else:
-        if self.corrections == None:
+        if self.corrections is None:
           self.corrections = validate(self.contents)
 
-        returnVal = list(self.corrections)
+        return_val = list(self.corrections)
 
-    self.valsLock.release()
-    return returnVal
+    self.vals_lock.release()
+    return return_val
 
-  def getLock(self):
+  def get_lock(self):
     """
     Provides the lock governing concurrent access to the contents.
     """
 
-    return self.valsLock
+    return self.vals_lock
 
-  def logValidationIssues(self):
+  def log_validation_issues(self):
     """
     Performs validation on the loaded contents, and logs warnings for issues
     that are found.
     """
 
-    corrections = self.getCorrections()
+    corrections = self.get_corrections()
 
     if corrections:
-      duplicateOptions, defaultOptions, mismatchLines, missingOptions = [], [], [], []
+      duplicate_options, default_options, mismatch_lines, missing_options = [], [], [], []
 
-      for lineNum, issue, msg in corrections:
+      for line_number, issue, msg in corrections:
         if issue == ValidationError.DUPLICATE:
-          duplicateOptions.append("%s (line %i)" % (msg, lineNum + 1))
+          duplicate_options.append("%s (line %i)" % (msg, line_number + 1))
         elif issue == ValidationError.IS_DEFAULT:
-          defaultOptions.append("%s (line %i)" % (msg, lineNum + 1))
-        elif issue == ValidationError.MISMATCH: mismatchLines.append(lineNum + 1)
-        elif issue == ValidationError.MISSING: missingOptions.append(msg)
+          default_options.append("%s (line %i)" % (msg, line_number + 1))
+        elif issue == ValidationError.MISMATCH:
+          mismatch_lines.append(line_number + 1)
+        elif issue == ValidationError.MISSING:
+          missing_options.append(msg)
 
-      if duplicateOptions or defaultOptions:
+      if duplicate_options or default_options:
         msg = "Unneeded torrc entries found. They've been highlighted in blue on the torrc page."
 
-        if duplicateOptions:
-          if len(duplicateOptions) > 1:
+        if duplicate_options:
+          if len(duplicate_options) > 1:
             msg += "\n- entries ignored due to having duplicates: "
           else:
             msg += "\n- entry ignored due to having a duplicate: "
 
-          duplicateOptions.sort()
-          msg += ", ".join(duplicateOptions)
+          duplicate_options.sort()
+          msg += ", ".join(duplicate_options)
 
-        if defaultOptions:
-          if len(defaultOptions) > 1:
+        if default_options:
+          if len(default_options) > 1:
             msg += "\n- entries match their default values: "
           else:
             msg += "\n- entry matches its default value: "
 
-          defaultOptions.sort()
-          msg += ", ".join(defaultOptions)
+          default_options.sort()
+          msg += ", ".join(default_options)
 
         log.notice(msg)
 
-      if mismatchLines or missingOptions:
+      if mismatch_lines or missing_options:
         msg = "The torrc differs from what tor's using. You can issue a sighup to reload the torrc values by pressing x."
 
-        if mismatchLines:
-          if len(mismatchLines) > 1:
+        if mismatch_lines:
+          if len(mismatch_lines) > 1:
             msg += "\n- torrc values differ on lines: "
           else:
             msg += "\n- torrc value differs on line: "
 
-          mismatchLines.sort()
-          msg += ", ".join([str(val + 1) for val in mismatchLines])
+          mismatch_lines.sort()
+          msg += ", ".join([str(val + 1) for val in mismatch_lines])
 
-        if missingOptions:
-          if len(missingOptions) > 1:
+        if missing_options:
+          if len(missing_options) > 1:
             msg += "\n- configuration values are missing from the torrc: "
           else:
             msg += "\n- configuration value is missing from the torrc: "
 
-          missingOptions.sort()
-          msg += ", ".join(missingOptions)
+          missing_options.sort()
+          msg += ", ".join(missing_options)
 
         log.warn(msg)
 
-def _testConfigDescriptions():
+
+def _test_config_descriptions():
   """
-  Tester for the loadOptionDescriptions function, fetching the man page
+  Tester for the load_option_descriptions function, fetching the man page
   contents and dumping its parsed results.
   """
 
-  loadOptionDescriptions()
-  sortedOptions = CONFIG_DESCRIPTIONS.keys()
-  sortedOptions.sort()
+  load_option_descriptions()
+  sorted_options = CONFIG_DESCRIPTIONS.keys()
+  sorted_options.sort()
 
-  for i in range(len(sortedOptions)):
-    option = sortedOptions[i]
-    argument, description = getConfigDescription(option)
-    optLabel = "OPTION: \"%s\"" % option
-    argLabel = "ARGUMENT: \"%s\"" % argument
+  for i in range(len(sorted_options)):
+    option = sorted_options[i]
+    argument, description = get_config_description(option)
+    opt_label = "OPTION: \"%s\"" % option
+    arg_label = "ARGUMENT: \"%s\"" % argument
 
-    print "     %-45s %s" % (optLabel, argLabel)
+    print "     %-45s %s" % (opt_label, arg_label)
     print "\"%s\"" % description
-    if i != len(sortedOptions) - 1: print "-" * 80
 
-def isRootNeeded(torrcPath):
+    if i != len(sorted_options) - 1:
+      print "-" * 80
+
+
+def is_root_needed(torrc_path):
   """
   Returns True if the given torrc needs root permissions to be ran, False
   otherwise. This raises an IOError if the torrc can't be read.
 
   Arguments:
-    torrcPath - torrc to be checked
+    torrc_path - torrc to be checked
   """
 
   try:
-    torrcFile = open(torrcPath, "r")
-    torrcLines = torrcFile.readlines()
-    torrcFile.close()
+    torrc_file = open(torrc_path, "r")
+    torrc_lines = torrc_file.readlines()
+    torrc_file.close()
 
-    for line in torrcLines:
+    for line in torrc_lines:
       line = line.strip()
 
-      isPortOpt = False
+      is_port_opt = False
+
       for opt in PORT_OPT:
         if line.startswith(opt):
-          isPortOpt = True
+          is_port_opt = True
           break
 
-      if isPortOpt and " " in line:
+      if is_port_opt and " " in line:
         arg = line.split(" ")[1]
 
         if arg.isdigit() and int(arg) <= 1024 and int(arg) != 0:
           return True
 
     return False
-  except Exception, exc:
+  except Exception as exc:
     raise IOError(exc)
 
-def renderTorrc(template, options, commentIndent = 30):
+
+def render_torrc(template, options, comment_indent = 30):
   """
   Uses the given template to generate a nicely formatted torrc with the given
   options. The tempating language this recognizes is a simple one, recognizing
@@ -969,51 +1118,59 @@ def renderTorrc(template, options, commentIndent = 30):
     template      - torrc template lines used to generate the results
     options       - mapping of keywords to their given values, with values
                     being booleans or strings (possibly multi-line)
-    commentIndent - minimum column that comments align on
+    comment_indent - minimum column that comments align on
   """
 
   results = []
-  templateIter = iter(template)
-  commentLineFormat = "%%-%is%%s" % commentIndent
+  template_iter = iter(template)
+  comment_line_format = "%%-%is%%s" % comment_indent
 
   try:
     while True:
-      line = templateIter.next().strip()
+      line = template_iter.next().strip()
 
       if line.startswith("[IF ") and line.endswith("]"):
         # checks if any of the conditional options are true or a non-empty string
-        evaluatesTrue = False
+
+        evaluates_true = False
+
         for cond in line[4:-1].split("|"):
-          isInverse = False
+          is_inverse = False
+
           if cond.startswith("NOT "):
-            isInverse = True
+            is_inverse = True
             cond = cond[4:]
 
-          if isInverse != bool(options.get(cond.strip())):
-            evaluatesTrue = True
+          if is_inverse != bool(options.get(cond.strip())):
+            evaluates_true = True
             break
 
-        if evaluatesTrue:
+        if evaluates_true:
           continue
         else:
           # skips lines until we come to an else or the end of the block
           depth = 0
 
           while depth != -1:
-            line = templateIter.next().strip()
+            line = template_iter.next().strip()
 
-            if line.startswith("[IF ") and line.endswith("]"): depth += 1
-            elif line == "[END IF]": depth -= 1
-            elif depth == 0 and line == "[ELSE]": depth -= 1
+            if line.startswith("[IF ") and line.endswith("]"):
+              depth += 1
+            elif line == "[END IF]":
+              depth -= 1
+            elif depth == 0 and line == "[ELSE]":
+              depth -= 1
       elif line == "[ELSE]":
         # an else block we aren't using - skip to the end of it
         depth = 0
 
         while depth != -1:
-          line = templateIter.next().strip()
+          line = template_iter.next().strip()
 
-          if line.startswith("[IF "): depth += 1
-          elif line == "[END IF]": depth -= 1
+          if line.startswith("[IF "):
+            depth += 1
+          elif line == "[END IF]":
+            depth -= 1
       elif line == "[NEWLINE]":
         # explicit newline
         results.append("")
@@ -1022,41 +1179,54 @@ def renderTorrc(template, options, commentIndent = 30):
         results.append(line)
       elif line.startswith("[") and line.endswith("]"):
         # completely dynamic entry
-        optValue = options.get(line[1:-1])
-        if optValue: results.append(optValue)
+
+        opt_value = options.get(line[1:-1])
+
+        if opt_value:
+          results.append(opt_value)
       else:
         # torrc option line
-        option, arg, comment = "", "", ""
-        parsedLine = line
 
-        if "#" in parsedLine:
-          parsedLine, comment = parsedLine.split("#", 1)
-          parsedLine = parsedLine.strip()
+        option, arg, comment = "", "", ""
+        parsed_line = line
+
+        if "#" in parsed_line:
+          parsed_line, comment = parsed_line.split("#", 1)
+          parsed_line = parsed_line.strip()
           comment = "# %s" % comment.strip()
 
         # parses the argument from the option
-        if " " in parsedLine.strip():
-          option, arg = parsedLine.split(" ", 1)
+
+        if " " in parsed_line.strip():
+          option, arg = parsed_line.split(" ", 1)
           option = option.strip()
         else:
           log.info("torrc template option lacks an argument: '%s'" % line)
           continue
 
         # inputs dynamic arguments
+
         if arg.startswith("[") and arg.endswith("]"):
           arg = options.get(arg[1:-1])
 
         # skips argument if it's false or an empty string
-        if not arg: continue
 
-        torrcEntry = "%s %s" % (option, arg)
-        if comment: results.append(commentLineFormat % (torrcEntry + " ", comment))
-        else: results.append(torrcEntry)
-  except StopIteration: pass
+        if not arg:
+          continue
+
+        torrc_entry = "%s %s" % (option, arg)
+
+        if comment:
+          results.append(comment_line_format % (torrc_entry + " ", comment))
+        else:
+          results.append(torrc_entry)
+  except StopIteration:
+    pass
 
   return "\n".join(results)
 
-def loadConfigurationDescriptions(pathPrefix):
+
+def load_configuration_descriptions(path_prefix):
   """
   Attempts to load descriptions for tor's configuration options, fetching them
   from the man page and persisting them to a file to speed future startups.
@@ -1067,58 +1237,65 @@ def loadConfigurationDescriptions(pathPrefix):
   # why... curses must mess the terminal in a way that's important to man).
 
   if CONFIG["features.config.descriptions.enabled"]:
-    isConfigDescriptionsLoaded = False
+    is_config_descriptions_loaded = False
 
     # determines the path where cached descriptions should be persisted (left
     # undefined if caching is disabled)
-    descriptorPath = None
-    if CONFIG["features.config.descriptions.persist"]:
-      dataDir = CONFIG["startup.dataDirectory"]
-      if not dataDir.endswith("/"): dataDir += "/"
 
-      descriptorPath = os.path.expanduser(dataDir + "cache/") + CONFIG_DESC_FILENAME
+    descriptor_path = None
+
+    if CONFIG["features.config.descriptions.persist"]:
+      data_dir = CONFIG["startup.data_directory"]
+
+      if not data_dir.endswith("/"):
+        data_dir += "/"
+
+      descriptor_path = os.path.expanduser(data_dir + "cache/") + CONFIG_DESC_FILENAME
 
     # attempts to load configuration descriptions cached in the data directory
-    if descriptorPath:
-      try:
-        loadStartTime = time.time()
-        loadOptionDescriptions(descriptorPath)
-        isConfigDescriptionsLoaded = True
 
-        log.info(DESC_LOAD_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-      except IOError, exc:
+    if descriptor_path:
+      try:
+        load_start_time = time.time()
+        load_option_descriptions(descriptor_path)
+        is_config_descriptions_loaded = True
+
+        log.info(DESC_LOAD_SUCCESS_MSG % (descriptor_path, time.time() - load_start_time))
+      except IOError as exc:
         log.info(DESC_LOAD_FAILED_MSG % exc.strerror)
 
     # fetches configuration options from the man page
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        loadOptionDescriptions()
-        isConfigDescriptionsLoaded = True
 
-        log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - loadStartTime))
-      except IOError, exc:
+    if not is_config_descriptions_loaded:
+      try:
+        load_start_time = time.time()
+        load_option_descriptions()
+        is_config_descriptions_loaded = True
+
+        log.info(DESC_READ_MAN_SUCCESS_MSG % (time.time() - load_start_time))
+      except IOError as exc:
         log.notice(DESC_READ_MAN_FAILED_MSG % exc.strerror)
 
       # persists configuration descriptions
-      if isConfigDescriptionsLoaded and descriptorPath:
+
+      if is_config_descriptions_loaded and descriptor_path:
         try:
-          loadStartTime = time.time()
-          saveOptionDescriptions(descriptorPath)
-          log.info(DESC_SAVE_SUCCESS_MSG % (descriptorPath, time.time() - loadStartTime))
-        except IOError, exc:
+          load_start_time = time.time()
+          save_option_descriptions(descriptor_path)
+          log.info(DESC_SAVE_SUCCESS_MSG % (descriptor_path, time.time() - load_start_time))
+        except IOError as exc:
           log.notice(DESC_SAVE_FAILED_MSG % exc.strerror)
-        except OSError, exc:
+        except OSError as exc:
           log.notice(DESC_SAVE_FAILED_MSG % exc)
 
     # finally fall back to the cached descriptors provided with arm (this is
     # often the case for tbb and manual builds)
-    if not isConfigDescriptionsLoaded:
-      try:
-        loadStartTime = time.time()
-        loadedVersion = loadOptionDescriptions("%sresources/%s" % (pathPrefix, CONFIG_DESC_FILENAME), False)
-        isConfigDescriptionsLoaded = True
-        log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loadedVersion)
-      except IOError, exc:
-        log.error(DESC_INTERNAL_LOAD_FAILED_MSG % exc.strerror)
 
+    if not is_config_descriptions_loaded:
+      try:
+        load_start_time = time.time()
+        loaded_version = load_option_descriptions("%sresources/%s" % (path_prefix, CONFIG_DESC_FILENAME), False)
+        is_config_descriptions_loaded = True
+        log.notice(DESC_INTERNAL_LOAD_SUCCESS_MSG % loaded_version)
+      except IOError as exc:
+        log.error(DESC_INTERNAL_LOAD_FAILED_MSG % exc.strerror)

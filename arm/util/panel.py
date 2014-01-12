@@ -15,18 +15,29 @@ from stem.util import log
 
 # global ui lock governing all panel instances (curses isn't thread save and
 # concurrency bugs produce especially sinister glitches)
+
 CURSES_LOCK = RLock()
+
 
 # tags used by addfstr - this maps to functor/argument combinations since the
 # actual values (in the case of color attributes) might not yet be initialized
-def _noOp(arg): return arg
-FORMAT_TAGS = {"<b>": (_noOp, curses.A_BOLD),
-               "<u>": (_noOp, curses.A_UNDERLINE),
-               "<h>": (_noOp, curses.A_STANDOUT)}
-for colorLabel in uiTools.COLOR_LIST: FORMAT_TAGS["<%s>" % colorLabel] = (uiTools.getColor, colorLabel)
+
+def _no_op(arg):
+  return arg
+
+
+FORMAT_TAGS = {
+  "<b>": (_no_op, curses.A_BOLD),
+  "<u>": (_no_op, curses.A_UNDERLINE),
+  "<h>": (_no_op, curses.A_STANDOUT),
+}
+
+for color_label in uiTools.COLOR_LIST:
+  FORMAT_TAGS["<%s>" % color_label] = (uiTools.get_color, color_label)
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
+
 
 class Panel():
   """
@@ -42,7 +53,7 @@ class Panel():
   redraw().
   """
 
-  def __init__(self, parent, name, top, left=0, height=-1, width=-1):
+  def __init__(self, parent, name, top, left = 0, height = -1, width = -1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
 
@@ -59,19 +70,19 @@ class Panel():
     # implementations aren't entirely deterministic (for instance panels
     # might chose their height based on its parent's current width).
 
-    self.panelName = name
+    self.panel_name = name
     self.parent = parent
     self.visible = False
-    self.titleVisible = True
+    self.title_visible = True
 
-    # Attributes for pausing. The pauseAttr contains variables our getAttr
+    # Attributes for pausing. The pause_attr contains variables our get_attr
     # method is tracking, and the pause buffer has copies of the values from
     # when we were last unpaused (unused unless we're paused).
 
     self.paused = False
-    self.pauseAttr = []
-    self.pauseBuffer = {}
-    self.pauseTime = -1
+    self.pause_attr = []
+    self.pause_buffer = {}
+    self.pause_time = -1
 
     self.top = top
     self.left = left
@@ -85,97 +96,86 @@ class Panel():
     # remade before it's used. The later could be for a couple reasons:
     # - The subwindow was never initialized.
     # - Any of the parameters used for subwindow initialization have changed.
+
     self.win = None
 
-    self.maxY, self.maxX = -1, -1 # subwindow dimensions when last redrawn
+    self.max_y, self.max_x = -1, -1  # subwindow dimensions when last redrawn
 
-  def getName(self):
+  def get_name(self):
     """
     Provides panel's identifier.
     """
 
-    return self.panelName
+    return self.panel_name
 
-  def isTitleVisible(self):
+  def is_title_visible(self):
     """
     True if the title is configured to be visible, False otherwise.
     """
 
-    return self.titleVisible
+    return self.title_visible
 
-  def setTitleVisible(self, isVisible):
+  def set_title_visible(self, is_visible):
     """
     Configures the panel's title to be visible or not when it's next redrawn.
     This is not guarenteed to be respected (not all panels have a title).
     """
 
-    self.titleVisible = isVisible
+    self.title_visible = is_visible
 
-  def getParent(self):
+  def get_parent(self):
     """
     Provides the parent used to create subwindows.
     """
 
     return self.parent
 
-  def setParent(self, parent):
-    """
-    Changes the parent used to create subwindows.
-
-    Arguments:
-      parent - parent curses window
-    """
-
-    if self.parent != parent:
-      self.parent = parent
-      self.win = None
-
-  def isVisible(self):
+  def is_visible(self):
     """
     Provides if the panel's configured to be visible or not.
     """
 
     return self.visible
 
-  def setVisible(self, isVisible):
+  def set_visible(self, is_visible):
     """
     Toggles if the panel is visible or not.
 
     Arguments:
-      isVisible - panel is redrawn when requested if true, skipped otherwise
+      is_visible - panel is redrawn when requested if true, skipped otherwise
     """
 
-    self.visible = isVisible
+    self.visible = is_visible
 
-  def isPaused(self):
+  def is_paused(self):
     """
     Provides if the panel's configured to be paused or not.
     """
 
     return self.paused
 
-  def setPauseAttr(self, attr):
+  def set_pause_attr(self, attr):
     """
-    Configures the panel to track the given attribute so that getAttr provides
+    Configures the panel to track the given attribute so that get_attr provides
     the value when it was last unpaused (or its current value if we're
     currently unpaused). For instance...
 
-    > self.setPauseAttr("myVar")
+    > self.set_pause_attr("myVar")
     > self.myVar = 5
-    > self.myVar = 6 # self.getAttr("myVar") -> 6
-    > self.setPaused(True)
-    > self.myVar = 7 # self.getAttr("myVar") -> 6
-    > self.setPaused(False)
-    > self.myVar = 7 # self.getAttr("myVar") -> 7
+    > self.myVar = 6  # self.get_attr("myVar") -> 6
+    > self.set_paused(True)
+    > self.myVar = 7  # self.get_attr("myVar") -> 6
+    > self.set_paused(False)
+    > self.myVar = 7  # self.get_attr("myVar") -> 7
 
     Arguments:
-      attr - parameter to be tracked for getAttr
+      attr - parameter to be tracked for get_attr
     """
 
-    self.pauseAttr.append(attr)
-    self.pauseBuffer[attr] = self.copyAttr(attr)
+    self.pause_attr.append(attr)
+    self.pause_buffer[attr] = self.copy_attr(attr)
 
-  def getAttr(self, attr):
+  def get_attr(self, attr):
     """
     Provides the value of the given attribute when we were last unpaused. If
     we're currently unpaused then this is the current value. If untracked this
@@ -185,11 +185,14 @@ class Panel():
       attr - local variable to be returned
     """
 
-    if not attr in self.pauseAttr: return None
-    elif self.paused: return self.pauseBuffer[attr]
-    else: return self.__dict__.get(attr)
+    if not attr in self.pause_attr:
+      return None
+    elif self.paused:
+      return self.pause_buffer[attr]
+    else:
+      return self.__dict__.get(attr)
 
-  def copyAttr(self, attr):
+  def copy_attr(self, attr):
     """
     Provides a duplicate of the given configuration value, suitable for the
     pause buffer.
@@ -198,10 +201,10 @@ class Panel():
       attr - parameter to be provided back
     """
 
-    currentValue = self.__dict__.get(attr)
-    return copy.copy(currentValue)
+    current_value = self.__dict__.get(attr)
+    return copy.copy(current_value)
 
-  def setPaused(self, isPause, suppressRedraw = False):
+  def set_paused(self, is_pause, suppress_redraw = False):
     """
     Toggles if the panel is paused or not. This causes the panel to be redrawn
     when toggling is pause state unless told to do otherwise. This is
@@ -211,40 +214,46 @@ class Panel():
     This returns True if the panel's pause state was changed, False otherwise.
 
     Arguments:
-      isPause        - freezes the state of the pause attributes if true, makes
-                       them editable otherwise
-      suppressRedraw - if true then this will never redraw the panel
+      is_pause        - freezes the state of the pause attributes if true, makes
+                        them editable otherwise
+      suppress_redraw - if true then this will never redraw the panel
     """
 
-    if isPause != self.paused:
-      if isPause: self.pauseTime = time.time()
-      self.paused = isPause
+    if is_pause != self.paused:
+      if is_pause:
+        self.pause_time = time.time()
 
-      if isPause:
+      self.paused = is_pause
+
+      if is_pause:
         # copies tracked attributes so we know what they were before pausing
-        for attr in self.pauseAttr:
-          self.pauseBuffer[attr] = self.copyAttr(attr)
 
-      if not suppressRedraw: self.redraw(True)
+        for attr in self.pause_attr:
+          self.pause_buffer[attr] = self.copy_attr(attr)
+
+      if not suppress_redraw:
+        self.redraw(True)
+
       return True
-    else: return False
+    else:
+      return False
 
-  def getPauseTime(self):
+  def get_pause_time(self):
     """
     Provides the time that we were last paused, returning -1 if we've never
     been paused.
     """
 
-    return self.pauseTime
+    return self.pause_time
 
-  def getTop(self):
+  def get_top(self):
     """
     Provides the position subwindows are placed at within its parent.
     """
 
     return self.top
 
-  def setTop(self, top):
+  def set_top(self, top):
     """
     Changes the position where subwindows are placed within its parent.
 
@@ -256,7 +265,7 @@ class Panel():
       self.top = top
       self.win = None
 
-  def getLeft(self):
+  def get_left(self):
     """
     Provides the left position where this subwindow is placed within its
     parent.
@@ -264,7 +273,7 @@ class Panel():
 
     return self.left
 
-  def setLeft(self, left):
+  def set_left(self, left):
     """
     Changes the left position where this subwindow is placed within its parent.
 
@@ -276,14 +285,14 @@ class Panel():
       self.left = left
       self.win = None
 
-  def getHeight(self):
+  def get_height(self):
     """
     Provides the height used for subwindows (-1 if it isn't limited).
     """
 
     return self.height
 
-  def setHeight(self, height):
+  def set_height(self, height):
     """
     Changes the height used for subwindows. This uses all available space if -1.
 
@@ -295,14 +304,14 @@ class Panel():
       self.height = height
       self.win = None
 
-  def getWidth(self):
+  def get_width(self):
     """
     Provides the width used for subwindows (-1 if it isn't limited).
     """
 
     return self.width
 
-  def setWidth(self, width):
+  def set_width(self, width):
     """
     Changes the width used for subwindows. This uses all available space if -1.
 
@@ -314,22 +323,27 @@ class Panel():
       self.width = width
       self.win = None
 
-  def getPreferredSize(self):
+  def get_preferred_size(self):
     """
     Provides the dimensions the subwindow would use when next redrawn, given
     that none of the properties of the panel or parent change before then. This
     returns a tuple of (height, width).
     """
 
-    newHeight, newWidth = self.parent.getmaxyx()
-    setHeight, setWidth = self.getHeight(), self.getWidth()
-    newHeight = max(0, newHeight - self.top)
-    newWidth = max(0, newWidth - self.left)
-    if setHeight != -1: newHeight = min(newHeight, setHeight)
-    if setWidth != -1: newWidth = min(newWidth, setWidth)
-    return (newHeight, newWidth)
+    new_height, new_width = self.parent.getmaxyx()
+    set_height, set_width = self.get_height(), self.get_width()
+    new_height = max(0, new_height - self.top)
+    new_width = max(0, new_width - self.left)
 
-  def handleKey(self, key):
+    if set_height != -1:
+      new_height = min(new_height, set_height)
+
+    if set_width != -1:
+      new_width = min(new_width, set_width)
+
+    return (new_height, new_width)
+
+  def handle_key(self, key):
     """
     Handler for user input. This returns true if the key press was consumed,
     false otherwise.
@@ -340,7 +354,7 @@ class Panel():
 
     return False
 
-  def getHelp(self):
+  def get_help(self):
     """
     Provides help information for the controls this page provides. This is a
     list of tuples of the form...
@@ -363,29 +377,34 @@ class Panel():
 
     pass
 
-  def redraw(self, forceRedraw=False, block=False):
+  def redraw(self, force_redraw=False, block=False):
     """
     Clears display and redraws its content. This can skip redrawing content if
     able (ie, the subwindow's unchanged), instead just refreshing the display.
 
     Arguments:
-      forceRedraw - forces the content to be cleared and redrawn if true
+      force_redraw - forces the content to be cleared and redrawn if true
       block       - if drawing concurrently with other panels this determines
                     if the request is willing to wait its turn or should be
                     abandoned
     """
 
     # skipped if not currently visible or activity has been halted
-    if not self.isVisible() or HALT_ACTIVITY: return
+
+    if not self.is_visible() or HALT_ACTIVITY:
+      return
 
     # if the panel's completely outside its parent then this is a no-op
-    newHeight, newWidth = self.getPreferredSize()
-    if newHeight == 0 or newWidth == 0:
+
+    new_height, new_width = self.get_preferred_size()
+
+    if new_height == 0 or new_width == 0:
       self.win = None
       return
 
     # recreates the subwindow if necessary
-    isNewWindow = self._resetSubwindow()
+
+    is_new_window = self._reset_subwindow()
 
     # The reset argument is disregarded in a couple of situations:
     # - The subwindow's been recreated (obviously it then doesn't have the old
@@ -393,16 +412,20 @@ class Panel():
     # - The subwindow's dimensions have changed since last drawn (this will
     #   likely change the content's layout)
 
-    subwinMaxY, subwinMaxX = self.win.getmaxyx()
-    if isNewWindow or subwinMaxY != self.maxY or subwinMaxX != self.maxX:
-      forceRedraw = True
+    subwin_max_y, subwin_max_x = self.win.getmaxyx()
 
-    self.maxY, self.maxX = subwinMaxY, subwinMaxX
-    if not CURSES_LOCK.acquire(block): return
+    if is_new_window or subwin_max_y != self.max_y or subwin_max_x != self.max_x:
+      force_redraw = True
+
+    self.max_y, self.max_x = subwin_max_y, subwin_max_x
+
+    if not CURSES_LOCK.acquire(block):
+      return
+
     try:
-      if forceRedraw:
-        self.win.erase() # clears any old contents
-        self.draw(self.maxX, self.maxY)
+      if force_redraw:
+        self.win.erase()  # clears any old contents
+        self.draw(self.max_x, self.max_y)
       self.win.refresh()
     finally:
       CURSES_LOCK.release()
@@ -419,10 +442,10 @@ class Panel():
       attr   - text attributes
     """
 
-    if self.win and self.maxX > x and self.maxY > y:
+    if self.win and self.max_x > x and self.max_y > y:
       try:
-        drawLength = min(length, self.maxX - x)
-        self.win.hline(y, x, curses.ACS_HLINE | attr, drawLength)
+        draw_length = min(length, self.max_x - x)
+        self.win.hline(y, x, curses.ACS_HLINE | attr, draw_length)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
@@ -439,10 +462,10 @@ class Panel():
       attr   - text attributes
     """
 
-    if self.win and self.maxX > x and self.maxY > y:
+    if self.win and self.max_x > x and self.max_y > y:
       try:
-        drawLength = min(length, self.maxY - y)
-        self.win.vline(y, x, curses.ACS_VLINE | attr, drawLength)
+        draw_length = min(length, self.max_y - y)
+        self.win.vline(y, x, curses.ACS_VLINE | attr, draw_length)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
@@ -459,7 +482,7 @@ class Panel():
       attr - text attributes
     """
 
-    if self.win and self.maxX > x and self.maxY > y:
+    if self.win and self.max_x > x and self.max_y > y:
       try:
         self.win.addch(y, x, char, attr)
       except:
@@ -481,9 +504,10 @@ class Panel():
 
     # subwindows need a single character buffer (either in the x or y
     # direction) from actual content to prevent crash when shrank
-    if self.win and self.maxX > x and self.maxY > y:
+
+    if self.win and self.max_x > x and self.max_y > y:
       try:
-        self.win.addstr(y, x, msg[:self.maxX - x], attr)
+        self.win.addstr(y, x, msg[:self.max_x - x], attr)
       except:
         # this might produce a _curses.error during edge cases, for instance
         # when resizing with visible popups
@@ -496,7 +520,7 @@ class Panel():
     <b>text</b>               bold
     <u>text</u>               underline
     <h>text</h>               highlight
-    <[color]>text</[color]>   use color (see uiTools.getColor() for constants)
+    <[color]>text</[color]>   use color (see uiTools.get_color() for constants)
 
     Tag nesting is supported and tag closing is strictly enforced (raising an
     exception for invalid formatting). Unrecognized tags are treated as normal
@@ -512,67 +536,77 @@ class Panel():
       msg  - formatted text to be added
     """
 
-    if self.win and self.maxY > y:
+    if self.win and self.max_y > y:
       formatting = [curses.A_NORMAL]
-      expectedCloseTags = []
-      unusedMsg = msg
+      expected_close_tags = []
+      unused_msg = msg
 
-      while self.maxX > x and len(unusedMsg) > 0:
+      while self.max_x > x and len(unused_msg) > 0:
         # finds next consumeable tag (left as None if there aren't any left)
-        nextTag, tagStart, tagEnd = None, -1, -1
 
-        tmpChecked = 0 # portion of the message cleared for having any valid tags
-        expectedTags = FORMAT_TAGS.keys() + expectedCloseTags
-        while nextTag == None:
-          tagStart = unusedMsg.find("<", tmpChecked)
-          tagEnd = unusedMsg.find(">", tagStart) + 1 if tagStart != -1 else -1
+        next_tag, tag_start, tag_end = None, -1, -1
 
-          if tagStart == -1 or tagEnd == -1: break # no more tags to consume
+        tmp_checked = 0  # portion of the message cleared for having any valid tags
+        expected_tags = FORMAT_TAGS.keys() + expected_close_tags
+
+        while next_tag is None:
+          tag_start = unused_msg.find("<", tmp_checked)
+          tag_end = unused_msg.find(">", tag_start) + 1 if tag_start != -1 else -1
+
+          if tag_start == -1 or tag_end == -1:
+            break  # no more tags to consume
           else:
             # check if the tag we've found matches anything being expected
-            if unusedMsg[tagStart:tagEnd] in expectedTags:
-              nextTag = unusedMsg[tagStart:tagEnd]
-              break # found a tag to use
+            if unused_msg[tag_start:tag_end] in expected_tags:
+              next_tag = unused_msg[tag_start:tag_end]
+              break  # found a tag to use
             else:
               # not a valid tag - narrow search to everything after it
-              tmpChecked = tagEnd
+              tmp_checked = tag_end
 
         # splits into text before and after tag
-        if nextTag:
-          msgSegment = unusedMsg[:tagStart]
-          unusedMsg = unusedMsg[tagEnd:]
+
+        if next_tag:
+          msg_segment = unused_msg[:tag_start]
+          unused_msg = unused_msg[tag_end:]
         else:
-          msgSegment = unusedMsg
-          unusedMsg = ""
+          msg_segment = unused_msg
+          unused_msg = ""
 
         # adds text before tag with current formatting
+
         attr = 0
-        for format in formatting: attr |= format
-        self.win.addstr(y, x, msgSegment[:self.maxX - x - 1], attr)
-        x += len(msgSegment)
+
+        for text_format in formatting:
+          attr |= text_format
+
+        self.win.addstr(y, x, msg_segment[:self.max_x - x - 1], attr)
+        x += len(msg_segment)
 
         # applies tag attributes for future text
-        if nextTag:
-          formatTag = "<" + nextTag[2:] if nextTag.startswith("</") else nextTag
-          formatMatch = FORMAT_TAGS[formatTag][0](FORMAT_TAGS[formatTag][1])
 
-          if not nextTag.startswith("</"):
+        if next_tag:
+          format_tag = "<" + next_tag[2:] if next_tag.startswith("</") else next_tag
+          format_match = FORMAT_TAGS[format_tag][0](FORMAT_TAGS[format_tag][1])
+
+          if not next_tag.startswith("</"):
             # open tag - add formatting
-            expectedCloseTags.append("</" + nextTag[1:])
-            formatting.append(formatMatch)
+            expected_close_tags.append("</" + next_tag[1:])
+            formatting.append(format_match)
           else:
             # close tag - remove formatting
-            expectedCloseTags.remove(nextTag)
-            formatting.remove(formatMatch)
+            expected_close_tags.remove(next_tag)
+            formatting.remove(format_match)
 
       # only check for unclosed tags if we processed the whole message (if we
       # stopped processing prematurely it might still be valid)
-      if expectedCloseTags and not unusedMsg:
-        # if we're done then raise an exception for any unclosed tags (tisk, tisk)
-        baseMsg = "Unclosed formatting tag%s:" % ("s" if len(expectedCloseTags) > 1 else "")
-        raise ValueError("%s: '%s'\n  \"%s\"" % (baseMsg, "', '".join(expectedCloseTags), msg))
 
-  def getstr(self, y, x, initialText = "", format = None, maxWidth = None, validator = None):
+      if expected_close_tags and not unused_msg:
+        # if we're done then raise an exception for any unclosed tags (tisk, tisk)
+        base_msg = "Unclosed formatting tag%s:" % ("s" if len(expected_close_tags) > 1 else "")
+        raise ValueError("%s: '%s'\n  \"%s\"" % (base_msg, "', '".join(expected_close_tags), msg))
+
+  def getstr(self, y, x, initial_text = "", text_format = None, max_width = None, validator = None):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
@@ -584,54 +618,69 @@ class Panel():
     input).
 
     Arguments:
-      y           - vertical location
-      x           - horizontal location
-      initialText - starting text in this field
-      format      - format used for the text
-      maxWidth    - maximum width for the text field
-      validator   - custom TextInputValidator for handling keybindings
+      y            - vertical location
+      x            - horizontal location
+      initial_text - starting text in this field
+      text_format  - format used for the text
+      max_width    - maximum width for the text field
+      validator    - custom TextInputValidator for handling keybindings
     """
 
-    if not format: format = curses.A_NORMAL
+    if not text_format:
+      text_format = curses.A_NORMAL
 
     # makes cursor visible
-    try: previousCursorState = curses.curs_set(1)
-    except curses.error: previousCursorState = 0
+
+    try:
+      previous_cursor_state = curses.curs_set(1)
+    except curses.error:
+      previous_cursor_state = 0
 
     # temporary subwindow for user input
-    displayWidth = self.getPreferredSize()[1]
-    if maxWidth: displayWidth = min(displayWidth, maxWidth + x)
-    inputSubwindow = self.parent.subwin(1, displayWidth - x, self.top + y, self.left + x)
+
+    display_width = self.get_preferred_size()[1]
+
+    if max_width:
+      display_width = min(display_width, max_width + x)
+
+    input_subwindow = self.parent.subwin(1, display_width - x, self.top + y, self.left + x)
 
     # blanks the field's area, filling it with the font in case it's hilighting
-    inputSubwindow.clear()
-    inputSubwindow.bkgd(' ', format)
+
+    input_subwindow.clear()
+    input_subwindow.bkgd(' ', text_format)
 
     # prepopulates the initial text
-    if initialText:
-      inputSubwindow.addstr(0, 0, initialText[:displayWidth - x - 1], format)
+
+    if initial_text:
+      input_subwindow.addstr(0, 0, initial_text[:display_width - x - 1], text_format)
 
     # Displays the text field, blocking until the user's done. This closes the
-    # text panel and returns userInput to the initial text if the user presses
+    # text panel and returns user_input to the initial text if the user presses
     # escape.
 
-    textbox = curses.textpad.Textbox(inputSubwindow)
+    textbox = curses.textpad.Textbox(input_subwindow)
 
     if not validator:
       validator = textInput.BasicValidator()
 
-    textbox.win.attron(format)
-    userInput = textbox.edit(lambda key: validator.validate(key, textbox)).strip()
-    textbox.win.attroff(format)
-    if textbox.lastcmd == curses.ascii.BEL: userInput = None
+    textbox.win.attron(text_format)
+    user_input = textbox.edit(lambda key: validator.validate(key, textbox)).strip()
+    textbox.win.attroff(text_format)
+
+    if textbox.lastcmd == curses.ascii.BEL:
+      user_input = None
 
     # reverts visability settings
-    try: curses.curs_set(previousCursorState)
-    except curses.error: pass
 
-    return userInput
+    try:
+      curses.curs_set(previous_cursor_state)
+    except curses.error:
+      pass
 
-  def addScrollBar(self, top, bottom, size, drawTop = 0, drawBottom = -1, drawLeft = 0):
+    return user_input
+
+  def add_scroll_bar(self, top, bottom, size, draw_top = 0, draw_bottom = -1, draw_left = 0):
     """
     Draws a left justified scroll bar reflecting position within a vertical
     listing. This is shorted if necessary, and left undrawn if no space is
@@ -649,44 +698,57 @@ class Panel():
       top        - list index for the top-most visible element
       bottom     - list index for the bottom-most visible element
       size       - size of the list in which the listed elements are contained
-      drawTop    - starting row where the scroll bar should be drawn
-      drawBottom - ending row where the scroll bar should end, -1 if it should
+      draw_top    - starting row where the scroll bar should be drawn
+      draw_bottom - ending row where the scroll bar should end, -1 if it should
                    span to the bottom of the panel
-      drawLeft   - left offset at which to draw the scroll bar
+      draw_left   - left offset at which to draw the scroll bar
     """
 
-    if (self.maxY - drawTop) < 2: return # not enough room
+    if (self.max_y - draw_top) < 2:
+      return  # not enough room
 
-    # sets drawBottom to be the actual row on which the scrollbar should end
-    if drawBottom == -1: drawBottom = self.maxY - 1
-    else: drawBottom = min(drawBottom, self.maxY - 1)
+    # sets draw_bottom to be the actual row on which the scrollbar should end
+
+    if draw_bottom == -1:
+      draw_bottom = self.max_y - 1
+    else:
+      draw_bottom = min(draw_bottom, self.max_y - 1)
 
     # determines scrollbar dimensions
-    scrollbarHeight = drawBottom - drawTop
-    sliderTop = scrollbarHeight * top / size
-    sliderSize = scrollbarHeight * (bottom - top) / size
+
+    scrollbar_height = draw_bottom - draw_top
+    slider_top = scrollbar_height * top / size
+    slider_size = scrollbar_height * (bottom - top) / size
 
     # ensures slider isn't at top or bottom unless really at those extreme bounds
-    if top > 0: sliderTop = max(sliderTop, 1)
-    if bottom != size: sliderTop = min(sliderTop, scrollbarHeight - sliderSize - 2)
+
+    if top > 0:
+      slider_top = max(slider_top, 1)
+
+    if bottom != size:
+      slider_top = min(slider_top, scrollbar_height - slider_size - 2)
 
     # avoids a rounding error that causes the scrollbar to be too low when at
     # the bottom
-    if bottom == size: sliderTop = scrollbarHeight - sliderSize - 1
+
+    if bottom == size:
+      slider_top = scrollbar_height - slider_size - 1
 
     # draws scrollbar slider
-    for i in range(scrollbarHeight):
-      if i >= sliderTop and i <= sliderTop + sliderSize:
-        self.addstr(i + drawTop, drawLeft, " ", curses.A_STANDOUT)
+
+    for i in range(scrollbar_height):
+      if i >= slider_top and i <= slider_top + slider_size:
+        self.addstr(i + draw_top, draw_left, " ", curses.A_STANDOUT)
       else:
-        self.addstr(i + drawTop, drawLeft, " ")
+        self.addstr(i + draw_top, draw_left, " ")
 
     # draws box around the scroll bar
-    self.vline(drawTop, drawLeft + 1, drawBottom - 1)
-    self.addch(drawBottom, drawLeft + 1, curses.ACS_LRCORNER)
-    self.addch(drawBottom, drawLeft, curses.ACS_HLINE)
 
-  def _resetSubwindow(self):
+    self.vline(draw_top, draw_left + 1, draw_bottom - 1)
+    self.addch(draw_bottom, draw_left + 1, curses.ACS_LRCORNER)
+    self.addch(draw_bottom, draw_left, curses.ACS_HLINE)
+
+  def _reset_subwindow(self):
     """
     Create a new subwindow instance for the panel if:
     - Panel currently doesn't have a subwindow (was uninitialized or
@@ -702,16 +764,20 @@ class Panel():
     This returns True if a new subwindow instance was created, False otherwise.
     """
 
-    newHeight, newWidth = self.getPreferredSize()
-    if newHeight == 0: return False # subwindow would be outside its parent
+    new_height, new_width = self.get_preferred_size()
+
+    if new_height == 0:
+      return False  # subwindow would be outside its parent
 
     # determines if a new subwindow should be recreated
-    recreate = self.win == None
+
+    recreate = self.win is None
+
     if self.win:
-      subwinMaxY, subwinMaxX = self.win.getmaxyx()
-      recreate |= subwinMaxY < newHeight              # check for vertical growth
+      subwin_max_y, subwin_max_x = self.win.getmaxyx()
+      recreate |= subwin_max_y < new_height           # check for vertical growth
       recreate |= self.top > self.win.getparyx()[0]   # check for displacement
-      recreate |= subwinMaxX > newWidth or subwinMaxY > newHeight # shrinking
+      recreate |= subwin_max_x > new_width or subwin_max_y > new_height  # shrinking
 
     # I'm not sure if recreating subwindows is some sort of memory leak but the
     # Python curses bindings seem to lack all of the following:
@@ -721,9 +787,9 @@ class Panel():
     # would mean far more complicated code and no more selective refreshing)
 
     if recreate:
-      self.win = self.parent.subwin(newHeight, newWidth, self.top, self.left)
+      self.win = self.parent.subwin(new_height, new_width, self.top, self.left)
 
       # note: doing this log before setting win produces an infinite loop
-      log.debug("recreating panel '%s' with the dimensions of %i/%i" % (self.getName(), newHeight, newWidth))
-    return recreate
+      log.debug("recreating panel '%s' with the dimensions of %i/%i" % (self.get_name(), new_height, new_width))
 
+    return recreate

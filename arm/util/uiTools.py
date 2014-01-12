@@ -13,15 +13,21 @@ from curses.ascii import isprint
 from stem.util import conf, enum, log, system
 
 # colors curses can handle
-COLOR_LIST = {"red": curses.COLOR_RED,        "green": curses.COLOR_GREEN,
-              "yellow": curses.COLOR_YELLOW,  "blue": curses.COLOR_BLUE,
-              "cyan": curses.COLOR_CYAN,      "magenta": curses.COLOR_MAGENTA,
-              "black": curses.COLOR_BLACK,    "white": curses.COLOR_WHITE}
+COLOR_LIST = {
+  "red": curses.COLOR_RED,
+  "green": curses.COLOR_GREEN,
+  "yellow": curses.COLOR_YELLOW,
+  "blue": curses.COLOR_BLUE,
+  "cyan": curses.COLOR_CYAN,
+  "magenta": curses.COLOR_MAGENTA,
+  "black": curses.COLOR_BLACK,
+  "white": curses.COLOR_WHITE,
+}
 
 # boolean for if we have color support enabled, None not yet determined
 COLOR_IS_SUPPORTED = None
 
-# mappings for getColor() - this uses the default terminal color scheme if
+# mappings for get_color() - this uses the default terminal color scheme if
 # color support is unavailable
 COLOR_ATTR_INITIALIZED = False
 COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
@@ -29,66 +35,89 @@ COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 Ending = enum.Enum("ELLIPSE", "HYPHEN")
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 
+
 def conf_handler(key, value):
-  if key == "features.colorOverride" and value != "none":
-    try: setColorOverride(value)
-    except ValueError, exc:
+  if key == "features.color_override" and value != "none":
+    try:
+      set_color_override(value)
+    except ValueError as exc:
       log.notice(exc)
 
+
 CONFIG = conf.config_dict("arm", {
-  "features.colorOverride": "none",
+  "features.color_override": "none",
   "features.colorInterface": True,
   "features.acsSupport": True,
 }, conf_handler)
 
-def demoGlyphs():
+
+def demo_glyphs():
   """
   Displays all ACS options with their corresponding representation. These are
   undocumented in the pydocs. For more information see the following man page:
   http://www.mkssoftware.com/docs/man5/terminfo.5.asp
   """
 
-  try: curses.wrapper(_showGlyphs)
-  except KeyboardInterrupt: pass # quit
+  try:
+    curses.wrapper(_show_glyphs)
+  except KeyboardInterrupt:
+    pass  # quit
 
-def _showGlyphs(stdscr):
+
+def _show_glyphs(stdscr):
   """
   Renders a chart with the ACS glyphs.
   """
 
   # allows things like semi-transparent backgrounds
-  try: curses.use_default_colors()
-  except curses.error: pass
+
+  try:
+    curses.use_default_colors()
+  except curses.error:
+    pass
 
   # attempts to make the cursor invisible
-  try: curses.curs_set(0)
-  except curses.error: pass
 
-  acsOptions = [item for item in curses.__dict__.items() if item[0].startswith("ACS_")]
-  acsOptions.sort(key=lambda i: (i[1])) # order by character codes
+  try:
+    curses.curs_set(0)
+  except curses.error:
+    pass
+
+  acs_options = [item for item in curses.__dict__.items() if item[0].startswith("ACS_")]
+  acs_options.sort(key=lambda i: (i[1]))  # order by character codes
 
   # displays a chart with all the glyphs and their representations
+
   height, width = stdscr.getmaxyx()
-  if width < 30: return # not enough room to show a column
+
+  if width < 30:
+    return  # not enough room to show a column
+
   columns = width / 30
 
   # display title
+
   stdscr.addstr(0, 0, "Curses Glyphs:", curses.A_STANDOUT)
 
   x, y = 0, 1
-  while acsOptions:
-    name, keycode = acsOptions.pop(0)
+
+  while acs_options:
+    name, keycode = acs_options.pop(0)
     stdscr.addstr(y, x * 30, "%s (%i)" % (name, keycode))
     stdscr.addch(y, (x * 30) + 25, keycode)
 
     x += 1
+
     if x >= columns:
       x, y = 0, y + 1
-      if y >= height: break
 
-  stdscr.getch() # quit on keyboard input
+      if y >= height:
+        break
 
-def getPrintable(line, keepNewlines = True):
+  stdscr.getch()  # quit on keyboard input
+
+
+def get_printable(line, keep_newlines = True):
   """
   Provides the line back with non-printable characters stripped.
 
@@ -98,18 +127,23 @@ def getPrintable(line, keepNewlines = True):
   """
 
   line = line.replace('\xc2', "'")
-  line = "".join([char for char in line if (isprint(char) or (keepNewlines and char == "\n"))])
+  line = "".join([char for char in line if (isprint(char) or (keep_newlines and char == "\n"))])
+
   return line
 
-def isColorSupported():
+
+def is_color_supported():
   """
   True if the display supports showing color, false otherwise.
   """
 
-  if COLOR_IS_SUPPORTED == None: _initColors()
+  if COLOR_IS_SUPPORTED is None:
+    _init_colors()
+
   return COLOR_IS_SUPPORTED
 
-def getColor(color):
+
+def get_color(color):
   """
   Provides attribute corresponding to a given text color. Supported colors
   include:
@@ -123,12 +157,18 @@ def getColor(color):
     color - name of the foreground color to be returned
   """
 
-  colorOverride = getColorOverride()
-  if colorOverride: color = colorOverride
-  if not COLOR_ATTR_INITIALIZED: _initColors()
+  color_override = get_color_override()
+
+  if color_override:
+    color = color_override
+
+  if not COLOR_ATTR_INITIALIZED:
+    _init_colors()
+
   return COLOR_ATTR[color]
 
-def setColorOverride(color = None):
+
+def set_color_override(color = None):
   """
   Overwrites all requests for color with the given color instead. This raises
   a ValueError if the color is invalid.
@@ -138,22 +178,28 @@ def setColorOverride(color = None):
             coloring
   """
 
-  if color == None:
-    CONFIG["features.colorOverride"] = "none"
+  if color is None:
+    CONFIG["features.color_override"] = "none"
   elif color in COLOR_LIST.keys():
-    CONFIG["features.colorOverride"] = color
-  else: raise ValueError("\"%s\" isn't a valid color" % color)
+    CONFIG["features.color_override"] = color
+  else:
+    raise ValueError("\"%s\" isn't a valid color" % color)
 
-def getColorOverride():
+
+def get_color_override():
   """
   Provides the override color used by the interface, None if it isn't set.
   """
 
-  colorOverride = CONFIG.get("features.colorOverride", "none")
-  if colorOverride == "none": return None
-  else: return colorOverride
+  color_override = CONFIG.get("features.color_override", "none")
 
-def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, getRemainder = False):
+  if color_override == "none":
+    return None
+  else:
+    return color_override
+
+
+def crop_str(msg, size, min_word_length = 4, min_crop = 0, end_type = Ending.ELLIPSE, get_remainder = False):
   """
   Provides the msg constrained to the given length, truncating on word breaks.
   If the last words is long this truncates mid-word with an ellipse. If there
@@ -162,100 +208,132 @@ def cropStr(msg, size, minWordLen = 4, minCrop = 0, endType = Ending.ELLIPSE, ge
   with a comma or period then it's stripped (unless we're providing the
   remainder back). Examples:
 
-  cropStr("This is a looooong message", 17)
+  crop_str("This is a looooong message", 17)
   "This is a looo..."
 
-  cropStr("This is a looooong message", 12)
+  crop_str("This is a looooong message", 12)
   "This is a..."
 
-  cropStr("This is a looooong message", 3)
+  crop_str("This is a looooong message", 3)
   ""
 
   Arguments:
-    msg          - source text
-    size         - room available for text
-    minWordLen   - minimum characters before which a word is dropped, requires
-                   whole word if None
-    minCrop      - minimum characters that must be dropped if a word's cropped
-    endType      - type of ending used when truncating:
-                   None - blank ending
-                   Ending.ELLIPSE - includes an ellipse
-                   Ending.HYPHEN - adds hyphen when breaking words
-    getRemainder - returns a tuple instead, with the second part being the
-                   cropped portion of the message
+    msg             - source text
+    size            - room available for text
+    min_word_length - minimum characters before which a word is dropped, requires
+                      whole word if None
+    min_crop        - minimum characters that must be dropped if a word's cropped
+    end_type        - type of ending used when truncating:
+                      None - blank ending
+                      Ending.ELLIPSE - includes an ellipse
+                      Ending.HYPHEN - adds hyphen when breaking words
+    get_remainder   - returns a tuple instead, with the second part being the
+                      cropped portion of the message
   """
 
   # checks if there's room for the whole message
+
   if len(msg) <= size:
-    if getRemainder: return (msg, "")
-    else: return msg
+    if get_remainder:
+      return (msg, "")
+    else:
+      return msg
 
   # avoids negative input
+
   size = max(0, size)
-  if minWordLen != None: minWordLen = max(0, minWordLen)
-  minCrop = max(0, minCrop)
+
+  if min_word_length is not None:
+    min_word_length = max(0, min_word_length)
+
+  min_crop = max(0, min_crop)
 
   # since we're cropping, the effective space available is less with an
   # ellipse, and cropping words requires an extra space for hyphens
-  if endType == Ending.ELLIPSE: size -= 3
-  elif endType == Ending.HYPHEN and minWordLen != None: minWordLen += 1
+
+  if end_type == Ending.ELLIPSE:
+    size -= 3
+  elif end_type == Ending.HYPHEN and min_word_length is not None:
+    min_word_length += 1
 
   # checks if there isn't the minimum space needed to include anything
-  lastWordbreak = msg.rfind(" ", 0, size + 1)
 
-  if lastWordbreak == -1:
+  last_wordbreak = msg.rfind(" ", 0, size + 1)
+
+  if last_wordbreak == -1:
     # we're splitting the first word
-    if minWordLen == None or size < minWordLen:
-      if getRemainder: return ("", msg)
-      else: return ""
 
-    includeCrop = True
+    if min_word_length is None or size < min_word_length:
+      if get_remainder:
+        return ("", msg)
+      else:
+        return ""
+
+    include_crop = True
   else:
-    lastWordbreak = len(msg[:lastWordbreak].rstrip()) # drops extra ending whitespaces
-    if (minWordLen != None and size < minWordLen) or (minWordLen == None and lastWordbreak < 1):
-      if getRemainder: return ("", msg)
-      else: return ""
+    last_wordbreak = len(msg[:last_wordbreak].rstrip())  # drops extra ending whitespaces
 
-    if minWordLen == None: minWordLen = sys.maxint
-    includeCrop = size - lastWordbreak - 1 >= minWordLen
+    if (min_word_length is not None and size < min_word_length) or (min_word_length is None and last_wordbreak < 1):
+      if get_remainder:
+        return ("", msg)
+      else:
+        return ""
+
+    if min_word_length is None:
+      min_word_length = sys.maxint
+
+    include_crop = size - last_wordbreak - 1 >= min_word_length
 
   # if there's a max crop size then make sure we're cropping at least that many characters
-  if includeCrop and minCrop:
-    nextWordbreak = msg.find(" ", size)
-    if nextWordbreak == -1: nextWordbreak = len(msg)
-    includeCrop = nextWordbreak - size + 1 >= minCrop
 
-  if includeCrop:
-    returnMsg, remainder = msg[:size], msg[size:]
-    if endType == Ending.HYPHEN:
-      remainder = returnMsg[-1] + remainder
-      returnMsg = returnMsg[:-1].rstrip() + "-"
-  else: returnMsg, remainder = msg[:lastWordbreak], msg[lastWordbreak:]
+  if include_crop and min_crop:
+    next_wordbreak = msg.find(" ", size)
+
+    if next_wordbreak == -1:
+      next_wordbreak = len(msg)
+
+    include_crop = next_wordbreak - size + 1 >= min_crop
+
+  if include_crop:
+    return_msg, remainder = msg[:size], msg[size:]
+
+    if end_type == Ending.HYPHEN:
+      remainder = return_msg[-1] + remainder
+      return_msg = return_msg[:-1].rstrip() + "-"
+  else:
+    return_msg, remainder = msg[:last_wordbreak], msg[last_wordbreak:]
 
   # if this is ending with a comma or period then strip it off
-  if not getRemainder and returnMsg and returnMsg[-1] in (",", "."):
-    returnMsg = returnMsg[:-1]
 
-  if endType == Ending.ELLIPSE:
-    returnMsg = returnMsg.rstrip() + "..."
+  if not get_remainder and return_msg and return_msg[-1] in (",", "."):
+    return_msg = return_msg[:-1]
 
-  if getRemainder: return (returnMsg, remainder)
-  else: return returnMsg
+  if end_type == Ending.ELLIPSE:
+    return_msg = return_msg.rstrip() + "..."
 
-def padStr(msg, size, cropExtra = False):
+  if get_remainder:
+    return (return_msg, remainder)
+  else:
+    return return_msg
+
+
+def pad_str(msg, size, crop_extra = False):
   """
   Provides the string padded with whitespace to the given length.
 
   Arguments:
     msg       - string to be padded
     size      - length to be padded to
-    cropExtra - crops string if it's longer than the size if true
+    crop_extra - crops string if it's longer than the size if true
   """
 
-  if cropExtra: msg = msg[:size]
+  if crop_extra:
+    msg = msg[:size]
+
   return ("%%-%is" % size) % msg
 
-def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
+
+def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   Draws a box in the panel with the given bounds.
 
@@ -269,19 +347,23 @@ def drawBox(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
 
   # draws the top and bottom
+
   panel.hline(top, left + 1, width - 2, attr)
   panel.hline(top + height - 1, left + 1, width - 2, attr)
 
   # draws the left and right sides
+
   panel.vline(top + 1, left, height - 2, attr)
   panel.vline(top + 1, left + width - 1, height - 2, attr)
 
   # draws the corners
+
   panel.addch(top, left, curses.ACS_ULCORNER, attr)
   panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
   panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
 
-def isSelectionKey(key):
+
+def is_selection_key(key):
   """
   Returns true if the keycode matches the enter or space keys.
 
@@ -291,9 +373,10 @@ def isSelectionKey(key):
 
   return key in (curses.KEY_ENTER, 10, ord(' '))
 
-def isScrollKey(key):
+
+def is_scroll_key(key):
   """
-  Returns true if the keycode is recognized by the getScrollPosition function
+  Returns true if the keycode is recognized by the get_scroll_position function
   for scrolling.
 
   Argument:
@@ -302,13 +385,14 @@ def isScrollKey(key):
 
   return key in SCROLL_KEYS
 
-def getScrollPosition(key, position, pageHeight, contentHeight, isCursor = False):
+
+def get_scroll_position(key, position, page_height, content_height, is_cursor = False):
   """
   Parses navigation keys, providing the new scroll possition the panel should
-  use. Position is always between zero and (contentHeight - pageHeight). This
+  use. Position is always between zero and (content_height - page_height). This
   handles the following keys:
   Up / Down - scrolls a position up or down
-  Page Up / Page Down - scrolls by the pageHeight
+  Page Up / Page Down - scrolls by the page_height
   Home - top of the content
   End - bottom of the content
 
@@ -317,24 +401,34 @@ def getScrollPosition(key, position, pageHeight, contentHeight, isCursor = False
   Arguments:
     key           - keycode for the user's input
     position      - starting position
-    pageHeight    - size of a single screen's worth of content
-    contentHeight - total lines of content that can be scrolled
-    isCursor      - tracks a cursor position rather than scroll if true
+    page_height    - size of a single screen's worth of content
+    content_height - total lines of content that can be scrolled
+    is_cursor      - tracks a cursor position rather than scroll if true
   """
 
-  if isScrollKey(key):
+  if is_scroll_key(key):
     shift = 0
-    if key == curses.KEY_UP: shift = -1
-    elif key == curses.KEY_DOWN: shift = 1
-    elif key == curses.KEY_PPAGE: shift = -pageHeight + 1 if isCursor else -pageHeight
-    elif key == curses.KEY_NPAGE: shift = pageHeight - 1 if isCursor else pageHeight
-    elif key == curses.KEY_HOME: shift = -contentHeight
-    elif key == curses.KEY_END: shift = contentHeight
+
+    if key == curses.KEY_UP:
+      shift = -1
+    elif key == curses.KEY_DOWN:
+      shift = 1
+    elif key == curses.KEY_PPAGE:
+      shift = -page_height + 1 if is_cursor else -page_height
+    elif key == curses.KEY_NPAGE:
+      shift = page_height - 1 if is_cursor else page_height
+    elif key == curses.KEY_HOME:
+      shift = -content_height
+    elif key == curses.KEY_END:
+      shift = content_height
 
     # returns the shift, restricted to valid bounds
-    maxLoc = contentHeight - 1 if isCursor else contentHeight - pageHeight
-    return max(0, min(position + shift, maxLoc))
-  else: return position
+
+    max_location = content_height - 1 if is_cursor else content_height - page_height
+    return max(0, min(position + shift, max_location))
+  else:
+    return position
+
 
 class Scroller:
   """
@@ -342,41 +436,43 @@ class Scroller:
   expects that there is a single line displayed per an entry in the contents.
   """
 
-  def __init__(self, isCursorEnabled):
-    self.scrollLoc, self.cursorLoc = 0, 0
-    self.cursorSelection = None
-    self.isCursorEnabled = isCursorEnabled
+  def __init__(self, is_cursor_enabled):
+    self.scroll_location, self.cursor_location = 0, 0
+    self.cursor_selection = None
+    self.is_cursor_enabled = is_cursor_enabled
 
-  def getScrollLoc(self, content, pageHeight):
+  def get_scroll_location(self, content, page_height):
     """
     Provides the scrolling location, taking into account its cursor's location
     content size, and page height.
 
     Arguments:
       content    - displayed content
-      pageHeight - height of the display area for the content
+      page_height - height of the display area for the content
     """
 
-    if content and pageHeight:
-      self.scrollLoc = max(0, min(self.scrollLoc, len(content) - pageHeight + 1))
+    if content and page_height:
+      self.scroll_location = max(0, min(self.scroll_location, len(content) - page_height + 1))
 
-      if self.isCursorEnabled:
-        self.getCursorSelection(content) # resets the cursor location
+      if self.is_cursor_enabled:
+        self.get_cursor_selection(content)  # resets the cursor location
 
         # makes sure the cursor is visible
-        if self.cursorLoc < self.scrollLoc:
-          self.scrollLoc = self.cursorLoc
-        elif self.cursorLoc > self.scrollLoc + pageHeight - 1:
-          self.scrollLoc = self.cursorLoc - pageHeight + 1
+
+        if self.cursor_location < self.scroll_location:
+          self.scroll_location = self.cursor_location
+        elif self.cursor_location > self.scroll_location + page_height - 1:
+          self.scroll_location = self.cursor_location - page_height + 1
 
       # checks if the bottom would run off the content (this could be the
       # case when the content's size is dynamic and entries are removed)
-      if len(content) > pageHeight:
-        self.scrollLoc = min(self.scrollLoc, len(content) - pageHeight)
 
-    return self.scrollLoc
+      if len(content) > page_height:
+        self.scroll_location = min(self.scroll_location, len(content) - page_height)
 
-  def getCursorSelection(self, content):
+    return self.scroll_location
+
+  def get_cursor_selection(self, content):
     """
     Provides the selected item in the content. This is the same entry until
     the cursor moves or it's no longer available (in which case it moves on to
@@ -389,42 +485,51 @@ class Scroller:
     # TODO: needs to handle duplicate entries when using this for the
     # connection panel
 
-    if not self.isCursorEnabled: return None
+    if not self.is_cursor_enabled:
+      return None
     elif not content:
-      self.cursorLoc, self.cursorSelection = 0, None
+      self.cursor_location, self.cursor_selection = 0, None
       return None
 
-    self.cursorLoc = min(self.cursorLoc, len(content) - 1)
-    if self.cursorSelection != None and self.cursorSelection in content:
+    self.cursor_location = min(self.cursor_location, len(content) - 1)
+
+    if self.cursor_selection is not None and self.cursor_selection in content:
       # moves cursor location to track the selection
-      self.cursorLoc = content.index(self.cursorSelection)
+      self.cursor_location = content.index(self.cursor_selection)
     else:
       # select the next closest entry
-      self.cursorSelection = content[self.cursorLoc]
+      self.cursor_selection = content[self.cursor_location]
 
-    return self.cursorSelection
+    return self.cursor_selection
 
-  def handleKey(self, key, content, pageHeight):
+  def handle_key(self, key, content, page_height):
     """
     Moves either the scroll or cursor according to the given input.
 
     Arguments:
       key        - key code of user input
       content    - displayed content
-      pageHeight - height of the display area for the content
+      page_height - height of the display area for the content
     """
 
-    if self.isCursorEnabled:
-      self.getCursorSelection(content) # resets the cursor location
-      startLoc = self.cursorLoc
-    else: startLoc = self.scrollLoc
+    if self.is_cursor_enabled:
+      self.get_cursor_selection(content)  # resets the cursor location
+      start_location = self.cursor_location
+    else:
+      start_location = self.scroll_location
 
-    newLoc = getScrollPosition(key, startLoc, pageHeight, len(content), self.isCursorEnabled)
-    if startLoc != newLoc:
-      if self.isCursorEnabled: self.cursorSelection = content[newLoc]
-      else: self.scrollLoc = newLoc
+    new_location = get_scroll_position(key, start_location, page_height, len(content), self.is_cursor_enabled)
+
+    if start_location != new_location:
+      if self.is_cursor_enabled:
+        self.cursor_selection = content[new_location]
+      else:
+        self.scroll_location = new_location
+
       return True
-    else: return False
+    else:
+      return False
+
 
 def is_wide_characters_supported():
   """
@@ -471,16 +576,19 @@ def is_wide_characters_supported():
 
   return False
 
-def _initColors():
+
+def _init_colors():
   """
   Initializes color mappings usable by curses. This can only be done after
   calling curses.initscr().
   """
 
   global COLOR_ATTR_INITIALIZED, COLOR_IS_SUPPORTED
+
   if not COLOR_ATTR_INITIALIZED:
     # hack to replace all ACS characters with '+' if ACS support has been
     # manually disabled
+
     if not CONFIG["features.acsSupport"]:
       for item in curses.__dict__:
         if item.startswith("ACS_"):
@@ -496,22 +604,25 @@ def _initColors():
 
     COLOR_ATTR_INITIALIZED = True
     COLOR_IS_SUPPORTED = False
-    if not CONFIG["features.colorInterface"]: return
 
-    try: COLOR_IS_SUPPORTED = curses.has_colors()
-    except curses.error: return # initscr hasn't been called yet
+    if not CONFIG["features.colorInterface"]:
+      return
+
+    try:
+      COLOR_IS_SUPPORTED = curses.has_colors()
+    except curses.error:
+      return  # initscr hasn't been called yet
 
     # initializes color mappings if color support is available
     if COLOR_IS_SUPPORTED:
       colorpair = 0
       log.info("Terminal color support detected and enabled")
 
-      for colorName in COLOR_LIST:
-        fgColor = COLOR_LIST[colorName]
-        bgColor = -1 # allows for default (possibly transparent) background
+      for color_name in COLOR_LIST:
+        foreground_color = COLOR_LIST[color_name]
+        background_color = -1  # allows for default (possibly transparent) background
         colorpair += 1
-        curses.init_pair(colorpair, fgColor, bgColor)
-        COLOR_ATTR[colorName] = curses.color_pair(colorpair)
+        curses.init_pair(colorpair, foreground_color, background_color)
+        COLOR_ATTR[color_name] = curses.color_pair(colorpair)
     else:
       log.info("Terminal color support unavailable")
-
