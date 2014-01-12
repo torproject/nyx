@@ -251,7 +251,12 @@ def _use_unicode():
   initializing curses.
   """
 
-  if arm.util.uiTools.isUnicodeAvailable():
+  if not CONFIG.get('features.printUnicode', True):
+    return
+
+  is_lang_unicode = "utf-" in os.getenv("LANG", "").lower()
+
+  if is_lang_unicode and arm.util.uiTools.is_wide_characters_supported():
     locale.setlocale(locale.LC_ALL, '')
 
 

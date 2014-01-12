@@ -5,7 +5,6 @@ easy method of providing the following interface components:
 - unit conversion for labels
 """
 
-import os
 import sys
 import curses
 
@@ -40,12 +39,7 @@ CONFIG = conf.config_dict("arm", {
   "features.colorOverride": "none",
   "features.colorInterface": True,
   "features.acsSupport": True,
-  "features.printUnicode": True,
 }, conf_handler)
-
-# Flag indicating if unicode is supported by curses. If None then this has yet
-# to be determined.
-IS_UNICODE_SUPPORTED = None
 
 def demoGlyphs():
   """
@@ -93,27 +87,6 @@ def _showGlyphs(stdscr):
       if y >= height: break
 
   stdscr.getch() # quit on keyboard input
-
-def isUnicodeAvailable():
-  """
-  True if curses has wide character support, false otherwise or if it can't be
-  determined.
-  """
-
-  global IS_UNICODE_SUPPORTED
-  if IS_UNICODE_SUPPORTED == None:
-    if CONFIG["features.printUnicode"]:
-      # Checks if our LANG variable is unicode. This is what will be respected
-      # when printing multi-byte characters after calling...
-      # locale.setlocale(locale.LC_ALL, '')
-      #
-      # so if the LANG isn't unicode then setting this would be pointless.
-
-      isLangUnicode = "utf-" in os.getenv("LANG", "").lower()
-      IS_UNICODE_SUPPORTED = isLangUnicode and _isWideCharactersAvailable()
-    else: IS_UNICODE_SUPPORTED = False
-
-  return IS_UNICODE_SUPPORTED
 
 def getPrintable(line, keepNewlines = True):
   """
@@ -453,20 +426,18 @@ class Scroller:
       return True
     else: return False
 
-def _isWideCharactersAvailable():
+def is_wide_characters_supported():
   """
-  True if curses has wide character support (which is required to print
-  unicode). False otherwise.
+  Checks if our version of curses has wide character support. This is required
+  to print unicode.
+
+  :returns: **bool** that's **True** if curses supports wide characters, and
+    **False** if it either can't or this can't be determined
   """
 
   try:
-    # gets the dynamic library used by the interpretor for curses
-
-    import _curses
-    cursesLib = _curses.__file__
-
-    # Uses 'ldd' (Linux) or 'otool -L' (Mac) to determine the curses
-    # library dependencies.
+    # Gets the dynamic library used by the interpretor for curses. This uses
+    # 'ldd' on Linux or 'otool -L' on OSX.
     #
     # atagar@fenrir:~/Desktop$ ldd /usr/lib/python2.6/lib-dynload/_curses.so
     #   linux-gate.so.1 =>  (0x00a51000)
@@ -482,16 +453,21 @@ def _isWideCharactersAvailable():
     #   /usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current version 1.0.0)
     #   /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 111.1.6)
 
-    libDependencyLines = None
-    if system.is_available("ldd"):
-      libDependencyLines = system.call("ldd %s" % cursesLib)
-    elif system.is_available("otool"):
-      libDependencyLines = system.call("otool -L %s" % cursesLib)
+    import _curses
 
-    if libDependencyLines:
-      for line in libDependencyLines:
-        if "libncursesw" in line: return True
-  except: pass
+    lib_dependency_lines = None
+
+    if system.is_available("ldd"):
+      lib_dependency_lines = system.call("ldd %s" % _curses.__file__)
+    elif system.is_available("otool"):
+      lib_dependency_lines = system.call("otool -L %s" % _curses.__file__)
+
+    if lib_dependency_lines:
+      for line in lib_dependency_lines:
+        if "libncursesw" in line:
+          return True
+  except:
+    pass
 
   return False
 
