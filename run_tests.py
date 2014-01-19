@@ -18,7 +18,6 @@ from arm.util import load_settings
 
 CONFIG = stem.util.conf.config_dict("test", {
   "pep8.ignore": [],
-  "pep8.blacklist": [],
   "pyflakes.ignore": [],
 })
 
@@ -144,12 +143,9 @@ def get_stylistic_issues(paths):
           issues.setdefault(self.filename, []).append((offset + line_number, "%s %s" % (code, text)))
 
     style_checker = pep8.StyleGuide(ignore = CONFIG["pep8.ignore"], reporter = StyleReport)
-    style_checker.check_files(filter(lambda path: path not in CONFIG["pep8.blacklist"], _python_files(paths)))
+    style_checker.check_files(_python_files(paths))
 
   for path in _python_files(paths):
-    if path in CONFIG["pep8.blacklist"]:
-      continue
-
     with open(path) as f:
       file_contents = f.read()
 
