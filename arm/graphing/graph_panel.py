@@ -24,7 +24,7 @@ import arm.controller
 
 import stem.control
 
-from arm.util import panel, torTools, uiTools
+from arm.util import panel, tor_tools, ui_tools
 
 from stem.util import conf, enum, str_tools
 
@@ -121,7 +121,7 @@ class GraphStats:
 
     # tracks BW events
 
-    torTools.get_conn().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+    tor_tools.get_conn().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
   def clone(self, new_copy=None):
     """
@@ -358,7 +358,7 @@ class GraphPanel(panel.Panel):
             self.set_graph_height(self.graph_height + 1)
         elif key == curses.KEY_UP:
           self.set_graph_height(self.graph_height - 1)
-        elif uiTools.is_selection_key(key):
+        elif ui_tools.is_selection_key(key):
           break
 
         control.redraw()
@@ -435,8 +435,8 @@ class GraphPanel(panel.Panel):
       param = self.get_attr("stats")[self.current_display]
       graph_column = min((width - 10) / 2, param.max_column)
 
-      primary_color = uiTools.get_color(param.get_color(True))
-      secondary_color = uiTools.get_color(param.get_color(False))
+      primary_color = ui_tools.get_color(param.get_color(True))
+      secondary_color = ui_tools.get_color(param.get_color(False))
 
       if self.is_title_visible():
         self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)

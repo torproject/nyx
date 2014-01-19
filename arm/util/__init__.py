@@ -4,7 +4,7 @@ application's status, making cross platform system calls, parsing tor data,
 and safely working with curses (hiding some of the gory details).
 """
 
-__all__ = ["connections", "panel", "sysTools", "textInput", "torConfig", "torTools", "tracker", "uiTools"]
+__all__ = ["connections", "panel", "sysTools", "text_input", "tor_config", "tor_tools", "tracker", "ui_tools"]
 
 import getpass
 import os

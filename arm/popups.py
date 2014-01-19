@@ -7,7 +7,7 @@ import curses
 import arm.controller
 
 from arm import __version__, __release_date__
-from arm.util import panel, uiTools
+from arm.util import panel, ui_tools
 
 
 def init(height = -1, width = -1, top = 0, left = 0, below_static = True):
@@ -177,8 +177,8 @@ def show_help_popup():
   finally:
     finalize()
 
-  if not uiTools.is_selection_key(exit_key) and \
-    not uiTools.is_scroll_key(exit_key) and \
+  if not ui_tools.is_selection_key(exit_key) and \
+    not ui_tools.is_scroll_key(exit_key) and \
     not exit_key in (curses.KEY_LEFT, curses.KEY_RIGHT):
     return exit_key
   else:
@@ -280,7 +280,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
         cursor_location = max(0, cursor_location - 4)
       elif key == curses.KEY_DOWN:
         cursor_location = min(len(selection_options) - 1, cursor_location + 4)
-      elif uiTools.is_selection_key(key):
+      elif ui_tools.is_selection_key(key):
         selection = selection_options[cursor_location]
 
         if selection == "Cancel":
@@ -321,7 +321,7 @@ def _draw_sort_selection(popup, y, x, prefix, options, option_colors):
 
   for i in range(len(options)):
     sort_type = options[i]
-    sort_color = uiTools.get_color(option_colors.get(sort_type, "white"))
+    sort_color = ui_tools.get_color(option_colors.get(sort_type, "white"))
     popup.addstr(y, x, sort_type, sort_color | curses.A_BOLD)
     x += len(sort_type)
 
@@ -363,7 +363,7 @@ def show_menu(title, options, old_selection):
 
     curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
-    while not uiTools.is_selection_key(key):
+    while not ui_tools.is_selection_key(key):
       popup.win.erase()
       popup.win.box()
       popup.addstr(0, 0, title, curses.A_STANDOUT)

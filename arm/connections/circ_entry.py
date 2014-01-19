@@ -10,13 +10,13 @@ followed by an entry for each hop in the circuit. For instance:
 
 import curses
 
-from arm.connections import entries, connEntry
-from arm.util import torTools, uiTools
+from arm.connections import entries, conn_entry
+from arm.util import tor_tools, ui_tools
 
 
-class CircEntry(connEntry.ConnectionEntry):
+class CircEntry(conn_entry.ConnectionEntry):
   def __init__(self, circuit_id, status, purpose, path):
-    connEntry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
+    conn_entry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
 
     self.circuit_id = circuit_id
     self.status = status
@@ -31,7 +31,7 @@ class CircEntry(connEntry.ConnectionEntry):
     # Overwrites attributes of the initial line to make it more fitting as the
     # header for our listing.
 
-    self.lines[0].base_type = connEntry.Category.CIRCUIT
+    self.lines[0].base_type = conn_entry.Category.CIRCUIT
 
     self.update(status, path)
 
@@ -48,7 +48,7 @@ class CircEntry(connEntry.ConnectionEntry):
 
     self.status = status
     self.lines = [self.lines[0]]
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
 
     if status == "BUILT" and not self.lines[0].is_built:
       exit_ip, exit_port = conn.get_relay_address(path[-1], ("192.168.0.1", "0"))
@@ -75,31 +75,31 @@ class CircEntry(connEntry.ConnectionEntry):
     self.lines[-1].is_last = True
 
 
-class CircHeaderLine(connEntry.ConnectionLine):
+class CircHeaderLine(conn_entry.ConnectionLine):
   """
   Initial line of a client entry. This has the same basic format as connection
   lines except that its etc field has circuit attributes.
   """
 
   def __init__(self, circuit_id, purpose):
-    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", "0.0.0.0", "0", False, False)
+    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", "0.0.0.0", "0", False, False)
     self.circuit_id = circuit_id
     self.purpose = purpose
     self.is_built = False
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", exit_address, exit_port, False, False)
+    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", exit_address, exit_port, False, False)
     self.is_built = True
     self.foreign.fingerprint_overwrite = exit_fingerprint
 
   def get_type(self):
-    return connEntry.Category.CIRCUIT
+    return conn_entry.Category.CIRCUIT
 
   def get_destination_label(self, max_length, include_locale=False, include_hostname=False):
     if not self.is_built:
       return "Building..."
 
-    return connEntry.ConnectionLine.get_destination_label(self, max_length, include_locale, include_hostname)
+    return conn_entry.ConnectionLine.get_destination_label(self, max_length, include_locale, include_hostname)
 
   def get_etc_content(self, width, listing_type):
     """
@@ -119,13 +119,13 @@ class CircHeaderLine(connEntry.ConnectionLine):
 
   def get_details(self, width):
     if not self.is_built:
-      detail_format = curses.A_BOLD | uiTools.get_color(connEntry.CATEGORY_COLOR[self.get_type()])
+      detail_format = curses.A_BOLD | ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
       return [("Building Circuit...", detail_format)]
     else:
-      return connEntry.ConnectionLine.get_details(self, width)
+      return conn_entry.ConnectionLine.get_details(self, width)
 
 
-class CircLine(connEntry.ConnectionLine):
+class CircLine(conn_entry.ConnectionLine):
   """
   An individual hop in a circuit. This overwrites the displayed listing, but
   otherwise makes use of the ConnectionLine attributes (for the detail display,
@@ -133,7 +133,7 @@ class CircLine(connEntry.ConnectionLine):
   """
 
   def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label):
-    connEntry.ConnectionLine.__init__(self, "127.0.0.1", "0", remote_address, remote_port)
+    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", remote_address, remote_port)
     self.foreign.fingerprint_overwrite = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False
@@ -143,7 +143,7 @@ class CircLine(connEntry.ConnectionLine):
     self.is_last = False
 
   def get_type(self):
-    return connEntry.Category.CIRCUIT
+    return conn_entry.Category.CIRCUIT
 
   def get_listing_prefix(self):
     if self.is_last:
@@ -168,7 +168,7 @@ class CircLine(connEntry.ConnectionLine):
     return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    line_format = uiTools.get_color(connEntry.CATEGORY_COLOR[self.get_type()])
+    line_format = ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
 
     # The required widths are the sum of the following:
     # initial space (1 character)
@@ -189,7 +189,7 @@ class CircLine(connEntry.ConnectionLine):
 
       # fills the nickname into the empty space here
 
-      dst = "%s%-25s   " % (dst[:25], uiTools.crop_str(self.foreign.get_nickname(), 25, 0))
+      dst = "%s%-25s   " % (dst[:25], ui_tools.crop_str(self.foreign.get_nickname(), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.HOSTNAME:

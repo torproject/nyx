@@ -9,7 +9,7 @@ import threading
 import arm.controller
 import popups
 
-from arm.util import panel, torConfig, torTools, uiTools
+from arm.util import panel, tor_config, tor_tools, ui_tools
 
 import stem.control
 
@@ -24,14 +24,14 @@ State = enum.Enum("TOR", "ARM")  # state to be presented
 # mappings of option categories to the color for their entries
 
 CATEGORY_COLOR = {
-  torConfig.Category.GENERAL: "green",
-  torConfig.Category.CLIENT: "blue",
-  torConfig.Category.RELAY: "yellow",
-  torConfig.Category.DIRECTORY: "magenta",
-  torConfig.Category.AUTHORITY: "red",
-  torConfig.Category.HIDDEN_SERVICE: "cyan",
-  torConfig.Category.TESTING: "white",
-  torConfig.Category.UNKNOWN: "white",
+  tor_config.Category.GENERAL: "green",
+  tor_config.Category.CLIENT: "blue",
+  tor_config.Category.RELAY: "yellow",
+  tor_config.Category.DIRECTORY: "magenta",
+  tor_config.Category.AUTHORITY: "red",
+  tor_config.Category.HIDDEN_SERVICE: "cyan",
+  tor_config.Category.TESTING: "white",
+  tor_config.Category.UNKNOWN: "white",
 }
 
 # attributes of a ConfigEntry
@@ -108,8 +108,8 @@ class ConfigEntry():
     # Fetches extra infromation from external sources (the arm config and tor
     # man page). These are None if unavailable for this config option.
 
-    summary = torConfig.get_config_summary(option)
-    man_entry = torConfig.get_config_description(option)
+    summary = tor_config.get_config_summary(option)
+    man_entry = tor_config.get_config_description(option)
 
     if man_entry:
       self.fields[Field.MAN_ENTRY] = man_entry.index
@@ -118,7 +118,7 @@ class ConfigEntry():
       self.fields[Field.DESCRIPTION] = man_entry.description
     else:
       self.fields[Field.MAN_ENTRY] = 99999  # sorts non-man entries last
-      self.fields[Field.CATEGORY] = torConfig.Category.UNKNOWN
+      self.fields[Field.CATEGORY] = tor_config.Category.UNKNOWN
       self.fields[Field.ARG_USAGE] = ""
       self.fields[Field.DESCRIPTION] = ""
 
@@ -171,9 +171,9 @@ class ConfigEntry():
     arg_set = (option_width, value_width, summary_width)
 
     if not self.label_cache or self.label_cache_args != arg_set:
-      option_label = uiTools.crop_str(self.get(Field.OPTION), option_width)
-      value_label = uiTools.crop_str(self.get(Field.VALUE), value_width)
-      summary_label = uiTools.crop_str(self.get(Field.SUMMARY), summary_width, None)
+      option_label = ui_tools.crop_str(self.get(Field.OPTION), option_width)
+      value_label = ui_tools.crop_str(self.get(Field.VALUE), value_width)
+      summary_label = ui_tools.crop_str(self.get(Field.SUMMARY), summary_width, None)
       line_text_layout = "%%-%is %%-%is %%-%is" % (option_width, value_width, summary_width)
       self.label_cache = line_text_layout % (option_label, value_label, summary_label)
       self.label_cache_args = arg_set
@@ -185,18 +185,18 @@ class ConfigEntry():
     True if we have no value, false otherwise.
     """
 
-    conf_value = torTools.get_conn().get_option(self.get(Field.OPTION), [], True)
+    conf_value = tor_tools.get_conn().get_option(self.get(Field.OPTION), [], True)
 
     return not bool(conf_value)
 
   def _get_value(self):
     """
     Provides the current value of the configuration entry, taking advantage of
-    the torTools caching to effectively query the accurate value. This uses the
+    the tor_tools caching to effectively query the accurate value. This uses the
     value's type to provide a user friendly representation if able.
     """
 
-    conf_value = ", ".join(torTools.get_conn().get_option(self.get(Field.OPTION), [], True))
+    conf_value = ", ".join(tor_tools.get_conn().get_option(self.get(Field.OPTION), [], True))
 
     # provides nicer values for recognized types
 
@@ -224,7 +224,7 @@ class ConfigPanel(panel.Panel):
     self.config_type = config_type
     self.conf_contents = []
     self.conf_important_contents = []
-    self.scroller = uiTools.Scroller(True)
+    self.scroller = ui_tools.Scroller(True)
     self.vals_lock = threading.RLock()
 
     # shows all configuration options if true, otherwise only the ones with
@@ -234,7 +234,7 @@ class ConfigPanel(panel.Panel):
 
     # initializes config contents if we're connected
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     conn.add_status_listener(self.reset_listener)
 
     if conn.is_alive():
@@ -256,8 +256,8 @@ class ConfigPanel(panel.Panel):
     self.conf_important_contents = []
 
     if self.config_type == State.TOR:
-      conn, config_option_lines = torTools.get_conn(), []
-      custom_options = torConfig.get_custom_options()
+      conn, config_option_lines = tor_tools.get_conn(), []
+      custom_options = tor_config.get_custom_options()
       config_option_query = conn.get_info("config/names", None)
 
       if config_option_query:
@@ -294,7 +294,7 @@ class ConfigPanel(panel.Panel):
     self.conf_important_contents = []
 
     for entry in self.conf_contents:
-      if torConfig.is_important(entry.get(Field.OPTION)):
+      if tor_config.is_important(entry.get(Field.OPTION)):
         self.conf_important_contents.append(entry)
 
     # if there aren't any important options then show everything
@@ -363,7 +363,7 @@ class ConfigPanel(panel.Panel):
     self.vals_lock.acquire()
     is_keystroke_consumed = True
 
-    if uiTools.is_scroll_key(key):
+    if ui_tools.is_scroll_key(key):
       page_height = self.get_preferred_size()[0] - 1
       detail_panel_height = CONFIG["features.config.selectionDetails.height"]
 
@@ -374,7 +374,7 @@ class ConfigPanel(panel.Panel):
 
       if is_changed:
         self.redraw(True)
-    elif uiTools.is_selection_key(key) and self._get_config_options():
+    elif ui_tools.is_selection_key(key) and self._get_config_options():
       # Prompts the user to edit the selected configuration value. The
       # interface is locked to prevent updates between setting the value
       # and showing any errors.
@@ -407,7 +407,7 @@ class ConfigPanel(panel.Panel):
               # set_option accepts list inputs when there's multiple values
               new_value = new_value.split(",")
 
-            torTools.get_conn().set_option(config_option, new_value)
+            tor_tools.get_conn().set_option(config_option, new_value)
 
             # forces the label to be remade with the new value
 
@@ -415,7 +415,7 @@ class ConfigPanel(panel.Panel):
 
             # resets the is_default flag
 
-            custom_options = torConfig.get_custom_options()
+            custom_options = tor_config.get_custom_options()
             selection.fields[Field.IS_DEFAULT] = not config_option in custom_options
 
             self.redraw(True)
@@ -444,7 +444,7 @@ class ConfigPanel(panel.Panel):
 
     # display a popup for saving the current configuration
 
-    config_lines = torConfig.get_custom_options(True)
+    config_lines = tor_config.get_custom_options(True)
     popup, width, height = popups.init(len(config_lines) + 2)
 
     if not popup:
@@ -477,7 +477,7 @@ class ConfigPanel(panel.Panel):
 
       key, selection = 0, 2
 
-      while not uiTools.is_selection_key(key):
+      while not ui_tools.is_selection_key(key):
         # if the popup has been resized then recreate it (needed for the
         # proper border height)
 
@@ -500,14 +500,14 @@ class ConfigPanel(panel.Panel):
         visible_config_lines = height - 3 if is_option_line_separate else height - 2
 
         for i in range(visible_config_lines):
-          line = uiTools.crop_str(config_lines[i], width - 2)
+          line = ui_tools.crop_str(config_lines[i], width - 2)
 
           if " " in line:
             option, arg = line.split(" ", 1)
-            popup.addstr(i + 1, 1, option, curses.A_BOLD | uiTools.get_color("green"))
-            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | uiTools.get_color("cyan"))
+            popup.addstr(i + 1, 1, option, curses.A_BOLD | ui_tools.get_color("green"))
+            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | ui_tools.get_color("cyan"))
           else:
-            popup.addstr(i + 1, 1, line, curses.A_BOLD | uiTools.get_color("green"))
+            popup.addstr(i + 1, 1, line, curses.A_BOLD | ui_tools.get_color("green"))
 
         # draws selection options (drawn right to left)
 
@@ -540,7 +540,7 @@ class ConfigPanel(panel.Panel):
           selection = min(len(selection_options) - 1, selection + 1)
 
       if selection in (0, 1):
-        loaded_torrc, prompt_canceled = torConfig.get_torrc(), False
+        loaded_torrc, prompt_canceled = tor_config.get_torrc(), False
 
         try:
           config_location = loaded_torrc.get_config_location()
@@ -556,7 +556,7 @@ class ConfigPanel(panel.Panel):
 
         if not prompt_canceled:
           try:
-            torConfig.save_conf(config_location, config_lines)
+            tor_config.save_conf(config_location, config_lines)
             msg = "Saved configuration to %s" % config_location
           except IOError as exc:
             msg = "Unable to save configuration (%s)" % exc.strerror
@@ -638,7 +638,7 @@ class ConfigPanel(panel.Panel):
       line_format = curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD
 
       if entry.get(Field.CATEGORY):
-        line_format |= uiTools.get_color(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
+        line_format |= ui_tools.get_color(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
 
       if entry == cursor_selection:
         line_format |= curses.A_STANDOUT
@@ -662,12 +662,12 @@ class ConfigPanel(panel.Panel):
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
 
-    uiTools.draw_box(self, 0, 0, width, detail_panel_height + 1)
+    ui_tools.draw_box(self, 0, 0, width, detail_panel_height + 1)
 
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = curses.A_BOLD | uiTools.get_color(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
+    selection_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
 
     # first entry:
     # <option> (<category> Option)
@@ -686,7 +686,7 @@ class ConfigPanel(panel.Panel):
       value_attr_label = ", ".join(value_attr)
 
       value_label_width = width - 12 - len(value_attr_label)
-      value_label = uiTools.crop_str(selection.get(Field.VALUE), value_label_width)
+      value_label = ui_tools.crop_str(selection.get(Field.VALUE), value_label_width)
 
       self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), selection_format)
 
@@ -716,11 +716,11 @@ class ConfigPanel(panel.Panel):
       if i != description_height - 1:
         # there's more lines to display
 
-        msg, remainder = uiTools.crop_str(line_content, width - 3, 4, 4, uiTools.Ending.HYPHEN, True)
+        msg, remainder = ui_tools.crop_str(line_content, width - 3, 4, 4, ui_tools.Ending.HYPHEN, True)
         description_content = remainder.strip() + description_content
       else:
         # this is the last line, end it with an ellipse
 
-        msg = uiTools.crop_str(line_content, width - 3, 4, 4)
+        msg = ui_tools.crop_str(line_content, width - 3, 4, 4)
 
       self.addstr(3 + i, 2, msg, selection_format)

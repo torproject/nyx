@@ -6,7 +6,7 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from arm.util import torTools, uiTools
+from arm.util import tor_tools, ui_tools
 from arm.connections import entries
 
 from stem.util import conf, connection, enum, str_tools
@@ -120,7 +120,7 @@ class Endpoint:
       default - return value if no locale information is available
     """
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     return conn.get_info("ip-to-country/%s" % self.address, default)
 
   def get_fingerprint(self):
@@ -132,7 +132,7 @@ class Endpoint:
     if self.fingerprint_overwrite:
       return self.fingerprint_overwrite
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     my_fingerprint = conn.get_relay_fingerprint(self.address)
 
     # If there were multiple matches and our port is likely the ORPort then
@@ -155,7 +155,7 @@ class Endpoint:
     my_fingerprint = self.get_fingerprint()
 
     if my_fingerprint != "UNKNOWN":
-      conn = torTools.get_conn()
+      conn = tor_tools.get_conn()
       my_nickname = conn.get_relay_nickname(my_fingerprint)
 
       if my_nickname:
@@ -233,7 +233,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # overwrite the local fingerprint with ours
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     self.local.fingerprint_overwrite = conn.get_info("fingerprint", None)
 
     # True if the connection has matched the properties of a client/directory
@@ -363,7 +363,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = uiTools.get_color(CATEGORY_COLOR[entry_type])
+    line_format = ui_tools.get_color(CATEGORY_COLOR[entry_type])
     time_width = 6 if CONFIG["features.connection.markInitialConnections"] else 5
 
     draw_entry = [(" ", line_format),
@@ -384,7 +384,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = curses.A_BOLD | uiTools.get_color(CATEGORY_COLOR[self.get_type()])
+    detail_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[self.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def reset_display(self):
@@ -410,7 +410,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # if we're a guard or bridge and the connection doesn't belong to a
       # known relay then it might be client traffic
 
-      conn = torTools.get_conn()
+      conn = tor_tools.get_conn()
 
       if "Guard" in conn.get_my_flags([]) or conn.get_option("BridgeRelay", None) == "1":
         all_matches = conn.get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
@@ -449,9 +449,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # - DIRECTORY if this is a single-hop circuit (directory mirror?)
         #
         # The exitability, circuits, and fingerprints are all cached by the
-        # torTools util keeping this a quick lookup.
+        # tor_tools util keeping this a quick lookup.
 
-        conn = torTools.get_conn()
+        conn = tor_tools.get_conn()
         destination_fingerprint = self.foreign.get_fingerprint()
 
         if destination_fingerprint == "UNKNOWN":
@@ -541,7 +541,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
-        nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += nickname_space + 2
     elif listing_type == entries.ListingType.HOSTNAME:
@@ -558,7 +558,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if width > used_space + 17 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: min 17 characters, uses half of the remainder)
         nickname_space = 15 + (width - (used_space + 17)) / 2
-        nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += (nickname_space + 2)
     elif listing_type == entries.ListingType.FINGERPRINT:
@@ -577,7 +577,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           nickname_space -= 28
 
         if CONFIG["features.connection.showColumn.nickname"]:
-          nickname_label = uiTools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+          nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
           etc += ("%%-%is  " % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
@@ -606,7 +606,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       listing_type - primary attribute we're listing connections by
     """
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     my_type = self.get_type()
     destination_address = self.get_destination_label(26, include_locale = True)
 
@@ -703,7 +703,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
         # truncates long hostnames and sets dst to <hostname>:<port>
 
-        hostname = uiTools.crop_str(hostname, hostname_space, 0)
+        hostname = ui_tools.crop_str(hostname, hostname_space, 0)
         dst = ("%%-%is" % hostname_space) % (hostname + port_label)
     elif listing_type == entries.ListingType.FINGERPRINT:
       src = "localhost"
@@ -737,8 +737,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       used_space = width  # prevents padding at the end
 
       if len(src) + len(dst) > base_space:
-        src = uiTools.crop_str(src, base_space / 3)
-        dst = uiTools.crop_str(dst, base_space - len(src))
+        src = ui_tools.crop_str(src, base_space / 3)
+        dst = ui_tools.crop_str(dst, base_space - len(src))
 
       # pads dst entry to its max space
 
@@ -771,7 +771,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     #   exit connection)
 
     fingerprint = self.foreign.get_fingerprint()
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
 
     if fingerprint != "UNKNOWN":
       # single match - display information available about it
@@ -877,7 +877,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # crops any lines that are too long
 
     for i in range(len(lines)):
-      lines[i] = uiTools.crop_str(lines[i], width - 2)
+      lines[i] = ui_tools.crop_str(lines[i], width - 2)
 
     return lines
 
@@ -927,12 +927,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
           # crops with a hyphen if too long
 
-          purpose = uiTools.crop_str(purpose, space_available, end_type = uiTools.Ending.HYPHEN)
+          purpose = ui_tools.crop_str(purpose, space_available, end_type = ui_tools.Ending.HYPHEN)
 
           destination_address += " (%s)" % purpose
       elif not connection.is_private_address(self.foreign.get_address()):
         extra_info = []
-        conn = torTools.get_conn()
+        conn = tor_tools.get_conn()
 
         if include_locale and not conn.is_geoip_unavailable():
           foreign_locale = self.foreign.get_locale("??")
@@ -947,7 +947,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # dividers if there's multiple pieces of extra data
 
             max_hostname_space = space_available - 2 * len(extra_info)
-            destination_hostname = uiTools.crop_str(destination_hostname, max_hostname_space)
+            destination_hostname = ui_tools.crop_str(destination_hostname, max_hostname_space)
             extra_info.append(destination_hostname)
             space_available -= len(destination_hostname)
 

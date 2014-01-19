@@ -28,7 +28,7 @@ import arm.starter
 import arm.popups
 import arm.controller
 
-from util import panel, torTools, uiTools
+from util import panel, tor_tools, ui_tools
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -86,7 +86,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._is_tor_connected = torTools.get_conn().is_alive()
+    self._is_tor_connected = tor_tools.get_conn().is_alive()
     self._last_update = -1       # time the content was last revised
     self._halt = False           # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -126,7 +126,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     # listens for tor reload (sighup) events
 
-    torTools.get_conn().add_status_listener(self.reset_listener)
+    tor_tools.get_conn().add_status_listener(self.reset_listener)
 
   def get_height(self):
     """
@@ -146,7 +146,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Requests a new identity and provides a visual queue.
     """
 
-    torTools.get_conn().send_newnym()
+    tor_tools.get_conn().send_newnym()
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
@@ -159,10 +159,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
   def handle_key(self, key):
     is_keystroke_consumed = True
 
-    if key in (ord('n'), ord('N')) and torTools.get_conn().is_newnym_available():
+    if key in (ord('n'), ord('N')) and tor_tools.get_conn().is_newnym_available():
       self.send_newnym()
     elif key in (ord('r'), ord('R')) and not self._is_tor_connected:
-      #oldSocket = torTools.get_conn().get_controller().get_socket()
+      #oldSocket = tor_tools.get_conn().get_controller().get_socket()
       #
       #controller = None
       #allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
@@ -199,7 +199,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       #    controller = None
       #
       #if controller:
-      #  torTools.get_conn().init(controller)
+      #  tor_tools.get_conn().init(controller)
       #  log.notice("Reconnected to Tor's control port")
       #  arm.popups.show_msg("Tor reconnected", 1)
 
@@ -228,10 +228,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if len(sys_name_label) + 10 <= content_space:
       sys_type_label = "%s %s" % (self.vals["sys/os"], self.vals["sys/version"])
-      sys_type_label = uiTools.crop_str(sys_type_label, content_space - len(sys_name_label) - 3, 4)
+      sys_type_label = ui_tools.crop_str(sys_type_label, content_space - len(sys_name_label) - 3, 4)
       self.addstr(0, 0, "%s (%s)" % (sys_name_label, sys_type_label))
     else:
-      self.addstr(0, 0, uiTools.crop_str(sys_name_label, content_space))
+      self.addstr(0, 0, ui_tools.crop_str(sys_name_label, content_space))
 
     content_space = left_width - 43
 
@@ -241,10 +241,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
         label_prefix = "Tor %s (" % self.vals["tor/version"]
         self.addstr(0, 43, label_prefix)
-        self.addstr(0, 43 + len(label_prefix), self.vals["tor/versionStatus"], uiTools.get_color(version_color))
+        self.addstr(0, 43 + len(label_prefix), self.vals["tor/versionStatus"], ui_tools.get_color(version_color))
         self.addstr(0, 43 + len(label_prefix) + len(self.vals["tor/versionStatus"]), ")")
     elif 11 <= content_space:
-      self.addstr(0, 43, uiTools.crop_str("Tor %s" % self.vals["tor/version"], content_space, 4))
+      self.addstr(0, 43, ui_tools.crop_str("Tor %s" % self.vals["tor/version"], content_space, 4))
 
     # Line 2 / Line 2 Left (tor ip/port information)
 
@@ -272,17 +272,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # non-relay (client only)
 
       if self._is_tor_connected:
-        self.addstr(1, x, "Relaying Disabled", uiTools.get_color("cyan"))
+        self.addstr(1, x, "Relaying Disabled", ui_tools.get_color("cyan"))
         x += 17
       else:
-        status_time = torTools.get_conn().controller.get_latest_heartbeat()
+        status_time = tor_tools.get_conn().controller.get_latest_heartbeat()
 
         if status_time:
           status_time_label = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(status_time))
         else:
           status_time_label = ""  # never connected to tor
 
-        self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | uiTools.get_color("red"))
+        self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | ui_tools.get_color("red"))
         self.addstr(1, x + 16, " (%spress r to reconnect)" % status_time_label)
         x += 39 + len(status_time_label)
         include_control_port = False
@@ -302,7 +302,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         if x + 19 + len(self.vals["tor/control_port"]) + len(auth_type) <= left_width:
           auth_color = "red" if auth_type == "open" else "green"
           self.addstr(1, x, ", Control Port (")
-          self.addstr(1, x + 16, auth_type, uiTools.get_color(auth_color))
+          self.addstr(1, x + 16, auth_type, ui_tools.get_color(auth_color))
           self.addstr(1, x + 16 + len(auth_type), "): %s" % self.vals["tor/control_port"])
         elif x + 16 + len(self.vals["tor/control_port"]) <= left_width:
           self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/control_port"])
@@ -341,7 +341,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       y, x = (1, left_width) if is_wide else (3, 0)
 
-      fingerprint_label = uiTools.crop_str("fingerprint: %s" % self.vals["tor/fingerprint"], width)
+      fingerprint_label = ui_tools.crop_str("fingerprint: %s" % self.vals["tor/fingerprint"], width)
       self.addstr(y, x, fingerprint_label)
 
       # if there's room and we're able to retrieve both the file descriptor
@@ -357,11 +357,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
           fd_percentLabel, fd_percent_format = "%i%%" % fd_percent, curses.A_NORMAL
 
           if fd_percent >= 95:
-            fd_percent_format = curses.A_BOLD | uiTools.get_color("red")
+            fd_percent_format = curses.A_BOLD | ui_tools.get_color("red")
           elif fd_percent >= 90:
-            fd_percent_format = uiTools.get_color("red")
+            fd_percent_format = ui_tools.get_color("red")
           elif fd_percent >= 60:
-            fd_percent_format = uiTools.get_color("yellow")
+            fd_percent_format = ui_tools.get_color("yellow")
 
           estimate_char = "?" if self.vals["tor/isFdLimitEstimate"] else ""
           base_label = "file desc: %i / %i%s (" % (self.vals["tor/fd_used"], self.vals["tor/fd_limit"], estimate_char)
@@ -382,19 +382,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
             flag = self.vals["tor/flags"][i]
             flag_color = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
 
-            self.addstr(y, x, flag, curses.A_BOLD | uiTools.get_color(flag_color))
+            self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
             x += len(flag)
 
             if i < len(self.vals["tor/flags"]) - 1:
               self.addstr(y, x, ", ")
               x += 2
         else:
-          self.addstr(y, x, "none", curses.A_BOLD | uiTools.get_color("cyan"))
+          self.addstr(y, x, "none", curses.A_BOLD | ui_tools.get_color("cyan"))
       else:
         y = 2 if is_wide else 4
-        status_time = torTools.get_conn().controller.get_latest_heartbeat()
+        status_time = tor_tools.get_conn().controller.get_latest_heartbeat()
         status_time_label = time.strftime("%H:%M %m/%d/%Y", time.localtime(status_time))
-        self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | uiTools.get_color("red"))
+        self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | ui_tools.get_color("red"))
         self.addstr(y, 16, " (%s) - press r to reconnect" % status_time_label)
 
       # Undisplayed / Line 3 Right (exit policy)
@@ -430,7 +430,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           elif policy.startswith("<default>"):
             policy_color = "cyan"
 
-          self.addstr(2, x, policy_label, curses.A_BOLD | uiTools.get_color(policy_color))
+          self.addstr(2, x, policy_label, curses.A_BOLD | ui_tools.get_color(policy_color))
           x += len(policy_label)
 
           if i < len(policies) - 1:
@@ -440,7 +440,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # (Client only) Undisplayed / Line 2 Right (new identity option)
 
       if is_wide:
-        conn = torTools.get_conn()
+        conn = tor_tools.get_conn()
         newnym_wait = conn.get_newnym_wait()
 
         msg = "press 'n' for a new identity"
@@ -547,7 +547,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     self.vals_lock.acquire()
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
 
     if set_static:
       # version is truncated to first part, for instance:
@@ -621,7 +621,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     # sets volatile parameters
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
-    # events. Introduce caching via torTools?
+    # events. Introduce caching via tor_tools?
 
     self.vals["tor/address"] = conn.get_info("address", "")
 

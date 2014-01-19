@@ -17,10 +17,10 @@ import arm
 import arm.arguments
 import arm.controller
 import arm.util.panel
-import arm.util.torConfig
-import arm.util.torTools
+import arm.util.tor_config
+import arm.util.tor_tools
 import arm.util.tracker
-import arm.util.uiTools
+import arm.util.ui_tools
 
 import stem
 import stem.util.conf
@@ -69,10 +69,10 @@ def main():
     controller = init_controller(args)
     authenticate(controller, CONFIG.get('tor.password', None), CONFIG.get('tor.chroot', ''))
 
-    # TODO: Our tor_controller() method will gradually replace the torTools
+    # TODO: Our tor_controller() method will gradually replace the tor_tools
     # module, but until that we need to initialize it too.
 
-    arm.util.torTools.get_conn().init(controller)
+    arm.util.tor_tools.get_conn().init(controller)
   except ValueError as exc:
     print exc
     exit(1)
@@ -232,7 +232,7 @@ def _load_tor_config_descriptions():
   Attempt to determine descriptions for tor's configuration options.
   """
 
-  arm.util.torConfig.load_configuration_descriptions(BASE_DIR)
+  arm.util.tor_config.load_configuration_descriptions(BASE_DIR)
 
 
 def _use_english_subcommands():
@@ -256,7 +256,7 @@ def _use_unicode():
 
   is_lang_unicode = "utf-" in os.getenv("LANG", "").lower()
 
-  if is_lang_unicode and arm.util.uiTools.is_wide_characters_supported():
+  if is_lang_unicode and arm.util.ui_tools.is_wide_characters_supported():
     locale.setlocale(locale.LC_ALL, '')
 
 

@@ -9,7 +9,7 @@ import curses.ascii
 import curses.textpad
 from threading import RLock
 
-from arm.util import textInput, uiTools
+from arm.util import text_input, ui_tools
 
 from stem.util import log
 
@@ -32,8 +32,8 @@ FORMAT_TAGS = {
   "<h>": (_no_op, curses.A_STANDOUT),
 }
 
-for color_label in uiTools.COLOR_LIST:
-  FORMAT_TAGS["<%s>" % color_label] = (uiTools.get_color, color_label)
+for color_label in ui_tools.COLOR_LIST:
+  FORMAT_TAGS["<%s>" % color_label] = (ui_tools.get_color, color_label)
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
@@ -520,7 +520,7 @@ class Panel():
     <b>text</b>               bold
     <u>text</u>               underline
     <h>text</h>               highlight
-    <[color]>text</[color]>   use color (see uiTools.get_color() for constants)
+    <[color]>text</[color]>   use color (see ui_tools.get_color() for constants)
 
     Tag nesting is supported and tag closing is strictly enforced (raising an
     exception for invalid formatting). Unrecognized tags are treated as normal
@@ -662,7 +662,7 @@ class Panel():
     textbox = curses.textpad.Textbox(input_subwindow)
 
     if not validator:
-      validator = textInput.BasicValidator()
+      validator = text_input.BasicValidator()
 
     textbox.win.attron(text_format)
     user_input = textbox.edit(lambda key: validator.validate(key, textbox)).strip()

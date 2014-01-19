@@ -9,7 +9,7 @@ import arm.controller
 import arm.menu.item
 import arm.menu.actions
 
-from arm.util import uiTools
+from arm.util import ui_tools
 
 
 class MenuCursor:
@@ -40,7 +40,7 @@ class MenuCursor:
     is_selection_submenu = isinstance(self._selection, arm.menu.item.Submenu)
     selection_hierarchy = self._selection.get_hierarchy()
 
-    if uiTools.is_selection_key(key):
+    if ui_tools.is_selection_key(key):
       if is_selection_submenu:
         if not self._selection.is_empty():
           self._selection = self._selection.get_children()[0]
@@ -96,7 +96,7 @@ def show_menu():
       # sets the background color
 
       popup.win.clear()
-      popup.win.bkgd(' ', curses.A_STANDOUT | uiTools.get_color("red"))
+      popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
       selection_hierarchy = cursor.get_selection().get_hierarchy()
 
       # provide a message saying how to close the menu
@@ -172,13 +172,13 @@ def _draw_submenu(cursor, level, top, left):
   try:
     # sets the background color
 
-    popup.win.bkgd(' ', curses.A_STANDOUT | uiTools.get_color("red"))
+    popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
 
     draw_top, selection_top = 0, 0
 
     for menu_item in submenu.get_children():
       if menu_item == selection:
-        draw_format = curses.A_BOLD | uiTools.get_color("white")
+        draw_format = curses.A_BOLD | ui_tools.get_color("white")
         selection_top = draw_top
       else:
         draw_format = curses.A_NORMAL

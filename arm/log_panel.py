@@ -19,7 +19,7 @@ from stem.util import conf, log, system
 import arm.arguments
 import arm.popups
 from arm import __version__
-from arm.util import panel, torTools, uiTools
+from arm.util import panel, tor_tools, ui_tools
 
 RUNLEVEL_EVENT_COLOR = {
   log.DEBUG: "magenta",
@@ -146,7 +146,7 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
 
   logging_types, logging_location = None, None
 
-  for logging_entry in torTools.get_conn().get_option("Log", [], True):
+  for logging_entry in tor_tools.get_conn().get_option("Log", [], True):
     # looks for an entry like: notice file /var/log/tor/notices.log
 
     entry_comp = logging_entry.split()
@@ -539,7 +539,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # adds listeners for tor and stem events
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     conn.add_status_listener(self._reset_listener)
 
     # opens log file if we'll be saving entries
@@ -653,7 +653,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # strips control characters to avoid screwing up the terminal
 
-    event.msg = uiTools.get_printable(event.msg)
+    event.msg = ui_tools.get_printable(event.msg)
 
     # note event in the log file if we're saving them
 
@@ -865,9 +865,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   def handle_key(self, key):
     is_keystroke_consumed = True
 
-    if uiTools.is_scroll_key(key):
+    if ui_tools.is_scroll_key(key):
       page_height = self.get_preferred_size()[0] - 1
-      new_scroll = uiTools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
+      new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
 
       if self.scroll != new_scroll:
         self.vals_lock.acquire()
@@ -967,7 +967,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     line_count = 1 - self.scroll
     seen_first_date_divider = False
-    divider_attr, duplicate_attr = curses.A_BOLD | uiTools.get_color("yellow"), curses.A_BOLD | uiTools.get_color("green")
+    divider_attr, duplicate_attr = curses.A_BOLD | ui_tools.get_color("yellow"), curses.A_BOLD | ui_tools.get_color("green")
 
     is_dates_shown = self.regex_filter is None and CONFIG["features.log.showDateDividers"]
     event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
@@ -1029,7 +1029,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         for i in range(len(msg_comp)):
           font = curses.A_BOLD if "ERR" in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-          display_queue.append((msg_comp[i].strip(), font | uiTools.get_color(entry.color), i != len(msg_comp) - 1))
+          display_queue.append((msg_comp[i].strip(), font | ui_tools.get_color(entry.color), i != len(msg_comp) - 1))
 
         if duplicate_count:
           plural_label = "s" if duplicate_count > 1 else ""
@@ -1051,9 +1051,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
           if len(msg) > max_msg_size:
             # message is too long - break it up
             if line_offset == max_entries_per_line - 1:
-              msg = uiTools.crop_str(msg, max_msg_size)
+              msg = ui_tools.crop_str(msg, max_msg_size)
             else:
-              msg, remainder = uiTools.crop_str(msg, max_msg_size, 4, 4, uiTools.Ending.HYPHEN, True)
+              msg, remainder = ui_tools.crop_str(msg, max_msg_size, 4, 4, ui_tools.Ending.HYPHEN, True)
               display_queue.insert(0, (remainder.strip(), format, include_break))
 
             include_break = True
@@ -1191,7 +1191,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if "UNKNOWN" in events:
       tor_events.update(set(arm.arguments.missing_event_types()))
 
-    tor_conn = torTools.get_conn()
+    tor_conn = tor_tools.get_conn()
     tor_conn.remove_event_listener(self.register_tor_event)
 
     for event_type in list(tor_events):
@@ -1246,7 +1246,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       if not current_pattern:
         panel_label = "Events:"
       else:
-        label_pattern = uiTools.crop_str(current_pattern, width - 18)
+        label_pattern = ui_tools.crop_str(current_pattern, width - 18)
         panel_label = "Events (filter: %s):" % label_pattern
     else:
       # does the following with all runlevel types (tor, arm, and stem):
@@ -1320,7 +1320,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       if current_pattern:
         attr_label += " - filter: %s" % current_pattern
 
-      attr_label = uiTools.crop_str(attr_label, width - 10, 1)
+      attr_label = ui_tools.crop_str(attr_label, width - 10, 1)
 
       if attr_label:
         attr_label = " (%s)" % attr_label

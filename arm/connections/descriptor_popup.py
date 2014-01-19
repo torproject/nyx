@@ -6,9 +6,9 @@ import math
 import curses
 
 import arm.popups
-import arm.connections.connEntry
+import arm.connections.conn_entry
 
-from arm.util import panel, torTools, uiTools
+from arm.util import panel, tor_tools, ui_tools
 
 # field keywords used to identify areas for coloring
 
@@ -57,7 +57,7 @@ def show_descriptor_popup(conn_panel):
         fingerprint = None
 
       display_text = get_display_text(fingerprint)
-      display_color = arm.connections.connEntry.CATEGORY_COLOR[selection.get_type()]
+      display_color = arm.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
       show_line_number = fingerprint is not None
 
       # determines the maximum popup size the display_text can fill
@@ -79,7 +79,7 @@ def show_descriptor_popup(conn_panel):
 
           key = control.get_screen().getch()
 
-          if uiTools.is_scroll_key(key):
+          if ui_tools.is_scroll_key(key):
             # TODO: This is a bit buggy in that scrolling is by display_text
             # lines rather than the displayed lines, causing issues when
             # content wraps. The result is that we can't have a scrollbar and
@@ -88,11 +88,11 @@ def show_descriptor_popup(conn_panel):
             # of worms and after hours decided that this isn't worth the
             # effort...
 
-            new_scroll = uiTools.get_scroll_position(key, scroll, height - 2, len(display_text))
+            new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(display_text))
 
             if scroll != new_scroll:
               scroll, is_changed = new_scroll, True
-          elif uiTools.is_selection_key(key) or key in (ord('d'), ord('D')):
+          elif ui_tools.is_selection_key(key) or key in (ord('d'), ord('D')):
             is_done = True  # closes popup
           elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):
             # navigation - pass on to conn_panel and recreate popup
@@ -116,7 +116,7 @@ def get_display_text(fingerprint):
   if not fingerprint:
     return [UNRESOLVED_MSG]
 
-  conn, description = torTools.get_conn(), []
+  conn, description = tor_tools.get_conn(), []
 
   description.append("ns/id/%s" % fingerprint)
   consensus_entry = conn.get_consensus_entry(fingerprint)
@@ -194,7 +194,7 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
 
     if show_line_number:
       line_number_label = ("%%%ii" % line_number_width) % (i + 1)
-      line_number_format = curses.A_BOLD | uiTools.get_color(LINE_NUM_COLOR)
+      line_number_format = curses.A_BOLD | ui_tools.get_color(LINE_NUM_COLOR)
 
       popup.addstr(draw_line, x_offset, line_number_label, line_number_format)
       x_offset += line_number_width + 1
@@ -203,24 +203,24 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
     # shown with the same color, but the keyword is bolded.
 
     keyword, value = line_text, ""
-    draw_format = uiTools.get_color(display_color)
+    draw_format = ui_tools.get_color(display_color)
 
     if line_text.startswith(HEADER_PREFIX[0]) or line_text.startswith(HEADER_PREFIX[1]):
       keyword, value = line_text, ""
-      draw_format = uiTools.get_color(HEADER_COLOR)
+      draw_format = ui_tools.get_color(HEADER_COLOR)
     elif line_text == UNRESOLVED_MSG or line_text == ERROR_MSG:
       keyword, value = line_text, ""
     elif line_text in SIG_START_KEYS:
       keyword, value = line_text, ""
       is_encryption_block = True
-      draw_format = uiTools.get_color(SIG_COLOR)
+      draw_format = ui_tools.get_color(SIG_COLOR)
     elif line_text in SIG_END_KEYS:
       keyword, value = line_text, ""
       is_encryption_block = False
-      draw_format = uiTools.get_color(SIG_COLOR)
+      draw_format = ui_tools.get_color(SIG_COLOR)
     elif is_encryption_block:
       keyword, value = "", line_text
-      draw_format = uiTools.get_color(SIG_COLOR)
+      draw_format = ui_tools.get_color(SIG_COLOR)
     elif " " in line_text:
       div_index = line_text.find(" ")
       keyword, value = line_text[:div_index], line_text[div_index:]
@@ -239,12 +239,12 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
       if len(msg) >= max_msg_size:
         # needs to split up the line
 
-        msg, remainder = uiTools.crop_str(msg, max_msg_size, None, end_type = None, get_remainder = True)
+        msg, remainder = ui_tools.crop_str(msg, max_msg_size, None, end_type = None, get_remainder = True)
 
         if x_offset == cursor_location and msg == "":
           # first word is longer than the line
 
-          msg = uiTools.crop_str(remainder, max_msg_size)
+          msg = ui_tools.crop_str(remainder, max_msg_size)
 
           if " " in remainder:
             remainder = remainder.split(" ", 1)[1]

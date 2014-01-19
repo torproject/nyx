@@ -8,7 +8,7 @@ import threading
 
 import arm.popups
 
-from arm.util import panel, torConfig, torTools, uiTools
+from arm.util import panel, tor_config, tor_tools, ui_tools
 
 from stem.control import State
 from stem.util import conf, enum
@@ -52,7 +52,7 @@ class TorrcPanel(panel.Panel):
 
     # listens for tor reload (sighup) events
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     conn.add_status_listener(self.reset_listener)
 
     if conn.is_alive():
@@ -67,7 +67,7 @@ class TorrcPanel(panel.Panel):
       # loads the torrc and provides warnings in case of validation errors
 
       try:
-        loaded_torrc = torConfig.get_torrc()
+        loaded_torrc = tor_config.get_torrc()
         loaded_torrc.load(True)
         loaded_torrc.log_validation_issues()
         self.redraw(True)
@@ -75,7 +75,7 @@ class TorrcPanel(panel.Panel):
         pass
     elif event_type == State.RESET:
       try:
-        torConfig.get_torrc().load(True)
+        tor_config.get_torrc().load(True)
         self.redraw(True)
       except:
         pass
@@ -110,7 +110,7 @@ class TorrcPanel(panel.Panel):
     """
 
     try:
-      torConfig.get_torrc().load()
+      tor_config.get_torrc().load()
       self._last_content_height_args = None
       self.redraw(True)
       result_msg = "torrc reloaded"
@@ -124,9 +124,9 @@ class TorrcPanel(panel.Panel):
   def handle_key(self, key):
     self.vals_lock.acquire()
     is_keystroke_consumed = True
-    if uiTools.is_scroll_key(key):
+    if ui_tools.is_scroll_key(key):
       page_height = self.get_preferred_size()[0] - 1
-      new_scroll = uiTools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
+      new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
 
       if self.scroll != new_scroll:
         self.scroll = new_scroll
@@ -179,7 +179,7 @@ class TorrcPanel(panel.Panel):
     rendered_contents, corrections, conf_location = None, {}, None
 
     if self.config_type == Config.TORRC:
-      loaded_torrc = torConfig.get_torrc()
+      loaded_torrc = tor_config.get_torrc()
       loaded_torrc.get_lock().acquire()
       conf_location = loaded_torrc.get_config_location()
 
@@ -239,10 +239,10 @@ class TorrcPanel(panel.Panel):
       # splits the line into its component (msg, format) tuples
 
       line_comp = {
-        "option": ["", curses.A_BOLD | uiTools.get_color("green")],
-        "argument": ["", curses.A_BOLD | uiTools.get_color("cyan")],
-        "correction": ["", curses.A_BOLD | uiTools.get_color("cyan")],
-        "comment": ["", uiTools.get_color("white")],
+        "option": ["", curses.A_BOLD | ui_tools.get_color("green")],
+        "argument": ["", curses.A_BOLD | ui_tools.get_color("cyan")],
+        "correction": ["", curses.A_BOLD | ui_tools.get_color("cyan")],
+        "comment": ["", ui_tools.get_color("white")],
       }
 
       # parses the comment
@@ -282,24 +282,24 @@ class TorrcPanel(panel.Panel):
       if line_number in corrections:
         line_issue, line_issue_msg = corrections[line_number]
 
-        if line_issue in (torConfig.ValidationError.DUPLICATE, torConfig.ValidationError.IS_DEFAULT):
-          line_comp["option"][1] = curses.A_BOLD | uiTools.get_color("blue")
-          line_comp["argument"][1] = curses.A_BOLD | uiTools.get_color("blue")
-        elif line_issue == torConfig.ValidationError.MISMATCH:
-          line_comp["argument"][1] = curses.A_BOLD | uiTools.get_color("red")
+        if line_issue in (tor_config.ValidationError.DUPLICATE, tor_config.ValidationError.IS_DEFAULT):
+          line_comp["option"][1] = curses.A_BOLD | ui_tools.get_color("blue")
+          line_comp["argument"][1] = curses.A_BOLD | ui_tools.get_color("blue")
+        elif line_issue == tor_config.ValidationError.MISMATCH:
+          line_comp["argument"][1] = curses.A_BOLD | ui_tools.get_color("red")
           line_comp["correction"][0] = " (%s)" % line_issue_msg
         else:
           # For some types of configs the correction field is simply used to
           # provide extra data (for instance, the type for tor state fields).
 
           line_comp["correction"][0] = " (%s)" % line_issue_msg
-          line_comp["correction"][1] = curses.A_BOLD | uiTools.get_color("magenta")
+          line_comp["correction"][1] = curses.A_BOLD | ui_tools.get_color("magenta")
 
       # draws the line number
 
       if self.show_line_num and display_line < height and display_line >= 1:
         line_number_str = ("%%%ii" % (line_number_offset - 1)) % (line_number + 1)
-        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD | uiTools.get_color("yellow"))
+        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD | ui_tools.get_color("yellow"))
 
       # draws the rest of the components with line wrap
 
@@ -316,10 +316,10 @@ class TorrcPanel(panel.Panel):
           # message is too long - break it up
 
           if line_offset == max_lines_per_entry - 1:
-            msg = uiTools.crop_str(msg, max_msg_size)
+            msg = ui_tools.crop_str(msg, max_msg_size)
           else:
             include_break = True
-            msg, remainder = uiTools.crop_str(msg, max_msg_size, 4, 4, uiTools.Ending.HYPHEN, True)
+            msg, remainder = ui_tools.crop_str(msg, max_msg_size, 4, 4, ui_tools.Ending.HYPHEN, True)
             display_queue.insert(0, (remainder.strip(), format))
 
         draw_line = display_line + line_offset

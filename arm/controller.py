@@ -11,20 +11,20 @@ import threading
 import arm.arguments
 import arm.menu.menu
 import arm.popups
-import arm.headerPanel
-import arm.logPanel
-import arm.configPanel
-import arm.torrcPanel
-import arm.graphing.graphPanel
-import arm.graphing.bandwidthStats
-import arm.graphing.connStats
-import arm.graphing.resourceStats
-import arm.connections.connPanel
+import arm.header_panel
+import arm.log_panel
+import arm.config_panel
+import arm.torrc_panel
+import arm.graphing.graph_panel
+import arm.graphing.bandwidth_stats
+import arm.graphing.conn_stats
+import arm.graphing.resource_stats
+import arm.connections.conn_panel
 import arm.util.tracker
 
 from stem.control import State
 
-from arm.util import panel, torConfig, torTools
+from arm.util import panel, tor_config, tor_tools
 
 from stem.util import conf, enum, log, system
 
@@ -102,7 +102,7 @@ def init_controller(stdscr, start_time):
   # initializes the panels
 
   sticky_panels = [
-    arm.headerPanel.HeaderPanel(stdscr, start_time),
+    arm.header_panel.HeaderPanel(stdscr, start_time),
     LabelPanel(stdscr),
   ]
 
@@ -110,24 +110,24 @@ def init_controller(stdscr, start_time):
 
   # first page: graph and log
   if CONFIG["features.panels.show.graph"]:
-    first_page_panels.append(arm.graphing.graphPanel.GraphPanel(stdscr))
+    first_page_panels.append(arm.graphing.graph_panel.GraphPanel(stdscr))
 
   if CONFIG["features.panels.show.log"]:
     expanded_events = arm.arguments.expand_events(CONFIG["startup.events"])
-    first_page_panels.append(arm.logPanel.LogPanel(stdscr, expanded_events))
+    first_page_panels.append(arm.log_panel.LogPanel(stdscr, expanded_events))
 
   if first_page_panels:
     page_panels.append(first_page_panels)
 
   # second page: connections
   if CONFIG["features.panels.show.connection"]:
-    page_panels.append([arm.connections.connPanel.ConnectionPanel(stdscr)])
+    page_panels.append([arm.connections.conn_panel.ConnectionPanel(stdscr)])
 
     # The DisableDebuggerAttachment will prevent our connection panel from really
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
 
-    controller = torTools.get_conn().controller
+    controller = tor_tools.get_conn().controller
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
@@ -159,12 +159,12 @@ def init_controller(stdscr, start_time):
   # third page: config
 
   if CONFIG["features.panels.show.config"]:
-    page_panels.append([arm.configPanel.ConfigPanel(stdscr, arm.configPanel.State.TOR)])
+    page_panels.append([arm.config_panel.ConfigPanel(stdscr, arm.config_panel.State.TOR)])
 
   # fourth page: torrc
 
   if CONFIG["features.panels.show.torrc"]:
-    page_panels.append([arm.torrcPanel.TorrcPanel(stdscr, arm.torrcPanel.Config.TORRC)])
+    page_panels.append([arm.torrc_panel.TorrcPanel(stdscr, arm.torrc_panel.Config.TORRC)])
 
   # initializes the controller
 
@@ -177,12 +177,12 @@ def init_controller(stdscr, start_time):
   if graph_panel:
     # statistical monitors for graph
 
-    bw_stats = arm.graphing.bandwidthStats.BandwidthStats()
+    bw_stats = arm.graphing.bandwidth_stats.BandwidthStats()
     graph_panel.add_stats(GraphStat.BANDWIDTH, bw_stats)
-    graph_panel.add_stats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resourceStats.ResourceStats())
+    graph_panel.add_stats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resource_stats.ResourceStats())
 
     if CONFIG["features.panels.show.connection"]:
-      graph_panel.add_stats(GraphStat.CONNECTIONS, arm.graphing.connStats.ConnStats())
+      graph_panel.add_stats(GraphStat.CONNECTIONS, arm.graphing.conn_stats.ConnStats())
 
     # sets graph based on config parameter
 
@@ -194,7 +194,7 @@ def init_controller(stdscr, start_time):
 
     # prepopulates bandwidth values from state file
 
-    if CONFIG["features.graph.bw.prepopulate"] and torTools.get_conn().is_alive():
+    if CONFIG["features.graph.bw.prepopulate"] and tor_tools.get_conn().is_alive():
       is_successful = bw_stats.prepopulate_from_state()
 
       if is_successful:
@@ -517,7 +517,7 @@ class Controller:
     # down the instance
 
     is_shutdown_flag_present = False
-    torrc_contents = torConfig.get_torrc().get_contents()
+    torrc_contents = tor_config.get_torrc().get_contents()
 
     if torrc_contents:
       for line in torrc_contents:
@@ -527,7 +527,7 @@ class Controller:
 
     if is_shutdown_flag_present:
       try:
-        torTools.get_conn().shutdown()
+        tor_tools.get_conn().shutdown()
       except IOError as exc:
         arm.popups.show_msg(str(exc), 3, curses.A_BOLD)
 
@@ -540,7 +540,7 @@ def heartbeat_check(is_unresponsive):
     is_unresponsive - flag for if we've indicated to be responsive or not
   """
 
-  conn = torTools.get_conn()
+  conn = tor_tools.get_conn()
   last_heartbeat = conn.controller.get_latest_heartbeat()
 
   if conn.is_alive():
@@ -572,7 +572,7 @@ def conn_reset_listener(controller, event_type, _):
       # new contents are loaded.
 
       if get_controller().get_panel("torrc") is None:
-        torConfig.get_torrc().load(True)
+        tor_config.get_torrc().load(True)
 
 
 def start_arm(stdscr):
@@ -670,7 +670,7 @@ def start_arm(stdscr):
 
       if confirmation_key in (ord('x'), ord('X')):
         try:
-          torTools.get_conn().reload()
+          tor_tools.get_conn().reload()
         except IOError as exc:
           log.error("Error detected when reloading tor: %s" % exc.strerror)
     elif key == ord('h') or key == ord('H'):

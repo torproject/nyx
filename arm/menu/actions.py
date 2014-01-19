@@ -7,10 +7,10 @@ import functools
 import arm.popups
 import arm.controller
 import arm.menu.item
-import arm.graphing.graphPanel
+import arm.graphing.graph_panel
 import arm.util.tracker
 
-from arm.util import torTools, uiTools
+from arm.util import tor_tools, ui_tools
 
 import stem.util.connection
 
@@ -60,7 +60,7 @@ def make_actions_menu():
   """
 
   control = arm.controller.get_controller()
-  conn = torTools.get_conn()
+  conn = tor_tools.get_conn()
   header_panel = control.get_panel("header")
   actions_menu = arm.menu.item.Submenu("Actions")
   actions_menu.add(arm.menu.item.MenuItem("Close Menu", None))
@@ -103,13 +103,13 @@ def make_view_menu():
 
       view_menu.add(arm.menu.item.SelectionMenuItem(label, page_group, i))
 
-  if uiTools.is_color_supported():
+  if ui_tools.is_color_supported():
     color_menu = arm.menu.item.Submenu("Color")
-    color_group = arm.menu.item.SelectionGroup(uiTools.set_color_override, uiTools.get_color_override())
+    color_group = arm.menu.item.SelectionGroup(ui_tools.set_color_override, ui_tools.get_color_override())
 
     color_menu.add(arm.menu.item.SelectionMenuItem("All", color_group, None))
 
-    for color in uiTools.COLOR_LIST:
+    for color in ui_tools.COLOR_LIST:
       color_menu.add(arm.menu.item.SelectionMenuItem(str_tools._to_camel_case(color), color_group, color))
 
     view_menu.add(color_menu)
@@ -166,8 +166,8 @@ def make_graph_menu(graph_panel):
   interval_menu = arm.menu.item.Submenu("Interval")
   interval_group = arm.menu.item.SelectionGroup(graph_panel.set_update_interval, graph_panel.get_update_interval())
 
-  for i in range(len(arm.graphing.graphPanel.UPDATE_INTERVALS)):
-    label = arm.graphing.graphPanel.UPDATE_INTERVALS[i][0]
+  for i in range(len(arm.graphing.graph_panel.UPDATE_INTERVALS)):
+    label = arm.graphing.graph_panel.UPDATE_INTERVALS[i][0]
     label = str_tools._to_camel_case(label, divider = " ")
     interval_menu.add(arm.menu.item.SelectionMenuItem(label, interval_group, i))
 
@@ -178,7 +178,7 @@ def make_graph_menu(graph_panel):
   bounds_menu = arm.menu.item.Submenu("Bounds")
   bounds_group = arm.menu.item.SelectionGroup(graph_panel.set_bounds_type, graph_panel.get_bounds_type())
 
-  for bounds_type in arm.graphing.graphPanel.Bounds:
+  for bounds_type in arm.graphing.graph_panel.Bounds:
     bounds_menu.add(arm.menu.item.SelectionMenuItem(bounds_type, bounds_group, bounds_type))
 
   graph_menu.add(bounds_menu)

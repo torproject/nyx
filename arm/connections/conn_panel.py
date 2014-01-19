@@ -10,8 +10,8 @@ import threading
 import arm.popups
 import arm.util.tracker
 
-from arm.connections import countPopup, descriptorPopup, entries, connEntry, circEntry
-from arm.util import panel, torTools, tracker, uiTools
+from arm.connections import count_popup, descriptor_popup, entries, conn_entry, circ_entry
+from arm.util import panel, tor_tools, tracker, ui_tools
 
 from stem.control import State
 from stem.util import conf, connection, enum
@@ -67,7 +67,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       arm_config = conf.get_config("arm")
       arm_config.set("features.connection.listing_type", Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
 
-    self._scroller = uiTools.Scroller(True)
+    self._scroller = ui_tools.Scroller(True)
     self._title = "Connections:"  # title line of the panel
     self._entries = []            # last fetched display entries
     self._entry_lines = []        # individual lines rendered from the entries listing
@@ -88,7 +88,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # If we're a bridge and been running over a day then prepopulates with the
     # last day's clients.
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     bridge_clients = conn.get_info("status/clients-seen", None)
 
     if bridge_clients:
@@ -124,7 +124,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # mark the initially exitsing connection uptimes as being estimates
 
     for entry in self._entries:
-      if isinstance(entry, connEntry.ConnectionEntry):
+      if isinstance(entry, conn_entry.ConnectionEntry):
         entry.getLines()[0].is_initial_connection = True
 
     # listens for when tor stops so we know to stop reflecting changes
@@ -217,7 +217,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     True if client connections are permissable, false otherwise.
     """
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     return "Guard" in conn.get_my_flags([]) or conn.get_option("BridgeRelay", None) == "1"
 
   def is_exits_allowed(self):
@@ -225,10 +225,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     True if exit connections are permissable, false otherwise.
     """
 
-    if not torTools.get_conn().get_option("ORPort", None):
+    if not tor_tools.get_conn().get_option("ORPort", None):
       return False  # no ORPort
 
-    policy = torTools.get_conn().get_exit_policy()
+    policy = tor_tools.get_conn().get_exit_policy()
 
     return policy and policy.is_exiting_allowed()
 
@@ -253,7 +253,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     is_keystroke_consumed = True
 
-    if uiTools.is_scroll_key(key):
+    if ui_tools.is_scroll_key(key):
       page_height = self.get_preferred_size()[0] - 1
 
       if self._show_details:
@@ -263,7 +263,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       if is_changed:
         self.redraw(True)
-    elif uiTools.is_selection_key(key):
+    elif ui_tools.is_selection_key(key):
       self._show_details = not self._show_details
       self.redraw(True)
     elif key == ord('s') or key == ord('S'):
@@ -308,11 +308,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         self.set_listing_type(options[selection])
     elif key == ord('d') or key == ord('D'):
       # presents popup for raw consensus data
-      descriptorPopup.show_descriptor_popup(self)
+      descriptor_popup.show_descriptor_popup(self)
     elif (key == ord('c') or key == ord('C')) and self.is_clients_allowed():
-      countPopup.showCountDialog(countPopup.CountType.CLIENT_LOCALE, self._client_locale_usage)
+      count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
     elif (key == ord('e') or key == ord('E')) and self.is_exits_allowed():
-      countPopup.showCountDialog(countPopup.CountType.EXIT_PORT, self._exit_port_usage)
+      count_popup.showCountDialog(count_popup.CountType.EXIT_PORT, self._exit_port_usage)
     else:
       is_keystroke_consumed = False
 
@@ -412,7 +412,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # This is a solid border unless the scrollbar is visible, in which case a
       # 'T' pipe connects the border to the bar.
 
-      uiTools.draw_box(self, 0, 0, width, DETAILS_HEIGHT + 2)
+      ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT + 2)
 
       if is_scrollbar_visible:
         self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
@@ -445,7 +445,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # if this is an unresolved SOCKS, HIDDEN, or CONTROL entry then queue up
       # resolution for the applicaitions they belong to
 
-      if isinstance(entry_line, connEntry.ConnectionLine) and entry_line.is_unresolved_application():
+      if isinstance(entry_line, conn_entry.ConnectionLine) and entry_line.is_unresolved_application():
         self._resolve_apps()
 
       # hilighting if this is the selected line
@@ -508,7 +508,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_connections()]
     new_circuits = {}
 
-    for circuit_id, status, purpose, path in torTools.get_conn().get_circuits():
+    for circuit_id, status, purpose, path in tor_tools.get_conn().get_circuits():
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
@@ -521,14 +521,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # we need to check for them first.
 
     for old_entry in self._entries:
-      if isinstance(old_entry, circEntry.CircEntry):
+      if isinstance(old_entry, circ_entry.CircEntry):
         new_entry = new_circuits.get(old_entry.circuit_id)
 
         if new_entry:
           old_entry.update(new_entry[0], new_entry[2])
           new_entries.append(old_entry)
           del new_circuits[old_entry.circuit_id]
-      elif isinstance(old_entry, connEntry.ConnectionEntry):
+      elif isinstance(old_entry, conn_entry.ConnectionEntry):
         connection_line = old_entry.getLines()[0]
         conn_attr = (connection_line.local.get_address(), connection_line.local.get_port(),
                      connection_line.foreign.get_address(), connection_line.foreign.get_port())
@@ -545,41 +545,41 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # Adds any new connection and circuit entries.
 
     for local_address, local_port, remote_address, remote_port in new_connections:
-      new_conn_entry = connEntry.ConnectionEntry(local_address, local_port, remote_address, remote_port)
+      new_conn_entry = conn_entry.ConnectionEntry(local_address, local_port, remote_address, remote_port)
       new_conn_line = new_conn_entry.getLines()[0]
 
-      if new_conn_line.get_type() != connEntry.Category.CIRCUIT:
+      if new_conn_line.get_type() != conn_entry.Category.CIRCUIT:
         new_entries.append(new_conn_entry)
 
         # updates exit port and client locale usage information
         if new_conn_line.is_private():
-          if new_conn_line.get_type() == connEntry.Category.INBOUND:
+          if new_conn_line.get_type() == conn_entry.Category.INBOUND:
             # client connection, update locale information
 
             client_locale = new_conn_line.foreign.get_locale()
 
             if client_locale:
               self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
-          elif new_conn_line.get_type() == connEntry.Category.EXIT:
+          elif new_conn_line.get_type() == conn_entry.Category.EXIT:
             exit_port = new_conn_line.foreign.get_port()
             self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
     for circuit_id in new_circuits:
       status, purpose, path = new_circuits[circuit_id]
-      new_entries.append(circEntry.CircEntry(circuit_id, status, purpose, path))
+      new_entries.append(circ_entry.CircEntry(circuit_id, status, purpose, path))
 
     # Counts the relays in each of the categories. This also flushes the
     # type cache for all of the connections (in case its changed since last
     # fetched).
 
-    category_types = list(connEntry.Category)
+    category_types = list(conn_entry.Category)
     type_counts = dict((type, 0) for type in category_types)
 
     for entry in new_entries:
-      if isinstance(entry, connEntry.ConnectionEntry):
+      if isinstance(entry, conn_entry.ConnectionEntry):
         type_counts[entry.getLines()[0].get_type()] += 1
-      elif isinstance(entry, circEntry.CircEntry):
-        type_counts[connEntry.Category.CIRCUIT] += 1
+      elif isinstance(entry, circ_entry.CircEntry):
+        type_counts[conn_entry.Category.CIRCUIT] += 1
 
     # makes labels for all the categories with connections (ie,
     # "21 outbound", "1 control", etc)
@@ -619,14 +619,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if self.app_resolve_since_update or not CONFIG["features.connection.resolveApps"]:
       return
 
-    unresolved_lines = [l for l in self._entry_lines if isinstance(l, connEntry.ConnectionLine) and l.is_unresolved_application()]
+    unresolved_lines = [l for l in self._entry_lines if isinstance(l, conn_entry.ConnectionLine) and l.is_unresolved_application()]
 
     # get the ports used for unresolved applications
 
     app_ports = []
 
     for line in unresolved_lines:
-      app_conn = line.local if line.get_type() == connEntry.Category.HIDDEN else line.foreign
+      app_conn = line.local if line.get_type() == conn_entry.Category.HIDDEN else line.foreign
       app_ports.append(app_conn.get_port())
 
     # Queue up resolution for the unresolved ports (skips if it's still working
@@ -647,7 +647,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     app_results = self._app_resolver.get_processes_using_ports(app_ports)
 
     for line in unresolved_lines:
-      is_local = line.get_type() == connEntry.Category.HIDDEN
+      is_local = line.get_type() == conn_entry.Category.HIDDEN
       line_port = line.local.get_port() if is_local else line.foreign.get_port()
 
       if line_port in app_results:

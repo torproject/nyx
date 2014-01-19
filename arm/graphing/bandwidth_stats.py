@@ -8,8 +8,8 @@ import curses
 
 import arm.controller
 
-from arm.graphing import graphPanel
-from arm.util import torTools, uiTools
+from arm.graphing import graph_panel
+from arm.util import tor_tools, ui_tools
 
 from stem.control import State
 from stem.util import conf, log, str_tools, system
@@ -43,13 +43,13 @@ PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state
 PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
 
 
-class BandwidthStats(graphPanel.GraphStats):
+class BandwidthStats(graph_panel.GraphStats):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
 
   def __init__(self, is_pause_buffer = False):
-    graphPanel.GraphStats.__init__(self)
+    graph_panel.GraphStats.__init__(self)
 
     # stats prepopulated from tor's state file
 
@@ -65,7 +65,7 @@ class BandwidthStats(graphPanel.GraphStats):
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     self._title_stats, self.is_accounting = [], False
 
     if not is_pause_buffer:
@@ -105,7 +105,7 @@ class BandwidthStats(graphPanel.GraphStats):
     new_copy.is_accounting = self.is_accounting
     new_copy._title_stats = self._title_stats
 
-    return graphPanel.GraphStats.clone(self, new_copy)
+    return graph_panel.GraphStats.clone(self, new_copy)
 
   def reset_listener(self, controller, event_type, _):
     # updates title parameters and accounting status if they changed
@@ -138,7 +138,7 @@ class BandwidthStats(graphPanel.GraphStats):
 
     # checks that this is a relay (if ORPort is unset, then skip)
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     or_port = conn.get_option("ORPort", None)
 
     if or_port == "0":
@@ -246,7 +246,7 @@ class BandwidthStats(graphPanel.GraphStats):
 
     interval_index = 0
 
-    for index_entry in graphPanel.UPDATE_INTERVALS:
+    for index_entry in graph_panel.UPDATE_INTERVALS:
       if index_entry[1] == 900:
         break
       else:
@@ -294,7 +294,7 @@ class BandwidthStats(graphPanel.GraphStats):
   def draw(self, panel, width, height):
     # line of the graph's x-axis labeling
 
-    labeling_line = graphPanel.GraphStats.get_content_height(self) + panel.graph_height - 2
+    labeling_line = graph_panel.GraphStats.get_content_height(self) + panel.graph_height - 2
 
     # if display is narrow, overwrites x-axis labels with avg / total stats
 
@@ -307,13 +307,13 @@ class BandwidthStats(graphPanel.GraphStats):
       primary_footer = "%s, %s" % (self._get_avg_label(True), self._get_total_label(True))
       secondary_footer = "%s, %s" % (self._get_avg_label(False), self._get_total_label(False))
 
-      panel.addstr(labeling_line, 1, primary_footer, uiTools.get_color(self.get_color(True)))
-      panel.addstr(labeling_line, graph_column + 6, secondary_footer, uiTools.get_color(self.get_color(False)))
+      panel.addstr(labeling_line, 1, primary_footer, ui_tools.get_color(self.get_color(True)))
+      panel.addstr(labeling_line, graph_column + 6, secondary_footer, ui_tools.get_color(self.get_color(False)))
 
     # provides accounting stats if enabled
 
     if self.is_accounting:
-      if torTools.get_conn().is_alive():
+      if tor_tools.get_conn().is_alive():
         status = self.accounting_info["status"]
 
         hibernate_color = "green"
@@ -327,7 +327,7 @@ class BandwidthStats(graphPanel.GraphStats):
           status, hibernate_color = "unknown", "red"
 
         panel.addstr(labeling_line + 2, 0, "Accounting (", curses.A_BOLD)
-        panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD | uiTools.get_color(hibernate_color))
+        panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD | ui_tools.get_color(hibernate_color))
         panel.addstr(labeling_line + 2, 12 + len(status), ")", curses.A_BOLD)
 
         reset_time = self.accounting_info["reset_time"]
@@ -340,12 +340,12 @@ class BandwidthStats(graphPanel.GraphStats):
         used, total = self.accounting_info["read"], self.accounting_info["read_limit"]
 
         if used and total:
-          panel.addstr(labeling_line + 3, 2, "%s / %s" % (used, total), uiTools.get_color(self.get_color(True)))
+          panel.addstr(labeling_line + 3, 2, "%s / %s" % (used, total), ui_tools.get_color(self.get_color(True)))
 
         used, total = self.accounting_info["written"], self.accounting_info["writtenLimit"]
 
         if used and total:
-          panel.addstr(labeling_line + 3, 37, "%s / %s" % (used, total), uiTools.get_color(self.get_color(False)))
+          panel.addstr(labeling_line + 3, 37, "%s / %s" % (used, total), ui_tools.get_color(self.get_color(False)))
       else:
         panel.addstr(labeling_line + 2, 0, "Accounting:", curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, "Connection Closed...")
@@ -396,13 +396,13 @@ class BandwidthStats(graphPanel.GraphStats):
     return DL_COLOR if is_primary else UL_COLOR
 
   def get_content_height(self):
-    base_height = graphPanel.GraphStats.get_content_height(self)
+    base_height = graph_panel.GraphStats.get_content_height(self)
     return base_height + 3 if self.is_accounting else base_height
 
   def new_desc_event(self, event):
     # updates self._title_stats with updated values
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
 
     if not conn.is_alive():
       return  # keep old values
@@ -460,7 +460,7 @@ class BandwidthStats(graphPanel.GraphStats):
     Any failed lookups result in a mapping to an empty string.
     """
 
-    conn = torTools.get_conn()
+    conn = tor_tools.get_conn()
     queried = dict([(arg, "") for arg in ACCOUNTING_ARGS])
     queried["status"] = conn.get_info("accounting/hibernating", None)
 
