@@ -24,7 +24,7 @@ import arm.util.tracker
 
 from stem.control import State
 
-from arm.util import panel, tor_config, tor_tools
+from arm.util import panel, tor_config, tor_tools, ui_tools
 
 from stem.util import conf, enum, log, system
 
@@ -41,6 +41,7 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict("arm", {
   "startup.events": "N3",
   "startup.data_directory": "~/.arm",
+  "features.acsSupport": True,
   "features.panels.show.graph": True,
   "features.panels.show.log": True,
   "features.panels.show.connection": True,
@@ -586,6 +587,9 @@ def start_arm(stdscr):
   start_time = CONFIG['start_time']
   init_controller(stdscr, start_time)
   control = get_controller()
+
+  if not CONFIG["features.acsSupport"]:
+    ui_tools.disable_acs()
 
   # provides notice about any unused config keys
 

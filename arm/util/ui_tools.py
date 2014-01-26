@@ -1,8 +1,5 @@
 """
-Toolkit for common ui tasks when working with curses. This provides a quick and
-easy method of providing the following interface components:
-- preinitialized curses color attributes
-- unit conversion for labels
+Toolkit for working with curses.
 """
 
 import sys
@@ -10,88 +7,70 @@ import curses
 
 from curses.ascii import isprint
 
-from stem.util import conf, enum, log, system
+from arm.util import info, msg
 
-# colors curses can handle
+from stem.util import conf, enum, system
 
 COLOR_LIST = {
-  "red": curses.COLOR_RED,
-  "green": curses.COLOR_GREEN,
-  "yellow": curses.COLOR_YELLOW,
-  "blue": curses.COLOR_BLUE,
-  "cyan": curses.COLOR_CYAN,
-  "magenta": curses.COLOR_MAGENTA,
-  "black": curses.COLOR_BLACK,
-  "white": curses.COLOR_WHITE,
+  'red': curses.COLOR_RED,
+  'green': curses.COLOR_GREEN,
+  'yellow': curses.COLOR_YELLOW,
+  'blue': curses.COLOR_BLUE,
+  'cyan': curses.COLOR_CYAN,
+  'magenta': curses.COLOR_MAGENTA,
+  'black': curses.COLOR_BLACK,
+  'white': curses.COLOR_WHITE,
 }
 
-# boolean for if we have color support enabled, None not yet determined
+DEFAULT_COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
+COLOR_ATTR = None
 
-COLOR_IS_SUPPORTED = None
-
-# mappings for get_color() - this uses the default terminal color scheme if
-# color support is unavailable
-
-COLOR_ATTR_INITIALIZED = False
-COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
-
-Ending = enum.Enum("ELLIPSE", "HYPHEN")
+Ending = enum.Enum('ELLIPSE', 'HYPHEN')
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 
 
 def conf_handler(key, value):
-  if key == "features.color_override" and value != "none":
-    try:
-      set_color_override(value)
-    except ValueError as exc:
-      log.notice(exc)
+  if key == 'features.color_override':
+    if value not in COLOR_LIST.keys() and value != 'none':
+      raise ValueError(msg('usage.unable_to_set_color_override', color = value))
 
 
-CONFIG = conf.config_dict("arm", {
-  "features.color_override": "none",
-  "features.colorInterface": True,
-  "features.acsSupport": True,
+CONFIG = conf.config_dict('arm', {
+  'features.color_override': 'none',
+  'features.colorInterface': True,
 }, conf_handler)
-
-
-def get_printable(line, keep_newlines = True):
-  """
-  Provides the line back with non-printable characters stripped.
-
-  Arguments:
-    line          - string to be processed
-    stripNewlines - retains newlines if true, stripped otherwise
-  """
-
-  line = line.replace('\xc2', "'")
-  line = "".join([char for char in line if (isprint(char) or (keep_newlines and char == "\n"))])
-
-  return line
 
 
 def is_color_supported():
   """
-  True if the display supports showing color, false otherwise.
+  Checks if curses presently supports rendering colors.
+
+  :returns: **True** if colors can be rendered, **False** otherwise
   """
 
-  if COLOR_IS_SUPPORTED is None:
-    _init_colors()
-
-  return COLOR_IS_SUPPORTED
+  return _color_attr() != DEFAULT_COLOR_ATTR
 
 
 def get_color(color):
   """
   Provides attribute corresponding to a given text color. Supported colors
   include:
-  red       green     yellow    blue
-  cyan      magenta   black     white
+
+    * red
+    * green
+    * yellow
+    * blue
+    * cyan
+    * magenta
+    * black
+    * white
 
   If color support isn't available or colors can't be initialized then this uses the
   terminal's default coloring scheme.
 
-  Arguments:
-    color - name of the foreground color to be returned
+  :param str color: color attributes to be provided
+
+  :returns: **tuple** color pair used by curses to render the color
   """
 
   color_override = get_color_override()
@@ -99,41 +78,109 @@ def get_color(color):
   if color_override:
     color = color_override
 
-  if not COLOR_ATTR_INITIALIZED:
-    _init_colors()
-
-  return COLOR_ATTR[color]
+  return _color_attr()[color]
 
 
 def set_color_override(color = None):
   """
-  Overwrites all requests for color with the given color instead. This raises
-  a ValueError if the color is invalid.
+  Overwrites all requests for color with the given color instead.
 
-  Arguments:
-    color - name of the color to overwrite requests with, None to use normal
-            coloring
+  :param str color: color to override all requests with, **None** if color
+    requests shouldn't be overwritten
+
+  :raises: **ValueError** if the color name is invalid
   """
 
+  arm_config = conf.get_config('arm')
+
   if color is None:
-    CONFIG["features.color_override"] = "none"
+    arm_config.set('features.color_override', 'none')
   elif color in COLOR_LIST.keys():
-    CONFIG["features.color_override"] = color
+    arm_config.set('features.color_override', color)
   else:
-    raise ValueError("\"%s\" isn't a valid color" % color)
+    raise ValueError(msg('usage.unable_to_set_color_override', color = color))
 
 
 def get_color_override():
   """
-  Provides the override color used by the interface, None if it isn't set.
+  Provides the override color used by the interface.
+
+  :returns: **str** for the color requrests will be overwritten with, **None**
+    if no override is set
   """
 
-  color_override = CONFIG.get("features.color_override", "none")
+  color_override = CONFIG.get('features.color_override', 'none')
 
-  if color_override == "none":
+  if color_override == 'none':
     return None
   else:
     return color_override
+
+
+def _color_attr():
+  """
+  Initializes color mappings usable by curses. This can only be done after
+  calling curses.initscr().
+  """
+
+  global COLOR_ATTR
+
+  if COLOR_ATTR is None:
+    if not CONFIG['features.colorInterface']:
+      COLOR_ATTR = DEFAULT_COLOR_ATTR
+    elif curses.has_colors():
+      color_attr = dict([(color, 0) for color in COLOR_LIST])
+
+      for color_pair, color_name in enumerate(COLOR_LIST):
+        foreground_color = COLOR_LIST[color_name]
+        background_color = -1  # allows for default (possibly transparent) background
+        curses.init_pair(color_pair + 1, foreground_color, background_color)
+        color_attr[color_name] = curses.color_pair(color_pair + 1)
+
+      info('setup.color_support_available')
+      COLOR_ATTR = color_attr
+    else:
+      info('setup.color_support_unavailable')
+      COLOR_ATTR = DEFAULT_COLOR_ATTR
+
+  return COLOR_ATTR
+
+
+def disable_acs():
+  """
+  Replaces the curses ACS characters. This can be preferable if curses is
+  unable to render them...
+
+  http://www.atagar.com/arm/images/acs_display_failure.png
+  """
+
+  for item in curses.__dict__:
+    if item.startswith('ACS_'):
+      curses.__dict__[item] = ord('+')
+
+  # replace a few common border pipes that are better rendered as '|' or
+  # '-' instead
+
+  curses.ACS_SBSB = ord('|')
+  curses.ACS_VLINE = ord('|')
+  curses.ACS_BSBS = ord('-')
+  curses.ACS_HLINE = ord('-')
+
+
+def get_printable(line, keep_newlines = True):
+  """
+  Provides the line back with non-printable characters stripped.
+
+  :param str line: string to be processed
+  :param str keep_newlines: retains newlines if **True**, stripped otherwise
+
+  :returns: **str** of the line with only printable content
+  """
+
+  line = line.replace('\xc2', "'")
+  line = filter(lambda char: isprint(char) or (keep_newlines and char == '\n'), line)
+
+  return line
 
 
 def crop_str(msg, size, min_word_length = 4, min_crop = 0, end_type = Ending.ELLIPSE, get_remainder = False):
@@ -143,29 +190,29 @@ def crop_str(msg, size, min_word_length = 4, min_crop = 0, end_type = Ending.ELL
   isn't room for even a truncated single word (or one word plus the ellipse if
   including those) then this provides an empty string. If a cropped string ends
   with a comma or period then it's stripped (unless we're providing the
-  remainder back). Examples:
+  remainder back). For example...
 
-  crop_str("This is a looooong message", 17)
-  "This is a looo..."
+    >>> crop_str("This is a looooong message", 17)
+    "This is a looo..."
 
-  crop_str("This is a looooong message", 12)
-  "This is a..."
+    >>> crop_str("This is a looooong message", 12)
+    "This is a..."
 
-  crop_str("This is a looooong message", 3)
-  ""
+    >>> crop_str("This is a looooong message", 3)
+    ""
 
-  Arguments:
-    msg             - source text
-    size            - room available for text
-    min_word_length - minimum characters before which a word is dropped, requires
-                      whole word if None
-    min_crop        - minimum characters that must be dropped if a word's cropped
-    end_type        - type of ending used when truncating:
-                      None - blank ending
-                      Ending.ELLIPSE - includes an ellipse
-                      Ending.HYPHEN - adds hyphen when breaking words
-    get_remainder   - returns a tuple instead, with the second part being the
-                      cropped portion of the message
+  :param str msg: text to be processed
+  :param int size: space available for text
+  :param int min_word_length: minimum characters before which a word is
+    dropped, requires whole word if **None**
+  :param int min_crop: minimum characters that must be dropped if a word is
+    cropped
+  :param Ending end_type: type of ending used when truncating, no special
+    truncation is used if **None**
+  :param bool get_remainder: returns a tuple with the second part being the
+    cropped portion of the message
+
+  :returns: **str** of the text truncated to the given length
   """
 
   # checks if there's room for the whole message
@@ -512,54 +559,3 @@ def is_wide_characters_supported():
     pass
 
   return False
-
-
-def _init_colors():
-  """
-  Initializes color mappings usable by curses. This can only be done after
-  calling curses.initscr().
-  """
-
-  global COLOR_ATTR_INITIALIZED, COLOR_IS_SUPPORTED
-
-  if not COLOR_ATTR_INITIALIZED:
-    # hack to replace all ACS characters with '+' if ACS support has been
-    # manually disabled
-
-    if not CONFIG["features.acsSupport"]:
-      for item in curses.__dict__:
-        if item.startswith("ACS_"):
-          curses.__dict__[item] = ord('+')
-
-      # replace a few common border pipes that are better rendered as '|' or
-      # '-' instead
-
-      curses.ACS_SBSB = ord('|')
-      curses.ACS_VLINE = ord('|')
-      curses.ACS_BSBS = ord('-')
-      curses.ACS_HLINE = ord('-')
-
-    COLOR_ATTR_INITIALIZED = True
-    COLOR_IS_SUPPORTED = False
-
-    if not CONFIG["features.colorInterface"]:
-      return
-
-    try:
-      COLOR_IS_SUPPORTED = curses.has_colors()
-    except curses.error:
-      return  # initscr hasn't been called yet
-
-    # initializes color mappings if color support is available
-    if COLOR_IS_SUPPORTED:
-      colorpair = 0
-      log.info("Terminal color support detected and enabled")
-
-      for color_name in COLOR_LIST:
-        foreground_color = COLOR_LIST[color_name]
-        background_color = -1  # allows for default (possibly transparent) background
-        colorpair += 1
-        curses.init_pair(colorpair, foreground_color, background_color)
-        COLOR_ATTR[color_name] = curses.color_pair(colorpair)
-    else:
-      log.info("Terminal color support unavailable")

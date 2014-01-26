@@ -40,7 +40,7 @@ import time
 import threading
 
 from stem.control import State
-from stem.util import conf, connection, log, proc, str_tools, system
+from stem.util import conf, connection, proc, str_tools, system
 
 from arm.util import tor_controller, debug, info, notice
 
@@ -465,7 +465,7 @@ class ConnectionTracker(Daemon):
 
       return True
     except IOError as exc:
-      log.info(exc)
+      info('wrap', text = exc)
 
       # Fail over to another resolver if we've repeatedly been unable to use
       # this one.
