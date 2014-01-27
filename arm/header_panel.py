@@ -28,7 +28,7 @@ import arm.starter
 import arm.popups
 import arm.controller
 
-from util import panel, tor_tools, ui_tools
+from util import panel, tor_tools, ui_tools, tor_controller
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -86,7 +86,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._is_tor_connected = tor_tools.get_conn().is_alive()
+    self._is_tor_connected = tor_controller().is_alive()
     self._last_update = -1       # time the content was last revised
     self._halt = False           # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
@@ -126,7 +126,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     # listens for tor reload (sighup) events
 
-    tor_tools.get_conn().add_status_listener(self.reset_listener)
+    tor_controller().add_status_listener(self.reset_listener)
 
   def get_height(self):
     """
@@ -275,7 +275,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(1, x, "Relaying Disabled", ui_tools.get_color("cyan"))
         x += 17
       else:
-        status_time = tor_tools.get_conn().controller.get_latest_heartbeat()
+        status_time = tor_controller().get_latest_heartbeat()
 
         if status_time:
           status_time_label = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(status_time))
@@ -392,7 +392,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           self.addstr(y, x, "none", curses.A_BOLD | ui_tools.get_color("cyan"))
       else:
         y = 2 if is_wide else 4
-        status_time = tor_tools.get_conn().controller.get_latest_heartbeat()
+        status_time = tor_controller().get_latest_heartbeat()
         status_time_label = time.strftime("%H:%M %m/%d/%Y", time.localtime(status_time))
         self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | ui_tools.get_color("red"))
         self.addstr(y, 16, " (%s) - press r to reconnect" % status_time_label)
@@ -547,21 +547,21 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     self.vals_lock.acquire()
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
 
     if set_static:
       # version is truncated to first part, for instance:
       # 0.2.2.13-alpha (git-feb8c1b5f67f2c6f) -> 0.2.2.13-alpha
 
-      self.vals["tor/version"] = conn.get_info("version", "Unknown").split()[0]
-      self.vals["tor/versionStatus"] = conn.get_info("status/version/current", "Unknown")
-      self.vals["tor/nickname"] = conn.get_option("Nickname", "")
-      self.vals["tor/or_port"] = conn.get_option("ORPort", "0")
-      self.vals["tor/dir_port"] = conn.get_option("DirPort", "0")
-      self.vals["tor/control_port"] = conn.get_option("ControlPort", "0")
-      self.vals["tor/socketPath"] = conn.get_option("ControlSocket", "")
-      self.vals["tor/isAuthPassword"] = conn.get_option("HashedControlPassword", None) is not None
-      self.vals["tor/isAuthCookie"] = conn.get_option("CookieAuthentication", None) == "1"
+      self.vals["tor/version"] = controller.get_info("version", "Unknown").split()[0]
+      self.vals["tor/versionStatus"] = controller.get_info("status/version/current", "Unknown")
+      self.vals["tor/nickname"] = controller.get_conf("Nickname", "")
+      self.vals["tor/or_port"] = controller.get_conf("ORPort", "0")
+      self.vals["tor/dir_port"] = controller.get_conf("DirPort", "0")
+      self.vals["tor/control_port"] = controller.get_conf("ControlPort", "0")
+      self.vals["tor/socketPath"] = controller.get_conf("ControlSocket", "")
+      self.vals["tor/isAuthPassword"] = controller.get_conf("HashedControlPassword", None) is not None
+      self.vals["tor/isAuthCookie"] = controller.get_conf("CookieAuthentication", None) == "1"
 
       # orport is reported as zero if unset
 
@@ -571,7 +571,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # overwrite address if ORListenAddress is set (and possibly or_port too)
 
       self.vals["tor/orListenAddr"] = ""
-      listen_addr = conn.get_option("ORListenAddress", None)
+      listen_addr = controller.get_conf("ORListenAddress", None)
 
       if listen_addr:
         if ":" in listen_addr:
@@ -585,7 +585,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       policy_entries = []
 
-      for exit_policy in conn.get_option("ExitPolicy", [], True):
+      for exit_policy in controller.get_conf("ExitPolicy", [], True):
         policy_entries += [policy.strip() for policy in exit_policy.split(",")]
 
       self.vals["tor/exit_policy"] = ", ".join(policy_entries)
@@ -593,7 +593,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # file descriptor limit for the process, if this can't be determined
       # then the limit is None
 
-      fd_limit, fd_is_estimate = conn.get_my_file_descriptor_limit()
+      fd_limit, fd_is_estimate = tor_tools.get_conn().get_my_file_descriptor_limit()
       self.vals["tor/fd_limit"] = fd_limit
       self.vals["tor/isFdLimitEstimate"] = fd_is_estimate
 
@@ -604,9 +604,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.vals["sys/os"] = uname_vals[0]
       self.vals["sys/version"] = uname_vals[2]
 
-      self.vals["tor/pid"] = conn.controller.get_pid("")
+      self.vals["tor/pid"] = controller.get_pid("")
 
-      start_time = conn.get_start_time()
+      start_time = tor_tools.get_conn().get_start_time()
       self.vals["tor/start_time"] = start_time if start_time else ""
 
       # reverts volatile parameters to defaults
@@ -623,17 +623,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
     # events. Introduce caching via tor_tools?
 
-    self.vals["tor/address"] = conn.get_info("address", "")
+    self.vals["tor/address"] = controller.get_info("address", "")
 
-    self.vals["tor/fingerprint"] = conn.get_info("fingerprint", self.vals["tor/fingerprint"])
-    self.vals["tor/flags"] = conn.get_my_flags(self.vals["tor/flags"])
+    self.vals["tor/fingerprint"] = controller.get_info("fingerprint", self.vals["tor/fingerprint"])
+    self.vals["tor/flags"] = tor_tools.get_conn().get_my_flags(self.vals["tor/flags"])
 
     # Updates file descriptor usage and logs if the usage is high. If we don't
     # have a known limit or it's obviously faulty (being lower than our
     # current usage) then omit file descriptor functionality.
 
     if self.vals["tor/fd_limit"]:
-      fd_used = conn.get_my_file_descriptor_usage()
+      fd_used = tor_tools.get_conn().get_my_file_descriptor_usage()
 
       if fd_used and fd_used <= self.vals["tor/fd_limit"]:
         self.vals["tor/fd_used"] = fd_used
