@@ -3,15 +3,12 @@ Helper for working with an active tor process. This both provides a wrapper for
 accessing stem and notifications of state changes to subscribers.
 """
 
-import math
-import os
 import threading
-import time
 
 import stem
 import stem.control
 
-from stem.util import log, proc, system
+from stem.util import log, system
 
 CONTROLLER = None  # singleton Controller instance
 
@@ -456,33 +453,6 @@ class Controller:
     """
 
     return self.controller.get_user(None)
-
-  def get_my_file_descriptor_usage(self):
-    """
-    Provides the number of file descriptors currently being used by this
-    process. This returns None if this can't be determined.
-    """
-
-    # The file descriptor usage is the size of the '/proc/<pid>/fd' contents
-    # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
-    # I'm not sure about other platforms (like BSD) so erroring out there.
-
-    self.conn_lock.acquire()
-
-    result = None
-
-    if self.is_alive() and proc.is_available():
-      my_pid = self.controller.get_pid(None)
-
-      if my_pid:
-        try:
-          result = len(os.listdir("/proc/%s/fd" % my_pid))
-        except:
-          pass
-
-    self.conn_lock.release()
-
-    return result
 
   def get_start_time(self):
     """

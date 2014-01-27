@@ -23,7 +23,7 @@ import arm.util.tracker
 
 from stem import Signal
 from stem.control import State
-from stem.util import conf, log, str_tools
+from stem.util import conf, log, proc, str_tools
 
 import arm.starter
 import arm.popups
@@ -635,7 +635,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # current usage) then omit file descriptor functionality.
 
     if self.vals["tor/fd_limit"]:
-      fd_used = tor_tools.get_conn().get_my_file_descriptor_usage()
+      fd_used = get_file_descriptor_usage(controller.get_pid(None))
 
       if fd_used and fd_used <= self.vals["tor/fd_limit"]:
         self.vals["tor/fd_used"] = fd_used
@@ -678,3 +678,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     self._last_update = current_time
     self.vals_lock.release()
+
+
+def get_file_descriptor_usage(pid):
+  """
+  Provides the number of file descriptors currently being used by this
+  process. This returns None if this can't be determined.
+  """
+
+  # The file descriptor usage is the size of the '/proc/<pid>/fd' contents
+  # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
+  # I'm not sure about other platforms (like BSD) so erroring out there.
+
+  if pid and proc.is_available():
+    try:
+      return len(os.listdir('/proc/%s/fd' % pid))
+    except:
+      return None
