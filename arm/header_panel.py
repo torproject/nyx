@@ -75,7 +75,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     tor/  version, versionStatus, nickname, or_port, dir_port, control_port,
           socketPath, exit_policy, isAuthPassword (bool), isAuthCookie (bool),
           orListenAddr, *address, *fingerprint, *flags, pid, start_time,
-          *fd_used, fd_limit, isFdLimitEstimate
+          *fd_used, fd_limit
     sys/  hostname, os, version
     stat/ *%torCpu, *%armCpu, *rss, *%mem
 
@@ -364,8 +364,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           elif fd_percent >= 60:
             fd_percent_format = ui_tools.get_color("yellow")
 
-          estimate_char = "?" if self.vals["tor/isFdLimitEstimate"] else ""
-          base_label = "file desc: %i / %i%s (" % (self.vals["tor/fd_used"], self.vals["tor/fd_limit"], estimate_char)
+          base_label = "file desc: %i / %i (" % (self.vals["tor/fd_used"], self.vals["tor/fd_limit"])
 
           self.addstr(y, x + 59, base_label)
           self.addstr(y, x + 59 + len(base_label), fd_percentLabel, fd_percent_format)
@@ -593,9 +592,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # file descriptor limit for the process, if this can't be determined
       # then the limit is None
 
-      fd_limit, fd_is_estimate = tor_tools.get_conn().get_my_file_descriptor_limit()
-      self.vals["tor/fd_limit"] = fd_limit
-      self.vals["tor/isFdLimitEstimate"] = fd_is_estimate
+      fd_limit = controller.get_info('process/descriptor-limit', '-1')
+
+      if fd_limit != '-1' and fd_limit.isdigit():
+        self.vals["tor/fd_limit"] = int(fd_limit)
+      else:
+        self.vals["tor/fd_limit"] = None
 
       # system information
 
@@ -642,8 +644,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if self.vals["tor/fd_used"] and self.vals["tor/fd_limit"]:
       fd_percent = 100 * self.vals["tor/fd_used"] / self.vals["tor/fd_limit"]
-      estimated_label = " estimated" if self.vals["tor/isFdLimitEstimate"] else ""
-      msg = "Tor's%s file descriptor usage is at %i%%." % (estimated_label, fd_percent)
+      msg = "Tor's file descriptor usage is at %i%%." % fd_percent
 
       if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
         self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True

@@ -484,45 +484,6 @@ class Controller:
 
     return result
 
-  def get_my_file_descriptor_limit(self):
-    """
-    Provides the maximum number of file descriptors this process can have.
-    Only the Tor process itself reliably knows this value, and the option for
-    getting this was added in Tor 0.2.3.x-final. If that's unavailable then
-    we can only estimate the file descriptor limit based on other factors.
-
-    The return result is a tuple of the form:
-    (fileDescLimit, isEstimate)
-    and if all methods fail then both values are None.
-    """
-
-    # provides -1 if the query fails
-    queried_limit = self.get_info("process/descriptor-limit", None)
-
-    if queried_limit is not None and queried_limit != "-1":
-      return (int(queried_limit), False)
-
-    tor_user = self.get_my_user()
-
-    # This is guessing the open file limit. Unfortunately there's no way
-    # (other than "/usr/proc/bin/pfiles pid | grep rlimit" under Solaris)
-    # to get the file descriptor limit for an arbitrary process.
-
-    if tor_user == "debian-tor":
-      # probably loaded via /etc/init.d/tor which changes descriptor limit
-      return (8192, True)
-    else:
-      # uses ulimit to estimate (-H is for hard limit, which is what tor uses)
-      ulimit_results = system.call("ulimit -Hn")
-
-      if ulimit_results:
-        ulimit = ulimit_results[0].strip()
-
-        if ulimit.isdigit():
-          return (int(ulimit), True)
-
-    return (None, None)
-
   def get_start_time(self):
     """
     Provides the unix time for when the tor process first started. If this
