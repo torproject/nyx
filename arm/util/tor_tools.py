@@ -48,7 +48,6 @@ class Controller:
     self._address_lookup_cache = {}       # lookup cache with fingerprint -> (ip address, or port) mappings
     self._consensus_lookup_cache = {}     # lookup cache with network status entries
     self._descriptor_lookup_cache = {}    # lookup cache with relay descriptors
-    self._last_newnym = 0                 # time we last sent a NEWNYM signal
 
   def init(self, controller):
     """
@@ -83,10 +82,6 @@ class Controller:
       self._address_lookup_cache = {}
       self._consensus_lookup_cache = {}
       self._descriptor_lookup_cache = {}
-
-      # time that we sent our last newnym signal
-
-      self._last_newnym = 0
 
       self.conn_lock.release()
 
@@ -223,40 +218,6 @@ class Controller:
       self.controller.save_conf()
 
     self.conn_lock.release()
-
-  def send_newnym(self):
-    """
-    Sends a newnym request to Tor. These are rate limited so if it occures
-    more than once within a ten second window then the second is delayed.
-    """
-
-    self.conn_lock.acquire()
-
-    if self.is_alive():
-      self._last_newnym = time.time()
-      self.controller.signal(stem.Signal.NEWNYM)
-
-    self.conn_lock.release()
-
-  def is_newnym_available(self):
-    """
-    True if Tor will immediately respect a newnym request, false otherwise.
-    """
-
-    if self.is_alive():
-      return self.get_newnym_wait() == 0
-    else:
-      return False
-
-  def get_newnym_wait(self):
-    """
-    Provides the number of seconds until a newnym signal would be respected.
-    """
-
-    # newnym signals can occure at the rate of one every ten seconds
-    # TODO: this can't take other controllers into account :(
-
-    return max(0, math.ceil(self._last_newnym + 10 - time.time()))
 
   def get_circuits(self, default = []):
     """

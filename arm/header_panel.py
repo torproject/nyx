@@ -21,6 +21,7 @@ import threading
 
 import arm.util.tracker
 
+from stem import Signal
 from stem.control import State
 from stem.util import conf, log, str_tools
 
@@ -146,7 +147,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Requests a new identity and provides a visual queue.
     """
 
-    tor_tools.get_conn().send_newnym()
+    tor_controller().signal(Signal.NEWNYM)
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
@@ -159,7 +160,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   def handle_key(self, key):
     is_keystroke_consumed = True
 
-    if key in (ord('n'), ord('N')) and tor_tools.get_conn().is_newnym_available():
+    if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
       self.send_newnym()
     elif key in (ord('r'), ord('R')) and not self._is_tor_connected:
       #oldSocket = tor_tools.get_conn().get_controller().get_socket()
@@ -440,8 +441,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # (Client only) Undisplayed / Line 2 Right (new identity option)
 
       if is_wide:
-        conn = tor_tools.get_conn()
-        newnym_wait = conn.get_newnym_wait()
+        newnym_wait = tor_controller().get_newnym_wait()
 
         msg = "press 'n' for a new identity"
 
