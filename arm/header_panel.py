@@ -23,13 +23,13 @@ import arm.util.tracker
 
 from stem import Signal
 from stem.control import State
-from stem.util import conf, log, proc, str_tools
+from stem.util import conf, log, proc, str_tools, system
 
 import arm.starter
 import arm.popups
 import arm.controller
 
-from util import panel, tor_tools, ui_tools, tor_controller
+from util import panel, ui_tools, tor_controller
 
 # minimum width for which panel attempts to double up contents (two columns to
 # better use screen real estate)
@@ -608,7 +608,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       self.vals["tor/pid"] = controller.get_pid("")
 
-      start_time = tor_tools.get_conn().get_start_time()
+      try:
+        start_time = system.get_start_time(controller.get_pid())
+      except:
+        start_time = None
+
       self.vals["tor/start_time"] = start_time if start_time else ""
 
       # reverts volatile parameters to defaults
@@ -628,7 +632,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self.vals["tor/address"] = controller.get_info("address", "")
 
     self.vals["tor/fingerprint"] = controller.get_info("fingerprint", self.vals["tor/fingerprint"])
-    self.vals["tor/flags"] = tor_tools.get_conn().get_my_flags(self.vals["tor/flags"])
+
+    my_fingerprint = controller.get_info("fingerprint", None)
+
+    if my_fingerprint:
+      my_status_entry = controller.get_network_status(my_fingerprint)
+
+      if my_status_entry:
+        self.vals["tor/flags"] = my_status_entry.flags
 
     # Updates file descriptor usage and logs if the usage is high. If we don't
     # have a known limit or it's obviously faulty (being lower than our

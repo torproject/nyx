@@ -454,17 +454,6 @@ class Controller:
 
     return self.controller.get_user(None)
 
-  def get_start_time(self):
-    """
-    Provides the unix time for when the tor process first started. If this
-    can't be determined then this provides None.
-    """
-
-    try:
-      return system.get_start_time(self.controller.get_pid())
-    except:
-      return None
-
   def is_exiting_allowed(self, ip_address, port):
     """
     Checks if the given destination can be exited to by this relay, returning
