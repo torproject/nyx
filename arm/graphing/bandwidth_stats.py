@@ -9,7 +9,7 @@ import curses
 import arm.controller
 
 from arm.graphing import graph_panel
-from arm.util import tor_tools, ui_tools
+from arm.util import tor_controller, ui_tools
 
 from stem.control import State
 from stem.util import conf, log, str_tools, system
@@ -65,13 +65,13 @@ class BandwidthStats(graph_panel.GraphStats):
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
 
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
     self._title_stats, self.is_accounting = [], False
 
     if not is_pause_buffer:
-      self.reset_listener(conn.get_controller(), State.INIT, None)  # initializes values
+      self.reset_listener(controller, State.INIT, None)  # initializes values
 
-    conn.add_status_listener(self.reset_listener)
+    controller.add_status_listener(self.reset_listener)
 
     # Initialized the bandwidth totals to the values reported by Tor. This
     # uses a controller options introduced in ticket 2345:
@@ -83,12 +83,12 @@ class BandwidthStats(graph_panel.GraphStats):
     self.initial_primary_total = 0
     self.initial_secondary_total = 0
 
-    read_total = conn.get_info("traffic/read", None)
+    read_total = controller.get_info("traffic/read", None)
 
     if read_total and read_total.isdigit():
       self.initial_primary_total = int(read_total) / 1024  # Bytes -> KB
 
-    write_total = conn.get_info("traffic/written", None)
+    write_total = controller.get_info("traffic/written", None)
 
     if write_total and write_total.isdigit():
       self.initial_secondary_total = int(write_total) / 1024  # Bytes -> KB
@@ -138,8 +138,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
     # checks that this is a relay (if ORPort is unset, then skip)
 
-    conn = tor_tools.get_conn()
-    or_port = conn.get_option("ORPort", None)
+    controller = tor_controller()
+    or_port = controller.get_conf("ORPort", None)
 
     if or_port == "0":
       return
@@ -150,7 +150,7 @@ class BandwidthStats(graph_panel.GraphStats):
     # something else
 
     uptime = None
-    query_pid = conn.controller.get_pid(None)
+    query_pid = controller.get_pid(None)
 
     if query_pid:
       query_param = ["%cpu", "rss", "%mem", "etime"]
@@ -174,7 +174,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
     # get the user's data directory (usually '~/.tor')
 
-    data_dir = conn.get_option("DataDirectory", None)
+    data_dir = controller.get_conf("DataDirectory", None)
 
     if not data_dir:
       msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
@@ -313,7 +313,7 @@ class BandwidthStats(graph_panel.GraphStats):
     # provides accounting stats if enabled
 
     if self.is_accounting:
-      if tor_tools.get_conn().is_alive():
+      if tor_controller().is_alive():
         status = self.accounting_info["status"]
 
         hibernate_color = "green"
@@ -402,19 +402,19 @@ class BandwidthStats(graph_panel.GraphStats):
   def new_desc_event(self, event):
     # updates self._title_stats with updated values
 
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
 
-    if not conn.is_alive():
+    if not controller.is_alive():
       return  # keep old values
 
-    my_fingerprint = conn.get_info("fingerprint", None)
+    my_fingerprint = controller.get_info("fingerprint", None)
 
     if not self._title_stats or not my_fingerprint or (event and my_fingerprint in event.idlist):
       stats = []
-      bw_rate = conn.get_my_bandwidth_rate()
-      bw_burst = conn.get_my_bandwidth_burst()
-      bw_observed = conn.get_my_bandwidth_observed()
-      bw_measured = conn.get_my_bandwidth_measured()
+      bw_rate = get_my_bandwidth_rate(controller)
+      bw_burst = get_my_bandwidth_burst(controller)
+      bw_observed = get_my_bandwidth_observed(controller)
+      bw_measured = get_my_bandwidth_measured(controller)
       label_in_bytes = CONFIG["features.graph.bw.transferInBytes"]
 
       if bw_rate and bw_burst:
@@ -460,13 +460,13 @@ class BandwidthStats(graph_panel.GraphStats):
     Any failed lookups result in a mapping to an empty string.
     """
 
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
     queried = dict([(arg, "") for arg in ACCOUNTING_ARGS])
-    queried["status"] = conn.get_info("accounting/hibernating", None)
+    queried["status"] = controller.get_info("accounting/hibernating", None)
 
     # provides a nicely formatted reset time
 
-    end_interval = conn.get_info("accounting/interval-end", None)
+    end_interval = controller.get_info("accounting/interval-end", None)
 
     if end_interval:
       # converts from gmt to local with respect to DST
@@ -491,8 +491,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
     # number of bytes used and in total for the accounting period
 
-    used = conn.get_info("accounting/bytes", None)
-    left = conn.get_info("accounting/bytes-left", None)
+    used = controller.get_info("accounting/bytes", None)
+    left = controller.get_info("accounting/bytes-left", None)
 
     if used and left:
       used_comp, left_comp = used.split(" "), left.split(" ")
@@ -506,3 +506,95 @@ class BandwidthStats(graph_panel.GraphStats):
 
     self.accounting_info = queried
     self.accounting_last_updated = time.time()
+
+
+def get_my_bandwidth_rate(controller):
+  """
+  Provides the effective relaying bandwidth rate of this relay. Currently
+  this doesn't account for SETCONF events.
+  """
+
+  # effective relayed bandwidth is the minimum of BandwidthRate,
+  # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
+
+  effective_rate = int(controller.get_conf("BandwidthRate", None))
+
+  relay_rate = controller.get_conf("RelayBandwidthRate", None)
+
+  if relay_rate and relay_rate != "0":
+    effective_rate = min(effective_rate, int(relay_rate))
+
+  max_advertised = controller.get_conf("MaxAdvertisedBandwidth", None)
+
+  if max_advertised:
+    effective_rate = min(effective_rate, int(max_advertised))
+
+  if effective_rate is not None:
+    return effective_rate
+  else:
+    return None
+
+
+def get_my_bandwidth_burst(controller):
+  """
+  Provides the effective bandwidth burst rate of this relay. Currently this
+  doesn't account for SETCONF events.
+  """
+
+  # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
+  effective_burst = int(controller.get_conf("BandwidthBurst", None))
+
+  relay_burst = controller.get_conf("RelayBandwidthBurst", None)
+
+  if relay_burst and relay_burst != "0":
+    effective_burst = min(effective_burst, int(relay_burst))
+
+  if effective_burst is not None:
+    return effective_burst
+  else:
+    return None
+
+
+def get_my_bandwidth_observed(controller):
+  """
+  Provides the relay's current observed bandwidth (the throughput determined
+  from historical measurements on the client side). This is used in the
+  heuristic used for path selection if the measured bandwidth is undefined.
+  This is fetched from the descriptors and hence will get stale if
+  descriptors aren't periodically updated.
+  """
+
+  my_fingerprint = controller.get_info("fingerprint", None)
+
+  if my_fingerprint:
+    my_descriptor = controller.get_server_descriptor(my_fingerprint)
+
+    if my_descriptor:
+      return my_descriptor.observed_bandwidth
+
+  return None
+
+
+def get_my_bandwidth_measured(controller):
+  """
+  Provides the relay's current measured bandwidth (the throughput as noted by
+  the directory authorities and used by clients for relay selection). This is
+  undefined if not in the consensus or with older versions of Tor. Depending
+  on the circumstances this can be from a variety of things (observed,
+  measured, weighted measured, etc) as described by:
+  https://trac.torproject.org/projects/tor/ticket/1566
+  """
+
+  # TODO: Tor is documented as providing v2 router status entries but
+  # actually looks to be v3. This needs to be sorted out between stem
+  # and tor.
+
+  my_fingerprint = controller.get_info("fingerprint", None)
+
+  if my_fingerprint:
+    my_status_entry = controller.get_network_status(my_fingerprint)
+
+    if my_status_entry and hasattr(my_status_entry, 'bandwidth'):
+      return my_status_entry.bandwidth
+
+  return None

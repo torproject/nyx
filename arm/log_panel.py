@@ -19,7 +19,7 @@ from stem.util import conf, log, system
 import arm.arguments
 import arm.popups
 from arm import __version__
-from arm.util import panel, tor_tools, ui_tools
+from arm.util import panel, tor_controller, ui_tools
 
 RUNLEVEL_EVENT_COLOR = {
   log.DEBUG: "magenta",
@@ -146,7 +146,7 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
 
   logging_types, logging_location = None, None
 
-  for logging_entry in tor_tools.get_conn().get_option("Log", [], True):
+  for logging_entry in tor_controller().get_conf("Log", [], True):
     # looks for an entry like: notice file /var/log/tor/notices.log
 
     entry_comp = logging_entry.split()
@@ -539,8 +539,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # adds listeners for tor and stem events
 
-    conn = tor_tools.get_conn()
-    conn.add_status_listener(self._reset_listener)
+    controller = tor_controller()
+    controller.add_status_listener(self._reset_listener)
 
     # opens log file if we'll be saving entries
 
@@ -1191,12 +1191,12 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if "UNKNOWN" in events:
       tor_events.update(set(arm.arguments.missing_event_types()))
 
-    tor_conn = tor_tools.get_conn()
-    tor_conn.remove_event_listener(self.register_tor_event)
+    controller = tor_controller()
+    controller.remove_event_listener(self.register_tor_event)
 
     for event_type in list(tor_events):
       try:
-        tor_conn.add_event_listener(self.register_tor_event, event_type)
+        controller.add_event_listener(self.register_tor_event, event_type)
       except stem.ProtocolError:
         tor_events.remove(event_type)
 

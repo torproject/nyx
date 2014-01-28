@@ -5,7 +5,7 @@ Tracks stats concerning tor's current connections.
 import arm.util.tracker
 
 from arm.graphing import graph_panel
-from arm.util import tor_tools
+from arm.util import tor_controller
 
 from stem.control import State
 
@@ -21,10 +21,10 @@ class ConnStats(graph_panel.GraphStats):
 
     # listens for tor reload (sighup) events which can reset the ports tor uses
 
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
     self.or_port, self.dir_port, self.control_port = "0", "0", "0"
-    self.reset_listener(conn.get_controller(), State.INIT, None)  # initialize port values
-    conn.add_status_listener(self.reset_listener)
+    self.reset_listener(controller, State.INIT, None)  # initialize port values
+    controller.add_status_listener(self.reset_listener)
 
   def clone(self, new_copy=None):
     if not new_copy:

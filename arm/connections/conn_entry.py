@@ -6,8 +6,10 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from arm.util import tor_tools, ui_tools
+from arm.util import tor_controller, ui_tools
 from arm.connections import entries
+
+import stem.control
 
 from stem.util import conf, connection, enum, str_tools
 
@@ -53,6 +55,17 @@ CONFIG = conf.config_dict("arm", {
   "features.connection.showColumn.destination": True,
   "features.connection.showColumn.expandedIp": True,
 })
+
+FINGERPRINT_TRACKER = None
+
+
+def get_fingerprint_tracker():
+  global FINGERPRINT_TRACKER
+
+  if FINGERPRINT_TRACKER is None:
+    FINGERPRINT_TRACKER = FingerprintTracker()
+
+  return FINGERPRINT_TRACKER
 
 
 class Endpoint:
@@ -120,8 +133,8 @@ class Endpoint:
       default - return value if no locale information is available
     """
 
-    conn = tor_tools.get_conn()
-    return conn.get_info("ip-to-country/%s" % self.address, default)
+    controller = tor_controller()
+    return controller.get_info("ip-to-country/%s" % self.address, default)
 
   def get_fingerprint(self):
     """
@@ -132,14 +145,13 @@ class Endpoint:
     if self.fingerprint_overwrite:
       return self.fingerprint_overwrite
 
-    conn = tor_tools.get_conn()
-    my_fingerprint = conn.get_relay_fingerprint(self.address)
+    my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address)
 
     # If there were multiple matches and our port is likely the ORPort then
     # try again with that to narrow the results.
 
     if not my_fingerprint and not self.is_not_or_port:
-      my_fingerprint = conn.get_relay_fingerprint(self.address, self.port)
+      my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address, self.port)
 
     if my_fingerprint:
       return my_fingerprint
@@ -155,8 +167,7 @@ class Endpoint:
     my_fingerprint = self.get_fingerprint()
 
     if my_fingerprint != "UNKNOWN":
-      conn = tor_tools.get_conn()
-      my_nickname = conn.get_relay_nickname(my_fingerprint)
+      my_nickname = get_fingerprint_tracker().get_relay_nickname(my_fingerprint)
 
       if my_nickname:
         return my_nickname
@@ -233,8 +244,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # overwrite the local fingerprint with ours
 
-    conn = tor_tools.get_conn()
-    self.local.fingerprint_overwrite = conn.get_info("fingerprint", None)
+    controller = tor_controller()
+    self.local.fingerprint_overwrite = controller.get_info("fingerprint", None)
 
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -251,15 +262,15 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.application_pid = None
     self.is_application_resolving = False
 
-    my_or_port = conn.get_option("ORPort", None)
-    my_dir_port = conn.get_option("DirPort", None)
-    my_socks_port = conn.get_option("SocksPort", "9050")
-    my_ctl_port = conn.get_option("ControlPort", None)
-    my_hidden_service_ports = conn.get_hidden_service_ports()
+    my_or_port = controller.get_conf("ORPort", None)
+    my_dir_port = controller.get_conf("DirPort", None)
+    my_socks_port = controller.get_conf("SocksPort", "9050")
+    my_ctl_port = controller.get_conf("ControlPort", None)
+    my_hidden_service_ports = get_hidden_service_ports(controller)
 
     # the ORListenAddress can overwrite the ORPort
 
-    listen_addr = conn.get_option("ORListenAddress", None)
+    listen_addr = controller.get_conf("ORListenAddress", None)
 
     if listen_addr and ":" in listen_addr:
       my_or_port = listen_addr[listen_addr.find(":") + 1:]
@@ -410,10 +421,19 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # if we're a guard or bridge and the connection doesn't belong to a
       # known relay then it might be client traffic
 
-      conn = tor_tools.get_conn()
+      controller = tor_controller()
 
-      if "Guard" in conn.get_my_flags([]) or conn.get_option("BridgeRelay", None) == "1":
-        all_matches = conn.get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+      my_flags = []
+      my_fingerprint = self.get_info("fingerprint", None)
+
+      if my_fingerprint:
+        my_status_entry = self.controller.get_network_status(my_fingerprint)
+
+        if my_status_entry:
+          my_flags = my_status_entry.flags
+
+      if "Guard" in my_flags or controller.get_conf("BridgeRelay", None) == "1":
+        all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
 
         return all_matches == []
     elif my_type == Category.EXIT:
@@ -451,20 +471,20 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # The exitability, circuits, and fingerprints are all cached by the
         # tor_tools util keeping this a quick lookup.
 
-        conn = tor_tools.get_conn()
+        controller = tor_controller()
         destination_fingerprint = self.foreign.get_fingerprint()
 
         if destination_fingerprint == "UNKNOWN":
           # Not a known relay. This might be an exit connection.
 
-          if conn.is_exiting_allowed(self.foreign.get_address(), self.foreign.get_port()):
+          if is_exiting_allowed(controller, self.foreign.get_address(), self.foreign.get_port()):
             self.cached_type = Category.EXIT
         elif self._possible_client or self._possible_directory:
           # This belongs to a known relay. If we haven't eliminated ourselves as
           # a possible client or directory connection then check if it still
           # holds true.
 
-          my_circuits = conn.get_circuits()
+          my_circuits = controller.get_circuits()
 
           if self._possible_client:
             # Checks that this belongs to the first hop in a circuit that's
@@ -472,8 +492,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # a built 1-hop connection since those are most likely a directory
             # mirror).
 
-            for _, status, _, path in my_circuits:
-              if path and path[0] == destination_fingerprint and (status != "BUILT" or len(path) > 1):
+            for circ in my_circuits:
+              if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != "BUILT" or len(circ.path) > 1):
                 self.cached_type = Category.CIRCUIT  # matched a probable guard connection
 
             # if we fell through, we can eliminate ourselves as a guard in the future
@@ -483,8 +503,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
           if self._possible_directory:
             # Checks if we match a built, single hop circuit.
 
-            for _, status, _, path in my_circuits:
-              if path and path[0] == destination_fingerprint and status == "BUILT" and len(path) == 1:
+            for circ in my_circuits:
+              if circ.path and circ.path[0][0] == destination_fingerprint and circ.status == "BUILT" and len(circ.path) == 1:
                 self.cached_type = Category.DIRECTORY
 
             # if we fell through, eliminate ourselves as a directory connection
@@ -606,7 +626,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       listing_type - primary attribute we're listing connections by
     """
 
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
     my_type = self.get_type()
     destination_address = self.get_destination_label(26, include_locale = True)
 
@@ -621,7 +641,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     src, dst, etc = "", "", ""
 
     if listing_type == entries.ListingType.IP_ADDRESS:
-      my_external_address = conn.get_info("address", self.local.get_address())
+      my_external_address = controller.get_info("address", self.local.get_address())
       address_differ = my_external_address != self.local.get_address()
 
       # Expanding doesn't make sense, if the connection isn't actually
@@ -771,13 +791,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     #   exit connection)
 
     fingerprint = self.foreign.get_fingerprint()
-    conn = tor_tools.get_conn()
+    controller = tor_controller()
 
     if fingerprint != "UNKNOWN":
       # single match - display information available about it
 
-      ns_entry = conn.get_consensus_entry(fingerprint)
-      desc_entry = conn.get_descriptor_entry(fingerprint)
+      ns_entry = controller.get_info("ns/id/%s" % fingerprint, None)
+      desc_entry = controller.get_info("desc/id/%s" % fingerprint, None)
 
       # append the fingerprint to the second line
 
@@ -804,7 +824,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if len(ns_lines) >= 2 and ns_lines[1].startswith("s "):
           flags = ns_lines[1][2:]
 
-        exit_policy = conn.get_relay_exit_policy(fingerprint)
+        exit_policy = None
+        descriptor = controller.get_server_descriptor(fingerprint, None)
+
+        if descriptor:
+          exit_policy = descriptor.exit_policy
 
         if exit_policy:
           policy_label = exit_policy.summary()
@@ -847,7 +871,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if contact:
           lines[6] = "contact: %s" % contact
     else:
-      all_matches = conn.get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+      all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
 
       if all_matches:
         # multiple matches
@@ -932,9 +956,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
           destination_address += " (%s)" % purpose
       elif not connection.is_private_address(self.foreign.get_address()):
         extra_info = []
-        conn = tor_tools.get_conn()
+        controller = tor_controller()
 
-        if include_locale and not conn.is_geoip_unavailable():
+        if include_locale and not controller.is_geoip_unavailable():
           foreign_locale = self.foreign.get_locale("??")
           extra_info.append(foreign_locale)
           space_available -= len(foreign_locale) + 2
@@ -955,3 +979,280 @@ class ConnectionLine(entries.ConnectionPanelLine):
           destination_address += " (%s)" % ", ".join(extra_info)
 
     return destination_address[:max_length]
+
+
+def get_hidden_service_ports(controller, default = []):
+  """
+  Provides the target ports hidden services are configured to use.
+
+  Arguments:
+    default - value provided back if unable to query the hidden service ports
+  """
+
+  result = []
+  hs_options = controller.get_conf_map("HiddenServiceOptions", {})
+
+  for entry in hs_options.get("HiddenServicePort", []):
+    # HiddenServicePort entries are of the form...
+    #
+    #   VIRTPORT [TARGET]
+    #
+    # ... with the TARGET being an address, port, or address:port. If the
+    # target port isn't defined then uses the VIRTPORT.
+
+    hs_port = None
+
+    if ' ' in entry:
+      virtport, target = entry.split(' ', 1)
+
+      if ':' in target:
+        hs_port = target.split(':', 1)[1]  # target is an address:port
+      elif target.isdigit():
+        hs_port = target  # target is a port
+      else:
+        hs_port = virtport  # target is an address
+    else:
+      hs_port = entry  # just has the virtual port
+
+    if hs_port.isdigit():
+      result.append(hs_port)
+
+  if result:
+    return result
+  else:
+    return default
+
+
+def is_exiting_allowed(controller, ip_address, port):
+  """
+  Checks if the given destination can be exited to by this relay, returning
+  True if so and False otherwise.
+  """
+
+  result = False
+
+  if controller.is_alive():
+    # If we allow any exiting then this could be relayed DNS queries,
+    # otherwise the policy is checked. Tor still makes DNS connections to
+    # test when exiting isn't allowed, but nothing is relayed over them.
+    # I'm registering these as non-exiting to avoid likely user confusion:
+    # https://trac.torproject.org/projects/tor/ticket/965
+
+    our_policy = controller.get_exit_policy(None)
+
+    if our_policy and our_policy.is_exiting_allowed() and port == "53":
+      result = True
+    else:
+      result = our_policy and our_policy.can_exit_to(ip_address, port)
+
+  return result
+
+
+class FingerprintTracker:
+  def __init__(self):
+    # mappings of ip -> [(port, fingerprint), ...]
+
+    self._fingerprint_mappings = None
+
+    # lookup cache with (ip, port) -> fingerprint mappings
+
+    self._fingerprint_lookup_cache = {}
+
+    # lookup cache with fingerprint -> nickname mappings
+
+    self._nickname_lookup_cache = {}
+
+    controller = tor_controller()
+
+    controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+    controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
+
+  def new_consensus_event(self, event):
+    self._fingerprint_lookup_cache = {}
+    self._nickname_lookup_cache = {}
+
+    if self._fingerprint_mappings is not None:
+      self._fingerprint_mappings = self._get_fingerprint_mappings(event.desc)
+
+  def new_desc_event(self, event):
+    # If we're tracking ip address -> fingerprint mappings then update with
+    # the new relays.
+
+    self._fingerprint_lookup_cache = {}
+
+    if self._fingerprint_mappings is not None:
+      desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
+
+      for fingerprint in desc_fingerprints:
+        # gets consensus data for the new descriptor
+
+        try:
+          desc = tor_controller().get_network_status(fingerprint)
+        except stem.ControllerError:
+          continue
+
+        # updates fingerprintMappings with new data
+
+        if desc.address in self._fingerprint_mappings:
+          # if entry already exists with the same orport, remove it
+
+          orport_match = None
+
+          for entry_port, entry_fingerprint in self._fingerprint_mappings[desc.address]:
+            if entry_port == desc.or_port:
+              orport_match = (entry_port, entry_fingerprint)
+              break
+
+          if orport_match:
+            self._fingerprint_mappings[desc.address].remove(orport_match)
+
+          # add the new entry
+
+          self._fingerprint_mappings[desc.address].append((desc.or_port, desc.fingerprint))
+        else:
+          self._fingerprint_mappings[desc.address] = [(desc.or_port, desc.fingerprint)]
+
+  def get_relay_fingerprint(self, relay_address, relay_port = None, get_all_matches = False):
+    """
+    Provides the fingerprint associated with the given address. If there's
+    multiple potential matches or the mapping is unknown then this returns
+    None. This disambiguates the fingerprint if there's multiple relays on
+    the same ip address by several methods, one of them being to pick relays
+    we have a connection with.
+
+    Arguments:
+      relay_address  - address of relay to be returned
+      relay_port     - orport of relay (to further narrow the results)
+      get_all_matches - ignores the relay_port and provides all of the
+                      (port, fingerprint) tuples matching the given
+                      address
+    """
+
+    result = None
+    controller = tor_controller()
+
+    if controller.is_alive():
+      if get_all_matches:
+        # populates the ip -> fingerprint mappings if not yet available
+        if self._fingerprint_mappings is None:
+          self._fingerprint_mappings = self._get_fingerprint_mappings()
+
+        if relay_address in self._fingerprint_mappings:
+          result = self._fingerprint_mappings[relay_address]
+        else:
+          result = []
+      else:
+        # query the fingerprint if it isn't yet cached
+        if not (relay_address, relay_port) in self._fingerprint_lookup_cache:
+          relay_fingerprint = self._get_relay_fingerprint(controller, relay_address, relay_port)
+          self._fingerprint_lookup_cache[(relay_address, relay_port)] = relay_fingerprint
+
+        result = self._fingerprint_lookup_cache[(relay_address, relay_port)]
+
+    return result
+
+  def get_relay_nickname(self, relay_fingerprint):
+    """
+    Provides the nickname associated with the given relay. This provides None
+    if no such relay exists, and "Unnamed" if the name hasn't been set.
+
+    Arguments:
+      relay_fingerprint - fingerprint of the relay
+    """
+
+    result = None
+    controller = tor_controller()
+
+    if controller.is_alive():
+      # query the nickname if it isn't yet cached
+      if not relay_fingerprint in self._nickname_lookup_cache:
+        if relay_fingerprint == controller.get_info("fingerprint", None):
+          # this is us, simply check the config
+          my_nickname = controller.get_conf("Nickname", "Unnamed")
+          self._nickname_lookup_cache[relay_fingerprint] = my_nickname
+        else:
+          ns_entry = controller.get_network_status(relay_fingerprint, None)
+
+          if ns_entry:
+            self._nickname_lookup_cache[relay_fingerprint] = ns_entry.nickname
+
+      result = self._nickname_lookup_cache[relay_fingerprint]
+
+    return result
+
+  def _get_relay_fingerprint(self, controller, relay_address, relay_port):
+    """
+    Provides the fingerprint associated with the address/port combination.
+
+    Arguments:
+      relay_address - address of relay to be returned
+      relay_port    - orport of relay (to further narrow the results)
+    """
+
+    # If we were provided with a string port then convert to an int (so
+    # lookups won't mismatch based on type).
+
+    if isinstance(relay_port, str):
+      relay_port = int(relay_port)
+
+    # checks if this matches us
+
+    if relay_address == controller.get_info("address", None):
+      if not relay_port or str(relay_port) == controller.get_conf("ORPort", None):
+        return controller.get_info("fingerprint", None)
+
+    # if we haven't yet populated the ip -> fingerprint mappings then do so
+
+    if self._fingerprint_mappings is None:
+      self._fingerprint_mappings = self._get_fingerprint_mappings()
+
+    potential_matches = self._fingerprint_mappings.get(relay_address)
+
+    if not potential_matches:
+      return None  # no relay matches this ip address
+
+    if len(potential_matches) == 1:
+      # There's only one relay belonging to this ip address. If the port
+      # matches then we're done.
+
+      match = potential_matches[0]
+
+      if relay_port and match[0] != relay_port:
+        return None
+      else:
+        return match[1]
+    elif relay_port:
+      # Multiple potential matches, so trying to match based on the port.
+      for entry_port, entry_fingerprint in potential_matches:
+        if entry_port == relay_port:
+          return entry_fingerprint
+
+    return None
+
+  def _get_fingerprint_mappings(self, descriptors = None):
+    """
+    Provides IP address to (port, fingerprint) tuple mappings for all of the
+    currently cached relays.
+
+    Arguments:
+      descriptors - router status entries (fetched if not provided)
+    """
+
+    results = {}
+    controller = tor_controller()
+
+    if controller.is_alive():
+      # fetch the current network status if not provided
+
+      if not descriptors:
+        try:
+          descriptors = controller.get_network_statuses()
+        except stem.ControllerError:
+          descriptors = []
+
+      # construct mappings of ips to relay data
+
+      for desc in descriptors:
+        results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+
+    return results

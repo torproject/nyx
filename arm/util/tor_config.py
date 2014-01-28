@@ -9,7 +9,7 @@ import threading
 
 import stem.version
 
-from arm.util import tor_tools, ui_tools
+from arm.util import tor_controller, ui_tools
 
 from stem.util import conf, enum, log, str_tools, system
 
@@ -171,7 +171,7 @@ def load_option_descriptions(load_path = None, check_version = True):
         if version_line.startswith("Tor Version "):
           file_version = version_line[12:]
           loaded_version = file_version
-          tor_version = tor_tools.get_conn().get_info("version", "")
+          tor_version = tor_controller().get_info("version", "")
 
           if check_version and file_version != tor_version:
             msg = "wrong version, tor is %s but the file's from %s" % (tor_version, file_version)
@@ -226,8 +226,8 @@ def load_option_descriptions(load_path = None, check_version = True):
       # Fetches all options available with this tor instance. This isn't
       # vital, and the valid_options are left empty if the call fails.
 
-      conn, valid_options = tor_tools.get_conn(), []
-      config_option_query = conn.get_info("config/names", None)
+      controller, valid_options = tor_controller(), []
+      config_option_query = controller.get_info("config/names", None)
 
       if config_option_query:
         for line in config_option_query.strip().split("\n"):
@@ -340,7 +340,7 @@ def save_option_descriptions(path):
   sorted_options = CONFIG_DESCRIPTIONS.keys()
   sorted_options.sort()
 
-  tor_version = tor_tools.get_conn().get_info("version", "")
+  tor_version = tor_controller().get_info("version", "")
   output_file.write("Tor Version %s\n" % tor_version)
 
   for i in range(len(sorted_options)):
@@ -420,9 +420,9 @@ def get_config_location():
   path can't be determined.
   """
 
-  conn = tor_tools.get_conn()
-  config_location = conn.get_info("config-file", None)
-  tor_pid, tor_prefix = conn.controller.get_pid(None), CONFIG['tor.chroot']
+  controller = tor_controller()
+  config_location = controller.get_info("config-file", None)
+  tor_pid, tor_prefix = controller.controller.get_pid(None), CONFIG['tor.chroot']
 
   if not config_location:
     raise IOError("unable to query the torrc location")
@@ -446,9 +446,9 @@ def get_multiline_parameters():
   global MULTILINE_PARAM
 
   if MULTILINE_PARAM is None:
-    conn, multiline_entries = tor_tools.get_conn(), []
+    controller, multiline_entries = tor_controller(), []
 
-    config_option_query = conn.get_info("config/names", None)
+    config_option_query = controller.get_info("config/names", None)
 
     if config_option_query:
       for line in config_option_query.strip().split("\n"):
@@ -474,7 +474,7 @@ def get_custom_options(include_value = False):
                    this just contains the options
   """
 
-  config_text = tor_tools.get_conn().get_info("config-text", "").strip()
+  config_text = tor_controller().get_info("config-text", "").strip()
   config_lines = config_text.split("\n")
 
   # removes any duplicates
@@ -548,7 +548,7 @@ def save_conf(destination = None, contents = None):
     # double check that "GETINFO config-text" is unavailable rather than just
     # giving an empty result
 
-    if tor_tools.get_conn().get_info("config-text", None) is None:
+    if tor_controller().get_info("config-text", None) is None:
       raise IOError("determining the torrc requires Tor version 0.2.2.7")
 
   current_location = None
@@ -572,7 +572,7 @@ def save_conf(destination = None, contents = None):
 
   if is_saveconf:
     try:
-      tor_tools.get_conn().save_conf()
+      tor_controller().save_conf()
 
       try:
         get_torrc().load()
@@ -623,7 +623,7 @@ def validate(contents = None):
     contents - torrc contents
   """
 
-  conn = tor_tools.get_conn()
+  controller = tor_controller()
   custom_options = get_custom_options()
   issues_found, seen_options = [], []
 
@@ -708,7 +708,7 @@ def validate(contents = None):
 
     # issues GETCONF to get the values tor's currently configured to use
 
-    tor_values = conn.get_option(option, [], True)
+    tor_values = controller.get_conf(option, [], True)
 
     # multiline entries can be comma separated values (for both tor and conf)
 
@@ -950,7 +950,7 @@ class Torrc():
     if not self.is_loaded():
       return_val = None
     else:
-      tor_version = tor_tools.get_conn().get_version()
+      tor_version = tor_controller().get_version(None)
       skip_validation = not CONFIG["features.torrc.validate"]
       skip_validation |= (tor_version is None or not tor_version >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
 

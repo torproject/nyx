@@ -9,7 +9,7 @@ import threading
 import arm.controller
 import popups
 
-from arm.util import panel, tor_config, tor_tools, ui_tools
+from arm.util import panel, tor_config, tor_controller, ui_tools
 
 import stem.control
 
@@ -185,7 +185,7 @@ class ConfigEntry():
     True if we have no value, false otherwise.
     """
 
-    conf_value = tor_tools.get_conn().get_option(self.get(Field.OPTION), [], True)
+    conf_value = tor_controller().get_conf(self.get(Field.OPTION), [], True)
 
     return not bool(conf_value)
 
@@ -196,7 +196,7 @@ class ConfigEntry():
     value's type to provide a user friendly representation if able.
     """
 
-    conf_value = ", ".join(tor_tools.get_conn().get_option(self.get(Field.OPTION), [], True))
+    conf_value = ", ".join(tor_controller().get_conf(self.get(Field.OPTION), [], True))
 
     # provides nicer values for recognized types
 
@@ -234,10 +234,10 @@ class ConfigPanel(panel.Panel):
 
     # initializes config contents if we're connected
 
-    conn = tor_tools.get_conn()
-    conn.add_status_listener(self.reset_listener)
+    controller = tor_controller()
+    controller.add_status_listener(self.reset_listener)
 
-    if conn.is_alive():
+    if controller.is_alive():
       self.reset_listener(None, stem.control.State.INIT, None)
 
   def reset_listener(self, controller, event_type, _):
@@ -256,9 +256,9 @@ class ConfigPanel(panel.Panel):
     self.conf_important_contents = []
 
     if self.config_type == State.TOR:
-      conn, config_option_lines = tor_tools.get_conn(), []
+      controller, config_option_lines = tor_controller(), []
       custom_options = tor_config.get_custom_options()
-      config_option_query = conn.get_info("config/names", None)
+      config_option_query = controller.get_info("config/names", None)
 
       if config_option_query:
         config_option_lines = config_option_query.strip().split("\n")
@@ -407,7 +407,7 @@ class ConfigPanel(panel.Panel):
               # set_option accepts list inputs when there's multiple values
               new_value = new_value.split(",")
 
-            tor_tools.get_conn().set_option(config_option, new_value)
+            tor_controller().set_conf(config_option, new_value)
 
             # forces the label to be remade with the new value
 

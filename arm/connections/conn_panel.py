@@ -11,7 +11,7 @@ import arm.popups
 import arm.util.tracker
 
 from arm.connections import count_popup, descriptor_popup, entries, conn_entry, circ_entry
-from arm.util import panel, tor_tools, tracker, ui_tools
+from arm.util import panel, tor_controller, tracker, ui_tools
 
 from stem.control import State
 from stem.util import conf, connection, enum
@@ -88,8 +88,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # If we're a bridge and been running over a day then prepopulates with the
     # last day's clients.
 
-    conn = tor_tools.get_conn()
-    bridge_clients = conn.get_info("status/clients-seen", None)
+    controller = tor_controller()
+    bridge_clients = controller.get_info("status/clients-seen", None)
 
     if bridge_clients:
       # Response has a couple arguments...
@@ -129,7 +129,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     # listens for when tor stops so we know to stop reflecting changes
 
-    conn.add_status_listener(self.tor_state_listener)
+    controller.add_status_listener(self.tor_state_listener)
 
   def tor_state_listener(self, controller, event_type, _):
     """
@@ -217,18 +217,30 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     True if client connections are permissable, false otherwise.
     """
 
-    conn = tor_tools.get_conn()
-    return "Guard" in conn.get_my_flags([]) or conn.get_option("BridgeRelay", None) == "1"
+    controller = tor_controller()
+
+    my_flags = []
+    my_fingerprint = self.get_info("fingerprint", None)
+
+    if my_fingerprint:
+      my_status_entry = self.controller.get_network_status(my_fingerprint)
+
+      if my_status_entry:
+        my_flags = my_status_entry.flags
+
+    return "Guard" in my_flags or controller.get_conf("BridgeRelay", None) == "1"
 
   def is_exits_allowed(self):
     """
     True if exit connections are permissable, false otherwise.
     """
 
-    if not tor_tools.get_conn().get_option("ORPort", None):
+    controller = tor_controller()
+
+    if not controller.get_conf("ORPort", None):
       return False  # no ORPort
 
-    policy = tor_tools.get_conn().get_exit_policy()
+    policy = controller.get_exit_policy(None)
 
     return policy and policy.is_exiting_allowed()
 
@@ -508,12 +520,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_connections()]
     new_circuits = {}
 
-    for circuit_id, status, purpose, path in tor_tools.get_conn().get_circuits():
+    for circ in tor_controller().get_circuits():
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
-      if not (status == "BUILT" and len(path) == 1):
-        new_circuits[circuit_id] = (status, purpose, path)
+      if not (circ.status == "BUILT" and len(circ.path) == 1):
+        new_circuits[circ.id] = (circ.status, circ.purpose, [entry[0] for entry in circ.path])
 
     # Populates new_entries with any of our old entries that still exist.
     # This is both for performance and to keep from resetting the uptime

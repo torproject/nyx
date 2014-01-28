@@ -8,7 +8,7 @@ import threading
 
 import arm.popups
 
-from arm.util import panel, tor_config, tor_tools, ui_tools
+from arm.util import panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
 from stem.util import conf, enum
@@ -52,10 +52,10 @@ class TorrcPanel(panel.Panel):
 
     # listens for tor reload (sighup) events
 
-    conn = tor_tools.get_conn()
-    conn.add_status_listener(self.reset_listener)
+    controller = tor_controller()
+    controller.add_status_listener(self.reset_listener)
 
-    if conn.is_alive():
+    if controller.is_alive():
       self.reset_listener(None, State.INIT, None)
 
   def reset_listener(self, controller, event_type, _):

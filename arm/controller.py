@@ -22,9 +22,11 @@ import arm.graphing.resource_stats
 import arm.connections.conn_panel
 import arm.util.tracker
 
+import stem
+
 from stem.control import State
 
-from arm.util import panel, tor_config, tor_tools, ui_tools
+from arm.util import panel, tor_config, tor_controller, ui_tools
 
 from stem.util import conf, enum, log, system
 
@@ -128,7 +130,7 @@ def init_controller(stdscr, start_time):
     # functioning. It'll have circuits, but little else. If this is the case then
     # notify the user and tell them what they can do to fix it.
 
-    controller = tor_tools.get_conn().controller
+    controller = tor_controller()
 
     if controller.get_conf("DisableDebuggerAttachment", None) == "1":
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that arm can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
@@ -195,7 +197,7 @@ def init_controller(stdscr, start_time):
 
     # prepopulates bandwidth values from state file
 
-    if CONFIG["features.graph.bw.prepopulate"] and tor_tools.get_conn().is_alive():
+    if CONFIG["features.graph.bw.prepopulate"] and tor_controller().is_alive():
       is_successful = bw_stats.prepopulate_from_state()
 
       if is_successful:
@@ -528,7 +530,7 @@ class Controller:
 
     if is_shutdown_flag_present:
       try:
-        tor_tools.get_conn().shutdown()
+        tor_controller().close()
       except IOError as exc:
         arm.popups.show_msg(str(exc), 3, curses.A_BOLD)
 
@@ -541,10 +543,10 @@ def heartbeat_check(is_unresponsive):
     is_unresponsive - flag for if we've indicated to be responsive or not
   """
 
-  conn = tor_tools.get_conn()
-  last_heartbeat = conn.controller.get_latest_heartbeat()
+  controller = tor_controller()
+  last_heartbeat = controller.get_latest_heartbeat()
 
-  if conn.is_alive():
+  if controller.is_alive():
     if not is_unresponsive and (time.time() - last_heartbeat) >= 10:
       is_unresponsive = True
       log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(last_heartbeat))
@@ -674,7 +676,7 @@ def start_arm(stdscr):
 
       if confirmation_key in (ord('x'), ord('X')):
         try:
-          tor_tools.get_conn().reload()
+          tor_controller().signal(stem.Signal.RELOAD)
         except IOError as exc:
           log.error("Error detected when reloading tor: %s" % exc.strerror)
     elif key == ord('h') or key == ord('H'):

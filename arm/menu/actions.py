@@ -10,8 +10,9 @@ import arm.menu.item
 import arm.graphing.graph_panel
 import arm.util.tracker
 
-from arm.util import tor_tools, ui_tools
+from arm.util import tor_controller, ui_tools
 
+import stem
 import stem.util.connection
 
 from stem.util import conf, str_tools
@@ -60,16 +61,16 @@ def make_actions_menu():
   """
 
   control = arm.controller.get_controller()
-  conn = tor_tools.get_conn()
+  controller = tor_controller()
   header_panel = control.get_panel("header")
   actions_menu = arm.menu.item.Submenu("Actions")
   actions_menu.add(arm.menu.item.MenuItem("Close Menu", None))
   actions_menu.add(arm.menu.item.MenuItem("New Identity", header_panel.send_newnym))
 
-  if conn.is_alive():
-    actions_menu.add(arm.menu.item.MenuItem("Stop Tor", conn.shutdown))
+  if controller.is_alive():
+    actions_menu.add(arm.menu.item.MenuItem("Stop Tor", controller.close))
 
-  actions_menu.add(arm.menu.item.MenuItem("Reset Tor", conn.reload))
+  actions_menu.add(arm.menu.item.MenuItem("Reset Tor", functools.partial(controller.signal, stem.Signal.RELOAD)))
 
   if control.is_paused():
     label, arg = "Unpause", False

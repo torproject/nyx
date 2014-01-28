@@ -5,7 +5,7 @@ Tracks the system resource usage (cpu and memory) of the tor process.
 import arm.util.tracker
 
 from arm.graphing import graph_panel
-from arm.util import tor_tools
+from arm.util import tor_controller
 
 from stem.util import str_tools
 
@@ -17,7 +17,7 @@ class ResourceStats(graph_panel.GraphStats):
 
   def __init__(self):
     graph_panel.GraphStats.__init__(self)
-    self.query_pid = tor_tools.get_conn().controller.get_pid(None)
+    self.query_pid = tor_controller().get_pid(None)
     self.last_counter = None
 
   def clone(self, new_copy=None):

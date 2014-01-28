@@ -8,7 +8,7 @@ import curses
 import arm.popups
 import arm.connections.conn_entry
 
-from arm.util import panel, tor_tools, ui_tools
+from arm.util import panel, tor_controller, ui_tools
 
 # field keywords used to identify areas for coloring
 
@@ -116,10 +116,10 @@ def get_display_text(fingerprint):
   if not fingerprint:
     return [UNRESOLVED_MSG]
 
-  conn, description = tor_tools.get_conn(), []
+  controller, description = tor_controller(), []
 
   description.append("ns/id/%s" % fingerprint)
-  consensus_entry = conn.get_consensus_entry(fingerprint)
+  consensus_entry = controller.get_info("ns/id/%s" % fingerprint, None)
 
   if consensus_entry:
     description += consensus_entry.split("\n")
@@ -127,7 +127,7 @@ def get_display_text(fingerprint):
     description += [ERROR_MSG, ""]
 
   description.append("desc/id/%s" % fingerprint)
-  descriptor_entry = conn.get_descriptor_entry(fingerprint)
+  descriptor_entry = controller.get_info("desc/id/%s" % fingerprint, None)
 
   if descriptor_entry:
     description += descriptor_entry.split("\n")

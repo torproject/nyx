@@ -24,7 +24,7 @@ import arm.controller
 
 import stem.control
 
-from arm.util import panel, tor_tools, ui_tools
+from arm.util import panel, tor_controller, ui_tools
 
 from stem.util import conf, enum, str_tools
 
@@ -121,7 +121,7 @@ class GraphStats:
 
     # tracks BW events
 
-    tor_tools.get_conn().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+    tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
   def clone(self, new_copy=None):
     """

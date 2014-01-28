@@ -18,7 +18,6 @@ import arm.arguments
 import arm.controller
 import arm.util.panel
 import arm.util.tor_config
-import arm.util.tor_tools
 import arm.util.tracker
 import arm.util.ui_tools
 
@@ -68,11 +67,6 @@ def main():
   try:
     controller = init_controller(args)
     authenticate(controller, CONFIG.get('tor.password', None), CONFIG.get('tor.chroot', ''))
-
-    # TODO: Our tor_controller() method will gradually replace the tor_tools
-    # module, but until that we need to initialize it too.
-
-    arm.util.tor_tools.get_conn().init(controller)
   except ValueError as exc:
     print exc
     exit(1)
