@@ -129,7 +129,7 @@ def _color_attr():
     if not CONFIG['features.colorInterface']:
       COLOR_ATTR = DEFAULT_COLOR_ATTR
     elif curses.has_colors():
-      color_attr = dict([(color, 0) for color in COLOR_LIST])
+      color_attr = dict(DEFAULT_COLOR_ATTR)
 
       for color_pair, color_name in enumerate(COLOR_LIST):
         foreground_color = COLOR_LIST[color_name]

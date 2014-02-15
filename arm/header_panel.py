@@ -36,35 +36,10 @@ from util import panel, ui_tools, tor_controller
 
 MIN_DUAL_COL_WIDTH = 141
 
-FLAG_COLORS = {
-  "Authority": "white",
-  "BadExit": "red",
-  "BadDirectory": "red",
-  "Exit": "cyan",
-  "Fast": "yellow",
-  "Guard": "green",
-  "HSDir": "magenta",
-  "Named": "blue",
-  "Stable": "blue",
-  "Running": "yellow",
-  "Unnamed": "magenta",
-  "Valid": "green",
-  "V2Dir": "cyan",
-  "V3Dir": "white",
-}
-
-VERSION_STATUS_COLORS = {
-  "new": "blue",
-  "new in series": "blue",
-  "obsolete": "red",
-  "recommended": "green",
-  "old": "red",
-  "unrecommended": "red",
-  "unknown": "cyan",
-}
-
-CONFIG = conf.config_dict("arm", {
-  "features.showFdUsage": False,
+CONFIG = conf.config_dict('arm', {
+  'attr.flag_colors': {},
+  'attr.version_status_colors': {},
+  'features.showFdUsage': False,
 })
 
 
@@ -238,7 +213,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= content_space:
       if self.vals["tor/version"] != "Unknown":
-        version_color = VERSION_STATUS_COLORS[self.vals["tor/versionStatus"]] if self.vals["tor/versionStatus"] in VERSION_STATUS_COLORS else "white"
+        version_color = CONFIG['attr.version_status_colors'].get(self.vals["tor/versionStatus"], 'white')
 
         label_prefix = "Tor %s (" % self.vals["tor/version"]
         self.addstr(0, 43, label_prefix)
@@ -380,7 +355,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         if len(self.vals["tor/flags"]) > 0:
           for i in range(len(self.vals["tor/flags"])):
             flag = self.vals["tor/flags"][i]
-            flag_color = FLAG_COLORS[flag] if flag in FLAG_COLORS.keys() else "white"
+            flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
 
             self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
             x += len(flag)
