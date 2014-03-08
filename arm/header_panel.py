@@ -16,6 +16,7 @@ Example:
 
 import os
 import time
+import collections
 import curses
 import threading
 
@@ -41,6 +42,38 @@ CONFIG = conf.config_dict('arm', {
   'attr.version_status_colors': {},
   'features.showFdUsage': False,
 })
+
+Sampling = collections.namedtuple('Sampling', [
+  'address',
+  'fingerprint',
+  'nickname',
+  'or_address',
+  'or_port',
+  'dir_port',
+
+  'control_port',
+  'socket_path',
+  'is_password_auth',
+  'is_cookie_auth',
+
+  'exit_policy',
+  'flags',
+  'version',
+  'version_status',
+
+  'pid',
+  'start_time',
+  'fd_limit',
+  'fd_used',
+
+  'tor_cpu',
+  'arm_cpu',
+  'rss',
+  'memory',
+  'hostname',
+  'os_name',
+  'os_version',
+])
 
 
 class HeaderPanel(panel.Panel, threading.Thread):
@@ -114,7 +147,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
 
-    if self.vals["tor/or_port"]:
+    if self.vals.or_port:
       return 4 if is_wide else 6
     else:
       return 3 if is_wide else 4
@@ -201,11 +234,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     # Line 1 / Line 1 Left (system and tor version information)
 
-    sys_name_label = "arm - %s" % self.vals["sys/hostname"]
+    sys_name_label = "arm - %s" % self.vals.hostname
     content_space = min(left_width, 40)
 
     if len(sys_name_label) + 10 <= content_space:
-      sys_type_label = "%s %s" % (self.vals["sys/os"], self.vals["sys/version"])
+      sys_type_label = "%s %s" % (self.vals.os_name, self.vals.os_version)
       sys_type_label = ui_tools.crop_str(sys_type_label, content_space - len(sys_name_label) - 3, 4)
       self.addstr(0, 0, "%s (%s)" % (sys_name_label, sys_type_label))
     else:
@@ -213,34 +246,34 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     content_space = left_width - 43
 
-    if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= content_space:
-      if self.vals["tor/version"] != "Unknown":
-        version_color = CONFIG['attr.version_status_colors'].get(self.vals["tor/versionStatus"], 'white')
+    if 7 + len(self.vals.version) + len(self.vals.version_status) <= content_space:
+      if self.vals.version != "Unknown":
+        version_color = CONFIG['attr.version_status_colors'].get(self.vals.version_status, 'white')
 
-        label_prefix = "Tor %s (" % self.vals["tor/version"]
+        label_prefix = "Tor %s (" % self.vals.version
         self.addstr(0, 43, label_prefix)
-        self.addstr(0, 43 + len(label_prefix), self.vals["tor/versionStatus"], ui_tools.get_color(version_color))
-        self.addstr(0, 43 + len(label_prefix) + len(self.vals["tor/versionStatus"]), ")")
+        self.addstr(0, 43 + len(label_prefix), self.vals.version_status, ui_tools.get_color(version_color))
+        self.addstr(0, 43 + len(label_prefix) + len(self.vals.version_status), ")")
     elif 11 <= content_space:
-      self.addstr(0, 43, ui_tools.crop_str("Tor %s" % self.vals["tor/version"], content_space, 4))
+      self.addstr(0, 43, ui_tools.crop_str("Tor %s" % self.vals.version, content_space, 4))
 
     # Line 2 / Line 2 Left (tor ip/port information)
 
     x, include_control_port = 0, True
 
-    if self.vals["tor/or_port"]:
+    if self.vals.or_port:
       my_address = "Unknown"
 
-      if self.vals["tor/orListenAddr"]:
-        my_address = self.vals["tor/orListenAddr"]
-      elif self.vals["tor/address"]:
-        my_address = self.vals["tor/address"]
+      if self.vals.or_address:
+        my_address = self.vals.or_address
+      elif self.vals.address:
+        my_address = self.vals.address
 
       # acting as a relay (we can assume certain parameters are set
 
-      dir_port_label = ", Dir Port: %s" % self.vals["tor/dir_port"] if self.vals["tor/dir_port"] != "0" else ""
+      dir_port_label = ", Dir Port: %s" % self.vals.dir_port if self.vals.dir_port != "0" else ""
 
-      for label in (self.vals["tor/nickname"], " - " + my_address, ":" + self.vals["tor/or_port"], dir_port_label):
+      for label in (self.vals.nickname, " - " + my_address, ":" + self.vals.or_port, dir_port_label):
         if x + len(label) <= left_width:
           self.addstr(1, x, label)
           x += len(label)
@@ -266,46 +299,46 @@ class HeaderPanel(panel.Panel, threading.Thread):
         include_control_port = False
 
     if include_control_port:
-      if self.vals["tor/control_port"] == "0":
+      if self.vals.control_port == "0":
         # connected via a control socket
-        self.addstr(1, x, ", Control Socket: %s" % self.vals["tor/socketPath"])
+        self.addstr(1, x, ", Control Socket: %s" % self.vals.socket_path)
       else:
-        if self.vals["tor/isAuthPassword"]:
+        if self.vals.is_password_auth:
           auth_type = "password"
-        elif self.vals["tor/isAuthCookie"]:
+        elif self.vals.is_cookie_auth:
           auth_type = "cookie"
         else:
           auth_type = "open"
 
-        if x + 19 + len(self.vals["tor/control_port"]) + len(auth_type) <= left_width:
+        if x + 19 + len(self.vals.control_port) + len(auth_type) <= left_width:
           auth_color = "red" if auth_type == "open" else "green"
           self.addstr(1, x, ", Control Port (")
           self.addstr(1, x + 16, auth_type, ui_tools.get_color(auth_color))
-          self.addstr(1, x + 16 + len(auth_type), "): %s" % self.vals["tor/control_port"])
-        elif x + 16 + len(self.vals["tor/control_port"]) <= left_width:
-          self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/control_port"])
+          self.addstr(1, x + 16 + len(auth_type), "): %s" % self.vals.control_port)
+        elif x + 16 + len(self.vals.control_port) <= left_width:
+          self.addstr(1, 0, ", Control Port: %s" % self.vals.control_port)
 
     # Line 3 / Line 1 Right (system usage info)
 
     y, x = (0, left_width) if is_wide else (2, 0)
 
-    if self.vals["stat/rss"] != "0":
-      memory_label = str_tools.get_size_label(int(self.vals["stat/rss"]))
+    if self.vals.rss != "0":
+      memory_label = str_tools.get_size_label(int(self.vals.rss))
     else:
       memory_label = "0"
 
     uptime_label = ""
 
-    if self.vals["tor/start_time"]:
+    if self.vals.start_time:
       if self.is_paused() or not self._is_tor_connected:
         # freeze the uptime when paused or the tor process is stopped
-        uptime_label = str_tools.get_short_time_label(self.get_pause_time() - self.vals["tor/start_time"])
+        uptime_label = str_tools.get_short_time_label(self.get_pause_time() - self.vals.start_time)
       else:
-        uptime_label = str_tools.get_short_time_label(time.time() - self.vals["tor/start_time"])
+        uptime_label = str_tools.get_short_time_label(time.time() - self.vals.start_time)
 
-    sys_fields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
-                  (27, "mem: %s (%s%%)" % (memory_label, self.vals["stat/%mem"])),
-                  (47, "pid: %s" % (self.vals["tor/pid"] if self._is_tor_connected else "")),
+    sys_fields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals.tor_cpu, self.vals.arm_cpu)),
+                  (27, "mem: %s (%s%%)" % (memory_label, self.vals.memory)),
+                  (47, "pid: %s" % (self.vals.pid if self._is_tor_connected else "")),
                   (59, "uptime: %s" % uptime_label))
 
     for (start, label) in sys_fields:
@@ -314,22 +347,22 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         break
 
-    if self.vals["tor/or_port"]:
+    if self.vals.or_port:
       # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
 
       y, x = (1, left_width) if is_wide else (3, 0)
 
-      fingerprint_label = ui_tools.crop_str("fingerprint: %s" % self.vals["tor/fingerprint"], width)
+      fingerprint_label = ui_tools.crop_str("fingerprint: %s" % self.vals.fingerprint, width)
       self.addstr(y, x, fingerprint_label)
 
       # if there's room and we're able to retrieve both the file descriptor
       # usage and limit then it might be presented
 
-      if width - x - 59 >= 20 and self.vals["tor/fd_used"] and self.vals["tor/fd_limit"]:
+      if width - x - 59 >= 20 and self.vals.fd_used and self.vals.fd_limit:
         # display file descriptor usage if we're either configured to do so or
         # running out
 
-        fd_percent = 100 * self.vals["tor/fd_used"] / self.vals["tor/fd_limit"]
+        fd_percent = 100 * self.vals.fd_used / self.vals.fd_limit
 
         if fd_percent >= 60 or CONFIG["features.showFdUsage"]:
           fd_percentLabel, fd_percent_format = "%i%%" % fd_percent, curses.A_NORMAL
@@ -341,7 +374,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           elif fd_percent >= 60:
             fd_percent_format = ui_tools.get_color("yellow")
 
-          base_label = "file desc: %i / %i (" % (self.vals["tor/fd_used"], self.vals["tor/fd_limit"])
+          base_label = "file desc: %i / %i (" % (self.vals.fd_used, self.vals.fd_limit)
 
           self.addstr(y, x + 59, base_label)
           self.addstr(y, x + 59 + len(base_label), fd_percentLabel, fd_percent_format)
@@ -354,15 +387,15 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(y, x, "flags: ")
         x += 7
 
-        if len(self.vals["tor/flags"]) > 0:
-          for i in range(len(self.vals["tor/flags"])):
-            flag = self.vals["tor/flags"][i]
+        if len(self.vals.flags) > 0:
+          for i in range(len(self.vals.flags)):
+            flag = self.vals.flags[i]
             flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
 
             self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
             x += len(flag)
 
-            if i < len(self.vals["tor/flags"]) - 1:
+            if i < len(self.vals.flags) - 1:
               self.addstr(y, x, ", ")
               x += 2
         else:
@@ -377,7 +410,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       # Undisplayed / Line 3 Right (exit policy)
 
       if is_wide:
-        exit_policy = self.vals["tor/exit_policy"]
+        exit_policy = self.vals.exit_policy
 
         # adds note when default exit policy is appended
 
@@ -467,7 +500,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
         is_changed = False
 
-        if self.vals["tor/pid"]:
+        if self.vals.pid:
           resource_tracker = arm.util.tracker.get_resource_tracker()
           is_changed = self._last_resource_fetch != resource_tracker.run_counter()
 
@@ -604,33 +637,37 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     self._last_update = current_time
 
-    return {
-      'tor/address': controller.get_info('address', ''),
-      'tor/fingerprint': controller.get_info('fingerprint', 'Unknown'),
-      'tor/version': str(controller.get_version('Unknown')).split()[0],
-      'tor/versionStatus': controller.get_info('status/version/current', 'Unknown'),
-      'tor/nickname': controller.get_conf('Nickname', ''),
-      'tor/orListenAddr': or_address,
-      'tor/or_port': or_port,
-      'tor/exit_policy': str(controller.get_exit_policy),
-      'tor/flags': flags,
-      'tor/dir_port': controller.get_conf('DirPort', '0'),
-      'tor/control_port': controller.get_conf('ControlPort', '0'),
-      'tor/socketPath': controller.get_conf('ControlSocket', ''),
-      'tor/isAuthPassword': controller.get_conf('HashedControlPassword', None) is not None,
-      'tor/isAuthCookie': controller.get_conf('CookieAuthentication', None) == '1',
-      'tor/fd_limit': fd_limit,
-      'tor/fd_used': fd_used,
-      'tor/pid': controller.get_pid(''),
-      'tor/start_time': start_time if start_time else '',
-      'stat/%torCpu': tor_cpu,
-      'stat/%armCpu': arm_cpu,
-      'stat/rss': tor_rss,
-      'stat/%mem': tor_memory,
-      'sys/hostname': uname_vals[1],
-      'sys/os': uname_vals[0],
-      'sys/version': uname_vals[2],
-    }
+    return Sampling(
+      address = controller.get_info('address', ''),
+      fingerprint = controller.get_info('fingerprint', 'Unknown'),
+      nickname = controller.get_conf('Nickname', ''),
+      or_address = or_address,
+      or_port = or_port,
+      dir_port = controller.get_conf('DirPort', '0'),
+
+      control_port = controller.get_conf('ControlPort', '0'),
+      socket_path = controller.get_conf('ControlSocket', ''),
+      is_password_auth = controller.get_conf('HashedControlPassword', None) is not None,
+      is_cookie_auth = controller.get_conf('CookieAuthentication', None) == '1',
+
+      exit_policy = str(controller.get_exit_policy()),
+      flags = flags,
+      version = str(controller.get_version('Unknown')).split()[0],
+      version_status = controller.get_info('status/version/current', 'Unknown'),
+
+      pid = controller.get_pid(''),
+      start_time = start_time if start_time else '',
+      fd_limit = fd_limit,
+      fd_used = fd_used,
+
+      tor_cpu = tor_cpu,
+      arm_cpu = arm_cpu,
+      rss = tor_rss,
+      memory = tor_memory,
+      hostname = uname_vals[1],
+      os_name = uname_vals[0],
+      os_version = uname_vals[2],
+    )
 
 
 def get_file_descriptor_usage(pid):
