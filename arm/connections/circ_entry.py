@@ -109,7 +109,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     shown completely (not enough room) is dropped.
     """
 
-    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %i" % self.circuit_id]
+    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %s" % self.circuit_id]
 
     for i in range(len(etc_attr), -1, -1):
       etc_label = ", ".join(etc_attr[:i])

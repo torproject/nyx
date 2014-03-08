@@ -22,7 +22,7 @@ import threading
 import arm.util.tracker
 
 from stem import Signal
-from stem.control import State
+from stem.control import Listener, State
 from stem.util import conf, log, proc, str_tools, system
 
 import arm.starter
@@ -98,7 +98,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     self.vals = {}
     self.vals_lock = threading.RLock()
-    self._update()
+
+    with self.vals_lock:
+      self.vals = self._get_attributes()
 
     # listens for tor reload (sighup) events
 
@@ -470,7 +472,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
           is_changed = self._last_resource_fetch != resource_tracker.run_counter()
 
         if is_changed or current_time - self._last_update >= 20:
-          self._update()
+          with self.vals_lock:
+            self.vals = self._get_attributes()
 
         self.redraw(True)
         last_draw += 1
@@ -494,7 +497,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
       initial_height = self.get_height()
       self._is_tor_connected = True
       self._halt_time = None
-      self._update()
+
+      with self.vals_lock:
+        self.vals = self._get_attributes()
 
       if self.get_height() != initial_height:
         # We're toggling between being a relay and client, causing the height
@@ -508,57 +513,24 @@ class HeaderPanel(panel.Panel, threading.Thread):
     elif event_type == State.CLOSED:
       self._is_tor_connected = False
       self._halt_time = time.time()
-      self._update()
+
+      with self.vals_lock:
+        self.vals = self._get_attributes()
+
       self.redraw(True)
 
-  def _update(self):
-    """
-    Updates stats in the vals mapping. By default this just revises volatile
-    attributes.
-    """
-
-    self.vals_lock.acquire()
+  def _get_attributes(self):
     controller = tor_controller()
 
-    # version is truncated to first part, for instance:
-    # 0.2.2.13-alpha (git-feb8c1b5f67f2c6f) -> 0.2.2.13-alpha
+    or_listeners = controller.get_listeners(Listener.OR, [])
 
-    self.vals['tor/version'] = str(controller.get_version('Unknown')).split()[0]
-    self.vals['tor/versionStatus'] = controller.get_info('status/version/current', 'Unknown')
-    self.vals['tor/nickname'] = controller.get_conf('Nickname', '')
-    self.vals['tor/or_port'] = controller.get_conf('ORPort', '0')
-    self.vals['tor/dir_port'] = controller.get_conf('DirPort', '0')
-    self.vals['tor/control_port'] = controller.get_conf('ControlPort', '0')
-    self.vals['tor/socketPath'] = controller.get_conf('ControlSocket', '')
-    self.vals['tor/isAuthPassword'] = controller.get_conf('HashedControlPassword', None) is not None
-    self.vals['tor/isAuthCookie'] = controller.get_conf('CookieAuthentication', None) == '1'
+    if not or_listeners:
+      or_address, or_port = '', ''
+    else:
+      # TODO: Relays can bind to multiple ports to listen for OR connections.
+      # Not sure how we'd like to surface that...
 
-    # orport is reported as zero if unset
-
-    if self.vals['tor/or_port'] == '0':
-      self.vals['tor/or_port'] = ''
-
-    # overwrite address if ORListenAddress is set (and possibly or_port too)
-
-    self.vals['tor/orListenAddr'] = ''
-    listen_addr = controller.get_conf('ORListenAddress', None)
-
-    if listen_addr:
-      if ':' in listen_addr:
-        # both ip and port overwritten
-        self.vals['tor/orListenAddr'] = listen_addr[:listen_addr.find(':')]
-        self.vals['tor/or_port'] = listen_addr[listen_addr.find(':') + 1:]
-      else:
-        self.vals['tor/orListenAddr'] = listen_addr
-
-    # fetch exit policy (might span over multiple lines)
-
-    policy_entries = []
-
-    for exit_policy in controller.get_conf('ExitPolicy', [], True):
-      policy_entries += [policy.strip() for policy in exit_policy.split(',')]
-
-    self.vals['tor/exit_policy'] = ', '.join(policy_entries)
+      or_address, or_port = or_listeners[0]
 
     # file descriptor limit for the process, if this can't be determined
     # then the limit is None
@@ -566,66 +538,40 @@ class HeaderPanel(panel.Panel, threading.Thread):
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
 
     if fd_limit != '-1' and fd_limit.isdigit():
-      self.vals['tor/fd_limit'] = int(fd_limit)
+      fd_limit = int(fd_limit)
     else:
-      self.vals['tor/fd_limit'] = None
-
-    # system information
+      fd_limit = None
 
     uname_vals = os.uname()
-    self.vals['sys/hostname'] = uname_vals[1]
-    self.vals['sys/os'] = uname_vals[0]
-    self.vals['sys/version'] = uname_vals[2]
-
-    self.vals['tor/pid'] = controller.get_pid('')
 
     try:
       start_time = system.get_start_time(controller.get_pid())
     except:
       start_time = None
 
-    self.vals['tor/start_time'] = start_time if start_time else ''
-
-    # reverts volatile parameters to defaults
-
-    self.vals['tor/fingerprint'] = 'Unknown'
-    self.vals['tor/flags'] = []
-    self.vals['tor/fd_used'] = 0
-    self.vals['stat/%torCpu'] = '0'
-    self.vals['stat/%armCpu'] = '0'
-    self.vals['stat/rss'] = '0'
-    self.vals['stat/%mem'] = '0'
-
-    # sets volatile parameters
-    # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
-    # events. Introduce caching via tor_tools?
-
-    self.vals['tor/address'] = controller.get_info('address', '')
-
-    self.vals['tor/fingerprint'] = controller.get_info('fingerprint', self.vals['tor/fingerprint'])
-
+    flags = []
     my_fingerprint = controller.get_info('fingerprint', None)
 
     if my_fingerprint:
       my_status_entry = controller.get_network_status(my_fingerprint)
 
       if my_status_entry:
-        self.vals['tor/flags'] = my_status_entry.flags
+        flags = my_status_entry.flags
 
     # Updates file descriptor usage and logs if the usage is high. If we don't
     # have a known limit or it's obviously faulty (being lower than our
     # current usage) then omit file descriptor functionality.
 
-    if self.vals['tor/fd_limit']:
+    fd_used = 0
+
+    if fd_limit:
       fd_used = get_file_descriptor_usage(controller.get_pid(None))
 
-      if fd_used and fd_used <= self.vals['tor/fd_limit']:
-        self.vals['tor/fd_used'] = fd_used
-      else:
-        self.vals['tor/fd_used'] = 0
+      if not fd_used or fd_used > fd_limit:
+        fd_used = 0
 
-    if self.vals['tor/fd_used'] and self.vals['tor/fd_limit']:
-      fd_percent = 100 * self.vals['tor/fd_used'] / self.vals['tor/fd_limit']
+    if fd_used and fd_limit:
+      fd_percent = 100 * fd_used / fd_limit
       msg = "Tor's file descriptor usage is at %i%%." % fd_percent
 
       if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
@@ -636,16 +582,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self._is_fd_sixty_percent_warned = True
         log.notice(msg)
 
-    # ps or proc derived resource usage stats
+    resource_tracker = arm.util.tracker.get_resource_tracker()
 
-    if self.vals['tor/pid']:
-      resource_tracker = arm.util.tracker.get_resource_tracker()
+    resources = resource_tracker.get_resource_usage()
+    self._last_resource_fetch = resource_tracker.run_counter()
 
-      resources = resource_tracker.get_resource_usage()
-      self._last_resource_fetch = resource_tracker.run_counter()
-      self.vals['stat/%torCpu'] = '%0.1f' % (100 * resources.cpu_sample)
-      self.vals['stat/rss'] = str(resources.memory_bytes)
-      self.vals['stat/%mem'] = '%0.1f' % (100 * resources.memory_percent)
+    tor_cpu = '%0.1f' % (100 * resources.cpu_sample)
+    tor_rss = str(resources.memory_bytes)
+    tor_memory = '%0.1f' % (100 * resources.memory_percent)
 
     # determines the cpu time for the arm process (including user and system
     # time of both the primary and child processes)
@@ -655,11 +599,38 @@ class HeaderPanel(panel.Panel, threading.Thread):
     arm_time_delta = current_time - self._arm_cpu_sampling[1]
     python_cpu_time = arm_cpu_telta / arm_time_delta
     sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
-    self.vals['stat/%armCpu'] = '%0.1f' % (100 * (python_cpu_time + sys_call_cpu_time))
+    arm_cpu = '%0.1f' % (100 * (python_cpu_time + sys_call_cpu_time))
     self._arm_cpu_sampling = (total_arm_cpu_time, current_time)
 
     self._last_update = current_time
-    self.vals_lock.release()
+
+    return {
+      'tor/address': controller.get_info('address', ''),
+      'tor/fingerprint': controller.get_info('fingerprint', 'Unknown'),
+      'tor/version': str(controller.get_version('Unknown')).split()[0],
+      'tor/versionStatus': controller.get_info('status/version/current', 'Unknown'),
+      'tor/nickname': controller.get_conf('Nickname', ''),
+      'tor/orListenAddr': or_address,
+      'tor/or_port': or_port,
+      'tor/exit_policy': str(controller.get_exit_policy),
+      'tor/flags': flags,
+      'tor/dir_port': controller.get_conf('DirPort', '0'),
+      'tor/control_port': controller.get_conf('ControlPort', '0'),
+      'tor/socketPath': controller.get_conf('ControlSocket', ''),
+      'tor/isAuthPassword': controller.get_conf('HashedControlPassword', None) is not None,
+      'tor/isAuthCookie': controller.get_conf('CookieAuthentication', None) == '1',
+      'tor/fd_limit': fd_limit,
+      'tor/fd_used': fd_used,
+      'tor/pid': controller.get_pid(''),
+      'tor/start_time': start_time if start_time else '',
+      'stat/%torCpu': tor_cpu,
+      'stat/%armCpu': arm_cpu,
+      'stat/rss': tor_rss,
+      'stat/%mem': tor_memory,
+      'sys/hostname': uname_vals[1],
+      'sys/os': uname_vals[0],
+      'sys/version': uname_vals[2],
+    }
 
 
 def get_file_descriptor_usage(pid):
