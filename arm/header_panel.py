@@ -1,17 +1,7 @@
 """
 Top panel for every page, containing basic system and tor related information.
-If there's room available then this expands to present its information in two
-columns, otherwise it's laid out as follows:
-  arm - <hostname> (<os> <sys/version>)         Tor <tor/version> (<new, old, recommended, etc>)
-  <nickname> - <address>:<or_port>, [Dir Port: <dir_port>, ]Control Port (<open, password, cookie>): <control_port>
-  cpu: <cpu%> mem: <mem> (<mem%>) uid: <uid> uptime: <upmin>:<upsec>
-  fingerprint: <fingerprint>
-
-Example:
-  arm - odin (Linux 2.6.24-24-generic)         Tor 0.2.1.19 (recommended)
-  odin - 76.104.132.98:9001, Dir Port: 9030, Control Port (cookie): 9051
-  cpu: 14.6%    mem: 42 MB (4.2%)    pid: 20060   uptime: 48:27
-  fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
+This expands the information it presents to two columns if there's room
+available.
 """
 
 import os
@@ -32,10 +22,7 @@ import arm.controller
 
 from util import panel, ui_tools, tor_controller
 
-# minimum width for which panel attempts to double up contents (two columns to
-# better use screen real estate)
-
-MIN_DUAL_COL_WIDTH = 141
+MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 
 CONFIG = conf.config_dict('arm', {
   'attr.flag_colors': {},
@@ -78,20 +65,11 @@ Sampling = collections.namedtuple('Sampling', [
 
 class HeaderPanel(panel.Panel, threading.Thread):
   """
-  Top area contenting tor settings and system information. Stats are stored in
-  the vals mapping, keys including:
-    tor/  version, versionStatus, nickname, or_port, dir_port, control_port,
-          socketPath, exit_policy, isAuthPassword (bool), isAuthCookie (bool),
-          orListenAddr, *address, *fingerprint, *flags, pid, start_time,
-          *fd_used, fd_limit
-    sys/  hostname, os, version
-    stat/ *%torCpu, *%armCpu, *rss, *%mem
-
-  * volatile parameter that'll be reset on each update
+  Top area containing tor settings and system information.
   """
 
   def __init__(self, stdscr, start_time):
-    panel.Panel.__init__(self, stdscr, "header", 0)
+    panel.Panel.__init__(self, stdscr, 'header', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
