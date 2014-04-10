@@ -25,7 +25,7 @@ DEFAULT_ARGS = {
   'print_help': False,
 }
 
-OPT = 'i:s:c:d:bl:vh'
+OPT = 'i:s:c:d:l:vh'
 
 OPT_EXPANDED = [
   'interface=',

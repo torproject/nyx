@@ -22,11 +22,12 @@ import arm.util.tracker
 import arm.util.ui_tools
 
 import stem
+import stem.connection
 import stem.util.conf
 import stem.util.log
 import stem.util.system
 
-from arm.util import BASE_DIR, init_controller, authenticate, msg, trace, info, notice, warn, load_settings
+from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, load_settings
 
 CONFIG = stem.util.conf.get_config('arm')
 
@@ -64,13 +65,21 @@ def main():
 
   _load_user_armrc(args.config)
 
-  try:
-    controller = init_controller(args)
-    authenticate(controller, CONFIG.get('tor.password', None), CONFIG.get('tor.chroot', ''))
-  except ValueError as exc:
-    print exc
+  control_port = None if args.user_provided_socket else (args.control_address, args.control_port)
+  control_socket = None if args.user_provided_port else args.control_socket
+
+  controller = stem.connection.connect(
+    control_port = control_port,
+    control_socket = control_socket,
+    password = CONFIG.get('tor.password', None),
+    password_prompt = True,
+    chroot_path = CONFIG.get('tor.chroot', ''),
+  )
+
+  if controller is None:
     exit(1)
 
+  init_controller(controller)
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
   _setup_freebsd_chroot(controller)
