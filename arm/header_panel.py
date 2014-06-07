@@ -251,7 +251,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       dir_port_label = ", Dir Port: %s" % self.vals.dir_port if self.vals.dir_port != "0" else ""
 
-      for label in (self.vals.nickname, " - " + my_address, ":" + self.vals.or_port, dir_port_label):
+      for label in (self.vals.nickname, " - " + my_address, ":%s" % self.vals.or_port, dir_port_label):
         if x + len(label) <= left_width:
           self.addstr(1, x, label)
           x += len(label)
