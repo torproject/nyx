@@ -27,19 +27,14 @@ import stem.util.conf
 import stem.util.log
 import stem.util.system
 
-from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, load_settings
+from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, uses_settings
 
 CONFIG = stem.util.conf.get_config('arm')
 
 
+@uses_settings
 def main():
   CONFIG.set('start_time', str(int(time.time())))
-
-  try:
-    load_settings()
-  except IOError as exc:
-    print msg('config.unable_to_load_settings', error = exc)
-    sys.exit(1)
 
   try:
     args = arm.arguments.parse(sys.argv[1:])

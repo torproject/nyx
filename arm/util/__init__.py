@@ -4,9 +4,16 @@ application's status, making cross platform system calls, parsing tor data,
 and safely working with curses (hiding some of the gory details).
 """
 
-__all__ = ["connections", "panel", "sysTools", "text_input", "tor_config", "tor_tools", "tracker", "ui_tools"]
+__all__ = [
+  'panel',
+  'text_input',
+  'tor_config',
+  'tracker',
+  'ui_tools',
+]
 
 import os
+import sys
 
 import stem
 import stem.connection
@@ -16,6 +23,12 @@ import stem.util.log
 
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
+
+try:
+  uses_settings = stem.util.conf.uses_settings('arm', os.path.join(BASE_DIR, 'config'), lazy_load = False)
+except IOError as exc:
+  print "Unable to load arm's internal configurations: {error}".format(error = exc)
+  sys.exit(1)
 
 
 def tor_controller():
@@ -80,26 +93,6 @@ def warn(msg, **attr):
 
 def error(msg, **attr):
   _log(stem.util.log.ERROR, msg, **attr)
-
-
-def load_settings():
-  """
-  Loads arms internal settings. This should be treated as a fatal failure if
-  unsuccessful.
-
-  :raises: **IOError** if we're unable to read or parse our internal
-    configurations
-  """
-
-  config = stem.util.conf.get_config('arm')
-
-  if not config.get('settings_loaded', False):
-    config_dir = os.path.join(BASE_DIR, 'config')
-
-    for config_file in os.listdir(config_dir):
-      config.load(os.path.join(config_dir, config_file))
-
-    config.set('settings_loaded', 'true')
 
 
 def _log(runlevel, message, **attr):
