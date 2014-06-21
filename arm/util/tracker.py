@@ -9,19 +9,22 @@ Background tasks for gathering information about the tor process.
   stop_trackers - halts any active trackers
 
   Daemon - common parent for resolvers
+    |- ConnectionTracker - periodically checks the connections established by tor
+    |  |- get_custom_resolver - provide the custom conntion resolver we're using
+    |  |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
+    |  +- get_connections - provides our latest connection results
+    |
+    |- ResourceTracker - periodically checks the resource usage of tor
+    |  +- get_resource_usage - provides our latest resource usage results
+    |
+    |- PortUsageTracker - provides information about port usage on the local system
+    |  +- get_processes_using_ports - mapping of ports to the processes using it
+    |
     |- run_counter - number of successful runs
     |- get_rate - provides the rate at which we run
     |- set_rate - sets the rate at which we run
     |- set_paused - pauses or continues work
     +- stop - stops further work by the daemon
-
-  ConnectionTracker - periodically checks the connections established by tor
-    |- get_custom_resolver - provide the custom conntion resolver we're using
-    |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
-    +- get_connections - provides our latest connection results
-
-  ResourceTracker - periodically checks the resource usage of tor
-    +- get_resource_usage - provides our latest resource usage results
 
 .. data:: Resources
 
