@@ -22,7 +22,6 @@ import arm.util.tracker
 import arm.util.ui_tools
 
 import stem
-import stem.connection
 import stem.util.conf
 import stem.util.log
 import stem.util.system
@@ -63,7 +62,7 @@ def main():
   control_port = None if args.user_provided_socket else (args.control_address, args.control_port)
   control_socket = None if args.user_provided_port else args.control_socket
 
-  controller = stem.connection.connect(
+  controller = init_controller(
     control_port = control_port,
     control_socket = control_socket,
     password = CONFIG.get('tor.password', None),
@@ -74,7 +73,6 @@ def main():
   if controller is None:
     exit(1)
 
-  init_controller(controller)
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
   _setup_freebsd_chroot(controller)

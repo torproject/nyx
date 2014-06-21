@@ -1,7 +1,6 @@
 """
-General purpose utilities for a variety of tasks including logging the
-application's status, making cross platform system calls, parsing tor data,
-and safely working with curses (hiding some of the gory details).
+General purpose utilities for a variety of tasks supporting arm features and
+safely working with curses (hiding some of the gory details).
 """
 
 __all__ = [
@@ -15,9 +14,7 @@ __all__ = [
 import os
 import sys
 
-import stem
 import stem.connection
-import stem.control
 import stem.util.conf
 import stem.util.log
 
@@ -27,7 +24,7 @@ BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
 try:
   uses_settings = stem.util.conf.uses_settings('arm', os.path.join(BASE_DIR, 'config'), lazy_load = False)
 except IOError as exc:
-  print "Unable to load arm's internal configurations: {error}".format(error = exc)
+  print "Unable to load arm's internal configurations: %s" % exc
   sys.exit(1)
 
 
@@ -41,18 +38,21 @@ def tor_controller():
   return TOR_CONTROLLER
 
 
-def init_controller(controller):
+def init_controller(*args, **kwargs):
   """
-  Sets the Controller used by arm.
+  Sets the Controller used by arm. This is a passthrough for Stem's
+  :func:`~stem.connection.connect` function.
 
-  :param Controller controller: control connection to be used by arm
+  :returns: :class:`~stem.control.Controller` arm is using
   """
 
   global TOR_CONTROLLER
-  TOR_CONTROLLER = controller
+  TOR_CONTROLLER = stem.connection.connect(*args, **kwargs)
+  return TOR_CONTROLLER
 
 
-def msg(message, **attr):
+@uses_settings
+def msg(message, config, **attr):
   """
   Provides the given message.
 
@@ -62,12 +62,10 @@ def msg(message, **attr):
   :returns: **str** that was requested
   """
 
-  config = stem.util.conf.get_config('arm')
-
   try:
     return config.get('msg.%s' % message).format(**attr)
   except:
-    stem.util.log.notice('BUG: We attempted to use an undefined string resource (%s)' % message)
+    notice('BUG: We attempted to use an undefined string resource (%s)' % message)
     return ''
 
 
