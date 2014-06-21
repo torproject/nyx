@@ -42,7 +42,7 @@ import threading
 from stem.control import State
 from stem.util import conf, connection, proc, str_tools, system
 
-from arm.util import tor_controller, debug, info, notice
+from arm.util import log, tor_controller
 
 CONFIG = conf.config_dict('arm', {
   'queries.connections.rate': 5,
@@ -459,13 +459,13 @@ class ConnectionTracker(Daemon):
           min_rate += 1  # little extra padding so we don't frequently update this
           self.set_rate(min_rate)
           self._rate_too_low_count = 0
-          debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
+          log.debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
       else:
         self._rate_too_low_count = 0
 
       return True
     except IOError as exc:
-      info('wrap', text = exc)
+      log.info('wrap', text = exc)
 
       # Fail over to another resolver if we've repeatedly been unable to use
       # this one.
@@ -478,13 +478,13 @@ class ConnectionTracker(Daemon):
           self._failure_count = 0
 
           if self._resolvers:
-            notice(
+            log.notice(
               'tracker.unable_to_use_resolver',
               old_resolver = resolver,
               new_resolver = self._resolvers[0],
             )
           else:
-            notice('tracker.unable_to_use_all_resolvers')
+            log.notice('tracker.unable_to_use_all_resolvers')
 
       return False
 
@@ -576,19 +576,19 @@ class ResourceTracker(Daemon):
           self._use_proc = False
           self._failure_count = 0
 
-          info(
+          log.info(
             'tracker.abort_getting_resources',
             resolver = 'proc',
             response = 'falling back to ps',
             exc = exc,
           )
         else:
-          debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
+          log.debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
       else:
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          info(
+          log.info(
             'tracker.abort_getting_resources',
             resolver = 'ps',
             response = 'giving up on getting resource usage information',
@@ -597,7 +597,7 @@ class ResourceTracker(Daemon):
 
           self.stop()
         else:
-          debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
+          log.debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
 
       return False
 
@@ -654,9 +654,9 @@ class PortUsageTracker(Daemon):
       self._failure_count += 1
 
       if self._failure_count >= 3:
-        info('tracker.abort_getting_port_usage', exc = exc)
+        log.info('tracker.abort_getting_port_usage', exc = exc)
         self.stop()
       else:
-        debug('tracker.unable_to_get_port_usages', exc = exc)
+        log.debug('tracker.unable_to_get_port_usages', exc = exc)
 
       return False

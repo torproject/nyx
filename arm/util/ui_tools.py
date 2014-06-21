@@ -7,7 +7,7 @@ import curses
 
 from curses.ascii import isprint
 
-from arm.util import info, msg
+from arm.util import log, msg
 
 from stem.util import conf, enum, system
 
@@ -137,10 +137,10 @@ def _color_attr():
         curses.init_pair(color_pair + 1, foreground_color, background_color)
         color_attr[color_name] = curses.color_pair(color_pair + 1)
 
-      info('setup.color_support_available')
+      log.info('setup.color_support_available')
       COLOR_ATTR = color_attr
     else:
-      info('setup.color_support_unavailable')
+      log.info('setup.color_support_unavailable')
       COLOR_ATTR = DEFAULT_COLOR_ATTR
 
   return COLOR_ATTR

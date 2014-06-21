@@ -25,7 +25,7 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from arm.util import BASE_DIR, init_controller, msg, trace, info, notice, warn, uses_settings
+from arm.util import log, BASE_DIR, init_controller, msg, uses_settings
 
 
 @uses_settings
@@ -132,7 +132,7 @@ def _setup_debug_logging(args):
     except IOError as exc:
       armrc_content = "[unable to read file: %s]" % exc.strerror
 
-  trace(
+  log.trace(
     'debug.header',
     arm_version = arm.__version__,
     stem_version = stem.__version__,
@@ -160,14 +160,14 @@ def _load_user_armrc(path, config):
       chroot = config.get('tor.chroot', '').strip().rstrip(os.path.sep)
 
       if chroot and not os.path.exists(chroot):
-        notice('setup.chroot_doesnt_exist', path = chroot)
+        log.notice('setup.chroot_doesnt_exist', path = chroot)
         config.set('tor.chroot', '')
       else:
         config.set('tor.chroot', chroot)  # use the normalized path
     except IOError as exc:
-      warn('config.unable_to_read_file', error = exc.strerror)
+      log.warn('config.unable_to_read_file', error = exc.strerror)
   else:
-    notice('config.nothing_loaded', path = path)
+    log.notice('config.nothing_loaded', path = path)
 
 
 def _warn_if_root(controller):
@@ -178,10 +178,10 @@ def _warn_if_root(controller):
   tor_user = controller.get_user(None)
 
   if tor_user == 'root':
-    notice('setup.tor_is_running_as_root')
+    log.notice('setup.tor_is_running_as_root')
   elif os.getuid() == 0:
     tor_user = tor_user if tor_user else '<tor user>'
-    notice('setup.arm_is_running_as_root', tor_user = tor_user)
+    log.notice('setup.arm_is_running_as_root', tor_user = tor_user)
 
 
 def _warn_if_unable_to_get_pid(controller):
@@ -193,7 +193,7 @@ def _warn_if_unable_to_get_pid(controller):
   try:
     controller.get_pid()
   except ValueError:
-    warn('setup.unable_to_determine_pid')
+    log.warn('setup.unable_to_determine_pid')
 
 
 @uses_settings
@@ -206,7 +206,7 @@ def _setup_freebsd_chroot(controller, config):
     jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
-      info('setup.set_freebsd_chroot', path = jail_chroot)
+      log.info('setup.set_freebsd_chroot', path = jail_chroot)
       config.set('tor.chroot', jail_chroot)
 
 
@@ -218,7 +218,7 @@ def _notify_of_unknown_events():
   missing_events = arm.arguments.missing_event_types()
 
   if missing_events:
-    info('setup.unknown_event_types', event_types = ', '.join(missing_events))
+    log.info('setup.unknown_event_types', event_types = ', '.join(missing_events))
 
 
 @uses_settings

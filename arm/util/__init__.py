@@ -4,6 +4,7 @@ safely working with curses (hiding some of the gory details).
 """
 
 __all__ = [
+  'log',
   'panel',
   'text_input',
   'tor_config',
@@ -16,7 +17,8 @@ import sys
 
 import stem.connection
 import stem.util.conf
-import stem.util.log
+
+from arm.util import log
 
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
@@ -65,41 +67,5 @@ def msg(message, config, **attr):
   try:
     return config.get('msg.%s' % message).format(**attr)
   except:
-    notice('BUG: We attempted to use an undefined string resource (%s)' % message)
+    log.notice('BUG: We attempted to use an undefined string resource (%s)' % message)
     return ''
-
-
-def trace(msg, **attr):
-  _log(stem.util.log.TRACE, msg, **attr)
-
-
-def debug(msg, **attr):
-  _log(stem.util.log.DEBUG, msg, **attr)
-
-
-def info(msg, **attr):
-  _log(stem.util.log.INFO, msg, **attr)
-
-
-def notice(msg, **attr):
-  _log(stem.util.log.NOTICE, msg, **attr)
-
-
-def warn(msg, **attr):
-  _log(stem.util.log.WARN, msg, **attr)
-
-
-def error(msg, **attr):
-  _log(stem.util.log.ERROR, msg, **attr)
-
-
-def _log(runlevel, message, **attr):
-  """
-  Logs the given message, formatted with optional attributes.
-
-  :param stem.util.log.Runlevel runlevel: runlevel at which to log the message
-  :param str message: message handle to log
-  :param dict attr: attributes to format the message with
-  """
-
-  stem.util.log.log(runlevel, msg(message, **attr))
