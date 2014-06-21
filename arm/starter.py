@@ -56,8 +56,16 @@ def main(config):
 
   _load_user_armrc(args.config)
 
-  control_port = None if args.user_provided_socket else (args.control_address, args.control_port)
-  control_socket = None if args.user_provided_port else args.control_socket
+  control_port = (args.control_address, args.control_port)
+  control_socket = args.control_socket
+
+  # If the user explicitely specified an endpoint then just try to connect to
+  # that.
+
+  if args.user_provided_socket and not args.user_provided_port:
+    control_port = None
+  elif args.user_provided_port and not args.user_provided_socket:
+    control_socket = None
 
   controller = init_controller(
     control_port = control_port,
@@ -96,8 +104,8 @@ def main(config):
 
 def _setup_debug_logging(args):
   """
-  Configures us to log at stem's trace level to debug log path, and notes some
-  general diagnostic information.
+  Configures us to log at stem's trace level to a debug log path. This starts
+  it off with some general diagnostic information.
   """
 
   debug_dir = os.path.dirname(args.debug_path)
@@ -251,7 +259,7 @@ def _use_unicode(config):
   if not config.get('features.printUnicode', True):
     return
 
-  is_lang_unicode = "utf-" in os.getenv("LANG", "").lower()
+  is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()
 
   if is_lang_unicode and arm.util.ui_tools.is_wide_characters_supported():
     locale.setlocale(locale.LC_ALL, '')

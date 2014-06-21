@@ -8,7 +8,7 @@ import os
 
 import arm
 
-import stem.connection
+import stem.util.connection
 
 from arm.util import tor_controller, msg
 
