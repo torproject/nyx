@@ -6,15 +6,16 @@ available.
 
 import os
 import time
-import collections
 import curses
 import threading
 
 import arm.util.tracker
 
-from stem import Signal
+import stem
+import stem.util.system
+
 from stem.control import Listener, State
-from stem.util import conf, log, proc, str_tools, system
+from stem.util import conf, log, proc, str_tools
 
 import arm.starter
 import arm.popups
@@ -30,38 +31,6 @@ CONFIG = conf.config_dict('arm', {
   'features.showFdUsage': False,
 })
 
-Sampling = collections.namedtuple('Sampling', [
-  'address',
-  'fingerprint',
-  'nickname',
-  'or_address',
-  'or_port',
-  'dir_port',
-
-  'control_port',
-  'socket_path',
-  'is_password_auth',
-  'is_cookie_auth',
-
-  'exit_policy',
-  'flags',
-  'version',
-  'version_status',
-
-  'pid',
-  'start_time',
-  'fd_limit',
-  'fd_used',
-
-  'tor_cpu',
-  'arm_cpu',
-  'rss',
-  'memory',
-  'hostname',
-  'os_name',
-  'os_version',
-])
-
 
 class HeaderPanel(panel.Panel, threading.Thread):
   """
@@ -74,7 +43,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self.setDaemon(True)
 
     self._is_tor_connected = tor_controller().is_alive()
-    self._last_update = -1       # time the content was last revised
     self._halt = False           # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
 
@@ -82,25 +50,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # freeze the uptime statistic (uptime increments normally when None).
 
     self._halt_time = None
-
-    # The last arm cpu usage sampling taken. This is a tuple of the form:
-    # (total arm cpu time, sampling timestamp)
-    #
-    # The initial cpu total should be zero. However, at startup the cpu time
-    # in practice is often greater than the real time causing the initially
-    # reported cpu usage to be over 100% (which shouldn't be possible on
-    # single core systems).
-    #
-    # Setting the initial cpu total to the value at this panel's init tends to
-    # give smoother results (staying in the same ballpark as the second
-    # sampling) so fudging the numbers this way for now.
-
-    self._arm_cpu_sampling = (sum(os.times()[:3]), start_time)
-
-    # Last sampling received from the ResourceTracker, used to detect when it
-    # changes.
-
-    self._last_resource_fetch = -1
 
     # flag to indicate if we've already given file descriptor warnings
 
@@ -111,7 +60,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self.vals_lock = threading.RLock()
 
     with self.vals_lock:
-      self.vals = self._get_attributes()
+      self.vals = Sampling()
 
     # listens for tor reload (sighup) events
 
@@ -135,7 +84,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Requests a new identity and provides a visual queue.
     """
 
-    tor_controller().signal(Signal.NEWNYM)
+    tor_controller().signal(stem.Signal.NEWNYM)
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
@@ -479,12 +428,25 @@ class HeaderPanel(panel.Panel, threading.Thread):
         is_changed = False
 
         if self.vals.pid:
-          resource_tracker = arm.util.tracker.get_resource_tracker()
-          is_changed = self._last_resource_fetch != resource_tracker.run_counter()
+          #resource_tracker = arm.util.tracker.get_resource_tracker()
+          #is_changed = self._last_resource_fetch != resource_tracker.run_counter()
+          is_changed = True  # TODO: we should decide to redraw or not based on if the sampling values have changed
 
-        if is_changed or current_time - self._last_update >= 20:
+        if is_changed or (self.vals and current_time - self.vals.retrieved >= 20):
           with self.vals_lock:
-            self.vals = self._get_attributes()
+            self.vals = Sampling(self.vals)
+
+            if self.vals.fd_used and self.vals.fd_limit:
+              fd_percent = 100 * self.vals.fd_used / self.vals.fd_limit
+              msg = "Tor's file descriptor usage is at %i%%." % fd_percent
+
+              if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
+                self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
+                msg += " If you run out Tor will be unable to continue functioning."
+                log.warn(msg)
+              elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
+                self._is_fd_sixty_percent_warned = True
+                log.notice(msg)
 
         self.redraw(True)
         last_draw += 1
@@ -510,7 +472,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self._halt_time = None
 
       with self.vals_lock:
-        self.vals = self._get_attributes()
+        self.vals = Sampling(self.vals)
 
       if self.get_height() != initial_height:
         # We're toggling between being a relay and client, causing the height
@@ -526,140 +488,118 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self._halt_time = time.time()
 
       with self.vals_lock:
-        self.vals = self._get_attributes()
+        self.vals = Sampling(self.vals)
 
       self.redraw(True)
 
-  def _get_attributes(self):
+
+class Sampling(object):
+  """
+  Statistical information rendered by the header panel.
+  """
+
+  def __init__(self, last_sampling = None):
     controller = tor_controller()
 
     or_listeners = controller.get_listeners(Listener.OR, [])
-
-    if not or_listeners:
-      or_address, or_port = '', ''
-    else:
-      # TODO: Relays can bind to multiple ports to listen for OR connections.
-      # Not sure how we'd like to surface that...
-
-      or_address, or_port = or_listeners[0]
-
-    # file descriptor limit for the process, if this can't be determined
-    # then the limit is None
-
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
 
-    if fd_limit != '-1' and fd_limit.isdigit():
-      fd_limit = int(fd_limit)
-    else:
-      fd_limit = None
-
     uname_vals = os.uname()
+    start_time = stem.util.system.get_start_time(controller.get_pid(None))
+    tor_resources = arm.util.tracker.get_resource_tracker().get_resource_usage()
+
+    self.retrieved = time.time()
+    self.arm_total_cpu_time = sum(os.times()[:3])
+
+    self.address = controller.get_info('address', '')
+    self.fingerprint = controller.get_info('fingerprint', 'Unknown')
+    self.nickname = controller.get_conf('Nickname', '')
+    self.or_address = or_listeners[0][0] if or_listeners else ''
+    self.or_port = or_listeners[0][1] if or_listeners else ''
+    self.dir_port = controller.get_conf('DirPort', '0')
+
+    self.control_port = controller.get_conf('ControlPort', '0')
+    self.socket_path = controller.get_conf('ControlSocket', '')
+    self.is_password_auth = controller.get_conf('HashedControlPassword', None) is not None
+    self.is_cookie_auth = controller.get_conf('CookieAuthentication', None) == '1'
+
+    self.exit_policy = str(controller.get_exit_policy(''))
+    self.flags = self._get_flags(controller)
+    self.version = str(controller.get_version('Unknown', '')).split()[0]
+    self.version_status = controller.get_info('status/version/current', 'Unknown')
+
+    self.pid = controller.get_pid('')
+    self.start_time = start_time if start_time else ''
+    self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
+    self.fd_used = self._get_fd_used(controller.get_pid(None)) if self.fd_limit else 0
+
+    self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
+    self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
+    self.rss = str(tor_resources.memory_bytes)
+    self.memory = '%0.1f' % (100 * tor_resources.memory_percent)
+    self.hostname = uname_vals[1]
+    self.os_name = uname_vals[0]
+    self.os_version = uname_vals[2]
+
+  def _get_fd_used(self, pid):
+    """
+    Provides the number of file descriptors currently being used by this
+    process.
+
+    :param int pid: process id to look up
+
+    :returns: **int** of the number of file descriptors used, **None** if this
+      can't be determined
+    """
+
+    # The file descriptor usage is the size of the '/proc/<pid>/fd' contents...
+    #
+    #   http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
+    #
+    # I'm not sure about other platforms (like BSD) so erroring out there.
+
+    if pid and proc.is_available():
+      try:
+        return len(os.listdir('/proc/%s/fd' % pid))
+      except:
+        pass
+
+    return None
+
+  def _get_flags(self, controller):
+    """
+    Provides the flags held by our relay. This is an empty list if it can't be
+    determined, likely because we don't have our own router status entry yet.
+
+    :param stem.control.Controller controller: tor control connection
+
+    :returns: **list** with the relays held by our relay
+    """
 
     try:
-      start_time = system.get_start_time(controller.get_pid())
-    except:
-      start_time = None
+      my_fingerprint = controller.get_info('fingerprint')
+      return controller.get_network_status(my_fingerprint).flags
+    except stem.ControllerError:
+      return []
 
-    flags = []
-    my_fingerprint = controller.get_info('fingerprint', None)
+  def _get_cpu_percentage(self, last_sampling):
+    """
+    Determine the cpu usage of our own process since the last sampling.
 
-    if my_fingerprint:
-      my_status_entry = controller.get_network_status(my_fingerprint)
+    :param arm.header_panel.Sampling last_sampling: sampling for which to
+      provide a CPU usage delta with
 
-      if my_status_entry:
-        flags = my_status_entry.flags
+    :returns: **float** representation for our cpu usage over the given period
+      of time
+    """
 
-    # Updates file descriptor usage and logs if the usage is high. If we don't
-    # have a known limit or it's obviously faulty (being lower than our
-    # current usage) then omit file descriptor functionality.
+    if last_sampling:
+      arm_cpu_delta = self.arm_total_cpu_time - last_sampling.arm_total_cpu_time
+      arm_time_delta = self.retrieved - last_sampling.retrieved
 
-    fd_used = 0
+      python_cpu_time = arm_cpu_delta / arm_time_delta
+      sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
 
-    if fd_limit:
-      fd_used = get_file_descriptor_usage(controller.get_pid(None))
-
-      if not fd_used or fd_used > fd_limit:
-        fd_used = 0
-
-    if fd_used and fd_limit:
-      fd_percent = 100 * fd_used / fd_limit
-      msg = "Tor's file descriptor usage is at %i%%." % fd_percent
-
-      if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
-        self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
-        msg += " If you run out Tor will be unable to continue functioning."
-        log.warn(msg)
-      elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
-        self._is_fd_sixty_percent_warned = True
-        log.notice(msg)
-
-    resource_tracker = arm.util.tracker.get_resource_tracker()
-
-    resources = resource_tracker.get_resource_usage()
-    self._last_resource_fetch = resource_tracker.run_counter()
-
-    tor_cpu = '%0.1f' % (100 * resources.cpu_sample)
-    tor_rss = str(resources.memory_bytes)
-    tor_memory = '%0.1f' % (100 * resources.memory_percent)
-
-    # determines the cpu time for the arm process (including user and system
-    # time of both the primary and child processes)
-
-    total_arm_cpu_time, current_time = sum(os.times()[:3]), time.time()
-    arm_cpu_telta = total_arm_cpu_time - self._arm_cpu_sampling[0]
-    arm_time_delta = current_time - self._arm_cpu_sampling[1]
-    python_cpu_time = arm_cpu_telta / arm_time_delta
-    sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
-    arm_cpu = '%0.1f' % (100 * (python_cpu_time + sys_call_cpu_time))
-    self._arm_cpu_sampling = (total_arm_cpu_time, current_time)
-
-    self._last_update = current_time
-
-    return Sampling(
-      address = controller.get_info('address', ''),
-      fingerprint = controller.get_info('fingerprint', 'Unknown'),
-      nickname = controller.get_conf('Nickname', ''),
-      or_address = or_address,
-      or_port = or_port,
-      dir_port = controller.get_conf('DirPort', '0'),
-
-      control_port = controller.get_conf('ControlPort', '0'),
-      socket_path = controller.get_conf('ControlSocket', ''),
-      is_password_auth = controller.get_conf('HashedControlPassword', None) is not None,
-      is_cookie_auth = controller.get_conf('CookieAuthentication', None) == '1',
-
-      exit_policy = str(controller.get_exit_policy()),
-      flags = flags,
-      version = str(controller.get_version('Unknown')).split()[0],
-      version_status = controller.get_info('status/version/current', 'Unknown'),
-
-      pid = controller.get_pid(''),
-      start_time = start_time if start_time else '',
-      fd_limit = fd_limit,
-      fd_used = fd_used,
-
-      tor_cpu = tor_cpu,
-      arm_cpu = arm_cpu,
-      rss = tor_rss,
-      memory = tor_memory,
-      hostname = uname_vals[1],
-      os_name = uname_vals[0],
-      os_version = uname_vals[2],
-    )
-
-
-def get_file_descriptor_usage(pid):
-  """
-  Provides the number of file descriptors currently being used by this
-  process. This returns None if this can't be determined.
-  """
-
-  # The file descriptor usage is the size of the '/proc/<pid>/fd' contents
-  # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
-  # I'm not sure about other platforms (like BSD) so erroring out there.
-
-  if pid and proc.is_available():
-    try:
-      return len(os.listdir('/proc/%s/fd' % pid))
-    except:
-      return None
+      return python_cpu_time + sys_call_cpu_time
+    else:
+      return 0.0
