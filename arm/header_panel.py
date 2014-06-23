@@ -506,7 +506,7 @@ class Sampling(object):
 
     uname_vals = os.uname()
     start_time = stem.util.system.get_start_time(controller.get_pid(None))
-    tor_resources = arm.util.tracker.get_resource_tracker().get_resource_usage()
+    tor_resources = arm.util.tracker.get_resource_tracker().get_value()
 
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])

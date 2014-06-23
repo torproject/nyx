@@ -517,7 +517,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # new_connections  [(local ip, local port, foreign ip, foreign port)...]
     # new_circuits     {circuit_id => (status, purpose, path)...}
 
-    new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_connections()]
+    new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_value()]
     new_circuits = {}
 
     for circ in tor_controller().get_circuits():

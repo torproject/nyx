@@ -5,6 +5,7 @@ Background tasks for gathering information about the tor process.
 
   get_connection_tracker - provides a ConnectionTracker for our tor process
   get_resource_tracker - provides a ResourceTracker for our tor process
+  get_port_usage_tracker - provides a PortUsageTracker for our system
 
   stop_trackers - halts any active trackers
 
@@ -12,10 +13,10 @@ Background tasks for gathering information about the tor process.
     |- ConnectionTracker - periodically checks the connections established by tor
     |  |- get_custom_resolver - provide the custom conntion resolver we're using
     |  |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
-    |  +- get_connections - provides our latest connection results
+    |  +- get_value - provides our latest connection results
     |
     |- ResourceTracker - periodically checks the resource usage of tor
-    |  +- get_resource_usage - provides our latest resource usage results
+    |  +- get_value - provides our latest resource usage results
     |
     |- PortUsageTracker - provides information about port usage on the local system
     |  +- get_processes_using_ports - mapping of ports to the processes using it
@@ -511,7 +512,7 @@ class ConnectionTracker(Daemon):
 
     self._custom_resolver = resolver
 
-  def get_connections(self):
+  def get_value(self):
     """
     Provides a listing of tor's latest connections.
 
@@ -537,7 +538,7 @@ class ResourceTracker(Daemon):
     self._use_proc = proc.is_available()  # determines if we use proc or ps for lookups
     self._failure_count = 0  # number of times in a row we've failed to get results
 
-  def get_resource_usage(self):
+  def get_value(self):
     """
     Provides tor's latest resource usage.
 

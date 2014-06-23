@@ -54,7 +54,7 @@ class ResourceStats(graph_panel.GraphStats):
       resource_tracker = arm.util.tracker.get_resource_tracker()
 
       if resource_tracker and resource_tracker.run_counter() != self.last_counter:
-        resources = resource_tracker.get_resource_usage()
+        resources = resource_tracker.get_value()
         self.last_counter = resource_tracker.run_counter()
         primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
         secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
