@@ -185,18 +185,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
     x, include_control_port = 0, True
 
     if vals.or_port:
-      my_address = 'Unknown'
-
-      if vals.or_address:
-        my_address = vals.or_address
-      elif vals.address:
-        my_address = vals.address
-
       # acting as a relay (we can assume certain parameters are set
 
       dir_port_label = ', Dir Port: %s' % vals.dir_port if vals.dir_port != '0' else ''
 
-      for label in (vals.nickname, ' - ' + my_address, ':%s' % vals.or_port, dir_port_label):
+      for label in (vals.nickname, ' - ' + vals.or_address, ':%s' % vals.or_port, dir_port_label):
         if x + len(label) <= left_width:
           self.addstr(1, x, label)
           x += len(label)
@@ -502,10 +495,9 @@ class Sampling(object):
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
 
-    self.address = controller.get_info('address', '')
     self.fingerprint = controller.get_info('fingerprint', 'Unknown')
     self.nickname = controller.get_conf('Nickname', '')
-    self.or_address = or_listeners[0][0] if or_listeners else ''
+    self.or_address = or_listeners[0][0] if or_listeners else controller.get_info('address', 'Unknown')
     self.or_port = or_listeners[0][1] if or_listeners else ''
     self.dir_port = controller.get_conf('DirPort', '0')
 
