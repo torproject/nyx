@@ -567,7 +567,7 @@ def get_my_bandwidth_observed(controller):
   my_fingerprint = controller.get_info("fingerprint", None)
 
   if my_fingerprint:
-    my_descriptor = controller.get_server_descriptor(my_fingerprint)
+    my_descriptor = controller.get_server_descriptor(my_fingerprint, None)
 
     if my_descriptor:
       return my_descriptor.observed_bandwidth
@@ -592,7 +592,7 @@ def get_my_bandwidth_measured(controller):
   my_fingerprint = controller.get_info("fingerprint", None)
 
   if my_fingerprint:
-    my_status_entry = controller.get_network_status(my_fingerprint)
+    my_status_entry = controller.get_network_status(my_fingerprint, None)
 
     if my_status_entry and hasattr(my_status_entry, 'bandwidth'):
       return my_status_entry.bandwidth
