@@ -143,42 +143,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     return is_keystroke_consumed
 
+  def addtstr(self, y, x, msg, space_left, attr=curses.A_NORMAL):
+    cursor_position = self.addstr(y, x, ui_tools.crop_str(msg, space_left), attr)
+    return cursor_position, space_left - (cursor_position - x)
+
   def draw(self, width, height):
     vals = self.vals
     is_wide = width + 1 >= MIN_DUAL_COL_WIDTH
 
     # space available for content
 
-    if is_wide:
-      left_width = max(width / 2, 77)
-      right_width = width - left_width
-    else:
-      left_width = right_width = width
+    left_width = max(width / 2, 77) if is_wide else width
+    right_width = width - left_width
 
-    # Line 1 / Line 1 Left (system and tor version information)
-
-    sys_name_label = 'arm - %s' % vals.hostname
-    content_space = min(left_width, 40)
-
-    if len(sys_name_label) + 10 <= content_space:
-      sys_type_label = '%s %s' % (vals.os_name, vals.os_version)
-      sys_type_label = ui_tools.crop_str(sys_type_label, content_space - len(sys_name_label) - 3, 4)
-      self.addstr(0, 0, '%s (%s)' % (sys_name_label, sys_type_label))
-    else:
-      self.addstr(0, 0, ui_tools.crop_str(sys_name_label, content_space))
-
-    content_space = left_width - 43
-
-    if 7 + len(vals.version) + len(vals.version_status) <= content_space:
-      if vals.version != 'Unknown':
-        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
-
-        label_prefix = 'Tor %s (' % vals.version
-        self.addstr(0, 43, label_prefix)
-        self.addstr(0, 43 + len(label_prefix), vals.version_status, ui_tools.get_color(version_color))
-        self.addstr(0, 43 + len(label_prefix) + len(vals.version_status), ')')
-    elif 11 <= content_space:
-      self.addstr(0, 43, ui_tools.crop_str('Tor %s' % vals.version, content_space, 4))
+    self._draw_platform_section(0, 0, left_width, vals)
 
     # Line 2 / Line 2 Left (tor ip/port information)
 
@@ -187,9 +165,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if vals.or_port:
       # acting as a relay (we can assume certain parameters are set
 
-      dir_port_label = ', Dir Port: %s' % vals.dir_port if vals.dir_port != '0' else ''
+      entries = (
+        vals.nickname,
+        ' - ' + vals.or_address,
+        ':%s' % vals.or_port,
+        ', Dir Port: %s' % vals.dir_port if vals.dir_port != '0' else '',
+      )
 
-      for label in (vals.nickname, ' - ' + vals.or_address, ':%s' % vals.or_port, dir_port_label):
+      for label in entries:
         if x + len(label) <= left_width:
           self.addstr(1, x, label)
           x += len(label)
@@ -258,7 +241,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
                   (59, 'uptime: %s' % uptime_label))
 
     for (start, label) in sys_fields:
-      if start + len(label) <= right_width:
+      if start + len(label) <= (right_width if is_wide else left_width):
         self.addstr(y, x + start, label)
       else:
         break
@@ -340,7 +323,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
         # color codes accepts to be green, rejects to be red, and default marker to be cyan
 
-        is_simple = len(exit_policy) > right_width - 13
+        is_simple = len(exit_policy) > (right_width if is_wide else left_width) - 13
         policies = exit_policy.split(', ')
 
         for i in range(len(policies)):
@@ -375,6 +358,32 @@ class HeaderPanel(panel.Panel, threading.Thread):
           msg = 'building circuits, available again in %i second%s' % (newnym_wait, plural_label)
 
         self.addstr(1, left_width, msg)
+
+  def _draw_platform_section(self, x, y, width, vals):
+    """
+    Section providing the user's hostname, platform, and version information...
+
+      arm - odin (Linux 3.5.0-52-generic)        Tor 0.2.5.1-alpha-dev (unrecommended)
+      |------ platform (40 characters) ------|   |----------- tor version -----------|
+    """
+
+    space_left = min(width, 40)
+    x, space_left = self.addtstr(y, x, 'arm - %s' % vals.hostname, space_left)
+
+    if space_left >= 10:
+      self.addstr(y, x, ' (%s)' % ui_tools.crop_str(vals.platform, space_left - 3, 4))
+
+    x, space_left = 43, width - 43
+
+    if vals.version != 'Unknown' and space_left >= 10:
+      x, space_left = self.addtstr(y, x, 'Tor %s' % vals.version, space_left)
+
+      if space_left >= 7 + len(vals.version_status):
+        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
+
+        x = self.addstr(y, x, ' (')
+        x = self.addstr(y, x, vals.version_status, ui_tools.get_color(version_color))
+        self.addstr(y, x, ')')
 
   def get_pause_time(self):
     """
@@ -521,8 +530,7 @@ class Sampling(object):
     self.rss = str(tor_resources.memory_bytes)
     self.memory = '%0.1f' % (100 * tor_resources.memory_percent)
     self.hostname = uname_vals[1]
-    self.os_name = uname_vals[0]
-    self.os_version = uname_vals[2]
+    self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
 
   def _get_fd_used(self, pid):
     """

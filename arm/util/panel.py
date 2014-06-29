@@ -507,11 +507,16 @@ class Panel():
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
-        self.win.addstr(y, x, msg[:self.max_x - x], attr)
+        drawn_msg = msg[:self.max_x - x]
+        self.win.addstr(y, x, drawn_msg, attr)
+        return x + len(drawn_msg)
       except:
         # this might produce a _curses.error during edge cases, for instance
         # when resizing with visible popups
+
         pass
+
+    return x
 
   def addfstr(self, y, x, msg):
     """
