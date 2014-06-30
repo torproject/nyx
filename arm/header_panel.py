@@ -156,65 +156,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     right_width = width - left_width
 
     self._draw_platform_section(0, 0, left_width, vals)
-
-    # Line 2 / Line 2 Left (tor ip/port information)
-
-    x, include_control_port = 0, True
-
-    if vals.or_port:
-      # acting as a relay (we can assume certain parameters are set
-
-      entries = (
-        vals.nickname,
-        ' - ' + vals.or_address,
-        ':%s' % vals.or_port,
-        ', Dir Port: %s' % vals.dir_port if vals.dir_port != '0' else '',
-      )
-
-      for label in entries:
-        if x + len(label) <= left_width:
-          self.addstr(1, x, label)
-          x += len(label)
-        else:
-          break
-    else:
-      # non-relay (client only)
-
-      if self.vals.is_connected:
-        self.addstr(1, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
-        x += 17
-      else:
-        status_time = tor_controller().get_latest_heartbeat()
-
-        if status_time:
-          status_time_label = time.strftime('%H:%M %m/%d/%Y, ', time.localtime(status_time))
-        else:
-          status_time_label = ''  # never connected to tor
-
-        self.addstr(1, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
-        self.addstr(1, x + 16, ' (%spress r to reconnect)' % status_time_label)
-        x += 39 + len(status_time_label)
-        include_control_port = False
-
-    if include_control_port:
-      if vals.control_port == '0':
-        # connected via a control socket
-        self.addstr(1, x, ', Control Socket: %s' % vals.socket_path)
-      else:
-        if vals.is_password_auth:
-          auth_type = 'password'
-        elif vals.is_cookie_auth:
-          auth_type = 'cookie'
-        else:
-          auth_type = 'open'
-
-        if x + 19 + len(vals.control_port) + len(auth_type) <= left_width:
-          auth_color = 'red' if auth_type == 'open' else 'green'
-          self.addstr(1, x, ', Control Port (')
-          self.addstr(1, x + 16, auth_type, ui_tools.get_color(auth_color))
-          self.addstr(1, x + 16 + len(auth_type), '): %s' % vals.control_port)
-        elif x + 16 + len(vals.control_port) <= left_width:
-          self.addstr(1, 0, ', Control Port: %s' % vals.control_port)
+    self._draw_ports_section(0, 1, left_width, vals)
 
     # Line 3 / Line 1 Right (system usage info)
 
@@ -384,6 +326,37 @@ class HeaderPanel(panel.Panel, threading.Thread):
         x = self.addstr(y, x, vals.version_status, ui_tools.get_color(version_color))
         self.addstr(y, x, ')')
 
+  def _draw_ports_section(self, x, y, width, vals):
+    """
+    Section providing our nickname, address, and port information...
+
+      Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
+    """
+
+    if self.vals.is_connected:
+      if not vals.or_port:
+        x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
+      else:
+        x = self.addstr(y, x, '%s - %s:%s' % (vals.nickname, vals.or_address, vals.or_port))
+
+        if vals.dir_port != '0':
+          x = self.addstr(y, x, ', Dir Port: %s' % vals.dir_port)
+    else:
+      x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
+      x = self.addstr(y, x, ' (%s, press r to reconnect)' % self.last_heartbeat)
+
+    if vals.control_port == '0':
+      self.addstr(y, x, ', Control Socket: %s' % vals.socket_path)
+    else:
+      if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
+        auth_color = 'red' if vals.auth_type == 'open' else 'green'
+
+        x = self.addstr(y, x, ', Control Port (')
+        x = self.addstr(y, x, vals.auth_type, ui_tools.get_color(auth_color))
+        self.addstr(y, x, '): %s' % vals.control_port)
+      else:
+        self.addstr(y, x, ', Control Port: %s' % vals.control_port)
+
   def get_pause_time(self):
     """
     Provides the time Tor stopped if it isn't running. Otherwise this is the
@@ -499,6 +472,7 @@ class Sampling(object):
     tor_resources = arm.util.tracker.get_resource_tracker().get_value()
 
     self.is_connected = controller.is_alive()
+    self.last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat()))
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
 
@@ -507,11 +481,15 @@ class Sampling(object):
     self.or_address = or_listeners[0][0] if or_listeners else controller.get_info('address', 'Unknown')
     self.or_port = or_listeners[0][1] if or_listeners else ''
     self.dir_port = controller.get_conf('DirPort', '0')
-
     self.control_port = controller.get_conf('ControlPort', '0')
     self.socket_path = controller.get_conf('ControlSocket', '')
-    self.is_password_auth = controller.get_conf('HashedControlPassword', None) is not None
-    self.is_cookie_auth = controller.get_conf('CookieAuthentication', None) == '1'
+
+    if controller.get_conf('HashedControlPassword', None):
+      self.auth_type = 'password'
+    elif controller.get_conf('CookieAuthentication', None) == '1':
+      self.auth_type = 'cookie'
+    else:
+      self.auth_type = 'open'
 
     self.exit_policy = str(controller.get_exit_policy(''))
     self.flags = self._get_flags(controller)
