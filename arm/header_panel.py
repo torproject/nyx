@@ -42,7 +42,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._is_tor_connected = tor_controller().is_alive()
     self._halt = False           # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
 
@@ -95,7 +94,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
       self.send_newnym()
-    elif key in (ord('r'), ord('R')) and not self._is_tor_connected:
+    elif key in (ord('r'), ord('R')) and not self.vals.is_connected:
       #oldSocket = tor_tools.get_conn().get_controller().get_socket()
       #
       #controller = None
@@ -181,7 +180,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     else:
       # non-relay (client only)
 
-      if self._is_tor_connected:
+      if self.vals.is_connected:
         self.addstr(1, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
         x += 17
       else:
@@ -229,7 +228,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     uptime_label = ''
 
     if vals.start_time:
-      if self.is_paused() or not self._is_tor_connected:
+      if self.is_paused() or not self.vals.is_connected:
         # freeze the uptime when paused or the tor process is stopped
         uptime_label = str_tools.get_short_time_label(self.get_pause_time() - vals.start_time)
       else:
@@ -237,7 +236,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     sys_fields = ((0, 'cpu: %s%% tor, %s%% arm' % (vals.tor_cpu, vals.arm_cpu)),
                   (27, 'mem: %s (%s%%)' % (memory_label, vals.memory)),
-                  (47, 'pid: %s' % (vals.pid if self._is_tor_connected else '')),
+                  (47, 'pid: %s' % (vals.pid if self.vals.is_connected else '')),
                   (59, 'uptime: %s' % uptime_label))
 
     for (start, label) in sys_fields:
@@ -281,7 +280,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       # Line 5 / Line 3 Left (flags)
 
-      if self._is_tor_connected:
+      if self.vals.is_connected:
         y, x = (2 if is_wide else 4, 0)
         self.addstr(y, x, 'flags: ')
         x += 7
@@ -406,7 +405,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     while not self._halt:
       current_time = time.time()
 
-      if self.is_paused() or current_time - last_draw < 1 or not self._is_tor_connected:
+      if self.is_paused() or current_time - last_draw < 1 or not self.vals.is_connected:
         self._cond.acquire()
 
         if not self._halt:
@@ -463,7 +462,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if event_type in (State.INIT, State.RESET):
       initial_height = self.get_height()
-      self._is_tor_connected = True
       self._halt_time = None
 
       self.vals = Sampling(self.vals)
@@ -478,7 +476,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # just need to redraw ourselves
         self.redraw(True)
     elif event_type == State.CLOSED:
-      self._is_tor_connected = False
       self._halt_time = time.time()
 
       self.vals = Sampling(self.vals)
@@ -501,6 +498,7 @@ class Sampling(object):
     start_time = stem.util.system.get_start_time(controller.get_pid(None))
     tor_resources = arm.util.tracker.get_resource_tracker().get_value()
 
+    self.is_connected = controller.is_alive()
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
 
