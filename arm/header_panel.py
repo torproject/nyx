@@ -165,8 +165,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     else:
       self._draw_resource_usage(0, 2, left_width, vals)
 
-    # Line 3 / Line 1 Right (system usage info)
-
     if vals.or_port:
       # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
 
@@ -289,7 +287,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     space_left = min(width, 40)
-    x, space_left = self.addtstr(y, x, 'arm - %s' % vals.hostname, space_left)
+    x, space_left = self.addtstr(y, x, vals.format('arm - {hostname}'), space_left)
 
     if space_left >= 10:
       self.addstr(y, x, ' (%s)' % ui_tools.crop_str(vals.platform, space_left - 3, 4))
@@ -297,7 +295,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     x, space_left = 43, width - 43
 
     if vals.version != 'Unknown' and space_left >= 10:
-      x, space_left = self.addtstr(y, x, 'Tor %s' % vals.version, space_left)
+      x, space_left = self.addtstr(y, x, vals.format('Tor {version}'), space_left)
 
       if space_left >= 7 + len(vals.version_status):
         version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
@@ -317,23 +315,23 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if not vals.or_port:
         x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
       else:
-        x = self.addstr(y, x, '%s - %s:%s' % (vals.nickname, vals.or_address, vals.or_port))
+        x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
 
         if vals.dir_port != '0':
-          x = self.addstr(y, x, ', Dir Port: %s' % vals.dir_port)
+          x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
     else:
       x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
       x = self.addstr(y, x, ' (%s, press r to reconnect)' % self.last_heartbeat)
 
     if vals.control_port == '0':
-      self.addstr(y, x, ', Control Socket: %s' % vals.socket_path)
+      self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
     else:
       if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
         auth_color = 'red' if vals.auth_type == 'open' else 'green'
 
         x = self.addstr(y, x, ', Control Port (')
         x = self.addstr(y, x, vals.auth_type, ui_tools.get_color(auth_color))
-        self.addstr(y, x, '): %s' % vals.control_port)
+        self.addstr(y, x, vals.format('): {control_port}'))
       else:
         self.addstr(y, x, ', Control Port: %s' % vals.control_port)
 
@@ -357,9 +355,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
       uptime = ''
 
     sys_fields = (
-      (0, 'cpu: %s%% tor, %s%% arm' % (vals.tor_cpu, vals.arm_cpu)),
-      (27, 'mem: %s (%s%%)' % (vals.memory, vals.memory_percent)),
-      (47, 'pid: %s' % vals.pid),
+      (0, vals.format('cpu: {tor_cpu}% tor, {arm_cpu}% arm')),
+      (27, vals.format('mem: {memory} ({memory_percent}%)')),
+      (47, vals.format('pid: {pid}')),
       (59, 'uptime: %s' % uptime),
     )
 
@@ -507,6 +505,13 @@ class Sampling(object):
     self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
+
+  def format(self, msg):
+    """
+    Applies our attributes to the given string.
+    """
+
+    return msg.format(**self.__dict__)
 
   def _get_fd_used(self, pid):
     """
