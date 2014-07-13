@@ -46,10 +46,6 @@ tor.chroot
 # events.
 features.logFile 
 
-# If true, the header panel always shows the file descriptor usage. Otherwise
-# this is only displayed when we're running out.
-features.showFdUsage false
-
 # Seconds to wait on user input before refreshing content
 features.redrawRate 5
 

@@ -26,11 +26,11 @@ import arm.controller
 from util import panel, ui_tools, tor_controller
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
+SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
 
 CONFIG = conf.config_dict('arm', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
-  'features.showFdUsage': False,
 })
 
 
@@ -166,37 +166,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self._draw_resource_usage(0, 2, left_width, vals)
 
     if vals.or_port:
-      # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
-
-      y, x = (1, left_width) if is_wide else (3, 0)
-
-      fingerprint_label = ui_tools.crop_str('fingerprint: %s' % vals.fingerprint, width)
-      self.addstr(y, x, fingerprint_label)
-
-      # if there's room and we're able to retrieve both the file descriptor
-      # usage and limit then it might be presented
-
-      if width - x - 59 >= 20 and vals.fd_used and vals.fd_limit:
-        # display file descriptor usage if we're either configured to do so or
-        # running out
-
-        fd_percent = 100 * vals.fd_used / vals.fd_limit
-
-        if fd_percent >= 60 or CONFIG['features.showFdUsage']:
-          fd_percentLabel, fd_percent_format = '%i%%' % fd_percent, curses.A_NORMAL
-
-          if fd_percent >= 95:
-            fd_percent_format = curses.A_BOLD | ui_tools.get_color('red')
-          elif fd_percent >= 90:
-            fd_percent_format = ui_tools.get_color('red')
-          elif fd_percent >= 60:
-            fd_percent_format = ui_tools.get_color('yellow')
-
-          base_label = 'file desc: %i / %i (' % (vals.fd_used, vals.fd_limit)
-
-          self.addstr(y, x + 59, base_label)
-          self.addstr(y, x + 59 + len(base_label), fd_percentLabel, fd_percent_format)
-          self.addstr(y, x + 59 + len(base_label) + len(fd_percentLabel), ')')
+      if is_wide:
+        self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
+      else:
+        self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
 
       # Line 5 / Line 3 Left (flags)
 
@@ -366,6 +339,34 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(y, x + start, label)
       else:
         break
+
+  def _draw_fingerprint_and_fd_usage(self, x, y, width, vals):
+    """
+    Presents our fingerprint, and our file descriptor usage if we're running
+    out...
+
+      fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B, file desc: 900 / 1000 (90%)
+    """
+
+    x, space_left = self.addtstr(y, x, vals.format('fingerprint: {fingerprint}'), width)
+
+    if space_left >= 30 and vals.fd_used and vals.fd_limit:
+      fd_percent = 100 * vals.fd_used / vals.fd_limit
+
+      if fd_percent >= SHOW_FD_THRESHOLD:
+        if fd_percent >= 95:
+          percentage_format = curses.A_BOLD | ui_tools.get_color('red')
+        elif fd_percent >= 90:
+          percentage_format = ui_tools.get_color('red')
+        elif fd_percent >= 60:
+          percentage_format = ui_tools.get_color('yellow')
+        else:
+          percentage_format = curses.A_NORMAL
+
+        x = self.addstr(y, x, ', file descriptors' if space_left >= 37 else ', file desc')
+        x = self.addstr(y, x, vals.format(': {fd_used} / {fd_limit} ('))
+        x = self.addstr(y, x, '%i%%' % fd_percent, percentage_format)
+        self.addstr(y, x, ')')
 
   def run(self):
     """
