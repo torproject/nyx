@@ -12,10 +12,12 @@ import threading
 import arm.util.tracker
 
 import stem
+import stem.util.proc
+import stem.util.str_tools
 import stem.util.system
 
 from stem.control import Listener, State
-from stem.util import conf, log, proc, str_tools
+from stem.util import conf, log
 
 import arm.starter
 import arm.popups
@@ -158,34 +160,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._draw_platform_section(0, 0, left_width, vals)
     self._draw_ports_section(0, 1, left_width, vals)
 
-    # Line 3 / Line 1 Right (system usage info)
-
-    y, x = (0, left_width) if is_wide else (2, 0)
-
-    if vals.rss != '0':
-      memory_label = str_tools.get_size_label(int(vals.rss))
+    if is_wide:
+      self._draw_resource_usage(left_width, 0, right_width, vals)
     else:
-      memory_label = '0'
+      self._draw_resource_usage(0, 2, left_width, vals)
 
-    uptime_label = ''
-
-    if vals.start_time:
-      if self.is_paused() or not self.vals.is_connected:
-        # freeze the uptime when paused or the tor process is stopped
-        uptime_label = str_tools.get_short_time_label(self.get_pause_time() - vals.start_time)
-      else:
-        uptime_label = str_tools.get_short_time_label(time.time() - vals.start_time)
-
-    sys_fields = ((0, 'cpu: %s%% tor, %s%% arm' % (vals.tor_cpu, vals.arm_cpu)),
-                  (27, 'mem: %s (%s%%)' % (memory_label, vals.memory)),
-                  (47, 'pid: %s' % (vals.pid if self.vals.is_connected else '')),
-                  (59, 'uptime: %s' % uptime_label))
-
-    for (start, label) in sys_fields:
-      if start + len(label) <= (right_width if is_wide else left_width):
-        self.addstr(y, x + start, label)
-      else:
-        break
+    # Line 3 / Line 1 Right (system usage info)
 
     if vals.or_port:
       # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
@@ -357,16 +337,37 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         self.addstr(y, x, ', Control Port: %s' % vals.control_port)
 
-  def get_pause_time(self):
+  def _draw_resource_usage(self, x, y, width, vals):
     """
-    Provides the time Tor stopped if it isn't running. Otherwise this is the
-    time we were last paused.
+    System resource usage of the tor process...
+
+      cpu: 0.0% tor, 1.0% arm    mem: 0 (0.0%)       pid: 16329  uptime: 12-20:42:07
     """
 
-    if self._halt_time:
-      return self._halt_time
+    if vals.start_time:
+      if not self.vals.is_connected:
+        now = self._halt_time
+      elif self.is_paused():
+        now = self.get_pause_time()
+      else:
+        now = time.time()
+
+      uptime = stem.util.str_tools.get_short_time_label(now - vals.start_time)
     else:
-      return panel.Panel.get_pause_time(self)
+      uptime = ''
+
+    sys_fields = (
+      (0, 'cpu: %s%% tor, %s%% arm' % (vals.tor_cpu, vals.arm_cpu)),
+      (27, 'mem: %s (%s%%)' % (vals.memory, vals.memory_percent)),
+      (47, 'pid: %s' % vals.pid),
+      (59, 'uptime: %s' % uptime),
+    )
+
+    for (start, label) in sys_fields:
+      if width >= start + len(label):
+        self.addstr(y, x + start, label)
+      else:
+        break
 
   def run(self):
     """
@@ -468,7 +469,6 @@ class Sampling(object):
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
 
     uname_vals = os.uname()
-    start_time = stem.util.system.get_start_time(controller.get_pid(None))
     tor_resources = arm.util.tracker.get_resource_tracker().get_value()
 
     self.is_connected = controller.is_alive()
@@ -497,14 +497,14 @@ class Sampling(object):
     self.version_status = controller.get_info('status/version/current', 'Unknown')
 
     self.pid = controller.get_pid('')
-    self.start_time = start_time if start_time else ''
+    self.start_time = stem.util.system.get_start_time(controller.get_pid(None))
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
     self.fd_used = self._get_fd_used(controller.get_pid(None)) if self.fd_limit else 0
 
     self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
     self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
-    self.rss = str(tor_resources.memory_bytes)
-    self.memory = '%0.1f' % (100 * tor_resources.memory_percent)
+    self.memory = stem.util.str_tools.get_size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
+    self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
 
@@ -525,7 +525,7 @@ class Sampling(object):
     #
     # I'm not sure about other platforms (like BSD) so erroring out there.
 
-    if pid and proc.is_available():
+    if pid and stem.util.proc.is_available():
       try:
         return len(os.listdir('/proc/%s/fd' % pid))
       except:
