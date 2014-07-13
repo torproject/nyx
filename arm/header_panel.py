@@ -177,19 +177,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
         self._draw_flags(0, 4, left_width, vals)
-    else:
-      # (Client only) Undisplayed / Line 2 Right (new identity option)
-
-      if is_wide and vals.is_connected:
-        newnym_wait = tor_controller().get_newnym_wait()
-
-        msg = "press 'n' for a new identity"
-
-        if newnym_wait > 0:
-          plural_label = 's' if newnym_wait > 1 else ''
-          msg = 'building circuits, available again in %i second%s' % (newnym_wait, plural_label)
-
-        self.addstr(1, left_width, msg)
+    elif is_wide and vals.is_connected:
+      self._draw_newnym_option(left_width, 1, right_width, vals)
 
   def _draw_platform_section(self, x, y, width, vals):
     """
@@ -356,6 +345,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       if i < len(rules) - 1:
         x = self.addstr(y, x, ', ')
+
+  def _draw_newnym_option(self, x, y, width, vals):
+    """
+    Provide a notice for requiesting a new identity, and time until it's next
+    available if in the process of building circuits.
+    """
+
+    newnym_wait = tor_controller().get_newnym_wait()
+
+    if newnym_wait == 0:
+      self.addstr(y, x, "press 'n' for a new identity")
+    else:
+      plural = 's' if newnym_wait > 1 else ''
+      self.addstr(y, x, 'building circuits, available again in %i second%s' % (newnym_wait, plural))
 
   def run(self):
     """
