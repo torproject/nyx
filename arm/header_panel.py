@@ -168,35 +168,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if vals.or_port:
       if is_wide:
         self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
+        self._draw_flags(0, 2, left_width, vals)
       else:
         self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
-
-      # Line 5 / Line 3 Left (flags)
-
-      if self.vals.is_connected:
-        y, x = (2 if is_wide else 4, 0)
-        self.addstr(y, x, 'flags: ')
-        x += 7
-
-        if len(vals.flags) > 0:
-          for i in range(len(vals.flags)):
-            flag = vals.flags[i]
-            flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
-
-            self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
-            x += len(flag)
-
-            if i < len(vals.flags) - 1:
-              self.addstr(y, x, ', ')
-              x += 2
-        else:
-          self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
-      else:
-        y = 2 if is_wide else 4
-        status_time = tor_controller().get_latest_heartbeat()
-        status_time_label = time.strftime('%H:%M %m/%d/%Y', time.localtime(status_time))
-        self.addstr(y, 0, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
-        self.addstr(y, 16, ' (%s) - press r to reconnect' % status_time_label)
+        self._draw_flags(0, 4, left_width, vals)
 
       # Undisplayed / Line 3 Right (exit policy)
 
@@ -294,7 +269,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
           x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
     else:
       x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
-      x = self.addstr(y, x, ' (%s, press r to reconnect)' % self.last_heartbeat)
+      x = self.addstr(y, x, ' (%s, press r to reconnect)' % vals.last_heartbeat)
 
     if vals.control_port == '0':
       self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
@@ -367,6 +342,23 @@ class HeaderPanel(panel.Panel, threading.Thread):
         x = self.addstr(y, x, vals.format(': {fd_used} / {fd_limit} ('))
         x = self.addstr(y, x, '%i%%' % fd_percent, percentage_format)
         self.addstr(y, x, ')')
+
+  def _draw_flags(self, x, y, width, vals):
+    if self.vals.is_connected:
+      x = self.addstr(y, x, 'flags: ')
+
+      if len(vals.flags) > 0:
+        for i, flag in enumerate(vals.flags):
+          flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
+          x = self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
+
+          if i < len(vals.flags) - 1:
+            x = self.addstr(y, x, ', ')
+      else:
+        self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
+    else:
+      x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
+      self.addstr(y, x, ' (%s) - press r to reconnect' % vals.last_heartbeat)
 
   def run(self):
     """
