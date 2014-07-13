@@ -158,7 +158,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
     right_width = width - left_width
 
     self._draw_platform_section(0, 0, left_width, vals)
-    self._draw_ports_section(0, 1, left_width, vals)
+
+    if vals.is_connected:
+      self._draw_ports_section(0, 1, left_width, vals)
+    else:
+      self._draw_disconnected(0, 1, left_width, vals)
 
     if is_wide:
       self._draw_resource_usage(left_width, 0, right_width, vals)
@@ -215,7 +219,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     else:
       # (Client only) Undisplayed / Line 2 Right (new identity option)
 
-      if is_wide:
+      if is_wide and vals.is_connected:
         newnym_wait = tor_controller().get_newnym_wait()
 
         msg = "press 'n' for a new identity"
@@ -259,17 +263,13 @@ class HeaderPanel(panel.Panel, threading.Thread):
       Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
     """
 
-    if self.vals.is_connected:
-      if not vals.or_port:
-        x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
-      else:
-        x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
-
-        if vals.dir_port != '0':
-          x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
+    if not vals.or_port:
+      x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
     else:
-      x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
-      x = self.addstr(y, x, ' (%s, press r to reconnect)' % vals.last_heartbeat)
+      x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
+
+      if vals.dir_port != '0':
+        x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
 
     if vals.control_port == '0':
       self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
@@ -282,6 +282,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(y, x, vals.format('): {control_port}'))
       else:
         self.addstr(y, x, ', Control Port: %s' % vals.control_port)
+
+  def _draw_disconnected(self, x, y, width, vals):
+    """
+    Message indicating that tor is disconnected...
+
+      Tor Disconnected (15:21 07/13/2014, press r to reconnect)
+    """
+
+    x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
+    self.addstr(y, x, ' (%s, press r to reconnect)' % vals.last_heartbeat)
 
   def _draw_resource_usage(self, x, y, width, vals):
     """
@@ -344,21 +354,23 @@ class HeaderPanel(panel.Panel, threading.Thread):
         self.addstr(y, x, ')')
 
   def _draw_flags(self, x, y, width, vals):
-    if self.vals.is_connected:
-      x = self.addstr(y, x, 'flags: ')
+    """
+    Shows the flags held by our relay...
 
-      if len(vals.flags) > 0:
-        for i, flag in enumerate(vals.flags):
-          flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
-          x = self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
+      flags: Running, Valid
+    """
 
-          if i < len(vals.flags) - 1:
-            x = self.addstr(y, x, ', ')
-      else:
-        self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
+    x = self.addstr(y, x, 'flags: ')
+
+    if len(vals.flags) > 0:
+      for i, flag in enumerate(vals.flags):
+        flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
+        x = self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
+
+        if i < len(vals.flags) - 1:
+          x = self.addstr(y, x, ', ')
     else:
-      x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
-      self.addstr(y, x, ' (%s) - press r to reconnect' % vals.last_heartbeat)
+      self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
 
   def run(self):
     """
