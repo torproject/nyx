@@ -173,49 +173,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if is_wide:
         self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
         self._draw_flags(0, 2, left_width, vals)
+        self._draw_exit_policy(left_width, 2, right_width, vals)
       else:
         self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
         self._draw_flags(0, 4, left_width, vals)
-
-      # Undisplayed / Line 3 Right (exit policy)
-
-      if is_wide:
-        exit_policy = vals.exit_policy
-
-        # adds note when default exit policy is appended
-
-        if exit_policy == '':
-          exit_policy = '<default>'
-        elif not exit_policy.endswith((' *:*', ' *')):
-          exit_policy += ', <default>'
-
-        self.addstr(2, left_width, 'exit policy: ')
-        x = left_width + 13
-
-        # color codes accepts to be green, rejects to be red, and default marker to be cyan
-
-        is_simple = len(exit_policy) > (right_width if is_wide else left_width) - 13
-        policies = exit_policy.split(', ')
-
-        for i in range(len(policies)):
-          policy = policies[i].strip()
-          policy_label = policy.replace('accept', '').replace('reject', '').strip() if is_simple else policy
-
-          policy_color = 'white'
-
-          if policy.startswith('accept'):
-            policy_color = 'green'
-          elif policy.startswith('reject'):
-            policy_color = 'red'
-          elif policy.startswith('<default>'):
-            policy_color = 'cyan'
-
-          self.addstr(2, x, policy_label, curses.A_BOLD | ui_tools.get_color(policy_color))
-          x += len(policy_label)
-
-          if i < len(policies) - 1:
-            self.addstr(2, x, ', ')
-            x += 2
     else:
       # (Client only) Undisplayed / Line 2 Right (new identity option)
 
@@ -355,7 +316,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
   def _draw_flags(self, x, y, width, vals):
     """
-    Shows the flags held by our relay...
+    Presents flags held by our relay...
 
       flags: Running, Valid
     """
@@ -371,6 +332,30 @@ class HeaderPanel(panel.Panel, threading.Thread):
           x = self.addstr(y, x, ', ')
     else:
       self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
+
+  def _draw_exit_policy(self, x, y, width, vals):
+    """
+    Presents our exit policy...
+
+      exit policy: reject *:*
+    """
+
+    x = self.addstr(y, x, 'exit policy: ')
+
+    if not vals.exit_policy:
+      return
+
+    # TODO: exclude private policy prefix?
+    # TODO: replace the default suffix policy with a cyan '<default>'
+
+    rules = list(vals.exit_policy)
+
+    for i, rule in enumerate(rules):
+      policy_color = 'green' if rule.is_accept else 'red'
+      x = self.addstr(y, x, str(rule), curses.A_BOLD | ui_tools.get_color(policy_color))
+
+      if i < len(rules) - 1:
+        x = self.addstr(y, x, ', ')
 
   def run(self):
     """
@@ -494,7 +479,7 @@ class Sampling(object):
     else:
       self.auth_type = 'open'
 
-    self.exit_policy = str(controller.get_exit_policy(''))
+    self.exit_policy = controller.get_exit_policy(None)
     self.flags = self._get_flags(controller)
     self.version = str(controller.get_version('Unknown')).split()[0]
     self.version_status = controller.get_info('status/version/current', 'Unknown')
