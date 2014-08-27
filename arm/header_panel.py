@@ -97,46 +97,46 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
       self.send_newnym()
     elif key in (ord('r'), ord('R')) and not self.vals.is_connected:
-      #oldSocket = tor_tools.get_conn().get_controller().get_socket()
+      # oldSocket = tor_tools.get_conn().get_controller().get_socket()
       #
-      #controller = None
-      #allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
+      # controller = None
+      # allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
       #
-      #if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
-      #  try:
-      #    # TODO: um... what about passwords?
-      #    controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
-      #    controller.authenticate()
-      #  except (IOError, stem.SocketError), exc:
-      #    controller = None
+      # if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
+      #   try:
+      #     # TODO: um... what about passwords?
+      #     controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
+      #     controller.authenticate()
+      #   except (IOError, stem.SocketError), exc:
+      #     controller = None
       #
-      #    if not allowPortConnection:
-      #      arm.popups.show_msg("Unable to reconnect (%s)" % exc, 3)
-      #elif not allowPortConnection:
-      #  arm.popups.show_msg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
+      #     if not allowPortConnection:
+      #       arm.popups.show_msg("Unable to reconnect (%s)" % exc, 3)
+      # elif not allowPortConnection:
+      #   arm.popups.show_msg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
       #
-      #if not controller and allowPortConnection:
-      #  # TODO: This has diverged from starter.py's connection, for instance it
-      #  # doesn't account for relative cookie paths or multiple authentication
-      #  # methods. We can't use the starter.py's connection function directly
-      #  # due to password prompts, but we could certainly make this mess more
-      #  # manageable.
+      # if not controller and allowPortConnection:
+      #   # TODO: This has diverged from starter.py's connection, for instance it
+      #   # doesn't account for relative cookie paths or multiple authentication
+      #   # methods. We can't use the starter.py's connection function directly
+      #   # due to password prompts, but we could certainly make this mess more
+      #   # manageable.
       #
-      #  try:
-      #    ctlAddr, ctl_port = CONFIG["startup.interface.ip_address"], CONFIG["startup.interface.port"]
-      #    controller = Controller.from_port(ctlAddr, ctl_port)
+      #   try:
+      #     ctlAddr, ctl_port = CONFIG["startup.interface.ip_address"], CONFIG["startup.interface.port"]
+      #     controller = Controller.from_port(ctlAddr, ctl_port)
       #
-      #    try:
-      #      controller.authenticate()
-      #    except stem.connection.MissingPassword:
-      #      controller.authenticate(authValue) # already got the password above
-      #  except Exception, exc:
-      #    controller = None
+      #     try:
+      #       controller.authenticate()
+      #     except stem.connection.MissingPassword:
+      #       controller.authenticate(authValue) # already got the password above
+      #   except Exception, exc:
+      #     controller = None
       #
-      #if controller:
-      #  tor_tools.get_conn().init(controller)
-      #  log.notice("Reconnected to Tor's control port")
-      #  arm.popups.show_msg("Tor reconnected", 1)
+      # if controller:
+      #   tor_tools.get_conn().init(controller)
+      #   log.notice("Reconnected to Tor's control port")
+      #   arm.popups.show_msg("Tor reconnected", 1)
 
       pass
     else:
@@ -388,8 +388,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
         is_changed = False
 
         if self.vals.pid:
-          #resource_tracker = arm.util.tracker.get_resource_tracker()
-          #is_changed = self._last_resource_fetch != resource_tracker.run_counter()
+          # resource_tracker = arm.util.tracker.get_resource_tracker()
+          # is_changed = self._last_resource_fetch != resource_tracker.run_counter()
           is_changed = True  # TODO: we should decide to redraw or not based on if the sampling values have changed
 
         if is_changed or (self.vals and current_time - self.vals.retrieved >= 20):

@@ -114,14 +114,14 @@ class Endpoint:
     """
 
     # TODO: skipping all hostname resolution to be safe for now
-    #try:
-    #  myHostname = hostnames.resolve(self.address)
-    #except:
-    #  # either a ValueError or IOError depending on the source of the lookup failure
-    #  myHostname = None
+    # try:
+    #   myHostname = hostnames.resolve(self.address)
+    # except:
+    #   # either a ValueError or IOError depending on the source of the lookup failure
+    #   myHostname = None
     #
-    #if not myHostname: return default
-    #else: return myHostname
+    # if not myHostname: return default
+    # else: return myHostname
 
     return default
 
@@ -652,7 +652,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # the source and destination addresses are both private, but that might
       # not be perfectly reliable either.
 
-      is_expansion_type = not my_type in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
+      is_expansion_type = my_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
 
       if is_expansion_type:
         src_address = my_external_address + local_port
@@ -1143,7 +1143,7 @@ class FingerprintTracker:
           result = []
       else:
         # query the fingerprint if it isn't yet cached
-        if not (relay_address, relay_port) in self._fingerprint_lookup_cache:
+        if (relay_address, relay_port) not in self._fingerprint_lookup_cache:
           relay_fingerprint = self._get_relay_fingerprint(controller, relay_address, relay_port)
           self._fingerprint_lookup_cache[(relay_address, relay_port)] = relay_fingerprint
 
@@ -1165,7 +1165,7 @@ class FingerprintTracker:
 
     if controller.is_alive():
       # query the nickname if it isn't yet cached
-      if not relay_fingerprint in self._nickname_lookup_cache:
+      if relay_fingerprint not in self._nickname_lookup_cache:
         if relay_fingerprint == controller.get_info("fingerprint", None):
           # this is us, simply check the config
           my_nickname = controller.get_conf("Nickname", "Unnamed")

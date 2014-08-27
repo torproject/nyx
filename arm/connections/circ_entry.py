@@ -231,7 +231,7 @@ def get_relay_address(controller, relay_fingerprint, default = None):
 
   if controller.is_alive():
     # query the address if it isn't yet cached
-    if not relay_fingerprint in ADDRESS_LOOKUP_CACHE:
+    if relay_fingerprint not in ADDRESS_LOOKUP_CACHE:
       if relay_fingerprint == controller.get_info("fingerprint", None):
         # this is us, simply check the config
         my_address = controller.get_info("address", None)

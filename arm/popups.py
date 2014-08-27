@@ -179,7 +179,7 @@ def show_help_popup():
 
   if not ui_tools.is_selection_key(exit_key) and \
     not ui_tools.is_scroll_key(exit_key) and \
-    not exit_key in (curses.KEY_LEFT, curses.KEY_RIGHT):
+    exit_key not in (curses.KEY_LEFT, curses.KEY_RIGHT):
     return exit_key
   else:
     return None

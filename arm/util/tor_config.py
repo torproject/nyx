@@ -183,7 +183,7 @@ def load_option_descriptions(load_path = None, check_version = True):
           # gets category enum, failing if it doesn't exist
           category = input_file_contents.pop(0).rstrip()
 
-          if not category in Category:
+          if category not in Category:
             base_msg = "invalid category in input file: '%s'"
             raise IOError(base_msg % category)
 
@@ -241,7 +241,7 @@ def load_option_descriptions(load_path = None, check_version = True):
         stripped_line = line.strip()
 
         # we have content, but an indent less than an option (ignore line)
-        #if stripped_line and not line.startswith(" " * MAN_OPT_INDENT): continue
+        # if stripped_line and not line.startswith(" " * MAN_OPT_INDENT): continue
 
         # line starts with an indent equivilant to a new config option
 
@@ -681,7 +681,7 @@ def validate(contents = None):
 
     # most parameters are overwritten if defined multiple times
 
-    if option in seen_options and not option in get_multiline_parameters():
+    if option in seen_options and option not in get_multiline_parameters():
       issues_found.append((line_number, ValidationError.DUPLICATE, option))
       continue
     else:
@@ -689,7 +689,7 @@ def validate(contents = None):
 
     # checks if the value isn't necessary due to matching the defaults
 
-    if not option in custom_options:
+    if option not in custom_options:
       issues_found.append((line_number, ValidationError.IS_DEFAULT, option))
 
     # replace aliases with their recognized representation
@@ -722,7 +722,7 @@ def validate(contents = None):
         for fetched_entry in fetched_value.split(","):
           fetched_entry = fetched_entry.strip()
 
-          if not fetched_entry in tor_values:
+          if fetched_entry not in tor_values:
             tor_values.append(fetched_entry)
 
     for val in value_list:
@@ -730,7 +730,7 @@ def validate(contents = None):
 
       is_blank_match = not val and not tor_values
 
-      if not is_blank_match and not val in tor_values:
+      if not is_blank_match and val not in tor_values:
         # converts corrections to reader friedly size values
 
         display_values = tor_values
@@ -754,7 +754,7 @@ def validate(contents = None):
     if option == "DirReqStatistics":
       continue
 
-    if not option in seen_options:
+    if option not in seen_options:
       issues_found.append((None, ValidationError.MISSING, option))
 
   return issues_found

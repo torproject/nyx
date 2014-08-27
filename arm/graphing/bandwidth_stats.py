@@ -167,7 +167,7 @@ class BandwidthStats(graph_panel.GraphStats):
     # the state tracks a day's worth of data and this should only prepopulate
     # results associated with this tor instance
 
-    if not uptime or not "-" in uptime:
+    if not uptime or "-" not in uptime:
       msg = PREPOPULATE_FAILURE_MSG % "insufficient uptime"
       log.notice(msg)
       return False

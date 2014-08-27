@@ -185,7 +185,7 @@ class Panel():
       attr - local variable to be returned
     """
 
-    if not attr in self.pause_attr:
+    if attr not in self.pause_attr:
       return None
     elif self.paused:
       return self.pause_buffer[attr]

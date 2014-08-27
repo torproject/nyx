@@ -279,7 +279,7 @@ class ConfigPanel(panel.Panel):
         elif not CONFIG["features.config.state.showVirtualOptions"] and conf_type == "Virtual":
           continue
 
-        self.conf_contents.append(ConfigEntry(conf_option, conf_type, not conf_option in custom_options))
+        self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
 
     elif self.config_type == State.ARM:
       # loaded via the conf utility
@@ -416,7 +416,7 @@ class ConfigPanel(panel.Panel):
             # resets the is_default flag
 
             custom_options = tor_config.get_custom_options()
-            selection.fields[Field.IS_DEFAULT] = not config_option in custom_options
+            selection.fields[Field.IS_DEFAULT] = config_option not in custom_options
 
             self.redraw(True)
           except Exception as exc:

@@ -635,7 +635,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       color = "magenta"
     elif isinstance(event, events.GuardEvent):
       color = "yellow"
-    elif not event.type in arm.arguments.TOR_EVENT_TYPES.values():
+    elif event.type not in arm.arguments.TOR_EVENT_TYPES.values():
       color = "red"  # unknown event type
 
     self.register_event(LogEntry(event.arrived_at, event.type, msg, color))
@@ -648,7 +648,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       event - LogEntry for the event that occurred
     """
 
-    if not event.type in self.logged_events:
+    if event.type not in self.logged_events:
       return
 
     # strips control characters to avoid screwing up the terminal
