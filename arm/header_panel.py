@@ -71,7 +71,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
 
-    if self.vals.or_port:
+    if self.vals.is_relay:
       return 4 if is_wide else 6
     else:
       return 3 if is_wide else 4
@@ -144,12 +144,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     return is_keystroke_consumed
 
-  def addtstr(self, y, x, msg, space_left, attr=curses.A_NORMAL):
-    cursor_position = self.addstr(y, x, ui_tools.crop_str(msg, space_left), attr)
-    return cursor_position, space_left - (cursor_position - x)
-
   def draw(self, width, height):
-    vals = self.vals
+    vals = self.vals  # local reference to avoid concurrency concerns
     is_wide = width + 1 >= MIN_DUAL_COL_WIDTH
 
     # space available for content
@@ -169,7 +165,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     else:
       self._draw_resource_usage(0, 2, left_width, vals)
 
-    if vals.or_port:
+    if vals.is_relay:
       if is_wide:
         self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
         self._draw_flags(0, 2, left_width, vals)
@@ -188,16 +184,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
       |------ platform (40 characters) ------|   |----------- tor version -----------|
     """
 
-    space_left = min(width, 40)
-    x, space_left = self.addtstr(y, x, vals.format('arm - {hostname}'), space_left)
+    initial_x, space_left = x, min(width, 40)
+
+    x = self.addstr(y, x, ui_tools.crop_str(vals.format('arm - {hostname}'), space_left))
+    space_left -= x - initial_x
 
     if space_left >= 10:
       self.addstr(y, x, ' (%s)' % ui_tools.crop_str(vals.platform, space_left - 3, 4))
 
-    x, space_left = 43, width - 43
+    x, space_left = initial_x + 43, width - 43
 
     if vals.version != 'Unknown' and space_left >= 10:
-      x, space_left = self.addtstr(y, x, vals.format('Tor {version}'), space_left)
+      x = self.addstr(y, x, ui_tools.crop_str(vals.format('Tor {version}'), space_left))
+      space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
         version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
@@ -213,7 +212,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
     """
 
-    if not vals.or_port:
+    if not vals.is_relay:
       x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
     else:
       x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
@@ -283,7 +282,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B, file desc: 900 / 1000 (90%)
     """
 
-    x, space_left = self.addtstr(y, x, vals.format('fingerprint: {fingerprint}'), width)
+    initial_x, space_left = x, width
+
+    x = self.addstr(y, x, ui_tools.crop_str(vals.format('fingerprint: {fingerprint}'), width))
+    space_left -= x - initial_x
 
     if space_left >= 30 and vals.fd_used and vals.fd_limit:
       fd_percent = 100 * vals.fd_used / vals.fd_limit
@@ -474,6 +476,7 @@ class Sampling(object):
     self.dir_port = controller.get_conf('DirPort', '0')
     self.control_port = controller.get_conf('ControlPort', '0')
     self.socket_path = controller.get_conf('ControlSocket', '')
+    self.is_relay = bool(self.or_port)
 
     if controller.get_conf('HashedControlPassword', None):
       self.auth_type = 'password'
