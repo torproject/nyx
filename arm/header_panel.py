@@ -9,19 +9,18 @@ import time
 import curses
 import threading
 
-import arm.util.tracker
-
 import stem
 import stem.util.proc
 import stem.util.str_tools
 import stem.util.system
 
+import arm.controller
+import arm.popups
+import arm.starter
+import arm.util.tracker
+
 from stem.control import Listener, State
 from stem.util import conf, log
-
-import arm.starter
-import arm.popups
-import arm.controller
 
 from util import panel, ui_tools, tor_controller
 
@@ -186,16 +185,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     initial_x, space_left = x, min(width, 40)
 
-    x = self.addstr(y, x, ui_tools.crop_str(vals.format('arm - {hostname}'), space_left))
+    x = self.addstr(y, x, vals.format('arm - {hostname}', space_left))
     space_left -= x - initial_x
 
     if space_left >= 10:
-      self.addstr(y, x, ' (%s)' % ui_tools.crop_str(vals.platform, space_left - 3, 4))
+      self.addstr(y, x, ' (%s)' % vals.format('{platform}', space_left - 3))
 
     x, space_left = initial_x + 43, width - 43
 
     if vals.version != 'Unknown' and space_left >= 10:
-      x = self.addstr(y, x, ui_tools.crop_str(vals.format('Tor {version}'), space_left))
+      x = self.addstr(y, x, vals.format('Tor {version}', space_left))
       space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
@@ -284,7 +283,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     initial_x, space_left = x, width
 
-    x = self.addstr(y, x, ui_tools.crop_str(vals.format('fingerprint: {fingerprint}'), width))
+    x = self.addstr(y, x, vals.format('fingerprint: {fingerprint}', width))
     space_left -= x - initial_x
 
     if space_left >= 30 and vals.fd_used and vals.fd_limit:
@@ -502,12 +501,17 @@ class Sampling(object):
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
 
-  def format(self, msg):
+  def format(self, msg, crop_width = None):
     """
     Applies our attributes to the given string.
     """
 
-    return msg.format(**self.__dict__)
+    formatted_msg = msg.format(**self.__dict__)
+
+    if crop_width:
+      formatted_msg = ui_tools.crop_str(formatted_msg, crop_width)
+
+    return formatted_msg
 
   def _get_fd_used(self, pid):
     """
