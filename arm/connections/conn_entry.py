@@ -374,14 +374,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = ui_tools.get_color(CATEGORY_COLOR[entry_type])
+    line_format = CATEGORY_COLOR[entry_type]
     time_width = 6 if CONFIG["features.connection.markInitialConnections"] else 5
 
     draw_entry = [(" ", line_format),
                   (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
                   (" " * time_width, line_format),
                   (" (", line_format),
-                  (entry_type.upper(), line_format | curses.A_BOLD),
+                  (entry_type.upper(), line_format, curses.A_BOLD),
                   (")" + " " * (9 - len(entry_type)), line_format)]
 
     return draw_entry
@@ -395,7 +395,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[self.get_type()])
+    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def reset_display(self):

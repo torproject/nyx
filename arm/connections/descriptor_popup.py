@@ -194,38 +194,37 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
 
     if show_line_number:
       line_number_label = ("%%%ii" % line_number_width) % (i + 1)
-      line_number_format = curses.A_BOLD | ui_tools.get_color(LINE_NUM_COLOR)
 
-      popup.addstr(draw_line, x_offset, line_number_label, line_number_format)
+      popup.addstr(draw_line, x_offset, line_number_label, curses.A_BOLD, LINE_NUM_COLOR)
       x_offset += line_number_width + 1
 
     # Most consensus and descriptor lines are keyword/value pairs. Both are
     # shown with the same color, but the keyword is bolded.
 
     keyword, value = line_text, ""
-    draw_format = ui_tools.get_color(display_color)
+    draw_format = display_color
 
     if line_text.startswith(HEADER_PREFIX[0]) or line_text.startswith(HEADER_PREFIX[1]):
       keyword, value = line_text, ""
-      draw_format = ui_tools.get_color(HEADER_COLOR)
+      draw_format = HEADER_COLOR
     elif line_text == UNRESOLVED_MSG or line_text == ERROR_MSG:
       keyword, value = line_text, ""
     elif line_text in SIG_START_KEYS:
       keyword, value = line_text, ""
       is_encryption_block = True
-      draw_format = ui_tools.get_color(SIG_COLOR)
+      draw_format = SIG_COLOR
     elif line_text in SIG_END_KEYS:
       keyword, value = line_text, ""
       is_encryption_block = False
-      draw_format = ui_tools.get_color(SIG_COLOR)
+      draw_format = SIG_COLOR
     elif is_encryption_block:
       keyword, value = "", line_text
-      draw_format = ui_tools.get_color(SIG_COLOR)
+      draw_format = SIG_COLOR
     elif " " in line_text:
       div_index = line_text.find(" ")
       keyword, value = line_text[:div_index], line_text[div_index:]
 
-    display_queue = [(keyword, draw_format | curses.A_BOLD), (value, draw_format)]
+    display_queue = [(keyword, (draw_format, curses.A_BOLD)), (value, (draw_format,))]
     cursor_location = x_offset
 
     while display_queue:
@@ -251,14 +250,14 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
           else:
             remainder = ""
 
-        popup.addstr(draw_line, cursor_location, msg, msg_format)
+        popup.addstr(draw_line, cursor_location, msg, *msg_format)
         cursor_location = x_offset
 
         if remainder:
           display_queue.insert(0, (remainder.strip(), msg_format))
           draw_line += 1
       else:
-        popup.addstr(draw_line, cursor_location, msg, msg_format)
+        popup.addstr(draw_line, cursor_location, msg, *msg_format)
         cursor_location += len(msg)
 
       if draw_line > page_height:

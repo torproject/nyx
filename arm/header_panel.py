@@ -18,11 +18,12 @@ import arm.controller
 import arm.popups
 import arm.starter
 import arm.util.tracker
+import arm.util.ui_tools
 
 from stem.control import Listener, State
 from stem.util import conf, log
 
-from util import panel, ui_tools, tor_controller
+from util import panel, tor_controller
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
@@ -201,7 +202,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
 
         x = self.addstr(y, x, ' (')
-        x = self.addstr(y, x, vals.version_status, ui_tools.get_color(version_color))
+        x = self.addstr(y, x, vals.version_status, version_color)
         self.addstr(y, x, ')')
 
   def _draw_ports_section(self, x, y, width, vals):
@@ -212,7 +213,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     if not vals.is_relay:
-      x = self.addstr(y, x, 'Relaying Disabled', ui_tools.get_color('cyan'))
+      x = self.addstr(y, x, 'Relaying Disabled', 'cyan')
     else:
       x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
 
@@ -226,7 +227,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         auth_color = 'red' if vals.auth_type == 'open' else 'green'
 
         x = self.addstr(y, x, ', Control Port (')
-        x = self.addstr(y, x, vals.auth_type, ui_tools.get_color(auth_color))
+        x = self.addstr(y, x, vals.auth_type, auth_color)
         self.addstr(y, x, vals.format('): {control_port}'))
       else:
         self.addstr(y, x, ', Control Port: %s' % vals.control_port)
@@ -238,7 +239,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       Tor Disconnected (15:21 07/13/2014, press r to reconnect)
     """
 
-    x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD | ui_tools.get_color('red'))
+    x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD, 'red')
     self.addstr(y, x, ' (%s, press r to reconnect)' % vals.last_heartbeat)
 
   def _draw_resource_usage(self, x, y, width, vals):
@@ -291,17 +292,17 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       if fd_percent >= SHOW_FD_THRESHOLD:
         if fd_percent >= 95:
-          percentage_format = curses.A_BOLD | ui_tools.get_color('red')
+          percentage_format = (curses.A_BOLD, 'red')
         elif fd_percent >= 90:
-          percentage_format = ui_tools.get_color('red')
+          percentage_format = ('red',)
         elif fd_percent >= 60:
-          percentage_format = ui_tools.get_color('yellow')
+          percentage_format = ('yellow',)
         else:
-          percentage_format = curses.A_NORMAL
+          percentage_format = ()
 
         x = self.addstr(y, x, ', file descriptors' if space_left >= 37 else ', file desc')
         x = self.addstr(y, x, vals.format(': {fd_used} / {fd_limit} ('))
-        x = self.addstr(y, x, '%i%%' % fd_percent, percentage_format)
+        x = self.addstr(y, x, '%i%%' % fd_percent, *percentage_format)
         self.addstr(y, x, ')')
 
   def _draw_flags(self, x, y, width, vals):
@@ -316,12 +317,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if len(vals.flags) > 0:
       for i, flag in enumerate(vals.flags):
         flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
-        x = self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
+        x = self.addstr(y, x, flag, curses.A_BOLD, flag_color)
 
         if i < len(vals.flags) - 1:
           x = self.addstr(y, x, ', ')
     else:
-      self.addstr(y, x, 'none', curses.A_BOLD | ui_tools.get_color('cyan'))
+      self.addstr(y, x, 'none', curses.A_BOLD, 'cyan')
 
   def _draw_exit_policy(self, x, y, width, vals):
     """
@@ -342,7 +343,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     for i, rule in enumerate(rules):
       policy_color = 'green' if rule.is_accept else 'red'
-      x = self.addstr(y, x, str(rule), curses.A_BOLD | ui_tools.get_color(policy_color))
+      x = self.addstr(y, x, str(rule), curses.A_BOLD, policy_color)
 
       if i < len(rules) - 1:
         x = self.addstr(y, x, ', ')
@@ -509,7 +510,7 @@ class Sampling(object):
     formatted_msg = msg.format(**self.__dict__)
 
     if crop_width:
-      formatted_msg = ui_tools.crop_str(formatted_msg, crop_width)
+      formatted_msg = arm.util.ui_tools.crop_str(formatted_msg, crop_width)
 
     return formatted_msg
 

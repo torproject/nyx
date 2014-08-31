@@ -432,7 +432,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       draw_entries = cursor_selection.get_details(width)
 
       for i in range(min(len(draw_entries), DETAILS_HEIGHT)):
-        self.addstr(1 + i, 2, draw_entries[i][0], draw_entries[i][1])
+        self.addstr(1 + i, 2, draw_entries[i][0], *draw_entries[i][1])
 
     # title label with connection counts
 
@@ -476,7 +476,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for msg, attr in draw_entry:
         attr |= extra_format
-        self.addstr(draw_line, x_offset, msg, attr)
+        self.addstr(draw_line, x_offset, msg, *attr)
         x_offset += len(msg)
 
       if draw_line >= height:

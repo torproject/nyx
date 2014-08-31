@@ -307,8 +307,8 @@ class BandwidthStats(graph_panel.GraphStats):
       primary_footer = "%s, %s" % (self._get_avg_label(True), self._get_total_label(True))
       secondary_footer = "%s, %s" % (self._get_avg_label(False), self._get_total_label(False))
 
-      panel.addstr(labeling_line, 1, primary_footer, ui_tools.get_color(self.get_color(True)))
-      panel.addstr(labeling_line, graph_column + 6, secondary_footer, ui_tools.get_color(self.get_color(False)))
+      panel.addstr(labeling_line, 1, primary_footer, self.get_color(True))
+      panel.addstr(labeling_line, graph_column + 6, secondary_footer, self.get_color(False))
 
     # provides accounting stats if enabled
 
@@ -327,7 +327,7 @@ class BandwidthStats(graph_panel.GraphStats):
           status, hibernate_color = "unknown", "red"
 
         panel.addstr(labeling_line + 2, 0, "Accounting (", curses.A_BOLD)
-        panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD | ui_tools.get_color(hibernate_color))
+        panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD, hibernate_color)
         panel.addstr(labeling_line + 2, 12 + len(status), ")", curses.A_BOLD)
 
         reset_time = self.accounting_info["reset_time"]
@@ -340,12 +340,12 @@ class BandwidthStats(graph_panel.GraphStats):
         used, total = self.accounting_info["read"], self.accounting_info["read_limit"]
 
         if used and total:
-          panel.addstr(labeling_line + 3, 2, "%s / %s" % (used, total), ui_tools.get_color(self.get_color(True)))
+          panel.addstr(labeling_line + 3, 2, "%s / %s" % (used, total), self.get_color(True))
 
         used, total = self.accounting_info["written"], self.accounting_info["writtenLimit"]
 
         if used and total:
-          panel.addstr(labeling_line + 3, 37, "%s / %s" % (used, total), ui_tools.get_color(self.get_color(False)))
+          panel.addstr(labeling_line + 3, 37, "%s / %s" % (used, total), self.get_color(False))
       else:
         panel.addstr(labeling_line + 2, 0, "Accounting:", curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, "Connection Closed...")

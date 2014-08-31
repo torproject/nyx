@@ -504,10 +504,10 @@ class ConfigPanel(panel.Panel):
 
           if " " in line:
             option, arg = line.split(" ", 1)
-            popup.addstr(i + 1, 1, option, curses.A_BOLD | ui_tools.get_color("green"))
-            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | ui_tools.get_color("cyan"))
+            popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
+            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
           else:
-            popup.addstr(i + 1, 1, line, curses.A_BOLD | ui_tools.get_color("green"))
+            popup.addstr(i + 1, 1, line, curses.A_BOLD, 'green')
 
         # draws selection options (drawn right to left)
 
@@ -525,7 +525,7 @@ class ConfigPanel(panel.Panel):
 
           selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
           popup.addstr(height - 2, draw_x, "[")
-          popup.addstr(height - 2, draw_x + 1, option_label, selection_format | curses.A_BOLD)
+          popup.addstr(height - 2, draw_x + 1, option_label, selection_format, curses.A_BOLD)
           popup.addstr(height - 2, draw_x + len(option_label) + 1, "]")
 
           draw_x -= 1  # space gap between the options
@@ -635,16 +635,16 @@ class ConfigPanel(panel.Panel):
       entry = self._get_config_options()[line_number]
       draw_line = line_number + detail_panel_height + 1 - scroll_location
 
-      line_format = curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD
+      line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
 
       if entry.get(Field.CATEGORY):
-        line_format |= ui_tools.get_color(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
+        line_format += [CATEGORY_COLOR[entry.get(Field.CATEGORY)]]
 
       if entry == cursor_selection:
-        line_format |= curses.A_STANDOUT
+        line_format += [curses.A_STANDOUT]
 
       line_text = entry.get_label(option_width, value_width, description_width)
-      self.addstr(draw_line, scroll_offset, line_text, line_format)
+      self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
       if draw_line >= height:
         break
@@ -667,13 +667,13 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
+    selection_format = (curses.A_BOLD, CATEGORY_COLOR[selection.get(Field.CATEGORY)])
 
     # first entry:
     # <option> (<category> Option)
 
     option_label = " (%s Option)" % selection.get(Field.CATEGORY)
-    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, selection_format)
+    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, *selection_format)
 
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
@@ -688,7 +688,7 @@ class ConfigPanel(panel.Panel):
       value_label_width = width - 12 - len(value_attr_label)
       value_label = ui_tools.crop_str(selection.get(Field.VALUE), value_label_width)
 
-      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), selection_format)
+      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), *selection_format)
 
     # remainder is filled with the man page description
 
@@ -723,4 +723,4 @@ class ConfigPanel(panel.Panel):
 
         msg = ui_tools.crop_str(line_content, width - 3, 4, 4)
 
-      self.addstr(3 + i, 2, msg, selection_format)
+      self.addstr(3 + i, 2, msg, *selection_format)

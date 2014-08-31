@@ -239,10 +239,10 @@ class TorrcPanel(panel.Panel):
       # splits the line into its component (msg, format) tuples
 
       line_comp = {
-        "option": ["", curses.A_BOLD | ui_tools.get_color("green")],
-        "argument": ["", curses.A_BOLD | ui_tools.get_color("cyan")],
-        "correction": ["", curses.A_BOLD | ui_tools.get_color("cyan")],
-        "comment": ["", ui_tools.get_color("white")],
+        'option': ['', (curses.A_BOLD, 'green')],
+        'argument': ['', (curses.A_BOLD, 'cyan')],
+        'correction': ['', (curses.A_BOLD, 'cyan')],
+        'comment': ['', ('white',)],
       }
 
       # parses the comment
@@ -250,7 +250,7 @@ class TorrcPanel(panel.Panel):
       comment_index = line_text.find("#")
 
       if comment_index != -1:
-        line_comp["comment"][0] = line_text[comment_index:]
+        line_comp['comment'][0] = line_text[comment_index:]
         line_text = line_text[:comment_index]
 
       # splits the option and argument, preserving any whitespace around them
@@ -261,15 +261,15 @@ class TorrcPanel(panel.Panel):
       if is_multiline:
         # part of a multiline entry started on a previous line so everything
         # is part of the argument
-        line_comp["argument"][0] = line_text
+        line_comp['argument'][0] = line_text
       elif option_index == -1:
         # no argument provided
-        line_comp["option"][0] = line_text
+        line_comp['option'][0] = line_text
       else:
         option_text = stripped_line[:option_index]
         option_end = line_text.find(option_text) + len(option_text)
-        line_comp["option"][0] = line_text[:option_end]
-        line_comp["argument"][0] = line_text[option_end:]
+        line_comp['option'][0] = line_text[:option_end]
+        line_comp['argument'][0] = line_text[option_end:]
 
       # flags following lines as belonging to this multiline entry if it ends
       # with a slash
@@ -283,29 +283,29 @@ class TorrcPanel(panel.Panel):
         line_issue, line_issue_msg = corrections[line_number]
 
         if line_issue in (tor_config.ValidationError.DUPLICATE, tor_config.ValidationError.IS_DEFAULT):
-          line_comp["option"][1] = curses.A_BOLD | ui_tools.get_color("blue")
-          line_comp["argument"][1] = curses.A_BOLD | ui_tools.get_color("blue")
+          line_comp['option'][1] = (curses.A_BOLD, 'blue')
+          line_comp['argument'][1] = (curses.A_BOLD, 'blue')
         elif line_issue == tor_config.ValidationError.MISMATCH:
-          line_comp["argument"][1] = curses.A_BOLD | ui_tools.get_color("red")
-          line_comp["correction"][0] = " (%s)" % line_issue_msg
+          line_comp['argument'][1] = (curses.A_BOLD, 'red')
+          line_comp['correction'][0] = ' (%s)' % line_issue_msg
         else:
           # For some types of configs the correction field is simply used to
           # provide extra data (for instance, the type for tor state fields).
 
-          line_comp["correction"][0] = " (%s)" % line_issue_msg
-          line_comp["correction"][1] = curses.A_BOLD | ui_tools.get_color("magenta")
+          line_comp['correction'][0] = ' (%s)' % line_issue_msg
+          line_comp['correction'][1] = (curses.A_BOLD, 'magenta')
 
       # draws the line number
 
       if self.show_line_num and display_line < height and display_line >= 1:
         line_number_str = ("%%%ii" % (line_number_offset - 1)) % (line_number + 1)
-        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD | ui_tools.get_color("yellow"))
+        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD, 'yellow')
 
       # draws the rest of the components with line wrap
 
       cursor_location, line_offset = line_number_offset + scroll_offset, 0
       max_lines_per_entry = CONFIG["features.config.file.max_lines_per_entry"]
-      display_queue = [line_comp[entry] for entry in ("option", "argument", "correction", "comment")]
+      display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
 
       while display_queue:
         msg, format = display_queue.pop(0)
@@ -325,7 +325,7 @@ class TorrcPanel(panel.Panel):
         draw_line = display_line + line_offset
 
         if msg and draw_line < height and draw_line >= 1:
-          self.addstr(draw_line, cursor_location, msg, format)
+          self.addstr(draw_line, cursor_location, msg, *format)
 
         # If we're done, and have added content to this line, then start
         # further content on the next line.

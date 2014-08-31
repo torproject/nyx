@@ -967,7 +967,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     line_count = 1 - self.scroll
     seen_first_date_divider = False
-    divider_attr, duplicate_attr = curses.A_BOLD | ui_tools.get_color("yellow"), curses.A_BOLD | ui_tools.get_color("green")
+    divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
     is_dates_shown = self.regex_filter is None and CONFIG["features.log.showDateDividers"]
     event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
@@ -999,9 +999,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         if seen_first_date_divider:
           if line_count >= 1 and line_count < height and show_daybreaks:
-            self.addch(line_count, divider_indent, curses.ACS_LLCORNER, divider_attr)
-            self.hline(line_count, divider_indent + 1, width - divider_indent - 2, divider_attr)
-            self.addch(line_count, width - 1, curses.ACS_LRCORNER, divider_attr)
+            self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
+            self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
+            self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
 
           line_count += 1
 
@@ -1009,13 +1009,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         if line_count >= 1 and line_count < height and show_daybreaks:
           time_label = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
-          self.addch(line_count, divider_indent, curses.ACS_ULCORNER, divider_attr)
-          self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, divider_attr)
-          self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD | divider_attr)
+          self.addch(line_count, divider_indent, curses.ACS_ULCORNER, *divider_attr)
+          self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, *divider_attr)
+          self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD, *divider_attr)
 
           line_length = width - divider_indent - len(time_label) - 3
-          self.hline(line_count, divider_indent + len(time_label) + 2, line_length, divider_attr)
-          self.addch(line_count, divider_indent + len(time_label) + 2 + line_length, curses.ACS_URCORNER, divider_attr)
+          self.hline(line_count, divider_indent + len(time_label) + 2, line_length, *divider_attr)
+          self.addch(line_count, divider_indent + len(time_label) + 2 + line_length, curses.ACS_URCORNER, *divider_attr)
 
         seen_first_date_divider = True
         line_count += 1
@@ -1029,7 +1029,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         for i in range(len(msg_comp)):
           font = curses.A_BOLD if "ERR" in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-          display_queue.append((msg_comp[i].strip(), font | ui_tools.get_color(entry.color), i != len(msg_comp) - 1))
+          display_queue.append((msg_comp[i].strip(), (font, entry.color), i != len(msg_comp) - 1))
 
         if duplicate_count:
           plural_label = "s" if duplicate_count > 1 else ""
@@ -1060,10 +1060,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
           if draw_line < height and draw_line >= 1:
             if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
-              self.addch(draw_line, divider_indent, curses.ACS_VLINE, divider_attr)
-              self.addch(draw_line, width - 1, curses.ACS_VLINE, divider_attr)
+              self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
+              self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
 
-            self.addstr(draw_line, cursor_location, msg, format)
+            self.addstr(draw_line, cursor_location, msg, *format)
 
           cursor_location += len(msg)
 
@@ -1077,9 +1077,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
       if not deduplicated_log and seen_first_date_divider:
         if line_count < height and show_daybreaks:
-          self.addch(line_count, divider_indent, curses.ACS_LLCORNER, divider_attr)
-          self.hline(line_count, divider_indent + 1, width - divider_indent - 2, divider_attr)
-          self.addch(line_count, width - 1, curses.ACS_LRCORNER, divider_attr)
+          self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
+          self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
+          self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
 
         line_count += 1
 

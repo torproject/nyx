@@ -178,12 +178,12 @@ def _draw_submenu(cursor, level, top, left):
 
     for menu_item in submenu.get_children():
       if menu_item == selection:
-        draw_format = curses.A_BOLD | ui_tools.get_color("white")
+        draw_format = (curses.A_BOLD, 'white')
         selection_top = draw_top
       else:
-        draw_format = curses.A_NORMAL
+        draw_format = (curses.A_NORMAL,)
 
-      popup.addstr(draw_top, 0, label_format % menu_item.get_label(), draw_format)
+      popup.addstr(draw_top, 0, label_format % menu_item.get_label(), *draw_format)
       draw_top += 1
 
     popup.win.refresh()
