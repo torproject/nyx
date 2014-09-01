@@ -435,6 +435,7 @@ class Sampling(object):
   def __init__(self, last_sampling = None):
     controller = tor_controller()
 
+    fingerprint = controller.get_info('fingerprint', None)
     or_listeners = controller.get_listeners(Listener.OR, [])
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
 
@@ -447,7 +448,7 @@ class Sampling(object):
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
 
-    self.fingerprint = controller.get_info('fingerprint', 'Unknown')
+    self.fingerprint = fingerprint if fingerprint else 'Unknown'
     self.nickname = controller.get_conf('Nickname', '')
     self.or_address = or_listeners[0][0] if or_listeners else controller.get_info('address', 'Unknown')
     self.or_port = or_listeners[0][1] if or_listeners else ''
@@ -466,7 +467,7 @@ class Sampling(object):
 
     self.auth_color = 'red' if self.auth_type == 'open' else 'green'
     self.exit_policy = controller.get_exit_policy(None)
-    self.flags = self._get_flags(controller)
+    self.flags = getattr(controller.get_network_status(fingerprint, None), 'flags', [])
     self.version = str(controller.get_version('Unknown')).split()[0]
     self.version_status = controller.get_info('status/version/current', 'Unknown')
     self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
@@ -498,22 +499,6 @@ class Sampling(object):
       formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
     return formatted_msg
-
-  def _get_flags(self, controller):
-    """
-    Provides the flags held by our relay. This is an empty list if it can't be
-    determined, likely because we don't have our own router status entry yet.
-
-    :param stem.control.Controller controller: tor control connection
-
-    :returns: **list** with the relays held by our relay
-    """
-
-    try:
-      my_fingerprint = controller.get_info('fingerprint')
-      return controller.get_network_status(my_fingerprint).flags
-    except stem.ControllerError:
-      return []
 
   def _get_cpu_percentage(self, last_sampling):
     """
