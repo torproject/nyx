@@ -189,7 +189,7 @@ def _resources_via_proc(pid):
   :raises: **IOError** if unsuccessful
   """
 
-  utime, stime, start_time = proc.get_stats(
+  utime, stime, start_time = proc.stats(
     pid,
     proc.Stat.CPU_UTIME,
     proc.Stat.CPU_STIME,
@@ -197,8 +197,8 @@ def _resources_via_proc(pid):
   )
 
   total_cpu_time = float(utime) + float(stime)
-  memory_in_bytes = proc.get_memory_usage(pid)[0]
-  total_memory = proc.get_physical_memory()
+  memory_in_bytes = proc.memory_usage(pid)[0]
+  total_memory = proc.physical_memory()
 
   uptime = time.time() - float(start_time)
   memory_in_percent = float(memory_in_bytes) / total_memory

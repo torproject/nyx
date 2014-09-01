@@ -51,7 +51,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._is_fd_sixty_percent_warned = False
     self._is_fd_ninety_percent_warned = False
 
-    self.vals = Sampling()
+    self._vals = Sampling()
 
     # listens for tor reload (sighup) events
 
@@ -65,7 +65,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
 
-    if self.vals.is_relay:
+    if self._vals.is_relay:
       return 4 if is_wide else 6
     else:
       return 3 if is_wide else 4
@@ -90,7 +90,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
       self.send_newnym()
-    elif key in (ord('r'), ord('R')) and not self.vals.is_connected:
+    elif key in (ord('r'), ord('R')) and not self._vals.is_connected:
       # oldSocket = tor_tools.get_conn().get_controller().get_socket()
       #
       # controller = None
@@ -139,7 +139,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     return is_keystroke_consumed
 
   def draw(self, width, height):
-    vals = self.vals  # local reference to avoid concurrency concerns
+    vals = self._vals  # local reference to avoid concurrency concerns
     is_wide = width + 1 >= MIN_DUAL_COL_WIDTH
 
     # space available for content
@@ -304,7 +304,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     x = self.addstr(y, x, 'flags: ')
 
-    if len(vals.flags) > 0:
+    if vals.flags:
       for i, flag in enumerate(vals.flags):
         flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
         x = self.addstr(y, x, flag, curses.A_BOLD, flag_color)
@@ -344,13 +344,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
     available if in the process of building circuits.
     """
 
-    newnym_wait = tor_controller().get_newnym_wait()
-
-    if newnym_wait == 0:
+    if vals.newnym_wait == 0:
       self.addstr(y, x, "press 'n' for a new identity")
     else:
-      plural = 's' if newnym_wait > 1 else ''
-      self.addstr(y, x, 'building circuits, available again in %i second%s' % (newnym_wait, plural))
+      plural = 's' if vals.newnym_wait > 1 else ''
+      self.addstr(y, x, 'building circuits, available again in %i second%s' % (vals.newnym_wait, plural))
 
   def run(self):
     """
@@ -362,7 +360,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     while not self._halt:
       current_time = time.time()
 
-      if self.is_paused() or current_time - last_draw < 1 or not self.vals.is_connected:
+      if self.is_paused() or current_time - last_draw < 1 or not self._vals.is_connected:
         self._cond.acquire()
 
         if not self._halt:
@@ -379,16 +377,16 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
         is_changed = False
 
-        if self.vals.pid:
+        if self._vals.pid:
           # resource_tracker = arm.util.tracker.get_resource_tracker()
           # is_changed = self._last_resource_fetch != resource_tracker.run_counter()
           is_changed = True  # TODO: we should decide to redraw or not based on if the sampling values have changed
 
-        if is_changed or (self.vals and current_time - self.vals.retrieved >= 20):
-          self.vals = Sampling(self.vals)
+        if is_changed or (self._vals and current_time - self._vals.retrieved >= 20):
+          self._vals = Sampling(self._vals)
 
-          if self.vals.fd_used and self.vals.fd_limit:
-            fd_percent = 100 * self.vals.fd_used / self.vals.fd_limit
+          if self._vals.fd_used and self._vals.fd_limit:
+            fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
             msg = "Tor's file descriptor usage is at %i%%." % fd_percent
 
             if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
@@ -413,28 +411,20 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._cond.release()
 
   def reset_listener(self, controller, event_type, _):
-    """
-    Updates static parameters on tor reload (sighup) events.
-    """
+    self._update()
 
-    if event_type in (State.INIT, State.RESET):
-      initial_height = self.get_height()
+  def _update(self):
+    previous_height = self.get_height()
+    self._vals = Sampling(self._vals)
 
-      self.vals = Sampling(self.vals)
+    if previous_height != self.get_height():
+      # We're toggling between being a relay and client, causing the height
+      # of this panel to change. Redraw all content so we don't get
+      # overlapping content.
 
-      if self.get_height() != initial_height:
-        # We're toggling between being a relay and client, causing the height
-        # of this panel to change. Redraw all content so we don't get
-        # overlapping content.
-
-        arm.controller.get_controller().redraw()
-      else:
-        # just need to redraw ourselves
-        self.redraw(True)
-    elif event_type == State.CLOSED:
-      self.vals = Sampling(self.vals)
-
-      self.redraw(True)
+      arm.controller.get_controller().redraw()
+    else:
+      self.redraw(True)  # just need to redraw ourselves
 
 
 class Sampling(object):
@@ -465,6 +455,7 @@ class Sampling(object):
     self.control_port = controller.get_conf('ControlPort', '0')
     self.socket_path = controller.get_conf('ControlSocket', '')
     self.is_relay = bool(self.or_port)
+    self.newnym_wait = controller.get_newnym_wait()
 
     if controller.get_conf('HashedControlPassword', None):
       self.auth_type = 'password'
@@ -483,7 +474,11 @@ class Sampling(object):
     self.pid = controller.get_pid('')
     self.start_time = stem.util.system.get_start_time(controller.get_pid(None))
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
-    self.fd_used = self._get_fd_used(controller.get_pid(None)) if self.fd_limit else 0
+
+    try:
+      self.fd_used = stem.util.proc.file_descriptors_used(controller.get_pid(None))
+    except IOError:
+      self.fd_used = None
 
     self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
     self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
@@ -503,31 +498,6 @@ class Sampling(object):
       formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
     return formatted_msg
-
-  def _get_fd_used(self, pid):
-    """
-    Provides the number of file descriptors currently being used by this
-    process.
-
-    :param int pid: process id to look up
-
-    :returns: **int** of the number of file descriptors used, **None** if this
-      can't be determined
-    """
-
-    # The file descriptor usage is the size of the '/proc/<pid>/fd' contents...
-    #
-    #   http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
-    #
-    # I'm not sure about other platforms (like BSD) so erroring out there.
-
-    if pid and stem.util.proc.is_available():
-      try:
-        return len(os.listdir('/proc/%s/fd' % pid))
-      except:
-        pass
-
-    return None
 
   def _get_flags(self, controller):
     """
