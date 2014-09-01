@@ -9,7 +9,7 @@ import curses
 import arm.controller
 
 from arm.graphing import graph_panel
-from arm.util import tor_controller, ui_tools
+from arm.util import tor_controller
 
 from stem.control import State
 from stem.util import conf, log, str_tools, system

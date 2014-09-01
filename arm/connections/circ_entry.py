@@ -11,7 +11,9 @@ followed by an entry for each hop in the circuit. For instance:
 import curses
 
 from arm.connections import entries, conn_entry
-from arm.util import tor_controller, ui_tools
+from arm.util import tor_controller
+
+from stem.util import str_tools
 
 ADDRESS_LOOKUP_CACHE = {}
 
@@ -191,7 +193,7 @@ class CircLine(conn_entry.ConnectionLine):
 
       # fills the nickname into the empty space here
 
-      dst = "%s%-25s   " % (dst[:25], ui_tools.crop_str(self.foreign.get_nickname(), 25, 0))
+      dst = "%s%-25s   " % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.HOSTNAME:

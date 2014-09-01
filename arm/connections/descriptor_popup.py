@@ -10,6 +10,8 @@ import arm.connections.conn_entry
 
 from arm.util import panel, tor_controller, ui_tools
 
+from stem.util import str_tools
+
 # field keywords used to identify areas for coloring
 
 LINE_NUM_COLOR = "yellow"
@@ -238,12 +240,12 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
       if len(msg) >= max_msg_size:
         # needs to split up the line
 
-        msg, remainder = ui_tools.crop_str(msg, max_msg_size, None, end_type = None, get_remainder = True)
+        msg, remainder = str_tools.crop(msg, max_msg_size, None, ending = None, get_remainder = True)
 
         if x_offset == cursor_location and msg == "":
           # first word is longer than the line
 
-          msg = ui_tools.crop_str(remainder, max_msg_size)
+          msg = str_tools.crop(remainder, max_msg_size)
 
           if " " in remainder:
             remainder = remainder.split(" ", 1)[1]

@@ -6,7 +6,7 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from arm.util import tor_controller, ui_tools
+from arm.util import tor_controller
 from arm.connections import entries
 
 import stem.control
@@ -561,7 +561,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
-        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += nickname_space + 2
     elif listing_type == entries.ListingType.HOSTNAME:
@@ -578,7 +578,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if width > used_space + 17 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: min 17 characters, uses half of the remainder)
         nickname_space = 15 + (width - (used_space + 17)) / 2
-        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += (nickname_space + 2)
     elif listing_type == entries.ListingType.FINGERPRINT:
@@ -597,7 +597,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           nickname_space -= 28
 
         if CONFIG["features.connection.showColumn.nickname"]:
-          nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+          nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
           etc += ("%%-%is  " % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
@@ -723,7 +723,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
         # truncates long hostnames and sets dst to <hostname>:<port>
 
-        hostname = ui_tools.crop_str(hostname, hostname_space, 0)
+        hostname = str_tools.crop(hostname, hostname_space, 0)
         dst = ("%%-%is" % hostname_space) % (hostname + port_label)
     elif listing_type == entries.ListingType.FINGERPRINT:
       src = "localhost"
@@ -757,8 +757,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       used_space = width  # prevents padding at the end
 
       if len(src) + len(dst) > base_space:
-        src = ui_tools.crop_str(src, base_space / 3)
-        dst = ui_tools.crop_str(dst, base_space - len(src))
+        src = str_tools.crop(src, base_space / 3)
+        dst = str_tools.crop(dst, base_space - len(src))
 
       # pads dst entry to its max space
 
@@ -901,7 +901,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # crops any lines that are too long
 
     for i in range(len(lines)):
-      lines[i] = ui_tools.crop_str(lines[i], width - 2)
+      lines[i] = str_tools.crop(lines[i], width - 2)
 
     return lines
 
@@ -951,7 +951,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
           # crops with a hyphen if too long
 
-          purpose = ui_tools.crop_str(purpose, space_available, end_type = ui_tools.Ending.HYPHEN)
+          purpose = str_tools.crop(purpose, space_available, ending = str_tools.Ending.HYPHEN)
 
           destination_address += " (%s)" % purpose
       elif not connection.is_private_address(self.foreign.get_address()):
@@ -971,7 +971,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # dividers if there's multiple pieces of extra data
 
             max_hostname_space = space_available - 2 * len(extra_info)
-            destination_hostname = ui_tools.crop_str(destination_hostname, max_hostname_space)
+            destination_hostname = str_tools.crop(destination_hostname, max_hostname_space)
             extra_info.append(destination_hostname)
             space_available -= len(destination_hostname)
 

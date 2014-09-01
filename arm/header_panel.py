@@ -18,10 +18,9 @@ import arm.controller
 import arm.popups
 import arm.starter
 import arm.util.tracker
-import arm.util.ui_tools
 
 from stem.control import Listener, State
-from stem.util import conf, log
+from stem.util import conf, log, str_tools
 
 from util import panel, tor_controller
 
@@ -510,7 +509,7 @@ class Sampling(object):
     formatted_msg = msg.format(**self.__dict__)
 
     if crop_width:
-      formatted_msg = arm.util.ui_tools.crop_str(formatted_msg, crop_width)
+      formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
     return formatted_msg
 

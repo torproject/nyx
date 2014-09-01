@@ -11,7 +11,7 @@ import arm.popups
 from arm.util import panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
-from stem.util import conf, enum
+from stem.util import conf, enum, str_tools
 
 
 def conf_handler(key, value):
@@ -316,10 +316,10 @@ class TorrcPanel(panel.Panel):
           # message is too long - break it up
 
           if line_offset == max_lines_per_entry - 1:
-            msg = ui_tools.crop_str(msg, max_msg_size)
+            msg = str_tools.crop(msg, max_msg_size)
           else:
             include_break = True
-            msg, remainder = ui_tools.crop_str(msg, max_msg_size, 4, 4, ui_tools.Ending.HYPHEN, True)
+            msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
             display_queue.insert(0, (remainder.strip(), format))
 
         draw_line = display_line + line_offset

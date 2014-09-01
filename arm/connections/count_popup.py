@@ -8,8 +8,6 @@ import operator
 import arm.controller
 import arm.popups
 
-from arm.util import ui_tools
-
 from stem.util import connection, enum, log
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")

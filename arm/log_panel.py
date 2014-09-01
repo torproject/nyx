@@ -14,7 +14,7 @@ import threading
 import stem
 from stem.control import State
 from stem.response import events
-from stem.util import conf, log, system
+from stem.util import conf, log, str_tools, system
 
 import arm.arguments
 import arm.popups
@@ -1051,9 +1051,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
           if len(msg) > max_msg_size:
             # message is too long - break it up
             if line_offset == max_entries_per_line - 1:
-              msg = ui_tools.crop_str(msg, max_msg_size)
+              msg = str_tools.crop(msg, max_msg_size)
             else:
-              msg, remainder = ui_tools.crop_str(msg, max_msg_size, 4, 4, ui_tools.Ending.HYPHEN, True)
+              msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
               display_queue.insert(0, (remainder.strip(), format, include_break))
 
             include_break = True
@@ -1246,7 +1246,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       if not current_pattern:
         panel_label = "Events:"
       else:
-        label_pattern = ui_tools.crop_str(current_pattern, width - 18)
+        label_pattern = str_tools.crop(current_pattern, width - 18)
         panel_label = "Events (filter: %s):" % label_pattern
     else:
       # does the following with all runlevel types (tor, arm, and stem):
@@ -1320,7 +1320,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       if current_pattern:
         attr_label += " - filter: %s" % current_pattern
 
-      attr_label = ui_tools.crop_str(attr_label, width - 10, 1)
+      attr_label = str_tools.crop(attr_label, width - 10, 1)
 
       if attr_label:
         attr_label = " (%s)" % attr_label

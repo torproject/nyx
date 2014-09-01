@@ -171,9 +171,9 @@ class ConfigEntry():
     arg_set = (option_width, value_width, summary_width)
 
     if not self.label_cache or self.label_cache_args != arg_set:
-      option_label = ui_tools.crop_str(self.get(Field.OPTION), option_width)
-      value_label = ui_tools.crop_str(self.get(Field.VALUE), value_width)
-      summary_label = ui_tools.crop_str(self.get(Field.SUMMARY), summary_width, None)
+      option_label = str_tools.crop(self.get(Field.OPTION), option_width)
+      value_label = str_tools.crop(self.get(Field.VALUE), value_width)
+      summary_label = str_tools.crop(self.get(Field.SUMMARY), summary_width, None)
       line_text_layout = "%%-%is %%-%is %%-%is" % (option_width, value_width, summary_width)
       self.label_cache = line_text_layout % (option_label, value_label, summary_label)
       self.label_cache_args = arg_set
@@ -500,7 +500,7 @@ class ConfigPanel(panel.Panel):
         visible_config_lines = height - 3 if is_option_line_separate else height - 2
 
         for i in range(visible_config_lines):
-          line = ui_tools.crop_str(config_lines[i], width - 2)
+          line = str_tools.crop(config_lines[i], width - 2)
 
           if " " in line:
             option, arg = line.split(" ", 1)
@@ -686,7 +686,7 @@ class ConfigPanel(panel.Panel):
       value_attr_label = ", ".join(value_attr)
 
       value_label_width = width - 12 - len(value_attr_label)
-      value_label = ui_tools.crop_str(selection.get(Field.VALUE), value_label_width)
+      value_label = str_tools.crop(selection.get(Field.VALUE), value_label_width)
 
       self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), *selection_format)
 
@@ -716,11 +716,11 @@ class ConfigPanel(panel.Panel):
       if i != description_height - 1:
         # there's more lines to display
 
-        msg, remainder = ui_tools.crop_str(line_content, width - 3, 4, 4, ui_tools.Ending.HYPHEN, True)
+        msg, remainder = str_tools.crop(line_content, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
         description_content = remainder.strip() + description_content
       else:
         # this is the last line, end it with an ellipse
 
-        msg = ui_tools.crop_str(line_content, width - 3, 4, 4)
+        msg = str_tools.crop(line_content, width - 3, 4, 4)
 
       self.addstr(3 + i, 2, msg, *selection_format)
