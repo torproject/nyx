@@ -46,11 +46,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     self._halt = False           # terminates thread if true
     self._cond = threading.Condition()  # used for pausing the thread
 
-    # Time when the panel was paused or tor was stopped. This is used to
-    # freeze the uptime statistic (uptime increments normally when None).
-
-    self._halt_time = None
-
     # flag to indicate if we've already given file descriptor warnings
 
     self._is_fd_sixty_percent_warned = False
@@ -198,10 +193,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
       space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
-        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
-
         x = self.addstr(y, x, ' (')
-        x = self.addstr(y, x, vals.version_status, version_color)
+        x = self.addstr(y, x, vals.version_status, vals.version_color)
         self.addstr(y, x, ')')
 
   def _draw_ports_section(self, x, y, width, vals):
@@ -223,13 +216,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
     else:
       if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
-        auth_color = 'red' if vals.auth_type == 'open' else 'green'
-
         x = self.addstr(y, x, ', Control Port (')
-        x = self.addstr(y, x, vals.auth_type, auth_color)
+        x = self.addstr(y, x, vals.auth_type, vals.auth_color)
         self.addstr(y, x, vals.format('): {control_port}'))
       else:
-        self.addstr(y, x, ', Control Port: %s' % vals.control_port)
+        self.addstr(y, x, vals.format(', Control Port: {control_port}'))
 
   def _draw_disconnected(self, x, y, width, vals):
     """
@@ -239,7 +230,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD, 'red')
-    self.addstr(y, x, ' (%s, press r to reconnect)' % vals.last_heartbeat)
+    self.addstr(y, x, vals.format(' ({last_heartbeat}, press r to reconnect)'))
 
   def _draw_resource_usage(self, x, y, width, vals):
     """
@@ -249,8 +240,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     if vals.start_time:
-      if not self.vals.is_connected:
-        now = self._halt_time
+      if not vals.is_connected:
+        now = vals.connection_time
       elif self.is_paused():
         now = self.get_pause_time()
       else:
@@ -428,7 +419,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if event_type in (State.INIT, State.RESET):
       initial_height = self.get_height()
-      self._halt_time = None
 
       self.vals = Sampling(self.vals)
 
@@ -442,8 +432,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
         # just need to redraw ourselves
         self.redraw(True)
     elif event_type == State.CLOSED:
-      self._halt_time = time.time()
-
       self.vals = Sampling(self.vals)
 
       self.redraw(True)
@@ -464,6 +452,7 @@ class Sampling(object):
     tor_resources = arm.util.tracker.get_resource_tracker().get_value()
 
     self.is_connected = controller.is_alive()
+    self.connection_time = controller.connection_time()
     self.last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat()))
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
@@ -484,10 +473,12 @@ class Sampling(object):
     else:
       self.auth_type = 'open'
 
+    self.auth_color = 'red' if self.auth_type == 'open' else 'green'
     self.exit_policy = controller.get_exit_policy(None)
     self.flags = self._get_flags(controller)
     self.version = str(controller.get_version('Unknown')).split()[0]
     self.version_status = controller.get_info('status/version/current', 'Unknown')
+    self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
 
     self.pid = controller.get_pid('')
     self.start_time = stem.util.system.get_start_time(controller.get_pid(None))
