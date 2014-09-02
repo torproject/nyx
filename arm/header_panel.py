@@ -51,18 +51,26 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     tor_controller().add_status_listener(self.reset_listener)
 
+  def is_wide(self, width = None):
+    """
+    True if we should show two columns of information, False otherwise.
+    """
+
+    if width is None:
+      width = self.get_parent().getmaxyx()[1]
+
+    return width >= MIN_DUAL_COL_WIDTH
+
   def get_height(self):
     """
     Provides the height of the content, which is dynamically determined by the
     panel's maximum width.
     """
 
-    is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-
     if self._vals.is_relay:
-      return 4 if is_wide else 6
+      return 4 if self.is_wide() else 6
     else:
-      return 3 if is_wide else 4
+      return 3 if self.is_wide() else 4
 
   def send_newnym(self):
     """
@@ -74,9 +82,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
 
-    is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-
-    if not is_wide:
+    if not self.is_wide():
       arm.popups.show_msg('Requesting a new identity', 1)
 
   def handle_key(self, key):
@@ -134,7 +140,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
   def draw(self, width, height):
     vals = self._vals  # local reference to avoid concurrency concerns
-    is_wide = width + 1 >= MIN_DUAL_COL_WIDTH
+    is_wide = self.is_wide(width)
 
     # space available for content
 
