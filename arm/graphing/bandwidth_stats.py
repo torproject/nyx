@@ -276,7 +276,7 @@ class BandwidthStats(graph_panel.GraphStats):
     missing_sec = time.time() - min(last_read_time, last_write_time)
 
     if missing_sec:
-      msg += " (%s is missing)" % str_tools.get_time_label(missing_sec, 0, True)
+      msg += " (%s is missing)" % str_tools.time_label(missing_sec, 0, True)
 
     log.notice(msg)
 
@@ -376,7 +376,7 @@ class BandwidthStats(graph_panel.GraphStats):
       stats[1] = "- %s" % self._get_avg_label(is_primary)
       stats[2] = ", %s" % self._get_total_label(is_primary)
 
-    stats[0] = "%-14s" % ("%s/sec" % str_tools.get_size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
+    stats[0] = "%-14s" % ("%s/sec" % str_tools.size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
 
     # drops label's components if there's not enough space
 
@@ -418,8 +418,8 @@ class BandwidthStats(graph_panel.GraphStats):
       label_in_bytes = CONFIG["features.graph.bw.transferInBytes"]
 
       if bw_rate and bw_burst:
-        bw_rate_label = str_tools.get_size_label(bw_rate, 1, False, label_in_bytes)
-        bw_burst_label = str_tools.get_size_label(bw_burst, 1, False, label_in_bytes)
+        bw_rate_label = str_tools.size_label(bw_rate, 1, False, label_in_bytes)
+        bw_burst_label = str_tools.size_label(bw_burst, 1, False, label_in_bytes)
 
         # if both are using rounded values then strip off the ".0" decimal
 
@@ -435,9 +435,9 @@ class BandwidthStats(graph_panel.GraphStats):
       # if there isn't yet enough bandwidth measurements).
 
       if bw_observed and (not bw_measured or bw_measured == bw_observed):
-        stats.append("observed: %s/s" % str_tools.get_size_label(bw_observed, 1, False, label_in_bytes))
+        stats.append("observed: %s/s" % str_tools.size_label(bw_observed, 1, False, label_in_bytes))
       elif bw_measured:
-        stats.append("measured: %s/s" % str_tools.get_size_label(bw_measured, 1, False, label_in_bytes))
+        stats.append("measured: %s/s" % str_tools.size_label(bw_measured, 1, False, label_in_bytes))
 
       self._title_stats = stats
 
@@ -445,12 +445,12 @@ class BandwidthStats(graph_panel.GraphStats):
     total = self.primary_total if is_primary else self.secondary_total
     total += self.prepopulate_primary_total if is_primary else self.prepopulate_secondary_total
 
-    return "avg: %s/sec" % str_tools.get_size_label((total / max(1, self.tick + self.prepopulate_ticks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
+    return "avg: %s/sec" % str_tools.size_label((total / max(1, self.tick + self.prepopulate_ticks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
 
   def _get_total_label(self, is_primary):
     total = self.primary_total if is_primary else self.secondary_total
     total += self.initial_primary_total if is_primary else self.initial_secondary_total
-    return "total: %s" % str_tools.get_size_label(total * 1024, 1)
+    return "total: %s" % str_tools.size_label(total * 1024, 1)
 
   def _update_accounting_info(self):
     """
@@ -479,7 +479,7 @@ class BandwidthStats(graph_panel.GraphStats):
       sec = time.mktime(time.strptime(end_interval, "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
 
       if CONFIG["features.graph.bw.accounting.isTimeLong"]:
-        queried["reset_time"] = ", ".join(str_tools.get_time_labels(sec, True))
+        queried["reset_time"] = ", ".join(str_tools.time_labels(sec, True))
       else:
         days = sec / 86400
         sec %= 86400
@@ -499,10 +499,10 @@ class BandwidthStats(graph_panel.GraphStats):
       read, written = int(used_comp[0]), int(used_comp[1])
       read_left, written_left = int(left_comp[0]), int(left_comp[1])
 
-      queried["read"] = str_tools.get_size_label(read)
-      queried["written"] = str_tools.get_size_label(written)
-      queried["read_limit"] = str_tools.get_size_label(read + read_left)
-      queried["writtenLimit"] = str_tools.get_size_label(written + written_left)
+      queried["read"] = str_tools.size_label(read)
+      queried["written"] = str_tools.size_label(written)
+      queried["read_limit"] = str_tools.size_label(read + read_left)
+      queried["writtenLimit"] = str_tools.size_label(written + written_left)
 
     self.accounting_info = queried
     self.accounting_last_updated = time.time()

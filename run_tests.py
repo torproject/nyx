@@ -44,14 +44,14 @@ def main():
   static_check_issues = {}
 
   if stem.util.test_tools.is_pyflakes_available():
-    pyflakes_issues = stem.util.test_tools.get_pyflakes_issues(SRC_PATHS)
+    pyflakes_issues = stem.util.test_tools.pyflakes_issues(SRC_PATHS)
 
     for path, issues in pyflakes_issues.items():
       for issue in issues:
         static_check_issues.setdefault(path, []).append(issue)
 
   if stem.util.test_tools.is_pep8_available():
-    pep8_issues = stem.util.test_tools.get_stylistic_issues(
+    pep8_issues = stem.util.test_tools.stylistic_issues(
       SRC_PATHS,
       check_two_space_indents = True,
       check_newlines = True,

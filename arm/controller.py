@@ -145,7 +145,7 @@ def init_controller(stdscr, start_time):
 
       if tor_pid:
         # use the tor pid to help narrow connection results
-        tor_cmd = system.get_name_by_pid(tor_pid)
+        tor_cmd = system.name_by_pid(tor_pid)
 
         if tor_cmd is None:
           tor_cmd = "tor"

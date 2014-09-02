@@ -247,7 +247,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         now = time.time()
 
-      uptime = stem.util.str_tools.get_short_time_label(now - vals.start_time)
+      uptime = stem.util.str_tools.short_time_label(now - vals.start_time)
     else:
       uptime = ''
 
@@ -443,7 +443,7 @@ class Sampling(object):
     self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
 
     self.pid = pid if pid else ''
-    self.start_time = stem.util.system.get_start_time(pid)
+    self.start_time = stem.util.system.start_time(pid)
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
 
     try:
@@ -453,7 +453,7 @@ class Sampling(object):
 
     self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
     self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
-    self.memory = stem.util.str_tools.get_size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
+    self.memory = stem.util.str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
     self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]

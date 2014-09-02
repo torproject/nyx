@@ -38,8 +38,8 @@ class ResourceStats(graph_panel.GraphStats):
     else:
       # memory sizes are converted from MB to B before generating labels
 
-      usage_label = str_tools.get_size_label(last_amount * 1048576, 1)
-      avg_label = str_tools.get_size_label(avg * 1048576, 1)
+      usage_label = str_tools.size_label(last_amount * 1048576, 1)
+      avg_label = str_tools.size_label(avg * 1048576, 1)
 
       return "Memory (%s, avg: %s):" % (usage_label, avg_label)
 

@@ -203,7 +203,7 @@ def _setup_freebsd_chroot(controller, config):
   """
 
   if not config.get('tor.chroot', None) and platform.system() == 'FreeBSD':
-    jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
+    jail_chroot = stem.util.system.bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
       log.info('setup.set_freebsd_chroot', path = jail_chroot)

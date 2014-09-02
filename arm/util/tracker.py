@@ -395,7 +395,7 @@ class Daemon(threading.Thread):
     with self._process_lock:
       if not self._halt and event_type in (State.INIT, State.RESET):
         tor_pid = controller.get_pid(None)
-        tor_cmd = system.get_name_by_pid(tor_pid) if tor_pid else None
+        tor_cmd = system.name_by_pid(tor_pid) if tor_pid else None
 
         self._process_pid = tor_pid
         self._process_name = tor_cmd if tor_cmd else 'tor'
@@ -418,7 +418,7 @@ class ConnectionTracker(Daemon):
     super(ConnectionTracker, self).__init__(rate)
 
     self._connections = []
-    self._resolvers = connection.get_system_resolvers()
+    self._resolvers = connection.system_resolvers()
     self._custom_resolver = None
 
     # Number of times in a row we've either failed with our current resolver or

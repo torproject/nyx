@@ -351,7 +351,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     else:
       time_prefix = ""
 
-    time_label = time_prefix + "%5s" % str_tools.get_time_label(current_time - self.start_time, 1)
+    time_label = time_prefix + "%5s" % str_tools.time_label(current_time - self.start_time, 1)
     my_listing[2] = (time_label, my_listing[2][1])
 
     return my_listing

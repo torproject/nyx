@@ -428,7 +428,7 @@ def get_config_location():
     raise IOError("unable to query the torrc location")
 
   try:
-    tor_cwd = system.get_cwd(tor_pid)
+    tor_cwd = system.cwd(tor_pid)
     return tor_prefix + system.expand_path(config_location, tor_cwd)
   except IOError as exc:
     raise IOError("querying tor's pwd failed because %s" % exc)
@@ -736,9 +736,9 @@ def validate(contents = None):
         display_values = tor_values
 
         if value_type == ValueType.SIZE:
-          display_values = [str_tools.get_size_label(int(val)) for val in tor_values]
+          display_values = [str_tools.size_label(int(val)) for val in tor_values]
         elif value_type == ValueType.TIME:
-          display_values = [str_tools.get_time_label(int(val)) for val in tor_values]
+          display_values = [str_tools.time_label(int(val)) for val in tor_values]
 
         issues_found.append((line_number, ValidationError.MISMATCH, ", ".join(display_values)))
 

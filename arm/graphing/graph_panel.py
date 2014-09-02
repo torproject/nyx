@@ -539,7 +539,7 @@ class GraphPanel(panel.Panel):
 
       for i in range((graph_column - 4) / interval_spacing):
         loc = (i + 1) * interval_spacing
-        time_label = str_tools.get_time_label(loc * interval_sec, decimal_precision)
+        time_label = str_tools.time_label(loc * interval_sec, decimal_precision)
 
         if not units_label:
           units_label = time_label[-1]

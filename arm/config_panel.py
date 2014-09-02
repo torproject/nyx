@@ -205,9 +205,9 @@ class ConfigEntry():
     elif self.get(Field.TYPE) == "Boolean" and conf_value in ("0", "1"):
       conf_value = "False" if conf_value == "0" else "True"
     elif self.get(Field.TYPE) == "DataSize" and conf_value.isdigit():
-      conf_value = str_tools.get_size_label(int(conf_value))
+      conf_value = str_tools.size_label(int(conf_value))
     elif self.get(Field.TYPE) == "TimeInterval" and conf_value.isdigit():
-      conf_value = str_tools.get_time_label(int(conf_value), is_long = True)
+      conf_value = str_tools.time_label(int(conf_value), is_long = True)
 
     return conf_value
 
