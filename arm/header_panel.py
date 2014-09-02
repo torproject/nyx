@@ -26,6 +26,7 @@ from util import panel, tor_controller
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
+UPDATE_RATE = 5  # rate in seconds at which we refresh
 
 CONFIG = conf.config_dict('arm', {
   'attr.flag_colors': {},
@@ -43,17 +44,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._pause_condition = threading.Condition()
-    self._halt = False  # terminates thread if true
-
-    # flag to indicate if we've already given file descriptor warnings
-
-    self._is_fd_sixty_percent_warned = False
-    self._is_fd_ninety_percent_warned = False
-
     self._vals = Sampling()
 
-    # listens for tor reload (sighup) events
+    self._pause_condition = threading.Condition()
+    self._halt = False  # terminates thread if true
 
     tor_controller().add_status_listener(self.reset_listener)
 
@@ -360,28 +354,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
     while not self._halt:
       current_time = time.time()
 
-      if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < 1:
+      if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < UPDATE_RATE:
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(0.2)
 
         continue  # done waiting, try again
 
-      self._vals = Sampling(self._vals)
-
-      if self._vals.fd_used and self._vals.fd_limit:
-        fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
-        msg = "Tor's file descriptor usage is at %i%%." % fd_percent
-
-        if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
-          self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
-          msg += ' If you run out Tor will be unable to continue functioning.'
-          log.warn(msg)
-        elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
-          self._is_fd_sixty_percent_warned = True
-          log.notice(msg)
-
-      self.redraw(True)
+      self._update()
       last_ran = time.time()
 
   def stop(self):
@@ -471,6 +451,16 @@ class Sampling(object):
     self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
+
+    if self.fd_used and self.fd_limit:
+      fd_percent = 100 * self.fd_used / self.fd_limit
+      msg = "Tor's file descriptor usage is at %i%%." % fd_percent
+
+      if fd_percent >= 90:
+        msg += ' If you run out Tor will be unable to continue functioning.'
+        log.log_once('fd_used_at_ninety_percent', log.WARN, msg)
+      elif fd_percent >= 60:
+        log.log_once('fd_used_at_sixty_percent', log.NOTICE, msg)
 
   def format(self, msg, crop_width = None):
     """
