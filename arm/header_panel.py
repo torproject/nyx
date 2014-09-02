@@ -43,8 +43,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._halt = False           # terminates thread if true
-    self._cond = threading.Condition()  # used for pausing the thread
+    self._pause_condition = threading.Condition()
+    self._halt = False  # terminates thread if true
 
     # flag to indicate if we've already given file descriptor warnings
 
@@ -355,60 +355,43 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Keeps stats updated, checking for new information at a set rate.
     """
 
-    last_draw = time.time() - 1
+    last_ran = -1
 
     while not self._halt:
       current_time = time.time()
 
-      if self.is_paused() or current_time - last_draw < 1 or not self._vals.is_connected:
-        self._cond.acquire()
+      if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < 1:
+        with self._pause_condition:
+          if not self._halt:
+            self._pause_condition.wait(0.2)
 
-        if not self._halt:
-          self._cond.wait(0.2)
+        continue  # done waiting, try again
 
-        self._cond.release()
-      else:
-        # Update the volatile attributes (cpu, memory, flags, etc) if we have
-        # a new resource usage sampling (the most dynamic stat) or its been
-        # twenty seconds since last fetched (so we still refresh occasionally
-        # when resource fetches fail).
-        #
-        # Otherwise, just redraw the panel to change the uptime field.
+      self._vals = Sampling(self._vals)
 
-        is_changed = False
+      if self._vals.fd_used and self._vals.fd_limit:
+        fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
+        msg = "Tor's file descriptor usage is at %i%%." % fd_percent
 
-        if self._vals.pid:
-          # resource_tracker = arm.util.tracker.get_resource_tracker()
-          # is_changed = self._last_resource_fetch != resource_tracker.run_counter()
-          is_changed = True  # TODO: we should decide to redraw or not based on if the sampling values have changed
+        if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
+          self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
+          msg += ' If you run out Tor will be unable to continue functioning.'
+          log.warn(msg)
+        elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
+          self._is_fd_sixty_percent_warned = True
+          log.notice(msg)
 
-        if is_changed or (self._vals and current_time - self._vals.retrieved >= 20):
-          self._vals = Sampling(self._vals)
-
-          if self._vals.fd_used and self._vals.fd_limit:
-            fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
-            msg = "Tor's file descriptor usage is at %i%%." % fd_percent
-
-            if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
-              self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
-              msg += ' If you run out Tor will be unable to continue functioning.'
-              log.warn(msg)
-            elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
-              self._is_fd_sixty_percent_warned = True
-              log.notice(msg)
-
-        self.redraw(True)
-        last_draw += 1
+      self.redraw(True)
+      last_ran = time.time()
 
   def stop(self):
     """
     Halts further resolutions and terminates the thread.
     """
 
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
+    with self._pause_condition:
+      self._halt = True
+      self._pause_condition.notifyAll()
 
   def reset_listener(self, controller, event_type, _):
     self._update()
@@ -435,6 +418,7 @@ class Sampling(object):
   def __init__(self, last_sampling = None):
     controller = tor_controller()
 
+    pid = controller.get_pid(None)
     fingerprint = controller.get_info('fingerprint', None)
     or_listeners = controller.get_listeners(Listener.OR, [])
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
@@ -472,12 +456,12 @@ class Sampling(object):
     self.version_status = controller.get_info('status/version/current', 'Unknown')
     self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
 
-    self.pid = controller.get_pid('')
-    self.start_time = stem.util.system.get_start_time(controller.get_pid(None))
+    self.pid = pid if pid else ''
+    self.start_time = stem.util.system.get_start_time(pid)
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
 
     try:
-      self.fd_used = stem.util.proc.file_descriptors_used(controller.get_pid(None))
+      self.fd_used = stem.util.proc.file_descriptors_used(pid)
     except IOError:
       self.fd_used = None
 
