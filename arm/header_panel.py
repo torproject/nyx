@@ -19,7 +19,7 @@ import arm.popups
 import arm.starter
 import arm.util.tracker
 
-from stem.control import Listener, State
+from stem.control import Listener
 from stem.util import conf, log, str_tools
 
 from util import panel, tor_controller
@@ -358,8 +358,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
     last_ran = -1
 
     while not self._halt:
-      current_time = time.time()
-
       if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < UPDATE_RATE:
         with self._pause_condition:
           if not self._halt:

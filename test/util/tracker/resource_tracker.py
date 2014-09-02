@@ -131,9 +131,9 @@ class TestResourceTracker(unittest.TestCase):
     self.assertEqual(0.004, memory_in_percent)
 
   @patch('time.time', Mock(return_value = 1388967218.973117))
-  @patch('arm.util.tracker.proc.get_stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
-  @patch('arm.util.tracker.proc.get_memory_usage', Mock(return_value = (19300352, 6432)))
-  @patch('arm.util.tracker.proc.get_physical_memory', Mock(return_value = 4825088000))
+  @patch('arm.util.tracker.proc.stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
+  @patch('arm.util.tracker.proc.memory_usage', Mock(return_value = (19300352, 6432)))
+  @patch('arm.util.tracker.proc.physical_memory', Mock(return_value = 4825088000))
   def test_resources_via_proc(self):
     total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _resources_via_proc(12345)
 

@@ -16,7 +16,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('arm.util.tracker.tor_controller')
   @patch('arm.util.tracker.connection.get_connections')
   @patch('arm.util.tracker.system', Mock(return_value = Mock()))
-  @patch('arm.util.tracker.connection.get_system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
+  @patch('arm.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_fetching_connections(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     get_value_mock.return_value = [CONNECTION_1, CONNECTION_2, CONNECTION_3]
@@ -39,7 +39,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('arm.util.tracker.tor_controller')
   @patch('arm.util.tracker.connection.get_connections')
   @patch('arm.util.tracker.system', Mock(return_value = Mock()))
-  @patch('arm.util.tracker.connection.get_system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
+  @patch('arm.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
   def test_resolver_failover(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     get_value_mock.side_effect = IOError()
