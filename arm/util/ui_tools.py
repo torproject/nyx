@@ -181,22 +181,6 @@ def get_printable(line, keep_newlines = True):
   return line
 
 
-def pad_str(msg, size, crop_extra = False):
-  """
-  Provides the string padded with whitespace to the given length.
-
-  Arguments:
-    msg       - string to be padded
-    size      - length to be padded to
-    crop_extra - crops string if it's longer than the size if true
-  """
-
-  if crop_extra:
-    msg = msg[:size]
-
-  return ("%%-%is" % size) % msg
-
-
 def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):
   """
   Draws a box in the panel with the given bounds.
