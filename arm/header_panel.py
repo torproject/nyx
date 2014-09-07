@@ -9,20 +9,13 @@ import time
 import curses
 import threading
 
-import stem
-import stem.util.proc
-import stem.util.str_tools
-import stem.util.system
-
 import arm.controller
 import arm.popups
-import arm.starter
-import arm.util.tracker
 
-from stem.control import Listener
-from stem.util import conf, log, str_tools
+from stem.control import Listener, Signal
+from stem.util import conf, log, proc, str_tools, system
 
-from util import panel, tor_controller
+from util import msg, tor_controller, panel, tracker
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
@@ -77,7 +70,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Requests a new identity and provides a visual queue.
     """
 
-    tor_controller().signal(stem.Signal.NEWNYM)
+    tor_controller().signal(Signal.NEWNYM)
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
@@ -156,19 +149,19 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if is_wide:
       self._draw_resource_usage(left_width, 0, right_width, vals)
-    else:
-      self._draw_resource_usage(0, 2, left_width, vals)
 
-    if vals.is_relay:
-      if is_wide:
+      if vals.is_relay:
         self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
         self._draw_flags(0, 2, left_width, vals)
         self._draw_exit_policy(left_width, 2, right_width, vals)
-      else:
+      elif vals.is_connected:
+        self._draw_newnym_option(left_width, 1, right_width, vals)
+    else:
+      self._draw_resource_usage(0, 2, left_width, vals)
+
+      if vals.is_relay:
         self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
         self._draw_flags(0, 4, left_width, vals)
-    elif is_wide and vals.is_connected:
-      self._draw_newnym_option(left_width, 1, right_width, vals)
 
   def _draw_platform_section(self, x, y, width, vals):
     """
@@ -207,20 +200,22 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if not vals.is_relay:
       x = self.addstr(y, x, 'Relaying Disabled', 'cyan')
     else:
-      x = self.addstr(y, x, vals.format('{nickname} - {or_address}:{or_port}'))
+      x = self.addstr(y, x, vals.format('{nickname} - {address}:{or_port}'))
 
       if vals.dir_port != '0':
         x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
 
-    if vals.control_port == '0':
-      self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
-    else:
+    if vals.control_port:
       if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
+        auth_color = 'red' if vals.auth_type == 'open' else 'green'
+
         x = self.addstr(y, x, ', Control Port (')
-        x = self.addstr(y, x, vals.auth_type, vals.auth_color)
+        x = self.addstr(y, x, vals.auth_type, auth_color)
         self.addstr(y, x, vals.format('): {control_port}'))
       else:
         self.addstr(y, x, vals.format(', Control Port: {control_port}'))
+    elif vals.socket_path:
+      self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
 
   def _draw_disconnected(self, x, y, width, vals):
     """
@@ -247,7 +242,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       else:
         now = time.time()
 
-      uptime = stem.util.str_tools.short_time_label(now - vals.start_time)
+      uptime = str_tools.short_time_label(now - vals.start_time)
     else:
       uptime = ''
 
@@ -405,27 +400,29 @@ class Sampling(object):
   def __init__(self, last_sampling = None):
     controller = tor_controller()
 
-    or_listeners = controller.get_listeners(Listener.OR, [])
-    fd_limit = controller.get_info('process/descriptor-limit', '-1')
-
-    uname_vals = os.uname()
-    tor_resources = arm.util.tracker.get_resource_tracker().get_value()
-
+    self.retrieved = time.time()
     self.is_connected = controller.is_alive()
     self.connection_time = controller.connection_time()
     self.last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat()))
-    self.retrieved = time.time()
-    self.arm_total_cpu_time = sum(os.times()[:3])
 
     self.fingerprint = controller.get_info('fingerprint', 'Unknown')
     self.nickname = controller.get_conf('Nickname', '')
-    self.or_address = or_listeners[0][0] if or_listeners else controller.get_info('address', 'Unknown')
+    self.newnym_wait = controller.get_newnym_wait()
+    self.exit_policy = controller.get_exit_policy(None)
+    self.flags = getattr(controller.get_network_status(default = None), 'flags', [])
+
+    self.version = str(controller.get_version('Unknown')).split()[0]
+    self.version_status = controller.get_info('status/version/current', 'Unknown')
+    self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
+
+    or_listeners = controller.get_listeners(Listener.OR, [])
+    control_listeners = controller.get_listeners(Listener.CONTROL, [])
+    self.address = or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown')
     self.or_port = or_listeners[0][1] if or_listeners else ''
     self.dir_port = controller.get_conf('DirPort', '0')
-    self.control_port = controller.get_conf('ControlPort', '0')
-    self.socket_path = controller.get_conf('ControlSocket', '')
+    self.control_port = str(control_listeners[0][1]) if control_listeners else None
+    self.socket_path = controller.get_conf('ControlSocket', None)
     self.is_relay = bool(self.or_port)
-    self.newnym_wait = controller.get_newnym_wait()
 
     if controller.get_conf('HashedControlPassword', None):
       self.auth_type = 'password'
@@ -434,45 +431,45 @@ class Sampling(object):
     else:
       self.auth_type = 'open'
 
-    self.auth_color = 'red' if self.auth_type == 'open' else 'green'
-    self.exit_policy = controller.get_exit_policy(None)
-    self.flags = getattr(controller.get_network_status(default = None), 'flags', [])
-    self.version = str(controller.get_version('Unknown')).split()[0]
-    self.version_status = controller.get_info('status/version/current', 'Unknown')
-    self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
-
     self.pid = controller.get_pid('')
-    self.start_time = stem.util.system.start_time(self.pid)
+    self.start_time = system.start_time(self.pid)
+
+    fd_limit = controller.get_info('process/descriptor-limit', '-1')
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
 
     try:
-      self.fd_used = stem.util.proc.file_descriptors_used(self.pid)
+      self.fd_used = proc.file_descriptors_used(self.pid)
     except IOError:
       self.fd_used = None
 
+    tor_resources = tracker.get_resource_tracker().get_value()
     self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
     self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
-    self.memory = stem.util.str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
+    self.arm_total_cpu_time = sum(os.times()[:3])
+    self.memory = str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
     self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
+
+    uname_vals = os.uname()
     self.hostname = uname_vals[1]
     self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
 
     if self.fd_used and self.fd_limit:
       fd_percent = 100 * self.fd_used / self.fd_limit
-      msg = "Tor's file descriptor usage is at %i%%." % fd_percent
 
       if fd_percent >= 90:
-        msg += ' If you run out Tor will be unable to continue functioning.'
-        log.log_once('fd_used_at_ninety_percent', log.WARN, msg)
+        log_msg = msg('misc.fd_used_at_ninety_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
+        log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
       elif fd_percent >= 60:
-        log.log_once('fd_used_at_sixty_percent', log.NOTICE, msg)
+        log_msg = msg('misc.fd_used_at_sixty_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
-  def format(self, msg, crop_width = None):
+  def format(self, message, crop_width = None):
     """
     Applies our attributes to the given string.
     """
 
-    formatted_msg = msg.format(**self.__dict__)
+    formatted_msg = message.format(**self.__dict__)
 
     if crop_width:
       formatted_msg = str_tools.crop(formatted_msg, crop_width)
