@@ -137,7 +137,7 @@ def get_help():
     address = DEFAULT_ARGS['control_address'],
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
-    config = DEFAULT_ARGS['config'],
+    config_path = DEFAULT_ARGS['config'],
     events = DEFAULT_ARGS['logged_events'],
     event_flags = msg('misc.event_types'),
   )
