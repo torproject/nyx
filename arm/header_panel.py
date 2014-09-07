@@ -402,8 +402,6 @@ class Sampling(object):
   def __init__(self, last_sampling = None):
     controller = tor_controller()
 
-    pid = controller.get_pid(None)
-    fingerprint = controller.get_info('fingerprint', None)
     or_listeners = controller.get_listeners(Listener.OR, [])
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
 
@@ -416,7 +414,7 @@ class Sampling(object):
     self.retrieved = time.time()
     self.arm_total_cpu_time = sum(os.times()[:3])
 
-    self.fingerprint = fingerprint if fingerprint else 'Unknown'
+    self.fingerprint = controller.get_info('fingerprint', 'Unknown')
     self.nickname = controller.get_conf('Nickname', '')
     self.or_address = or_listeners[0][0] if or_listeners else controller.get_info('address', 'Unknown')
     self.or_port = or_listeners[0][1] if or_listeners else ''
@@ -435,17 +433,17 @@ class Sampling(object):
 
     self.auth_color = 'red' if self.auth_type == 'open' else 'green'
     self.exit_policy = controller.get_exit_policy(None)
-    self.flags = getattr(controller.get_network_status(fingerprint, None), 'flags', [])
+    self.flags = getattr(controller.get_network_status(default = None), 'flags', [])
     self.version = str(controller.get_version('Unknown')).split()[0]
     self.version_status = controller.get_info('status/version/current', 'Unknown')
     self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
 
-    self.pid = pid if pid else ''
-    self.start_time = stem.util.system.start_time(pid)
+    self.pid = controller.get_pid('')
+    self.start_time = stem.util.system.start_time(self.pid)
     self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
 
     try:
-      self.fd_used = stem.util.proc.file_descriptors_used(pid)
+      self.fd_used = stem.util.proc.file_descriptors_used(self.pid)
     except IOError:
       self.fd_used = None
 
