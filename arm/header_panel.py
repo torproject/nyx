@@ -326,10 +326,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     if not vals.exit_policy:
       return
 
-    # TODO: exclude private policy prefix?
-    # TODO: replace the default suffix policy with a cyan '<default>'
-
-    rules = list(vals.exit_policy)
+    rules = list(vals.exit_policy.strip_private().strip_default())
 
     for i, rule in enumerate(rules):
       policy_color = 'green' if rule.is_accept else 'red'
@@ -337,6 +334,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       if i < len(rules) - 1:
         x = self.addstr(y, x, ', ')
+
+    if vals.exit_policy.has_default():
+      if rules:
+        x = self.addstr(y, x, ', ')
+
+      self.addstr(y, x, '<default>', curses.A_BOLD, 'cyan')
 
   def _draw_newnym_option(self, x, y, width, vals):
     """
