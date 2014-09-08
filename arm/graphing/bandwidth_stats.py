@@ -405,8 +405,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
     if not self._title_stats or not my_fingerprint or (event and my_fingerprint in event.idlist):
       stats = []
-      bw_rate = get_my_bandwidth_rate(controller)
-      bw_burst = get_my_bandwidth_burst(controller)
+      bw_rate = _min_config(controller, 'BandwidthRate', 'RelayBandwidthRate', 'MaxAdvertisedBandwidth')
+      bw_burst = _min_config(controller, 'BandwidthBurst', 'RelayBandwidthBurst')
 
       my_server_descriptor = controller.get_server_descriptor(default = None)
       bw_observed = getattr(my_server_descriptor, 'observed_bandwidth', None)
@@ -507,47 +507,23 @@ class BandwidthStats(graph_panel.GraphStats):
     self.accounting_last_updated = time.time()
 
 
-def get_my_bandwidth_rate(controller):
+def _min_config(controller, *attributes):
   """
-  Provides the effective relaying bandwidth rate of this relay. Currently
-  this doesn't account for SETCONF events.
-  """
-
-  # effective relayed bandwidth is the minimum of BandwidthRate,
-  # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
-
-  effective_rate = controller.get_conf('BandwidthRate', None)
-  relay_rate = controller.get_conf('RelayBandwidthRate', None)
-
-  if effective_rate and relay_rate and relay_rate != '0':
-    effective_rate = min(int(effective_rate), int(relay_rate))
-
-  max_advertised = controller.get_conf('MaxAdvertisedBandwidth', None)
-
-  if max_advertised:
-    effective_rate = min(int(effective_rate), int(max_advertised))
-
-  if effective_rate is not None:
-    return int(effective_rate)
-  else:
-    return None
-
-
-def get_my_bandwidth_burst(controller):
-  """
-  Provides the effective bandwidth burst rate of this relay. Currently this
-  doesn't account for SETCONF events.
+  Provides the minimum of the given numeric bandwidth rate or burst config
+  options.
   """
 
-  # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
+  value = None
 
-  effective_burst = controller.get_conf('BandwidthBurst', None)
-  relay_burst = controller.get_conf('RelayBandwidthBurst', None)
+  for attr in attributes:
+    try:
+      attr_value = int(controller.get_conf(attr))
 
-  if effective_burst and relay_burst and relay_burst != '0':
-    effective_burst = min(int(effective_burst), int(relay_burst))
+      if attr_value == 0 and attr.startswith('Relay'):
+        continue  # RelayBandwidthRate and RelayBandwidthBurst default to zero
 
-  if effective_burst is not None:
-    return int(effective_burst)
-  else:
-    return None
+      value = min(value, attr_value) if value else attr_value
+    except:
+      pass
+
+  return value
