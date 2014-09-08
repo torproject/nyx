@@ -17,7 +17,7 @@ import stem
 from stem.control import Listener
 from stem.util import conf, log, proc, str_tools, system
 
-from util import msg, tor_controller, panel, tracker
+from arm.util import msg, tor_controller, panel, tracker
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
@@ -449,11 +449,11 @@ class Sampling(object):
       fd_percent = 100 * self.fd_used / self.fd_limit
 
       if fd_percent >= 90:
-        log_msg = msg('misc.fd_used_at_ninety_percent', percentage = fd_percent)
+        log_msg = msg('panel.header.fd_used_at_ninety_percent', percentage = fd_percent)
         log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
         log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
       elif fd_percent >= 60:
-        log_msg = msg('misc.fd_used_at_sixty_percent', percentage = fd_percent)
+        log_msg = msg('panel.header.fd_used_at_sixty_percent', percentage = fd_percent)
         log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
   def format(self, message, crop_width = None):

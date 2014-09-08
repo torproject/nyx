@@ -14,6 +14,8 @@ from arm.util import tor_controller
 from stem.control import State
 from stem.util import conf, log, str_tools, system
 
+from arm.util import msg
+
 
 def conf_handler(key, value):
   if key == 'features.graph.bw.accounting.rate':
@@ -38,9 +40,6 @@ COLLAPSE_WIDTH = 135
 # valid keys for the accounting_info mapping
 
 ACCOUNTING_ARGS = ('status', 'reset_time', 'read', 'written', 'read_limit', 'writtenLimit')
-
-PREPOPULATE_SUCCESS_MSG = 'Read the last day of bandwidth history from the state file'
-PREPOPULATE_FAILURE_MSG = 'Unable to prepopulate bandwidth information (%s)'
 
 
 class BandwidthStats(graph_panel.GraphStats):
@@ -168,8 +167,7 @@ class BandwidthStats(graph_panel.GraphStats):
     # results associated with this tor instance
 
     if not uptime or '-' not in uptime:
-      msg = PREPOPULATE_FAILURE_MSG % 'insufficient uptime'
-      log.notice(msg)
+      log.notice(msg('panel.graphing.prepopulation_failure', error = 'insufficient uptime'))
       return False
 
     # get the user's data directory (usually '~/.tor')
@@ -177,8 +175,7 @@ class BandwidthStats(graph_panel.GraphStats):
     data_dir = controller.get_conf('DataDirectory', None)
 
     if not data_dir:
-      msg = PREPOPULATE_FAILURE_MSG % 'data directory not found'
-      log.notice(msg)
+      log.notice(msg('panel.graphing.prepopulation_failure', error = 'data directory not found'))
       return False
 
     # attempt to open the state file
@@ -186,8 +183,7 @@ class BandwidthStats(graph_panel.GraphStats):
     try:
       state_file = open('%s%s/state' % (CONFIG['tor.chroot'], data_dir), 'r')
     except IOError:
-      msg = PREPOPULATE_FAILURE_MSG % 'unable to read the state file'
-      log.notice(msg)
+      log.notice(msg('panel.graphing.prepopulation_failure', error = 'unable to read the state file'))
       return False
 
     # get the BWHistory entries (ordered oldest to newest) and number of
@@ -227,8 +223,7 @@ class BandwidthStats(graph_panel.GraphStats):
         missing_write_entries = int((time.time() - last_write_time) / 900)
 
     if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
-      msg = PREPOPULATE_FAILURE_MSG % 'bandwidth stats missing from state file'
-      log.notice(msg)
+      log.notice(msg('panel.graphing.prepopulation_failure', error = 'bandwidth stats missing from state file'))
       return False
 
     # fills missing entries with the last value
@@ -272,13 +267,12 @@ class BandwidthStats(graph_panel.GraphStats):
     del self.primary_counts[interval_index][self.max_column + 1:]
     del self.secondary_counts[interval_index][self.max_column + 1:]
 
-    msg = PREPOPULATE_SUCCESS_MSG
     missing_sec = time.time() - min(last_read_time, last_write_time)
 
     if missing_sec:
-      msg += ' (%s is missing)' % str_tools.time_label(missing_sec, 0, True)
-
-    log.notice(msg)
+      log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_sec, 0, True)))
+    else:
+      log.notice(msg('panel.graphing.prepopulation_all_successful'))
 
     return True
 
