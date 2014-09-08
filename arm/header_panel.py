@@ -106,7 +106,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
         controller.connect()
 
         try:
-          controller.authenticate()
+          controller.authenticate()  # TODO: should account for our chroot
         except stem.connection.MissingPassword:
           password = cli.popups.input_prompt('Controller Password: ')
 

@@ -407,8 +407,13 @@ class BandwidthStats(graph_panel.GraphStats):
       stats = []
       bw_rate = get_my_bandwidth_rate(controller)
       bw_burst = get_my_bandwidth_burst(controller)
-      bw_observed = get_my_bandwidth_observed(controller)
-      bw_measured = get_my_bandwidth_measured(controller)
+
+      my_server_descriptor = controller.get_server_descriptor(default = None)
+      bw_observed = getattr(my_server_descriptor, 'observed_bandwidth', None)
+
+      my_router_status_entry = controller.get_network_status(default = None)
+      bw_measured = getattr(my_router_status_entry, 'bandwidth', None)
+
       label_in_bytes = CONFIG['features.graph.bw.transferInBytes']
 
       if bw_rate and bw_burst:
@@ -546,30 +551,3 @@ def get_my_bandwidth_burst(controller):
     return int(effective_burst)
   else:
     return None
-
-
-def get_my_bandwidth_observed(controller):
-  """
-  Provides the relay's current observed bandwidth (the throughput determined
-  from historical measurements on the client side). This is used in the
-  heuristic used for path selection if the measured bandwidth is undefined.
-  This is fetched from the descriptors and hence will get stale if
-  descriptors aren't periodically updated.
-  """
-
-  my_descriptor = controller.get_server_descriptor(default = None)
-  return getattr(my_descriptor, 'observed_bandwidth', None)
-
-
-def get_my_bandwidth_measured(controller):
-  """
-  Provides the relay's current measured bandwidth (the throughput as noted by
-  the directory authorities and used by clients for relay selection). This is
-  undefined if not in the consensus or with older versions of Tor. Depending
-  on the circumstances this can be from a variety of things (observed,
-  measured, weighted measured, etc) as described by:
-  https://trac.torproject.org/projects/tor/ticket/1566
-  """
-
-  my_status_entry = controller.get_network_status(default = None)
-  return getattr(my_status_entry, 'bandwidth', None)
