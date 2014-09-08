@@ -16,19 +16,19 @@ from stem.util import conf, log, str_tools, system
 
 
 def conf_handler(key, value):
-  if key == "features.graph.bw.accounting.rate":
+  if key == 'features.graph.bw.accounting.rate':
     return max(1, value)
 
 
-CONFIG = conf.config_dict("arm", {
-  "features.graph.bw.transferInBytes": False,
-  "features.graph.bw.accounting.show": True,
-  "features.graph.bw.accounting.rate": 10,
-  "features.graph.bw.accounting.isTimeLong": False,
-  "tor.chroot": "",
+CONFIG = conf.config_dict('arm', {
+  'features.graph.bw.transferInBytes': False,
+  'features.graph.bw.accounting.show': True,
+  'features.graph.bw.accounting.rate': 10,
+  'features.graph.bw.accounting.isTimeLong': False,
+  'tor.chroot': '',
 }, conf_handler)
 
-DL_COLOR, UL_COLOR = "green", "cyan"
+DL_COLOR, UL_COLOR = 'green', 'cyan'
 
 # width at which panel abandons placing optional stats (avg and total) with
 # header in favor of replacing the x-axis label
@@ -37,10 +37,10 @@ COLLAPSE_WIDTH = 135
 
 # valid keys for the accounting_info mapping
 
-ACCOUNTING_ARGS = ("status", "reset_time", "read", "written", "read_limit", "writtenLimit")
+ACCOUNTING_ARGS = ('status', 'reset_time', 'read', 'written', 'read_limit', 'writtenLimit')
 
-PREPOPULATE_SUCCESS_MSG = "Read the last day of bandwidth history from the state file"
-PREPOPULATE_FAILURE_MSG = "Unable to prepopulate bandwidth information (%s)"
+PREPOPULATE_SUCCESS_MSG = 'Read the last day of bandwidth history from the state file'
+PREPOPULATE_FAILURE_MSG = 'Unable to prepopulate bandwidth information (%s)'
 
 
 class BandwidthStats(graph_panel.GraphStats):
@@ -60,7 +60,7 @@ class BandwidthStats(graph_panel.GraphStats):
     # accounting data (set by _update_accounting_info method)
 
     self.accounting_last_updated = 0
-    self.accounting_info = dict([(arg, "") for arg in ACCOUNTING_ARGS])
+    self.accounting_info = dict([(arg, '') for arg in ACCOUNTING_ARGS])
 
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
@@ -83,12 +83,12 @@ class BandwidthStats(graph_panel.GraphStats):
     self.initial_primary_total = 0
     self.initial_secondary_total = 0
 
-    read_total = controller.get_info("traffic/read", None)
+    read_total = controller.get_info('traffic/read', None)
 
     if read_total and read_total.isdigit():
       self.initial_primary_total = int(read_total) / 1024  # Bytes -> KB
 
-    write_total = controller.get_info("traffic/written", None)
+    write_total = controller.get_info('traffic/written', None)
 
     if write_total and write_total.isdigit():
       self.initial_secondary_total = int(write_total) / 1024  # Bytes -> KB
@@ -113,7 +113,7 @@ class BandwidthStats(graph_panel.GraphStats):
     self._title_stats = []     # force reset of title
     self.new_desc_event(None)  # updates title params
 
-    if event_type in (State.INIT, State.RESET) and CONFIG["features.graph.bw.accounting.show"]:
+    if event_type in (State.INIT, State.RESET) and CONFIG['features.graph.bw.accounting.show']:
       is_accounting_enabled = controller.get_info('accounting/enabled', None) == '1'
 
       if is_accounting_enabled != self.is_accounting:
@@ -139,9 +139,9 @@ class BandwidthStats(graph_panel.GraphStats):
     # checks that this is a relay (if ORPort is unset, then skip)
 
     controller = tor_controller()
-    or_port = controller.get_conf("ORPort", None)
+    or_port = controller.get_conf('ORPort', None)
 
-    if or_port == "0":
+    if or_port == '0':
       return
 
     # gets the uptime (using the same parameters as the header panel to take
@@ -153,8 +153,8 @@ class BandwidthStats(graph_panel.GraphStats):
     query_pid = controller.get_pid(None)
 
     if query_pid:
-      query_param = ["%cpu", "rss", "%mem", "etime"]
-      query_cmd = "ps -p %s -o %s" % (query_pid, ",".join(query_param))
+      query_param = ['%cpu', 'rss', '%mem', 'etime']
+      query_cmd = 'ps -p %s -o %s' % (query_pid, ','.join(query_param))
       ps_call = system.call(query_cmd, None)
 
       if ps_call and len(ps_call) == 2:
@@ -167,26 +167,26 @@ class BandwidthStats(graph_panel.GraphStats):
     # the state tracks a day's worth of data and this should only prepopulate
     # results associated with this tor instance
 
-    if not uptime or "-" not in uptime:
-      msg = PREPOPULATE_FAILURE_MSG % "insufficient uptime"
+    if not uptime or '-' not in uptime:
+      msg = PREPOPULATE_FAILURE_MSG % 'insufficient uptime'
       log.notice(msg)
       return False
 
     # get the user's data directory (usually '~/.tor')
 
-    data_dir = controller.get_conf("DataDirectory", None)
+    data_dir = controller.get_conf('DataDirectory', None)
 
     if not data_dir:
-      msg = PREPOPULATE_FAILURE_MSG % "data directory not found"
+      msg = PREPOPULATE_FAILURE_MSG % 'data directory not found'
       log.notice(msg)
       return False
 
     # attempt to open the state file
 
     try:
-      state_file = open("%s%s/state" % (CONFIG['tor.chroot'], data_dir), "r")
+      state_file = open('%s%s/state' % (CONFIG['tor.chroot'], data_dir), 'r')
     except IOError:
-      msg = PREPOPULATE_FAILURE_MSG % "unable to read the state file"
+      msg = PREPOPULATE_FAILURE_MSG % 'unable to read the state file'
       log.notice(msg)
       return False
 
@@ -209,25 +209,25 @@ class BandwidthStats(graph_panel.GraphStats):
       # counter for the current sampling period. Hence, offsets are added to
       # account for both.
 
-      if line.startswith("BWHistoryReadValues"):
-        bw_read_entries = line[20:].split(",")
+      if line.startswith('BWHistoryReadValues'):
+        bw_read_entries = line[20:].split(',')
         bw_read_entries = [int(entry) / 1024.0 / 900 for entry in bw_read_entries]
         bw_read_entries.pop()
-      elif line.startswith("BWHistoryWriteValues"):
-        bw_write_entries = line[21:].split(",")
+      elif line.startswith('BWHistoryWriteValues'):
+        bw_write_entries = line[21:].split(',')
         bw_write_entries = [int(entry) / 1024.0 / 900 for entry in bw_write_entries]
         bw_write_entries.pop()
-      elif line.startswith("BWHistoryReadEnds"):
-        last_read_time = time.mktime(time.strptime(line[18:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+      elif line.startswith('BWHistoryReadEnds'):
+        last_read_time = time.mktime(time.strptime(line[18:], '%Y-%m-%d %H:%M:%S')) - tz_offset
         last_read_time -= 900
         missing_read_entries = int((time.time() - last_read_time) / 900)
-      elif line.startswith("BWHistoryWriteEnds"):
-        last_write_time = time.mktime(time.strptime(line[19:], "%Y-%m-%d %H:%M:%S")) - tz_offset
+      elif line.startswith('BWHistoryWriteEnds'):
+        last_write_time = time.mktime(time.strptime(line[19:], '%Y-%m-%d %H:%M:%S')) - tz_offset
         last_write_time -= 900
         missing_write_entries = int((time.time() - last_write_time) / 900)
 
     if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
-      msg = PREPOPULATE_FAILURE_MSG % "bandwidth stats missing from state file"
+      msg = PREPOPULATE_FAILURE_MSG % 'bandwidth stats missing from state file'
       log.notice(msg)
       return False
 
@@ -276,7 +276,7 @@ class BandwidthStats(graph_panel.GraphStats):
     missing_sec = time.time() - min(last_read_time, last_write_time)
 
     if missing_sec:
-      msg += " (%s is missing)" % str_tools.time_label(missing_sec, 0, True)
+      msg += ' (%s is missing)' % str_tools.time_label(missing_sec, 0, True)
 
     log.notice(msg)
 
@@ -284,7 +284,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
   def bandwidth_event(self, event):
     if self.is_accounting and self.is_next_tick_redraw():
-      if time.time() - self.accounting_last_updated >= CONFIG["features.graph.bw.accounting.rate"]:
+      if time.time() - self.accounting_last_updated >= CONFIG['features.graph.bw.accounting.rate']:
         self._update_accounting_info()
 
     # scales units from B to KB for graphing
@@ -301,11 +301,11 @@ class BandwidthStats(graph_panel.GraphStats):
     if width <= COLLAPSE_WIDTH:
       # clears line
 
-      panel.addstr(labeling_line, 0, " " * width)
+      panel.addstr(labeling_line, 0, ' ' * width)
       graph_column = min((width - 10) / 2, self.max_column)
 
-      primary_footer = "%s, %s" % (self._get_avg_label(True), self._get_total_label(True))
-      secondary_footer = "%s, %s" % (self._get_avg_label(False), self._get_total_label(False))
+      primary_footer = '%s, %s' % (self._get_avg_label(True), self._get_total_label(True))
+      secondary_footer = '%s, %s' % (self._get_avg_label(False), self._get_total_label(False))
 
       panel.addstr(labeling_line, 1, primary_footer, self.get_color(True))
       panel.addstr(labeling_line, graph_column + 6, secondary_footer, self.get_color(False))
@@ -314,50 +314,50 @@ class BandwidthStats(graph_panel.GraphStats):
 
     if self.is_accounting:
       if tor_controller().is_alive():
-        status = self.accounting_info["status"]
+        status = self.accounting_info['status']
 
-        hibernate_color = "green"
+        hibernate_color = 'green'
 
-        if status == "soft":
-          hibernate_color = "yellow"
-        elif status == "hard":
-          hibernate_color = "red"
-        elif status == "":
+        if status == 'soft':
+          hibernate_color = 'yellow'
+        elif status == 'hard':
+          hibernate_color = 'red'
+        elif status == '':
           # failed to be queried
-          status, hibernate_color = "unknown", "red"
+          status, hibernate_color = 'unknown', 'red'
 
-        panel.addstr(labeling_line + 2, 0, "Accounting (", curses.A_BOLD)
+        panel.addstr(labeling_line + 2, 0, 'Accounting (', curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD, hibernate_color)
-        panel.addstr(labeling_line + 2, 12 + len(status), ")", curses.A_BOLD)
+        panel.addstr(labeling_line + 2, 12 + len(status), ')', curses.A_BOLD)
 
-        reset_time = self.accounting_info["reset_time"]
+        reset_time = self.accounting_info['reset_time']
 
         if not reset_time:
-          reset_time = "unknown"
+          reset_time = 'unknown'
 
-        panel.addstr(labeling_line + 2, 35, "Time to reset: %s" % reset_time)
+        panel.addstr(labeling_line + 2, 35, 'Time to reset: %s' % reset_time)
 
-        used, total = self.accounting_info["read"], self.accounting_info["read_limit"]
-
-        if used and total:
-          panel.addstr(labeling_line + 3, 2, "%s / %s" % (used, total), self.get_color(True))
-
-        used, total = self.accounting_info["written"], self.accounting_info["writtenLimit"]
+        used, total = self.accounting_info['read'], self.accounting_info['read_limit']
 
         if used and total:
-          panel.addstr(labeling_line + 3, 37, "%s / %s" % (used, total), self.get_color(False))
+          panel.addstr(labeling_line + 3, 2, '%s / %s' % (used, total), self.get_color(True))
+
+        used, total = self.accounting_info['written'], self.accounting_info['writtenLimit']
+
+        if used and total:
+          panel.addstr(labeling_line + 3, 37, '%s / %s' % (used, total), self.get_color(False))
       else:
-        panel.addstr(labeling_line + 2, 0, "Accounting:", curses.A_BOLD)
-        panel.addstr(labeling_line + 2, 12, "Connection Closed...")
+        panel.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
+        panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
 
   def get_title(self, width):
     stats = list(self._title_stats)
 
     while True:
       if not stats:
-        return "Bandwidth:"
+        return 'Bandwidth:'
       else:
-        label = "Bandwidth (%s):" % ", ".join(stats)
+        label = 'Bandwidth (%s):' % ', '.join(stats)
 
         if len(label) > width:
           del stats[-1]
@@ -365,29 +365,29 @@ class BandwidthStats(graph_panel.GraphStats):
           return label
 
   def get_header_label(self, width, is_primary):
-    graph_type = "Download" if is_primary else "Upload"
-    stats = [""]
+    graph_type = 'Download' if is_primary else 'Upload'
+    stats = ['']
 
     # if wide then avg and total are part of the header, otherwise they're on
     # the x-axis
 
     if width * 2 > COLLAPSE_WIDTH:
-      stats = [""] * 3
-      stats[1] = "- %s" % self._get_avg_label(is_primary)
-      stats[2] = ", %s" % self._get_total_label(is_primary)
+      stats = [''] * 3
+      stats[1] = '- %s' % self._get_avg_label(is_primary)
+      stats[2] = ', %s' % self._get_total_label(is_primary)
 
-    stats[0] = "%-14s" % ("%s/sec" % str_tools.size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"]))
+    stats[0] = '%-14s' % ('%s/sec' % str_tools.size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG['features.graph.bw.transferInBytes']))
 
     # drops label's components if there's not enough space
 
-    labeling = graph_type + " (" + "".join(stats).strip() + "):"
+    labeling = graph_type + ' (' + ''.join(stats).strip() + '):'
 
     while len(labeling) >= width:
       if len(stats) > 1:
         del stats[-1]
-        labeling = graph_type + " (" + "".join(stats).strip() + "):"
+        labeling = graph_type + ' (' + ''.join(stats).strip() + '):'
       else:
-        labeling = graph_type + ":"
+        labeling = graph_type + ':'
         break
 
     return labeling
@@ -407,7 +407,7 @@ class BandwidthStats(graph_panel.GraphStats):
     if not controller.is_alive():
       return  # keep old values
 
-    my_fingerprint = controller.get_info("fingerprint", None)
+    my_fingerprint = controller.get_info('fingerprint', None)
 
     if not self._title_stats or not my_fingerprint or (event and my_fingerprint in event.idlist):
       stats = []
@@ -415,29 +415,29 @@ class BandwidthStats(graph_panel.GraphStats):
       bw_burst = get_my_bandwidth_burst(controller)
       bw_observed = get_my_bandwidth_observed(controller)
       bw_measured = get_my_bandwidth_measured(controller)
-      label_in_bytes = CONFIG["features.graph.bw.transferInBytes"]
+      label_in_bytes = CONFIG['features.graph.bw.transferInBytes']
 
       if bw_rate and bw_burst:
         bw_rate_label = str_tools.size_label(bw_rate, 1, False, label_in_bytes)
         bw_burst_label = str_tools.size_label(bw_burst, 1, False, label_in_bytes)
 
-        # if both are using rounded values then strip off the ".0" decimal
+        # if both are using rounded values then strip off the '.0' decimal
 
-        if ".0" in bw_rate_label and ".0" in bw_burst_label:
-          bw_rate_label = bw_rate_label.replace(".0", "")
-          bw_burst_label = bw_burst_label.replace(".0", "")
+        if '.0' in bw_rate_label and '.0' in bw_burst_label:
+          bw_rate_label = bw_rate_label.replace('.0', '')
+          bw_burst_label = bw_burst_label.replace('.0', '')
 
-        stats.append("limit: %s/s" % bw_rate_label)
-        stats.append("burst: %s/s" % bw_burst_label)
+        stats.append('limit: %s/s' % bw_rate_label)
+        stats.append('burst: %s/s' % bw_burst_label)
 
       # Provide the observed bandwidth either if the measured bandwidth isn't
       # available or if the measured bandwidth is the observed (this happens
       # if there isn't yet enough bandwidth measurements).
 
       if bw_observed and (not bw_measured or bw_measured == bw_observed):
-        stats.append("observed: %s/s" % str_tools.size_label(bw_observed, 1, False, label_in_bytes))
+        stats.append('observed: %s/s' % str_tools.size_label(bw_observed, 1, False, label_in_bytes))
       elif bw_measured:
-        stats.append("measured: %s/s" % str_tools.size_label(bw_measured, 1, False, label_in_bytes))
+        stats.append('measured: %s/s' % str_tools.size_label(bw_measured, 1, False, label_in_bytes))
 
       self._title_stats = stats
 
@@ -445,12 +445,12 @@ class BandwidthStats(graph_panel.GraphStats):
     total = self.primary_total if is_primary else self.secondary_total
     total += self.prepopulate_primary_total if is_primary else self.prepopulate_secondary_total
 
-    return "avg: %s/sec" % str_tools.size_label((total / max(1, self.tick + self.prepopulate_ticks)) * 1024, 1, False, CONFIG["features.graph.bw.transferInBytes"])
+    return 'avg: %s/sec' % str_tools.size_label((total / max(1, self.tick + self.prepopulate_ticks)) * 1024, 1, False, CONFIG['features.graph.bw.transferInBytes'])
 
   def _get_total_label(self, is_primary):
     total = self.primary_total if is_primary else self.secondary_total
     total += self.initial_primary_total if is_primary else self.initial_secondary_total
-    return "total: %s" % str_tools.size_label(total * 1024, 1)
+    return 'total: %s' % str_tools.size_label(total * 1024, 1)
 
   def _update_accounting_info(self):
     """
@@ -461,12 +461,12 @@ class BandwidthStats(graph_panel.GraphStats):
     """
 
     controller = tor_controller()
-    queried = dict([(arg, "") for arg in ACCOUNTING_ARGS])
-    queried["status"] = controller.get_info("accounting/hibernating", None)
+    queried = dict([(arg, '') for arg in ACCOUNTING_ARGS])
+    queried['status'] = controller.get_info('accounting/hibernating', None)
 
     # provides a nicely formatted reset time
 
-    end_interval = controller.get_info("accounting/interval-end", None)
+    end_interval = controller.get_info('accounting/interval-end', None)
 
     if end_interval:
       # converts from gmt to local with respect to DST
@@ -476,10 +476,10 @@ class BandwidthStats(graph_panel.GraphStats):
       else:
         tz_offset = time.timezone
 
-      sec = time.mktime(time.strptime(end_interval, "%Y-%m-%d %H:%M:%S")) - time.time() - tz_offset
+      sec = time.mktime(time.strptime(end_interval, '%Y-%m-%d %H:%M:%S')) - time.time() - tz_offset
 
-      if CONFIG["features.graph.bw.accounting.isTimeLong"]:
-        queried["reset_time"] = ", ".join(str_tools.time_labels(sec, True))
+      if CONFIG['features.graph.bw.accounting.isTimeLong']:
+        queried['reset_time'] = ', '.join(str_tools.time_labels(sec, True))
       else:
         days = sec / 86400
         sec %= 86400
@@ -487,22 +487,22 @@ class BandwidthStats(graph_panel.GraphStats):
         sec %= 3600
         minutes = sec / 60
         sec %= 60
-        queried["reset_time"] = "%i:%02i:%02i:%02i" % (days, hours, minutes, sec)
+        queried['reset_time'] = '%i:%02i:%02i:%02i' % (days, hours, minutes, sec)
 
     # number of bytes used and in total for the accounting period
 
-    used = controller.get_info("accounting/bytes", None)
-    left = controller.get_info("accounting/bytes-left", None)
+    used = controller.get_info('accounting/bytes', None)
+    left = controller.get_info('accounting/bytes-left', None)
 
     if used and left:
-      used_comp, left_comp = used.split(" "), left.split(" ")
+      used_comp, left_comp = used.split(' '), left.split(' ')
       read, written = int(used_comp[0]), int(used_comp[1])
       read_left, written_left = int(left_comp[0]), int(left_comp[1])
 
-      queried["read"] = str_tools.size_label(read)
-      queried["written"] = str_tools.size_label(written)
-      queried["read_limit"] = str_tools.size_label(read + read_left)
-      queried["writtenLimit"] = str_tools.size_label(written + written_left)
+      queried['read'] = str_tools.size_label(read)
+      queried['written'] = str_tools.size_label(written)
+      queried['read_limit'] = str_tools.size_label(read + read_left)
+      queried['writtenLimit'] = str_tools.size_label(written + written_left)
 
     self.accounting_info = queried
     self.accounting_last_updated = time.time()
@@ -517,20 +517,19 @@ def get_my_bandwidth_rate(controller):
   # effective relayed bandwidth is the minimum of BandwidthRate,
   # MaxAdvertisedBandwidth, and RelayBandwidthRate (if set)
 
-  effective_rate = int(controller.get_conf("BandwidthRate", None))
+  effective_rate = controller.get_conf('BandwidthRate', None)
+  relay_rate = controller.get_conf('RelayBandwidthRate', None)
 
-  relay_rate = controller.get_conf("RelayBandwidthRate", None)
+  if effective_rate and relay_rate and relay_rate != '0':
+    effective_rate = min(int(effective_rate), int(relay_rate))
 
-  if relay_rate and relay_rate != "0":
-    effective_rate = min(effective_rate, int(relay_rate))
-
-  max_advertised = controller.get_conf("MaxAdvertisedBandwidth", None)
+  max_advertised = controller.get_conf('MaxAdvertisedBandwidth', None)
 
   if max_advertised:
-    effective_rate = min(effective_rate, int(max_advertised))
+    effective_rate = min(int(effective_rate), int(max_advertised))
 
   if effective_rate is not None:
-    return effective_rate
+    return int(effective_rate)
   else:
     return None
 
@@ -542,15 +541,15 @@ def get_my_bandwidth_burst(controller):
   """
 
   # effective burst (same for BandwidthBurst and RelayBandwidthBurst)
-  effective_burst = int(controller.get_conf("BandwidthBurst", None))
 
-  relay_burst = controller.get_conf("RelayBandwidthBurst", None)
+  effective_burst = controller.get_conf('BandwidthBurst', None)
+  relay_burst = controller.get_conf('RelayBandwidthBurst', None)
 
-  if relay_burst and relay_burst != "0":
-    effective_burst = min(effective_burst, int(relay_burst))
+  if effective_burst and relay_burst and relay_burst != '0':
+    effective_burst = min(int(effective_burst), int(relay_burst))
 
   if effective_burst is not None:
-    return effective_burst
+    return int(effective_burst)
   else:
     return None
 
@@ -564,15 +563,8 @@ def get_my_bandwidth_observed(controller):
   descriptors aren't periodically updated.
   """
 
-  my_fingerprint = controller.get_info("fingerprint", None)
-
-  if my_fingerprint:
-    my_descriptor = controller.get_server_descriptor(my_fingerprint, None)
-
-    if my_descriptor:
-      return my_descriptor.observed_bandwidth
-
-  return None
+  my_descriptor = controller.get_server_descriptor(default = None)
+  return getattr(my_descriptor, 'observed_bandwidth', None)
 
 
 def get_my_bandwidth_measured(controller):
@@ -585,16 +577,5 @@ def get_my_bandwidth_measured(controller):
   https://trac.torproject.org/projects/tor/ticket/1566
   """
 
-  # TODO: Tor is documented as providing v2 router status entries but
-  # actually looks to be v3. This needs to be sorted out between stem
-  # and tor.
-
-  my_fingerprint = controller.get_info("fingerprint", None)
-
-  if my_fingerprint:
-    my_status_entry = controller.get_network_status(my_fingerprint, None)
-
-    if my_status_entry and hasattr(my_status_entry, 'bandwidth'):
-      return my_status_entry.bandwidth
-
-  return None
+  my_status_entry = controller.get_network_status(default = None)
+  return getattr(my_status_entry, 'bandwidth', None)
