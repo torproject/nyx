@@ -12,7 +12,9 @@ import threading
 import arm.controller
 import arm.popups
 
-from stem.control import Listener, Signal
+import stem
+
+from stem.control import Listener
 from stem.util import conf, log, proc, str_tools, system
 
 from util import msg, tor_controller, panel, tracker
@@ -70,7 +72,12 @@ class HeaderPanel(panel.Panel, threading.Thread):
     Requests a new identity and provides a visual queue.
     """
 
-    tor_controller().signal(Signal.NEWNYM)
+    controller = tor_controller()
+
+    if not controller.is_newnym_available():
+      return
+
+    controller.signal(stem.Signal.NEWNYM)
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
@@ -81,51 +88,36 @@ class HeaderPanel(panel.Panel, threading.Thread):
   def handle_key(self, key):
     is_keystroke_consumed = True
 
-    if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
+    if key in (ord('n'), ord('N')):
       self.send_newnym()
     elif key in (ord('r'), ord('R')) and not self._vals.is_connected:
-      # oldSocket = tor_tools.get_conn().get_controller().get_socket()
+      # TODO: This is borked. Not quite sure why but our attempt to call
+      # PROTOCOLINFO fails with a socket error, followed by completely freezing
+      # arm. This is exposing two bugs...
       #
-      # controller = None
-      # allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
-      #
-      # if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
-      #   try:
-      #     # TODO: um... what about passwords?
-      #     controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
-      #     controller.authenticate()
-      #   except (IOError, stem.SocketError), exc:
-      #     controller = None
-      #
-      #     if not allowPortConnection:
-      #       arm.popups.show_msg("Unable to reconnect (%s)" % exc, 3)
-      # elif not allowPortConnection:
-      #   arm.popups.show_msg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
-      #
-      # if not controller and allowPortConnection:
-      #   # TODO: This has diverged from starter.py's connection, for instance it
-      #   # doesn't account for relative cookie paths or multiple authentication
-      #   # methods. We can't use the starter.py's connection function directly
-      #   # due to password prompts, but we could certainly make this mess more
-      #   # manageable.
-      #
-      #   try:
-      #     ctlAddr, ctl_port = CONFIG["startup.interface.ip_address"], CONFIG["startup.interface.port"]
-      #     controller = Controller.from_port(ctlAddr, ctl_port)
-      #
-      #     try:
-      #       controller.authenticate()
-      #     except stem.connection.MissingPassword:
-      #       controller.authenticate(authValue) # already got the password above
-      #   except Exception, exc:
-      #     controller = None
-      #
-      # if controller:
-      #   tor_tools.get_conn().init(controller)
-      #   log.notice("Reconnected to Tor's control port")
-      #   arm.popups.show_msg("Tor reconnected", 1)
+      # * This should be working. That's a stem issue.
+      # * Our interface shouldn't be locking up. That's an arm issue.
 
-      pass
+      return True
+
+      controller = tor_controller()
+
+      try:
+        controller.connect()
+
+        try:
+          controller.authenticate()
+        except stem.connection.MissingPassword:
+          password = cli.popups.input_prompt('Controller Password: ')
+
+          if password:
+            controller.authenticate(password)
+
+        log.notice("Reconnected to Tor's control port")
+        arm.popups.show_msg('Tor reconnected', 1)
+      except Exception as exc:
+        arm.popups.show_msg('Unable to reconnect (%s)' % exc, 3)
+        controller.close()
     else:
       is_keystroke_consumed = False
 
@@ -443,9 +435,9 @@ class Sampling(object):
       self.fd_used = None
 
     tor_resources = tracker.get_resource_tracker().get_value()
+    self.arm_total_cpu_time = sum(os.times()[:3])
     self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
     self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
-    self.arm_total_cpu_time = sum(os.times()[:3])
     self.memory = str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
     self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
 
