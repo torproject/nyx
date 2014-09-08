@@ -143,30 +143,14 @@ class BandwidthStats(graph_panel.GraphStats):
     if or_port == '0':
       return
 
-    # gets the uptime (using the same parameters as the header panel to take
-    # advantage of caching)
-    # TODO: stem dropped system caching support so we'll need to think of
-    # something else
-
-    uptime = None
-    query_pid = controller.get_pid(None)
-
-    if query_pid:
-      query_param = ['%cpu', 'rss', '%mem', 'etime']
-      query_cmd = 'ps -p %s -o %s' % (query_pid, ','.join(query_param))
-      ps_call = system.call(query_cmd, None)
-
-      if ps_call and len(ps_call) == 2:
-        stats = ps_call[1].strip().split()
-
-        if len(stats) == 4:
-          uptime = stats[3]
+    start_time = system.start_time(controller.get_pid(None))
+    uptime = time.time() - start_time if start_time else None
 
     # checks if tor has been running for at least a day, the reason being that
     # the state tracks a day's worth of data and this should only prepopulate
     # results associated with this tor instance
 
-    if not uptime or '-' not in uptime:
+    if not uptime or uptime < (24 * 60 * 60):
       log.notice(msg('panel.graphing.prepopulation_failure', error = 'insufficient uptime'))
       return False
 
