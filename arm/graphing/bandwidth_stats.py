@@ -137,15 +137,22 @@ class BandwidthStats(graph_panel.GraphStats):
 
     controller = tor_controller()
 
+    if not controller.is_localhost():
+      log.info(msg('panel.graphing.prepopulation_failure', error = "we can only prepopulate bandwidth information for a local tor instance"))
+      return False
+
     start_time = system.start_time(controller.get_pid(None))
     uptime = time.time() - start_time if start_time else None
 
-    # checks if tor has been running for at least a day, the reason being that
-    # the state tracks a day's worth of data and this should only prepopulate
-    # results associated with this tor instance
+    # Only attempt to prepopulate information if we've been running for a day.
+    # Reason is that the state file stores a day's worth of data, and we don't
+    # want to prepopulate with information from a prior tor instance.
 
-    if not uptime or uptime < (24 * 60 * 60):
-      log.notice(msg('panel.graphing.prepopulation_failure', error = 'insufficient uptime'))
+    if not uptime:
+      log.info(msg('panel.graphing.prepopulation_failure', error = "unable to determine tor's uptime"))
+      return False
+    elif uptime < (24 * 60 * 60):
+      log.info(msg('panel.graphing.prepopulation_failure', error = "insufficient uptime, tor must've been running for at least a day"))
       return False
 
     # get the user's data directory (usually '~/.tor')
@@ -153,15 +160,18 @@ class BandwidthStats(graph_panel.GraphStats):
     data_dir = controller.get_conf('DataDirectory', None)
 
     if not data_dir:
-      log.notice(msg('panel.graphing.prepopulation_failure', error = 'data directory not found'))
+      log.info(msg('panel.graphing.prepopulation_failure', error = "unable to determine tor's data directory"))
       return False
 
     # attempt to open the state file
 
+    state_file_path = '%s%s/state' % (CONFIG['tor.chroot'], data_dir)
+
     try:
-      state_file = open('%s%s/state' % (CONFIG['tor.chroot'], data_dir), 'r')
-    except IOError:
-      log.notice(msg('panel.graphing.prepopulation_failure', error = 'unable to read the state file'))
+      with open(state_file_path) as state_file:
+        state_file_content = state_file.readlines()
+    except IOError as exc:
+      log.info(msg('panel.graphing.prepopulation_failure', error = 'unable to read the state file at %s, %s' % (state_file_path, exc)))
       return False
 
     # get the BWHistory entries (ordered oldest to newest) and number of
@@ -174,7 +184,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
     tz_offset = time.altzone if time.localtime()[8] else time.timezone
 
-    for line in state_file:
+    for line in state_file_content:
       line = line.strip()
 
       # According to the rep_hist_update_state() function the BWHistory*Ends
@@ -201,7 +211,7 @@ class BandwidthStats(graph_panel.GraphStats):
         missing_write_entries = int((time.time() - last_write_time) / 900)
 
     if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
-      log.notice(msg('panel.graphing.prepopulation_failure', error = 'bandwidth stats missing from state file'))
+      log.info(msg('panel.graphing.prepopulation_failure', error = 'bandwidth stats missing from state file'))
       return False
 
     # fills missing entries with the last value
