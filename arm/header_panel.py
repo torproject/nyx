@@ -1,17 +1,7 @@
 """
 Top panel for every page, containing basic system and tor related information.
-If there's room available then this expands to present its information in two
-columns, otherwise it's laid out as follows:
-  arm - <hostname> (<os> <sys/version>)         Tor <tor/version> (<new, old, recommended, etc>)
-  <nickname> - <address>:<or_port>, [Dir Port: <dir_port>, ]Control Port (<open, password, cookie>): <control_port>
-  cpu: <cpu%> mem: <mem> (<mem%>) uid: <uid> uptime: <upmin>:<upsec>
-  fingerprint: <fingerprint>
-
-Example:
-  arm - odin (Linux 2.6.24-24-generic)         Tor 0.2.1.19 (recommended)
-  odin - 76.104.132.98:9001, Dir Port: 9030, Control Port (cookie): 9051
-  cpu: 14.6%    mem: 42 MB (4.2%)    pid: 20060   uptime: 48:27
-  fingerprint: BDAD31F6F318E0413833E8EBDA956F76E4D66788
+This expands the information it presents to two columns if there's room
+available.
 """
 
 import os
@@ -19,90 +9,52 @@ import time
 import curses
 import threading
 
-import arm.util.tracker
+import arm.controller
+import arm.popups
 
-from stem import Signal
-from stem.control import State
+import stem
+
+from stem.control import Listener
 from stem.util import conf, log, proc, str_tools, system
 
-import arm.starter
-import arm.popups
-import arm.controller
+from util import msg, tor_controller, panel, tracker
 
-from util import panel, ui_tools, tor_controller
-
-# minimum width for which panel attempts to double up contents (two columns to
-# better use screen real estate)
-
-MIN_DUAL_COL_WIDTH = 141
+MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
+SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
+UPDATE_RATE = 5  # rate in seconds at which we refresh
 
 CONFIG = conf.config_dict('arm', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
-  'features.showFdUsage': False,
 })
 
 
 class HeaderPanel(panel.Panel, threading.Thread):
   """
-  Top area contenting tor settings and system information. Stats are stored in
-  the vals mapping, keys including:
-    tor/  version, versionStatus, nickname, or_port, dir_port, control_port,
-          socketPath, exit_policy, isAuthPassword (bool), isAuthCookie (bool),
-          orListenAddr, *address, *fingerprint, *flags, pid, start_time,
-          *fd_used, fd_limit
-    sys/  hostname, os, version
-    stat/ *%torCpu, *%armCpu, *rss, *%mem
-
-  * volatile parameter that'll be reset on each update
+  Top area containing tor settings and system information.
   """
 
   def __init__(self, stdscr, start_time):
-    panel.Panel.__init__(self, stdscr, "header", 0)
+    panel.Panel.__init__(self, stdscr, 'header', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._is_tor_connected = tor_controller().is_alive()
-    self._last_update = -1       # time the content was last revised
-    self._halt = False           # terminates thread if true
-    self._cond = threading.Condition()  # used for pausing the thread
+    self._vals = Sampling()
 
-    # Time when the panel was paused or tor was stopped. This is used to
-    # freeze the uptime statistic (uptime increments normally when None).
-
-    self._halt_time = None
-
-    # The last arm cpu usage sampling taken. This is a tuple of the form:
-    # (total arm cpu time, sampling timestamp)
-    #
-    # The initial cpu total should be zero. However, at startup the cpu time
-    # in practice is often greater than the real time causing the initially
-    # reported cpu usage to be over 100% (which shouldn't be possible on
-    # single core systems).
-    #
-    # Setting the initial cpu total to the value at this panel's init tends to
-    # give smoother results (staying in the same ballpark as the second
-    # sampling) so fudging the numbers this way for now.
-
-    self._arm_cpu_sampling = (sum(os.times()[:3]), start_time)
-
-    # Last sampling received from the ResourceTracker, used to detect when it
-    # changes.
-
-    self._last_resource_fetch = -1
-
-    # flag to indicate if we've already given file descriptor warnings
-
-    self._is_fd_sixty_percent_warned = False
-    self._is_fd_ninety_percent_warned = False
-
-    self.vals = {}
-    self.vals_lock = threading.RLock()
-    self._update()
-
-    # listens for tor reload (sighup) events
+    self._pause_condition = threading.Condition()
+    self._halt = False  # terminates thread if true
 
     tor_controller().add_status_listener(self.reset_listener)
+
+  def is_wide(self, width = None):
+    """
+    True if we should show two columns of information, False otherwise.
+    """
+
+    if width is None:
+      width = self.get_parent().getmaxyx()[1]
+
+    return width >= MIN_DUAL_COL_WIDTH
 
   def get_height(self):
     """
@@ -110,570 +62,430 @@ class HeaderPanel(panel.Panel, threading.Thread):
     panel's maximum width.
     """
 
-    is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-
-    if self.vals["tor/or_port"]:
-      return 4 if is_wide else 6
+    if self._vals.is_relay:
+      return 4 if self.is_wide() else 6
     else:
-      return 3 if is_wide else 4
+      return 3 if self.is_wide() else 4
 
   def send_newnym(self):
     """
     Requests a new identity and provides a visual queue.
     """
 
-    tor_controller().signal(Signal.NEWNYM)
+    controller = tor_controller()
+
+    if not controller.is_newnym_available():
+      return
+
+    controller.signal(stem.Signal.NEWNYM)
 
     # If we're wide then the newnym label in this panel will give an
     # indication that the signal was sent. Otherwise use a msg.
 
-    is_wide = self.get_parent().getmaxyx()[1] >= MIN_DUAL_COL_WIDTH
-
-    if not is_wide:
-      arm.popups.show_msg("Requesting a new identity", 1)
+    if not self.is_wide():
+      arm.popups.show_msg('Requesting a new identity', 1)
 
   def handle_key(self, key):
     is_keystroke_consumed = True
 
-    if key in (ord('n'), ord('N')) and tor_controller().is_newnym_available():
+    if key in (ord('n'), ord('N')):
       self.send_newnym()
-    elif key in (ord('r'), ord('R')) and not self._is_tor_connected:
-      #oldSocket = tor_tools.get_conn().get_controller().get_socket()
+    elif key in (ord('r'), ord('R')) and not self._vals.is_connected:
+      # TODO: This is borked. Not quite sure why but our attempt to call
+      # PROTOCOLINFO fails with a socket error, followed by completely freezing
+      # arm. This is exposing two bugs...
       #
-      #controller = None
-      #allowPortConnection, allowSocketConnection, _ = starter.allowConnectionTypes()
-      #
-      #if os.path.exists(CONFIG["startup.interface.socket"]) and allowSocketConnection:
-      #  try:
-      #    # TODO: um... what about passwords?
-      #    controller = Controller.from_socket_file(CONFIG["startup.interface.socket"])
-      #    controller.authenticate()
-      #  except (IOError, stem.SocketError), exc:
-      #    controller = None
-      #
-      #    if not allowPortConnection:
-      #      arm.popups.show_msg("Unable to reconnect (%s)" % exc, 3)
-      #elif not allowPortConnection:
-      #  arm.popups.show_msg("Unable to reconnect (socket '%s' doesn't exist)" % CONFIG["startup.interface.socket"], 3)
-      #
-      #if not controller and allowPortConnection:
-      #  # TODO: This has diverged from starter.py's connection, for instance it
-      #  # doesn't account for relative cookie paths or multiple authentication
-      #  # methods. We can't use the starter.py's connection function directly
-      #  # due to password prompts, but we could certainly make this mess more
-      #  # manageable.
-      #
-      #  try:
-      #    ctlAddr, ctl_port = CONFIG["startup.interface.ip_address"], CONFIG["startup.interface.port"]
-      #    controller = Controller.from_port(ctlAddr, ctl_port)
-      #
-      #    try:
-      #      controller.authenticate()
-      #    except stem.connection.MissingPassword:
-      #      controller.authenticate(authValue) # already got the password above
-      #  except Exception, exc:
-      #    controller = None
-      #
-      #if controller:
-      #  tor_tools.get_conn().init(controller)
-      #  log.notice("Reconnected to Tor's control port")
-      #  arm.popups.show_msg("Tor reconnected", 1)
+      # * This should be working. That's a stem issue.
+      # * Our interface shouldn't be locking up. That's an arm issue.
 
-      pass
+      return True
+
+      controller = tor_controller()
+
+      try:
+        controller.connect()
+
+        try:
+          controller.authenticate()
+        except stem.connection.MissingPassword:
+          password = cli.popups.input_prompt('Controller Password: ')
+
+          if password:
+            controller.authenticate(password)
+
+        log.notice("Reconnected to Tor's control port")
+        arm.popups.show_msg('Tor reconnected', 1)
+      except Exception as exc:
+        arm.popups.show_msg('Unable to reconnect (%s)' % exc, 3)
+        controller.close()
     else:
       is_keystroke_consumed = False
 
     return is_keystroke_consumed
 
   def draw(self, width, height):
-    self.vals_lock.acquire()
-    is_wide = width + 1 >= MIN_DUAL_COL_WIDTH
+    vals = self._vals  # local reference to avoid concurrency concerns
+    is_wide = self.is_wide(width)
 
     # space available for content
 
+    left_width = max(width / 2, 77) if is_wide else width
+    right_width = width - left_width
+
+    self._draw_platform_section(0, 0, left_width, vals)
+
+    if vals.is_connected:
+      self._draw_ports_section(0, 1, left_width, vals)
+    else:
+      self._draw_disconnected(0, 1, left_width, vals)
+
     if is_wide:
-      left_width = max(width / 2, 77)
-      right_width = width - left_width
+      self._draw_resource_usage(left_width, 0, right_width, vals)
+
+      if vals.is_relay:
+        self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
+        self._draw_flags(0, 2, left_width, vals)
+        self._draw_exit_policy(left_width, 2, right_width, vals)
+      elif vals.is_connected:
+        self._draw_newnym_option(left_width, 1, right_width, vals)
     else:
-      left_width = right_width = width
+      self._draw_resource_usage(0, 2, left_width, vals)
 
-    # Line 1 / Line 1 Left (system and tor version information)
+      if vals.is_relay:
+        self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
+        self._draw_flags(0, 4, left_width, vals)
 
-    sys_name_label = "arm - %s" % self.vals["sys/hostname"]
-    content_space = min(left_width, 40)
+  def _draw_platform_section(self, x, y, width, vals):
+    """
+    Section providing the user's hostname, platform, and version information...
 
-    if len(sys_name_label) + 10 <= content_space:
-      sys_type_label = "%s %s" % (self.vals["sys/os"], self.vals["sys/version"])
-      sys_type_label = ui_tools.crop_str(sys_type_label, content_space - len(sys_name_label) - 3, 4)
-      self.addstr(0, 0, "%s (%s)" % (sys_name_label, sys_type_label))
+      arm - odin (Linux 3.5.0-52-generic)        Tor 0.2.5.1-alpha-dev (unrecommended)
+      |------ platform (40 characters) ------|   |----------- tor version -----------|
+    """
+
+    initial_x, space_left = x, min(width, 40)
+
+    x = self.addstr(y, x, vals.format('arm - {hostname}', space_left))
+    space_left -= x - initial_x
+
+    if space_left >= 10:
+      self.addstr(y, x, ' (%s)' % vals.format('{platform}', space_left - 3))
+
+    x, space_left = initial_x + 43, width - 43
+
+    if vals.version != 'Unknown' and space_left >= 10:
+      x = self.addstr(y, x, vals.format('Tor {version}', space_left))
+      space_left -= x - 43 - initial_x
+
+      if space_left >= 7 + len(vals.version_status):
+        x = self.addstr(y, x, ' (')
+        x = self.addstr(y, x, vals.version_status, vals.version_color)
+        self.addstr(y, x, ')')
+
+  def _draw_ports_section(self, x, y, width, vals):
+    """
+    Section providing our nickname, address, and port information...
+
+      Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
+    """
+
+    if not vals.is_relay:
+      x = self.addstr(y, x, 'Relaying Disabled', 'cyan')
     else:
-      self.addstr(0, 0, ui_tools.crop_str(sys_name_label, content_space))
+      x = self.addstr(y, x, vals.format('{nickname} - {address}:{or_port}'))
 
-    content_space = left_width - 43
+      if vals.dir_port != '0':
+        x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
 
-    if 7 + len(self.vals["tor/version"]) + len(self.vals["tor/versionStatus"]) <= content_space:
-      if self.vals["tor/version"] != "Unknown":
-        version_color = CONFIG['attr.version_status_colors'].get(self.vals["tor/versionStatus"], 'white')
+    if vals.control_port:
+      if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
+        auth_color = 'red' if vals.auth_type == 'open' else 'green'
 
-        label_prefix = "Tor %s (" % self.vals["tor/version"]
-        self.addstr(0, 43, label_prefix)
-        self.addstr(0, 43 + len(label_prefix), self.vals["tor/versionStatus"], ui_tools.get_color(version_color))
-        self.addstr(0, 43 + len(label_prefix) + len(self.vals["tor/versionStatus"]), ")")
-    elif 11 <= content_space:
-      self.addstr(0, 43, ui_tools.crop_str("Tor %s" % self.vals["tor/version"], content_space, 4))
-
-    # Line 2 / Line 2 Left (tor ip/port information)
-
-    x, include_control_port = 0, True
-
-    if self.vals["tor/or_port"]:
-      my_address = "Unknown"
-
-      if self.vals["tor/orListenAddr"]:
-        my_address = self.vals["tor/orListenAddr"]
-      elif self.vals["tor/address"]:
-        my_address = self.vals["tor/address"]
-
-      # acting as a relay (we can assume certain parameters are set
-
-      dir_port_label = ", Dir Port: %s" % self.vals["tor/dir_port"] if self.vals["tor/dir_port"] != "0" else ""
-
-      for label in (self.vals["tor/nickname"], " - " + my_address, ":" + self.vals["tor/or_port"], dir_port_label):
-        if x + len(label) <= left_width:
-          self.addstr(1, x, label)
-          x += len(label)
-        else:
-          break
-    else:
-      # non-relay (client only)
-
-      if self._is_tor_connected:
-        self.addstr(1, x, "Relaying Disabled", ui_tools.get_color("cyan"))
-        x += 17
+        x = self.addstr(y, x, ', Control Port (')
+        x = self.addstr(y, x, vals.auth_type, auth_color)
+        self.addstr(y, x, vals.format('): {control_port}'))
       else:
-        status_time = tor_controller().get_latest_heartbeat()
+        self.addstr(y, x, vals.format(', Control Port: {control_port}'))
+    elif vals.socket_path:
+      self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
 
-        if status_time:
-          status_time_label = time.strftime("%H:%M %m/%d/%Y, ", time.localtime(status_time))
-        else:
-          status_time_label = ""  # never connected to tor
+  def _draw_disconnected(self, x, y, width, vals):
+    """
+    Message indicating that tor is disconnected...
 
-        self.addstr(1, x, "Tor Disconnected", curses.A_BOLD | ui_tools.get_color("red"))
-        self.addstr(1, x + 16, " (%spress r to reconnect)" % status_time_label)
-        x += 39 + len(status_time_label)
-        include_control_port = False
+      Tor Disconnected (15:21 07/13/2014, press r to reconnect)
+    """
 
-    if include_control_port:
-      if self.vals["tor/control_port"] == "0":
-        # connected via a control socket
-        self.addstr(1, x, ", Control Socket: %s" % self.vals["tor/socketPath"])
+    x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD, 'red')
+    self.addstr(y, x, vals.format(' ({last_heartbeat}, press r to reconnect)'))
+
+  def _draw_resource_usage(self, x, y, width, vals):
+    """
+    System resource usage of the tor process...
+
+      cpu: 0.0% tor, 1.0% arm    mem: 0 (0.0%)       pid: 16329  uptime: 12-20:42:07
+    """
+
+    if vals.start_time:
+      if not vals.is_connected:
+        now = vals.connection_time
+      elif self.is_paused():
+        now = self.get_pause_time()
       else:
-        if self.vals["tor/isAuthPassword"]:
-          auth_type = "password"
-        elif self.vals["tor/isAuthCookie"]:
-          auth_type = "cookie"
-        else:
-          auth_type = "open"
+        now = time.time()
 
-        if x + 19 + len(self.vals["tor/control_port"]) + len(auth_type) <= left_width:
-          auth_color = "red" if auth_type == "open" else "green"
-          self.addstr(1, x, ", Control Port (")
-          self.addstr(1, x + 16, auth_type, ui_tools.get_color(auth_color))
-          self.addstr(1, x + 16 + len(auth_type), "): %s" % self.vals["tor/control_port"])
-        elif x + 16 + len(self.vals["tor/control_port"]) <= left_width:
-          self.addstr(1, 0, ", Control Port: %s" % self.vals["tor/control_port"])
-
-    # Line 3 / Line 1 Right (system usage info)
-
-    y, x = (0, left_width) if is_wide else (2, 0)
-
-    if self.vals["stat/rss"] != "0":
-      memory_label = str_tools.get_size_label(int(self.vals["stat/rss"]))
+      uptime = str_tools.short_time_label(now - vals.start_time)
     else:
-      memory_label = "0"
+      uptime = ''
 
-    uptime_label = ""
-
-    if self.vals["tor/start_time"]:
-      if self.is_paused() or not self._is_tor_connected:
-        # freeze the uptime when paused or the tor process is stopped
-        uptime_label = str_tools.get_short_time_label(self.get_pause_time() - self.vals["tor/start_time"])
-      else:
-        uptime_label = str_tools.get_short_time_label(time.time() - self.vals["tor/start_time"])
-
-    sys_fields = ((0, "cpu: %s%% tor, %s%% arm" % (self.vals["stat/%torCpu"], self.vals["stat/%armCpu"])),
-                  (27, "mem: %s (%s%%)" % (memory_label, self.vals["stat/%mem"])),
-                  (47, "pid: %s" % (self.vals["tor/pid"] if self._is_tor_connected else "")),
-                  (59, "uptime: %s" % uptime_label))
+    sys_fields = (
+      (0, vals.format('cpu: {tor_cpu}% tor, {arm_cpu}% arm')),
+      (27, vals.format('mem: {memory} ({memory_percent}%)')),
+      (47, vals.format('pid: {pid}')),
+      (59, 'uptime: %s' % uptime),
+    )
 
     for (start, label) in sys_fields:
-      if start + len(label) <= right_width:
+      if width >= start + len(label):
         self.addstr(y, x + start, label)
       else:
         break
 
-    if self.vals["tor/or_port"]:
-      # Line 4 / Line 2 Right (fingerprint, and possibly file descriptor usage)
+  def _draw_fingerprint_and_fd_usage(self, x, y, width, vals):
+    """
+    Presents our fingerprint, and our file descriptor usage if we're running
+    out...
 
-      y, x = (1, left_width) if is_wide else (3, 0)
+      fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B, file desc: 900 / 1000 (90%)
+    """
 
-      fingerprint_label = ui_tools.crop_str("fingerprint: %s" % self.vals["tor/fingerprint"], width)
-      self.addstr(y, x, fingerprint_label)
+    initial_x, space_left = x, width
 
-      # if there's room and we're able to retrieve both the file descriptor
-      # usage and limit then it might be presented
+    x = self.addstr(y, x, vals.format('fingerprint: {fingerprint}', width))
+    space_left -= x - initial_x
 
-      if width - x - 59 >= 20 and self.vals["tor/fd_used"] and self.vals["tor/fd_limit"]:
-        # display file descriptor usage if we're either configured to do so or
-        # running out
+    if space_left >= 30 and vals.fd_used and vals.fd_limit:
+      fd_percent = 100 * vals.fd_used / vals.fd_limit
 
-        fd_percent = 100 * self.vals["tor/fd_used"] / self.vals["tor/fd_limit"]
-
-        if fd_percent >= 60 or CONFIG["features.showFdUsage"]:
-          fd_percentLabel, fd_percent_format = "%i%%" % fd_percent, curses.A_NORMAL
-
-          if fd_percent >= 95:
-            fd_percent_format = curses.A_BOLD | ui_tools.get_color("red")
-          elif fd_percent >= 90:
-            fd_percent_format = ui_tools.get_color("red")
-          elif fd_percent >= 60:
-            fd_percent_format = ui_tools.get_color("yellow")
-
-          base_label = "file desc: %i / %i (" % (self.vals["tor/fd_used"], self.vals["tor/fd_limit"])
-
-          self.addstr(y, x + 59, base_label)
-          self.addstr(y, x + 59 + len(base_label), fd_percentLabel, fd_percent_format)
-          self.addstr(y, x + 59 + len(base_label) + len(fd_percentLabel), ")")
-
-      # Line 5 / Line 3 Left (flags)
-
-      if self._is_tor_connected:
-        y, x = (2 if is_wide else 4, 0)
-        self.addstr(y, x, "flags: ")
-        x += 7
-
-        if len(self.vals["tor/flags"]) > 0:
-          for i in range(len(self.vals["tor/flags"])):
-            flag = self.vals["tor/flags"][i]
-            flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
-
-            self.addstr(y, x, flag, curses.A_BOLD | ui_tools.get_color(flag_color))
-            x += len(flag)
-
-            if i < len(self.vals["tor/flags"]) - 1:
-              self.addstr(y, x, ", ")
-              x += 2
+      if fd_percent >= SHOW_FD_THRESHOLD:
+        if fd_percent >= 95:
+          percentage_format = (curses.A_BOLD, 'red')
+        elif fd_percent >= 90:
+          percentage_format = ('red',)
+        elif fd_percent >= 60:
+          percentage_format = ('yellow',)
         else:
-          self.addstr(y, x, "none", curses.A_BOLD | ui_tools.get_color("cyan"))
-      else:
-        y = 2 if is_wide else 4
-        status_time = tor_controller().get_latest_heartbeat()
-        status_time_label = time.strftime("%H:%M %m/%d/%Y", time.localtime(status_time))
-        self.addstr(y, 0, "Tor Disconnected", curses.A_BOLD | ui_tools.get_color("red"))
-        self.addstr(y, 16, " (%s) - press r to reconnect" % status_time_label)
+          percentage_format = ()
 
-      # Undisplayed / Line 3 Right (exit policy)
+        x = self.addstr(y, x, ', file descriptors' if space_left >= 37 else ', file desc')
+        x = self.addstr(y, x, vals.format(': {fd_used} / {fd_limit} ('))
+        x = self.addstr(y, x, '%i%%' % fd_percent, *percentage_format)
+        self.addstr(y, x, ')')
 
-      if is_wide:
-        exit_policy = self.vals["tor/exit_policy"]
-
-        # adds note when default exit policy is appended
-
-        if exit_policy == "":
-          exit_policy = "<default>"
-        elif not exit_policy.endswith((" *:*", " *")):
-          exit_policy += ", <default>"
-
-        self.addstr(2, left_width, "exit policy: ")
-        x = left_width + 13
-
-        # color codes accepts to be green, rejects to be red, and default marker to be cyan
-
-        is_simple = len(exit_policy) > right_width - 13
-        policies = exit_policy.split(", ")
-
-        for i in range(len(policies)):
-          policy = policies[i].strip()
-          policy_label = policy.replace("accept", "").replace("reject", "").strip() if is_simple else policy
-
-          policy_color = "white"
-
-          if policy.startswith("accept"):
-            policy_color = "green"
-          elif policy.startswith("reject"):
-            policy_color = "red"
-          elif policy.startswith("<default>"):
-            policy_color = "cyan"
-
-          self.addstr(2, x, policy_label, curses.A_BOLD | ui_tools.get_color(policy_color))
-          x += len(policy_label)
-
-          if i < len(policies) - 1:
-            self.addstr(2, x, ", ")
-            x += 2
-    else:
-      # (Client only) Undisplayed / Line 2 Right (new identity option)
-
-      if is_wide:
-        newnym_wait = tor_controller().get_newnym_wait()
-
-        msg = "press 'n' for a new identity"
-
-        if newnym_wait > 0:
-          plural_label = "s" if newnym_wait > 1 else ""
-          msg = "building circuits, available again in %i second%s" % (newnym_wait, plural_label)
-
-        self.addstr(1, left_width, msg)
-
-    self.vals_lock.release()
-
-  def get_pause_time(self):
+  def _draw_flags(self, x, y, width, vals):
     """
-    Provides the time Tor stopped if it isn't running. Otherwise this is the
-    time we were last paused.
+    Presents flags held by our relay...
+
+      flags: Running, Valid
     """
 
-    if self._halt_time:
-      return self._halt_time
+    x = self.addstr(y, x, 'flags: ')
+
+    if vals.flags:
+      for i, flag in enumerate(vals.flags):
+        flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
+        x = self.addstr(y, x, flag, curses.A_BOLD, flag_color)
+
+        if i < len(vals.flags) - 1:
+          x = self.addstr(y, x, ', ')
     else:
-      return panel.Panel.get_pause_time(self)
+      self.addstr(y, x, 'none', curses.A_BOLD, 'cyan')
+
+  def _draw_exit_policy(self, x, y, width, vals):
+    """
+    Presents our exit policy...
+
+      exit policy: reject *:*
+    """
+
+    x = self.addstr(y, x, 'exit policy: ')
+
+    if not vals.exit_policy:
+      return
+
+    rules = list(vals.exit_policy.strip_private().strip_default())
+
+    for i, rule in enumerate(rules):
+      policy_color = 'green' if rule.is_accept else 'red'
+      x = self.addstr(y, x, str(rule), curses.A_BOLD, policy_color)
+
+      if i < len(rules) - 1:
+        x = self.addstr(y, x, ', ')
+
+    if vals.exit_policy.has_default():
+      if rules:
+        x = self.addstr(y, x, ', ')
+
+      self.addstr(y, x, '<default>', curses.A_BOLD, 'cyan')
+
+  def _draw_newnym_option(self, x, y, width, vals):
+    """
+    Provide a notice for requiesting a new identity, and time until it's next
+    available if in the process of building circuits.
+    """
+
+    if vals.newnym_wait == 0:
+      self.addstr(y, x, "press 'n' for a new identity")
+    else:
+      plural = 's' if vals.newnym_wait > 1 else ''
+      self.addstr(y, x, 'building circuits, available again in %i second%s' % (vals.newnym_wait, plural))
 
   def run(self):
     """
     Keeps stats updated, checking for new information at a set rate.
     """
 
-    last_draw = time.time() - 1
+    last_ran = -1
 
     while not self._halt:
-      current_time = time.time()
+      if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < UPDATE_RATE:
+        with self._pause_condition:
+          if not self._halt:
+            self._pause_condition.wait(0.2)
 
-      if self.is_paused() or current_time - last_draw < 1 or not self._is_tor_connected:
-        self._cond.acquire()
+        continue  # done waiting, try again
 
-        if not self._halt:
-          self._cond.wait(0.2)
-
-        self._cond.release()
-      else:
-        # Update the volatile attributes (cpu, memory, flags, etc) if we have
-        # a new resource usage sampling (the most dynamic stat) or its been
-        # twenty seconds since last fetched (so we still refresh occasionally
-        # when resource fetches fail).
-        #
-        # Otherwise, just redraw the panel to change the uptime field.
-
-        is_changed = False
-
-        if self.vals["tor/pid"]:
-          resource_tracker = arm.util.tracker.get_resource_tracker()
-          is_changed = self._last_resource_fetch != resource_tracker.run_counter()
-
-        if is_changed or current_time - self._last_update >= 20:
-          self._update()
-
-        self.redraw(True)
-        last_draw += 1
+      self._update()
+      last_ran = time.time()
 
   def stop(self):
     """
     Halts further resolutions and terminates the thread.
     """
 
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
+    with self._pause_condition:
+      self._halt = True
+      self._pause_condition.notifyAll()
 
   def reset_listener(self, controller, event_type, _):
-    """
-    Updates static parameters on tor reload (sighup) events.
-    """
-
-    if event_type in (State.INIT, State.RESET):
-      initial_height = self.get_height()
-      self._is_tor_connected = True
-      self._halt_time = None
-      self._update()
-
-      if self.get_height() != initial_height:
-        # We're toggling between being a relay and client, causing the height
-        # of this panel to change. Redraw all content so we don't get
-        # overlapping content.
-
-        arm.controller.get_controller().redraw()
-      else:
-        # just need to redraw ourselves
-        self.redraw(True)
-    elif event_type == State.CLOSED:
-      self._is_tor_connected = False
-      self._halt_time = time.time()
-      self._update()
-      self.redraw(True)
+    self._update()
 
   def _update(self):
-    """
-    Updates stats in the vals mapping. By default this just revises volatile
-    attributes.
-    """
+    previous_height = self.get_height()
+    self._vals = Sampling(self._vals)
 
-    self.vals_lock.acquire()
+    if previous_height != self.get_height():
+      # We're toggling between being a relay and client, causing the height
+      # of this panel to change. Redraw all content so we don't get
+      # overlapping content.
+
+      arm.controller.get_controller().redraw()
+    else:
+      self.redraw(True)  # just need to redraw ourselves
+
+
+class Sampling(object):
+  """
+  Statistical information rendered by the header panel.
+  """
+
+  def __init__(self, last_sampling = None):
     controller = tor_controller()
 
-    # version is truncated to first part, for instance:
-    # 0.2.2.13-alpha (git-feb8c1b5f67f2c6f) -> 0.2.2.13-alpha
+    self.retrieved = time.time()
+    self.is_connected = controller.is_alive()
+    self.connection_time = controller.connection_time()
+    self.last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat()))
 
-    self.vals['tor/version'] = str(controller.get_version('Unknown')).split()[0]
-    self.vals['tor/versionStatus'] = controller.get_info('status/version/current', 'Unknown')
-    self.vals['tor/nickname'] = controller.get_conf('Nickname', '')
-    self.vals['tor/or_port'] = controller.get_conf('ORPort', '0')
-    self.vals['tor/dir_port'] = controller.get_conf('DirPort', '0')
-    self.vals['tor/control_port'] = controller.get_conf('ControlPort', '0')
-    self.vals['tor/socketPath'] = controller.get_conf('ControlSocket', '')
-    self.vals['tor/isAuthPassword'] = controller.get_conf('HashedControlPassword', None) is not None
-    self.vals['tor/isAuthCookie'] = controller.get_conf('CookieAuthentication', None) == '1'
+    self.fingerprint = controller.get_info('fingerprint', 'Unknown')
+    self.nickname = controller.get_conf('Nickname', '')
+    self.newnym_wait = controller.get_newnym_wait()
+    self.exit_policy = controller.get_exit_policy(None)
+    self.flags = getattr(controller.get_network_status(default = None), 'flags', [])
 
-    # orport is reported as zero if unset
+    self.version = str(controller.get_version('Unknown')).split()[0]
+    self.version_status = controller.get_info('status/version/current', 'Unknown')
+    self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
 
-    if self.vals['tor/or_port'] == '0':
-      self.vals['tor/or_port'] = ''
+    or_listeners = controller.get_listeners(Listener.OR, [])
+    control_listeners = controller.get_listeners(Listener.CONTROL, [])
+    self.address = or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown')
+    self.or_port = or_listeners[0][1] if or_listeners else ''
+    self.dir_port = controller.get_conf('DirPort', '0')
+    self.control_port = str(control_listeners[0][1]) if control_listeners else None
+    self.socket_path = controller.get_conf('ControlSocket', None)
+    self.is_relay = bool(self.or_port)
 
-    # overwrite address if ORListenAddress is set (and possibly or_port too)
+    if controller.get_conf('HashedControlPassword', None):
+      self.auth_type = 'password'
+    elif controller.get_conf('CookieAuthentication', None) == '1':
+      self.auth_type = 'cookie'
+    else:
+      self.auth_type = 'open'
 
-    self.vals['tor/orListenAddr'] = ''
-    listen_addr = controller.get_conf('ORListenAddress', None)
-
-    if listen_addr:
-      if ':' in listen_addr:
-        # both ip and port overwritten
-        self.vals['tor/orListenAddr'] = listen_addr[:listen_addr.find(':')]
-        self.vals['tor/or_port'] = listen_addr[listen_addr.find(':') + 1:]
-      else:
-        self.vals['tor/orListenAddr'] = listen_addr
-
-    # fetch exit policy (might span over multiple lines)
-
-    policy_entries = []
-
-    for exit_policy in controller.get_conf('ExitPolicy', [], True):
-      policy_entries += [policy.strip() for policy in exit_policy.split(',')]
-
-    self.vals['tor/exit_policy'] = ', '.join(policy_entries)
-
-    # file descriptor limit for the process, if this can't be determined
-    # then the limit is None
+    self.pid = controller.get_pid('')
+    self.start_time = system.start_time(self.pid)
 
     fd_limit = controller.get_info('process/descriptor-limit', '-1')
+    self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
 
-    if fd_limit != '-1' and fd_limit.isdigit():
-      self.vals['tor/fd_limit'] = int(fd_limit)
-    else:
-      self.vals['tor/fd_limit'] = None
+    try:
+      self.fd_used = proc.file_descriptors_used(self.pid)
+    except IOError:
+      self.fd_used = None
 
-    # system information
+    tor_resources = tracker.get_resource_tracker().get_value()
+    self.arm_total_cpu_time = sum(os.times()[:3])
+    self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
+    self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
+    self.memory = str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
+    self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
 
     uname_vals = os.uname()
-    self.vals['sys/hostname'] = uname_vals[1]
-    self.vals['sys/os'] = uname_vals[0]
-    self.vals['sys/version'] = uname_vals[2]
+    self.hostname = uname_vals[1]
+    self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
 
-    self.vals['tor/pid'] = controller.get_pid('')
+    if self.fd_used and self.fd_limit:
+      fd_percent = 100 * self.fd_used / self.fd_limit
 
-    try:
-      start_time = system.get_start_time(controller.get_pid())
-    except:
-      start_time = None
+      if fd_percent >= 90:
+        log_msg = msg('misc.fd_used_at_ninety_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
+        log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
+      elif fd_percent >= 60:
+        log_msg = msg('misc.fd_used_at_sixty_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
-    self.vals['tor/start_time'] = start_time if start_time else ''
+  def format(self, message, crop_width = None):
+    """
+    Applies our attributes to the given string.
+    """
 
-    # reverts volatile parameters to defaults
+    formatted_msg = message.format(**self.__dict__)
 
-    self.vals['tor/fingerprint'] = 'Unknown'
-    self.vals['tor/flags'] = []
-    self.vals['tor/fd_used'] = 0
-    self.vals['stat/%torCpu'] = '0'
-    self.vals['stat/%armCpu'] = '0'
-    self.vals['stat/rss'] = '0'
-    self.vals['stat/%mem'] = '0'
+    if crop_width:
+      formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
-    # sets volatile parameters
-    # TODO: This can change, being reported by STATUS_SERVER -> EXTERNAL_ADDRESS
-    # events. Introduce caching via tor_tools?
+    return formatted_msg
 
-    self.vals['tor/address'] = controller.get_info('address', '')
+  def _get_cpu_percentage(self, last_sampling):
+    """
+    Determine the cpu usage of our own process since the last sampling.
 
-    self.vals['tor/fingerprint'] = controller.get_info('fingerprint', self.vals['tor/fingerprint'])
+    :param arm.header_panel.Sampling last_sampling: sampling for which to
+      provide a CPU usage delta with
 
-    my_fingerprint = controller.get_info('fingerprint', None)
+    :returns: **float** representation for our cpu usage over the given period
+      of time
+    """
 
-    if my_fingerprint:
-      my_status_entry = controller.get_network_status(my_fingerprint)
+    if last_sampling:
+      arm_cpu_delta = self.arm_total_cpu_time - last_sampling.arm_total_cpu_time
+      arm_time_delta = self.retrieved - last_sampling.retrieved
 
-      if my_status_entry:
-        self.vals['tor/flags'] = my_status_entry.flags
+      python_cpu_time = arm_cpu_delta / arm_time_delta
+      sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
 
-    # Updates file descriptor usage and logs if the usage is high. If we don't
-    # have a known limit or it's obviously faulty (being lower than our
-    # current usage) then omit file descriptor functionality.
-
-    if self.vals['tor/fd_limit']:
-      fd_used = get_file_descriptor_usage(controller.get_pid(None))
-
-      if fd_used and fd_used <= self.vals['tor/fd_limit']:
-        self.vals['tor/fd_used'] = fd_used
-      else:
-        self.vals['tor/fd_used'] = 0
-
-    if self.vals['tor/fd_used'] and self.vals['tor/fd_limit']:
-      fd_percent = 100 * self.vals['tor/fd_used'] / self.vals['tor/fd_limit']
-      msg = "Tor's file descriptor usage is at %i%%." % fd_percent
-
-      if fd_percent >= 90 and not self._is_fd_ninety_percent_warned:
-        self._is_fd_sixty_percent_warned, self._is_fd_ninety_percent_warned = True, True
-        msg += " If you run out Tor will be unable to continue functioning."
-        log.warn(msg)
-      elif fd_percent >= 60 and not self._is_fd_sixty_percent_warned:
-        self._is_fd_sixty_percent_warned = True
-        log.notice(msg)
-
-    # ps or proc derived resource usage stats
-
-    if self.vals['tor/pid']:
-      resource_tracker = arm.util.tracker.get_resource_tracker()
-
-      resources = resource_tracker.get_resource_usage()
-      self._last_resource_fetch = resource_tracker.run_counter()
-      self.vals['stat/%torCpu'] = '%0.1f' % (100 * resources.cpu_sample)
-      self.vals['stat/rss'] = str(resources.memory_bytes)
-      self.vals['stat/%mem'] = '%0.1f' % (100 * resources.memory_percent)
-
-    # determines the cpu time for the arm process (including user and system
-    # time of both the primary and child processes)
-
-    total_arm_cpu_time, current_time = sum(os.times()[:3]), time.time()
-    arm_cpu_telta = total_arm_cpu_time - self._arm_cpu_sampling[0]
-    arm_time_delta = current_time - self._arm_cpu_sampling[1]
-    python_cpu_time = arm_cpu_telta / arm_time_delta
-    sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
-    self.vals['stat/%armCpu'] = '%0.1f' % (100 * (python_cpu_time + sys_call_cpu_time))
-    self._arm_cpu_sampling = (total_arm_cpu_time, current_time)
-
-    self._last_update = current_time
-    self.vals_lock.release()
-
-
-def get_file_descriptor_usage(pid):
-  """
-  Provides the number of file descriptors currently being used by this
-  process. This returns None if this can't be determined.
-  """
-
-  # The file descriptor usage is the size of the '/proc/<pid>/fd' contents
-  # http://linuxshellaccount.blogspot.com/2008/06/finding-number-of-open-file-descriptors.html
-  # I'm not sure about other platforms (like BSD) so erroring out there.
-
-  if pid and proc.is_available():
-    try:
-      return len(os.listdir('/proc/%s/fd' % pid))
-    except:
-      return None
+      return python_cpu_time + sys_call_cpu_time
+    else:
+      return 0.0

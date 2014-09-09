@@ -14,7 +14,7 @@ class TestDaemon(unittest.TestCase):
     # properly retrieve the process' pid and name.
 
     tor_controller_mock().get_pid.return_value = 12345
-    system_mock.get_name_by_pid.return_value = 'local_tor'
+    system_mock.name_by_pid.return_value = 'local_tor'
 
     daemon = Daemon(0.05)
 
@@ -23,7 +23,7 @@ class TestDaemon(unittest.TestCase):
     self.assertEqual('local_tor', daemon._process_name)
 
     tor_controller_mock().add_status_listener.assert_called_with(daemon._tor_status_listener)
-    system_mock.get_name_by_pid.assert_called_with(12345)
+    system_mock.name_by_pid.assert_called_with(12345)
 
   @patch('arm.util.tracker.tor_controller')
   @patch('arm.util.tracker.system')
@@ -31,7 +31,7 @@ class TestDaemon(unittest.TestCase):
     # Check when we default to 'tor' if unable to determine the process' name.
 
     tor_controller_mock().get_pid.return_value = 12345
-    system_mock.get_name_by_pid.return_value = None
+    system_mock.name_by_pid.return_value = None
 
     daemon = Daemon(0.05)
     self.assertEqual('tor', daemon._process_name)

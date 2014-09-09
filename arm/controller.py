@@ -145,7 +145,7 @@ def init_controller(stdscr, start_time):
 
       if tor_pid:
         # use the tor pid to help narrow connection results
-        tor_cmd = system.get_name_by_pid(tor_pid)
+        tor_cmd = system.name_by_pid(tor_pid)
 
         if tor_cmd is None:
           tor_cmd = "tor"
@@ -586,8 +586,7 @@ def start_arm(stdscr):
     stdscr    - curses window
   """
 
-  start_time = CONFIG['start_time']
-  init_controller(stdscr, start_time)
+  init_controller(stdscr, CONFIG['start_time'])
   control = get_controller()
 
   if not CONFIG["features.acsSupport"]:
@@ -619,7 +618,7 @@ def start_arm(stdscr):
 
   # logs the initialization time
 
-  log.info("arm started (initialization took %0.3f seconds)" % (time.time() - start_time))
+  log.info("arm started (initialization took %0.3f seconds)" % (time.time() - CONFIG['start_time']))
 
   # main draw loop
 

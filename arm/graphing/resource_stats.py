@@ -38,8 +38,8 @@ class ResourceStats(graph_panel.GraphStats):
     else:
       # memory sizes are converted from MB to B before generating labels
 
-      usage_label = str_tools.get_size_label(last_amount * 1048576, 1)
-      avg_label = str_tools.get_size_label(avg * 1048576, 1)
+      usage_label = str_tools.size_label(last_amount * 1048576, 1)
+      avg_label = str_tools.size_label(avg * 1048576, 1)
 
       return "Memory (%s, avg: %s):" % (usage_label, avg_label)
 
@@ -54,7 +54,7 @@ class ResourceStats(graph_panel.GraphStats):
       resource_tracker = arm.util.tracker.get_resource_tracker()
 
       if resource_tracker and resource_tracker.run_counter() != self.last_counter:
-        resources = resource_tracker.get_resource_usage()
+        resources = resource_tracker.get_value()
         self.last_counter = resource_tracker.run_counter()
         primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
         secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short

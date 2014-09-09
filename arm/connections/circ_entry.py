@@ -11,7 +11,9 @@ followed by an entry for each hop in the circuit. For instance:
 import curses
 
 from arm.connections import entries, conn_entry
-from arm.util import tor_controller, ui_tools
+from arm.util import tor_controller
+
+from stem.util import str_tools
 
 ADDRESS_LOOKUP_CACHE = {}
 
@@ -109,7 +111,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     shown completely (not enough room) is dropped.
     """
 
-    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %i" % self.circuit_id]
+    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %s" % self.circuit_id]
 
     for i in range(len(etc_attr), -1, -1):
       etc_label = ", ".join(etc_attr[:i])
@@ -121,7 +123,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
 
   def get_details(self, width):
     if not self.is_built:
-      detail_format = curses.A_BOLD | ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
+      detail_format = (curses.A_BOLD, conn_entry.CATEGORY_COLOR[self.get_type()])
       return [("Building Circuit...", detail_format)]
     else:
       return conn_entry.ConnectionLine.get_details(self, width)
@@ -170,7 +172,7 @@ class CircLine(conn_entry.ConnectionLine):
     return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    line_format = ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
+    line_format = conn_entry.CATEGORY_COLOR[self.get_type()]
 
     # The required widths are the sum of the following:
     # initial space (1 character)
@@ -191,7 +193,7 @@ class CircLine(conn_entry.ConnectionLine):
 
       # fills the nickname into the empty space here
 
-      dst = "%s%-25s   " % (dst[:25], ui_tools.crop_str(self.foreign.get_nickname(), 25, 0))
+      dst = "%s%-25s   " % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.HOSTNAME:
@@ -231,7 +233,7 @@ def get_relay_address(controller, relay_fingerprint, default = None):
 
   if controller.is_alive():
     # query the address if it isn't yet cached
-    if not relay_fingerprint in ADDRESS_LOOKUP_CACHE:
+    if relay_fingerprint not in ADDRESS_LOOKUP_CACHE:
       if relay_fingerprint == controller.get_info("fingerprint", None):
         # this is us, simply check the config
         my_address = controller.get_info("address", None)

@@ -22,27 +22,19 @@ import arm.util.tracker
 import arm.util.ui_tools
 
 import stem
-import stem.util.conf
 import stem.util.log
 import stem.util.system
 
-from arm.util import BASE_DIR, init_controller, authenticate, msg, trace, info, notice, warn, load_settings
-
-CONFIG = stem.util.conf.get_config('arm')
+from arm.util import log, BASE_DIR, init_controller, msg, uses_settings
 
 
-def main():
-  CONFIG.set('start_time', str(int(time.time())))
-
-  try:
-    load_settings()
-  except IOError as exc:
-    print msg('config.unable_to_load_settings', error = exc)
-    sys.exit(1)
+@uses_settings
+def main(config):
+  config.set('start_time', str(int(time.time())))
 
   try:
     args = arm.arguments.parse(sys.argv[1:])
-    CONFIG.set('startup.events', args.logged_events)
+    config.set('startup.events', args.logged_events)
   except ValueError as exc:
     print exc
     sys.exit(1)
@@ -64,11 +56,26 @@ def main():
 
   _load_user_armrc(args.config)
 
-  try:
-    controller = init_controller(args)
-    authenticate(controller, CONFIG.get('tor.password', None), CONFIG.get('tor.chroot', ''))
-  except ValueError as exc:
-    print exc
+  control_port = (args.control_address, args.control_port)
+  control_socket = args.control_socket
+
+  # If the user explicitely specified an endpoint then just try to connect to
+  # that.
+
+  if args.user_provided_socket and not args.user_provided_port:
+    control_port = None
+  elif args.user_provided_port and not args.user_provided_socket:
+    control_socket = None
+
+  controller = init_controller(
+    control_port = control_port,
+    control_socket = control_socket,
+    password = config.get('tor.password', None),
+    password_prompt = True,
+    chroot_path = config.get('tor.chroot', ''),
+  )
+
+  if controller is None:
     exit(1)
 
   _warn_if_root(controller)
@@ -97,8 +104,8 @@ def main():
 
 def _setup_debug_logging(args):
   """
-  Configures us to log at stem's trace level to debug log path, and notes some
-  general diagnostic information.
+  Configures us to log at stem's trace level to a debug log path. This starts
+  it off with some general diagnostic information.
   """
 
   debug_dir = os.path.dirname(args.debug_path)
@@ -125,7 +132,7 @@ def _setup_debug_logging(args):
     except IOError as exc:
       armrc_content = "[unable to read file: %s]" % exc.strerror
 
-  trace(
+  log.trace(
     'debug.header',
     arm_version = arm.__version__,
     stem_version = stem.__version__,
@@ -137,29 +144,30 @@ def _setup_debug_logging(args):
   )
 
 
-def _load_user_armrc(path):
+@uses_settings
+def _load_user_armrc(path, config):
   """
   Loads user's personal armrc if it's available.
   """
 
   if os.path.exists(path):
     try:
-      CONFIG.load(path)
+      config.load(path)
 
       # If the user provided us with a chroot then validate and normalize the
       # path.
 
-      chroot = CONFIG.get('tor.chroot', '').strip().rstrip(os.path.sep)
+      chroot = config.get('tor.chroot', '').strip().rstrip(os.path.sep)
 
       if chroot and not os.path.exists(chroot):
-        notice('setup.chroot_doesnt_exist', path = chroot)
-        CONFIG.set('tor.chroot', '')
+        log.notice('setup.chroot_doesnt_exist', path = chroot)
+        config.set('tor.chroot', '')
       else:
-        CONFIG.set('tor.chroot', chroot)  # use the normalized path
+        config.set('tor.chroot', chroot)  # use the normalized path
     except IOError as exc:
-      warn('config.unable_to_read_file', error = exc.strerror)
+      log.warn('config.unable_to_read_file', error = exc.strerror)
   else:
-    notice('config.nothing_loaded', path = path)
+    log.notice('config.nothing_loaded', path = path)
 
 
 def _warn_if_root(controller):
@@ -170,10 +178,10 @@ def _warn_if_root(controller):
   tor_user = controller.get_user(None)
 
   if tor_user == 'root':
-    notice('setup.tor_is_running_as_root')
+    log.notice('setup.tor_is_running_as_root')
   elif os.getuid() == 0:
     tor_user = tor_user if tor_user else '<tor user>'
-    notice('setup.arm_is_running_as_root', tor_user = tor_user)
+    log.notice('setup.arm_is_running_as_root', tor_user = tor_user)
 
 
 def _warn_if_unable_to_get_pid(controller):
@@ -185,20 +193,21 @@ def _warn_if_unable_to_get_pid(controller):
   try:
     controller.get_pid()
   except ValueError:
-    warn('setup.unable_to_determine_pid')
+    log.warn('setup.unable_to_determine_pid')
 
 
-def _setup_freebsd_chroot(controller):
+@uses_settings
+def _setup_freebsd_chroot(controller, config):
   """
   If we're running under FreeBSD then check the system for a chroot path.
   """
 
-  if not CONFIG.get('tor.chroot', None) and platform.system() == 'FreeBSD':
-    jail_chroot = stem.util.system.get_bsd_jail_path(controller.get_pid(0))
+  if not config.get('tor.chroot', None) and platform.system() == 'FreeBSD':
+    jail_chroot = stem.util.system.bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
-      info('setup.set_freebsd_chroot', path = jail_chroot)
-      CONFIG.set('tor.chroot', jail_chroot)
+      log.info('setup.set_freebsd_chroot', path = jail_chroot)
+      config.set('tor.chroot', jail_chroot)
 
 
 def _notify_of_unknown_events():
@@ -209,16 +218,17 @@ def _notify_of_unknown_events():
   missing_events = arm.arguments.missing_event_types()
 
   if missing_events:
-    info('setup.unknown_event_types', event_types = ', '.join(missing_events))
+    log.info('setup.unknown_event_types', event_types = ', '.join(missing_events))
 
 
-def _clear_password():
+@uses_settings
+def _clear_password(config):
   """
   Removing the reference to our controller password so the memory can be freed.
   Without direct memory access this is about the best we can do to clear it.
   """
 
-  CONFIG.set('tor.password', '')
+  config.set('tor.password', '')
 
 
 def _load_tor_config_descriptions():
@@ -238,17 +248,18 @@ def _use_english_subcommands():
   os.putenv('LANG', 'C')
 
 
-def _use_unicode():
+@uses_settings
+def _use_unicode(config):
   """
   If using our LANG variable for rendering multi-byte characters lets us
   get unicode support then then use it. This needs to be done before
   initializing curses.
   """
 
-  if not CONFIG.get('features.printUnicode', True):
+  if not config.get('features.printUnicode', True):
     return
 
-  is_lang_unicode = "utf-" in os.getenv("LANG", "").lower()
+  is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()
 
   if is_lang_unicode and arm.util.ui_tools.is_wide_characters_supported():
     locale.setlocale(locale.LC_ALL, '')

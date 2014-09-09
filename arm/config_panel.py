@@ -171,9 +171,9 @@ class ConfigEntry():
     arg_set = (option_width, value_width, summary_width)
 
     if not self.label_cache or self.label_cache_args != arg_set:
-      option_label = ui_tools.crop_str(self.get(Field.OPTION), option_width)
-      value_label = ui_tools.crop_str(self.get(Field.VALUE), value_width)
-      summary_label = ui_tools.crop_str(self.get(Field.SUMMARY), summary_width, None)
+      option_label = str_tools.crop(self.get(Field.OPTION), option_width)
+      value_label = str_tools.crop(self.get(Field.VALUE), value_width)
+      summary_label = str_tools.crop(self.get(Field.SUMMARY), summary_width, None)
       line_text_layout = "%%-%is %%-%is %%-%is" % (option_width, value_width, summary_width)
       self.label_cache = line_text_layout % (option_label, value_label, summary_label)
       self.label_cache_args = arg_set
@@ -205,9 +205,9 @@ class ConfigEntry():
     elif self.get(Field.TYPE) == "Boolean" and conf_value in ("0", "1"):
       conf_value = "False" if conf_value == "0" else "True"
     elif self.get(Field.TYPE) == "DataSize" and conf_value.isdigit():
-      conf_value = str_tools.get_size_label(int(conf_value))
+      conf_value = str_tools.size_label(int(conf_value))
     elif self.get(Field.TYPE) == "TimeInterval" and conf_value.isdigit():
-      conf_value = str_tools.get_time_label(int(conf_value), is_long = True)
+      conf_value = str_tools.time_label(int(conf_value), is_long = True)
 
     return conf_value
 
@@ -279,7 +279,7 @@ class ConfigPanel(panel.Panel):
         elif not CONFIG["features.config.state.showVirtualOptions"] and conf_type == "Virtual":
           continue
 
-        self.conf_contents.append(ConfigEntry(conf_option, conf_type, not conf_option in custom_options))
+        self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
 
     elif self.config_type == State.ARM:
       # loaded via the conf utility
@@ -416,7 +416,7 @@ class ConfigPanel(panel.Panel):
             # resets the is_default flag
 
             custom_options = tor_config.get_custom_options()
-            selection.fields[Field.IS_DEFAULT] = not config_option in custom_options
+            selection.fields[Field.IS_DEFAULT] = config_option not in custom_options
 
             self.redraw(True)
           except Exception as exc:
@@ -500,14 +500,14 @@ class ConfigPanel(panel.Panel):
         visible_config_lines = height - 3 if is_option_line_separate else height - 2
 
         for i in range(visible_config_lines):
-          line = ui_tools.crop_str(config_lines[i], width - 2)
+          line = str_tools.crop(config_lines[i], width - 2)
 
           if " " in line:
             option, arg = line.split(" ", 1)
-            popup.addstr(i + 1, 1, option, curses.A_BOLD | ui_tools.get_color("green"))
-            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD | ui_tools.get_color("cyan"))
+            popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
+            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
           else:
-            popup.addstr(i + 1, 1, line, curses.A_BOLD | ui_tools.get_color("green"))
+            popup.addstr(i + 1, 1, line, curses.A_BOLD, 'green')
 
         # draws selection options (drawn right to left)
 
@@ -525,7 +525,7 @@ class ConfigPanel(panel.Panel):
 
           selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
           popup.addstr(height - 2, draw_x, "[")
-          popup.addstr(height - 2, draw_x + 1, option_label, selection_format | curses.A_BOLD)
+          popup.addstr(height - 2, draw_x + 1, option_label, selection_format, curses.A_BOLD)
           popup.addstr(height - 2, draw_x + len(option_label) + 1, "]")
 
           draw_x -= 1  # space gap between the options
@@ -635,16 +635,16 @@ class ConfigPanel(panel.Panel):
       entry = self._get_config_options()[line_number]
       draw_line = line_number + detail_panel_height + 1 - scroll_location
 
-      line_format = curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD
+      line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
 
       if entry.get(Field.CATEGORY):
-        line_format |= ui_tools.get_color(CATEGORY_COLOR[entry.get(Field.CATEGORY)])
+        line_format += [CATEGORY_COLOR[entry.get(Field.CATEGORY)]]
 
       if entry == cursor_selection:
-        line_format |= curses.A_STANDOUT
+        line_format += [curses.A_STANDOUT]
 
       line_text = entry.get_label(option_width, value_width, description_width)
-      self.addstr(draw_line, scroll_offset, line_text, line_format)
+      self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
       if draw_line >= height:
         break
@@ -667,13 +667,13 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[selection.get(Field.CATEGORY)])
+    selection_format = (curses.A_BOLD, CATEGORY_COLOR[selection.get(Field.CATEGORY)])
 
     # first entry:
     # <option> (<category> Option)
 
     option_label = " (%s Option)" % selection.get(Field.CATEGORY)
-    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, selection_format)
+    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, *selection_format)
 
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
@@ -686,9 +686,9 @@ class ConfigPanel(panel.Panel):
       value_attr_label = ", ".join(value_attr)
 
       value_label_width = width - 12 - len(value_attr_label)
-      value_label = ui_tools.crop_str(selection.get(Field.VALUE), value_label_width)
+      value_label = str_tools.crop(selection.get(Field.VALUE), value_label_width)
 
-      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), selection_format)
+      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), *selection_format)
 
     # remainder is filled with the man page description
 
@@ -716,11 +716,11 @@ class ConfigPanel(panel.Panel):
       if i != description_height - 1:
         # there's more lines to display
 
-        msg, remainder = ui_tools.crop_str(line_content, width - 3, 4, 4, ui_tools.Ending.HYPHEN, True)
+        msg, remainder = str_tools.crop(line_content, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
         description_content = remainder.strip() + description_content
       else:
         # this is the last line, end it with an ellipse
 
-        msg = ui_tools.crop_str(line_content, width - 3, 4, 4)
+        msg = str_tools.crop(line_content, width - 3, 4, 4)
 
-      self.addstr(3 + i, 2, msg, selection_format)
+      self.addstr(3 + i, 2, msg, *selection_format)

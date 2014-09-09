@@ -6,7 +6,7 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
-from arm.util import tor_controller, ui_tools
+from arm.util import tor_controller
 from arm.connections import entries
 
 import stem.control
@@ -114,14 +114,14 @@ class Endpoint:
     """
 
     # TODO: skipping all hostname resolution to be safe for now
-    #try:
-    #  myHostname = hostnames.resolve(self.address)
-    #except:
-    #  # either a ValueError or IOError depending on the source of the lookup failure
-    #  myHostname = None
+    # try:
+    #   myHostname = hostnames.resolve(self.address)
+    # except:
+    #   # either a ValueError or IOError depending on the source of the lookup failure
+    #   myHostname = None
     #
-    #if not myHostname: return default
-    #else: return myHostname
+    # if not myHostname: return default
+    # else: return myHostname
 
     return default
 
@@ -351,7 +351,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     else:
       time_prefix = ""
 
-    time_label = time_prefix + "%5s" % str_tools.get_time_label(current_time - self.start_time, 1)
+    time_label = time_prefix + "%5s" % str_tools.time_label(current_time - self.start_time, 1)
     my_listing[2] = (time_label, my_listing[2][1])
 
     return my_listing
@@ -374,14 +374,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = ui_tools.get_color(CATEGORY_COLOR[entry_type])
+    line_format = CATEGORY_COLOR[entry_type]
     time_width = 6 if CONFIG["features.connection.markInitialConnections"] else 5
 
     draw_entry = [(" ", line_format),
                   (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
                   (" " * time_width, line_format),
                   (" (", line_format),
-                  (entry_type.upper(), line_format | curses.A_BOLD),
+                  (entry_type.upper(), line_format, curses.A_BOLD),
                   (")" + " " * (9 - len(entry_type)), line_format)]
 
     return draw_entry
@@ -395,7 +395,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = curses.A_BOLD | ui_tools.get_color(CATEGORY_COLOR[self.get_type()])
+    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def reset_display(self):
@@ -561,7 +561,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
-        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += nickname_space + 2
     elif listing_type == entries.ListingType.HOSTNAME:
@@ -578,7 +578,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if width > used_space + 17 and CONFIG["features.connection.showColumn.nickname"]:
         # show nickname (column width: min 17 characters, uses half of the remainder)
         nickname_space = 15 + (width - (used_space + 17)) / 2
-        nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+        nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
         etc += ("%%-%is  " % nickname_space) % nickname_label
         used_space += (nickname_space + 2)
     elif listing_type == entries.ListingType.FINGERPRINT:
@@ -597,7 +597,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           nickname_space -= 28
 
         if CONFIG["features.connection.showColumn.nickname"]:
-          nickname_label = ui_tools.crop_str(self.foreign.get_nickname(), nickname_space, 0)
+          nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
           etc += ("%%-%is  " % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
@@ -652,7 +652,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # the source and destination addresses are both private, but that might
       # not be perfectly reliable either.
 
-      is_expansion_type = not my_type in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
+      is_expansion_type = my_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
 
       if is_expansion_type:
         src_address = my_external_address + local_port
@@ -723,7 +723,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
         # truncates long hostnames and sets dst to <hostname>:<port>
 
-        hostname = ui_tools.crop_str(hostname, hostname_space, 0)
+        hostname = str_tools.crop(hostname, hostname_space, 0)
         dst = ("%%-%is" % hostname_space) % (hostname + port_label)
     elif listing_type == entries.ListingType.FINGERPRINT:
       src = "localhost"
@@ -757,8 +757,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       used_space = width  # prevents padding at the end
 
       if len(src) + len(dst) > base_space:
-        src = ui_tools.crop_str(src, base_space / 3)
-        dst = ui_tools.crop_str(dst, base_space - len(src))
+        src = str_tools.crop(src, base_space / 3)
+        dst = str_tools.crop(dst, base_space - len(src))
 
       # pads dst entry to its max space
 
@@ -901,7 +901,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # crops any lines that are too long
 
     for i in range(len(lines)):
-      lines[i] = ui_tools.crop_str(lines[i], width - 2)
+      lines[i] = str_tools.crop(lines[i], width - 2)
 
     return lines
 
@@ -951,7 +951,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
           # crops with a hyphen if too long
 
-          purpose = ui_tools.crop_str(purpose, space_available, end_type = ui_tools.Ending.HYPHEN)
+          purpose = str_tools.crop(purpose, space_available, ending = str_tools.Ending.HYPHEN)
 
           destination_address += " (%s)" % purpose
       elif not connection.is_private_address(self.foreign.get_address()):
@@ -971,7 +971,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # dividers if there's multiple pieces of extra data
 
             max_hostname_space = space_available - 2 * len(extra_info)
-            destination_hostname = ui_tools.crop_str(destination_hostname, max_hostname_space)
+            destination_hostname = str_tools.crop(destination_hostname, max_hostname_space)
             extra_info.append(destination_hostname)
             space_available -= len(destination_hostname)
 
@@ -1143,7 +1143,7 @@ class FingerprintTracker:
           result = []
       else:
         # query the fingerprint if it isn't yet cached
-        if not (relay_address, relay_port) in self._fingerprint_lookup_cache:
+        if (relay_address, relay_port) not in self._fingerprint_lookup_cache:
           relay_fingerprint = self._get_relay_fingerprint(controller, relay_address, relay_port)
           self._fingerprint_lookup_cache[(relay_address, relay_port)] = relay_fingerprint
 
@@ -1165,7 +1165,7 @@ class FingerprintTracker:
 
     if controller.is_alive():
       # query the nickname if it isn't yet cached
-      if not relay_fingerprint in self._nickname_lookup_cache:
+      if relay_fingerprint not in self._nickname_lookup_cache:
         if relay_fingerprint == controller.get_info("fingerprint", None):
           # this is us, simply check the config
           my_nickname = controller.get_conf("Nickname", "Unnamed")

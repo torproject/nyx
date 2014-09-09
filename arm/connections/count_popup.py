@@ -8,8 +8,6 @@ import operator
 import arm.controller
 import arm.popups
 
-from arm.util import ui_tools
-
 from stem.util import connection, enum, log
 
 CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
@@ -55,7 +53,7 @@ def showCountDialog(count_type, counts):
     popup.addstr(0, 0, title, curses.A_STANDOUT)
 
     if is_no_stats:
-      popup.addstr(1, 2, no_stats_msg, curses.A_BOLD | ui_tools.get_color("cyan"))
+      popup.addstr(1, 2, no_stats_msg, curses.A_BOLD, 'cyan')
     else:
       sorted_counts = sorted(counts.iteritems(), key=operator.itemgetter(1))
       sorted_counts.reverse()
@@ -89,7 +87,7 @@ def showCountDialog(count_type, counts):
             k = key_format % (k, usage[:EXIT_USAGE_WIDTH - 3])
 
         label = label_format % (k, v, v * 100 / value_total)
-        popup.addstr(i + 1, 2, label, curses.A_BOLD | ui_tools.get_color("green"))
+        popup.addstr(i + 1, 2, label, curses.A_BOLD, 'green')
 
         # All labels have the same size since they're based on the max widths.
         # If this changes then this'll need to be the max label width.
@@ -101,7 +99,7 @@ def showCountDialog(count_type, counts):
         fill_width = v * (width - 4 - label_width) / value_total
 
         for j in range(fill_width):
-          popup.addstr(i + 1, 3 + label_width + j, " ", curses.A_STANDOUT | ui_tools.get_color("red"))
+          popup.addstr(i + 1, 3 + label_width + j, " ", curses.A_STANDOUT, 'red')
 
       popup.addstr(height - 2, 2, "Press any key...")
 

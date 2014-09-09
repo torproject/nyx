@@ -432,7 +432,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       draw_entries = cursor_selection.get_details(width)
 
       for i in range(min(len(draw_entries), DETAILS_HEIGHT)):
-        self.addstr(1 + i, 2, draw_entries[i][0], draw_entries[i][1])
+        self.addstr(1 + i, 2, draw_entries[i][0], *draw_entries[i][1])
 
     # title label with connection counts
 
@@ -476,7 +476,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for msg, attr in draw_entry:
         attr |= extra_format
-        self.addstr(draw_line, x_offset, msg, attr)
+        self.addstr(draw_line, x_offset, msg, *attr)
         x_offset += len(msg)
 
       if draw_line >= height:
@@ -517,7 +517,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # new_connections  [(local ip, local port, foreign ip, foreign port)...]
     # new_circuits     {circuit_id => (status, purpose, path)...}
 
-    new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_connections()]
+    new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_value()]
     new_circuits = {}
 
     for circ in tor_controller().get_circuits():

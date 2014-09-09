@@ -23,7 +23,7 @@ class TestResourceTracker(unittest.TestCase):
     with ResourceTracker(0.04) as daemon:
       time.sleep(0.01)
 
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(1, daemon.run_counter())
       self.assertEqual(0.0, resources.cpu_sample)
@@ -35,7 +35,7 @@ class TestResourceTracker(unittest.TestCase):
 
       resources_via_proc_mock.return_value = (800.3, 3.2, 6020, 0.26)
       time.sleep(0.05)
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(2, daemon.run_counter())
       self.assertEqual(6.600189933523267, resources.cpu_sample)
@@ -60,7 +60,7 @@ class TestResourceTracker(unittest.TestCase):
     with ResourceTracker(0.04) as daemon:
       time.sleep(0.01)
 
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(1, daemon.run_counter())
       self.assertEqual(0.0, resources.cpu_sample)
@@ -75,7 +75,7 @@ class TestResourceTracker(unittest.TestCase):
     with ResourceTracker(0.04) as daemon:
       time.sleep(0.01)
 
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(1, daemon.run_counter())
       self.assertEqual(0.0, resources.cpu_sample)
@@ -97,7 +97,7 @@ class TestResourceTracker(unittest.TestCase):
       time.sleep(0.03)
 
       self.assertEqual(True, daemon._use_proc)
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(0, daemon.run_counter())
       self.assertEqual(0.0, resources.cpu_sample)
@@ -112,7 +112,7 @@ class TestResourceTracker(unittest.TestCase):
 
       self.assertEqual(False, daemon._use_proc)
 
-      resources = daemon.get_resource_usage()
+      resources = daemon.get_value()
 
       self.assertEqual(0.0, resources.cpu_sample)
       self.assertEqual(43.875, resources.cpu_average)
@@ -131,9 +131,9 @@ class TestResourceTracker(unittest.TestCase):
     self.assertEqual(0.004, memory_in_percent)
 
   @patch('time.time', Mock(return_value = 1388967218.973117))
-  @patch('arm.util.tracker.proc.get_stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
-  @patch('arm.util.tracker.proc.get_memory_usage', Mock(return_value = (19300352, 6432)))
-  @patch('arm.util.tracker.proc.get_physical_memory', Mock(return_value = 4825088000))
+  @patch('arm.util.tracker.proc.stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
+  @patch('arm.util.tracker.proc.memory_usage', Mock(return_value = (19300352, 6432)))
+  @patch('arm.util.tracker.proc.physical_memory', Mock(return_value = 4825088000))
   def test_resources_via_proc(self):
     total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _resources_via_proc(12345)
 

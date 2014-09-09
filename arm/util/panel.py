@@ -185,7 +185,7 @@ class Panel():
       attr - local variable to be returned
     """
 
-    if not attr in self.pause_attr:
+    if attr not in self.pause_attr:
       return None
     elif self.paused:
       return self.pause_buffer[attr]
@@ -489,7 +489,7 @@ class Panel():
         # in edge cases drawing could cause a _curses.error
         pass
 
-  def addstr(self, y, x, msg, attr=curses.A_NORMAL):
+  def addstr(self, y, x, msg, *attributes):
     """
     Writes string to subwindow if able. This takes into account screen bounds
     to avoid making curses upset. This should only be called from the context
@@ -502,16 +502,29 @@ class Panel():
       attr - text attributes
     """
 
+    format_attr = curses.A_NORMAL
+
+    for attr in attributes:
+      if isinstance(attr, str):
+        format_attr |= ui_tools.get_color(attr)
+      else:
+        format_attr |= attr
+
     # subwindows need a single character buffer (either in the x or y
     # direction) from actual content to prevent crash when shrank
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
-        self.win.addstr(y, x, msg[:self.max_x - x], attr)
+        drawn_msg = msg[:self.max_x - x]
+        self.win.addstr(y, x, drawn_msg, format_attr)
+        return x + len(drawn_msg)
       except:
         # this might produce a _curses.error during edge cases, for instance
         # when resizing with visible popups
+
         pass
+
+    return x
 
   def addfstr(self, y, x, msg):
     """

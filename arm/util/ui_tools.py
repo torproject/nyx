@@ -2,14 +2,13 @@
 Toolkit for working with curses.
 """
 
-import sys
 import curses
 
 from curses.ascii import isprint
 
-from arm.util import info, msg
+from arm.util import log, msg
 
-from stem.util import conf, enum, system
+from stem.util import conf, system
 
 COLOR_LIST = {
   'red': curses.COLOR_RED,
@@ -25,7 +24,6 @@ COLOR_LIST = {
 DEFAULT_COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 COLOR_ATTR = None
 
-Ending = enum.Enum('ELLIPSE', 'HYPHEN')
 SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
 
 
@@ -137,10 +135,10 @@ def _color_attr():
         curses.init_pair(color_pair + 1, foreground_color, background_color)
         color_attr[color_name] = curses.color_pair(color_pair + 1)
 
-      info('setup.color_support_available')
+      log.info('setup.color_support_available')
       COLOR_ATTR = color_attr
     else:
-      info('setup.color_support_unavailable')
+      log.info('setup.color_support_unavailable')
       COLOR_ATTR = DEFAULT_COLOR_ATTR
 
   return COLOR_ATTR
@@ -181,140 +179,6 @@ def get_printable(line, keep_newlines = True):
   line = filter(lambda char: isprint(char) or (keep_newlines and char == '\n'), line)
 
   return line
-
-
-def crop_str(msg, size, min_word_length = 4, min_crop = 0, end_type = Ending.ELLIPSE, get_remainder = False):
-  """
-  Provides the msg constrained to the given length, truncating on word breaks.
-  If the last words is long this truncates mid-word with an ellipse. If there
-  isn't room for even a truncated single word (or one word plus the ellipse if
-  including those) then this provides an empty string. If a cropped string ends
-  with a comma or period then it's stripped (unless we're providing the
-  remainder back). For example...
-
-    >>> crop_str("This is a looooong message", 17)
-    "This is a looo..."
-
-    >>> crop_str("This is a looooong message", 12)
-    "This is a..."
-
-    >>> crop_str("This is a looooong message", 3)
-    ""
-
-  :param str msg: text to be processed
-  :param int size: space available for text
-  :param int min_word_length: minimum characters before which a word is
-    dropped, requires whole word if **None**
-  :param int min_crop: minimum characters that must be dropped if a word is
-    cropped
-  :param Ending end_type: type of ending used when truncating, no special
-    truncation is used if **None**
-  :param bool get_remainder: returns a tuple with the second part being the
-    cropped portion of the message
-
-  :returns: **str** of the text truncated to the given length
-  """
-
-  # checks if there's room for the whole message
-
-  if len(msg) <= size:
-    if get_remainder:
-      return (msg, "")
-    else:
-      return msg
-
-  # avoids negative input
-
-  size = max(0, size)
-
-  if min_word_length is not None:
-    min_word_length = max(0, min_word_length)
-
-  min_crop = max(0, min_crop)
-
-  # since we're cropping, the effective space available is less with an
-  # ellipse, and cropping words requires an extra space for hyphens
-
-  if end_type == Ending.ELLIPSE:
-    size -= 3
-  elif end_type == Ending.HYPHEN and min_word_length is not None:
-    min_word_length += 1
-
-  # checks if there isn't the minimum space needed to include anything
-
-  last_wordbreak = msg.rfind(" ", 0, size + 1)
-
-  if last_wordbreak == -1:
-    # we're splitting the first word
-
-    if min_word_length is None or size < min_word_length:
-      if get_remainder:
-        return ("", msg)
-      else:
-        return ""
-
-    include_crop = True
-  else:
-    last_wordbreak = len(msg[:last_wordbreak].rstrip())  # drops extra ending whitespaces
-
-    if (min_word_length is not None and size < min_word_length) or (min_word_length is None and last_wordbreak < 1):
-      if get_remainder:
-        return ("", msg)
-      else:
-        return ""
-
-    if min_word_length is None:
-      min_word_length = sys.maxint
-
-    include_crop = size - last_wordbreak - 1 >= min_word_length
-
-  # if there's a max crop size then make sure we're cropping at least that many characters
-
-  if include_crop and min_crop:
-    next_wordbreak = msg.find(" ", size)
-
-    if next_wordbreak == -1:
-      next_wordbreak = len(msg)
-
-    include_crop = next_wordbreak - size + 1 >= min_crop
-
-  if include_crop:
-    return_msg, remainder = msg[:size], msg[size:]
-
-    if end_type == Ending.HYPHEN:
-      remainder = return_msg[-1] + remainder
-      return_msg = return_msg[:-1].rstrip() + "-"
-  else:
-    return_msg, remainder = msg[:last_wordbreak], msg[last_wordbreak:]
-
-  # if this is ending with a comma or period then strip it off
-
-  if not get_remainder and return_msg and return_msg[-1] in (",", "."):
-    return_msg = return_msg[:-1]
-
-  if end_type == Ending.ELLIPSE:
-    return_msg = return_msg.rstrip() + "..."
-
-  if get_remainder:
-    return (return_msg, remainder)
-  else:
-    return return_msg
-
-
-def pad_str(msg, size, crop_extra = False):
-  """
-  Provides the string padded with whitespace to the given length.
-
-  Arguments:
-    msg       - string to be padded
-    size      - length to be padded to
-    crop_extra - crops string if it's longer than the size if true
-  """
-
-  if crop_extra:
-    msg = msg[:size]
-
-  return ("%%-%is" % size) % msg
 
 
 def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):

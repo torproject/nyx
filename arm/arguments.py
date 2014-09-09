@@ -8,7 +8,7 @@ import os
 
 import arm
 
-import stem.connection
+import stem.util.connection
 
 from arm.util import tor_controller, msg
 
@@ -25,7 +25,7 @@ DEFAULT_ARGS = {
   'print_help': False,
 }
 
-OPT = 'i:s:c:d:bl:vh'
+OPT = 'i:s:c:d:l:vh'
 
 OPT_EXPANDED = [
   'interface=',
@@ -137,7 +137,7 @@ def get_help():
     address = DEFAULT_ARGS['control_address'],
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
-    config = DEFAULT_ARGS['config'],
+    config_path = DEFAULT_ARGS['config'],
     events = DEFAULT_ARGS['logged_events'],
     event_flags = msg('misc.event_types'),
   )

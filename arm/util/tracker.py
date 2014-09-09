@@ -5,23 +5,27 @@ Background tasks for gathering information about the tor process.
 
   get_connection_tracker - provides a ConnectionTracker for our tor process
   get_resource_tracker - provides a ResourceTracker for our tor process
+  get_port_usage_tracker - provides a PortUsageTracker for our system
 
   stop_trackers - halts any active trackers
 
   Daemon - common parent for resolvers
+    |- ConnectionTracker - periodically checks the connections established by tor
+    |  |- get_custom_resolver - provide the custom conntion resolver we're using
+    |  |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
+    |  +- get_value - provides our latest connection results
+    |
+    |- ResourceTracker - periodically checks the resource usage of tor
+    |  +- get_value - provides our latest resource usage results
+    |
+    |- PortUsageTracker - provides information about port usage on the local system
+    |  +- get_processes_using_ports - mapping of ports to the processes using it
+    |
     |- run_counter - number of successful runs
     |- get_rate - provides the rate at which we run
     |- set_rate - sets the rate at which we run
     |- set_paused - pauses or continues work
     +- stop - stops further work by the daemon
-
-  ConnectionTracker - periodically checks the connections established by tor
-    |- get_custom_resolver - provide the custom conntion resolver we're using
-    |- set_custom_resolver - overwrites automatic resolver selecion with a custom resolver
-    +- get_connections - provides our latest connection results
-
-  ResourceTracker - periodically checks the resource usage of tor
-    +- get_resource_usage - provides our latest resource usage results
 
 .. data:: Resources
 
@@ -42,7 +46,7 @@ import threading
 from stem.control import State
 from stem.util import conf, connection, proc, str_tools, system
 
-from arm.util import tor_controller, debug, info, notice
+from arm.util import log, tor_controller
 
 CONFIG = conf.config_dict('arm', {
   'queries.connections.rate': 5,
@@ -185,7 +189,7 @@ def _resources_via_proc(pid):
   :raises: **IOError** if unsuccessful
   """
 
-  utime, stime, start_time = proc.get_stats(
+  utime, stime, start_time = proc.stats(
     pid,
     proc.Stat.CPU_UTIME,
     proc.Stat.CPU_STIME,
@@ -193,8 +197,8 @@ def _resources_via_proc(pid):
   )
 
   total_cpu_time = float(utime) + float(stime)
-  memory_in_bytes = proc.get_memory_usage(pid)[0]
-  total_memory = proc.get_physical_memory()
+  memory_in_bytes = proc.memory_usage(pid)[0]
+  total_memory = proc.physical_memory()
 
   uptime = time.time() - float(start_time)
   memory_in_percent = float(memory_in_bytes) / total_memory
@@ -391,7 +395,7 @@ class Daemon(threading.Thread):
     with self._process_lock:
       if not self._halt and event_type in (State.INIT, State.RESET):
         tor_pid = controller.get_pid(None)
-        tor_cmd = system.get_name_by_pid(tor_pid) if tor_pid else None
+        tor_cmd = system.name_by_pid(tor_pid) if tor_pid else None
 
         self._process_pid = tor_pid
         self._process_name = tor_cmd if tor_cmd else 'tor'
@@ -414,7 +418,7 @@ class ConnectionTracker(Daemon):
     super(ConnectionTracker, self).__init__(rate)
 
     self._connections = []
-    self._resolvers = connection.get_system_resolvers()
+    self._resolvers = connection.system_resolvers()
     self._custom_resolver = None
 
     # Number of times in a row we've either failed with our current resolver or
@@ -459,13 +463,13 @@ class ConnectionTracker(Daemon):
           min_rate += 1  # little extra padding so we don't frequently update this
           self.set_rate(min_rate)
           self._rate_too_low_count = 0
-          debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
+          log.debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
       else:
         self._rate_too_low_count = 0
 
       return True
     except IOError as exc:
-      info('wrap', text = exc)
+      log.info('wrap', text = exc)
 
       # Fail over to another resolver if we've repeatedly been unable to use
       # this one.
@@ -478,13 +482,13 @@ class ConnectionTracker(Daemon):
           self._failure_count = 0
 
           if self._resolvers:
-            notice(
+            log.notice(
               'tracker.unable_to_use_resolver',
               old_resolver = resolver,
               new_resolver = self._resolvers[0],
             )
           else:
-            notice('tracker.unable_to_use_all_resolvers')
+            log.notice('tracker.unable_to_use_all_resolvers')
 
       return False
 
@@ -508,7 +512,7 @@ class ConnectionTracker(Daemon):
 
     self._custom_resolver = resolver
 
-  def get_connections(self):
+  def get_value(self):
     """
     Provides a listing of tor's latest connections.
 
@@ -534,7 +538,7 @@ class ResourceTracker(Daemon):
     self._use_proc = proc.is_available()  # determines if we use proc or ps for lookups
     self._failure_count = 0  # number of times in a row we've failed to get results
 
-  def get_resource_usage(self):
+  def get_value(self):
     """
     Provides tor's latest resource usage.
 
@@ -576,19 +580,19 @@ class ResourceTracker(Daemon):
           self._use_proc = False
           self._failure_count = 0
 
-          info(
+          log.info(
             'tracker.abort_getting_resources',
             resolver = 'proc',
             response = 'falling back to ps',
             exc = exc,
           )
         else:
-          debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
+          log.debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
       else:
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          info(
+          log.info(
             'tracker.abort_getting_resources',
             resolver = 'ps',
             response = 'giving up on getting resource usage information',
@@ -597,7 +601,7 @@ class ResourceTracker(Daemon):
 
           self.stop()
         else:
-          debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
+          log.debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
 
       return False
 
@@ -654,9 +658,9 @@ class PortUsageTracker(Daemon):
       self._failure_count += 1
 
       if self._failure_count >= 3:
-        info('tracker.abort_getting_port_usage', exc = exc)
+        log.info('tracker.abort_getting_port_usage', exc = exc)
         self.stop()
       else:
-        debug('tracker.unable_to_get_port_usages', exc = exc)
+        log.debug('tracker.unable_to_get_port_usages', exc = exc)
 
       return False

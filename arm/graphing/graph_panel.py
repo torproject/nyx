@@ -435,8 +435,8 @@ class GraphPanel(panel.Panel):
       param = self.get_attr("stats")[self.current_display]
       graph_column = min((width - 10) / 2, param.max_column)
 
-      primary_color = ui_tools.get_color(param.get_color(True))
-      secondary_color = ui_tools.get_color(param.get_color(False))
+      primary_color = param.get_color(True)
+      secondary_color = param.get_color(False)
 
       if self.is_title_visible():
         self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
@@ -446,10 +446,10 @@ class GraphPanel(panel.Panel):
       left, right = param.get_header_label(width / 2, True), param.get_header_label(width / 2, False)
 
       if left:
-        self.addstr(1, 0, left, curses.A_BOLD | primary_color)
+        self.addstr(1, 0, left, curses.A_BOLD, primary_color)
 
       if right:
-        self.addstr(1, graph_column + 5, right, curses.A_BOLD | secondary_color)
+        self.addstr(1, graph_column + 5, right, curses.A_BOLD, secondary_color)
 
       # determines max/min value on the graph
 
@@ -502,13 +502,13 @@ class GraphPanel(panel.Panel):
           if primary_min_bound != primary_max_bound:
             primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
-            if not primary_val in (primary_min_bound, primary_max_bound):
+            if primary_val not in (primary_min_bound, primary_max_bound):
               self.addstr(row + 2, 0, "%4i" % primary_val, primary_color)
 
           if secondary_min_bound != secondary_max_bound:
             secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
-            if not secondary_val in (secondary_min_bound, secondary_max_bound):
+            if secondary_val not in (secondary_min_bound, secondary_max_bound):
               self.addstr(row + 2, graph_column + 5, "%4i" % secondary_val, secondary_color)
 
       # creates bar graph (both primary and secondary)
@@ -518,13 +518,13 @@ class GraphPanel(panel.Panel):
         column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
 
         for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + 5, " ", curses.A_STANDOUT | primary_color)
+          self.addstr(self.graph_height + 1 - row, col + 5, " ", curses.A_STANDOUT, primary_color)
 
         column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
         column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
 
         for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, " ", curses.A_STANDOUT | secondary_color)
+          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, " ", curses.A_STANDOUT, secondary_color)
 
       # bottom labeling of x-axis
 
@@ -539,7 +539,7 @@ class GraphPanel(panel.Panel):
 
       for i in range((graph_column - 4) / interval_spacing):
         loc = (i + 1) * interval_spacing
-        time_label = str_tools.get_time_label(loc * interval_sec, decimal_precision)
+        time_label = str_tools.time_label(loc * interval_sec, decimal_precision)
 
         if not units_label:
           units_label = time_label[-1]
