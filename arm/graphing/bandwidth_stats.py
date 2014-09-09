@@ -135,13 +135,7 @@ class BandwidthStats(graph_panel.GraphStats):
     returns True if successful and False otherwise.
     """
 
-    # checks that this is a relay (if ORPort is unset, then skip)
-
     controller = tor_controller()
-    or_port = controller.get_conf('ORPort', None)
-
-    if or_port == '0':
-      return
 
     start_time = system.start_time(controller.get_pid(None))
     uptime = time.time() - start_time if start_time else None
