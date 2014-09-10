@@ -138,8 +138,7 @@ class BandwidthStats(graph_panel.GraphStats):
     controller = tor_controller()
 
     if not controller.is_localhost():
-      log.info(msg('panel.graphing.prepopulation_failure', error = "we can only prepopulate bandwidth information for a local tor instance"))
-      return False
+      raise ValueError('we can only prepopulate bandwidth information for a local tor instance')
 
     start_time = system.start_time(controller.get_pid(None))
     uptime = time.time() - start_time if start_time else None
@@ -149,19 +148,16 @@ class BandwidthStats(graph_panel.GraphStats):
     # want to prepopulate with information from a prior tor instance.
 
     if not uptime:
-      log.info(msg('panel.graphing.prepopulation_failure', error = "unable to determine tor's uptime"))
-      return False
+      raise ValueError("unable to determine tor's uptime")
     elif uptime < (24 * 60 * 60):
-      log.info(msg('panel.graphing.prepopulation_failure', error = "insufficient uptime, tor must've been running for at least a day"))
-      return False
+      raise ValueError("insufficient uptime, tor must've been running for at least a day")
 
     # get the user's data directory (usually '~/.tor')
 
     data_dir = controller.get_conf('DataDirectory', None)
 
     if not data_dir:
-      log.info(msg('panel.graphing.prepopulation_failure', error = "unable to determine tor's data directory"))
-      return False
+      raise ValueError("unable to determine tor's data directory")
 
     # attempt to open the state file
 
@@ -171,8 +167,7 @@ class BandwidthStats(graph_panel.GraphStats):
       with open(state_file_path) as state_file:
         state_file_content = state_file.readlines()
     except IOError as exc:
-      log.info(msg('panel.graphing.prepopulation_failure', error = 'unable to read the state file at %s, %s' % (state_file_path, exc)))
-      return False
+      raise ValueError('unable to read the state file at %s, %s' % (state_file_path, exc))
 
     # get the BWHistory entries (ordered oldest to newest) and number of
     # intervals since last recorded
@@ -211,8 +206,7 @@ class BandwidthStats(graph_panel.GraphStats):
         missing_write_entries = int((time.time() - last_write_time) / 900)
 
     if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
-      log.info(msg('panel.graphing.prepopulation_failure', error = 'bandwidth stats missing from state file'))
-      return False
+      raise ValueError('bandwidth stats missing from state file')
 
     # fills missing entries with the last value
 
@@ -255,14 +249,7 @@ class BandwidthStats(graph_panel.GraphStats):
     del self.primary_counts[interval_index][self.max_column + 1:]
     del self.secondary_counts[interval_index][self.max_column + 1:]
 
-    missing_sec = time.time() - min(last_read_time, last_write_time)
-
-    if missing_sec:
-      log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_sec, 0, True)))
-    else:
-      log.notice(msg('panel.graphing.prepopulation_all_successful'))
-
-    return True
+    return time.time() - min(last_read_time, last_write_time)
 
   def bandwidth_event(self, event):
     if self.is_accounting and self.is_next_tick_redraw():

@@ -26,9 +26,9 @@ import stem
 
 from stem.control import State
 
-from arm.util import panel, tor_config, tor_controller, ui_tools
+from arm.util import msg, panel, tor_config, tor_controller, ui_tools
 
-from stem.util import conf, enum, log, system
+from stem.util import conf, enum, log, str_tools, system
 
 ARM_CONTROLLER = None
 
@@ -198,10 +198,17 @@ def init_controller(stdscr, start_time):
     # prepopulates bandwidth values from state file
 
     if CONFIG["features.graph.bw.prepopulate"] and tor_controller().is_alive():
-      is_successful = bw_stats.prepopulate_from_state()
+      try:
+        missing_seconds = bw_stats.prepopulate_from_state()
 
-      if is_successful:
+        if missing_sec:
+          log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
+        else:
+          log.notice(msg('panel.graphing.prepopulation_all_successful'))
+
         graph_panel.update_interval = 4
+      except ValueError as exc:
+        log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
 
 class LabelPanel(panel.Panel):
