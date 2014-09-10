@@ -3,6 +3,8 @@ Tracks bandwidth usage of the tor process, expanding to include accounting
 stats if they're set.
 """
 
+import calendar
+import os
 import time
 import curses
 
@@ -152,57 +154,44 @@ class BandwidthStats(graph_panel.GraphStats):
     elif uptime < (24 * 60 * 60):
       raise ValueError("insufficient uptime, tor must've been running for at least a day")
 
-    # get the user's data directory (usually '~/.tor')
+    # read the user's state file in their data directory (usually '~/.tor')
 
     data_dir = controller.get_conf('DataDirectory', None)
 
     if not data_dir:
       raise ValueError("unable to determine tor's data directory")
 
-    # attempt to open the state file
-
-    state_file_path = '%s%s/state' % (CONFIG['tor.chroot'], data_dir)
+    state_path = os.path.join(CONFIG['tor.chroot'] + data_dir, 'state')
 
     try:
-      with open(state_file_path) as state_file:
-        state_file_content = state_file.readlines()
+      with open(state_path) as state_file:
+        state_content = state_file.readlines()
     except IOError as exc:
-      raise ValueError('unable to read the state file at %s, %s' % (state_file_path, exc))
+      raise ValueError('unable to read the state file at %s, %s' % (state_path, exc))
 
-    # get the BWHistory entries (ordered oldest to newest) and number of
-    # intervals since last recorded
+    # We're interested in two types of entries from our state file...
+    #
+    # * BWHistory*Values - Comma separated list of bytes we read or wrote
+    #   during each fifteen minute period. The last value is an incremental
+    #   counter for our current period, so ignoring that.
+    #
+    # * BWHistory*Ends - When our last sampling was recorded, in UTC.
 
     bw_read_entries, bw_write_entries = None, None
     missing_read_entries, missing_write_entries = None, None
 
-    # converts from gmt to local with respect to DST
-
-    tz_offset = time.altzone if time.localtime()[8] else time.timezone
-
-    for line in state_file_content:
+    for line in state_content:
       line = line.strip()
 
-      # According to the rep_hist_update_state() function the BWHistory*Ends
-      # correspond to the start of the following sampling period. Also, the
-      # most recent values of BWHistory*Values appear to be an incremental
-      # counter for the current sampling period. Hence, offsets are added to
-      # account for both.
-
-      if line.startswith('BWHistoryReadValues'):
-        bw_read_entries = line[20:].split(',')
-        bw_read_entries = [int(entry) / 1024.0 / 900 for entry in bw_read_entries]
-        bw_read_entries.pop()
-      elif line.startswith('BWHistoryWriteValues'):
-        bw_write_entries = line[21:].split(',')
-        bw_write_entries = [int(entry) / 1024.0 / 900 for entry in bw_write_entries]
-        bw_write_entries.pop()
-      elif line.startswith('BWHistoryReadEnds'):
-        last_read_time = time.mktime(time.strptime(line[18:], '%Y-%m-%d %H:%M:%S')) - tz_offset
-        last_read_time -= 900
+      if line.startswith('BWHistoryReadValues '):
+        bw_read_entries = [int(entry) / 1024.0 / 900 for entry in line[20:].split(',')[:-1]]
+      elif line.startswith('BWHistoryWriteValues '):
+        bw_write_entries = [int(entry) / 1024.0 / 900 for entry in line[21:].split(',')[:-1]]
+      elif line.startswith('BWHistoryReadEnds '):
+        last_read_time = calendar.timegm(time.strptime(line[18:], '%Y-%m-%d %H:%M:%S')) - 900
         missing_read_entries = int((time.time() - last_read_time) / 900)
-      elif line.startswith('BWHistoryWriteEnds'):
-        last_write_time = time.mktime(time.strptime(line[19:], '%Y-%m-%d %H:%M:%S')) - tz_offset
-        last_write_time -= 900
+      elif line.startswith('BWHistoryWriteEnds '):
+        last_write_time = calendar.timegm(time.strptime(line[19:], '%Y-%m-%d %H:%M:%S')) - 900
         missing_write_entries = int((time.time() - last_write_time) / 900)
 
     if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
@@ -445,12 +434,7 @@ class BandwidthStats(graph_panel.GraphStats):
     if end_interval:
       # converts from gmt to local with respect to DST
 
-      if time.localtime()[8]:
-        tz_offset = time.altzone
-      else:
-        tz_offset = time.timezone
-
-      sec = time.mktime(time.strptime(end_interval, '%Y-%m-%d %H:%M:%S')) - time.time() - tz_offset
+      sec = calendar.timegm(time.strptime(end_interval, '%Y-%m-%d %H:%M:%S')) - time.time()
 
       if CONFIG['features.graph.bw.accounting.isTimeLong']:
         queried['reset_time'] = ', '.join(str_tools.time_labels(sec, True))
