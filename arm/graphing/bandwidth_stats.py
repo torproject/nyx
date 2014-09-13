@@ -14,9 +14,7 @@ from arm.graphing import graph_panel
 from arm.util import tor_controller
 
 from stem.control import State
-from stem.util import conf, log, str_tools, system
-
-from arm.util import msg
+from stem.util import conf, str_tools, system
 
 
 def conf_handler(key, value):

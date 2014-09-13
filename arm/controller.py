@@ -201,7 +201,7 @@ def init_controller(stdscr, start_time):
       try:
         missing_seconds = bw_stats.prepopulate_from_state()
 
-        if missing_sec:
+        if missing_seconds:
           log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
         else:
           log.notice(msg('panel.graphing.prepopulation_all_successful'))
