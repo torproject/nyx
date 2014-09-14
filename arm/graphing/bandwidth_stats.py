@@ -4,17 +4,16 @@ stats if they're set.
 """
 
 import calendar
-import os
 import time
 import curses
 
 import arm.controller
 
 from arm.graphing import graph_panel
-from arm.util import tor_controller
+from arm.util import bandwidth_from_state, tor_controller
 
 from stem.control import State
-from stem.util import conf, str_tools, system
+from stem.util import conf, str_tools
 
 
 def conf_handler(key, value):
@@ -135,70 +134,15 @@ class BandwidthStats(graph_panel.GraphStats):
     returns True if successful and False otherwise.
     """
 
-    controller = tor_controller()
+    stats = bandwidth_from_state()
 
-    if not controller.is_localhost():
-      raise ValueError('we can only prepopulate bandwidth information for a local tor instance')
-
-    start_time = system.start_time(controller.get_pid(None))
-    uptime = time.time() - start_time if start_time else None
-
-    # Only attempt to prepopulate information if we've been running for a day.
-    # Reason is that the state file stores a day's worth of data, and we don't
-    # want to prepopulate with information from a prior tor instance.
-
-    if not uptime:
-      raise ValueError("unable to determine tor's uptime")
-    elif uptime < (24 * 60 * 60):
-      raise ValueError("insufficient uptime, tor must've been running for at least a day")
-
-    # read the user's state file in their data directory (usually '~/.tor')
-
-    data_dir = controller.get_conf('DataDirectory', None)
-
-    if not data_dir:
-      raise ValueError("unable to determine tor's data directory")
-
-    state_path = os.path.join(CONFIG['tor.chroot'] + data_dir, 'state')
-
-    try:
-      with open(state_path) as state_file:
-        state_content = state_file.readlines()
-    except IOError as exc:
-      raise ValueError('unable to read the state file at %s, %s' % (state_path, exc))
-
-    # We're interested in two types of entries from our state file...
-    #
-    # * BWHistory*Values - Comma separated list of bytes we read or wrote
-    #   during each fifteen minute period. The last value is an incremental
-    #   counter for our current period, so ignoring that.
-    #
-    # * BWHistory*Ends - When our last sampling was recorded, in UTC.
-
-    bw_read_entries, bw_write_entries = None, None
-    missing_read_entries, missing_write_entries = None, None
-
-    for line in state_content:
-      line = line.strip()
-
-      if line.startswith('BWHistoryReadValues '):
-        bw_read_entries = [int(entry) / 1024.0 / 900 for entry in line[20:].split(',')[:-1]]
-      elif line.startswith('BWHistoryWriteValues '):
-        bw_write_entries = [int(entry) / 1024.0 / 900 for entry in line[21:].split(',')[:-1]]
-      elif line.startswith('BWHistoryReadEnds '):
-        last_read_time = calendar.timegm(time.strptime(line[18:], '%Y-%m-%d %H:%M:%S')) - 900
-        missing_read_entries = int((time.time() - last_read_time) / 900)
-      elif line.startswith('BWHistoryWriteEnds '):
-        last_write_time = calendar.timegm(time.strptime(line[19:], '%Y-%m-%d %H:%M:%S')) - 900
-        missing_write_entries = int((time.time() - last_write_time) / 900)
-
-    if not bw_read_entries or not bw_write_entries or not last_read_time or not last_write_time:
-      raise ValueError('bandwidth stats missing from state file')
+    missing_read_entries = int((time.time() - stats.last_read_time) / 900)
+    missing_write_entries = int((time.time() - stats.last_write_time) / 900)
 
     # fills missing entries with the last value
 
-    bw_read_entries += [bw_read_entries[-1]] * missing_read_entries
-    bw_write_entries += [bw_write_entries[-1]] * missing_write_entries
+    bw_read_entries = stats.read_entries + [stats.read_entries[-1]] * missing_read_entries
+    bw_write_entries = stats.write_entries + [stats.write_entries[-1]] * missing_write_entries
 
     # crops starting entries so they're the same size
 
@@ -236,7 +180,7 @@ class BandwidthStats(graph_panel.GraphStats):
     del self.primary_counts[interval_index][self.max_column + 1:]
     del self.secondary_counts[interval_index][self.max_column + 1:]
 
-    return time.time() - min(last_read_time, last_write_time)
+    return time.time() - min(stats.last_read_time, stats.last_write_time)
 
   def bandwidth_event(self, event):
     if self.is_accounting and self.is_next_tick_redraw():
