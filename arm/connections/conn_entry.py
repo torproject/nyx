@@ -484,7 +484,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           # a possible client or directory connection then check if it still
           # holds true.
 
-          my_circuits = controller.get_circuits()
+          my_circuits = controller.get_circuits([])
 
           if self._possible_client:
             # Checks that this belongs to the first hop in a circuit that's
