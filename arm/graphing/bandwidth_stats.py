@@ -3,7 +3,6 @@ Tracks bandwidth usage of the tor process, expanding to include accounting
 stats if they're set.
 """
 
-import calendar
 import time
 import curses
 
@@ -22,10 +21,10 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('arm', {
+  'attr.hibernate_color': {},
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
   'features.graph.bw.accounting.rate': 10,
-  'features.graph.bw.accounting.isTimeLong': False,
   'tor.chroot': '',
 }, conf_handler)
 
@@ -35,10 +34,6 @@ DL_COLOR, UL_COLOR = 'green', 'cyan'
 # header in favor of replacing the x-axis label
 
 COLLAPSE_WIDTH = 135
-
-# valid keys for the accounting_info mapping
-
-ACCOUNTING_ARGS = ('status', 'reset_time', 'read', 'written', 'read_limit', 'writtenLimit')
 
 
 class BandwidthStats(graph_panel.GraphStats):
@@ -55,16 +50,13 @@ class BandwidthStats(graph_panel.GraphStats):
     self.prepopulate_secondary_total = 0
     self.prepopulate_ticks = 0
 
-    # accounting data (set by _update_accounting_info method)
-
-    self.accounting_last_updated = 0
-    self.accounting_info = dict([(arg, '') for arg in ACCOUNTING_ARGS])
+    self.accounting_stats = None
 
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
 
     controller = tor_controller()
-    self._title_stats, self.is_accounting = [], False
+    self._title_stats = []
 
     if not is_pause_buffer:
       self.reset_listener(controller, State.INIT, None)  # initializes values
@@ -95,12 +87,10 @@ class BandwidthStats(graph_panel.GraphStats):
     if not new_copy:
       new_copy = BandwidthStats(True)
 
-    new_copy.accounting_last_updated = self.accounting_last_updated
-    new_copy.accounting_info = self.accounting_info
+    new_copy.accounting_stats = self.accounting_stats
 
     # attributes that would have been initialized from calling the reset_listener
 
-    new_copy.is_accounting = self.is_accounting
     new_copy._title_stats = self._title_stats
 
     return graph_panel.GraphStats.clone(self, new_copy)
@@ -114,8 +104,8 @@ class BandwidthStats(graph_panel.GraphStats):
     if event_type in (State.INIT, State.RESET) and CONFIG['features.graph.bw.accounting.show']:
       is_accounting_enabled = controller.get_info('accounting/enabled', None) == '1'
 
-      if is_accounting_enabled != self.is_accounting:
-        self.is_accounting = is_accounting_enabled
+      if is_accounting_enabled != bool(self.accounting_stats):
+        self.accounting_stats = tor_controller().get_accounting_stats(None)
 
         # redraws the whole screen since our height changed
 
@@ -183,9 +173,9 @@ class BandwidthStats(graph_panel.GraphStats):
     return time.time() - min(stats.last_read_time, stats.last_write_time)
 
   def bandwidth_event(self, event):
-    if self.is_accounting and self.is_next_tick_redraw():
-      if time.time() - self.accounting_last_updated >= CONFIG['features.graph.bw.accounting.rate']:
-        self._update_accounting_info()
+    if self.accounting_stats and self.is_next_tick_redraw():
+      if time.time() - self.accounting_stats.retrieved >= CONFIG['features.graph.bw.accounting.rate']:
+        self.accounting_stats = tor_controller().get_accounting_stats(None)
 
     # scales units from B to KB for graphing
 
@@ -212,40 +202,19 @@ class BandwidthStats(graph_panel.GraphStats):
 
     # provides accounting stats if enabled
 
-    if self.is_accounting:
+    if self.accounting_stats:
       if tor_controller().is_alive():
-        status = self.accounting_info['status']
+        hibernate_color = CONFIG['attr.hibernate_color'].get(self.accounting_stats.status, 'red')
 
-        hibernate_color = 'green'
+        x, y = 0, labeling_line + 2
+        x = panel.addstr(y, x, 'Accounting (', curses.A_BOLD)
+        x = panel.addstr(y, x, self.accounting_stats.status, curses.A_BOLD, hibernate_color)
+        x = panel.addstr(y, x, ')', curses.A_BOLD)
 
-        if status == 'soft':
-          hibernate_color = 'yellow'
-        elif status == 'hard':
-          hibernate_color = 'red'
-        elif status == '':
-          # failed to be queried
-          status, hibernate_color = 'unknown', 'red'
+        panel.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(self.accounting_stats.time_until_reset))
 
-        panel.addstr(labeling_line + 2, 0, 'Accounting (', curses.A_BOLD)
-        panel.addstr(labeling_line + 2, 12, status, curses.A_BOLD, hibernate_color)
-        panel.addstr(labeling_line + 2, 12 + len(status), ')', curses.A_BOLD)
-
-        reset_time = self.accounting_info['reset_time']
-
-        if not reset_time:
-          reset_time = 'unknown'
-
-        panel.addstr(labeling_line + 2, 35, 'Time to reset: %s' % reset_time)
-
-        used, total = self.accounting_info['read'], self.accounting_info['read_limit']
-
-        if used and total:
-          panel.addstr(labeling_line + 3, 2, '%s / %s' % (used, total), self.get_color(True))
-
-        used, total = self.accounting_info['written'], self.accounting_info['writtenLimit']
-
-        if used and total:
-          panel.addstr(labeling_line + 3, 37, '%s / %s' % (used, total), self.get_color(False))
+        panel.addstr(y + 1, 2, '%s / %s' % (self.accounting_stats.read_bytes, self.accounting_stats.read_limit), self.get_color(True))
+        panel.addstr(y + 1, 37, '%s / %s' % (self.accounting_stats.written_bytes, self.accounting_stats.write_limit), self.get_color(True))
       else:
         panel.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
@@ -297,7 +266,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
   def get_content_height(self):
     base_height = graph_panel.GraphStats.get_content_height(self)
-    return base_height + 3 if self.is_accounting else base_height
+    return base_height + 3 if self.accounting_stats else base_height
 
   def new_desc_event(self, event):
     # updates self._title_stats with updated values
@@ -356,56 +325,6 @@ class BandwidthStats(graph_panel.GraphStats):
     total = self.primary_total if is_primary else self.secondary_total
     total += self.initial_primary_total if is_primary else self.initial_secondary_total
     return 'total: %s' % str_tools.size_label(total * 1024, 1)
-
-  def _update_accounting_info(self):
-    """
-    Updates mapping used for accounting info. This includes the following keys:
-    status, reset_time, read, written, read_limit, writtenLimit
-
-    Any failed lookups result in a mapping to an empty string.
-    """
-
-    controller = tor_controller()
-    queried = dict([(arg, '') for arg in ACCOUNTING_ARGS])
-    queried['status'] = controller.get_info('accounting/hibernating', None)
-
-    # provides a nicely formatted reset time
-
-    end_interval = controller.get_info('accounting/interval-end', None)
-
-    if end_interval:
-      # converts from gmt to local with respect to DST
-
-      sec = calendar.timegm(time.strptime(end_interval, '%Y-%m-%d %H:%M:%S')) - time.time()
-
-      if CONFIG['features.graph.bw.accounting.isTimeLong']:
-        queried['reset_time'] = ', '.join(str_tools.time_labels(sec, True))
-      else:
-        days = sec / 86400
-        sec %= 86400
-        hours = sec / 3600
-        sec %= 3600
-        minutes = sec / 60
-        sec %= 60
-        queried['reset_time'] = '%i:%02i:%02i:%02i' % (days, hours, minutes, sec)
-
-    # number of bytes used and in total for the accounting period
-
-    used = controller.get_info('accounting/bytes', None)
-    left = controller.get_info('accounting/bytes-left', None)
-
-    if used and left:
-      used_comp, left_comp = used.split(' '), left.split(' ')
-      read, written = int(used_comp[0]), int(used_comp[1])
-      read_left, written_left = int(left_comp[0]), int(left_comp[1])
-
-      queried['read'] = str_tools.size_label(read)
-      queried['written'] = str_tools.size_label(written)
-      queried['read_limit'] = str_tools.size_label(read + read_left)
-      queried['writtenLimit'] = str_tools.size_label(written + written_left)
-
-    self.accounting_info = queried
-    self.accounting_last_updated = time.time()
 
 
 def _min_config(controller, *attributes):
