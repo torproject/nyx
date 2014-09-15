@@ -34,9 +34,9 @@ class ConnStats(graph_panel.GraphStats):
 
   def reset_listener(self, controller, event_type, _):
     if event_type in (State.INIT, State.RESET):
-      self.or_port = controller.get_conf("ORPort", "0")
-      self.dir_port = controller.get_conf("DirPort", "0")
-      self.control_port = controller.get_conf("ControlPort", "0")
+      self.or_port = controller.get_conf('ORPort', '0')
+      self.dir_port = controller.get_conf('DirPort', '0')
+      self.control_port = controller.get_conf('ControlPort', '0')
 
   def event_tick(self):
     """
@@ -58,15 +58,15 @@ class ConnStats(graph_panel.GraphStats):
     self._process_event(inbound_count, outbound_count)
 
   def get_title(self, width):
-    return "Connection Count:"
+    return 'Connection Count:'
 
   def get_header_label(self, width, is_primary):
     avg = (self.primary_total if is_primary else self.secondary_total) / max(1, self.tick)
 
     if is_primary:
-      return "Inbound (%s, avg: %s):" % (self.last_primary, avg)
+      return 'Inbound (%s, avg: %s):' % (self.last_primary, avg)
     else:
-      return "Outbound (%s, avg: %s):" % (self.last_secondary, avg)
+      return 'Outbound (%s, avg: %s):' % (self.last_secondary, avg)
 
   def get_refresh_rate(self):
     return 5

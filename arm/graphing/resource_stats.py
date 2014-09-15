@@ -27,21 +27,21 @@ class ResourceStats(graph_panel.GraphStats):
     return graph_panel.GraphStats.clone(self, new_copy)
 
   def get_title(self, width):
-    return "System Resources:"
+    return 'System Resources:'
 
   def get_header_label(self, width, is_primary):
     avg = (self.primary_total if is_primary else self.secondary_total) / max(1, self.tick)
     last_amount = self.last_primary if is_primary else self.last_secondary
 
     if is_primary:
-      return "CPU (%0.1f%%, avg: %0.1f%%):" % (last_amount, avg)
+      return 'CPU (%0.1f%%, avg: %0.1f%%):' % (last_amount, avg)
     else:
       # memory sizes are converted from MB to B before generating labels
 
       usage_label = str_tools.size_label(last_amount * 1048576, 1)
       avg_label = str_tools.size_label(avg * 1048576, 1)
 
-      return "Memory (%s, avg: %s):" % (usage_label, avg_label)
+      return 'Memory (%s, avg: %s):' % (usage_label, avg_label)
 
   def event_tick(self):
     """
