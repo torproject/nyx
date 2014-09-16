@@ -5,7 +5,6 @@ Tracks the system resource usage (cpu and memory) of the tor process.
 import arm.util.tracker
 
 from arm.graphing import graph_panel
-from arm.util import tor_controller
 
 from stem.util import str_tools
 
@@ -17,8 +16,7 @@ class ResourceStats(graph_panel.GraphStats):
 
   def __init__(self):
     graph_panel.GraphStats.__init__(self)
-    self.query_pid = tor_controller().get_pid(None)
-    self.last_counter = None
+    self._last_counter = None
 
   def clone(self, new_copy=None):
     if not new_copy:
@@ -48,16 +46,12 @@ class ResourceStats(graph_panel.GraphStats):
     Fetch the cached measurement of resource usage from the ResourceTracker.
     """
 
-    primary, secondary = 0, 0
+    resource_tracker = arm.util.tracker.get_resource_tracker()
 
-    if self.query_pid:
-      resource_tracker = arm.util.tracker.get_resource_tracker()
+    if resource_tracker and resource_tracker.run_counter() != self._last_counter:
+      resources = resource_tracker.get_value()
+      primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
+      secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
 
-      if resource_tracker and resource_tracker.run_counter() != self.last_counter:
-        resources = resource_tracker.get_value()
-        self.last_counter = resource_tracker.run_counter()
-        primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
-        secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
-        self.run_count = resource_tracker.run_counter()
-
-    self._process_event(primary, secondary)
+      self._last_counter = resource_tracker.run_counter()
+      self._process_event(primary, secondary)
