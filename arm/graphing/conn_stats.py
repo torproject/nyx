@@ -7,7 +7,7 @@ import arm.util.tracker
 from arm.graphing import graph_panel
 from arm.util import tor_controller
 
-from stem.control import State
+from stem.control import Listener
 
 
 class ConnStats(graph_panel.GraphStats):
@@ -19,24 +19,11 @@ class ConnStats(graph_panel.GraphStats):
   def __init__(self):
     graph_panel.GraphStats.__init__(self)
 
-    # listens for tor reload (sighup) events which can reset the ports tor uses
-
-    controller = tor_controller()
-    self.or_port, self.dir_port, self.control_port = "0", "0", "0"
-    self.reset_listener(controller, State.INIT, None)  # initialize port values
-    controller.add_status_listener(self.reset_listener)
-
   def clone(self, new_copy=None):
     if not new_copy:
       new_copy = ConnStats()
 
     return graph_panel.GraphStats.clone(self, new_copy)
-
-  def reset_listener(self, controller, event_type, _):
-    if event_type in (State.INIT, State.RESET):
-      self.or_port = controller.get_conf('ORPort', '0')
-      self.dir_port = controller.get_conf('DirPort', '0')
-      self.control_port = controller.get_conf('ControlPort', '0')
 
   def event_tick(self):
     """
@@ -45,12 +32,18 @@ class ConnStats(graph_panel.GraphStats):
 
     inbound_count, outbound_count = 0, 0
 
+    controller = tor_controller()
+
+    or_ports = controller.get_ports(Listener.OR)
+    dir_ports = controller.get_ports(Listener.DIR)
+    control_ports = controller.get_ports(Listener.CONTROL)
+
     for entry in arm.util.tracker.get_connection_tracker().get_value():
       local_port = entry.local_port
 
-      if local_port in (self.or_port, self.dir_port):
+      if local_port in or_ports or local_port in dir_ports:
         inbound_count += 1
-      elif local_port == self.control_port:
+      elif local_port in control_ports:
         pass  # control connection
       else:
         outbound_count += 1
