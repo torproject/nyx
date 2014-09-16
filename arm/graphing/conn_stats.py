@@ -16,9 +16,6 @@ class ConnStats(graph_panel.GraphStats):
   outbound. Control connections are excluded from counts.
   """
 
-  def __init__(self):
-    graph_panel.GraphStats.__init__(self)
-
   def clone(self, new_copy=None):
     if not new_copy:
       new_copy = ConnStats()
@@ -53,10 +50,10 @@ class ConnStats(graph_panel.GraphStats):
   def get_title(self, width):
     return 'Connection Count:'
 
-  def get_header_label(self, width, is_primary):
-    avg = (self.primary_total if is_primary else self.secondary_total) / max(1, self.tick)
+  def primary_header(self, width):
+    avg = self.primary_total / max(1, self.tick)
+    return 'Inbound (%s, avg: %s):' % (self.last_primary, avg)
 
-    if is_primary:
-      return 'Inbound (%s, avg: %s):' % (self.last_primary, avg)
-    else:
-      return 'Outbound (%s, avg: %s):' % (self.last_secondary, avg)
+  def secondary_header(self, width):
+    avg = self.secondary_total / max(1, self.tick)
+    return 'Outbound (%s, avg: %s):' % (self.last_secondary, avg)

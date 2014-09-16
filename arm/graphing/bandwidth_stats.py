@@ -233,6 +233,12 @@ class BandwidthStats(graph_panel.GraphStats):
         else:
           return label
 
+  def primary_header(self, width):
+    return self.get_header_label(width, True)
+
+  def secondary_header(self, width):
+    return self.get_header_label(width, False)
+
   def get_header_label(self, width, is_primary):
     graph_type = 'Download' if is_primary else 'Upload'
     stats = ['']

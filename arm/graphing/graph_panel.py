@@ -174,11 +174,10 @@ class GraphStats:
 
     return ''
 
-  def get_header_label(self, width, is_primary):
-    """
-    Provides labeling presented at the top of the graph.
-    """
+  def primary_header(self, width):
+    return ''
 
+  def secondary_header(self, width):
     return ''
 
   def get_color(self, is_primary):
@@ -435,7 +434,7 @@ class GraphPanel(panel.Panel):
 
       # top labels
 
-      left, right = param.get_header_label(width / 2, True), param.get_header_label(width / 2, False)
+      left, right = param.primary_header(width / 2), param.secondary_header(width / 2)
 
       if left:
         self.addstr(1, 0, left, curses.A_BOLD, primary_color)
