@@ -60,6 +60,3 @@ class ConnStats(graph_panel.GraphStats):
       return 'Inbound (%s, avg: %s):' % (self.last_primary, avg)
     else:
       return 'Outbound (%s, avg: %s):' % (self.last_secondary, avg)
-
-  def get_refresh_rate(self):
-    return 5

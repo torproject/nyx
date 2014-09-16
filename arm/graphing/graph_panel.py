@@ -163,7 +163,7 @@ class GraphStats:
     if self._graph_panel and self.is_selected and not self._graph_panel.is_paused():
       # use the minimum of the current refresh rate and the panel's
       update_rate = UPDATE_INTERVALS[self._graph_panel.update_interval][1]
-      return (self.tick + 1) % min(update_rate, self.get_refresh_rate()) == 0
+      return (self.tick + 1) % update_rate == 0
     else:
       return False
 
@@ -194,14 +194,6 @@ class GraphStats:
     """
 
     return DEFAULT_CONTENT_HEIGHT
-
-  def get_refresh_rate(self):
-    """
-    Provides the number of ticks between when the stats have new values to be
-    redrawn.
-    """
-
-    return 1
 
   def is_visible(self):
     """
