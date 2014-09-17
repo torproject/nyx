@@ -220,18 +220,12 @@ class BandwidthStats(graph_panel.GraphStats):
         panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
 
   def get_title(self, width):
-    stats = list(self._title_stats)
+    stats_label = str_tools.join(self._title_stats, ', ', width - 13)
 
-    while True:
-      if not stats:
-        return 'Bandwidth:'
-      else:
-        label = 'Bandwidth (%s):' % ', '.join(stats)
-
-        if len(label) > width:
-          del stats[-1]
-        else:
-          return label
+    if stats_label:
+      return 'Bandwidth (%s):' % stats_label
+    else:
+      return 'Bandwidth:'
 
   def primary_header(self, width):
     return self.get_header_label(width, True)
@@ -253,19 +247,12 @@ class BandwidthStats(graph_panel.GraphStats):
 
     stats[0] = '%-14s' % ('%s/sec' % str_tools.size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG['features.graph.bw.transferInBytes']))
 
-    # drops label's components if there's not enough space
+    stats_label = str_tools.join(stats, '', width - len(graph_type) - 4)
 
-    labeling = graph_type + ' (' + ''.join(stats).strip() + '):'
-
-    while len(labeling) >= width:
-      if len(stats) > 1:
-        del stats[-1]
-        labeling = graph_type + ' (' + ''.join(stats).strip() + '):'
-      else:
-        labeling = graph_type + ':'
-        break
-
-    return labeling
+    if stats_label:
+      return '%s (%s):' % (graph_type, stats_label)
+    else
+      return graph_type + ':'
 
   def get_color(self, is_primary):
     return DL_COLOR if is_primary else UL_COLOR
