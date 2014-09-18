@@ -12,7 +12,7 @@ from arm.graphing import graph_panel
 from arm.util import bandwidth_from_state, tor_controller
 
 from stem.control import State
-from stem.util import conf, str_tools
+from stem.util import conf, str_tools, system
 
 
 def conf_handler(key, value):
@@ -44,12 +44,6 @@ class BandwidthStats(graph_panel.GraphStats):
   def __init__(self, is_pause_buffer = False):
     graph_panel.GraphStats.__init__(self)
 
-    # stats prepopulated from tor's state file
-
-    self.prepopulate_primary_total = 0
-    self.prepopulate_secondary_total = 0
-    self.prepopulate_ticks = 0
-
     self.accounting_stats = None
 
     # listens for tor reload (sighup) events which can reset the bandwidth
@@ -63,25 +57,22 @@ class BandwidthStats(graph_panel.GraphStats):
 
     controller.add_status_listener(self.reset_listener)
 
-    # Initialized the bandwidth totals to the values reported by Tor. This
-    # uses a controller options introduced in ticket 2345:
-    # https://trac.torproject.org/projects/tor/ticket/2345
+    # We both show our 'total' attributes and use it to determine our average.
     #
-    # further updates are still handled via BW events to avoid unnecessary
-    # GETINFO requests.
-
-    self.initial_primary_total = 0
-    self.initial_secondary_total = 0
+    # If we can get *both* our start time and the totals from tor (via 'GETINFO
+    # traffic/*') then that's ideal, but if not then just track the total for
+    # the time arm is run.
 
     read_total = controller.get_info('traffic/read', None)
-
-    if read_total and read_total.isdigit():
-      self.initial_primary_total = int(read_total) / 1024  # Bytes -> KB
-
     write_total = controller.get_info('traffic/written', None)
+    start_time = system.start_time(controller.get_pid(None))
 
-    if write_total and write_total.isdigit():
-      self.initial_secondary_total = int(write_total) / 1024  # Bytes -> KB
+    if read_total and write_total and start_time:
+      self.primary_total = int(read_total) / 1024  # Bytes -> KB
+      self.secondary_total = int(write_total) / 1024  # Bytes -> KB
+      self.start_time = start_time
+    else:
+      self.start_time = time.time()
 
   def clone(self, new_copy = None):
     if not new_copy:
@@ -157,10 +148,6 @@ class BandwidthStats(graph_panel.GraphStats):
 
       self.last_primary, self.last_secondary = read_value, write_value
 
-      self.prepopulate_primary_total += read_value * 900
-      self.prepopulate_secondary_total += write_value * 900
-      self.prepopulate_ticks += 900
-
       self.primary_counts[interval_index].insert(0, read_value)
       self.secondary_counts[interval_index].insert(0, write_value)
 
@@ -194,8 +181,13 @@ class BandwidthStats(graph_panel.GraphStats):
       panel.addstr(labeling_line, 0, ' ' * width)
       graph_column = min((width - 10) / 2, self.max_column)
 
-      primary_footer = '%s, %s' % (self._get_avg_label(True), self._get_total_label(True))
-      secondary_footer = '%s, %s' % (self._get_avg_label(False), self._get_total_label(False))
+      primary_total = 'total: %s' % _size_label(self.primary_total * 1024)
+      primary_average = 'avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024)
+      primary_footer = '%s, %s' % (primary_average, primary_total)
+
+      secondary_total = 'total: %s' % _size_label(self.secondary_total * 1024)
+      secondary_average = 'avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024)
+      secondary_footer = '%s, %s' % (secondary_average, secondary_total)
 
       panel.addstr(labeling_line, 1, primary_footer, self.get_color(True))
       panel.addstr(labeling_line, graph_column + 6, secondary_footer, self.get_color(False))
@@ -228,31 +220,38 @@ class BandwidthStats(graph_panel.GraphStats):
       return 'Bandwidth:'
 
   def primary_header(self, width):
-    return self.get_header_label(width, True)
-
-  def secondary_header(self, width):
-    return self.get_header_label(width, False)
-
-  def get_header_label(self, width, is_primary):
-    graph_type = 'Download' if is_primary else 'Upload'
-    stats = ['']
+    stats = ['%-14s' % ('%s/sec' % _size_label(self.last_primary * 1024))]
 
     # if wide then avg and total are part of the header, otherwise they're on
     # the x-axis
 
     if width * 2 > COLLAPSE_WIDTH:
-      stats = [''] * 3
-      stats[1] = '- %s' % self._get_avg_label(is_primary)
-      stats[2] = ', %s' % self._get_total_label(is_primary)
+      stats.append('- avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024))
+      stats.append(', total: %s' % _size_label(self.primary_total * 1024))
 
-    stats[0] = '%-14s' % ('%s/sec' % str_tools.size_label((self.last_primary if is_primary else self.last_secondary) * 1024, 1, False, CONFIG['features.graph.bw.transferInBytes']))
-
-    stats_label = str_tools.join(stats, '', width - len(graph_type) - 4)
+    stats_label = str_tools.join(stats, '', width - 12)
 
     if stats_label:
-      return '%s (%s):' % (graph_type, stats_label)
-    else
-      return graph_type + ':'
+      return 'Download (%s):' % stats_label
+    else:
+      return 'Download:'
+
+  def secondary_header(self, width):
+    stats = ['%-14s' % ('%s/sec' % _size_label(self.last_secondary * 1024))]
+
+    # if wide then avg and total are part of the header, otherwise they're on
+    # the x-axis
+
+    if width * 2 > COLLAPSE_WIDTH:
+      stats.append('- avg: %s/sec' % _size_label(self.secondary_total / (time.time() - self.start_time) * 1024))
+      stats.append(', total: %s' % _size_label(self.secondary_total * 1024))
+
+    stats_label = str_tools.join(stats, '', width - 10)
+
+    if stats_label:
+      return 'Upload (%s):' % stats_label
+    else:
+      return 'Upload:'
 
   def get_color(self, is_primary):
     return DL_COLOR if is_primary else UL_COLOR
@@ -282,11 +281,9 @@ class BandwidthStats(graph_panel.GraphStats):
       my_router_status_entry = controller.get_network_status(default = None)
       bw_measured = getattr(my_router_status_entry, 'bandwidth', None)
 
-      label_in_bytes = CONFIG['features.graph.bw.transferInBytes']
-
       if bw_rate and bw_burst:
-        bw_rate_label = str_tools.size_label(bw_rate, 1, False, label_in_bytes)
-        bw_burst_label = str_tools.size_label(bw_burst, 1, False, label_in_bytes)
+        bw_rate_label = _size_label(bw_rate)
+        bw_burst_label = _size_label(bw_burst)
 
         # if both are using rounded values then strip off the '.0' decimal
 
@@ -302,22 +299,11 @@ class BandwidthStats(graph_panel.GraphStats):
       # if there isn't yet enough bandwidth measurements).
 
       if bw_observed and (not bw_measured or bw_measured == bw_observed):
-        stats.append('observed: %s/s' % str_tools.size_label(bw_observed, 1, False, label_in_bytes))
+        stats.append('observed: %s/s' % _size_label(bw_observed))
       elif bw_measured:
-        stats.append('measured: %s/s' % str_tools.size_label(bw_measured, 1, False, label_in_bytes))
+        stats.append('measured: %s/s' % _size_label(bw_measured))
 
       self._title_stats = stats
-
-  def _get_avg_label(self, is_primary):
-    total = self.primary_total if is_primary else self.secondary_total
-    total += self.prepopulate_primary_total if is_primary else self.prepopulate_secondary_total
-
-    return 'avg: %s/sec' % str_tools.size_label((total / max(1, self.tick + self.prepopulate_ticks)) * 1024, 1, False, CONFIG['features.graph.bw.transferInBytes'])
-
-  def _get_total_label(self, is_primary):
-    total = self.primary_total if is_primary else self.secondary_total
-    total += self.initial_primary_total if is_primary else self.initial_secondary_total
-    return 'total: %s' % str_tools.size_label(total * 1024, 1)
 
 
 def _min_config(controller, *attributes):
@@ -340,3 +326,7 @@ def _min_config(controller, *attributes):
       pass
 
   return value
+
+
+def _size_label(byte_count):
+  return str_tools.size_label(byte_count, 1, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
