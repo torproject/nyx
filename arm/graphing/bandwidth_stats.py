@@ -272,14 +272,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
     if not self._title_stats or not my_fingerprint or (event and my_fingerprint in event.idlist):
       stats = []
-      bw_rate = _min_config(controller, 'BandwidthRate', 'RelayBandwidthRate', 'MaxAdvertisedBandwidth')
-      bw_burst = _min_config(controller, 'BandwidthBurst', 'RelayBandwidthBurst')
-
-      my_server_descriptor = controller.get_server_descriptor(default = None)
-      bw_observed = getattr(my_server_descriptor, 'observed_bandwidth', None)
-
-      my_router_status_entry = controller.get_network_status(default = None)
-      bw_measured = getattr(my_router_status_entry, 'bandwidth', None)
+      bw_rate = controller.get_effective_rate(None)
+      bw_burst = controller.get_effective_rate(None, burst = True)
 
       if bw_rate and bw_burst:
         bw_rate_label = _size_label(bw_rate)
@@ -288,8 +282,8 @@ class BandwidthStats(graph_panel.GraphStats):
         # if both are using rounded values then strip off the '.0' decimal
 
         if '.0' in bw_rate_label and '.0' in bw_burst_label:
-          bw_rate_label = bw_rate_label.replace('.0', '')
-          bw_burst_label = bw_burst_label.replace('.0', '')
+          bw_rate_label = bw_rate_label.split('.', 1)[0]
+          bw_burst_label = bw_burst_label.split('.', 1)[0]
 
         stats.append('limit: %s/s' % bw_rate_label)
         stats.append('burst: %s/s' % bw_burst_label)
@@ -298,34 +292,18 @@ class BandwidthStats(graph_panel.GraphStats):
       # available or if the measured bandwidth is the observed (this happens
       # if there isn't yet enough bandwidth measurements).
 
+      my_server_descriptor = controller.get_server_descriptor(default = None)
+      bw_observed = getattr(my_server_descriptor, 'observed_bandwidth', None)
+
+      my_router_status_entry = controller.get_network_status(default = None)
+      bw_measured = getattr(my_router_status_entry, 'bandwidth', None)
+
       if bw_observed and (not bw_measured or bw_measured == bw_observed):
         stats.append('observed: %s/s' % _size_label(bw_observed))
       elif bw_measured:
         stats.append('measured: %s/s' % _size_label(bw_measured))
 
       self._title_stats = stats
-
-
-def _min_config(controller, *attributes):
-  """
-  Provides the minimum of the given numeric bandwidth rate or burst config
-  options.
-  """
-
-  value = None
-
-  for attr in attributes:
-    try:
-      attr_value = int(controller.get_conf(attr))
-
-      if attr_value == 0 and attr.startswith('Relay'):
-        continue  # RelayBandwidthRate and RelayBandwidthBurst default to zero
-
-      value = min(value, attr_value) if value else attr_value
-    except:
-      pass
-
-  return value
 
 
 def _size_label(byte_count):
