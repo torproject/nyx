@@ -170,13 +170,9 @@ class BandwidthStats(graph_panel.GraphStats):
       panel.addstr(labeling_line, 0, ' ' * width)
       graph_column = min((width - 10) / 2, self.max_column)
 
-      primary_total = 'total: %s' % _size_label(self.primary_total * 1024)
-      primary_average = 'avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024)
-      primary_footer = '%s, %s' % (primary_average, primary_total)
-
-      secondary_total = 'total: %s' % _size_label(self.secondary_total * 1024)
-      secondary_average = 'avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024)
-      secondary_footer = '%s, %s' % (secondary_average, secondary_total)
+      runtime = time.time() - self.start_time
+      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(self.primary_total * 1024), _size_label(self.primary_total / runtime * 1024))
+      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(self.secondary_total * 1024), _size_label(self.secondary_total / runtime * 1024))
 
       panel.addstr(labeling_line, 1, primary_footer, graph_panel.PRIMARY_COLOR)
       panel.addstr(labeling_line, graph_column + 6, secondary_footer, graph_panel.SECONDARY_COLOR)
@@ -202,11 +198,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
   def get_title(self, width):
     stats_label = str_tools.join(self._title_stats, ', ', width - 13)
-
-    if stats_label:
-      return 'Bandwidth (%s):' % stats_label
-    else:
-      return 'Bandwidth:'
+    return 'Bandwidth (%s):' % stats_label if stats_label else 'Bandwidth:'
 
   def primary_header(self, width):
     stats = ['%-14s' % ('%s/sec' % _size_label(self.last_primary * 1024))]
