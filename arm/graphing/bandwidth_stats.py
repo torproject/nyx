@@ -44,18 +44,18 @@ class BandwidthStats(graph_panel.GraphStats):
   def __init__(self, is_pause_buffer = False):
     graph_panel.GraphStats.__init__(self)
 
-    self.accounting_stats = None
-
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst and if tor's using accounting
 
     controller = tor_controller()
     self._title_stats = []
+    self._accounting_stats = None
 
     if not is_pause_buffer:
       self.reset_listener(controller, State.INIT, None)  # initializes values
 
     controller.add_status_listener(self.reset_listener)
+    self.new_desc_event(None)  # updates title params
 
     # We both show our 'total' attributes and use it to determine our average.
     #
@@ -78,10 +78,7 @@ class BandwidthStats(graph_panel.GraphStats):
     if not new_copy:
       new_copy = BandwidthStats(True)
 
-    new_copy.accounting_stats = self.accounting_stats
-
-    # attributes that would have been initialized from calling the reset_listener
-
+    new_copy._accounting_stats = self._accounting_stats
     new_copy._title_stats = self._title_stats
 
     return graph_panel.GraphStats.clone(self, new_copy)
@@ -89,14 +86,13 @@ class BandwidthStats(graph_panel.GraphStats):
   def reset_listener(self, controller, event_type, _):
     # updates title parameters and accounting status if they changed
 
-    self._title_stats = []     # force reset of title
     self.new_desc_event(None)  # updates title params
 
     if event_type in (State.INIT, State.RESET) and CONFIG['features.graph.bw.accounting.show']:
       is_accounting_enabled = controller.get_info('accounting/enabled', None) == '1'
 
-      if is_accounting_enabled != bool(self.accounting_stats):
-        self.accounting_stats = tor_controller().get_accounting_stats(None)
+      if is_accounting_enabled != bool(self._accounting_stats):
+        self._accounting_stats = tor_controller().get_accounting_stats(None)
 
         # redraws the whole screen since our height changed
 
@@ -160,9 +156,9 @@ class BandwidthStats(graph_panel.GraphStats):
     return time.time() - min(stats.last_read_time, stats.last_write_time)
 
   def bandwidth_event(self, event):
-    if self.accounting_stats and self.is_next_tick_redraw():
-      if time.time() - self.accounting_stats.retrieved >= CONFIG['features.graph.bw.accounting.rate']:
-        self.accounting_stats = tor_controller().get_accounting_stats(None)
+    if self._accounting_stats and self.is_next_tick_redraw():
+      if time.time() - self._accounting_stats.retrieved >= CONFIG['features.graph.bw.accounting.rate']:
+        self._accounting_stats = tor_controller().get_accounting_stats(None)
 
     # scales units from B to KB for graphing
 
@@ -194,19 +190,19 @@ class BandwidthStats(graph_panel.GraphStats):
 
     # provides accounting stats if enabled
 
-    if self.accounting_stats:
+    if self._accounting_stats:
       if tor_controller().is_alive():
-        hibernate_color = CONFIG['attr.hibernate_color'].get(self.accounting_stats.status, 'red')
+        hibernate_color = CONFIG['attr.hibernate_color'].get(self._accounting_stats.status, 'red')
 
         x, y = 0, labeling_line + 2
         x = panel.addstr(y, x, 'Accounting (', curses.A_BOLD)
-        x = panel.addstr(y, x, self.accounting_stats.status, curses.A_BOLD, hibernate_color)
+        x = panel.addstr(y, x, self._accounting_stats.status, curses.A_BOLD, hibernate_color)
         x = panel.addstr(y, x, ')', curses.A_BOLD)
 
-        panel.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(self.accounting_stats.time_until_reset))
+        panel.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(self._accounting_stats.time_until_reset))
 
-        panel.addstr(y + 1, 2, '%s / %s' % (self.accounting_stats.read_bytes, self.accounting_stats.read_limit), self.get_color(True))
-        panel.addstr(y + 1, 37, '%s / %s' % (self.accounting_stats.written_bytes, self.accounting_stats.write_limit), self.get_color(True))
+        panel.addstr(y + 1, 2, '%s / %s' % (self._accounting_stats.read_bytes, self._accounting_stats.read_limit), self.get_color(True))
+        panel.addstr(y + 1, 37, '%s / %s' % (self._accounting_stats.written_bytes, self._accounting_stats.write_limit), self.get_color(True))
       else:
         panel.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
@@ -258,11 +254,9 @@ class BandwidthStats(graph_panel.GraphStats):
 
   def get_content_height(self):
     base_height = graph_panel.GraphStats.get_content_height(self)
-    return base_height + 3 if self.accounting_stats else base_height
+    return base_height + 3 if self._accounting_stats else base_height
 
   def new_desc_event(self, event):
-    # updates self._title_stats with updated values
-
     controller = tor_controller()
 
     if not controller.is_alive():
@@ -270,8 +264,9 @@ class BandwidthStats(graph_panel.GraphStats):
 
     my_fingerprint = controller.get_info('fingerprint', None)
 
-    if not self._title_stats or not my_fingerprint or (event and my_fingerprint in event.idlist):
+    if not event or (my_fingerprint and my_fingerprint in [fp for fp, _ in event.relays]):
       stats = []
+
       bw_rate = controller.get_effective_rate(None)
       bw_burst = controller.get_effective_rate(None, burst = True)
 
@@ -288,20 +283,17 @@ class BandwidthStats(graph_panel.GraphStats):
         stats.append('limit: %s/s' % bw_rate_label)
         stats.append('burst: %s/s' % bw_burst_label)
 
-      # Provide the observed bandwidth either if the measured bandwidth isn't
-      # available or if the measured bandwidth is the observed (this happens
-      # if there isn't yet enough bandwidth measurements).
-
-      my_server_descriptor = controller.get_server_descriptor(default = None)
-      bw_observed = getattr(my_server_descriptor, 'observed_bandwidth', None)
-
       my_router_status_entry = controller.get_network_status(default = None)
-      bw_measured = getattr(my_router_status_entry, 'bandwidth', None)
+      measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
 
-      if bw_observed and (not bw_measured or bw_measured == bw_observed):
-        stats.append('observed: %s/s' % _size_label(bw_observed))
-      elif bw_measured:
-        stats.append('measured: %s/s' % _size_label(bw_measured))
+      if measured_bw:
+        stats.append('measured: %s/s' % _size_label(measured_bw))
+      else:
+        my_server_descriptor = controller.get_server_descriptor(default = None)
+        observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
+
+        if observed_bw:
+          stats.append('observed: %s/s' % _size_label(observed_bw))
 
       self._title_stats = stats
 
