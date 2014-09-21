@@ -14,19 +14,14 @@ from arm.util import bandwidth_from_state, tor_controller
 from stem.control import State
 from stem.util import conf, str_tools, system
 
-
-def conf_handler(key, value):
-  if key == 'features.graph.bw.accounting.rate':
-    return max(1, value)
-
+ACCOUNTING_RATE = 5
 
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
-  'features.graph.bw.accounting.rate': 10,
   'tor.chroot': '',
-}, conf_handler)
+})
 
 # width at which panel abandons placing optional stats (avg and total) with
 # header in favor of replacing the x-axis label
@@ -155,7 +150,7 @@ class BandwidthStats(graph_panel.GraphStats):
 
   def bandwidth_event(self, event):
     if self._accounting_stats and self.is_next_tick_redraw():
-      if time.time() - self._accounting_stats.retrieved >= CONFIG['features.graph.bw.accounting.rate']:
+      if time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
         self._accounting_stats = tor_controller().get_accounting_stats(None)
 
     # scales units from B to KB for graphing

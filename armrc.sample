@@ -178,13 +178,10 @@ features.graph.showIntermediateBounds true
 #   shows rate measurments in bytes if true, bits otherwise
 # accounting.show
 #   provides accounting stats if AccountingMax was set
-# accounting.rate
-#   seconds between querying accounting stats
 
 features.graph.bw.prepopulate true
 features.graph.bw.transferInBytes false
 features.graph.bw.accounting.show true
-features.graph.bw.accounting.rate 10
 
 # Parameters for connection display
 # ---------------------------------
