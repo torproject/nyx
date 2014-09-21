@@ -42,7 +42,7 @@ UPDATE_INTERVALS = [
 ]
 
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
-DEFAULT_COLOR_PRIMARY, DEFAULT_COLOR_SECONDARY = 'green', 'cyan'
+PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
 MIN_GRAPH_HEIGHT = 1
 
 # enums for graph bounds:
@@ -179,13 +179,6 @@ class GraphStats:
 
   def secondary_header(self, width):
     return ''
-
-  def get_color(self, is_primary):
-    """
-    Provides the color to be used for the graph and stats.
-    """
-
-    return DEFAULT_COLOR_PRIMARY if is_primary else DEFAULT_COLOR_SECONDARY
 
   def get_content_height(self):
     """
@@ -426,9 +419,6 @@ class GraphPanel(panel.Panel):
       param = self.get_attr('stats')[self.current_display]
       graph_column = min((width - 10) / 2, param.max_column)
 
-      primary_color = param.get_color(True)
-      secondary_color = param.get_color(False)
-
       if self.is_title_visible():
         self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
 
@@ -437,10 +427,10 @@ class GraphPanel(panel.Panel):
       left, right = param.primary_header(width / 2), param.secondary_header(width / 2)
 
       if left:
-        self.addstr(1, 0, left, curses.A_BOLD, primary_color)
+        self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
 
       if right:
-        self.addstr(1, graph_column + 5, right, curses.A_BOLD, secondary_color)
+        self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
 
       # determines max/min value on the graph
 
@@ -473,11 +463,11 @@ class GraphPanel(panel.Panel):
 
       # displays upper and lower bounds
 
-      self.addstr(2, 0, '%4i' % primary_max_bound, primary_color)
-      self.addstr(self.graph_height + 1, 0, '%4i' % primary_min_bound, primary_color)
+      self.addstr(2, 0, '%4i' % primary_max_bound, PRIMARY_COLOR)
+      self.addstr(self.graph_height + 1, 0, '%4i' % primary_min_bound, PRIMARY_COLOR)
 
-      self.addstr(2, graph_column + 5, '%4i' % secondary_max_bound, secondary_color)
-      self.addstr(self.graph_height + 1, graph_column + 5, '%4i' % secondary_min_bound, secondary_color)
+      self.addstr(2, graph_column + 5, '%4i' % secondary_max_bound, SECONDARY_COLOR)
+      self.addstr(self.graph_height + 1, graph_column + 5, '%4i' % secondary_min_bound, SECONDARY_COLOR)
 
       # displays intermediate bounds on every other row
 
@@ -494,13 +484,13 @@ class GraphPanel(panel.Panel):
             primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
             if primary_val not in (primary_min_bound, primary_max_bound):
-              self.addstr(row + 2, 0, '%4i' % primary_val, primary_color)
+              self.addstr(row + 2, 0, '%4i' % primary_val, PRIMARY_COLOR)
 
           if secondary_min_bound != secondary_max_bound:
             secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
             if secondary_val not in (secondary_min_bound, secondary_max_bound):
-              self.addstr(row + 2, graph_column + 5, '%4i' % secondary_val, secondary_color)
+              self.addstr(row + 2, graph_column + 5, '%4i' % secondary_val, SECONDARY_COLOR)
 
       # creates bar graph (both primary and secondary)
 
@@ -509,13 +499,13 @@ class GraphPanel(panel.Panel):
         column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
 
         for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, primary_color)
+          self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
 
         column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
         column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
 
         for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, secondary_color)
+          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
 
       # bottom labeling of x-axis
 
@@ -542,8 +532,8 @@ class GraphPanel(panel.Panel):
           # if constrained on space then strips labeling since already provided
           time_label = time_label[:-1]
 
-        self.addstr(self.graph_height + 2, 4 + loc, time_label, primary_color)
-        self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, secondary_color)
+        self.addstr(self.graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
+        self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
       param.draw(self, width, height)  # allows current stats to modify the display
 

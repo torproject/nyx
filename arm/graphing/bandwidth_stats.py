@@ -28,8 +28,6 @@ CONFIG = conf.config_dict('arm', {
   'tor.chroot': '',
 }, conf_handler)
 
-DL_COLOR, UL_COLOR = 'green', 'cyan'
-
 # width at which panel abandons placing optional stats (avg and total) with
 # header in favor of replacing the x-axis label
 
@@ -185,8 +183,8 @@ class BandwidthStats(graph_panel.GraphStats):
       secondary_average = 'avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024)
       secondary_footer = '%s, %s' % (secondary_average, secondary_total)
 
-      panel.addstr(labeling_line, 1, primary_footer, self.get_color(True))
-      panel.addstr(labeling_line, graph_column + 6, secondary_footer, self.get_color(False))
+      panel.addstr(labeling_line, 1, primary_footer, graph_panel.PRIMARY_COLOR)
+      panel.addstr(labeling_line, graph_column + 6, secondary_footer, graph_panel.SECONDARY_COLOR)
 
     # provides accounting stats if enabled
 
@@ -201,8 +199,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
         panel.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(self._accounting_stats.time_until_reset))
 
-        panel.addstr(y + 1, 2, '%s / %s' % (self._accounting_stats.read_bytes, self._accounting_stats.read_limit), self.get_color(True))
-        panel.addstr(y + 1, 37, '%s / %s' % (self._accounting_stats.written_bytes, self._accounting_stats.write_limit), self.get_color(True))
+        panel.addstr(y + 1, 2, '%s / %s' % (self._accounting_stats.read_bytes, self._accounting_stats.read_limit), graph_panel.PRIMARY_COLOR)
+        panel.addstr(y + 1, 37, '%s / %s' % (self._accounting_stats.written_bytes, self._accounting_stats.write_limit), graph_panel.SECONDARY_COLOR)
       else:
         panel.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
         panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
@@ -248,9 +246,6 @@ class BandwidthStats(graph_panel.GraphStats):
       return 'Upload (%s):' % stats_label
     else:
       return 'Upload:'
-
-  def get_color(self, is_primary):
-    return DL_COLOR if is_primary else UL_COLOR
 
   def get_content_height(self):
     base_height = graph_panel.GraphStats.get_content_height(self)
