@@ -63,7 +63,7 @@ class TestDaemon(unittest.TestCase):
     # Check that we can pause and unpause daemon.
 
     with Daemon(0.01) as daemon:
-      time.sleep(0.05)
+      time.sleep(0.2)
       self.assertTrue(2 < daemon.run_counter())
 
       daemon.set_paused(True)
@@ -72,5 +72,5 @@ class TestDaemon(unittest.TestCase):
       self.assertEqual(0, daemon.run_counter())
 
       daemon.set_paused(False)
-      time.sleep(0.05)
+      time.sleep(0.2)
       self.assertTrue(2 < daemon.run_counter())
