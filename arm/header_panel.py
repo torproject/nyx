@@ -4,6 +4,7 @@ This expands the information it presents to two columns if there's room
 available.
 """
 
+import collections
 import os
 import time
 import curses
@@ -39,7 +40,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._vals = Sampling()
+    self._vals = get_sampling()
 
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
@@ -178,8 +179,10 @@ class HeaderPanel(panel.Panel, threading.Thread):
       space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
+        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
+
         x = self.addstr(y, x, ' (')
-        x = self.addstr(y, x, vals.version_status, vals.version_color)
+        x = self.addstr(y, x, vals.version_status, version_color)
         self.addstr(y, x, ')')
 
   def _draw_ports_section(self, x, y, width, vals):
@@ -264,7 +267,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     x = self.addstr(y, x, vals.format('fingerprint: {fingerprint}', width))
     space_left -= x - initial_x
 
-    if space_left >= 30 and vals.fd_used and vals.fd_limit:
+    if space_left >= 30 and vals.fd_used and vals.fd_limit != -1:
       fd_percent = 100 * vals.fd_used / vals.fd_limit
 
       if fd_percent >= SHOW_FD_THRESHOLD:
@@ -372,7 +375,18 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
   def _update(self):
     previous_height = self.get_height()
-    self._vals = Sampling(self._vals)
+    self._vals = get_sampling(self._vals)
+
+    if self._vals.fd_used and self._vals.fd_limit != -1:
+      fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
+
+      if fd_percent >= 90:
+        log_msg = msg('panel.header.fd_used_at_ninety_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
+        log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
+      elif fd_percent >= 60:
+        log_msg = msg('panel.header.fd_used_at_sixty_percent', percentage = fd_percent)
+        log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
     if previous_height != self.get_height():
       # We're toggling between being a relay and client, causing the height
@@ -384,108 +398,85 @@ class HeaderPanel(panel.Panel, threading.Thread):
       self.redraw(True)  # just need to redraw ourselves
 
 
-class Sampling(object):
-  """
-  Statistical information rendered by the header panel.
-  """
+def get_sampling(last_sampling = None):
+  controller = tor_controller()
+  retrieved = time.time()
 
-  def __init__(self, last_sampling = None):
-    controller = tor_controller()
+  pid = controller.get_pid('')
+  tor_resources = tracker.get_resource_tracker().get_value()
+  arm_total_cpu_time = sum(os.times()[:3])
 
-    self.retrieved = time.time()
-    self.is_connected = controller.is_alive()
-    self.connection_time = controller.connection_time()
-    self.last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat()))
+  or_listeners = controller.get_listeners(Listener.OR, [])
+  control_listeners = controller.get_listeners(Listener.CONTROL, [])
 
-    self.fingerprint = controller.get_info('fingerprint', 'Unknown')
-    self.nickname = controller.get_conf('Nickname', '')
-    self.newnym_wait = controller.get_newnym_wait()
-    self.exit_policy = controller.get_exit_policy(None)
-    self.flags = getattr(controller.get_network_status(default = None), 'flags', [])
+  if controller.get_conf('HashedControlPassword', None):
+    auth_type = 'password'
+  elif controller.get_conf('CookieAuthentication', None) == '1':
+    auth_type = 'cookie'
+  else:
+    auth_type = 'open'
 
-    self.version = str(controller.get_version('Unknown')).split()[0]
-    self.version_status = controller.get_info('status/version/current', 'Unknown')
-    self.version_color = CONFIG['attr.version_status_colors'].get(self.version_status, 'white')
+  try:
+    fd_used = proc.file_descriptors_used(pid)
+  except IOError:
+    fd_used = None
 
-    or_listeners = controller.get_listeners(Listener.OR, [])
-    control_listeners = controller.get_listeners(Listener.CONTROL, [])
-    self.address = or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown')
-    self.or_port = or_listeners[0][1] if or_listeners else ''
-    self.dir_port = controller.get_conf('DirPort', '0')
-    self.control_port = str(control_listeners[0][1]) if control_listeners else None
-    self.socket_path = controller.get_conf('ControlSocket', None)
-    self.is_relay = bool(self.or_port)
+  if last_sampling:
+    arm_cpu_delta = arm_total_cpu_time - last_sampling.arm_total_cpu_time
+    arm_time_delta = retrieved - last_sampling.retrieved
 
-    if controller.get_conf('HashedControlPassword', None):
-      self.auth_type = 'password'
-    elif controller.get_conf('CookieAuthentication', None) == '1':
-      self.auth_type = 'cookie'
-    else:
-      self.auth_type = 'open'
+    python_cpu_time = arm_cpu_delta / arm_time_delta
+    sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
 
-    self.pid = controller.get_pid('')
-    self.start_time = system.start_time(self.pid)
+    arm_cpu = python_cpu_time + sys_call_cpu_time
+  else:
+    arm_cpu = 0.0
 
-    fd_limit = controller.get_info('process/descriptor-limit', '-1')
-    self.fd_limit = int(fd_limit) if fd_limit.isdigit() else None
+  attr = {
+    'retrieved': retrieved,
+    'is_connected': controller.is_alive(),
+    'connection_time': controller.connection_time(),
+    'last_heartbeat': time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat())),
 
-    try:
-      self.fd_used = proc.file_descriptors_used(self.pid)
-    except IOError:
-      self.fd_used = None
+    'fingerprint': controller.get_info('fingerprint', 'Unknown'),
+    'nickname': controller.get_conf('Nickname', ''),
+    'newnym_wait': controller.get_newnym_wait(),
+    'exit_policy': controller.get_exit_policy(None),
+    'flags': getattr(controller.get_network_status(default = None), 'flags', []),
 
-    tor_resources = tracker.get_resource_tracker().get_value()
-    self.arm_total_cpu_time = sum(os.times()[:3])
-    self.tor_cpu = '%0.1f' % (100 * tor_resources.cpu_sample)
-    self.arm_cpu = '%0.1f' % (100 * self._get_cpu_percentage(last_sampling))
-    self.memory = str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0
-    self.memory_percent = '%0.1f' % (100 * tor_resources.memory_percent)
+    'version': str(controller.get_version('Unknown')).split()[0],
+    'version_status': controller.get_info('status/version/current', 'Unknown'),
 
-    uname_vals = os.uname()
-    self.hostname = uname_vals[1]
-    self.platform = '%s %s' % (uname_vals[0], uname_vals[2])  # [platform name] [version]
+    'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown'),
+    'or_port': or_listeners[0][1] if or_listeners else '',
+    'dir_port': controller.get_conf('DirPort', '0'),
+    'control_port': str(control_listeners[0][1]) if control_listeners else None,
+    'socket_path': controller.get_conf('ControlSocket', None),
+    'is_relay': bool(or_listeners),
 
-    if self.fd_used and self.fd_limit:
-      fd_percent = 100 * self.fd_used / self.fd_limit
+    'auth_type': auth_type,
+    'pid': pid,
+    'start_time': system.start_time(pid),
+    'fd_limit': int(controller.get_info('process/descriptor-limit', '-1')),
+    'fd_used': fd_used,
 
-      if fd_percent >= 90:
-        log_msg = msg('panel.header.fd_used_at_ninety_percent', percentage = fd_percent)
-        log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
-        log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
-      elif fd_percent >= 60:
-        log_msg = msg('panel.header.fd_used_at_sixty_percent', percentage = fd_percent)
-        log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
+    'arm_total_cpu_time': arm_total_cpu_time,
+    'tor_cpu': '%0.1f' % (100 * tor_resources.cpu_sample),
+    'arm_cpu': arm_cpu,
+    'memory': str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
+    'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
 
-  def format(self, message, crop_width = None):
-    """
-    Applies our attributes to the given string.
-    """
+    'hostname': os.uname()[1],
+    'platform': '%s %s' % (os.uname()[0], os.uname()[2]),  # [platform name] [version]
+  }
 
-    formatted_msg = message.format(**self.__dict__)
+  class Sampling(collections.namedtuple('Sampling', attr.keys())):
+    def format(self, message, crop_width = None):
+      formatted_msg = message.format(**super(Sampling, self).__dict__)
 
-    if crop_width:
-      formatted_msg = str_tools.crop(formatted_msg, crop_width)
+      if crop_width:
+        formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
-    return formatted_msg
+      return formatted_msg
 
-  def _get_cpu_percentage(self, last_sampling):
-    """
-    Determine the cpu usage of our own process since the last sampling.
-
-    :param arm.header_panel.Sampling last_sampling: sampling for which to
-      provide a CPU usage delta with
-
-    :returns: **float** representation for our cpu usage over the given period
-      of time
-    """
-
-    if last_sampling:
-      arm_cpu_delta = self.arm_total_cpu_time - last_sampling.arm_total_cpu_time
-      arm_time_delta = self.retrieved - last_sampling.retrieved
-
-      python_cpu_time = arm_cpu_delta / arm_time_delta
-      sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
-
-      return python_cpu_time + sys_call_cpu_time
-    else:
-      return 0.0
+  return Sampling(**attr)
