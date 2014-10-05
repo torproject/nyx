@@ -344,15 +344,13 @@ class GraphPanel(panel.Panel):
       panel.CURSES_LOCK.release()
 
   def handle_key(self, key):
-    is_keystroke_consumed = True
-
-    if key == ord('r') or key == ord('R'):
+    if key in (ord('r'), ord('R')):
       self.resize_graph()
-    elif key == ord('b') or key == ord('B'):
+    elif key in (ord('b'), ord('B')):
       # uses the next boundary type
       self.bounds = Bounds.next(self.bounds)
       self.redraw(True)
-    elif key == ord('s') or key == ord('S'):
+    elif key in (ord('s'), ord('S')):
       # provides a menu to pick the graphed stats
 
       available_stats = self.stats.keys()
@@ -379,7 +377,7 @@ class GraphPanel(panel.Panel):
         self.set_stats(None)
       elif selection != -1:
         self.set_stats(available_stats[selection - 1])
-    elif key == ord('i') or key == ord('I'):
+    elif key in (ord('i'), ord('I')):
       # provides menu to pick graph panel update interval
 
       options = [label for (label, _) in UPDATE_INTERVALS]
@@ -388,22 +386,17 @@ class GraphPanel(panel.Panel):
       if selection != -1:
         self.update_interval = selection
     else:
-      is_keystroke_consumed = False
+      return False
 
-    return is_keystroke_consumed
+    return True
 
   def get_help(self):
-    if self.current_display:
-      graphed_stats = self.current_display
-    else:
-      graphed_stats = 'none'
-
-    options = []
-    options.append(('r', 'resize graph', None))
-    options.append(('s', 'graphed stats', graphed_stats))
-    options.append(('b', 'graph bounds', self.bounds.lower()))
-    options.append(('i', 'graph update interval', UPDATE_INTERVALS[self.update_interval][0]))
-    return options
+    return [
+      ('r', 'resize graph', None),
+      ('s', 'graphed stats', self.current_display if self.current_display else 'none'),
+      ('b', 'graph bounds', self.bounds.lower()),
+      ('i', 'graph update interval', UPDATE_INTERVALS[self.update_interval][0]),
+    ]
 
   def draw(self, width, height):
     """ Redraws graph panel """

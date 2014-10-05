@@ -122,26 +122,24 @@ class TorrcPanel(panel.Panel):
     arm.popups.show_msg(result_msg, 1)
 
   def handle_key(self, key):
-    self.vals_lock.acquire()
-    is_keystroke_consumed = True
-    if ui_tools.is_scroll_key(key):
-      page_height = self.get_preferred_size()[0] - 1
-      new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
+    with self.vals_lock:
+      if ui_tools.is_scroll_key(key):
+        page_height = self.get_preferred_size()[0] - 1
+        new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
 
-      if self.scroll != new_scroll:
-        self.scroll = new_scroll
-        self.redraw(True)
-    elif key == ord('n') or key == ord('N'):
-      self.set_line_number_visible(not self.show_line_num)
-    elif key == ord('s') or key == ord('S'):
-      self.set_comments_visible(self.strip_comments)
-    elif key == ord('r') or key == ord('R'):
-      self.reload_torrc()
-    else:
-      is_keystroke_consumed = False
+        if self.scroll != new_scroll:
+          self.scroll = new_scroll
+          self.redraw(True)
+      elif key in (ord('n'), ord('N')):
+        self.set_line_number_visible(not self.show_line_num)
+      elif key in (ord('s'), ord('S')):
+        self.set_comments_visible(self.strip_comments)
+      elif key in (ord('r'), ord('R')):
+        self.reload_torrc()
+      else:
+        return False
 
-    self.vals_lock.release()
-    return is_keystroke_consumed
+      return True
 
   def set_visible(self, is_visible):
     if not is_visible:
@@ -150,16 +148,16 @@ class TorrcPanel(panel.Panel):
     panel.Panel.set_visible(self, is_visible)
 
   def get_help(self):
-    options = []
-    options.append(("up arrow", "scroll up a line", None))
-    options.append(("down arrow", "scroll down a line", None))
-    options.append(("page up", "scroll up a page", None))
-    options.append(("page down", "scroll down a page", None))
-    options.append(("s", "comment stripping", "on" if self.strip_comments else "off"))
-    options.append(("n", "line numbering", "on" if self.show_line_num else "off"))
-    options.append(("r", "reload torrc", None))
-    options.append(("x", "reset tor (issue sighup)", None))
-    return options
+    return [
+      ('up arrow', 'scroll up a line', None),
+      ('down arrow', 'scroll down a line', None),
+      ('page up', 'scroll up a page', None),
+      ('page down', 'scroll down a page', None),
+      ('s', 'comment stripping', 'on' if self.strip_comments else 'off'),
+      ('n', 'line numbering', 'on' if self.show_line_num else 'off'),
+      ('r', 'reload torrc', None),
+      ('x', 'reset tor (issue sighup)', None),
+    ]
 
   def draw(self, width, height):
     self.vals_lock.acquire()

@@ -863,8 +863,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       raise exc
 
   def handle_key(self, key):
-    is_keystroke_consumed = True
-
     if ui_tools.is_scroll_key(key):
       page_height = self.get_preferred_size()[0] - 1
       new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
@@ -879,13 +877,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self.set_duplicate_visability(not CONFIG["features.log.showDuplicateEntries"])
       self.redraw(True)
       self.vals_lock.release()
-    elif key == ord('c') or key == ord('C'):
+    elif key in (ord('c'), ord('C')):
       msg = "This will clear the log. Are you sure (c again to confirm)?"
       key_press = arm.popups.show_msg(msg, attr = curses.A_BOLD)
 
       if key_press in (ord('c'), ord('C')):
         self.clear()
-    elif key == ord('f') or key == ord('F'):
+    elif key in (ord('f'), ord('F')):
       # Provides menu to pick regular expression filters or adding new ones:
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
 
@@ -914,25 +912,25 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
       if len(self.filter_options) > MAX_REGEX_FILTERS:
         del self.filter_options[MAX_REGEX_FILTERS:]
-    elif key == ord('e') or key == ord('E'):
+    elif key in (ord('e'), ord('E')):
       self.show_event_selection_prompt()
-    elif key == ord('a') or key == ord('A'):
+    elif key in (ord('a'), ord('A')):
       self.show_snapshot_prompt()
     else:
-      is_keystroke_consumed = False
+      return False
 
-    return is_keystroke_consumed
+    return True
 
   def get_help(self):
-    options = []
-    options.append(("up arrow", "scroll log up a line", None))
-    options.append(("down arrow", "scroll log down a line", None))
-    options.append(("a", "save snapshot of the log", None))
-    options.append(("e", "change logged events", None))
-    options.append(("f", "log regex filter", "enabled" if self.regex_filter else "disabled"))
-    options.append(("u", "duplicate log entries", "visible" if CONFIG["features.log.showDuplicateEntries"] else "hidden"))
-    options.append(("c", "clear event log", None))
-    return options
+    return [
+      ('up arrow', 'scroll log up a line', None),
+      ('down arrow', 'scroll log down a line', None),
+      ('a', 'save snapshot of the log', None),
+      ('e', 'change logged events', None),
+      ('f', 'log regex filter', 'enabled' if self.regex_filter else 'disabled'),
+      ('u', 'duplicate log entries', 'visible' if CONFIG['features.log.showDuplicateEntries'] else 'hidden'),
+      ('c', 'clear event log', None),
+    ]
 
   def draw(self, width, height):
     """

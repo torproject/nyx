@@ -87,8 +87,6 @@ class HeaderPanel(panel.Panel, threading.Thread):
       arm.popups.show_msg('Requesting a new identity', 1)
 
   def handle_key(self, key):
-    is_keystroke_consumed = True
-
     if key in (ord('n'), ord('N')):
       self.send_newnym()
     elif key in (ord('r'), ord('R')) and not self._vals.is_connected:
@@ -120,9 +118,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
         arm.popups.show_msg('Unable to reconnect (%s)' % exc, 3)
         controller.close()
     else:
-      is_keystroke_consumed = False
+      return False
 
-    return is_keystroke_consumed
+    return True
 
   def draw(self, width, height):
     vals = self._vals  # local reference to avoid concurrency concerns

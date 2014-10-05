@@ -658,11 +658,11 @@ def start_arm(stdscr):
       control.next_page()
     elif key == curses.KEY_LEFT:
       control.prev_page()
-    elif key == ord('p') or key == ord('P'):
+    elif key in (ord('p'), ord('P')):
       control.set_paused(not control.is_paused())
-    elif key == ord('m') or key == ord('M'):
+    elif key in (ord('m'), ord('M')):
       arm.menu.menu.show_menu()
-    elif key == ord('q') or key == ord('Q'):
+    elif key in (ord('q'), ord('Q')):
       # provides prompt to confirm that arm should exit
 
       if CONFIG["features.confirmQuit"]:
@@ -674,7 +674,7 @@ def start_arm(stdscr):
 
       if quit_confirmed:
         control.quit()
-    elif key == ord('x') or key == ord('X'):
+    elif key in (ord('x'), ord('X')):
       # provides prompt to confirm that arm should issue a sighup
 
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
@@ -685,7 +685,7 @@ def start_arm(stdscr):
           tor_controller().signal(stem.Signal.RELOAD)
         except IOError as exc:
           log.error("Error detected when reloading tor: %s" % exc.strerror)
-    elif key == ord('h') or key == ord('H'):
+    elif key in (ord('h'), ord('H')):
       override_key = arm.popups.show_help_popup()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed

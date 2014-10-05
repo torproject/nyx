@@ -360,81 +360,74 @@ class ConfigPanel(panel.Panel):
       self.set_sort_order(result_enums)
 
   def handle_key(self, key):
-    self.vals_lock.acquire()
-    is_keystroke_consumed = True
+    with self.vals_lock:
+      if ui_tools.is_scroll_key(key):
+        page_height = self.get_preferred_size()[0] - 1
+        detail_panel_height = CONFIG["features.config.selectionDetails.height"]
 
-    if ui_tools.is_scroll_key(key):
-      page_height = self.get_preferred_size()[0] - 1
-      detail_panel_height = CONFIG["features.config.selectionDetails.height"]
+        if detail_panel_height > 0 and detail_panel_height + 2 <= page_height:
+          page_height -= (detail_panel_height + 1)
 
-      if detail_panel_height > 0 and detail_panel_height + 2 <= page_height:
-        page_height -= (detail_panel_height + 1)
+        is_changed = self.scroller.handle_key(key, self._get_config_options(), page_height)
 
-      is_changed = self.scroller.handle_key(key, self._get_config_options(), page_height)
+        if is_changed:
+          self.redraw(True)
+      elif ui_tools.is_selection_key(key) and self._get_config_options():
+        # Prompts the user to edit the selected configuration value. The
+        # interface is locked to prevent updates between setting the value
+        # and showing any errors.
 
-      if is_changed:
+        with panel.CURSES_LOCK:
+          selection = self.get_selection()
+          config_option = selection.get(Field.OPTION)
+
+          if selection.is_unset():
+            initial_value = ""
+          else:
+            initial_value = selection.get(Field.VALUE)
+
+          prompt_msg = "%s Value (esc to cancel): " % config_option
+          is_prepopulated = CONFIG["features.config.prepopulateEditValues"]
+          new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else "")
+
+          if new_value is not None and new_value != initial_value:
+            try:
+              if selection.get(Field.TYPE) == "Boolean":
+                # if the value's a boolean then allow for 'true' and 'false' inputs
+
+                if new_value.lower() == "true":
+                  new_value = "1"
+                elif new_value.lower() == "false":
+                  new_value = "0"
+              elif selection.get(Field.TYPE) == "LineList":
+                # set_option accepts list inputs when there's multiple values
+                new_value = new_value.split(",")
+
+              tor_controller().set_conf(config_option, new_value)
+
+              # forces the label to be remade with the new value
+
+              selection.label_cache = None
+
+              # resets the is_default flag
+
+              custom_options = tor_config.get_custom_options()
+              selection.fields[Field.IS_DEFAULT] = config_option not in custom_options
+
+              self.redraw(True)
+            except Exception as exc:
+              popups.show_msg("%s (press any key)" % exc)
+      elif key in (ord('a'), ord('A')):
+        self.show_all = not self.show_all
         self.redraw(True)
-    elif ui_tools.is_selection_key(key) and self._get_config_options():
-      # Prompts the user to edit the selected configuration value. The
-      # interface is locked to prevent updates between setting the value
-      # and showing any errors.
+      elif key in (ord('s'), ord('S')):
+        self.show_sort_dialog()
+      elif key in (ord('v'), ord('V')):
+        self.show_write_dialog()
+      else:
+        return False
 
-      panel.CURSES_LOCK.acquire()
-
-      try:
-        selection = self.get_selection()
-        config_option = selection.get(Field.OPTION)
-
-        if selection.is_unset():
-          initial_value = ""
-        else:
-          initial_value = selection.get(Field.VALUE)
-
-        prompt_msg = "%s Value (esc to cancel): " % config_option
-        is_prepopulated = CONFIG["features.config.prepopulateEditValues"]
-        new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else "")
-
-        if new_value is not None and new_value != initial_value:
-          try:
-            if selection.get(Field.TYPE) == "Boolean":
-              # if the value's a boolean then allow for 'true' and 'false' inputs
-
-              if new_value.lower() == "true":
-                new_value = "1"
-              elif new_value.lower() == "false":
-                new_value = "0"
-            elif selection.get(Field.TYPE) == "LineList":
-              # set_option accepts list inputs when there's multiple values
-              new_value = new_value.split(",")
-
-            tor_controller().set_conf(config_option, new_value)
-
-            # forces the label to be remade with the new value
-
-            selection.label_cache = None
-
-            # resets the is_default flag
-
-            custom_options = tor_config.get_custom_options()
-            selection.fields[Field.IS_DEFAULT] = config_option not in custom_options
-
-            self.redraw(True)
-          except Exception as exc:
-            popups.show_msg("%s (press any key)" % exc)
-      finally:
-        panel.CURSES_LOCK.release()
-    elif key == ord('a') or key == ord('A'):
-      self.show_all = not self.show_all
-      self.redraw(True)
-    elif key == ord('s') or key == ord('S'):
-      self.show_sort_dialog()
-    elif key == ord('v') or key == ord('V'):
-      self.show_write_dialog()
-    else:
-      is_keystroke_consumed = False
-
-    self.vals_lock.release()
-    return is_keystroke_consumed
+      return True
 
   def show_write_dialog(self):
     """
@@ -566,16 +559,16 @@ class ConfigPanel(panel.Panel):
       popups.finalize()
 
   def get_help(self):
-    options = []
-    options.append(("up arrow", "scroll up a line", None))
-    options.append(("down arrow", "scroll down a line", None))
-    options.append(("page up", "scroll up a page", None))
-    options.append(("page down", "scroll down a page", None))
-    options.append(("enter", "edit configuration option", None))
-    options.append(("v", "save configuration", None))
-    options.append(("a", "toggle option filtering", None))
-    options.append(("s", "sort ordering", None))
-    return options
+    return [
+      ('up arrow', 'scroll up a line', None),
+      ('down arrow', 'scroll down a line', None),
+      ('page up', 'scroll up a page', None),
+      ('page down', 'scroll down a page', None),
+      ('enter', 'edit configuration option', None),
+      ('v', 'save configuration', None),
+      ('a', 'toggle option filtering', None),
+      ('s', 'sort ordering', None),
+    ]
 
   def draw(self, width, height):
     self.vals_lock.acquire()

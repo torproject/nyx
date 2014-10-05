@@ -261,75 +261,71 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order(results)
 
   def handle_key(self, key):
-    self.vals_lock.acquire()
+    with self.vals_lock:
+      if ui_tools.is_scroll_key(key):
+        page_height = self.get_preferred_size()[0] - 1
 
-    is_keystroke_consumed = True
+        if self._show_details:
+          page_height -= (DETAILS_HEIGHT + 1)
 
-    if ui_tools.is_scroll_key(key):
-      page_height = self.get_preferred_size()[0] - 1
+        is_changed = self._scroller.handle_key(key, self._entry_lines, page_height)
 
-      if self._show_details:
-        page_height -= (DETAILS_HEIGHT + 1)
-
-      is_changed = self._scroller.handle_key(key, self._entry_lines, page_height)
-
-      if is_changed:
+        if is_changed:
+          self.redraw(True)
+      elif ui_tools.is_selection_key(key):
+        self._show_details = not self._show_details
         self.redraw(True)
-    elif ui_tools.is_selection_key(key):
-      self._show_details = not self._show_details
-      self.redraw(True)
-    elif key == ord('s') or key == ord('S'):
-      self.show_sort_dialog()
-    elif key == ord('u') or key == ord('U'):
-      # provides a menu to pick the connection resolver
+      elif key in (ord('s'), ord('S')):
+        self.show_sort_dialog()
+      elif key in (ord('u'), ord('U')):
+        # provides a menu to pick the connection resolver
 
-      title = "Resolver Util:"
-      options = ["auto"] + list(connection.Resolver)
-      conn_resolver = arm.util.tracker.get_connection_tracker()
+        title = "Resolver Util:"
+        options = ["auto"] + list(connection.Resolver)
+        conn_resolver = arm.util.tracker.get_connection_tracker()
 
-      current_overwrite = conn_resolver.get_custom_resolver()
+        current_overwrite = conn_resolver.get_custom_resolver()
 
-      if current_overwrite is None:
-        old_selection = 0
+        if current_overwrite is None:
+          old_selection = 0
+        else:
+          old_selection = options.index(current_overwrite)
+
+        selection = arm.popups.show_menu(title, options, old_selection)
+
+        # applies new setting
+
+        if selection != -1:
+          selected_option = options[selection] if selection != 0 else None
+          conn_resolver.set_custom_resolver(selected_option)
+      elif key in (ord('l'), ord('L')):
+        # provides a menu to pick the primary information we list connections by
+
+        title = "List By:"
+        options = list(entries.ListingType)
+
+        # dropping the HOSTNAME listing type until we support displaying that content
+
+        options.remove(arm.connections.entries.ListingType.HOSTNAME)
+
+        old_selection = options.index(self.get_listing_type())
+        selection = arm.popups.show_menu(title, options, old_selection)
+
+        # applies new setting
+
+        if selection != -1:
+          self.set_listing_type(options[selection])
+      elif key in (ord('d'), ord('D')):
+        # presents popup for raw consensus data
+        descriptor_popup.show_descriptor_popup(self)
+      elif key in (ord('c'), ord('C')) and self.is_clients_allowed():
+        count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
+      elif key in (ord('e'), ord('E')) and self.is_exits_allowed():
+        count_popup.showCountDialog(count_popup.CountType.EXIT_PORT, self._exit_port_usage)
       else:
-        old_selection = options.index(current_overwrite)
+        return False
 
-      selection = arm.popups.show_menu(title, options, old_selection)
-
-      # applies new setting
-
-      if selection != -1:
-        selected_option = options[selection] if selection != 0 else None
-        conn_resolver.set_custom_resolver(selected_option)
-    elif key == ord('l') or key == ord('L'):
-      # provides a menu to pick the primary information we list connections by
-
-      title = "List By:"
-      options = list(entries.ListingType)
-
-      # dropping the HOSTNAME listing type until we support displaying that content
-
-      options.remove(arm.connections.entries.ListingType.HOSTNAME)
-
-      old_selection = options.index(self.get_listing_type())
-      selection = arm.popups.show_menu(title, options, old_selection)
-
-      # applies new setting
-
-      if selection != -1:
-        self.set_listing_type(options[selection])
-    elif key == ord('d') or key == ord('D'):
-      # presents popup for raw consensus data
-      descriptor_popup.show_descriptor_popup(self)
-    elif (key == ord('c') or key == ord('C')) and self.is_clients_allowed():
-      count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
-    elif (key == ord('e') or key == ord('E')) and self.is_exits_allowed():
-      count_popup.showCountDialog(count_popup.CountType.EXIT_PORT, self._exit_port_usage)
-    else:
-      is_keystroke_consumed = False
-
-    self.vals_lock.release()
-    return is_keystroke_consumed
+      return True
 
   def run(self):
     """
@@ -373,26 +369,24 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   def get_help(self):
     resolver_util = arm.util.tracker.get_connection_tracker().get_custom_resolver()
 
-    if resolver_util is None:
-      resolver_util = "auto"
-
-    options = []
-    options.append(("up arrow", "scroll up a line", None))
-    options.append(("down arrow", "scroll down a line", None))
-    options.append(("page up", "scroll up a page", None))
-    options.append(("page down", "scroll down a page", None))
-    options.append(("enter", "show connection details", None))
-    options.append(("d", "raw consensus descriptor", None))
+    options = [
+      ('up arrow', 'scroll up a line', None),
+      ('down arrow', 'scroll down a line', None),
+      ('page up', 'scroll up a page', None),
+      ('page down', 'scroll down a page', None),
+      ('enter', 'show connection details', None),
+      ('d', 'raw consensus descriptor', None),
+    ]
 
     if self.is_clients_allowed():
-      options.append(("c", "client locale usage summary", None))
+      options.append(('c', 'client locale usage summary', None))
 
     if self.is_exits_allowed():
-      options.append(("e", "exit port usage summary", None))
+      options.append(('e', 'exit port usage summary', None))
 
-    options.append(("l", "listed identity", self.get_listing_type().lower()))
-    options.append(("s", "sort ordering", None))
-    options.append(("u", "resolving utility", resolver_util))
+    options.append(('l', 'listed identity', self.get_listing_type().lower()))
+    options.append(('s', 'sort ordering', None))
+    options.append(('u', 'resolving utility', 'auto' if resolver_util is None else resolver_util))
     return options
 
   def get_selection(self):
