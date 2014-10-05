@@ -187,13 +187,6 @@ class GraphStats:
 
     return DEFAULT_CONTENT_HEIGHT
 
-  def is_visible(self):
-    """
-    True if the stat has content to present, false if it should be hidden.
-    """
-
-    return True
-
   def draw(self, panel, width, height):
     """
     Allows for any custom drawing monitor wishes to append.
@@ -296,7 +289,7 @@ class GraphPanel(panel.Panel):
     if hidden).
     """
 
-    if self.current_display and self.stats[self.current_display].is_visible():
+    if self.current_display:
       return self.stats[self.current_display].get_content_height() + self.graph_height
     else:
       return 0
