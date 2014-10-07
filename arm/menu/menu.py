@@ -40,17 +40,17 @@ class MenuCursor:
     is_selection_submenu = isinstance(self._selection, arm.menu.item.Submenu)
     selection_hierarchy = self._selection.get_hierarchy()
 
-    if ui_tools.is_selection_key(key):
+    if key.is_selection():
       if is_selection_submenu:
         if not self._selection.is_empty():
           self._selection = self._selection.get_children()[0]
       else:
         self._is_done = self._selection.select()
-    elif key == curses.KEY_UP:
+    elif key.match('up'):
       self._selection = self._selection.prev()
-    elif key == curses.KEY_DOWN:
+    elif key.match('down'):
       self._selection = self._selection.next()
-    elif key == curses.KEY_LEFT:
+    elif key.match('left'):
       if len(selection_hierarchy) <= 3:
         # shift to the previous main submenu
 
@@ -60,7 +60,7 @@ class MenuCursor:
         # go up a submenu level
 
         self._selection = self._selection.get_parent()
-    elif key == curses.KEY_RIGHT:
+    elif key.match('right'):
       if is_selection_submenu:
         # open submenu (same as making a selection)
 
@@ -71,9 +71,7 @@ class MenuCursor:
 
         next_submenu = selection_hierarchy[1].next()
         self._selection = next_submenu.get_children()[0]
-    elif key in (27, ord('m'), ord('M')):
-      # close menu
-
+    elif key.match('esc', 'm'):
       self._is_done = True
 
 
@@ -127,8 +125,7 @@ def show_menu():
       popup.win.refresh()
 
       curses.cbreak()
-      key = control.get_screen().getch()
-      cursor.handle_key(key)
+      cursor.handle_key(control.key_input())
 
       # redraws the rest of the interface if we're rendering on it again
 

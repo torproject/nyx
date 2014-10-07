@@ -273,6 +273,13 @@ class Controller:
 
     return self._screen
 
+  def key_input(self):
+    """
+    Gets keystroke from the user.
+    """
+
+    return panel.KeyInput(self.get_screen().getch())
+
   def get_page_count(self):
     """
     Provides the number of pages the interface has. This may be zero if all
@@ -652,29 +659,29 @@ def start_arm(stdscr):
       key, override_key = override_key, None
     else:
       curses.halfdelay(CONFIG["features.redrawRate"] * 10)
-      key = stdscr.getch()
+      key = panel.KeyInput(stdscr.getch())
 
-    if key == curses.KEY_RIGHT:
+    if key.match('right'):
       control.next_page()
-    elif key == curses.KEY_LEFT:
+    elif key.match('left'):
       control.prev_page()
-    elif key in (ord('p'), ord('P')):
+    elif key.match('p'):
       control.set_paused(not control.is_paused())
-    elif key in (ord('m'), ord('M')):
+    elif key.match('m'):
       arm.menu.menu.show_menu()
-    elif key in (ord('q'), ord('Q')):
+    elif key.match('q'):
       # provides prompt to confirm that arm should exit
 
       if CONFIG["features.confirmQuit"]:
         msg = "Are you sure (q again to confirm)?"
         confirmation_key = arm.popups.show_msg(msg, attr = curses.A_BOLD)
-        quit_confirmed = confirmation_key in (ord('q'), ord('Q'))
+        quit_confirmed = confirmation_key.match('q')
       else:
         quit_confirmed = True
 
       if quit_confirmed:
         control.quit()
-    elif key in (ord('x'), ord('X')):
+    elif key.match('x'):
       # provides prompt to confirm that arm should issue a sighup
 
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
@@ -685,7 +692,7 @@ def start_arm(stdscr):
           tor_controller().signal(stem.Signal.RELOAD)
         except IOError as exc:
           log.error("Error detected when reloading tor: %s" % exc.strerror)
-    elif key in (ord('h'), ord('H')):
+    elif key.match('h'):
       override_key = arm.popups.show_help_popup()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed

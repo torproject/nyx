@@ -106,6 +106,6 @@ def showCountDialog(count_type, counts):
     popup.win.refresh()
 
     curses.cbreak()
-    control.get_screen().getch()
+    control.key_input()
   finally:
     arm.popups.finalize()

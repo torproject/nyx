@@ -24,7 +24,7 @@ import arm.controller
 
 import stem.control
 
-from arm.util import panel, tor_controller, ui_tools
+from arm.util import panel, tor_controller
 
 from stem.util import conf, enum, str_tools
 
@@ -315,42 +315,40 @@ class GraphPanel(panel.Panel):
 
     control = arm.controller.get_controller()
 
-    panel.CURSES_LOCK.acquire()
+    with panel.CURSES_LOCK:
+      try:
+        while True:
+          msg = 'press the down/up to resize the graph, and enter when done'
+          control.set_msg(msg, curses.A_BOLD, True)
+          curses.cbreak()
+          key = control.key_input()
 
-    try:
-      while True:
-        msg = 'press the down/up to resize the graph, and enter when done'
-        control.set_msg(msg, curses.A_BOLD, True)
-        curses.cbreak()
-        key = control.get_screen().getch()
+          if key.match('down'):
+            # don't grow the graph if it's already consuming the whole display
+            # (plus an extra line for the graph/log gap)
 
-        if key == curses.KEY_DOWN:
-          # don't grow the graph if it's already consuming the whole display
-          # (plus an extra line for the graph/log gap)
+            max_height = self.parent.getmaxyx()[0] - self.top
+            current_height = self.get_height()
 
-          max_height = self.parent.getmaxyx()[0] - self.top
-          current_height = self.get_height()
+            if current_height < max_height + 1:
+              self.set_graph_height(self.graph_height + 1)
+          elif key.match('up'):
+            self.set_graph_height(self.graph_height - 1)
+          elif key.is_selection():
+            break
 
-          if current_height < max_height + 1:
-            self.set_graph_height(self.graph_height + 1)
-        elif key == curses.KEY_UP:
-          self.set_graph_height(self.graph_height - 1)
-        elif ui_tools.is_selection_key(key):
-          break
-
-        control.redraw()
-    finally:
-      control.set_msg()
-      panel.CURSES_LOCK.release()
+          control.redraw()
+      finally:
+        control.set_msg()
 
   def handle_key(self, key):
-    if key in (ord('r'), ord('R')):
+    if key.match('r'):
       self.resize_graph()
-    elif key in (ord('b'), ord('B')):
+    elif key.match('b'):
       # uses the next boundary type
       self.bounds = Bounds.next(self.bounds)
       self.redraw(True)
-    elif key in (ord('s'), ord('S')):
+    elif key.match('s'):
       # provides a menu to pick the graphed stats
 
       available_stats = self.stats.keys()
@@ -377,7 +375,7 @@ class GraphPanel(panel.Panel):
         self.set_stats(None)
       elif selection != -1:
         self.set_stats(available_stats[selection - 1])
-    elif key in (ord('i'), ord('I')):
+    elif key.match('i'):
       # provides menu to pick graph panel update interval
 
       options = [label for (label, _) in UPDATE_INTERVALS]

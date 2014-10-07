@@ -79,9 +79,9 @@ def show_descriptor_popup(conn_panel):
             draw(popup, fingerprint, display_text, display_color, scroll, show_line_number)
             is_changed = False
 
-          key = control.get_screen().getch()
+          key = control.key_input()
 
-          if ui_tools.is_scroll_key(key):
+          if key.is_scroll():
             # TODO: This is a bit buggy in that scrolling is by display_text
             # lines rather than the displayed lines, causing issues when
             # content wraps. The result is that we can't have a scrollbar and
@@ -94,12 +94,12 @@ def show_descriptor_popup(conn_panel):
 
             if scroll != new_scroll:
               scroll, is_changed = new_scroll, True
-          elif ui_tools.is_selection_key(key) or key in (ord('d'), ord('D')):
+          elif key.is_selection() or key.match('d'):
             is_done = True  # closes popup
-          elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):
+          elif key.match('left', 'right'):
             # navigation - pass on to conn_panel and recreate popup
 
-            conn_panel.handle_key(curses.KEY_UP if key == curses.KEY_LEFT else curses.KEY_DOWN)
+            conn_panel.handle_key(panel.KeyInput(curses.KEY_UP) if key.match('left') else panel.KeyInput(curses.KEY_DOWN))
             break
       finally:
         arm.popups.finalize()

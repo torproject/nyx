@@ -91,20 +91,18 @@ def show_msg(msg, max_wait = -1, attr = curses.A_STANDOUT):
     attr    - attributes with which to draw the message
   """
 
-  panel.CURSES_LOCK.acquire()
-  control = arm.controller.get_controller()
-  control.set_msg(msg, attr, True)
+  with panel.CURSES_LOCK:
+    control = arm.controller.get_controller()
+    control.set_msg(msg, attr, True)
 
-  if max_wait == -1:
-    curses.cbreak()
-  else:
-    curses.halfdelay(max_wait * 10)
+    if max_wait == -1:
+      curses.cbreak()
+    else:
+      curses.halfdelay(max_wait * 10)
 
-  key_press = control.get_screen().getch()
-  control.set_msg()
-  panel.CURSES_LOCK.release()
-
-  return key_press
+    key_press = control.key_input()
+    control.set_msg()
+    return key_press
 
 
 def show_help_popup():
@@ -173,13 +171,12 @@ def show_help_popup():
 
     popup.win.refresh()
     curses.cbreak()
-    exit_key = control.get_screen().getch()
+    exit_key = control.key_input()
   finally:
     finalize()
 
-  if not ui_tools.is_selection_key(exit_key) and \
-    not ui_tools.is_scroll_key(exit_key) and \
-    exit_key not in (curses.KEY_LEFT, curses.KEY_RIGHT):
+  if not exit_key.is_selection() and not exit_key.is_scroll() and \
+    not exit_key.match('left', 'right'):
     return exit_key
   else:
     return None
@@ -208,7 +205,7 @@ def show_about_popup():
     popup.win.refresh()
 
     curses.cbreak()
-    control.get_screen().getch()
+    control.key_input()
   finally:
     finalize()
 
@@ -270,17 +267,17 @@ def show_sort_dialog(title, options, old_selection, option_colors):
 
       popup.win.refresh()
 
-      key = arm.controller.get_controller().get_screen().getch()
+      key = arm.controller.get_controller().key_input()
 
-      if key == curses.KEY_LEFT:
+      if key.match('left'):
         cursor_location = max(0, cursor_location - 1)
-      elif key == curses.KEY_RIGHT:
+      elif key.match('right'):
         cursor_location = min(len(selection_options) - 1, cursor_location + 1)
-      elif key == curses.KEY_UP:
+      elif key.match('up'):
         cursor_location = max(0, cursor_location - 4)
-      elif key == curses.KEY_DOWN:
+      elif key.match('down'):
         cursor_location = min(len(selection_options) - 1, cursor_location + 4)
-      elif ui_tools.is_selection_key(key):
+      elif key.is_selection():
         selection = selection_options[cursor_location]
 
         if selection == "Cancel":
@@ -351,7 +348,7 @@ def show_menu(title, options, old_selection):
   if not popup:
     return
 
-  key, selection = 0, old_selection if old_selection != -1 else 0
+  selection = old_selection if old_selection != -1 else 0
 
   try:
     # hides the title of the first panel on the page
@@ -363,7 +360,7 @@ def show_menu(title, options, old_selection):
 
     curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
-    while not ui_tools.is_selection_key(key):
+    while True:
       popup.win.erase()
       popup.win.box()
       popup.addstr(0, 0, title, curses.A_STANDOUT)
@@ -377,14 +374,17 @@ def show_menu(title, options, old_selection):
 
       popup.win.refresh()
 
-      key = control.get_screen().getch()
+      key = control.key_input()
 
-      if key == curses.KEY_UP:
+      if key.match('up'):
         selection = max(0, selection - 1)
-      elif key == curses.KEY_DOWN:
+      elif key.match('down'):
         selection = min(len(options) - 1, selection + 1)
-      elif key == 27:
-        selection, key = -1, curses.KEY_ENTER  # esc - cancel
+      elif key.is_selection():
+        break
+      elif key.match('esc'):
+        selection = -1
+        break
   finally:
     top_panel.set_title_visible(True)
     finalize()

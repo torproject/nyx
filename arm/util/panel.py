@@ -18,6 +18,20 @@ from stem.util import log
 
 CURSES_LOCK = RLock()
 
+SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
+
+SPECIAL_KEYS = {
+  'up': curses.KEY_UP,
+  'down': curses.KEY_DOWN,
+  'left': curses.KEY_LEFT,
+  'right': curses.KEY_RIGHT,
+  'home': curses.KEY_HOME,
+  'end': curses.KEY_END,
+  'page_up': curses.KEY_PPAGE,
+  'page_down': curses.KEY_NPAGE,
+  'esc': 27,
+}
+
 
 # tags used by addfstr - this maps to functor/argument combinations since the
 # actual values (in the case of color attributes) might not yet be initialized
@@ -806,3 +820,45 @@ class Panel():
       log.debug("recreating panel '%s' with the dimensions of %i/%i" % (self.get_name(), new_height, new_width))
 
     return recreate
+
+
+class KeyInput(object):
+  """
+  Keyboard input by the user.
+  """
+
+  def __init__(self, key):
+    self._key = key  # pressed key as an integer
+
+  def match(self, *keys):
+    """
+    Checks if we have a case insensitive match with the given key. Beside
+    characters, this also recognizes: up, down, left, right, home, end,
+    page_up, page_down, and esc.
+    """
+
+    for key in keys:
+      if key in SPECIAL_KEYS:
+        if self._key == SPECIAL_KEYS[key]:
+          return True
+      elif len(key) == 1:
+        if self._key in (ord(key.lower()), ord(key.upper())):
+          return True
+      else:
+        raise ValueError("%s wasn't among our recognized key codes" % key)
+
+    return False
+
+  def is_scroll(self):
+    """
+    True if the key is used for scrolling, false otherwise.
+    """
+
+    return self._key in SCROLL_KEYS
+
+  def is_selection(self):
+    """
+    True if the key matches the enter or space keys.
+    """
+
+    return self._key in (curses.KEY_ENTER, 10, ord(' '))

@@ -863,7 +863,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       raise exc
 
   def handle_key(self, key):
-    if ui_tools.is_scroll_key(key):
+    if key.is_scroll():
       page_height = self.get_preferred_size()[0] - 1
       new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
 
@@ -872,18 +872,18 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.scroll = new_scroll
         self.redraw(True)
         self.vals_lock.release()
-    elif key in (ord('u'), ord('U')):
+    elif key.match('u'):
       self.vals_lock.acquire()
       self.set_duplicate_visability(not CONFIG["features.log.showDuplicateEntries"])
       self.redraw(True)
       self.vals_lock.release()
-    elif key in (ord('c'), ord('C')):
+    elif key.match('c'):
       msg = "This will clear the log. Are you sure (c again to confirm)?"
       key_press = arm.popups.show_msg(msg, attr = curses.A_BOLD)
 
-      if key_press in (ord('c'), ord('C')):
+      if key_press.match('c'):
         self.clear()
-    elif key in (ord('f'), ord('F')):
+    elif key.match('f'):
       # Provides menu to pick regular expression filters or adding new ones:
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
 
@@ -912,9 +912,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
       if len(self.filter_options) > MAX_REGEX_FILTERS:
         del self.filter_options[MAX_REGEX_FILTERS:]
-    elif key in (ord('e'), ord('E')):
+    elif key.match('e'):
       self.show_event_selection_prompt()
-    elif key in (ord('a'), ord('A')):
+    elif key.match('a'):
       self.show_snapshot_prompt()
     else:
       return False

@@ -87,9 +87,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
       arm.popups.show_msg('Requesting a new identity', 1)
 
   def handle_key(self, key):
-    if key in (ord('n'), ord('N')):
+    if key.match('n'):
       self.send_newnym()
-    elif key in (ord('r'), ord('R')) and not self._vals.is_connected:
+    elif key.match('r') and not self._vals.is_connected:
       # TODO: This is borked. Not quite sure why but our attempt to call
       # PROTOCOLINFO fails with a socket error, followed by completely freezing
       # arm. This is exposing two bugs...

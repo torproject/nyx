@@ -262,7 +262,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
   def handle_key(self, key):
     with self.vals_lock:
-      if ui_tools.is_scroll_key(key):
+      if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
 
         if self._show_details:
@@ -272,12 +272,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         if is_changed:
           self.redraw(True)
-      elif ui_tools.is_selection_key(key):
+      elif key.is_selection():
         self._show_details = not self._show_details
         self.redraw(True)
-      elif key in (ord('s'), ord('S')):
+      elif key.match('s'):
         self.show_sort_dialog()
-      elif key in (ord('u'), ord('U')):
+      elif key.match('u'):
         # provides a menu to pick the connection resolver
 
         title = "Resolver Util:"
@@ -298,7 +298,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if selection != -1:
           selected_option = options[selection] if selection != 0 else None
           conn_resolver.set_custom_resolver(selected_option)
-      elif key in (ord('l'), ord('L')):
+      elif key.match('l'):
         # provides a menu to pick the primary information we list connections by
 
         title = "List By:"
@@ -315,12 +315,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         if selection != -1:
           self.set_listing_type(options[selection])
-      elif key in (ord('d'), ord('D')):
+      elif key.match('d'):
         # presents popup for raw consensus data
         descriptor_popup.show_descriptor_popup(self)
-      elif key in (ord('c'), ord('C')) and self.is_clients_allowed():
+      elif key.match('c') and self.is_clients_allowed():
         count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
-      elif key in (ord('e'), ord('E')) and self.is_exits_allowed():
+      elif key.match('e') and self.is_exits_allowed():
         count_popup.showCountDialog(count_popup.CountType.EXIT_PORT, self._exit_port_usage)
       else:
         return False

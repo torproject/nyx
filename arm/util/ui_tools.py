@@ -24,8 +24,6 @@ COLOR_LIST = {
 DEFAULT_COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
 COLOR_ATTR = None
 
-SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
-
 
 def conf_handler(key, value):
   if key == 'features.color_override':
@@ -211,29 +209,6 @@ def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):
   panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
 
 
-def is_selection_key(key):
-  """
-  Returns true if the keycode matches the enter or space keys.
-
-  Argument:
-    key - keycode to be checked
-  """
-
-  return key in (curses.KEY_ENTER, 10, ord(' '))
-
-
-def is_scroll_key(key):
-  """
-  Returns true if the keycode is recognized by the get_scroll_position function
-  for scrolling.
-
-  Argument:
-    key - keycode to be checked
-  """
-
-  return key in SCROLL_KEYS
-
-
 def get_scroll_position(key, position, page_height, content_height, is_cursor = False):
   """
   Parses navigation keys, providing the new scroll possition the panel should
@@ -254,20 +229,20 @@ def get_scroll_position(key, position, page_height, content_height, is_cursor = 
     is_cursor      - tracks a cursor position rather than scroll if true
   """
 
-  if is_scroll_key(key):
+  if key.is_scroll():
     shift = 0
 
-    if key == curses.KEY_UP:
+    if key.match('up'):
       shift = -1
-    elif key == curses.KEY_DOWN:
+    elif key.match('down'):
       shift = 1
-    elif key == curses.KEY_PPAGE:
+    elif key.match('page_up'):
       shift = -page_height + 1 if is_cursor else -page_height
-    elif key == curses.KEY_NPAGE:
+    elif key.match('page_down'):
       shift = page_height - 1 if is_cursor else page_height
-    elif key == curses.KEY_HOME:
+    elif key.match('home'):
       shift = -content_height
-    elif key == curses.KEY_END:
+    elif key.match('end'):
       shift = content_height
 
     # returns the shift, restricted to valid bounds

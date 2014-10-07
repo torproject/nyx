@@ -123,18 +123,18 @@ class TorrcPanel(panel.Panel):
 
   def handle_key(self, key):
     with self.vals_lock:
-      if ui_tools.is_scroll_key(key):
+      if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
         new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
 
         if self.scroll != new_scroll:
           self.scroll = new_scroll
           self.redraw(True)
-      elif key in (ord('n'), ord('N')):
+      elif key.match('n'):
         self.set_line_number_visible(not self.show_line_num)
-      elif key in (ord('s'), ord('S')):
+      elif key.match('s'):
         self.set_comments_visible(self.strip_comments)
-      elif key in (ord('r'), ord('R')):
+      elif key.match('r'):
         self.reload_torrc()
       else:
         return False

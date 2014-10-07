@@ -361,7 +361,7 @@ class ConfigPanel(panel.Panel):
 
   def handle_key(self, key):
     with self.vals_lock:
-      if ui_tools.is_scroll_key(key):
+      if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
         detail_panel_height = CONFIG["features.config.selectionDetails.height"]
 
@@ -372,7 +372,7 @@ class ConfigPanel(panel.Panel):
 
         if is_changed:
           self.redraw(True)
-      elif ui_tools.is_selection_key(key) and self._get_config_options():
+      elif key.is_selection() and self._get_config_options():
         # Prompts the user to edit the selected configuration value. The
         # interface is locked to prevent updates between setting the value
         # and showing any errors.
@@ -417,12 +417,12 @@ class ConfigPanel(panel.Panel):
               self.redraw(True)
             except Exception as exc:
               popups.show_msg("%s (press any key)" % exc)
-      elif key in (ord('a'), ord('A')):
+      elif key.match('a'):
         self.show_all = not self.show_all
         self.redraw(True)
-      elif key in (ord('s'), ord('S')):
+      elif key.match('s'):
         self.show_sort_dialog()
-      elif key in (ord('v'), ord('V')):
+      elif key.match('v'):
         self.show_write_dialog()
       else:
         return False
@@ -468,9 +468,9 @@ class ConfigPanel(panel.Panel):
           height = new_height
           is_option_line_separate = True
 
-      key, selection = 0, 2
+      selection = 2
 
-      while not ui_tools.is_selection_key(key):
+      while True:
         # if the popup has been resized then recreate it (needed for the
         # proper border height)
 
@@ -525,12 +525,14 @@ class ConfigPanel(panel.Panel):
 
         popup.win.refresh()
 
-        key = arm.controller.get_controller().get_screen().getch()
+        key = arm.controller.get_controller().key_input()
 
-        if key == curses.KEY_LEFT:
+        if key.match('left'):
           selection = max(0, selection - 1)
-        elif key == curses.KEY_RIGHT:
+        elif key.match('right'):
           selection = min(len(selection_options) - 1, selection + 1)
+        elif key.is_selection():
+          break
 
       if selection in (0, 1):
         loaded_torrc, prompt_canceled = tor_config.get_torrc(), False
