@@ -438,129 +438,129 @@ class GraphPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    """ Redraws graph panel """
+    if not self.current_display:
+      return
 
-    if self.current_display:
-      param = self.get_attr('stats')[self.current_display]
-      graph_column = min((width - 10) / 2, param.max_column)
+    param = self.get_attr('stats')[self.current_display]
+    graph_column = min((width - 10) / 2, param.max_column)
 
-      if self.is_title_visible():
-        self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
+    if self.is_title_visible():
+      self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
 
-      # top labels
+    # top labels
 
-      left, right = param.primary_header(width / 2), param.secondary_header(width / 2)
+    left, right = param.primary_header(width / 2), param.secondary_header(width / 2)
 
-      if left:
-        self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
+    if left:
+      self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
 
-      if right:
-        self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
+    if right:
+      self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
 
-      # determines max/min value on the graph
+    # determines max/min value on the graph
 
-      if self.bounds == Bounds.GLOBAL_MAX:
-        primary_max_bound = int(param.max_primary[self.update_interval])
-        secondary_max_bound = int(param.max_secondary[self.update_interval])
+    if self.bounds == Bounds.GLOBAL_MAX:
+      primary_max_bound = int(param.max_primary[self.update_interval])
+      secondary_max_bound = int(param.max_secondary[self.update_interval])
+    else:
+      # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
+      if graph_column < 2:
+        # nothing being displayed
+        primary_max_bound, secondary_max_bound = 0, 0
       else:
-        # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
-        if graph_column < 2:
-          # nothing being displayed
-          primary_max_bound, secondary_max_bound = 0, 0
-        else:
-          primary_max_bound = int(max(param.primary_counts[self.update_interval][1:graph_column + 1]))
-          secondary_max_bound = int(max(param.secondary_counts[self.update_interval][1:graph_column + 1]))
+        primary_max_bound = int(max(param.primary_counts[self.update_interval][1:graph_column + 1]))
+        secondary_max_bound = int(max(param.secondary_counts[self.update_interval][1:graph_column + 1]))
 
-      primary_min_bound = secondary_min_bound = 0
+    primary_min_bound = secondary_min_bound = 0
 
-      if self.bounds == Bounds.TIGHT:
-        primary_min_bound = int(min(param.primary_counts[self.update_interval][1:graph_column + 1]))
-        secondary_min_bound = int(min(param.secondary_counts[self.update_interval][1:graph_column + 1]))
+    if self.bounds == Bounds.TIGHT:
+      primary_min_bound = int(min(param.primary_counts[self.update_interval][1:graph_column + 1]))
+      secondary_min_bound = int(min(param.secondary_counts[self.update_interval][1:graph_column + 1]))
 
-        # if the max = min (ie, all values are the same) then use zero lower
-        # bound so a graph is still displayed
+      # if the max = min (ie, all values are the same) then use zero lower
+      # bound so a graph is still displayed
 
-        if primary_min_bound == primary_max_bound:
-          primary_min_bound = 0
+      if primary_min_bound == primary_max_bound:
+        primary_min_bound = 0
 
-        if secondary_min_bound == secondary_max_bound:
-          secondary_min_bound = 0
+      if secondary_min_bound == secondary_max_bound:
+        secondary_min_bound = 0
 
-      # displays upper and lower bounds
+    # displays upper and lower bounds
 
-      self.addstr(2, 0, '%4i' % primary_max_bound, PRIMARY_COLOR)
-      self.addstr(self.graph_height + 1, 0, '%4i' % primary_min_bound, PRIMARY_COLOR)
+    self.addstr(2, 0, '%4i' % primary_max_bound, PRIMARY_COLOR)
+    self.addstr(self.graph_height + 1, 0, '%4i' % primary_min_bound, PRIMARY_COLOR)
 
-      self.addstr(2, graph_column + 5, '%4i' % secondary_max_bound, SECONDARY_COLOR)
-      self.addstr(self.graph_height + 1, graph_column + 5, '%4i' % secondary_min_bound, SECONDARY_COLOR)
+    self.addstr(2, graph_column + 5, '%4i' % secondary_max_bound, SECONDARY_COLOR)
+    self.addstr(self.graph_height + 1, graph_column + 5, '%4i' % secondary_min_bound, SECONDARY_COLOR)
 
-      # displays intermediate bounds on every other row
+    # displays intermediate bounds on every other row
 
-      if CONFIG['features.graph.showIntermediateBounds']:
-        ticks = (self.graph_height - 3) / 2
+    if CONFIG['features.graph.showIntermediateBounds']:
+      ticks = (self.graph_height - 3) / 2
 
-        for i in range(ticks):
-          row = self.graph_height - (2 * i) - 3
+      for i in range(ticks):
+        row = self.graph_height - (2 * i) - 3
 
-          if self.graph_height % 2 == 0 and i >= (ticks / 2):
-            row -= 1
+        if self.graph_height % 2 == 0 and i >= (ticks / 2):
+          row -= 1
 
-          if primary_min_bound != primary_max_bound:
-            primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+        if primary_min_bound != primary_max_bound:
+          primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
-            if primary_val not in (primary_min_bound, primary_max_bound):
-              self.addstr(row + 2, 0, '%4i' % primary_val, PRIMARY_COLOR)
+          if primary_val not in (primary_min_bound, primary_max_bound):
+            self.addstr(row + 2, 0, '%4i' % primary_val, PRIMARY_COLOR)
 
-          if secondary_min_bound != secondary_max_bound:
-            secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+        if secondary_min_bound != secondary_max_bound:
+          secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
-            if secondary_val not in (secondary_min_bound, secondary_max_bound):
-              self.addstr(row + 2, graph_column + 5, '%4i' % secondary_val, SECONDARY_COLOR)
+          if secondary_val not in (secondary_min_bound, secondary_max_bound):
+            self.addstr(row + 2, graph_column + 5, '%4i' % secondary_val, SECONDARY_COLOR)
 
-      # creates bar graph (both primary and secondary)
+    # creates bar graph (both primary and secondary)
 
-      for col in range(graph_column):
-        column_count = int(param.primary_counts[self.update_interval][col + 1]) - primary_min_bound
-        column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
+    for col in range(graph_column):
+      column_count = int(param.primary_counts[self.update_interval][col + 1]) - primary_min_bound
+      column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
 
-        for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
+      for row in range(column_height):
+        self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
 
-        column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
-        column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
+      column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
+      column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
 
-        for row in range(column_height):
-          self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
+      for row in range(column_height):
+        self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
 
-      # bottom labeling of x-axis
+    # bottom labeling of x-axis
 
-      interval_sec = 1  # seconds per labeling
+    interval_sec = 1  # seconds per labeling
 
-      for i in range(len(UPDATE_INTERVALS)):
-        if i == self.update_interval:
-          interval_sec = UPDATE_INTERVALS[i][1]
+    for i in range(len(UPDATE_INTERVALS)):
+      if i == self.update_interval:
+        interval_sec = UPDATE_INTERVALS[i][1]
 
-      interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
-      units_label, decimal_precision = None, 0
+    interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
+    units_label, decimal_precision = None, 0
 
-      for i in range((graph_column - 4) / interval_spacing):
-        loc = (i + 1) * interval_spacing
-        time_label = str_tools.time_label(loc * interval_sec, decimal_precision)
+    for i in range((graph_column - 4) / interval_spacing):
+      loc = (i + 1) * interval_spacing
+      time_label = str_tools.time_label(loc * interval_sec, decimal_precision)
 
-        if not units_label:
-          units_label = time_label[-1]
-        elif units_label != time_label[-1]:
-          # upped scale so also up precision of future measurements
-          units_label = time_label[-1]
-          decimal_precision += 1
-        else:
-          # if constrained on space then strips labeling since already provided
-          time_label = time_label[:-1]
+      if not units_label:
+        units_label = time_label[-1]
+      elif units_label != time_label[-1]:
+        # upped scale so also up precision of future measurements
+        units_label = time_label[-1]
+        decimal_precision += 1
+      else:
+        # if constrained on space then strips labeling since already provided
+        time_label = time_label[:-1]
 
-        self.addstr(self.graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
-        self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
+      self.addstr(self.graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
+      self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
-      param.draw(self, width, height)  # allows current stats to modify the display
+    param.draw(self, width, height)  # allows current stats to modify the display
 
   def get_stats(self):
     """
