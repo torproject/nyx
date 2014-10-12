@@ -17,8 +17,9 @@ import stem.util.connection
 
 from stem.util import conf, str_tools
 
-CONFIG = conf.config_dict("arm", {
-  "features.log.showDuplicateEntries": False,
+CONFIG = conf.config_dict('arm', {
+  'features.log.showDuplicateEntries': False,
+  'attr.graph.intervals': {},
 })
 
 
@@ -167,8 +168,10 @@ def make_graph_menu(graph_panel):
   interval_menu = arm.menu.item.Submenu("Interval")
   interval_group = arm.menu.item.SelectionGroup(graph_panel.set_update_interval, graph_panel.get_update_interval())
 
-  for i in range(len(arm.graphing.graph_panel.UPDATE_INTERVALS)):
-    label = arm.graphing.graph_panel.UPDATE_INTERVALS[i][0]
+  graph_intervals = CONFIG['attr.graph.intervals']
+
+  for i in range(len(graph_intervals)):
+    label = graph_intervals.keys()[i]
     label = str_tools._to_camel_case(label, divider = " ")
     interval_menu.add(arm.menu.item.SelectionMenuItem(label, interval_group, i))
 

@@ -28,20 +28,7 @@ from arm.util import msg, panel, tor_controller
 
 from stem.util import conf, enum, log, str_tools
 
-# time intervals at which graphs can be updated
-
-UPDATE_INTERVALS = [
-  ('each second', 1),
-  ('5 seconds', 5),
-  ('30 seconds', 30),
-  ('minutely', 60),
-  ('15 minute', 900),
-  ('30 minute', 1800),
-  ('hourly', 3600),
-  ('daily', 86400),
-]
-
-GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
+GraphStat = enum.Enum('BANDWIDTH', 'CONNECTIONS', 'SYSTEM_RESOURCES')
 
 # maps 'features.graph.type' config values to the initial types
 
@@ -66,8 +53,6 @@ def conf_handler(key, value):
     return max(MIN_GRAPH_HEIGHT, value)
   elif key == 'features.graph.max_width':
     return max(1, value)
-  elif key == 'features.graph.interval':
-    return max(0, min(len(UPDATE_INTERVALS) - 1, value))
   elif key == 'features.graph.bound':
     return max(0, min(2, value))
 
@@ -75,6 +60,7 @@ def conf_handler(key, value):
 # used for setting defaults when initializing GraphStats and GraphPanel instances
 
 CONFIG = conf.config_dict('arm', {
+  'attr.graph.intervals': {},
   'features.graph.height': 7,
   'features.graph.interval': 0,
   'features.graph.bound': 1,
@@ -90,7 +76,7 @@ class GraphStats:
   """
   Module that's expected to update dynamically and provide attributes to be
   graphed. Up to two graphs (a 'primary' and 'secondary') can be displayed at a
-  time and timescale parameters use the labels defined in UPDATE_INTERVALS.
+  time and timescale parameters use the labels defined in CONFIG['attr.graph.intervals'].
   """
 
   def __init__(self):
@@ -116,7 +102,7 @@ class GraphStats:
     self.max_primary, self.max_secondary = {}, {}
     self.primary_counts, self.secondary_counts = {}, {}
 
-    for i in range(len(UPDATE_INTERVALS)):
+    for i in range(len(CONFIG['attr.graph.intervals'])):
       # recent rates for graph
 
       self.max_primary[i] = 0
@@ -171,7 +157,7 @@ class GraphStats:
 
     if self._graph_panel and self.is_selected and not self._graph_panel.is_paused():
       # use the minimum of the current refresh rate and the panel's
-      update_rate = UPDATE_INTERVALS[self._graph_panel.update_interval][1]
+      update_rate = int(CONFIG['attr.graph.intervals'].values()[self._graph_panel.update_interval])
       return (self.tick + 1) % update_rate == 0
     else:
       return False
@@ -222,8 +208,9 @@ class GraphStats:
 
     self.tick += 1
 
-    for i in range(len(UPDATE_INTERVALS)):
-      lable, timescale = UPDATE_INTERVALS[i]
+    for i in range(len(CONFIG['attr.graph.intervals'])):
+      lable, timescale = CONFIG['attr.graph.intervals'].items()[i]
+      timescale = int(timescale)
 
       self.primary_counts[i][0] += primary
       self.secondary_counts[i][0] += secondary
@@ -252,6 +239,10 @@ class GraphPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'graph', 0)
     self.update_interval = CONFIG['features.graph.interval']
+
+    if self.update_interval < 0 or self.update_interval > len(CONFIG['attr.graph.intervals']) - 1:
+      self.update_interval = 0  # user configured it with a value that's out of bounds
+
     self.bounds = list(Bounds)[CONFIG['features.graph.bound']]
     self.graph_height = CONFIG['features.graph.height']
     self.current_display = None    # label of the stats currently being displayed
@@ -286,7 +277,7 @@ class GraphPanel(panel.Panel):
         else:
           log.notice(msg('panel.graphing.prepopulation_all_successful'))
 
-        self.update_interval = 4 
+        self.update_interval = 4
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
@@ -419,7 +410,7 @@ class GraphPanel(panel.Panel):
     elif key.match('i'):
       # provides menu to pick graph panel update interval
 
-      options = [label for (label, _) in UPDATE_INTERVALS]
+      options = CONFIG['attr.graph.intervals'].keys()
       selection = arm.popups.show_menu('Update Interval:', options, self.update_interval)
 
       if selection != -1:
@@ -434,7 +425,7 @@ class GraphPanel(panel.Panel):
       ('r', 'resize graph', None),
       ('s', 'graphed stats', self.current_display if self.current_display else 'none'),
       ('b', 'graph bounds', self.bounds.lower()),
-      ('i', 'graph update interval', UPDATE_INTERVALS[self.update_interval][0]),
+      ('i', 'graph update interval', CONFIG['attr.graph.intervals'].keys()[self.update_interval]),
     ]
 
   def draw(self, width, height):
@@ -534,11 +525,7 @@ class GraphPanel(panel.Panel):
 
     # bottom labeling of x-axis
 
-    interval_sec = 1  # seconds per labeling
-
-    for i in range(len(UPDATE_INTERVALS)):
-      if i == self.update_interval:
-        interval_sec = UPDATE_INTERVALS[i][1]
+    interval_sec = int(CONFIG['attr.graph.intervals'].values()[self.update_interval])  # seconds per labeling
 
     interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
     units_label, decimal_precision = None, 0

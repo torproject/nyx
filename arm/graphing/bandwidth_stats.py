@@ -18,6 +18,7 @@ ACCOUNTING_RATE = 5
 
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
+  'attr.graph.intervals': {},
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
   'tor.chroot': '',
@@ -124,8 +125,8 @@ class BandwidthStats(graph_panel.GraphStats):
 
     interval_index = 0
 
-    for index_entry in graph_panel.UPDATE_INTERVALS:
-      if index_entry[1] == 900:
+    for interval_rate in CONFIG['attr.graph.intervals'].values():
+      if int(interval_rate) == 900:
         break
       else:
         interval_index += 1
