@@ -24,9 +24,9 @@ import arm.controller
 
 import stem.control
 
-from arm.util import panel, tor_controller
+from arm.util import msg, panel, tor_controller
 
-from stem.util import conf, enum, str_tools
+from stem.util import conf, enum, log, str_tools
 
 # time intervals at which graphs can be updated
 
@@ -40,6 +40,12 @@ UPDATE_INTERVALS = [
   ('hourly', 3600),
   ('daily', 86400),
 ]
+
+GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
+
+# maps 'features.graph.type' config values to the initial types
+
+GRAPH_INIT_STATS = {1: GraphStat.BANDWIDTH, 2: GraphStat.CONNECTIONS, 3: GraphStat.SYSTEM_RESOURCES}
 
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
@@ -74,6 +80,9 @@ CONFIG = conf.config_dict('arm', {
   'features.graph.bound': 1,
   'features.graph.max_width': 150,
   'features.graph.showIntermediateBounds': True,
+  'features.graph.type': 1,
+  'features.panels.show.connection': True,
+  'features.graph.bw.prepopulate': True,
 }, conf_handler)
 
 
@@ -246,8 +255,40 @@ class GraphPanel(panel.Panel):
     self.bounds = list(Bounds)[CONFIG['features.graph.bound']]
     self.graph_height = CONFIG['features.graph.height']
     self.current_display = None    # label of the stats currently being displayed
-    self.stats = {}                # available stats (mappings of label -> instance)
+
+    self.stats = {
+      GraphStat.BANDWIDTH: arm.graphing.bandwidth_stats.BandwidthStats(),
+      GraphStat.SYSTEM_RESOURCES: arm.graphing.resource_stats.ResourceStats(),
+    }
+
+    if CONFIG['features.panels.show.connection']:
+      self.stats[GraphStat.CONNECTIONS] = arm.graphing.conn_stats.ConnStats()
+
+    for stat in self.stats.values():
+      stat._graph_panel = self
+
     self.set_pause_attr('stats')
+
+    try:
+      initial_stats = GRAPH_INIT_STATS.get(CONFIG['features.graph.type'])
+      self.set_stats(initial_stats)
+    except ValueError:
+      pass  # invalid stats, maybe connections when lookups are disabled
+
+    # prepopulates bandwidth values from state file
+
+    if CONFIG["features.graph.bw.prepopulate"] and tor_controller().is_alive():
+      try:
+        missing_seconds = self.stats[GraphStat.BANDWIDTH].prepopulate_from_state()
+
+        if missing_seconds:
+          log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
+        else:
+          log.notice(msg('panel.graphing.prepopulation_all_successful'))
+
+        self.update_interval = 4 
+      except ValueError as exc:
+        log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
   def get_update_interval(self):
     """
@@ -520,14 +561,6 @@ class GraphPanel(panel.Panel):
         self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
       param.draw(self, width, height)  # allows current stats to modify the display
-
-  def add_stats(self, label, stats):
-    """
-    Makes GraphStats instance available in the panel.
-    """
-
-    stats._graph_panel = self
-    self.stats[label] = stats
 
   def get_stats(self):
     """

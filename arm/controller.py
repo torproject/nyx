@@ -52,16 +52,8 @@ CONFIG = conf.config_dict("arm", {
   "features.redrawRate": 5,
   "features.refreshRate": 5,
   "features.confirmQuit": True,
-  "features.graph.type": 1,
-  "features.graph.bw.prepopulate": True,
   "start_time": 0,
 }, conf_handler)
-
-GraphStat = enum.Enum("BANDWIDTH", "CONNECTIONS", "SYSTEM_RESOURCES")
-
-# maps 'features.graph.type' config values to the initial types
-
-GRAPH_INIT_STATS = {1: GraphStat.BANDWIDTH, 2: GraphStat.CONNECTIONS, 3: GraphStat.SYSTEM_RESOURCES}
 
 
 def get_controller():
@@ -172,43 +164,6 @@ def init_controller(stdscr, start_time):
   # initializes the controller
 
   ARM_CONTROLLER = Controller(stdscr, sticky_panels, page_panels)
-
-  # additional configuration for the graph panel
-
-  graph_panel = ARM_CONTROLLER.get_panel("graph")
-
-  if graph_panel:
-    # statistical monitors for graph
-
-    bw_stats = arm.graphing.bandwidth_stats.BandwidthStats()
-    graph_panel.add_stats(GraphStat.BANDWIDTH, bw_stats)
-    graph_panel.add_stats(GraphStat.SYSTEM_RESOURCES, arm.graphing.resource_stats.ResourceStats())
-
-    if CONFIG["features.panels.show.connection"]:
-      graph_panel.add_stats(GraphStat.CONNECTIONS, arm.graphing.conn_stats.ConnStats())
-
-    # sets graph based on config parameter
-
-    try:
-      initial_stats = GRAPH_INIT_STATS.get(CONFIG["features.graph.type"])
-      graph_panel.set_stats(initial_stats)
-    except ValueError:
-      pass  # invalid stats, maybe connections when lookups are disabled
-
-    # prepopulates bandwidth values from state file
-
-    if CONFIG["features.graph.bw.prepopulate"] and tor_controller().is_alive():
-      try:
-        missing_seconds = bw_stats.prepopulate_from_state()
-
-        if missing_seconds:
-          log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
-        else:
-          log.notice(msg('panel.graphing.prepopulation_all_successful'))
-
-        graph_panel.update_interval = 4
-      except ValueError as exc:
-        log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
 
 class LabelPanel(panel.Panel):
