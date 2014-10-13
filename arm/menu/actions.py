@@ -7,7 +7,7 @@ import functools
 import arm.popups
 import arm.controller
 import arm.menu.item
-import arm.graphing.graph_panel
+import arm.graph_panel
 import arm.util.tracker
 
 from arm.util import tor_controller, ui_tools
@@ -182,7 +182,7 @@ def make_graph_menu(graph_panel):
   bounds_menu = arm.menu.item.Submenu("Bounds")
   bounds_group = arm.menu.item.SelectionGroup(graph_panel.set_bounds_type, graph_panel.get_bounds_type())
 
-  for bounds_type in arm.graphing.graph_panel.Bounds:
+  for bounds_type in arm.graph_panel.Bounds:
     bounds_menu.add(arm.menu.item.SelectionMenuItem(bounds_type, bounds_group, bounds_type))
 
   graph_menu.add(bounds_menu)

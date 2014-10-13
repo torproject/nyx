@@ -15,10 +15,7 @@ import arm.header_panel
 import arm.log_panel
 import arm.config_panel
 import arm.torrc_panel
-import arm.graphing.graph_panel
-import arm.graphing.bandwidth_stats
-import arm.graphing.conn_stats
-import arm.graphing.resource_stats
+import arm.graph_panel
 import arm.connections.conn_panel
 import arm.util.tracker
 
@@ -26,9 +23,9 @@ import stem
 
 from stem.control import State
 
-from arm.util import msg, panel, tor_config, tor_controller, ui_tools
+from arm.util import panel, tor_config, tor_controller, ui_tools
 
-from stem.util import conf, enum, log, str_tools, system
+from stem.util import conf, log, system
 
 ARM_CONTROLLER = None
 
@@ -105,7 +102,7 @@ def init_controller(stdscr, start_time):
 
   # first page: graph and log
   if CONFIG["features.panels.show.graph"]:
-    first_page_panels.append(arm.graphing.graph_panel.GraphPanel(stdscr))
+    first_page_panels.append(arm.graph_panel.GraphPanel(stdscr))
 
   if CONFIG["features.panels.show.log"]:
     expanded_events = arm.arguments.expand_events(CONFIG["startup.events"])
