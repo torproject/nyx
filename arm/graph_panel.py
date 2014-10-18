@@ -189,13 +189,6 @@ class GraphStats:
   def secondary_header(self, width):
     return ''
 
-  def get_content_height(self):
-    """
-    Provides the height content should take up (not including the graph).
-    """
-
-    return DEFAULT_CONTENT_HEIGHT
-
   def draw(self, panel, width, height):
     """
     Allows for any custom drawing monitor wishes to append.
@@ -253,11 +246,10 @@ class BandwidthStats(GraphStats):
     GraphStats.__init__(self)
 
     # listens for tor reload (sighup) events which can reset the bandwidth
-    # rate/burst and if tor's using accounting
+    # rate/burst
 
     controller = tor_controller()
     self._title_stats = []
-    self._accounting_stats = None
 
     if not is_pause_buffer:
       self.reset_listener(controller, State.INIT, None)  # initializes values
@@ -286,31 +278,12 @@ class BandwidthStats(GraphStats):
     if not new_copy:
       new_copy = BandwidthStats(True)
 
-    new_copy._accounting_stats = self._accounting_stats
     new_copy._title_stats = self._title_stats
 
     return GraphStats.clone(self, new_copy)
 
   def reset_listener(self, controller, event_type, _):
-    # updates title parameters and accounting status if they changed
-
     self.new_desc_event(None)  # updates title params
-
-    if event_type in (State.INIT, State.RESET) and CONFIG['features.graph.bw.accounting.show']:
-      is_accounting_enabled = controller.get_info('accounting/enabled', None) == '1'
-
-      if is_accounting_enabled != bool(self._accounting_stats):
-        self._accounting_stats = tor_controller().get_accounting_stats(None)
-
-        # redraws the whole screen since our height changed
-
-        arm.controller.get_controller().redraw()
-
-    # redraws to reflect changes (this especially noticeable when we have
-    # accounting and shut down since it then gives notice of the shutdown)
-
-    if self._graph_panel and self.is_selected:
-      self._graph_panel.redraw(True)
 
   def prepopulate_from_state(self):
     """
@@ -364,10 +337,6 @@ class BandwidthStats(GraphStats):
     return time.time() - min(stats.last_read_time, stats.last_write_time)
 
   def bandwidth_event(self, event):
-    if self._accounting_stats and self.is_next_tick_redraw():
-      if time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
-        self._accounting_stats = tor_controller().get_accounting_stats(None)
-
     # scales units from B to KB for graphing
 
     self._process_event(event.read / 1024.0, event.written / 1024.0)
@@ -375,7 +344,7 @@ class BandwidthStats(GraphStats):
   def draw(self, panel, width, height):
     # line of the graph's x-axis labeling
 
-    labeling_line = GraphStats.get_content_height(self) + panel.graph_height - 2
+    labeling_line = DEFAULT_CONTENT_HEIGHT + panel.graph_height - 2
 
     # if display is narrow, overwrites x-axis labels with avg / total stats
 
@@ -391,25 +360,6 @@ class BandwidthStats(GraphStats):
 
       panel.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
       panel.addstr(labeling_line, graph_column + 6, secondary_footer, SECONDARY_COLOR)
-
-    # provides accounting stats if enabled
-
-    if self._accounting_stats:
-      if tor_controller().is_alive():
-        hibernate_color = CONFIG['attr.hibernate_color'].get(self._accounting_stats.status, 'red')
-
-        x, y = 0, labeling_line + 2
-        x = panel.addstr(y, x, 'Accounting (', curses.A_BOLD)
-        x = panel.addstr(y, x, self._accounting_stats.status, curses.A_BOLD, hibernate_color)
-        x = panel.addstr(y, x, ')', curses.A_BOLD)
-
-        panel.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(self._accounting_stats.time_until_reset))
-
-        panel.addstr(y + 1, 2, '%s / %s' % (self._accounting_stats.read_bytes, self._accounting_stats.read_limit), PRIMARY_COLOR)
-        panel.addstr(y + 1, 37, '%s / %s' % (self._accounting_stats.written_bytes, self._accounting_stats.write_limit), SECONDARY_COLOR)
-      else:
-        panel.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
-        panel.addstr(labeling_line + 2, 12, 'Connection Closed...')
 
   def get_title(self, width):
     stats_label = str_tools.join(self._title_stats, ', ', width - 13)
@@ -448,10 +398,6 @@ class BandwidthStats(GraphStats):
       return 'Upload (%s):' % stats_label
     else:
       return 'Upload:'
-
-  def get_content_height(self):
-    base_height = GraphStats.get_content_height(self)
-    return base_height + 3 if self._accounting_stats else base_height
 
   def new_desc_event(self, event):
     controller = tor_controller()
@@ -608,6 +554,7 @@ class GraphPanel(panel.Panel):
     self.bounds = list(Bounds)[CONFIG['features.graph.bound']]
     self.graph_height = CONFIG['features.graph.height']
     self.current_display = None    # label of the stats currently being displayed
+    self._accounting_stats = None
 
     self.stats = {
       GraphStat.BANDWIDTH: BandwidthStats(),
@@ -621,6 +568,7 @@ class GraphPanel(panel.Panel):
       stat._graph_panel = self
 
     self.set_pause_attr('stats')
+    self.set_pause_attr('_accounting_stats')
 
     try:
       initial_stats = GRAPH_INIT_STATS.get(CONFIG['features.graph.type'])
@@ -642,6 +590,26 @@ class GraphPanel(panel.Panel):
         self.update_interval = 4
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
+
+    tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+
+  def bandwidth_event(self, event):
+    if not CONFIG['features.graph.bw.accounting.show']:
+      self._accounting_stats = None
+    elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
+      old_accounting_stats = self._accounting_stats
+      self._accounting_stats = tor_controller().get_accounting_stats(None)
+
+      if bool(old_accounting_stats) != bool(self._accounting_stats):
+        # we either added or removed accounting info, redraw the whole screen since this changes our height
+
+        arm.controller.get_controller().redraw()
+
+    # redraws to reflect changes (this especially noticeable when we have
+    # accounting and shut down since it then gives notice of the shutdown)
+
+    if self.current_display == GraphStat.BANDWIDTH:
+      self.redraw(True)
 
   def get_update_interval(self):
     """
@@ -684,9 +652,14 @@ class GraphPanel(panel.Panel):
     """
 
     if self.current_display:
-      return self.stats[self.current_display].get_content_height() + self.graph_height
+      height = DEFAULT_CONTENT_HEIGHT + self.graph_height
     else:
-      return 0
+      height = 0
+
+    if self.current_display == GraphStat.BANDWIDTH and self._accounting_stats:
+      height += 3
+
+    return height
 
   def set_graph_height(self, new_graph_height):
     """
@@ -910,6 +883,28 @@ class GraphPanel(panel.Panel):
       self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
     param.draw(self, width, height)  # allows current stats to modify the display
+
+    # provides accounting stats if enabled
+
+    accounting_stats = self.get_attr('_accounting_stats')
+
+    if self.current_display == GraphStat.BANDWIDTH and accounting_stats:
+      if tor_controller().is_alive():
+        hibernate_color = CONFIG['attr.hibernate_color'].get(accounting_stats.status, 'red')
+
+        labeling_line = DEFAULT_CONTENT_HEIGHT + self.graph_height - 2
+        x, y = 0, labeling_line + 2
+        x = self.addstr(y, x, 'Accounting (', curses.A_BOLD)
+        x = self.addstr(y, x, accounting_stats.status, curses.A_BOLD, hibernate_color)
+        x = self.addstr(y, x, ')', curses.A_BOLD)
+
+        self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(accounting_stats.time_until_reset))
+
+        self.addstr(y + 1, 2, '%s / %s' % (accounting_stats.read_bytes, accounting_stats.read_limit), PRIMARY_COLOR)
+        self.addstr(y + 1, 37, '%s / %s' % (accounting_stats.written_bytes, accounting_stats.write_limit), SECONDARY_COLOR)
+      else:
+        self.addstr(labeling_line + 2, 0, 'Accounting:', curses.A_BOLD)
+        self.addstr(labeling_line + 2, 12, 'Connection Closed...')
 
   def get_stats(self):
     """
