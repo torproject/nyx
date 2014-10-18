@@ -189,13 +189,6 @@ class GraphStats:
   def secondary_header(self, width):
     return ''
 
-  def draw(self, panel, width, height):
-    """
-    Allows for any custom drawing monitor wishes to append.
-    """
-
-    pass
-
   def bandwidth_event(self, event):
     if not self.is_pause_buffer:
       self.event_tick()
@@ -340,26 +333,6 @@ class BandwidthStats(GraphStats):
     # scales units from B to KB for graphing
 
     self._process_event(event.read / 1024.0, event.written / 1024.0)
-
-  def draw(self, panel, width, height):
-    # line of the graph's x-axis labeling
-
-    labeling_line = DEFAULT_CONTENT_HEIGHT + panel.graph_height - 2
-
-    # if display is narrow, overwrites x-axis labels with avg / total stats
-
-    if width <= COLLAPSE_WIDTH:
-      # clears line
-
-      panel.addstr(labeling_line, 0, ' ' * width)
-      graph_column = min((width - 10) / 2, self.max_column)
-
-      runtime = time.time() - self.start_time
-      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(self.primary_total * 1024), _size_label(self.primary_total / runtime * 1024))
-      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(self.secondary_total * 1024), _size_label(self.secondary_total / runtime * 1024))
-
-      panel.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
-      panel.addstr(labeling_line, graph_column + 6, secondary_footer, SECONDARY_COLOR)
 
   def get_title(self, width):
     stats_label = str_tools.join(self._title_stats, ', ', width - 13)
@@ -882,7 +855,22 @@ class GraphPanel(panel.Panel):
       self.addstr(self.graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
       self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
-    param.draw(self, width, height)  # allows current stats to modify the display
+    # if display is narrow, overwrites x-axis labels with avg / total stats
+
+    labeling_line = DEFAULT_CONTENT_HEIGHT + self.graph_height - 2
+
+    if self.current_display == GraphStat.BANDWIDTH and width <= COLLAPSE_WIDTH:
+      # clears line
+
+      self.addstr(labeling_line, 0, ' ' * width)
+      graph_column = min((width - 10) / 2, param.max_column)
+
+      runtime = time.time() - param.start_time
+      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.primary_total * 1024), _size_label(param.primary_total / runtime * 1024))
+      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.secondary_total * 1024), _size_label(param.secondary_total / runtime * 1024))
+
+      self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
+      self.addstr(labeling_line, graph_column + 6, secondary_footer, SECONDARY_COLOR)
 
     # provides accounting stats if enabled
 
@@ -892,7 +880,6 @@ class GraphPanel(panel.Panel):
       if tor_controller().is_alive():
         hibernate_color = CONFIG['attr.hibernate_color'].get(accounting_stats.status, 'red')
 
-        labeling_line = DEFAULT_CONTENT_HEIGHT + self.graph_height - 2
         x, y = 0, labeling_line + 2
         x = self.addstr(y, x, 'Accounting (', curses.A_BOLD)
         x = self.addstr(y, x, accounting_stats.status, curses.A_BOLD, hibernate_color)
