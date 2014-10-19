@@ -159,8 +159,6 @@ class GraphStats(object):
 
       tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
-    self._graph_panel = None
-
   def event_tick(self):
     """
     Called when it's time to process another event. All graphs use tor BW
@@ -168,19 +166,6 @@ class GraphStats(object):
     """
 
     pass
-
-  def is_next_tick_redraw(self):
-    """
-    Provides true if the following tick (call to _process_event) will result in
-    being redrawn.
-    """
-
-    if self._graph_panel and self.is_selected and not self._graph_panel.is_paused():
-      # use the minimum of the current refresh rate and the panel's
-      update_rate = int(CONFIG['attr.graph.intervals'].values()[self._graph_panel.update_interval])
-      return (self.primary.tick + 1) % update_rate == 0
-    else:
-      return False
 
   def primary_header(self, width):
     return ''
@@ -197,13 +182,8 @@ class GraphStats(object):
     Includes new stats in graphs and notifies associated GraphPanel of changes.
     """
 
-    is_redraw = self.is_next_tick_redraw()
-
     self.primary.update(primary)
     self.secondary.update(secondary)
-
-    if is_redraw and self._graph_panel:
-      self._graph_panel.redraw(True)
 
 
 class BandwidthStats(GraphStats):
@@ -485,6 +465,7 @@ class GraphPanel(panel.Panel):
     self.graph_height = CONFIG['features.graph.height']
     self.current_display = None    # label of the stats currently being displayed
     self._accounting_stats = None
+    self._last_redraw = 0
 
     self.stats = {
       GraphStat.BANDWIDTH: BandwidthStats(),
@@ -493,9 +474,6 @@ class GraphPanel(panel.Panel):
 
     if CONFIG['features.panels.show.connection']:
       self.stats[GraphStat.CONNECTIONS] = ConnStats()
-
-    for stat in self.stats.values():
-      stat._graph_panel = self
 
     self.set_pause_attr('stats')
     self.set_pause_attr('_accounting_stats')
@@ -521,7 +499,9 @@ class GraphPanel(panel.Panel):
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
-    tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+    controller = tor_controller()
+    controller.add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+    controller.add_status_listener(self.reset_listener)
 
   def bandwidth_event(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
@@ -535,11 +515,13 @@ class GraphPanel(panel.Panel):
 
         arm.controller.get_controller().redraw()
 
-    # redraws to reflect changes (this especially noticeable when we have
-    # accounting and shut down since it then gives notice of the shutdown)
+    update_rate = int(CONFIG['attr.graph.intervals'].values()[self.update_interval])
 
-    if self.current_display == GraphStat.BANDWIDTH:
+    if time.time() - self._last_redraw > update_rate:
       self.redraw(True)
+
+  def reset_listener(self, controller, event_type, _):
+    self.redraw(True)
 
   def get_update_interval(self):
     """
@@ -696,6 +678,8 @@ class GraphPanel(panel.Panel):
   def draw(self, width, height):
     if not self.current_display:
       return
+
+    self._last_redraw = time.time()
 
     param = self.get_attr('stats')[self.current_display]
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
