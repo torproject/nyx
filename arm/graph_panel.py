@@ -128,51 +128,38 @@ class Stat(object):
         self._in_process_value[interval] = 0
 
 
-class GraphStats:
+class GraphStats(object):
   """
   Module that's expected to update dynamically and provide attributes to be
   graphed. Up to two graphs (a 'primary' and 'secondary') can be displayed at a
   time and timescale parameters use the labels defined in CONFIG['attr.graph.intervals'].
   """
 
-  def __init__(self):
+  def __init__(self, clone = None):
     """
     Initializes parameters needed to present a graph.
     """
 
-    # panel to be redrawn when updated (set when added to GraphPanel)
+    if clone:
+      self.title = clone.title
+      self.title_stats = list(clone.title_stats)
+      self.is_selected = clone.is_selected
+      self.is_pause_buffer = True
+
+      self.primary = Stat(clone.primary)
+      self.secondary = Stat(clone.secondary)
+    else:
+      self.title = ''
+      self.title_stats = []
+      self.is_selected = False
+      self.is_pause_buffer = False
+
+      self.primary = Stat()
+      self.secondary = Stat()
+
+      tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
     self._graph_panel = None
-    self.title = ''
-    self.title_stats = []
-    self.is_selected = False
-    self.is_pause_buffer = False
-
-    self.primary = Stat()
-    self.secondary = Stat()
-
-    # tracks BW events
-
-    tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
-
-  def clone(self, new_copy=None):
-    """
-    Provides a deep copy of this instance.
-
-    Arguments:
-      new_copy - base instance to build copy off of
-    """
-
-    if not new_copy:
-      new_copy = GraphStats()
-
-    new_copy.title = self.title
-    new_copy.title_stats = list(self.title_stats)
-    new_copy.primary = Stat(self.primary)
-    new_copy.secondary = Stat(self.secondary)
-
-    new_copy.is_pause_buffer = True
-    return new_copy
 
   def event_tick(self):
     """
@@ -224,43 +211,40 @@ class BandwidthStats(GraphStats):
   Uses tor BW events to generate bandwidth usage graph.
   """
 
-  def __init__(self, is_pause_buffer = False):
-    GraphStats.__init__(self)
-    self.title = 'Bandwidth'
+  def __init__(self, clone = None):
+    GraphStats.__init__(self, clone)
 
-    # listens for tor reload (sighup) events which can reset the bandwidth
-    # rate/burst
+    if clone:
+      self.start_time = clone.start_time
+    else:
+      self.title = 'Bandwidth'
 
-    controller = tor_controller()
+      # listens for tor reload (sighup) events which can reset the bandwidth
+      # rate/burst
 
-    if not is_pause_buffer:
+      controller = tor_controller()
+
       self.reset_listener(controller, State.INIT, None)  # initializes values
 
-    controller.add_status_listener(self.reset_listener)
-    self.new_desc_event(None)  # updates title params
+      controller.add_status_listener(self.reset_listener)
+      self.new_desc_event(None)  # updates title params
 
-    # We both show our 'total' attributes and use it to determine our average.
-    #
-    # If we can get *both* our start time and the totals from tor (via 'GETINFO
-    # traffic/*') then that's ideal, but if not then just track the total for
-    # the time arm is run.
+      # We both show our 'total' attributes and use it to determine our average.
+      #
+      # If we can get *both* our start time and the totals from tor (via 'GETINFO
+      # traffic/*') then that's ideal, but if not then just track the total for
+      # the time arm is run.
 
-    read_total = controller.get_info('traffic/read', None)
-    write_total = controller.get_info('traffic/written', None)
-    start_time = system.start_time(controller.get_pid(None))
+      read_total = controller.get_info('traffic/read', None)
+      write_total = controller.get_info('traffic/written', None)
+      start_time = system.start_time(controller.get_pid(None))
 
-    if read_total and write_total and start_time:
-      self.primary.total = int(read_total) / 1024  # Bytes -> KB
-      self.secondary.total = int(write_total) / 1024  # Bytes -> KB
-      self.start_time = start_time
-    else:
-      self.start_time = time.time()
-
-  def clone(self, new_copy = None):
-    if not new_copy:
-      new_copy = BandwidthStats(True)
-
-    return GraphStats.clone(self, new_copy)
+      if read_total and write_total and start_time:
+        self.primary.total = int(read_total) / 1024  # Bytes -> KB
+        self.secondary.total = int(write_total) / 1024  # Bytes -> KB
+        self.start_time = start_time
+      else:
+        self.start_time = time.time()
 
   def reset_listener(self, controller, event_type, _):
     self.new_desc_event(None)  # updates title params
@@ -400,15 +384,11 @@ class ConnStats(GraphStats):
   outbound. Control connections are excluded from counts.
   """
 
-  def __init__(self):
-    GraphStats.__init__(self)
-    self.title = 'Connection Count'
+  def __init__(self, clone = None):
+    GraphStats.__init__(self, clone)
 
-  def clone(self, new_copy=None):
-    if not new_copy:
-      new_copy = ConnStats()
-
-    return GraphStats.clone(self, new_copy)
+    if not clone:
+      self.title = 'Connection Count'
 
   def event_tick(self):
     """
@@ -449,16 +429,14 @@ class ResourceStats(GraphStats):
   System resource usage tracker.
   """
 
-  def __init__(self):
+  def __init__(self, clone = None):
     GraphStats.__init__(self)
-    self.title = 'System Resources'
-    self._last_counter = None
 
-  def clone(self, new_copy=None):
-    if not new_copy:
-      new_copy = ResourceStats()
-
-    return GraphStats.clone(self, new_copy)
+    if clone:
+      self._last_counter = clone._last_counter
+    else:
+      self.title = 'System Resources'
+      self._last_counter = None
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -902,8 +880,7 @@ class GraphPanel(panel.Panel):
 
   def copy_attr(self, attr):
     if attr == 'stats':
-      # uses custom clone method to copy GraphStats instances
-      return dict([(key, self.stats[key].clone()) for key in self.stats])
+      return dict([(key, type(self.stats[key])(self.stats[key])) for key in self.stats])
     else:
       return panel.Panel.copy_attr(self, attr)
 
