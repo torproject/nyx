@@ -143,6 +143,8 @@ class GraphStats:
     # panel to be redrawn when updated (set when added to GraphPanel)
 
     self._graph_panel = None
+    self.title = ''
+    self.title_stats = []
     self.is_selected = False
     self.is_pause_buffer = False
 
@@ -164,6 +166,8 @@ class GraphStats:
     if not new_copy:
       new_copy = GraphStats()
 
+    new_copy.title = self.title
+    new_copy.title_stats = list(self.title_stats)
     new_copy.primary = Stat(self.primary)
     new_copy.secondary = Stat(self.secondary)
 
@@ -190,13 +194,6 @@ class GraphStats:
       return (self.primary.tick + 1) % update_rate == 0
     else:
       return False
-
-  def get_title(self, width):
-    """
-    Provides top label.
-    """
-
-    return ''
 
   def primary_header(self, width):
     return ''
@@ -229,12 +226,12 @@ class BandwidthStats(GraphStats):
 
   def __init__(self, is_pause_buffer = False):
     GraphStats.__init__(self)
+    self.title = 'Bandwidth'
 
     # listens for tor reload (sighup) events which can reset the bandwidth
     # rate/burst
 
     controller = tor_controller()
-    self._title_stats = []
 
     if not is_pause_buffer:
       self.reset_listener(controller, State.INIT, None)  # initializes values
@@ -262,8 +259,6 @@ class BandwidthStats(GraphStats):
   def clone(self, new_copy = None):
     if not new_copy:
       new_copy = BandwidthStats(True)
-
-    new_copy._title_stats = self._title_stats
 
     return GraphStats.clone(self, new_copy)
 
@@ -322,10 +317,6 @@ class BandwidthStats(GraphStats):
     # scales units from B to KB for graphing
 
     self._process_event(event.read / 1024.0, event.written / 1024.0)
-
-  def get_title(self, width):
-    stats_label = str_tools.join(self._title_stats, ', ', width - 13)
-    return 'Bandwidth (%s):' % stats_label if stats_label else 'Bandwidth:'
 
   def primary_header(self, width):
     stats = ['%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024))]
@@ -400,7 +391,7 @@ class BandwidthStats(GraphStats):
         if observed_bw:
           stats.append('observed: %s/s' % _size_label(observed_bw))
 
-      self._title_stats = stats
+      self.title_stats = stats
 
 
 class ConnStats(GraphStats):
@@ -408,6 +399,10 @@ class ConnStats(GraphStats):
   Tracks number of connections, counting client and directory connections as
   outbound. Control connections are excluded from counts.
   """
+
+  def __init__(self):
+    GraphStats.__init__(self)
+    self.title = 'Connection Count'
 
   def clone(self, new_copy=None):
     if not new_copy:
@@ -440,9 +435,6 @@ class ConnStats(GraphStats):
 
     self._process_event(inbound_count, outbound_count)
 
-  def get_title(self, width):
-    return 'Connection Count:'
-
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
     return 'Inbound (%s, avg: %s):' % (self.primary.latest_value, avg)
@@ -459,6 +451,7 @@ class ResourceStats(GraphStats):
 
   def __init__(self):
     GraphStats.__init__(self)
+    self.title = 'System Resources'
     self._last_counter = None
 
   def clone(self, new_copy=None):
@@ -466,9 +459,6 @@ class ResourceStats(GraphStats):
       new_copy = ResourceStats()
 
     return GraphStats.clone(self, new_copy)
-
-  def get_title(self, width):
-    return 'System Resources:'
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -733,7 +723,9 @@ class GraphPanel(panel.Panel):
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
     if self.is_title_visible():
-      self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
+      title_stats = str_tools.join(param.title_stats, ', ', width - len(param.title) - 4)
+      title = '%s (%s):' % (param.title, title_stats) if title_stats else '%s:' % param.title
+      self.addstr(0, 0, title, curses.A_STANDOUT)
 
     # top labels
 
