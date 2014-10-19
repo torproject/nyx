@@ -86,6 +86,48 @@ CONFIG = conf.config_dict('arm', {
 COLLAPSE_WIDTH = 135
 
 
+class Stat(object):
+  """
+  Graphable statistical information.
+
+  :var int latest_value: last value we recorded
+  :var int total: sum of all values we've recorded
+  :var dict values: mapping of intervals to an array of samplings from newest to oldest
+  :var dict max_value: mapping of intervals to the maximum value it has had
+  """
+
+  def __init__(self, clone = None):
+    if clone:
+      self.latest_value = clone.latest_value
+      self.total = clone.total
+      self.tick = clone.tick
+      self.values = copy.deepcopy(clone.values)
+      self.max_value = dict(clone.max_value)
+      self._in_process_value = dict(clone._in_process_value)
+    else:
+      self.latest_value = 0
+      self.total = 0
+      self.tick = 0
+      self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in CONFIG['attr.graph.intervals']])
+      self.max_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
+      self._in_process_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
+
+  def update(self, new_value):
+    self.latest_value = new_value
+    self.total += new_value
+    self.tick += 1
+
+    for interval in CONFIG['attr.graph.intervals']:
+      interval_seconds = int(CONFIG['attr.graph.intervals'][interval])
+      self._in_process_value[interval] += new_value
+
+      if self.tick % interval_seconds == 0:
+        new_entry = self._in_process_value[interval] / interval_seconds
+        self.values[interval] = [new_entry] + self.values[interval][:-1]
+        self.max_value[interval] = max(self.max_value[interval], new_entry)
+        self._in_process_value[interval] = 0
+
+
 class GraphStats:
   """
   Module that's expected to update dynamically and provide attributes to be
@@ -104,29 +146,8 @@ class GraphStats:
     self.is_selected = False
     self.is_pause_buffer = False
 
-    # tracked stats
-
-    self.tick = 0                                    # number of processed events
-    self.last_primary, self.last_secondary = 0, 0    # most recent registered stats
-    self.primary_total, self.secondary_total = 0, 0  # sum of all stats seen
-
-    # timescale dependent stats
-
-    self.max_column = CONFIG['features.graph.max_width']
-    self.max_primary, self.max_secondary = {}, {}
-    self.primary_counts, self.secondary_counts = {}, {}
-
-    for i in range(len(CONFIG['attr.graph.intervals'])):
-      # recent rates for graph
-
-      self.max_primary[i] = 0
-      self.max_secondary[i] = 0
-
-      # historic stats for graph, first is accumulator
-      # iterative insert needed to avoid making shallow copies (nasty, nasty gotcha)
-
-      self.primary_counts[i] = (self.max_column + 1) * [0]
-      self.secondary_counts[i] = (self.max_column + 1) * [0]
+    self.primary = Stat()
+    self.secondary = Stat()
 
     # tracks BW events
 
@@ -143,15 +164,9 @@ class GraphStats:
     if not new_copy:
       new_copy = GraphStats()
 
-    new_copy.tick = self.tick
-    new_copy.last_primary = self.last_primary
-    new_copy.last_secondary = self.last_secondary
-    new_copy.primary_total = self.primary_total
-    new_copy.secondary_total = self.secondary_total
-    new_copy.max_primary = dict(self.max_primary)
-    new_copy.max_secondary = dict(self.max_secondary)
-    new_copy.primary_counts = copy.deepcopy(self.primary_counts)
-    new_copy.secondary_counts = copy.deepcopy(self.secondary_counts)
+    new_copy.primary = Stat(self.primary)
+    new_copy.secondary = Stat(self.secondary)
+
     new_copy.is_pause_buffer = True
     return new_copy
 
@@ -172,7 +187,7 @@ class GraphStats:
     if self._graph_panel and self.is_selected and not self._graph_panel.is_paused():
       # use the minimum of the current refresh rate and the panel's
       update_rate = int(CONFIG['attr.graph.intervals'].values()[self._graph_panel.update_interval])
-      return (self.tick + 1) % update_rate == 0
+      return (self.primary.tick + 1) % update_rate == 0
     else:
       return False
 
@@ -200,31 +215,8 @@ class GraphStats:
 
     is_redraw = self.is_next_tick_redraw()
 
-    self.last_primary, self.last_secondary = primary, secondary
-    self.primary_total += primary
-    self.secondary_total += secondary
-
-    # updates for all time intervals
-
-    self.tick += 1
-
-    for i in range(len(CONFIG['attr.graph.intervals'])):
-      lable, timescale = CONFIG['attr.graph.intervals'].items()[i]
-      timescale = int(timescale)
-
-      self.primary_counts[i][0] += primary
-      self.secondary_counts[i][0] += secondary
-
-      if self.tick % timescale == 0:
-        self.max_primary[i] = max(self.max_primary[i], self.primary_counts[i][0] / timescale)
-        self.primary_counts[i][0] /= timescale
-        self.primary_counts[i].insert(0, 0)
-        del self.primary_counts[i][self.max_column + 1:]
-
-        self.max_secondary[i] = max(self.max_secondary[i], self.secondary_counts[i][0] / timescale)
-        self.secondary_counts[i][0] /= timescale
-        self.secondary_counts[i].insert(0, 0)
-        del self.secondary_counts[i][self.max_column + 1:]
+    self.primary.update(primary)
+    self.secondary.update(secondary)
 
     if is_redraw and self._graph_panel:
       self._graph_panel.redraw(True)
@@ -261,8 +253,8 @@ class BandwidthStats(GraphStats):
     start_time = system.start_time(controller.get_pid(None))
 
     if read_total and write_total and start_time:
-      self.primary_total = int(read_total) / 1024  # Bytes -> KB
-      self.secondary_total = int(write_total) / 1024  # Bytes -> KB
+      self.primary.total = int(read_total) / 1024  # Bytes -> KB
+      self.secondary.total = int(write_total) / 1024  # Bytes -> KB
       self.start_time = start_time
     else:
       self.start_time = time.time()
@@ -297,7 +289,7 @@ class BandwidthStats(GraphStats):
 
     # crops starting entries so they're the same size
 
-    entry_count = min(len(bw_read_entries), len(bw_write_entries), self.max_column)
+    entry_count = min(len(bw_read_entries), len(bw_write_entries), CONFIG['features.graph.max_width'])
     bw_read_entries = bw_read_entries[len(bw_read_entries) - entry_count:]
     bw_write_entries = bw_write_entries[len(bw_write_entries) - entry_count:]
 
@@ -316,16 +308,13 @@ class BandwidthStats(GraphStats):
     for i in range(entry_count):
       read_value, write_value = bw_read_entries[i], bw_write_entries[i]
 
-      self.last_primary, self.last_secondary = read_value, write_value
+      self.primary.latest_value, self.secondary.latest_value = read_value / 900, write_value / 900
 
-      self.primary_counts[interval_index].insert(0, read_value)
-      self.secondary_counts[interval_index].insert(0, write_value)
+      self.primary.values['15 minute'] = [read_value] + self.primary.values['15 minute'][:-1]
+      self.secondary.values['15 minute'] = [write_value] + self.secondary.values['15 minute'][:-1]
 
-    self.max_primary[interval_index] = max(self.primary_counts)
-    self.max_secondary[interval_index] = max(self.secondary_counts)
-
-    del self.primary_counts[interval_index][self.max_column + 1:]
-    del self.secondary_counts[interval_index][self.max_column + 1:]
+    self.primary.max_value['15 minute'] = max(self.primary.values)
+    self.secondary.max_value['15 minute'] = max(self.secondary.values)
 
     return time.time() - min(stats.last_read_time, stats.last_write_time)
 
@@ -339,14 +328,14 @@ class BandwidthStats(GraphStats):
     return 'Bandwidth (%s):' % stats_label if stats_label else 'Bandwidth:'
 
   def primary_header(self, width):
-    stats = ['%-14s' % ('%s/sec' % _size_label(self.last_primary * 1024))]
+    stats = ['%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024))]
 
     # if wide then avg and total are part of the header, otherwise they're on
     # the x-axis
 
     if width * 2 > COLLAPSE_WIDTH:
-      stats.append('- avg: %s/sec' % _size_label(self.primary_total / (time.time() - self.start_time) * 1024))
-      stats.append(', total: %s' % _size_label(self.primary_total * 1024))
+      stats.append('- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.start_time) * 1024))
+      stats.append(', total: %s' % _size_label(self.primary.total * 1024))
 
     stats_label = str_tools.join(stats, '', width - 12)
 
@@ -356,14 +345,14 @@ class BandwidthStats(GraphStats):
       return 'Download:'
 
   def secondary_header(self, width):
-    stats = ['%-14s' % ('%s/sec' % _size_label(self.last_secondary * 1024))]
+    stats = ['%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value * 1024))]
 
     # if wide then avg and total are part of the header, otherwise they're on
     # the x-axis
 
     if width * 2 > COLLAPSE_WIDTH:
-      stats.append('- avg: %s/sec' % _size_label(self.secondary_total / (time.time() - self.start_time) * 1024))
-      stats.append(', total: %s' % _size_label(self.secondary_total * 1024))
+      stats.append('- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.start_time) * 1024))
+      stats.append(', total: %s' % _size_label(self.secondary.total * 1024))
 
     stats_label = str_tools.join(stats, '', width - 10)
 
@@ -455,12 +444,12 @@ class ConnStats(GraphStats):
     return 'Connection Count:'
 
   def primary_header(self, width):
-    avg = self.primary_total / max(1, self.tick)
-    return 'Inbound (%s, avg: %s):' % (self.last_primary, avg)
+    avg = self.primary.total / max(1, self.primary.tick)
+    return 'Inbound (%s, avg: %s):' % (self.primary.latest_value, avg)
 
   def secondary_header(self, width):
-    avg = self.secondary_total / max(1, self.tick)
-    return 'Outbound (%s, avg: %s):' % (self.last_secondary, avg)
+    avg = self.secondary.total / max(1, self.secondary.tick)
+    return 'Outbound (%s, avg: %s):' % (self.secondary.latest_value, avg)
 
 
 class ResourceStats(GraphStats):
@@ -482,15 +471,15 @@ class ResourceStats(GraphStats):
     return 'System Resources:'
 
   def primary_header(self, width):
-    avg = self.primary_total / max(1, self.tick)
-    return 'CPU (%0.1f%%, avg: %0.1f%%):' % (self.last_primary, avg)
+    avg = self.primary.total / max(1, self.primary.tick)
+    return 'CPU (%0.1f%%, avg: %0.1f%%):' % (self.primary.latest_value, avg)
 
   def secondary_header(self, width):
     # memory sizes are converted from MB to B before generating labels
 
-    usage_label = str_tools.size_label(self.last_secondary * 1048576, 1)
+    usage_label = str_tools.size_label(self.secondary.latest_value * 1048576, 1)
 
-    avg = self.secondary_total / max(1, self.tick)
+    avg = self.secondary.total / max(1, self.secondary.tick)
     avg_label = str_tools.size_label(avg * 1048576, 1)
 
     return 'Memory (%s, avg: %s):' % (usage_label, avg_label)
@@ -741,7 +730,7 @@ class GraphPanel(panel.Panel):
       return
 
     param = self.get_attr('stats')[self.current_display]
-    graph_column = min((width - 10) / 2, param.max_column)
+    graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
     if self.is_title_visible():
       self.addstr(0, 0, param.get_title(width), curses.A_STANDOUT)
@@ -758,23 +747,25 @@ class GraphPanel(panel.Panel):
 
     # determines max/min value on the graph
 
+    interval = CONFIG['attr.graph.intervals'].keys()[self.update_interval]
+
     if self.bounds == Bounds.GLOBAL_MAX:
-      primary_max_bound = int(param.max_primary[self.update_interval])
-      secondary_max_bound = int(param.max_secondary[self.update_interval])
+      primary_max_bound = param.primary.max_value[interval]
+      secondary_max_bound = param.secondary.max_value[interval]
     else:
       # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
       if graph_column < 2:
         # nothing being displayed
         primary_max_bound, secondary_max_bound = 0, 0
       else:
-        primary_max_bound = int(max(param.primary_counts[self.update_interval][1:graph_column + 1]))
-        secondary_max_bound = int(max(param.secondary_counts[self.update_interval][1:graph_column + 1]))
+        primary_max_bound = max(param.primary.values[interval][:graph_column])
+        secondary_max_bound = max(param.secondary.values[interval][:graph_column])
 
     primary_min_bound = secondary_min_bound = 0
 
     if self.bounds == Bounds.TIGHT:
-      primary_min_bound = int(min(param.primary_counts[self.update_interval][1:graph_column + 1]))
-      secondary_min_bound = int(min(param.secondary_counts[self.update_interval][1:graph_column + 1]))
+      primary_min_bound = min(param.primary.values[interval][:graph_column])
+      secondary_min_bound = min(param.secondary.values[interval][:graph_column])
 
       # if the max = min (ie, all values are the same) then use zero lower
       # bound so a graph is still displayed
@@ -819,14 +810,14 @@ class GraphPanel(panel.Panel):
     # creates bar graph (both primary and secondary)
 
     for col in range(graph_column):
-      column_count = int(param.primary_counts[self.update_interval][col + 1]) - primary_min_bound
-      column_height = min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound))
+      column_count = int(param.primary.values[interval][col]) - primary_min_bound
+      column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound)))
 
       for row in range(column_height):
         self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
 
-      column_count = int(param.secondary_counts[self.update_interval][col + 1]) - secondary_min_bound
-      column_height = min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound))
+      column_count = int(param.secondary.values[interval][col]) - secondary_min_bound
+      column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound)))
 
       for row in range(column_height):
         self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
@@ -863,11 +854,11 @@ class GraphPanel(panel.Panel):
       # clears line
 
       self.addstr(labeling_line, 0, ' ' * width)
-      graph_column = min((width - 10) / 2, param.max_column)
+      graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
       runtime = time.time() - param.start_time
-      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.primary_total * 1024), _size_label(param.primary_total / runtime * 1024))
-      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.secondary_total * 1024), _size_label(param.secondary_total / runtime * 1024))
+      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.primary.total * 1024), _size_label(param.primary.total / runtime * 1024))
+      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.secondary.total * 1024), _size_label(param.secondary.total / runtime * 1024))
 
       self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
       self.addstr(labeling_line, graph_column + 6, secondary_footer, SECONDARY_COLOR)
