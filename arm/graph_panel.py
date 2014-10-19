@@ -68,7 +68,7 @@ CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
   'attr.graph.intervals': {},
   'features.graph.height': 7,
-  'features.graph.interval': 0,
+  'features.graph.interval': 'each second',
   'features.graph.bound': 1,
   'features.graph.max_width': 150,
   'features.graph.showIntermediateBounds': True,
@@ -458,8 +458,9 @@ class GraphPanel(panel.Panel):
     panel.Panel.__init__(self, stdscr, 'graph', 0)
     self.update_interval = CONFIG['features.graph.interval']
 
-    if self.update_interval < 0 or self.update_interval > len(CONFIG['attr.graph.intervals']) - 1:
-      self.update_interval = 0  # user configured it with a value that's out of bounds
+    if self.update_interval not in CONFIG['attr.graph.intervals']:
+      self.update_interval = 'each second'
+      log.warn("'%s' isn't a valid graphing interval, options are: %s" % (CONFIG['features.graph.interval'], ', '.join(CONFIG['attr.graph.intervals'])))
 
     self.bounds = list(Bounds)[CONFIG['features.graph.bound']]
     self.graph_height = CONFIG['features.graph.height']
@@ -495,7 +496,7 @@ class GraphPanel(panel.Panel):
         else:
           log.notice(msg('panel.graphing.prepopulation_all_successful'))
 
-        self.update_interval = 4
+        self.update_interval = '15 minute'
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
@@ -515,7 +516,7 @@ class GraphPanel(panel.Panel):
 
         arm.controller.get_controller().redraw()
 
-    update_rate = int(CONFIG['attr.graph.intervals'].values()[self.update_interval])
+    update_rate = int(CONFIG['attr.graph.intervals'][self.update_interval])
 
     if time.time() - self._last_redraw > update_rate:
       self.redraw(True)
@@ -658,10 +659,10 @@ class GraphPanel(panel.Panel):
       # provides menu to pick graph panel update interval
 
       options = CONFIG['attr.graph.intervals'].keys()
-      selection = arm.popups.show_menu('Update Interval:', options, self.update_interval)
+      selection = arm.popups.show_menu('Update Interval:', options, CONFIG['attr.graph.intervals'].keys().index(self.update_interval))
 
       if selection != -1:
-        self.update_interval = selection
+        self.update_interval = CONFIG['attr.graph.intervals'].keys()[selection]
     else:
       return False
 
@@ -672,7 +673,7 @@ class GraphPanel(panel.Panel):
       ('r', 'resize graph', None),
       ('s', 'graphed stats', self.current_display if self.current_display else 'none'),
       ('b', 'graph bounds', self.bounds.lower()),
-      ('i', 'graph update interval', CONFIG['attr.graph.intervals'].keys()[self.update_interval]),
+      ('i', 'graph update interval', self.update_interval),
     ]
 
   def draw(self, width, height):
@@ -701,25 +702,23 @@ class GraphPanel(panel.Panel):
 
     # determines max/min value on the graph
 
-    interval = CONFIG['attr.graph.intervals'].keys()[self.update_interval]
-
     if self.bounds == Bounds.GLOBAL_MAX:
-      primary_max_bound = param.primary.max_value[interval]
-      secondary_max_bound = param.secondary.max_value[interval]
+      primary_max_bound = param.primary.max_value[self.update_interval]
+      secondary_max_bound = param.secondary.max_value[self.update_interval]
     else:
       # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
       if graph_column < 2:
         # nothing being displayed
         primary_max_bound, secondary_max_bound = 0, 0
       else:
-        primary_max_bound = max(param.primary.values[interval][:graph_column])
-        secondary_max_bound = max(param.secondary.values[interval][:graph_column])
+        primary_max_bound = max(param.primary.values[self.update_interval][:graph_column])
+        secondary_max_bound = max(param.secondary.values[self.update_interval][:graph_column])
 
     primary_min_bound = secondary_min_bound = 0
 
     if self.bounds == Bounds.TIGHT:
-      primary_min_bound = min(param.primary.values[interval][:graph_column])
-      secondary_min_bound = min(param.secondary.values[interval][:graph_column])
+      primary_min_bound = min(param.primary.values[self.update_interval][:graph_column])
+      secondary_min_bound = min(param.secondary.values[self.update_interval][:graph_column])
 
       # if the max = min (ie, all values are the same) then use zero lower
       # bound so a graph is still displayed
@@ -764,13 +763,13 @@ class GraphPanel(panel.Panel):
     # creates bar graph (both primary and secondary)
 
     for col in range(graph_column):
-      column_count = int(param.primary.values[interval][col]) - primary_min_bound
+      column_count = int(param.primary.values[self.update_interval][col]) - primary_min_bound
       column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound)))
 
       for row in range(column_height):
         self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
 
-      column_count = int(param.secondary.values[interval][col]) - secondary_min_bound
+      column_count = int(param.secondary.values[self.update_interval][col]) - secondary_min_bound
       column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound)))
 
       for row in range(column_height):
@@ -778,7 +777,7 @@ class GraphPanel(panel.Panel):
 
     # bottom labeling of x-axis
 
-    interval_sec = int(CONFIG['attr.graph.intervals'].values()[self.update_interval])  # seconds per labeling
+    interval_sec = int(CONFIG['attr.graph.intervals'][self.update_interval])  # seconds per labeling
 
     interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
     units_label, decimal_precision = None, 0

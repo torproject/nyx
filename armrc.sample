@@ -153,8 +153,8 @@ features.config.descriptions.persist true
 # maxWidth
 #   maximum number of graphed entries
 # interval
-#   0 -> each second,   1 -> 5 seconds,     2 -> 30 seconds,  3 -> minutely,      
-#   4 -> 15 minutes,    5 -> half hour,     6 -> hourly,      7 -> daily
+#   each second,   5 seconds,     30 seconds,  minutely,      
+#   15 minute,     30 minute,     hourly,      daily
 # bound
 #   0 -> global maxima, 1 -> local maxima,  2 -> tight
 # type
@@ -164,7 +164,7 @@ features.config.descriptions.persist true
 
 features.graph.height 7
 features.graph.maxWidth 150
-features.graph.interval 0
+features.graph.interval each second
 features.graph.bound 1
 features.graph.type 1
 features.graph.showIntermediateBounds true
