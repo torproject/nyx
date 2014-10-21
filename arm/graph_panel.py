@@ -1,8 +1,8 @@
 """
 Flexible panel for presenting bar graphs for a variety of stats. This panel is
 just concerned with the rendering of information, which is actually collected
-and stored by implementations of the GraphStats interface. Panels are made up
-of a title, followed by headers and graphs for two sets of stats. For
+and stored by implementations of the GraphCategory interface. Panels are made
+up of a title, followed by headers and graphs for two sets of stats. For
 instance...
 
 Bandwidth (cap: 5 MB, burst: 10 MB):
@@ -62,7 +62,7 @@ def conf_handler(key, value):
     return max(0, min(2, value))
 
 
-# used for setting defaults when initializing GraphStats and GraphPanel instances
+# used for setting defaults when initializing GraphCategory and GraphPanel instances
 
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
@@ -128,18 +128,18 @@ class Stat(object):
         self._in_process_value[interval] = 0
 
 
-class GraphStats(object):
+class GraphCategory(object):
   """
-  Module that's expected to update dynamically and provide attributes to be
-  graphed. Up to two graphs (a 'primary' and 'secondary') can be displayed at a
-  time and timescale parameters use the labels defined in CONFIG['attr.graph.intervals'].
+  Category for the graph. This maintains two subgraphs, updating them each
+  second with updated stats.
+
+  :var str title: title of the graph
+  :var list title_stats: additional information to include in the graph title
+  :var Stat primary: first subgraph
+  :var Stat secondary: second subgraph
   """
 
   def __init__(self, clone = None):
-    """
-    Initializes parameters needed to present a graph.
-    """
-
     if clone:
       self.title = clone.title
       self.title_stats = list(clone.title_stats)
@@ -164,19 +164,19 @@ class GraphStats(object):
   def bandwidth_event(self, event):
     """
     Called when it's time to process another event. All graphs use tor BW
-    events to keep in sync with each other (this happens once a second).
+    events to keep in sync with each other (this happens once per second).
     """
 
     pass
 
 
-class BandwidthStats(GraphStats):
+class BandwidthStats(GraphCategory):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
 
   def __init__(self, clone = None):
-    GraphStats.__init__(self, clone)
+    GraphCategory.__init__(self, clone)
 
     if clone:
       self.start_time = clone.start_time
@@ -343,14 +343,14 @@ class BandwidthStats(GraphStats):
       self.title_stats = stats
 
 
-class ConnStats(GraphStats):
+class ConnStats(GraphCategory):
   """
   Tracks number of connections, counting client and directory connections as
   outbound. Control connections are excluded from counts.
   """
 
   def __init__(self, clone = None):
-    GraphStats.__init__(self, clone)
+    GraphCategory.__init__(self, clone)
 
     if not clone:
       self.title = 'Connection Count'
@@ -390,13 +390,13 @@ class ConnStats(GraphStats):
     return 'Outbound (%s, avg: %s):' % (self.secondary.latest_value, avg)
 
 
-class ResourceStats(GraphStats):
+class ResourceStats(GraphCategory):
   """
   System resource usage tracker.
   """
 
   def __init__(self, clone = None):
-    GraphStats.__init__(self)
+    GraphCategory.__init__(self)
 
     if clone:
       self._last_counter = clone._last_counter
@@ -434,7 +434,7 @@ class ResourceStats(GraphStats):
 
 class GraphPanel(panel.Panel):
   """
-  Panel displaying a graph, drawing statistics from custom GraphStats
+  Panel displaying a graph, drawing statistics from custom GraphCategory
   implementations.
   """
 
@@ -544,8 +544,8 @@ class GraphPanel(panel.Panel):
 
   def get_height(self):
     """
-    Provides the height requested by the currently displayed GraphStats (zero
-    if hidden).
+    Provides the height requested by the currently displayed GraphCategory
+    (zero if hidden).
     """
 
     if self.current_display:
