@@ -377,14 +377,10 @@ class ConnectionStats(GraphCategory):
 
 class ResourceStats(GraphCategory):
   """
-  System resource usage tracker.
+  Tracks cpu and memory usage of the tor process.
   """
 
   TITLE = 'System Resources'
-
-  def __init__(self, clone = None):
-    GraphCategory.__init__(self)
-    self._last_counter = clone._last_counter if clone else None
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -401,17 +397,9 @@ class ResourceStats(GraphCategory):
     return 'Memory (%s, avg: %s):' % (usage_label, avg_label)
 
   def bandwidth_event(self, event):
-    """
-    Fetch the cached measurement of resource usage from the ResourceTracker.
-    """
-
-    resource_tracker = arm.util.tracker.get_resource_tracker()
-
-    if resource_tracker and resource_tracker.run_counter() != self._last_counter:
-      resources = resource_tracker.get_value()
-      self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
-      self.secondary.update(resources.memory_bytes / 1048576)  # translate size to MB so axis labels are short
-      self._last_counter = resource_tracker.run_counter()
+    resources = arm.util.tracker.get_resource_tracker().get_value()
+    self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
+    self.secondary.update(resources.memory_bytes / 1048576)  # translate size to MB so axis labels are short
 
 
 class GraphPanel(panel.Panel):
