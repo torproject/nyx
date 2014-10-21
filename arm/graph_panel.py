@@ -143,14 +143,12 @@ class GraphStats(object):
     if clone:
       self.title = clone.title
       self.title_stats = list(clone.title_stats)
-      self.is_selected = clone.is_selected
 
       self.primary = Stat(clone.primary)
       self.secondary = Stat(clone.secondary)
     else:
       self.title = ''
       self.title_stats = []
-      self.is_selected = False
 
       self.primary = Stat()
       self.secondary = Stat()
@@ -836,14 +834,10 @@ class GraphPanel(panel.Panel):
     """
 
     if label != self.current_display:
-      if self.current_display:
-        self.stats[self.current_display].is_selected = False
-
       if not label:
         self.current_display = None
       elif label in self.stats.keys():
         self.current_display = label
-        self.stats[self.current_display].is_selected = True
       else:
         raise ValueError('Unrecognized stats label: %s' % label)
 
