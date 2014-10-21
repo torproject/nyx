@@ -133,25 +133,22 @@ class GraphCategory(object):
   Category for the graph. This maintains two subgraphs, updating them each
   second with updated stats.
 
-  :var str title: title of the graph
-  :var list title_stats: additional information to include in the graph title
   :var Stat primary: first subgraph
   :var Stat secondary: second subgraph
+  :var list title_stats: additional information to include in the graph title
   """
+
+  TITLE = ''
 
   def __init__(self, clone = None):
     if clone:
-      self.title = clone.title
-      self.title_stats = list(clone.title_stats)
-
       self.primary = Stat(clone.primary)
       self.secondary = Stat(clone.secondary)
+      self.title_stats = list(clone.title_stats)
     else:
-      self.title = ''
-      self.title_stats = []
-
       self.primary = Stat()
       self.secondary = Stat()
+      self.title_stats = []
 
       tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
@@ -175,14 +172,14 @@ class BandwidthStats(GraphCategory):
   Uses tor BW events to generate bandwidth usage graph.
   """
 
+  TITLE = 'Bandwidth'
+
   def __init__(self, clone = None):
     GraphCategory.__init__(self, clone)
 
     if clone:
       self.start_time = clone.start_time
     else:
-      self.title = 'Bandwidth'
-
       # listens for tor reload (sighup) events which can reset the bandwidth
       # rate/burst
 
@@ -349,11 +346,7 @@ class ConnStats(GraphCategory):
   outbound. Control connections are excluded from counts.
   """
 
-  def __init__(self, clone = None):
-    GraphCategory.__init__(self, clone)
-
-    if not clone:
-      self.title = 'Connection Count'
+  TITLE = 'Connection Count'
 
   def bandwidth_event(self, event):
     """
@@ -395,14 +388,11 @@ class ResourceStats(GraphCategory):
   System resource usage tracker.
   """
 
+  TITLE = 'System Resources'
+
   def __init__(self, clone = None):
     GraphCategory.__init__(self)
-
-    if clone:
-      self._last_counter = clone._last_counter
-    else:
-      self.title = 'System Resources'
-      self._last_counter = None
+    self._last_counter = clone._last_counter if clone else None
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -670,8 +660,8 @@ class GraphPanel(panel.Panel):
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
     if self.is_title_visible():
-      title_stats = str_tools.join(param.title_stats, ', ', width - len(param.title) - 4)
-      title = '%s (%s):' % (param.title, title_stats) if title_stats else '%s:' % param.title
+      title_stats = str_tools.join(param.title_stats, ', ', width - len(param.TITLE) - 4)
+      title = '%s (%s):' % (param.TITLE, title_stats) if title_stats else '%s:' % param.TITLE
       self.addstr(0, 0, title, curses.A_STANDOUT)
 
     # top labels
