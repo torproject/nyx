@@ -340,39 +340,12 @@ class BandwidthStats(GraphCategory):
       self.title_stats = stats
 
 
-class ConnStats(GraphCategory):
+class ConnectionStats(GraphCategory):
   """
-  Tracks number of connections, counting client and directory connections as
-  outbound. Control connections are excluded from counts.
+  Tracks number of inbound and outbound connections.
   """
 
   TITLE = 'Connection Count'
-
-  def bandwidth_event(self, event):
-    """
-    Fetches connection stats from cached information.
-    """
-
-    inbound_count, outbound_count = 0, 0
-
-    controller = tor_controller()
-
-    or_ports = controller.get_ports(Listener.OR)
-    dir_ports = controller.get_ports(Listener.DIR)
-    control_ports = controller.get_ports(Listener.CONTROL)
-
-    for entry in arm.util.tracker.get_connection_tracker().get_value():
-      local_port = entry.local_port
-
-      if local_port in or_ports or local_port in dir_ports:
-        inbound_count += 1
-      elif local_port in control_ports:
-        pass  # control connection
-      else:
-        outbound_count += 1
-
-    self.primary.update(inbound_count)
-    self.secondary.update(outbound_count)
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -381,6 +354,25 @@ class ConnStats(GraphCategory):
   def secondary_header(self, width):
     avg = self.secondary.total / max(1, self.secondary.tick)
     return 'Outbound (%s, avg: %s):' % (self.secondary.latest_value, avg)
+
+  def bandwidth_event(self, event):
+    inbound_count, outbound_count = 0, 0
+
+    controller = tor_controller()
+    or_ports = controller.get_ports(Listener.OR, [])
+    dir_ports = controller.get_ports(Listener.DIR, [])
+    control_ports = controller.get_ports(Listener.CONTROL, [])
+
+    for entry in arm.util.tracker.get_connection_tracker().get_value():
+      if entry.local_port in or_ports or entry.local_port in dir_ports:
+        inbound_count += 1
+      elif entry.local_port in control_ports:
+        pass  # control connection
+      else:
+        outbound_count += 1
+
+    self.primary.update(inbound_count)
+    self.secondary.update(outbound_count)
 
 
 class ResourceStats(GraphCategory):
@@ -448,7 +440,7 @@ class GraphPanel(panel.Panel):
     }
 
     if CONFIG['features.panels.show.connection']:
-      self.stats[GraphStat.CONNECTIONS] = ConnStats()
+      self.stats[GraphStat.CONNECTIONS] = ConnectionStats()
 
     self.set_pause_attr('stats')
     self.set_pause_attr('_accounting_stats')
