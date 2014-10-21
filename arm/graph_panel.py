@@ -144,7 +144,6 @@ class GraphStats(object):
       self.title = clone.title
       self.title_stats = list(clone.title_stats)
       self.is_selected = clone.is_selected
-      self.is_pause_buffer = True
 
       self.primary = Stat(clone.primary)
       self.secondary = Stat(clone.secondary)
@@ -152,20 +151,11 @@ class GraphStats(object):
       self.title = ''
       self.title_stats = []
       self.is_selected = False
-      self.is_pause_buffer = False
 
       self.primary = Stat()
       self.secondary = Stat()
 
       tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
-
-  def event_tick(self):
-    """
-    Called when it's time to process another event. All graphs use tor BW
-    events to keep in sync with each other (this happens once a second).
-    """
-
-    pass
 
   def primary_header(self, width):
     return ''
@@ -174,8 +164,12 @@ class GraphStats(object):
     return ''
 
   def bandwidth_event(self, event):
-    if not self.is_pause_buffer:
-      self.event_tick()
+    """
+    Called when it's time to process another event. All graphs use tor BW
+    events to keep in sync with each other (this happens once a second).
+    """
+
+    pass
 
   def _process_event(self, primary, secondary):
     """
@@ -370,7 +364,7 @@ class ConnStats(GraphStats):
     if not clone:
       self.title = 'Connection Count'
 
-  def event_tick(self):
+  def bandwidth_event(self, event):
     """
     Fetches connection stats from cached information.
     """
@@ -432,7 +426,7 @@ class ResourceStats(GraphStats):
 
     return 'Memory (%s, avg: %s):' % (usage_label, avg_label)
 
-  def event_tick(self):
+  def bandwidth_event(self, event):
     """
     Fetch the cached measurement of resource usage from the ResourceTracker.
     """
