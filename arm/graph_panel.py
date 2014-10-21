@@ -171,14 +171,6 @@ class GraphStats(object):
 
     pass
 
-  def _process_event(self, primary, secondary):
-    """
-    Includes new stats in graphs and notifies associated GraphPanel of changes.
-    """
-
-    self.primary.update(primary)
-    self.secondary.update(secondary)
-
 
 class BandwidthStats(GraphStats):
   """
@@ -274,7 +266,8 @@ class BandwidthStats(GraphStats):
   def bandwidth_event(self, event):
     # scales units from B to KB for graphing
 
-    self._process_event(event.read / 1024.0, event.written / 1024.0)
+    self.primary.update(event.read / 1024.0)
+    self.secondary.update(event.written / 1024.0)
 
   def primary_header(self, width):
     stats = ['%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024))]
@@ -387,7 +380,8 @@ class ConnStats(GraphStats):
       else:
         outbound_count += 1
 
-    self._process_event(inbound_count, outbound_count)
+    self.primary.update(inbound_count)
+    self.secondary.update(outbound_count)
 
   def primary_header(self, width):
     avg = self.primary.total / max(1, self.primary.tick)
@@ -435,11 +429,9 @@ class ResourceStats(GraphStats):
 
     if resource_tracker and resource_tracker.run_counter() != self._last_counter:
       resources = resource_tracker.get_value()
-      primary = resources.cpu_sample * 100  # decimal percentage to whole numbers
-      secondary = resources.memory_bytes / 1048576  # translate size to MB so axis labels are short
-
+      self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
+      self.secondary.update(resources.memory_bytes / 1048576)  # translate size to MB so axis labels are short
       self._last_counter = resource_tracker.run_counter()
-      self._process_event(primary, secondary)
 
 
 class GraphPanel(panel.Panel):
