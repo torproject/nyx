@@ -31,7 +31,7 @@ from arm.util import bandwidth_from_state, msg, panel, tor_controller
 from stem.control import Listener
 from stem.util import conf, enum, log, str_tools, system
 
-GraphStat = enum.Enum('BANDWIDTH', 'CONNECTIONS', 'SYSTEM_RESOURCES')
+GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 
 # maps 'features.graph.type' config values to the initial types
 
@@ -67,6 +67,9 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
   'attr.graph.intervals': {},
+  'attr.graph.title': {},
+  'attr.graph.header.primary': {},
+  'attr.graph.header.secondary': {},
   'features.graph.height': 7,
   'features.graph.interval': 'each second',
   'features.graph.bound': 1,
@@ -142,10 +145,6 @@ class GraphCategory(object):
   :var list secondary_header_stats: additional information for the secondary header
   """
 
-  TITLE = ''
-  PRIMARY_HEADER = ''
-  SECONDARY_HEADER = ''
-
   def __init__(self, clone = None):
     if clone:
       self.primary = Stat(clone.primary)
@@ -175,10 +174,6 @@ class BandwidthStats(GraphCategory):
   """
   Uses tor BW events to generate bandwidth usage graph.
   """
-
-  TITLE = 'Bandwidth'
-  PRIMARY_HEADER = 'Download'
-  SECONDARY_HEADER = 'Upload'
 
   def __init__(self, clone = None):
     GraphCategory.__init__(self, clone)
@@ -309,10 +304,6 @@ class ConnectionStats(GraphCategory):
   Tracks number of inbound and outbound connections.
   """
 
-  TITLE = 'Connection Count'
-  PRIMARY_HEADER = 'Inbound'
-  SECONDARY_HEADER = 'Outbound'
-
   def bandwidth_event(self, event):
     inbound_count, outbound_count = 0, 0
 
@@ -343,10 +334,6 @@ class ResourceStats(GraphCategory):
   """
   Tracks cpu and memory usage of the tor process.
   """
-
-  TITLE = 'System Resources'
-  PRIMARY_HEADER = 'CPU'
-  SECONDARY_HEADER = 'Memory'
 
   def bandwidth_event(self, event):
     resources = arm.util.tracker.get_resource_tracker().get_value()
@@ -602,23 +589,22 @@ class GraphPanel(panel.Panel):
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
     if self.is_title_visible():
-      title_stats = str_tools.join(param.title_stats, ', ', width - len(param.TITLE) - 4)
-      title = '%s (%s):' % (param.TITLE, title_stats) if title_stats else '%s:' % param.TITLE
+      title = CONFIG['attr.graph.title'].get(self.current_display, '')
+      title_stats = str_tools.join(param.title_stats, ', ', width - len(title) - 4)
+      title = '%s (%s):' % (title, title_stats) if title_stats else '%s:' % title
       self.addstr(0, 0, title, curses.A_STANDOUT)
 
     # top labels
 
-    primary_header_stats = str_tools.join(param.primary_header_stats, '', (width / 2) - len(param.PRIMARY_HEADER) - 4)
-    left = '%s (%s):' % (param.PRIMARY_HEADER, primary_header_stats) if primary_header_stats else '%s:' % param.PRIMARY_HEADER
+    primary_header = CONFIG['attr.graph.header.primary'].get(self.current_display, '')
+    primary_header_stats = str_tools.join(param.primary_header_stats, '', (width / 2) - len(primary_header) - 4)
+    left = '%s (%s):' % (primary_header, primary_header_stats) if primary_header_stats else '%s:' % primary_header
+    self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
 
-    secondary_header_stats = str_tools.join(param.secondary_header_stats, '', (width / 2) - len(param.SECONDARY_HEADER) - 4)
-    right = '%s (%s):' % (param.SECONDARY_HEADER, secondary_header_stats) if secondary_header_stats else '%s:' % param.SECONDARY_HEADER
-
-    if left:
-      self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
-
-    if right:
-      self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
+    secondary_header = CONFIG['attr.graph.header.secondary'].get(self.current_display, '')
+    secondary_header_stats = str_tools.join(param.secondary_header_stats, '', (width / 2) - len(secondary_header) - 4)
+    right = '%s (%s):' % (secondary_header, secondary_header_stats) if secondary_header_stats else '%s:' % secondary_header
+    self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
 
     # determines max/min value on the graph
 
