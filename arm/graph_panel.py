@@ -136,27 +136,29 @@ class GraphCategory(object):
   :var Stat primary: first subgraph
   :var Stat secondary: second subgraph
   :var list title_stats: additional information to include in the graph title
+  :var list primary_header_stats: additional information for the primary header
+  :var list secondary_header_stats: additional information for the secondary header
   """
 
   TITLE = ''
+  PRIMARY_HEADER = ''
+  SECONDARY_HEADER = ''
 
   def __init__(self, clone = None):
     if clone:
       self.primary = Stat(clone.primary)
       self.secondary = Stat(clone.secondary)
       self.title_stats = list(clone.title_stats)
+      self.primary_header_stats = list(clone.primary_header_stats)
+      self.secondary_header_stats = list(clone.secondary_header_stats)
     else:
       self.primary = Stat()
       self.secondary = Stat()
       self.title_stats = []
+      self.primary_header_stats = []
+      self.secondary_header_stats = []
 
       tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
-
-  def primary_header(self, width):
-    return ''
-
-  def secondary_header(self, width):
-    return ''
 
   def bandwidth_event(self, event):
     """
@@ -173,6 +175,8 @@ class BandwidthStats(GraphCategory):
   """
 
   TITLE = 'Bandwidth'
+  PRIMARY_HEADER = 'Download'
+  SECONDARY_HEADER = 'Upload'
 
   def __init__(self, clone = None):
     GraphCategory.__init__(self, clone)
@@ -264,39 +268,17 @@ class BandwidthStats(GraphCategory):
     self.primary.update(event.read / 1024.0)
     self.secondary.update(event.written / 1024.0)
 
-  def primary_header(self, width):
-    stats = ['%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024))]
+    self.primary_header_stats = [
+      '%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024)),
+      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.start_time) * 1024),
+      ', total: %s' % _size_label(self.primary.total * 1024),
+    ]
 
-    # if wide then avg and total are part of the header, otherwise they're on
-    # the x-axis
-
-    if width * 2 > COLLAPSE_WIDTH:
-      stats.append('- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.start_time) * 1024))
-      stats.append(', total: %s' % _size_label(self.primary.total * 1024))
-
-    stats_label = str_tools.join(stats, '', width - 12)
-
-    if stats_label:
-      return 'Download (%s):' % stats_label
-    else:
-      return 'Download:'
-
-  def secondary_header(self, width):
-    stats = ['%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value * 1024))]
-
-    # if wide then avg and total are part of the header, otherwise they're on
-    # the x-axis
-
-    if width * 2 > COLLAPSE_WIDTH:
-      stats.append('- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.start_time) * 1024))
-      stats.append(', total: %s' % _size_label(self.secondary.total * 1024))
-
-    stats_label = str_tools.join(stats, '', width - 10)
-
-    if stats_label:
-      return 'Upload (%s):' % stats_label
-    else:
-      return 'Upload:'
+    self.secondary_header_stats = [
+      '%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value * 1024)),
+      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.start_time) * 1024),
+      ', total: %s' % _size_label(self.secondary.total * 1024),
+    ]
 
   def new_desc_event(self, event):
     controller = tor_controller()
@@ -346,14 +328,8 @@ class ConnectionStats(GraphCategory):
   """
 
   TITLE = 'Connection Count'
-
-  def primary_header(self, width):
-    avg = self.primary.total / max(1, self.primary.tick)
-    return 'Inbound (%s, avg: %s):' % (self.primary.latest_value, avg)
-
-  def secondary_header(self, width):
-    avg = self.secondary.total / max(1, self.secondary.tick)
-    return 'Outbound (%s, avg: %s):' % (self.secondary.latest_value, avg)
+  PRIMARY_HEADER = 'Inbound'
+  SECONDARY_HEADER = 'Outbound'
 
   def bandwidth_event(self, event):
     inbound_count, outbound_count = 0, 0
@@ -374,6 +350,12 @@ class ConnectionStats(GraphCategory):
     self.primary.update(inbound_count)
     self.secondary.update(outbound_count)
 
+    avg = self.primary.total / max(1, self.primary.tick)
+    self.primary_header_stats = [str(self.primary.latest_value), ', avg: %s' % avg]
+
+    avg = self.secondary.total / max(1, self.secondary.tick)
+    self.secondary_header_stats = [str(self.secondary.latest_value), ', avg: %s' % avg]
+
 
 class ResourceStats(GraphCategory):
   """
@@ -381,25 +363,23 @@ class ResourceStats(GraphCategory):
   """
 
   TITLE = 'System Resources'
-
-  def primary_header(self, width):
-    avg = self.primary.total / max(1, self.primary.tick)
-    return 'CPU (%0.1f%%, avg: %0.1f%%):' % (self.primary.latest_value, avg)
-
-  def secondary_header(self, width):
-    # memory sizes are converted from MB to B before generating labels
-
-    usage_label = str_tools.size_label(self.secondary.latest_value * 1048576, 1)
-
-    avg = self.secondary.total / max(1, self.secondary.tick)
-    avg_label = str_tools.size_label(avg * 1048576, 1)
-
-    return 'Memory (%s, avg: %s):' % (usage_label, avg_label)
+  PRIMARY_HEADER = 'CPU'
+  SECONDARY_HEADER = 'Memory'
 
   def bandwidth_event(self, event):
     resources = arm.util.tracker.get_resource_tracker().get_value()
     self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
     self.secondary.update(resources.memory_bytes / 1048576)  # translate size to MB so axis labels are short
+
+    avg = self.primary.total / max(1, self.primary.tick)
+    self.primary_header_stats = ['%0.1f%%' % self.primary.latest_value, ', avg: %0.1f%%' % avg]
+
+    # memory sizes are converted from MB to B before generating labels
+
+    usage_label = str_tools.size_label(self.secondary.latest_value * 1048576, 1)
+
+    avg = self.secondary.total / max(1, self.secondary.tick)
+    self.secondary_header_stats = [usage_label, ', avg: %s' % str_tools.size_label(avg * 1048576, 1)]
 
 
 class GraphPanel(panel.Panel):
@@ -646,7 +626,11 @@ class GraphPanel(panel.Panel):
 
     # top labels
 
-    left, right = param.primary_header(width / 2), param.secondary_header(width / 2)
+    primary_header_stats = str_tools.join(param.primary_header_stats, '', (width / 2) - len(param.PRIMARY_HEADER) - 4)
+    left = '%s (%s):' % (param.PRIMARY_HEADER, primary_header_stats) if primary_header_stats else '%s:' % param.PRIMARY_HEADER
+
+    secondary_header_stats = str_tools.join(param.secondary_header_stats, '', (width / 2) - len(param.SECONDARY_HEADER) - 4)
+    right = '%s (%s):' % (param.SECONDARY_HEADER, secondary_header_stats) if secondary_header_stats else '%s:' % param.SECONDARY_HEADER
 
     if left:
       self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
