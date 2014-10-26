@@ -33,10 +33,6 @@ from stem.util import conf, enum, log, str_tools, system
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 
-# maps 'features.graph.type' config values to the initial types
-
-GRAPH_INIT_STATS = {1: GraphStat.BANDWIDTH, 2: GraphStat.CONNECTIONS, 3: GraphStat.SYSTEM_RESOURCES}
-
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
 MIN_GRAPH_HEIGHT = 1
@@ -75,7 +71,7 @@ CONFIG = conf.config_dict('arm', {
   'features.graph.bound': 1,
   'features.graph.max_width': 150,
   'features.graph.showIntermediateBounds': True,
-  'features.graph.type': 1,
+  'features.graph.type': 'bandwidth',
   'features.panels.show.connection': True,
   'features.graph.bw.prepopulate': True,
   'features.graph.bw.transferInBytes': False,
@@ -382,11 +378,12 @@ class GraphPanel(panel.Panel):
     self.set_pause_attr('stats')
     self.set_pause_attr('_accounting_stats')
 
-    try:
-      initial_stats = GRAPH_INIT_STATS.get(CONFIG['features.graph.type'])
-      self.set_stats(initial_stats)
-    except ValueError:
-      pass  # invalid stats, maybe connections when lookups are disabled
+    if CONFIG['features.graph.type'] == 'none':
+      self.set_stats(None)
+    elif CONFIG['features.graph.type'] in GraphStat:
+      self.set_stats(CONFIG['features.graph.type'])
+    else:
+      log.warn("'%s' isn't a graph type." % CONFIG['features.graph.type'])
 
     # prepopulates bandwidth values from state file
 
