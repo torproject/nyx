@@ -28,7 +28,7 @@ import stem.control
 
 from arm.util import bandwidth_from_state, msg, panel, tor_controller
 
-from stem.control import Listener, State
+from stem.control import Listener
 from stem.util import conf, enum, log, str_tools, system
 
 GraphStat = enum.Enum('BANDWIDTH', 'CONNECTIONS', 'SYSTEM_RESOURCES')
@@ -189,11 +189,6 @@ class BandwidthStats(GraphCategory):
 
       controller = tor_controller()
 
-      self.reset_listener(controller, State.INIT, None)  # initializes values
-
-      controller.add_status_listener(self.reset_listener)
-      self.new_desc_event(None)  # updates title params
-
       # We both show our 'total' attributes and use it to determine our average.
       #
       # If we can get *both* our start time and the totals from tor (via 'GETINFO
@@ -210,9 +205,6 @@ class BandwidthStats(GraphCategory):
         self.start_time = start_time
       else:
         self.start_time = time.time()
-
-  def reset_listener(self, controller, event_type, _):
-    self.new_desc_event(None)  # updates title params
 
   def prepopulate_from_state(self):
     """
@@ -280,46 +272,38 @@ class BandwidthStats(GraphCategory):
       ', total: %s' % _size_label(self.secondary.total * 1024),
     ]
 
-  def new_desc_event(self, event):
+    stats = []
     controller = tor_controller()
 
-    if not controller.is_alive():
-      return  # keep old values
+    bw_rate = controller.get_effective_rate(None)
+    bw_burst = controller.get_effective_rate(None, burst = True)
 
-    my_fingerprint = controller.get_info('fingerprint', None)
+    if bw_rate and bw_burst:
+      bw_rate_label = _size_label(bw_rate)
+      bw_burst_label = _size_label(bw_burst)
 
-    if not event or (my_fingerprint and my_fingerprint in [fp for fp, _ in event.relays]):
-      stats = []
+      # if both are using rounded values then strip off the '.0' decimal
 
-      bw_rate = controller.get_effective_rate(None)
-      bw_burst = controller.get_effective_rate(None, burst = True)
+      if '.0' in bw_rate_label and '.0' in bw_burst_label:
+        bw_rate_label = bw_rate_label.split('.', 1)[0]
+        bw_burst_label = bw_burst_label.split('.', 1)[0]
 
-      if bw_rate and bw_burst:
-        bw_rate_label = _size_label(bw_rate)
-        bw_burst_label = _size_label(bw_burst)
+      stats.append('limit: %s/s' % bw_rate_label)
+      stats.append('burst: %s/s' % bw_burst_label)
 
-        # if both are using rounded values then strip off the '.0' decimal
+    my_router_status_entry = controller.get_network_status(default = None)
+    measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
 
-        if '.0' in bw_rate_label and '.0' in bw_burst_label:
-          bw_rate_label = bw_rate_label.split('.', 1)[0]
-          bw_burst_label = bw_burst_label.split('.', 1)[0]
+    if measured_bw:
+      stats.append('measured: %s/s' % _size_label(measured_bw))
+    else:
+      my_server_descriptor = controller.get_server_descriptor(default = None)
+      observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
 
-        stats.append('limit: %s/s' % bw_rate_label)
-        stats.append('burst: %s/s' % bw_burst_label)
+      if observed_bw:
+        stats.append('observed: %s/s' % _size_label(observed_bw))
 
-      my_router_status_entry = controller.get_network_status(default = None)
-      measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
-
-      if measured_bw:
-        stats.append('measured: %s/s' % _size_label(measured_bw))
-      else:
-        my_server_descriptor = controller.get_server_descriptor(default = None)
-        observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
-
-        if observed_bw:
-          stats.append('observed: %s/s' % _size_label(observed_bw))
-
-      self.title_stats = stats
+    self.title_stats = stats
 
 
 class ConnectionStats(GraphCategory):
