@@ -101,6 +101,7 @@ class Stat(object):
       self.latest_value = clone.latest_value
       self.total = clone.total
       self.tick = clone.tick
+      self.start_time = clone.start_time
       self.values = copy.deepcopy(clone.values)
       self.max_value = dict(clone.max_value)
       self._in_process_value = dict(clone._in_process_value)
@@ -108,6 +109,7 @@ class Stat(object):
       self.latest_value = 0
       self.total = 0
       self.tick = 0
+      self.start_time = time.time()
       self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in CONFIG['attr.graph.intervals']])
       self.max_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
       self._in_process_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
@@ -181,9 +183,7 @@ class BandwidthStats(GraphCategory):
   def __init__(self, clone = None):
     GraphCategory.__init__(self, clone)
 
-    if clone:
-      self.start_time = clone.start_time
-    else:
+    if not clone:
       # listens for tor reload (sighup) events which can reset the bandwidth
       # rate/burst
 
@@ -202,9 +202,7 @@ class BandwidthStats(GraphCategory):
       if read_total and write_total and start_time:
         self.primary.total = int(read_total) / 1024  # Bytes -> KB
         self.secondary.total = int(write_total) / 1024  # Bytes -> KB
-        self.start_time = start_time
-      else:
-        self.start_time = time.time()
+        self.primary.start_time = self.secondary.start_time = start_time
 
   def prepopulate_from_state(self):
     """
@@ -262,13 +260,13 @@ class BandwidthStats(GraphCategory):
 
     self.primary_header_stats = [
       '%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024)),
-      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.start_time) * 1024),
+      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.primary.start_time) * 1024),
       ', total: %s' % _size_label(self.primary.total * 1024),
     ]
 
     self.secondary_header_stats = [
       '%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value * 1024)),
-      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.start_time) * 1024),
+      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.secondary.start_time) * 1024),
       ', total: %s' % _size_label(self.secondary.total * 1024),
     ]
 
