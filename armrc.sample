@@ -156,7 +156,9 @@ features.config.descriptions.persist true
 #   each second,   5 seconds,     30 seconds,  minutely,      
 #   15 minute,     30 minute,     hourly,      daily
 # bound
-#   0 -> global maxima, 1 -> local maxima,  2 -> tight
+#   global_max - global maximum (highest value ever seen)
+#   local_max - local maximum (highest value currently on the graph)
+#   tight - local maximum and minimum
 # type
 #   none, bandwidth, connections, resources
 # showIntermediateBounds
@@ -165,7 +167,7 @@ features.config.descriptions.persist true
 features.graph.height 7
 features.graph.maxWidth 150
 features.graph.interval each second
-features.graph.bound 1
+features.graph.bound local_max
 features.graph.type bandwidth
 features.graph.showIntermediateBounds true
 

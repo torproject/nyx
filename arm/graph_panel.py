@@ -1,11 +1,6 @@
 """
-Flexible panel for presenting bar graphs for a variety of stats. This panel is
-just concerned with the rendering of information, which is actually collected
-and stored by implementations of the GraphCategory interface. Panels are made
-up of a title, followed by headers and graphs for two sets of stats. For
-instance...
+Graphs of tor related statistics. For example...
 
-Bandwidth (cap: 5 MB, burst: 10 MB):
 Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
   34                                30
                             *                                 *
@@ -32,33 +27,22 @@ from stem.control import Listener
 from stem.util import conf, enum, log, str_tools, system
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
+Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
 
-DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
-MIN_GRAPH_HEIGHT = 1
-
-# enums for graph bounds:
-#   Bounds.GLOBAL_MAX - global maximum (highest value ever seen)
-#   Bounds.LOCAL_MAX - local maximum (highest value currently on the graph)
-#   Bounds.TIGHT - local maximum and minimum
-
-Bounds = enum.Enum('GLOBAL_MAX', 'LOCAL_MAX', 'TIGHT')
-
-WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
 
 ACCOUNTING_RATE = 5
+DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
+WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
+COLLAPSE_WIDTH = 135  # width at which to move optional stats from the title to x-axis label
 
 
 def conf_handler(key, value):
   if key == 'features.graph.height':
-    return max(MIN_GRAPH_HEIGHT, value)
+    return max(1, value)
   elif key == 'features.graph.max_width':
     return max(1, value)
-  elif key == 'features.graph.bound':
-    return max(0, min(2, value))
 
-
-# used for setting defaults when initializing GraphCategory and GraphPanel instances
 
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
@@ -68,7 +52,7 @@ CONFIG = conf.config_dict('arm', {
   'attr.graph.header.secondary': {},
   'features.graph.height': 7,
   'features.graph.interval': 'each second',
-  'features.graph.bound': 1,
+  'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 150,
   'features.graph.showIntermediateBounds': True,
   'features.graph.type': 'bandwidth',
@@ -78,11 +62,6 @@ CONFIG = conf.config_dict('arm', {
   'features.graph.bw.accounting.show': True,
   'tor.chroot': '',
 }, conf_handler)
-
-# width at which panel abandons placing optional stats (avg and total) with
-# header in favor of replacing the x-axis label
-
-COLLAPSE_WIDTH = 135
 
 
 class Stat(object):
@@ -310,7 +289,12 @@ class GraphPanel(panel.Panel):
       self.update_interval = 'each second'
       log.warn("'%s' isn't a valid graphing interval, options are: %s" % (CONFIG['features.graph.interval'], ', '.join(CONFIG['attr.graph.intervals'])))
 
-    self.bounds = list(Bounds)[CONFIG['features.graph.bound']]
+    if CONFIG['features.graph.bound'] in Bounds:
+      self.bounds = CONFIG['features.graph.bound']
+    else:
+      log.warn("'%s' isn't a valid type of graph bound." % CONFIG['features.graph.bound'])
+      self.bounds = Bounds.LOCAL_MAX
+
     self.graph_height = CONFIG['features.graph.height']
     self.current_display = None    # label of the stats currently being displayed
     self._accounting_stats = None
@@ -425,14 +409,13 @@ class GraphPanel(panel.Panel):
 
   def set_graph_height(self, new_graph_height):
     """
-    Sets the preferred height used for the graph (restricted to the
-    MIN_GRAPH_HEIGHT minimum).
+    Sets the preferred height used for the graph.
 
     Arguments:
       new_graph_height - new height for the graph
     """
 
-    self.graph_height = max(MIN_GRAPH_HEIGHT, new_graph_height)
+    self.graph_height = max(1, new_graph_height)
 
   def resize_graph(self):
     """
