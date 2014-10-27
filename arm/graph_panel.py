@@ -136,6 +136,19 @@ class GraphCategory(object):
 
       tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
 
+  def y_axis_label(self, value, is_primary):
+    """
+    Provides the label we should display on our y-axis.
+
+    :param int value: value being shown on the y-axis
+    :param bool is_primary: True if this is the primary attribute, False if
+      it's the secondary
+
+    :returns: **str** with our y-axis label
+    """
+
+    return ''
+
   def bandwidth_event(self, event):
     """
     Called when it's time to process another event. All graphs use tor BW
@@ -167,26 +180,29 @@ class BandwidthStats(GraphCategory):
       start_time = system.start_time(controller.get_pid(None))
 
       if read_total and write_total and start_time:
-        self.primary.total = int(read_total) / 1024  # Bytes -> KB
-        self.secondary.total = int(write_total) / 1024  # Bytes -> KB
+        self.primary.total = int(read_total)
+        self.secondary.total = int(write_total)
         self.primary.start_time = self.secondary.start_time = start_time
+
+  def y_axis_label(self, value, is_primary):
+    return str_tools.size_label(value, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
 
   def bandwidth_event(self, event):
     # scales units from B to KB for graphing
 
-    self.primary.update(event.read / 1024.0)
-    self.secondary.update(event.written / 1024.0)
+    self.primary.update(event.read)
+    self.secondary.update(event.written)
 
     self.primary_header_stats = [
-      '%-14s' % ('%s/sec' % _size_label(self.primary.latest_value * 1024)),
-      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.primary.start_time) * 1024),
-      ', total: %s' % _size_label(self.primary.total * 1024),
+      '%-14s' % ('%s/sec' % _size_label(self.primary.latest_value)),
+      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.primary.start_time)),
+      ', total: %s' % _size_label(self.primary.total),
     ]
 
     self.secondary_header_stats = [
-      '%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value * 1024)),
-      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.secondary.start_time) * 1024),
-      ', total: %s' % _size_label(self.secondary.total * 1024),
+      '%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value)),
+      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.secondary.start_time)),
+      ', total: %s' % _size_label(self.secondary.total),
     ]
 
     stats = []
@@ -228,6 +244,9 @@ class ConnectionStats(GraphCategory):
   Tracks number of inbound and outbound connections.
   """
 
+  def y_axis_label(self, value, is_primary):
+    return str(value)
+
   def bandwidth_event(self, event):
     inbound_count, outbound_count = 0, 0
 
@@ -259,20 +278,19 @@ class ResourceStats(GraphCategory):
   Tracks cpu and memory usage of the tor process.
   """
 
+  def y_axis_label(self, value, is_primary):
+    return "%i%%" % value if is_primary else str_tools.size_label(value)
+
   def bandwidth_event(self, event):
     resources = arm.util.tracker.get_resource_tracker().get_value()
     self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
-    self.secondary.update(resources.memory_bytes / 1048576)  # translate size to MB so axis labels are short
+    self.secondary.update(resources.memory_bytes)
 
     avg = self.primary.total / max(1, self.primary.tick)
     self.primary_header_stats = ['%0.1f%%' % self.primary.latest_value, ', avg: %0.1f%%' % avg]
 
-    # memory sizes are converted from MB to B before generating labels
-
-    usage_label = str_tools.size_label(self.secondary.latest_value * 1048576, 1)
-
     avg = self.secondary.total / max(1, self.secondary.tick)
-    self.secondary_header_stats = [usage_label, ', avg: %s' % str_tools.size_label(avg * 1048576, 1)]
+    self.secondary_header_stats = [str_tools.size_label(self.secondary.latest_value, 1), ', avg: %s' % str_tools.size_label(avg, 1)]
 
 
 class GraphPanel(panel.Panel):
@@ -283,19 +301,20 @@ class GraphPanel(panel.Panel):
 
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'graph', 0)
-    self.update_interval = CONFIG['features.graph.interval']
 
-    if self.update_interval not in CONFIG['attr.graph.intervals']:
+    if CONFIG['features.graph.interval'] in CONFIG['attr.graph.intervals']:
+      self.update_interval = CONFIG['features.graph.interval']
+    else:
       self.update_interval = 'each second'
       log.warn("'%s' isn't a valid graphing interval, options are: %s" % (CONFIG['features.graph.interval'], ', '.join(CONFIG['attr.graph.intervals'])))
 
     if CONFIG['features.graph.bound'] in Bounds:
       self.bounds = CONFIG['features.graph.bound']
     else:
-      log.warn("'%s' isn't a valid type of graph bound." % CONFIG['features.graph.bound'])
       self.bounds = Bounds.LOCAL_MAX
+      log.warn("'%s' isn't a valid graph bounds, options are: %s" % (CONFIG['features.graph.bound'], ', '.join(Bounds)))
 
-    self.graph_height = CONFIG['features.graph.height']
+    self.graph_height = max(1, CONFIG['features.graph.height'])
     self.current_display = None    # label of the stats currently being displayed
     self._accounting_stats = None
     self._last_redraw = 0
@@ -320,7 +339,9 @@ class GraphPanel(panel.Panel):
 
     # prepopulates bandwidth values from state file
 
-    if CONFIG["features.graph.bw.prepopulate"] and tor_controller().is_alive():
+    controller = tor_controller()
+
+    if CONFIG['features.graph.bw.prepopulate'] and controller.is_alive():
       try:
         missing_seconds = prepopulate_from_state(self.stats[GraphStat.BANDWIDTH])
 
@@ -333,7 +354,6 @@ class GraphPanel(panel.Panel):
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
-    controller = tor_controller()
     controller.add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
     controller.add_status_listener(self.reset_listener)
 
@@ -566,11 +586,11 @@ class GraphPanel(panel.Panel):
 
     # displays upper and lower bounds
 
-    self.addstr(2, 0, '%4i' % primary_max_bound, PRIMARY_COLOR)
-    self.addstr(self.graph_height + 1, 0, '%4i' % primary_min_bound, PRIMARY_COLOR)
+    self.addstr(2, 0, param.y_axis_label(primary_max_bound, True), PRIMARY_COLOR)
+    self.addstr(self.graph_height + 1, 0, param.y_axis_label(primary_min_bound, True), PRIMARY_COLOR)
 
-    self.addstr(2, graph_column + 5, '%4i' % secondary_max_bound, SECONDARY_COLOR)
-    self.addstr(self.graph_height + 1, graph_column + 5, '%4i' % secondary_min_bound, SECONDARY_COLOR)
+    self.addstr(2, graph_column + 5, param.y_axis_label(secondary_max_bound, False), SECONDARY_COLOR)
+    self.addstr(self.graph_height + 1, graph_column + 5, param.y_axis_label(secondary_min_bound, False), SECONDARY_COLOR)
 
     # displays intermediate bounds on every other row
 
@@ -587,13 +607,13 @@ class GraphPanel(panel.Panel):
           primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
           if primary_val not in (primary_min_bound, primary_max_bound):
-            self.addstr(row + 2, 0, '%4i' % primary_val, PRIMARY_COLOR)
+            self.addstr(row + 2, 0, param.y_axis_label(primary_val, True), PRIMARY_COLOR)
 
         if secondary_min_bound != secondary_max_bound:
           secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
 
           if secondary_val not in (secondary_min_bound, secondary_max_bound):
-            self.addstr(row + 2, graph_column + 5, '%4i' % secondary_val, SECONDARY_COLOR)
+            self.addstr(row + 2, graph_column + 5, param.y_axis_label(secondary_val, False), SECONDARY_COLOR)
 
     # creates bar graph (both primary and secondary)
 
@@ -739,7 +759,7 @@ def prepopulate_from_state(stat):
   # fills the graphing parameters with state information
 
   for i in range(entry_count):
-    read_value, write_value = bw_read_entries[i], bw_write_entries[i]
+    read_value, write_value = bw_read_entries[i] * 1024, bw_write_entries[i] * 1024  # KB => B
 
     stat.primary.latest_value, stat.secondary.latest_value = read_value / 900, write_value / 900
 
