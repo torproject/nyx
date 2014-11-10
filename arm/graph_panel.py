@@ -27,7 +27,19 @@ from stem.control import Listener
 from stem.util import conf, enum, log, str_tools, system
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
+Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
+
+INTERVAL_SECONDS = {
+  Interval.EACH_SECOND: 1,
+  Interval.FIVE_SECONDS: 5,
+  Interval.THIRTY_SECONDS: 30,
+  Interval.MINUTELY: 60,
+  Interval.FIFTEEN_MINUTE: 900,
+  Interval.THIRTY_MINUTE: 1800,
+  Interval.HOURLY: 3600,
+  Interval.DAILY: 86400,
+}
 
 PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
 
@@ -42,20 +54,31 @@ def conf_handler(key, value):
     return max(1, value)
   elif key == 'features.graph.max_width':
     return max(1, value)
+  elif key == 'features.graph.type':
+    if value != 'none' and value not in GraphStat:
+      log.warn("'%s' isn't a valid graph type, options are: none, %s" % (CONFIG['features.graph.type'], ', '.join(GraphStat)))
+      return CONFIG['features.graph.type']  # keep the default
+  elif key == 'features.graph.interval':
+    if value not in Interval:
+      log.warn("'%s' isn't a valid graphing interval, options are: %s" % (value, ', '.join(Interval)))
+      return CONFIG['features.graph.interval']  # keep the default
+  elif key == 'features.graph.bound':
+    if value not in Bounds:
+      log.warn("'%s' isn't a valid graph bounds, options are: %s" % (value, ', '.join(Bounds)))
+      return CONFIG['features.graph.bound']  # keep the default
 
 
 CONFIG = conf.config_dict('arm', {
   'attr.hibernate_color': {},
-  'attr.graph.intervals': {},
   'attr.graph.title': {},
   'attr.graph.header.primary': {},
   'attr.graph.header.secondary': {},
   'features.graph.height': 7,
-  'features.graph.interval': 'each second',
+  'features.graph.type': GraphStat.BANDWIDTH,
+  'features.graph.interval': Interval.EACH_SECOND,
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 150,
   'features.graph.showIntermediateBounds': True,
-  'features.graph.type': 'bandwidth',
   'features.panels.show.connection': True,
   'features.graph.bw.prepopulate': True,
   'features.graph.bw.transferInBytes': False,
@@ -70,6 +93,8 @@ class Stat(object):
 
   :var int latest_value: last value we recorded
   :var int total: sum of all values we've recorded
+  :var int tick: number of events we've processed
+  :var float start_time: unix timestamp for when we started
   :var dict values: mapping of intervals to an array of samplings from newest to oldest
   :var dict max_value: mapping of intervals to the maximum value it has had
   """
@@ -88,17 +113,20 @@ class Stat(object):
       self.total = 0
       self.tick = 0
       self.start_time = time.time()
-      self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in CONFIG['attr.graph.intervals']])
-      self.max_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
-      self._in_process_value = dict([(i, 0) for i in CONFIG['attr.graph.intervals']])
+      self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in Interval])
+      self.max_value = dict([(i, 0) for i in Interval])
+      self._in_process_value = dict([(i, 0) for i in Interval])
+
+  def average(self):
+    return self.total / max(1, self.tick)
 
   def update(self, new_value):
     self.latest_value = new_value
     self.total += new_value
     self.tick += 1
 
-    for interval in CONFIG['attr.graph.intervals']:
-      interval_seconds = int(CONFIG['attr.graph.intervals'][interval])
+    for interval in Interval:
+      interval_seconds = INTERVAL_SECONDS[interval]
       self._in_process_value[interval] += new_value
 
       if self.tick % interval_seconds == 0:
@@ -147,7 +175,7 @@ class GraphCategory(object):
     :returns: **str** with our y-axis label
     """
 
-    return ''
+    return str(value)
 
   def bandwidth_event(self, event):
     """
@@ -188,8 +216,6 @@ class BandwidthStats(GraphCategory):
     return str_tools.size_label(value, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
 
   def bandwidth_event(self, event):
-    # scales units from B to KB for graphing
-
     self.primary.update(event.read)
     self.secondary.update(event.written)
 
@@ -244,9 +270,6 @@ class ConnectionStats(GraphCategory):
   Tracks number of inbound and outbound connections.
   """
 
-  def y_axis_label(self, value, is_primary):
-    return str(value)
-
   def bandwidth_event(self, event):
     inbound_count, outbound_count = 0, 0
 
@@ -266,11 +289,8 @@ class ConnectionStats(GraphCategory):
     self.primary.update(inbound_count)
     self.secondary.update(outbound_count)
 
-    avg = self.primary.total / max(1, self.primary.tick)
-    self.primary_header_stats = [str(self.primary.latest_value), ', avg: %s' % avg]
-
-    avg = self.secondary.total / max(1, self.secondary.tick)
-    self.secondary_header_stats = [str(self.secondary.latest_value), ', avg: %s' % avg]
+    self.primary_header_stats = [str(self.primary.latest_value), ', avg: %s' % self.primary.average()]
+    self.secondary_header_stats = [str(self.secondary.latest_value), ', avg: %s' % self.secondary.average()]
 
 
 class ResourceStats(GraphCategory):
@@ -279,18 +299,15 @@ class ResourceStats(GraphCategory):
   """
 
   def y_axis_label(self, value, is_primary):
-    return "%i%%" % value if is_primary else str_tools.size_label(value)
+    return '%i%%' % value if is_primary else str_tools.size_label(value)
 
   def bandwidth_event(self, event):
     resources = arm.util.tracker.get_resource_tracker().get_value()
     self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
     self.secondary.update(resources.memory_bytes)
 
-    avg = self.primary.total / max(1, self.primary.tick)
-    self.primary_header_stats = ['%0.1f%%' % self.primary.latest_value, ', avg: %0.1f%%' % avg]
-
-    avg = self.secondary.total / max(1, self.secondary.tick)
-    self.secondary_header_stats = [str_tools.size_label(self.secondary.latest_value, 1), ', avg: %s' % str_tools.size_label(avg, 1)]
+    self.primary_header_stats = ['%0.1f%%' % self.primary.latest_value, ', avg: %0.1f%%' % self.primary.average()]
+    self.secondary_header_stats = [str_tools.size_label(self.secondary.latest_value, 1), ', avg: %s' % str_tools.size_label(self.secondary.average(), 1)]
 
 
 class GraphPanel(panel.Panel):
@@ -302,20 +319,11 @@ class GraphPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'graph', 0)
 
-    if CONFIG['features.graph.interval'] in CONFIG['attr.graph.intervals']:
-      self.update_interval = CONFIG['features.graph.interval']
-    else:
-      self.update_interval = 'each second'
-      log.warn("'%s' isn't a valid graphing interval, options are: %s" % (CONFIG['features.graph.interval'], ', '.join(CONFIG['attr.graph.intervals'])))
-
-    if CONFIG['features.graph.bound'] in Bounds:
-      self.bounds = CONFIG['features.graph.bound']
-    else:
-      self.bounds = Bounds.LOCAL_MAX
-      log.warn("'%s' isn't a valid graph bounds, options are: %s" % (CONFIG['features.graph.bound'], ', '.join(Bounds)))
+    self.current_display = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
+    self.update_interval = CONFIG['features.graph.interval']
+    self.bounds = CONFIG['features.graph.bound']
 
     self.graph_height = max(1, CONFIG['features.graph.height'])
-    self.current_display = None    # label of the stats currently being displayed
     self._accounting_stats = None
     self._last_redraw = 0
 
@@ -329,13 +337,6 @@ class GraphPanel(panel.Panel):
 
     self.set_pause_attr('stats')
     self.set_pause_attr('_accounting_stats')
-
-    if CONFIG['features.graph.type'] == 'none':
-      self.set_stats(None)
-    elif CONFIG['features.graph.type'] in GraphStat:
-      self.set_stats(CONFIG['features.graph.type'])
-    else:
-      log.warn("'%s' isn't a graph type." % CONFIG['features.graph.type'])
 
     # prepopulates bandwidth values from state file
 
@@ -369,7 +370,7 @@ class GraphPanel(panel.Panel):
 
         arm.controller.get_controller().redraw()
 
-    update_rate = int(CONFIG['attr.graph.intervals'][self.update_interval])
+    update_rate = INTERVAL_SECONDS[self.update_interval]
 
     if time.time() - self._last_redraw > update_rate:
       self.redraw(True)
@@ -510,11 +511,10 @@ class GraphPanel(panel.Panel):
     elif key.match('i'):
       # provides menu to pick graph panel update interval
 
-      options = CONFIG['attr.graph.intervals'].keys()
-      selection = arm.popups.show_menu('Update Interval:', options, CONFIG['attr.graph.intervals'].keys().index(self.update_interval))
+      selection = arm.popups.show_menu('Update Interval:', list(Interval), list(Interval).index(self.update_interval))
 
       if selection != -1:
-        self.update_interval = CONFIG['attr.graph.intervals'].keys()[selection]
+        self.update_interval = list(Interval)[selection]
     else:
       return False
 
@@ -632,7 +632,7 @@ class GraphPanel(panel.Panel):
 
     # bottom labeling of x-axis
 
-    interval_sec = int(CONFIG['attr.graph.intervals'][self.update_interval])  # seconds per labeling
+    interval_sec = INTERVAL_SECONDS[self.update_interval]
 
     interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
     units_label, decimal_precision = None, 0
@@ -745,16 +745,6 @@ def prepopulate_from_state(stat):
   entry_count = min(len(bw_read_entries), len(bw_write_entries), CONFIG['features.graph.max_width'])
   bw_read_entries = bw_read_entries[len(bw_read_entries) - entry_count:]
   bw_write_entries = bw_write_entries[len(bw_write_entries) - entry_count:]
-
-  # gets index for 15-minute interval
-
-  interval_index = 0
-
-  for interval_rate in CONFIG['attr.graph.intervals'].values():
-    if int(interval_rate) == 900:
-      break
-    else:
-      interval_index += 1
 
   # fills the graphing parameters with state information
 
