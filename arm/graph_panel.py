@@ -15,15 +15,13 @@ import copy
 import curses
 import time
 
-import arm.popups
 import arm.controller
+import arm.popups
 import arm.util.tracker
-
-import stem.control
 
 from arm.util import bandwidth_from_state, msg, panel, tor_controller
 
-from stem.control import Listener
+from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
@@ -117,8 +115,8 @@ class Stat(object):
       self.max_value = dict([(i, 0) for i in Interval])
       self._in_process_value = dict([(i, 0) for i in Interval])
 
-  def average(self):
-    return self.total / max(1, self.tick)
+  def average(self, by_time = False):
+    return self.total / (time.time() - self.start_time) if by_time else self.total / max(1, self.tick)
 
   def update(self, new_value):
     self.latest_value = new_value
@@ -162,7 +160,7 @@ class GraphCategory(object):
       self.primary_header_stats = []
       self.secondary_header_stats = []
 
-      tor_controller().add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+      tor_controller().add_event_listener(self.bandwidth_event, EventType.BW)
 
   def y_axis_label(self, value, is_primary):
     """
@@ -213,33 +211,33 @@ class BandwidthStats(GraphCategory):
         self.primary.start_time = self.secondary.start_time = start_time
 
   def y_axis_label(self, value, is_primary):
-    return str_tools.size_label(value, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
+    return self._size_label(value, 0)
 
   def bandwidth_event(self, event):
     self.primary.update(event.read)
     self.secondary.update(event.written)
 
     self.primary_header_stats = [
-      '%-14s' % ('%s/sec' % _size_label(self.primary.latest_value)),
-      '- avg: %s/sec' % _size_label(self.primary.total / (time.time() - self.primary.start_time)),
-      ', total: %s' % _size_label(self.primary.total),
+      '%-14s' % ('%s/sec' % self._size_label(self.primary.latest_value)),
+      '- avg: %s/sec' % self._size_label(self.primary.average(by_time = True)),
+      ', total: %s' % self._size_label(self.primary.total),
     ]
 
     self.secondary_header_stats = [
-      '%-14s' % ('%s/sec' % _size_label(self.secondary.latest_value)),
-      '- avg: %s/sec' % _size_label(self.secondary.total / (time.time() - self.secondary.start_time)),
-      ', total: %s' % _size_label(self.secondary.total),
+      '%-14s' % ('%s/sec' % self._size_label(self.secondary.latest_value)),
+      '- avg: %s/sec' % self._size_label(self.secondary.average(by_time = True)),
+      ', total: %s' % self._size_label(self.secondary.total),
     ]
 
-    stats = []
     controller = tor_controller()
 
+    stats = []
     bw_rate = controller.get_effective_rate(None)
     bw_burst = controller.get_effective_rate(None, burst = True)
 
     if bw_rate and bw_burst:
-      bw_rate_label = _size_label(bw_rate)
-      bw_burst_label = _size_label(bw_burst)
+      bw_rate_label = self._size_label(bw_rate)
+      bw_burst_label = self._size_label(bw_burst)
 
       # if both are using rounded values then strip off the '.0' decimal
 
@@ -254,15 +252,23 @@ class BandwidthStats(GraphCategory):
     measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
 
     if measured_bw:
-      stats.append('measured: %s/s' % _size_label(measured_bw))
+      stats.append('measured: %s/s' % self._size_label(measured_bw))
     else:
       my_server_descriptor = controller.get_server_descriptor(default = None)
       observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
 
       if observed_bw:
-        stats.append('observed: %s/s' % _size_label(observed_bw))
+        stats.append('observed: %s/s' % self._size_label(observed_bw))
 
     self.title_stats = stats
+
+  def _size_label(self, byte_count, decimal = 1):
+    """
+    Alias for str_tools.size_label() that accounts for if the user prefers bits
+    or bytes.
+    """
+
+    return str_tools.size_label(byte_count, decimal, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
 
 
 class ConnectionStats(GraphCategory):
@@ -355,7 +361,7 @@ class GraphPanel(panel.Panel):
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
 
-    controller.add_event_listener(self.bandwidth_event, stem.control.EventType.BW)
+    controller.add_event_listener(self.bandwidth_event, EventType.BW)
     controller.add_status_listener(self.reset_listener)
 
   def bandwidth_event(self, event):
@@ -665,8 +671,8 @@ class GraphPanel(panel.Panel):
       graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
       runtime = time.time() - param.start_time
-      primary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.primary.total * 1024), _size_label(param.primary.total / runtime * 1024))
-      secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(param.secondary.total * 1024), _size_label(param.secondary.total / runtime * 1024))
+      primary_footer = 'total: %s, avg: %s/sec' % (param._size_label(param.primary.total), param._size_label(param.primary.total / runtime))
+      secondary_footer = 'total: %s, avg: %s/sec' % (param._size_label(param.secondary.total), param._size_label(param.secondary.total / runtime))
 
       self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
       self.addstr(labeling_line, graph_column + 6, secondary_footer, SECONDARY_COLOR)
@@ -717,10 +723,6 @@ class GraphPanel(panel.Panel):
       return dict([(key, type(self.stats[key])(self.stats[key])) for key in self.stats])
     else:
       return panel.Panel.copy_attr(self, attr)
-
-
-def _size_label(byte_count):
-  return str_tools.size_label(byte_count, 1, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
 
 
 def prepopulate_from_state(stat):
