@@ -161,15 +161,12 @@ features.config.descriptions.persist true
 #   tight - local maximum and minimum
 # type
 #   none, bandwidth, connections, resources
-# showIntermediateBounds
-#   shows y-axis increments between the top/bottom bounds
 
 features.graph.height 7
 features.graph.maxWidth 150
 features.graph.interval each second
 features.graph.bound local_max
 features.graph.type bandwidth
-features.graph.showIntermediateBounds true
 
 # Parameters for graphing bandwidth stats
 # ---------------------------------------

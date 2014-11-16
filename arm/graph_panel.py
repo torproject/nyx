@@ -76,7 +76,6 @@ CONFIG = conf.config_dict('arm', {
   'features.graph.interval': Interval.EACH_SECOND,
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 150,
-  'features.graph.showIntermediateBounds': True,
   'features.panels.show.connection': True,
   'features.graph.bw.prepopulate': True,
   'features.graph.bw.transferInBytes': False,
@@ -624,6 +623,9 @@ class GraphPanel(panel.Panel):
 
     # displays upper and lower bounds
 
+    # TODO: we need to get the longest y_axis_label() result so we can offset
+    # following content by that
+
     self.addstr(2, 0, param.y_axis_label(primary_max_bound, True), PRIMARY_COLOR)
     self.addstr(self._graph_height + 1, 0, param.y_axis_label(primary_min_bound, True), PRIMARY_COLOR)
 
@@ -632,26 +634,25 @@ class GraphPanel(panel.Panel):
 
     # displays intermediate bounds on every other row
 
-    if CONFIG['features.graph.showIntermediateBounds']:
-      ticks = (self._graph_height - 3) / 2
+    ticks = (self._graph_height - 3) / 2
 
-      for i in range(ticks):
-        row = self._graph_height - (2 * i) - 3
+    for i in range(ticks):
+      row = self._graph_height - (2 * i) - 3
 
-        if self._graph_height % 2 == 0 and i >= (ticks / 2):
-          row -= 1
+      if self._graph_height % 2 == 0 and i >= (ticks / 2):
+        row -= 1
 
-        if primary_min_bound != primary_max_bound:
-          primary_val = (primary_max_bound - primary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
+      if primary_min_bound != primary_max_bound:
+        primary_val = (primary_max_bound - primary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
 
-          if primary_val not in (primary_min_bound, primary_max_bound):
-            self.addstr(row + 2, 0, param.y_axis_label(primary_val, True), PRIMARY_COLOR)
+        if primary_val not in (primary_min_bound, primary_max_bound):
+          self.addstr(row + 2, 0, param.y_axis_label(primary_val, True), PRIMARY_COLOR)
 
-        if secondary_min_bound != secondary_max_bound:
-          secondary_val = (secondary_max_bound - secondary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
+      if secondary_min_bound != secondary_max_bound:
+        secondary_val = (secondary_max_bound - secondary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
 
-          if secondary_val not in (secondary_min_bound, secondary_max_bound):
-            self.addstr(row + 2, graph_column + 5, param.y_axis_label(secondary_val, False), SECONDARY_COLOR)
+        if secondary_val not in (secondary_min_bound, secondary_max_bound):
+          self.addstr(row + 2, graph_column + 5, param.y_axis_label(secondary_val, False), SECONDARY_COLOR)
 
     # creates bar graph (both primary and secondary)
 
