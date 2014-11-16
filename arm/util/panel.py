@@ -53,7 +53,7 @@ for color_label in ui_tools.COLOR_LIST:
 HALT_ACTIVITY = False
 
 
-class Panel():
+class Panel(object):
   """
   Wrapper for curses subwindows. This hides most of the ugliness in common
   curses operations including:

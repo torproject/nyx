@@ -149,8 +149,8 @@ def make_graph_menu(graph_panel):
 
   # stats options
 
-  stat_group = arm.menu.item.SelectionGroup(graph_panel.set_stats, graph_panel.get_stats())
-  available_stats = graph_panel.get_all_stats().keys()
+  stat_group = arm.menu.item.SelectionGroup(functools.partial(setattr, graph_panel, 'displayed_stat'), graph_panel.displayed_stat)
+  available_stats = graph_panel.stat_options()
   available_stats.sort()
 
   for stat_key in ["None"] + available_stats:
@@ -165,7 +165,7 @@ def make_graph_menu(graph_panel):
   # interval submenu
 
   interval_menu = arm.menu.item.Submenu("Interval")
-  interval_group = arm.menu.item.SelectionGroup(graph_panel.set_update_interval, graph_panel.get_update_interval())
+  interval_group = arm.menu.item.SelectionGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
 
   for interval in arm.graph_panel.Interval:
     interval_menu.add(arm.menu.item.SelectionMenuItem(interval, interval_group, interval))
@@ -175,7 +175,7 @@ def make_graph_menu(graph_panel):
   # bounds submenu
 
   bounds_menu = arm.menu.item.Submenu("Bounds")
-  bounds_group = arm.menu.item.SelectionGroup(graph_panel.set_bounds_type, graph_panel.get_bounds_type())
+  bounds_group = arm.menu.item.SelectionGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
 
   for bounds_type in arm.graph_panel.Bounds:
     bounds_menu.add(arm.menu.item.SelectionMenuItem(bounds_type, bounds_group, bounds_type))
