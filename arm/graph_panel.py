@@ -357,8 +357,8 @@ class GraphPanel(panel.Panel):
     self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
     self._update_interval = CONFIG['features.graph.interval']
     self._bounds = CONFIG['features.graph.bound']
+    self._graph_height = CONFIG['features.graph.height']
 
-    self._graph_height = max(1, CONFIG['features.graph.height'])
     self._accounting_stats = None
 
     self._stats = {
@@ -368,6 +368,9 @@ class GraphPanel(panel.Panel):
 
     if CONFIG['features.panels.show.connection']:
       self._stats[GraphStat.CONNECTIONS] = ConnectionStats()
+    elif self._displayed_stat == GraphStat.CONNECTIONS:
+      log.warn("The connection graph is unavailble when you set 'features.panels.show.connection false'.")
+      self._displayed_stat = GraphStat.BANDWIDTH
 
     self.set_pause_attr('_stats')
     self.set_pause_attr('_accounting_stats')
@@ -445,13 +448,6 @@ class GraphPanel(panel.Panel):
     return height
 
   def set_graph_height(self, new_graph_height):
-    """
-    Sets the preferred height used for the graph.
-
-    Arguments:
-      new_graph_height - new height for the graph
-    """
-
     self._graph_height = max(1, new_graph_height)
 
   def resize_graph(self):
