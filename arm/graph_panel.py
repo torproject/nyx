@@ -348,8 +348,7 @@ class ResourceStats(GraphCategory):
 
 class GraphPanel(panel.Panel):
   """
-  Panel displaying a graph, drawing statistics from custom GraphCategory
-  implementations.
+  Panel displaying graphical information of GraphCategory instances.
   """
 
   def __init__(self, stdscr):
@@ -390,8 +389,9 @@ class GraphPanel(panel.Panel):
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = exc))
 
-    controller.add_event_listener(self.bandwidth_event, EventType.BW)
-    controller.add_status_listener(self.reset_listener)
+    controller.add_event_listener(self._update_accounting, EventType.BW)
+    controller.add_event_listener(self._update_stats, EventType.BW)
+    controller.add_status_listener(lambda *args: self.redraw(True))
 
   @property
   def displayed_stat(self):
@@ -428,30 +428,6 @@ class GraphPanel(panel.Panel):
       raise ValueError("%s isn't a valid type of bounds" % value)
 
     self._bounds = value
-
-  def bandwidth_event(self, event):
-    for stat in self._stats.values():
-      stat.bandwidth_event(event)
-
-    if not CONFIG['features.graph.bw.accounting.show']:
-      self._accounting_stats = None
-    elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
-      old_accounting_stats = self._accounting_stats
-      self._accounting_stats = tor_controller().get_accounting_stats(None)
-
-      if bool(old_accounting_stats) != bool(self._accounting_stats):
-        # we either added or removed accounting info, redraw the whole screen since this changes our height
-
-        arm.controller.get_controller().redraw()
-
-    update_rate = INTERVAL_SECONDS[self.update_interval]
-    param = self.get_attr('_stats')[self.displayed_stat]
-
-    if param.primary.tick % update_rate == 0:
-      self.redraw(True)
-
-  def reset_listener(self, controller, event_type, _):
-    self.redraw(True)
 
   def get_height(self):
     """
@@ -564,7 +540,7 @@ class GraphPanel(panel.Panel):
     return [
       ('r', 'resize graph', None),
       ('s', 'graphed stats', self.displayed_stat if self.displayed_stat else 'none'),
-      ('b', 'graph bounds', self.bounds_type.lower()),
+      ('b', 'graph bounds', self.bounds_type.replace('_', ' ')),
       ('i', 'graph update interval', self.update_interval),
     ]
 
@@ -737,3 +713,26 @@ class GraphPanel(panel.Panel):
       return dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
     else:
       return panel.Panel.copy_attr(self, attr)
+
+  def _update_accounting(self, event):
+    if not CONFIG['features.graph.bw.accounting.show']:
+      self._accounting_stats = None
+    elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
+      old_accounting_stats = self._accounting_stats
+      self._accounting_stats = tor_controller().get_accounting_stats(None)
+
+      # if we either added or removed accounting info then redraw the whole
+      # screen to account for resizing
+
+      if bool(old_accounting_stats) != bool(self._accounting_stats):
+        arm.controller.get_controller().redraw()
+
+  def _update_stats(self, event):
+    for stat in self._stats.values():
+      stat.bandwidth_event(event)
+
+    param = self.get_attr('_stats')[self.displayed_stat]
+    update_rate = INTERVAL_SECONDS[self.update_interval]
+
+    if param.primary.tick % update_rate == 0:
+      self.redraw(True)
