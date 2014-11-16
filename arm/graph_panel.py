@@ -362,7 +362,6 @@ class GraphPanel(panel.Panel):
 
     self._graph_height = max(1, CONFIG['features.graph.height'])
     self._accounting_stats = None
-    self._last_redraw = 0
 
     self._stats = {
       GraphStat.BANDWIDTH: BandwidthStats(),
@@ -411,8 +410,9 @@ class GraphPanel(panel.Panel):
         arm.controller.get_controller().redraw()
 
     update_rate = INTERVAL_SECONDS[self._update_interval]
+    param = self.get_attr('_stats')[self._current_display]
 
-    if time.time() - self._last_redraw > update_rate:
+    if param.primary.tick % update_rate == 0:
       self.redraw(True)
 
   def reset_listener(self, controller, event_type, _):
@@ -571,8 +571,6 @@ class GraphPanel(panel.Panel):
   def draw(self, width, height):
     if not self._current_display:
       return
-
-    self._last_redraw = time.time()
 
     param = self.get_attr('_stats')[self._current_display]
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
