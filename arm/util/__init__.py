@@ -92,7 +92,7 @@ def bandwidth_from_state(config):
 
     * read_entries and write_entries
 
-      List of the average kilobytes read or written during each fifteen minute
+      List of the average bytes read or written during each fifteen minute
       period, oldest to newest.
 
     * last_read_time and last_write_time
@@ -151,9 +151,9 @@ def bandwidth_from_state(config):
     line = line.strip()
 
     if line.startswith('BWHistoryReadValues '):
-      attr['read_entries'] = [int(entry) / 1024.0 / 900 for entry in line[20:].split(',')[:-1]]
+      attr['read_entries'] = [int(entry) / 900 for entry in line[20:].split(',')[:-1]]
     elif line.startswith('BWHistoryWriteValues '):
-      attr['write_entries'] = [int(entry) / 1024.0 / 900 for entry in line[21:].split(',')[:-1]]
+      attr['write_entries'] = [int(entry) / 900 for entry in line[21:].split(',')[:-1]]
     elif line.startswith('BWHistoryReadEnds '):
       attr['last_read_time'] = calendar.timegm(time.strptime(line[18:], '%Y-%m-%d %H:%M:%S')) - 900
     elif line.startswith('BWHistoryWriteEnds '):

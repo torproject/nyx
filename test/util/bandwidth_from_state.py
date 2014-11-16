@@ -105,7 +105,7 @@ class TestBandwidthFromState(unittest.TestCase):
     open_mock.return_value = io.BytesIO(STATE_FILE_WITH_ENTRIES % (timestamp, timestamp))
 
     stats = bandwidth_from_state()
-    self.assertEqual([1, 2, 3, 4], stats.read_entries)
-    self.assertEqual([50, 50, 100, 100], stats.write_entries)
+    self.assertEqual([1024, 2048, 3072, 4096], stats.read_entries)
+    self.assertEqual([51200, 51200, 102400, 102400], stats.write_entries)
     self.assertEqual(now, stats.last_read_time)
     self.assertEqual(now, stats.last_write_time)

@@ -160,8 +160,6 @@ class GraphCategory(object):
       self.primary_header_stats = []
       self.secondary_header_stats = []
 
-      tor_controller().add_event_listener(self.bandwidth_event, EventType.BW)
-
   def y_axis_label(self, value, is_primary):
     """
     Provides the label we should display on our y-axis.
@@ -262,6 +260,39 @@ class BandwidthStats(GraphCategory):
 
     self.title_stats = stats
 
+  def prepopulate_from_state(self):
+    """
+    Attempts to use tor's state file to prepopulate values for the 15 minute
+    interval via the BWHistoryReadValues/BWHistoryWriteValues values.
+
+    :returns: **float** for the number of seconds of data missing
+
+    :raises: **ValueError** if unable to get the bandwidth information from our
+      state file
+    """
+
+    def update_values(stat, entries, latest_time):
+      # fill missing entries with the last value
+
+      missing_entries = int((time.time() - latest_time) / 900)
+      entries = entries + [entries[-1]] * missing_entries
+
+      # pad if too short and truncate if too long
+
+      entry_count = CONFIG['features.graph.max_width']
+      entries = [0] * (entry_count - len(entries)) + entries[-entry_count:]
+
+      stat.values[Interval.FIFTEEN_MINUTE] = entries
+      stat.max_value[Interval.FIFTEEN_MINUTE] = max(entries)
+      stat.latest_value = entries[-1] * 900
+
+    stats = bandwidth_from_state()
+
+    update_values(self.primary, stats.read_entries, stats.last_read_time)
+    update_values(self.secondary, stats.write_entries, stats.last_write_time)
+
+    return time.time() - min(stats.last_read_time, stats.last_write_time)
+
   def _size_label(self, byte_count, decimal = 1):
     """
     Alias for str_tools.size_label() that accounts for if the user prefers bits
@@ -348,23 +379,26 @@ class GraphPanel(panel.Panel):
 
     controller = tor_controller()
 
-    if CONFIG['features.graph.bw.prepopulate'] and controller.is_alive():
+    if controller.is_alive() and CONFIG['features.graph.bw.prepopulate']:
       try:
-        missing_seconds = prepopulate_from_state(self.stats[GraphStat.BANDWIDTH])
+        missing_seconds = self.stats[GraphStat.BANDWIDTH].prepopulate_from_state()
 
         if missing_seconds:
           log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
         else:
           log.notice(msg('panel.graphing.prepopulation_all_successful'))
 
-        self.update_interval = '15 minute'
+        self.update_interval = Interval.FIFTEEN_MINUTE
       except ValueError as exc:
-        log.info(msg('panel.graphing.prepopulation_failure', error = str(exc)))
+        log.info(msg('panel.graphing.prepopulation_failure', error = exc))
 
     controller.add_event_listener(self.bandwidth_event, EventType.BW)
     controller.add_status_listener(self.reset_listener)
 
   def bandwidth_event(self, event):
+    for stat in self.stats.values():
+      stat.bandwidth_event(event)
+
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
     elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
@@ -723,42 +757,3 @@ class GraphPanel(panel.Panel):
       return dict([(key, type(self.stats[key])(self.stats[key])) for key in self.stats])
     else:
       return panel.Panel.copy_attr(self, attr)
-
-
-def prepopulate_from_state(stat):
-  """
-  Attempts to use tor's state file to prepopulate values for the 15 minute
-  interval via the BWHistoryReadValues/BWHistoryWriteValues values. This
-  returns True if successful and False otherwise.
-  """
-
-  stats = bandwidth_from_state()
-
-  missing_read_entries = int((time.time() - stats.last_read_time) / 900)
-  missing_write_entries = int((time.time() - stats.last_write_time) / 900)
-
-  # fills missing entries with the last value
-
-  bw_read_entries = stats.read_entries + [stats.read_entries[-1]] * missing_read_entries
-  bw_write_entries = stats.write_entries + [stats.write_entries[-1]] * missing_write_entries
-
-  # crops starting entries so they're the same size
-
-  entry_count = min(len(bw_read_entries), len(bw_write_entries), CONFIG['features.graph.max_width'])
-  bw_read_entries = bw_read_entries[len(bw_read_entries) - entry_count:]
-  bw_write_entries = bw_write_entries[len(bw_write_entries) - entry_count:]
-
-  # fills the graphing parameters with state information
-
-  for i in range(entry_count):
-    read_value, write_value = bw_read_entries[i] * 1024, bw_write_entries[i] * 1024  # KB => B
-
-    stat.primary.latest_value, stat.secondary.latest_value = read_value / 900, write_value / 900
-
-    stat.primary.values['15 minute'] = [read_value] + stat.primary.values['15 minute'][:-1]
-    stat.secondary.values['15 minute'] = [write_value] + stat.secondary.values['15 minute'][:-1]
-
-  stat.primary.max_value['15 minute'] = max(stat.primary.values)
-  stat.secondary.max_value['15 minute'] = max(stat.secondary.values)
-
-  return time.time() - min(stats.last_read_time, stats.last_write_time)
