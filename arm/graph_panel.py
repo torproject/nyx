@@ -356,23 +356,23 @@ class GraphPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'graph', 0)
 
-    self.current_display = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
-    self.update_interval = CONFIG['features.graph.interval']
-    self.bounds = CONFIG['features.graph.bound']
+    self._current_display = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
+    self._update_interval = CONFIG['features.graph.interval']
+    self._bounds = CONFIG['features.graph.bound']
 
-    self.graph_height = max(1, CONFIG['features.graph.height'])
+    self._graph_height = max(1, CONFIG['features.graph.height'])
     self._accounting_stats = None
     self._last_redraw = 0
 
-    self.stats = {
+    self._stats = {
       GraphStat.BANDWIDTH: BandwidthStats(),
       GraphStat.SYSTEM_RESOURCES: ResourceStats(),
     }
 
     if CONFIG['features.panels.show.connection']:
-      self.stats[GraphStat.CONNECTIONS] = ConnectionStats()
+      self._stats[GraphStat.CONNECTIONS] = ConnectionStats()
 
-    self.set_pause_attr('stats')
+    self.set_pause_attr('_stats')
     self.set_pause_attr('_accounting_stats')
 
     # prepopulates bandwidth values from state file
@@ -381,14 +381,14 @@ class GraphPanel(panel.Panel):
 
     if controller.is_alive() and CONFIG['features.graph.bw.prepopulate']:
       try:
-        missing_seconds = self.stats[GraphStat.BANDWIDTH].prepopulate_from_state()
+        missing_seconds = self._stats[GraphStat.BANDWIDTH].prepopulate_from_state()
 
         if missing_seconds:
           log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
         else:
           log.notice(msg('panel.graphing.prepopulation_all_successful'))
 
-        self.update_interval = Interval.FIFTEEN_MINUTE
+        self._update_interval = Interval.FIFTEEN_MINUTE
       except ValueError as exc:
         log.info(msg('panel.graphing.prepopulation_failure', error = exc))
 
@@ -396,7 +396,7 @@ class GraphPanel(panel.Panel):
     controller.add_status_listener(self.reset_listener)
 
   def bandwidth_event(self, event):
-    for stat in self.stats.values():
+    for stat in self._stats.values():
       stat.bandwidth_event(event)
 
     if not CONFIG['features.graph.bw.accounting.show']:
@@ -410,7 +410,7 @@ class GraphPanel(panel.Panel):
 
         arm.controller.get_controller().redraw()
 
-    update_rate = INTERVAL_SECONDS[self.update_interval]
+    update_rate = INTERVAL_SECONDS[self._update_interval]
 
     if time.time() - self._last_redraw > update_rate:
       self.redraw(True)
@@ -423,7 +423,7 @@ class GraphPanel(panel.Panel):
     Provides the rate that we update the graph at.
     """
 
-    return self.update_interval
+    return self._update_interval
 
   def set_update_interval(self, update_interval):
     """
@@ -433,14 +433,14 @@ class GraphPanel(panel.Panel):
       update_interval - update time enum
     """
 
-    self.update_interval = update_interval
+    self._update_interval = update_interval
 
   def get_bounds_type(self):
     """
     Provides the type of graph bounds used.
     """
 
-    return self.bounds
+    return self._bounds
 
   def set_bounds_type(self, bounds_type):
     """
@@ -450,7 +450,7 @@ class GraphPanel(panel.Panel):
       bounds_type - graph bounds enum
     """
 
-    self.bounds = bounds_type
+    self._bounds = bounds_type
 
   def get_height(self):
     """
@@ -458,12 +458,12 @@ class GraphPanel(panel.Panel):
     (zero if hidden).
     """
 
-    if self.current_display:
-      height = DEFAULT_CONTENT_HEIGHT + self.graph_height
+    if self._current_display:
+      height = DEFAULT_CONTENT_HEIGHT + self._graph_height
     else:
       height = 0
 
-    if self.current_display == GraphStat.BANDWIDTH and self._accounting_stats:
+    if self._current_display == GraphStat.BANDWIDTH and self._accounting_stats:
       height += 3
 
     return height
@@ -476,7 +476,7 @@ class GraphPanel(panel.Panel):
       new_graph_height - new height for the graph
     """
 
-    self.graph_height = max(1, new_graph_height)
+    self._graph_height = max(1, new_graph_height)
 
   def resize_graph(self):
     """
@@ -504,9 +504,9 @@ class GraphPanel(panel.Panel):
             current_height = self.get_height()
 
             if current_height < max_height + 1:
-              self.set_graph_height(self.graph_height + 1)
+              self.set_graph_height(self._graph_height + 1)
           elif key.match('up'):
-            self.set_graph_height(self.graph_height - 1)
+            self.set_graph_height(self._graph_height - 1)
           elif key.is_selection():
             break
 
@@ -519,12 +519,12 @@ class GraphPanel(panel.Panel):
       self.resize_graph()
     elif key.match('b'):
       # uses the next boundary type
-      self.bounds = Bounds.next(self.bounds)
+      self._bounds = Bounds.next(self._bounds)
       self.redraw(True)
     elif key.match('s'):
       # provides a menu to pick the graphed stats
 
-      available_stats = self.stats.keys()
+      available_stats = self._stats.keys()
       available_stats.sort()
 
       # uses sorted, camel cased labels for the options
@@ -535,8 +535,8 @@ class GraphPanel(panel.Panel):
         words = label.split()
         options.append(' '.join(word[0].upper() + word[1:] for word in words))
 
-      if self.current_display:
-        initial_selection = available_stats.index(self.current_display) + 1
+      if self._current_display:
+        initial_selection = available_stats.index(self._current_display) + 1
       else:
         initial_selection = 0
 
@@ -551,10 +551,10 @@ class GraphPanel(panel.Panel):
     elif key.match('i'):
       # provides menu to pick graph panel update interval
 
-      selection = arm.popups.show_menu('Update Interval:', list(Interval), list(Interval).index(self.update_interval))
+      selection = arm.popups.show_menu('Update Interval:', list(Interval), list(Interval).index(self._update_interval))
 
       if selection != -1:
-        self.update_interval = list(Interval)[selection]
+        self._update_interval = list(Interval)[selection]
     else:
       return False
 
@@ -563,57 +563,57 @@ class GraphPanel(panel.Panel):
   def get_help(self):
     return [
       ('r', 'resize graph', None),
-      ('s', 'graphed stats', self.current_display if self.current_display else 'none'),
-      ('b', 'graph bounds', self.bounds.lower()),
-      ('i', 'graph update interval', self.update_interval),
+      ('s', 'graphed stats', self._current_display if self._current_display else 'none'),
+      ('b', 'graph bounds', self._bounds.lower()),
+      ('i', 'graph update interval', self._update_interval),
     ]
 
   def draw(self, width, height):
-    if not self.current_display:
+    if not self._current_display:
       return
 
     self._last_redraw = time.time()
 
-    param = self.get_attr('stats')[self.current_display]
+    param = self.get_attr('_stats')[self._current_display]
     graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
     if self.is_title_visible():
-      title = CONFIG['attr.graph.title'].get(self.current_display, '')
+      title = CONFIG['attr.graph.title'].get(self._current_display, '')
       title_stats = str_tools.join(param.title_stats, ', ', width - len(title) - 4)
       title = '%s (%s):' % (title, title_stats) if title_stats else '%s:' % title
       self.addstr(0, 0, title, curses.A_STANDOUT)
 
     # top labels
 
-    primary_header = CONFIG['attr.graph.header.primary'].get(self.current_display, '')
+    primary_header = CONFIG['attr.graph.header.primary'].get(self._current_display, '')
     primary_header_stats = str_tools.join(param.primary_header_stats, '', (width / 2) - len(primary_header) - 4)
     left = '%s (%s):' % (primary_header, primary_header_stats) if primary_header_stats else '%s:' % primary_header
     self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
 
-    secondary_header = CONFIG['attr.graph.header.secondary'].get(self.current_display, '')
+    secondary_header = CONFIG['attr.graph.header.secondary'].get(self._current_display, '')
     secondary_header_stats = str_tools.join(param.secondary_header_stats, '', (width / 2) - len(secondary_header) - 4)
     right = '%s (%s):' % (secondary_header, secondary_header_stats) if secondary_header_stats else '%s:' % secondary_header
     self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
 
     # determines max/min value on the graph
 
-    if self.bounds == Bounds.GLOBAL_MAX:
-      primary_max_bound = param.primary.max_value[self.update_interval]
-      secondary_max_bound = param.secondary.max_value[self.update_interval]
+    if self._bounds == Bounds.GLOBAL_MAX:
+      primary_max_bound = param.primary.max_value[self._update_interval]
+      secondary_max_bound = param.secondary.max_value[self._update_interval]
     else:
       # both Bounds.LOCAL_MAX and Bounds.TIGHT use local maxima
       if graph_column < 2:
         # nothing being displayed
         primary_max_bound, secondary_max_bound = 0, 0
       else:
-        primary_max_bound = max(param.primary.values[self.update_interval][:graph_column])
-        secondary_max_bound = max(param.secondary.values[self.update_interval][:graph_column])
+        primary_max_bound = max(param.primary.values[self._update_interval][:graph_column])
+        secondary_max_bound = max(param.secondary.values[self._update_interval][:graph_column])
 
     primary_min_bound = secondary_min_bound = 0
 
-    if self.bounds == Bounds.TIGHT:
-      primary_min_bound = min(param.primary.values[self.update_interval][:graph_column])
-      secondary_min_bound = min(param.secondary.values[self.update_interval][:graph_column])
+    if self._bounds == Bounds.TIGHT:
+      primary_min_bound = min(param.primary.values[self._update_interval][:graph_column])
+      secondary_min_bound = min(param.secondary.values[self._update_interval][:graph_column])
 
       # if the max = min (ie, all values are the same) then use zero lower
       # bound so a graph is still displayed
@@ -627,30 +627,30 @@ class GraphPanel(panel.Panel):
     # displays upper and lower bounds
 
     self.addstr(2, 0, param.y_axis_label(primary_max_bound, True), PRIMARY_COLOR)
-    self.addstr(self.graph_height + 1, 0, param.y_axis_label(primary_min_bound, True), PRIMARY_COLOR)
+    self.addstr(self._graph_height + 1, 0, param.y_axis_label(primary_min_bound, True), PRIMARY_COLOR)
 
     self.addstr(2, graph_column + 5, param.y_axis_label(secondary_max_bound, False), SECONDARY_COLOR)
-    self.addstr(self.graph_height + 1, graph_column + 5, param.y_axis_label(secondary_min_bound, False), SECONDARY_COLOR)
+    self.addstr(self._graph_height + 1, graph_column + 5, param.y_axis_label(secondary_min_bound, False), SECONDARY_COLOR)
 
     # displays intermediate bounds on every other row
 
     if CONFIG['features.graph.showIntermediateBounds']:
-      ticks = (self.graph_height - 3) / 2
+      ticks = (self._graph_height - 3) / 2
 
       for i in range(ticks):
-        row = self.graph_height - (2 * i) - 3
+        row = self._graph_height - (2 * i) - 3
 
-        if self.graph_height % 2 == 0 and i >= (ticks / 2):
+        if self._graph_height % 2 == 0 and i >= (ticks / 2):
           row -= 1
 
         if primary_min_bound != primary_max_bound:
-          primary_val = (primary_max_bound - primary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+          primary_val = (primary_max_bound - primary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
 
           if primary_val not in (primary_min_bound, primary_max_bound):
             self.addstr(row + 2, 0, param.y_axis_label(primary_val, True), PRIMARY_COLOR)
 
         if secondary_min_bound != secondary_max_bound:
-          secondary_val = (secondary_max_bound - secondary_min_bound) * (self.graph_height - row - 1) / (self.graph_height - 1)
+          secondary_val = (secondary_max_bound - secondary_min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
 
           if secondary_val not in (secondary_min_bound, secondary_max_bound):
             self.addstr(row + 2, graph_column + 5, param.y_axis_label(secondary_val, False), SECONDARY_COLOR)
@@ -658,21 +658,21 @@ class GraphPanel(panel.Panel):
     # creates bar graph (both primary and secondary)
 
     for col in range(graph_column):
-      column_count = int(param.primary.values[self.update_interval][col]) - primary_min_bound
-      column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound)))
+      column_count = int(param.primary.values[self._update_interval][col]) - primary_min_bound
+      column_height = int(min(self._graph_height, self._graph_height * column_count / (max(1, primary_max_bound) - primary_min_bound)))
 
       for row in range(column_height):
-        self.addstr(self.graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
+        self.addstr(self._graph_height + 1 - row, col + 5, ' ', curses.A_STANDOUT, PRIMARY_COLOR)
 
-      column_count = int(param.secondary.values[self.update_interval][col]) - secondary_min_bound
-      column_height = int(min(self.graph_height, self.graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound)))
+      column_count = int(param.secondary.values[self._update_interval][col]) - secondary_min_bound
+      column_height = int(min(self._graph_height, self._graph_height * column_count / (max(1, secondary_max_bound) - secondary_min_bound)))
 
       for row in range(column_height):
-        self.addstr(self.graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
+        self.addstr(self._graph_height + 1 - row, col + graph_column + 10, ' ', curses.A_STANDOUT, SECONDARY_COLOR)
 
     # bottom labeling of x-axis
 
-    interval_sec = INTERVAL_SECONDS[self.update_interval]
+    interval_sec = INTERVAL_SECONDS[self._update_interval]
 
     interval_spacing = 10 if graph_column >= WIDE_LABELING_GRAPH_COL else 5
     units_label, decimal_precision = None, 0
@@ -691,14 +691,14 @@ class GraphPanel(panel.Panel):
         # if constrained on space then strips labeling since already provided
         time_label = time_label[:-1]
 
-      self.addstr(self.graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
-      self.addstr(self.graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
+      self.addstr(self._graph_height + 2, 4 + loc, time_label, PRIMARY_COLOR)
+      self.addstr(self._graph_height + 2, graph_column + 10 + loc, time_label, SECONDARY_COLOR)
 
     # if display is narrow, overwrites x-axis labels with avg / total stats
 
-    labeling_line = DEFAULT_CONTENT_HEIGHT + self.graph_height - 2
+    labeling_line = DEFAULT_CONTENT_HEIGHT + self._graph_height - 2
 
-    if self.current_display == GraphStat.BANDWIDTH and width <= COLLAPSE_WIDTH:
+    if self._current_display == GraphStat.BANDWIDTH and width <= COLLAPSE_WIDTH:
       # clears line
 
       self.addstr(labeling_line, 0, ' ' * width)
@@ -715,7 +715,7 @@ class GraphPanel(panel.Panel):
 
     accounting_stats = self.get_attr('_accounting_stats')
 
-    if self.current_display == GraphStat.BANDWIDTH and accounting_stats:
+    if self._current_display == GraphStat.BANDWIDTH and accounting_stats:
       if tor_controller().is_alive():
         hibernate_color = CONFIG['attr.hibernate_color'].get(accounting_stats.status, 'red')
 
@@ -737,23 +737,26 @@ class GraphPanel(panel.Panel):
     Provides the currently selected stats label.
     """
 
-    return self.current_display
+    return self._current_display
 
   def set_stats(self, label):
     """
     Sets the currently displayed stats instance, hiding panel if None.
     """
 
-    if label != self.current_display:
+    if label != self._current_display:
       if not label:
-        self.current_display = None
-      elif label in self.stats.keys():
-        self.current_display = label
+        self._current_display = None
+      elif label in self._stats.keys():
+        self._current_display = label
       else:
         raise ValueError('Unrecognized stats label: %s' % label)
 
+  def get_all_stats(self):
+    return self._stats
+
   def copy_attr(self, attr):
-    if attr == 'stats':
-      return dict([(key, type(self.stats[key])(self.stats[key])) for key in self.stats])
+    if attr == '_stats':
+      return dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
     else:
       return panel.Panel.copy_attr(self, attr)

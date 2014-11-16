@@ -150,7 +150,7 @@ def make_graph_menu(graph_panel):
   # stats options
 
   stat_group = arm.menu.item.SelectionGroup(graph_panel.set_stats, graph_panel.get_stats())
-  available_stats = graph_panel.stats.keys()
+  available_stats = graph_panel.get_all_stats().keys()
   available_stats.sort()
 
   for stat_key in ["None"] + available_stats:
