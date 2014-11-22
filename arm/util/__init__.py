@@ -64,6 +64,44 @@ def init_controller(*args, **kwargs):
   return TOR_CONTROLLER
 
 
+def join(entries, joiner = ' ', size = None):
+  """
+  Joins a series of strings similar to str.join(), but only up to a given size.
+  This returns an empty string if none of the entries will fit. For example...
+
+    >>> join(['This', 'is', 'a', 'looooong', 'message'], size = 18)
+    'This is a looooong'
+
+    >>> join(['This', 'is', 'a', 'looooong', 'message'], size = 17)
+    'This is a'
+
+    >>> join(['This', 'is', 'a', 'looooong', 'message'], size = 2)
+    ''
+
+  :param list entries: strings to be joined
+  :param str joiner: strings to join the entries with
+  :param int size: maximum length the result can be, there's no length
+    limitation if **None**
+
+  :returns: **str** of the joined entries up to the given length
+  """
+
+  if size is None:
+    return joiner.join(entries)
+
+  result = ''
+
+  for entry in entries:
+    new_result = joiner.join((result, entry)) if result else entry
+
+    if len(new_result) > size:
+      break
+    else:
+      result = new_result
+
+  return result
+
+
 @uses_settings
 def msg(message, config, **attr):
   """

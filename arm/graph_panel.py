@@ -19,7 +19,7 @@ import arm.controller
 import arm.popups
 import arm.util.tracker
 
-from arm.util import bandwidth_from_state, msg, panel, tor_controller
+from arm.util import bandwidth_from_state, join, msg, panel, tor_controller
 
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
@@ -549,19 +549,19 @@ class GraphPanel(panel.Panel):
 
     if self.is_title_visible():
       title = CONFIG['attr.graph.title'].get(self.displayed_stat, '')
-      title_stats = str_tools.join(param.title_stats, ', ', width - len(title) - 4)
+      title_stats = join(param.title_stats, ', ', width - len(title) - 4)
       title = '%s (%s):' % (title, title_stats) if title_stats else '%s:' % title
       self.addstr(0, 0, title, curses.A_STANDOUT)
 
     # top labels
 
     primary_header = CONFIG['attr.graph.header.primary'].get(self.displayed_stat, '')
-    primary_header_stats = str_tools.join(param.primary_header_stats, '', (width / 2) - len(primary_header) - 4)
+    primary_header_stats = join(param.primary_header_stats, '', (width / 2) - len(primary_header) - 4)
     left = '%s (%s):' % (primary_header, primary_header_stats) if primary_header_stats else '%s:' % primary_header
     self.addstr(1, 0, left, curses.A_BOLD, PRIMARY_COLOR)
 
     secondary_header = CONFIG['attr.graph.header.secondary'].get(self.displayed_stat, '')
-    secondary_header_stats = str_tools.join(param.secondary_header_stats, '', (width / 2) - len(secondary_header) - 4)
+    secondary_header_stats = join(param.secondary_header_stats, '', (width / 2) - len(secondary_header) - 4)
     right = '%s (%s):' % (secondary_header, secondary_header_stats) if secondary_header_stats else '%s:' % secondary_header
     self.addstr(1, graph_column + 5, right, curses.A_BOLD, SECONDARY_COLOR)
 
