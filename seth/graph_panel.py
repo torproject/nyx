@@ -190,13 +190,25 @@ class BandwidthStats(GraphCategory):
     GraphCategory.__init__(self, clone)
 
     if not clone:
-      # We both show our 'total' attributes and use it to determine our average.
-      #
-      # If we can get *both* our start time and the totals from tor (via 'GETINFO
-      # traffic/*') then that's ideal, but if not then just track the total for
-      # the time seth is run.
+      # fill in past bandwidth information
 
       controller = tor_controller()
+      bw_entries, is_successful = controller.get_info('bw-event-cache', None), True
+
+      if bw_entries:
+        for entry in bw_entries.split():
+          entry_comp = entry.split(',')
+
+          if len(entry_comp) != 2 or not entry_comp[0].isdigit() or not entry_comp[1].isdigit():
+            log.warn("Tor's 'GETINFO bw-event-cache' provided malformed output: %s" % bw_entries)
+            is_successful = False
+            break
+
+          self.primary.update(int(entry_comp[0]))
+          self.secondary.update(int(entry_comp[1]))
+
+        if is_successful:
+          log.info('Bandwidth graph has information for the last %s' % str_tools.time_label(len(bw_entries.split()), is_long = True))
 
       read_total = controller.get_info('traffic/read', None)
       write_total = controller.get_info('traffic/written', None)
