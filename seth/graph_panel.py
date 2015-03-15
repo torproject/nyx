@@ -638,7 +638,7 @@ class GraphPanel(panel.Panel):
       self.addstr(labeling_line, 0, ' ' * width)
       graph_column = min((width - 10) / 2, CONFIG['features.graph.max_width'])
 
-      runtime = time.time() - param.start_time
+      runtime = time.time() - param.primary.start_time
       primary_footer = 'total: %s, avg: %s/sec' % (param._size_label(param.primary.total), param._size_label(param.primary.total / runtime))
       secondary_footer = 'total: %s, avg: %s/sec' % (param._size_label(param.secondary.total), param._size_label(param.secondary.total / runtime))
 
