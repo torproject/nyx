@@ -279,18 +279,15 @@ def _shutdown_daemons(controller):
   Stops and joins on worker threads.
   """
 
-  close_controller = threading.Thread(target = controller.close)
-  close_controller.setDaemon(True)
-  close_controller.start()
-
   halt_threads = [
     seth.controller.stop_controller(),
     seth.util.tracker.stop_trackers(),
-    close_controller,
   ]
 
   for thread in halt_threads:
     thread.join()
+
+  controller.close()
 
 
 if __name__ == '__main__':
