@@ -214,7 +214,6 @@ class Controller:
     self._page = 0
     self._is_paused = False
     self._force_redraw = False
-    self._is_done = False
     self._last_drawn = 0
     self.set_msg()  # initializes our control message
 
@@ -466,40 +465,6 @@ class Controller:
 
     return data_dir
 
-  def is_done(self):
-    """
-    True if seth should be terminated, false otherwise.
-    """
-
-    return self._is_done
-
-  def quit(self):
-    """
-    Terminates seth after the input is processed. Optionally if we're connected
-    to a seth generated tor instance then this may check if that should be shut
-    down too.
-    """
-
-    self._is_done = True
-
-    # check if the torrc has a "ARM_SHUTDOWN" comment flag, if so then shut
-    # down the instance
-
-    is_shutdown_flag_present = False
-    torrc_contents = tor_config.get_torrc().get_contents()
-
-    if torrc_contents:
-      for line in torrc_contents:
-        if "# ARM_SHUTDOWN" in line:
-          is_shutdown_flag_present = True
-          break
-
-    if is_shutdown_flag_present:
-      try:
-        tor_controller().close()
-      except IOError as exc:
-        seth.popups.show_msg(str(exc), 3, curses.A_BOLD)
-
 
 def heartbeat_check(is_unresponsive):
   """
@@ -591,7 +556,7 @@ def start_seth(stdscr):
   override_key = None      # uses this rather than waiting on user input
   is_unresponsive = False  # flag for heartbeat responsiveness check
 
-  while not control.is_done():
+  while True:
     display_panels = control.get_display_panels()
     is_unresponsive = heartbeat_check(is_unresponsive)
 
@@ -632,7 +597,7 @@ def start_seth(stdscr):
         quit_confirmed = True
 
       if quit_confirmed:
-        control.quit()
+        break
     elif key.match('x'):
       # provides prompt to confirm that seth should issue a sighup
 
