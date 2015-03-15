@@ -5,7 +5,7 @@ import unittest
 
 from mock import Mock, patch
 
-from arm.util import bandwidth_from_state
+from seth.util import bandwidth_from_state
 
 STATE_FILE = """\
 # Tor state file last generated on 2014-07-20 13:05:10 local time
@@ -32,7 +32,7 @@ BWHistoryWriteEnds %s
 
 
 class TestBandwidthFromState(unittest.TestCase):
-  @patch('arm.util.tor_controller')
+  @patch('seth.util.tor_controller')
   def test_when_not_localhost(self, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = False
 
@@ -42,7 +42,7 @@ class TestBandwidthFromState(unittest.TestCase):
     except ValueError as exc:
       self.assertEqual('we can only prepopulate bandwidth information for a local tor instance', str(exc))
 
-  @patch('arm.util.tor_controller')
+  @patch('seth.util.tor_controller')
   def test_unknown_pid(self, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = True
     tor_controller_mock().get_pid.return_value = None
@@ -53,7 +53,7 @@ class TestBandwidthFromState(unittest.TestCase):
     except ValueError as exc:
       self.assertEqual("unable to determine tor's uptime", str(exc))
 
-  @patch('arm.util.tor_controller')
+  @patch('seth.util.tor_controller')
   @patch('stem.util.system.start_time')
   def test_insufficient_uptime(self, start_time_mock, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = True
@@ -65,7 +65,7 @@ class TestBandwidthFromState(unittest.TestCase):
     except ValueError as exc:
       self.assertEqual("insufficient uptime, tor must've been running for at least a day", str(exc))
 
-  @patch('arm.util.tor_controller')
+  @patch('seth.util.tor_controller')
   @patch('stem.util.system.start_time', Mock(return_value = 50))
   def test_no_data_dir(self, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = True
@@ -77,8 +77,8 @@ class TestBandwidthFromState(unittest.TestCase):
     except ValueError as exc:
       self.assertEqual("unable to determine tor's data directory", str(exc))
 
-  @patch('arm.util.tor_controller')
-  @patch('arm.util.open', create = True)
+  @patch('seth.util.tor_controller')
+  @patch('seth.util.open', create = True)
   @patch('stem.util.system.start_time', Mock(return_value = 50))
   def test_no_bandwidth_entries(self, open_mock, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = True
@@ -93,8 +93,8 @@ class TestBandwidthFromState(unittest.TestCase):
 
     open_mock.assert_called_once_with('/home/atagar/.tor/state')
 
-  @patch('arm.util.tor_controller')
-  @patch('arm.util.open', create = True)
+  @patch('seth.util.tor_controller')
+  @patch('seth.util.open', create = True)
   @patch('stem.util.system.start_time', Mock(return_value = 50))
   def test_when_successful(self, open_mock, tor_controller_mock):
     tor_controller_mock().is_localhost.return_value = True

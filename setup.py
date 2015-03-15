@@ -3,7 +3,7 @@ import os
 import sys
 import gzip
 import tempfile
-from arm.version import VERSION
+from seth.version import VERSION
 from distutils.core import setup
 
 def getResources(dst, sourceDir):
@@ -11,29 +11,29 @@ def getResources(dst, sourceDir):
   Provides a list of tuples of the form...
   [(destination, (file1, file2...)), ...]
 
-  for the given contents of the arm directory (that's right, distutils isn't
+  for the given contents of the seth directory (that's right, distutils isn't
   smart enough to know how to copy directories).
   """
 
   results = []
 
-  for root, _, files in os.walk(os.path.join("arm", sourceDir)):
+  for root, _, files in os.walk(os.path.join("seth", sourceDir)):
     if files:
       fileListing = tuple([os.path.join(root, file) for file in files])
       results.append((os.path.join(dst, root[4:]), fileListing))
 
   return results
 
-# Use 'tor-arm' instead of 'arm' in the path for the sample armrc if we're
+# Use 'tor-seth' instead of 'seth' in the path for the sample sethrc if we're
 # building for debian.
 
 isDebInstall = False
 for arg in sys.argv:
-  if "tor-arm" in arg or "release_deb" in arg:
+  if "tor-seth" in arg or "release_deb" in arg:
     isDebInstall = True
     break
 
-docPath = "/usr/share/doc/%s" % ("tor-arm" if isDebInstall else "arm")
+docPath = "/usr/share/doc/%s" % ("tor-seth" if isDebInstall else "seth")
 
 # Allow the docPath to be overridden via a '--docPath' argument. This is to
 # support custom documentation locations on Gentoo, as discussed in:
@@ -59,7 +59,7 @@ except ValueError: pass # --docPath flag not found
 #   install-purelib=/usr/share
 # which would mean a bit more unnecessary clutter.
 
-manFilename = "arm/resoureces/arm.1"
+manFilename = "seth/resoureces/seth.1"
 if "install" in sys.argv:
   sys.argv += ["--install-purelib", "/usr/share"]
 
@@ -68,13 +68,13 @@ if "install" in sys.argv:
   # page instead.
 
   try:
-    manInputFile = open('arm/resources/arm.1', 'r')
+    manInputFile = open('seth/resources/seth.1', 'r')
     manContents = manInputFile.read()
     manInputFile.close()
 
     # temporary destination for the man page guarenteed to be unoccupied (to
     # avoid conflicting with files that are already there)
-    tmpFilename = tempfile.mktemp("/arm.1.gz")
+    tmpFilename = tempfile.mktemp("/seth.1.gz")
 
     # make dir if the path doesn't already exist
     baseDir = os.path.dirname(tmpFilename)
@@ -90,34 +90,34 @@ if "install" in sys.argv:
   except IOError, exc:
     print "Unable to compress man page: %s" % exc
 
-installPackages = ['arm', 'arm.cli', 'arm.cli.graphing', 'arm.cli.connections', 'arm.cli.menu', 'arm.util', 'arm.stem']
+installPackages = ['seth', 'seth.cli', 'seth.cli.graphing', 'seth.cli.connections', 'seth.cli.menu', 'seth.util', 'seth.stem']
 
-setup(name='arm',
+setup(name='seth',
       version=VERSION,
       description='Terminal tor status monitor',
       license='GPL v3',
       author='Damian Johnson',
       author_email='atagar@torproject.org',
-      url='http://www.atagar.com/arm/',
+      url='http://www.atagar.com/seth/',
       packages=installPackages,
-      package_dir={'arm': 'arm'},
-      data_files=[("/usr/bin", ["run_arm"]),
+      package_dir={'seth': 'seth'},
+      data_files=[("/usr/bin", ["run_seth"]),
                   ("/usr/share/man/man1", [manFilename]),
-                  (docPath, ["armrc.sample"]),
-                  ("/usr/share/arm/gui", ["arm/gui/arm.xml"]),
-                  ("/usr/share/arm", ["arm/settings.cfg", "arm/uninstall"])] +
-                  getResources("/usr/share/arm", "resources"),
+                  (docPath, ["sethrc.sample"]),
+                  ("/usr/share/seth/gui", ["seth/gui/seth.xml"]),
+                  ("/usr/share/seth", ["seth/settings.cfg", "seth/uninstall"])] +
+                  getResources("/usr/share/seth", "resources"),
      )
 
 # Cleans up the temporary compressed man page.
-if manFilename != 'arm/resoureces/arm.1' and os.path.isfile(manFilename):
+if manFilename != 'seth/resoureces/seth.1' and os.path.isfile(manFilename):
   if "-q" not in sys.argv: print "Removing %s" % manFilename
   os.remove(manFilename)
 
 # Removes the egg_info file. Apparently it is not optional during setup
 # (hardcoded in distutils/command/install.py), nor are there any arguments to
 # bypass its creation. The deb build removes this as part of its rules script.
-eggPath = '/usr/share/arm-%s.egg-info' % VERSION
+eggPath = '/usr/share/seth-%s.egg-info' % VERSION
 
 if not isDebInstall and os.path.isfile(eggPath):
   if "-q" not in sys.argv: print "Removing %s" % eggPath

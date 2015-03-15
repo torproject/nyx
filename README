@@ -1,4 +1,4 @@
-arm (anonymizing relay monitor) - Terminal status monitor for Tor relays.
+seth - Terminal status monitor for Tor relays.
 Developed by Damian Johnson (www.atagar.com - atagar@torproject.org)
 All code under the GPL v3 (http://www.gnu.org/licenses/gpl.html)
 Project page: www.atagar.com/arm
@@ -20,7 +20,7 @@ An interview by Brenno Winter discussing the project is available at:
 
 Requirements:
 Python 2.5
-Stem (this is included with arm)
+Stem
 Tor is running with an available control port. This means either...
   ... starting Tor with '--controlport <PORT>'
   ... or including 'ControlPort <PORT>' in your torrc
@@ -31,15 +31,15 @@ This can be done either with a cookie or password:
     contents of the control_auth_cookie file. To set this up...
     - add "CookieAuthentication 1" to your torrc
     - either restart Tor or run "pkill -sighup tor"
-    - this method of authentication is automatically handled by arm, so you
-      can still start arm as you normally would
+    - this method of authentication is automatically handled by seth, so you
+      can still start seth as you normally would
   
   * Password Authentication - Attaching to the control port requires a
     password. To set this up...
     - run "tor --hash-password <your password>"
     - add "HashedControlPassword <hashed password>" to your torrc
     - either restart Tor or run "pkill -sighup tor"
-    - when starting up arm will prompt you for this password
+    - when starting up seth will prompt you for this password
 
 For full functionality this also needs:
 - To be ran with the same user as tor to avoid permission issues with
@@ -59,17 +59,16 @@ For full functionality this also needs:
     * pgrep or pidof
     * host (if dns lookups are enabled)
 
-This is started via 'arm' (use the '--help' argument for usage).
+This is started via 'seth' (use the '--help' argument for usage).
 
 -------------------------------------------------------------------------------
 
 FAQ:
-> Why is it called 'arm'?
+> Why is it called 'seth'?
 
 Simple - because it makes the command short and memorable. Terminal
 applications need to be easy to type (like 'top', 'ssh', etc), and anything
-longer is just begging command-line aficionados to alias it down. I chose the
-meaning of the acronym ('anonymizing relay monitor') afterward.
+longer is just begging command-line aficionados to alias it down.
 
 > If you're listing connections then what about exit nodes? Won't this include 
 people's traffic?
@@ -78,23 +77,23 @@ No. Potential client and exit connections are specifically scrubbed of
 identifying information. Be aware that it's highly discouraged for relay
 operators to fetch this data, so please don't.
 
-> Is it harmful to share the information provided by arm?
+> Is it harmful to share the information provided by seth?
 
-Not really, but it's discouraged. The original plan for arm included a special
+Not really, but it's discouraged. The original plan for seth included a special
 emphasis that it wouldn't log any data. The reason is that if a large number of
 relay operators published the details of their connections then correlation
 attacks could break Tor user's anonymity. Just show some moderation in what you
 share and it should be fine.
 
-> Is there any chance that arm will leak data?
+> Is there any chance that seth will leak data?
 
 No. Arm is a completely passive listener, fetching all information from either
 Tor or the local system.
 
-> When arm starts it gives "Unable to resolve tor pid, abandoning connection 
+> When seth starts it gives "Unable to resolve tor pid, abandoning connection 
 listing"... why?
 
-If you're running multiple instances of Tor then arm needs to figure out which
+If you're running multiple instances of Tor then seth needs to figure out which
 pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
 Arm still runs, just no connection listing or ps stats.
@@ -114,8 +113,8 @@ then you're encountering a bug between ncurses and your terminal where
 alternate character support (ACS) is unavailable. For more information see...
 http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing
 
-Unfortunately there doesn't seem to be a way for arm to automatically detect
-and correct this. To work around some of the issues set this in your armrc...
+Unfortunately there doesn't seem to be a way for seth to automatically detect
+and correct this. To work around some of the issues set this in your sethrc...
 features.acsSupport false
 
 > When I press enter in the connection panel to get details some of the
@@ -154,15 +153,15 @@ information then this is simple to fix with the above.
 Layout:
 
 ./
-  arm     - startup script
+  seth     - startup script
   install - installation script
   
-  arm.1        - man page
-  armrc.sample - example arm configuration file with defaults
+  seth.1        - man page
+  sethrc.sample - example seth configuration file with defaults
   ChangeLog    - revision history
   LICENSE      - copy of the gpl v3
   README       - um... guess you figured this one out
-  setup.py     - distutils installation script for arm
+  setup.py     - distutils installation script for seth
   
   src/
     __init__.py
@@ -202,7 +201,7 @@ Layout:
       headerPanel.py         - top of all pages, providing general information
       popups.py              - toolkit providing display popups
       
-      logPanel.py            - (page 1) displays tor, arm, and stem events
+      logPanel.py            - (page 1) displays tor, seth, and stem events
       configPanel.py         - (page 3) editor panel for the tor configuration
       torrcPanel.py          - (page 4) displays torrc and validation
     

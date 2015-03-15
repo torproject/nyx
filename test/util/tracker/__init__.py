@@ -1,5 +1,5 @@
 """
-Unit tests for arm's tracker utilities.
+Unit tests for seth's tracker utilities.
 """
 
 __all__ = [

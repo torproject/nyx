@@ -1,9 +1,9 @@
 CHANGE LOG
 
 4/28/12 - version 1.4.5 (e249dc8)
-Software isn't perfect and arm is no exception. This is a bugfix release that corrects most issues that users have reported over the last several months. This does not include any new features, but includes changes that are important for continued interoperability with tor.
+Software isn't perfect and seth is no exception. This is a bugfix release that corrects most issues that users have reported over the last several months. This does not include any new features, but includes changes that are important for continued interoperability with tor.
 
-    * fix: unrecognized authentication methods (like 'SAFECOOKIE') would make arm crash (caught by E)
+    * fix: unrecognized authentication methods (like 'SAFECOOKIE') would make seth crash (caught by E)
     * fix: providing users a log message when DisableDebuggerAttachment breaks us
     * fix: crashing issue when parsing tor log entries from leap years (fix by Sebastian, https://trac.torproject.org/projects/tor/ticket/5265)
     * fix: major terminal glitches related to the import of the readline module (caught by Stephan Seitz)
@@ -38,21 +38,21 @@ Besides the normal bug fixes and minor features, this release introduces the con
     * added: optional system wide torrc integration (thanks to ioerror, https://trac.torproject.org/projects/tor/ticket/3629)
     * added: dialog for guards, bridges, and exits with exit port usage and client locales (feature request by waltman and ioerror)
     * added: configuration editor for the gui interface (implemented by krkhan)
-    * added: notice that warns the user against running tor or arm as root
+    * added: notice that warns the user against running tor or seth as root
     * change: doing a manual redraw when the user presses ctrl+L (https://trac.torproject.org/projects/tor/ticket/2830)
     * change: moving download location to archive.torproject.org so downloads will have ssl (suggested by arma)
     * change: rewrite of the descriptor popup, cleaning up the code and minor performance improvements
-    * fix: preventing arm from starting if there's a running tor instance that we can't connect to
+    * fix: preventing seth from starting if there's a running tor instance that we can't connect to
     * fix: when the config-text GETINFO option was unavailable we'd write a blank torrc (caught by Runa)
     * fix: appending path prefix to auth cookie path (caught by sid77)
     * fix: skipping log parsing if misformatted (caught by Sjon)
-    * fix: incorrect armrc path in man page (caught by dererk)
+    * fix: incorrect sethrc path in man page (caught by dererk)
     * fix: trying all authentication methods rather than just the first (caught by arma, https://trac.torproject.org/projects/tor/ticket/3958)
     * fix: toning down the warning when all connection resolvers fail (suggested by Sebastian)
     * fix: quitting wizard when the user presses 'q' instead of just esc (suggested by monochromec, https://trac.torproject.org/projects/tor/ticket/3995)
     * fix: quitting could cause unclean curses shutdown
     * fix: relay address fetching would ignore default values at shutdown, causing a stacktrace
-    * fix: concurrency bug could crash arm if a CIRC event occurs while caching attached relays
+    * fix: concurrency bug could crash seth if a CIRC event occurs while caching attached relays
     * fix: crashing issue from use of an uninitialized buffer when paused with accounting stats
     * fix: periodically redrawing content to prevent weird terminal glitches from persisting
     * fix: pressing 'enter' on config panel when never attached to tor would crash
@@ -70,7 +70,7 @@ Besides the normal bug fixes and minor features, this release introduces the con
 This completes the codebase refactoring project that's been a year in the works and provides numerous performance and usability improvements. Most notably this includes a setup wizard for new relays, menuing interface, gui prototype, substantial performance improvements, and support for Mac OSX.
 
     * added: relay setup wizard for autogenerating a torrc configuration
-    * added: menu interface with all of arm's functionality (thanks to help from krkhan)
+    * added: menu interface with all of seth's functionality (thanks to help from krkhan)
     * added: option for reconnecting to tor if it's been shut down and restarted
     * added: fetching the download and upload bandwidth totals from Tor if it's available
     * added: option for requesting a new identity
@@ -78,10 +78,10 @@ This completes the codebase refactoring project that's been a year in the works 
     * added: logging a notice when file descriptor usage is high
     * added: making interface components optionally excludeable
     * added: reintroduced the descriptor popup for the new connection panel
-    * added: moved arm's codebase to git, with helper scripts to replace svn:externals and export
+    * added: moved seth's codebase to git, with helper scripts to replace svn:externals and export
     * added: option for overriding all displayed color
-    * change: renaming our process from "python src/starter.py <args>" to "arm <args>" (thanks to help from ioerror)
-    * change: hiding connection init latency, dropping arm's startup time from 0.84 seconds to 0.14 (83% improvement)
+    * change: renaming our process from "python src/starter.py <args>" to "seth <args>" (thanks to help from ioerror)
+    * change: hiding connection init latency, dropping seth's startup time from 0.84 seconds to 0.14 (83% improvement)
     * change: using blank space to display the nickname for circuit connections
     * change: dropping the file descriptor popup (it was both unused and inaccurate)
     * change: dropping deprecated connection panel from the codebase
@@ -89,13 +89,13 @@ This completes the codebase refactoring project that's been a year in the works 
     * change: closing all message prompts when a key is pressed
     * change: using a more intuitive mode toggling for resizing the graph
     * change: added summaries for new tor config options
-    * fix: avoiding mass memory allocation in torctl, lowering arm's perceived base memory footprint by 2.5 MB (12%) (https://trac.torproject.org/projects/tor/ticket/3406)
-    * fix: fixing shutdown concurrency in torctl, lowering arm's shutdown time from a second to being almost instantaneous (https://trac.torproject.org/projects/tor/ticket/2412)
-    * fix: sighups that caused tor to crash would also crash torctl and arm (https://trac.torproject.org/projects/tor/ticket/1329)
+    * fix: avoiding mass memory allocation in torctl, lowering seth's perceived base memory footprint by 2.5 MB (12%) (https://trac.torproject.org/projects/tor/ticket/3406)
+    * fix: fixing shutdown concurrency in torctl, lowering seth's shutdown time from a second to being almost instantaneous (https://trac.torproject.org/projects/tor/ticket/2412)
+    * fix: sighups that caused tor to crash would also crash torctl and seth (https://trac.torproject.org/projects/tor/ticket/1329)
     * fix: crash when connecting to tor's socks port rather than control port (https://trac.torproject.org/projects/tor/ticket/2580)
     * fix: shutting down torctl zombie connections to the control port (https://trac.torproject.org/projects/tor/ticket/2812)
     * fix: moving connection component negotiation into torctl (https://trac.torproject.org/projects/tor/ticket/3409)
-    * fix: all pid resolution was failing on macs, causing much of arm's functionality to fail
+    * fix: all pid resolution was failing on macs, causing much of seth's functionality to fail
     * fix: dropping straight to lsof on macs to avoid fallback process, which was both lengthy and raised warnings
     * fix: misparsing circuit paths for Tor < 0.2.2.1 (caught by asn)
     * fix: pressing enter on an empty connection page caused crash (caught by asn, https://trac.torproject.org/projects/tor/ticket/3128)
@@ -124,11 +124,11 @@ This release chiefly consists of a fully reimplemented connection panel. Besides
 
     * added: full rewrite of the connection panel, providing:
           o listing the full paths involved in active circuits
-          o identification of socks, hidden service, and controller applications (arm, vidalia, polipo, etc)
+          o identification of socks, hidden service, and controller applications (seth, vidalia, polipo, etc)
           o identification of exit connections with the common usage for the port they're using
           o display of the local -> internal -> external address when room is available (original patch by Fabian Keil)
           o better accuracy and performance in identifying client and directory connections
-          o marking the uptimes for initial connections (arm only tracks connection uptimes since starting, so these entries are just minimum durations)
+          o marking the uptimes for initial connections (seth only tracks connection uptimes since starting, so these entries are just minimum durations)
           o lazily loading the initial IP -> fingerprint mappings to improve the startup time
           o using the circuit-status to disambiguating multiple relays on the same IP address
           o smarter space utilization, filling in smaller columns if there isn't room for higher priority but larger entries
@@ -173,20 +173,20 @@ This release chiefly consists of a fully reimplemented connection panel. Besides
 1/7/11 - version 1.4.1 (r24054)
 Platform specific enhancements including BSD compatibility and vastly improved performance on Linux.
 
-    * added: querying the proc contents when able for tor resource and connection samplings to *greatly* reduce arm's resource usage (many thanks to psutil)
+    * added: querying the proc contents when able for tor resource and connection samplings to *greatly* reduce seth's resource usage (many thanks to psutil)
     * added: vastly improved BSD compatibility, thanks to patches by Fabian Keil
           o pid resolution via pgrep (all platforms) and sockstat (bsd only)
           o connection resolution via sockstat (all platforms) and procstat (bsd only)
           o autodetecting the path prefix for FreeBSD jails
     * added: displaying summaries of the options on the configuration panel (idea by Sebastian)
-    * added: arm cpu usage to the header panel and logs (with an estimate for system call usages)
+    * added: seth cpu usage to the header panel and logs (with an estimate for system call usages)
     * added: testing script for checking connection resolution performance, connection dumps, and the glyph demo
-    * added: option to dump arm debug logs (better failsafe option)
+    * added: option to dump seth debug logs (better failsafe option)
     * change: incrementing the uptime field of the header panel each second
-    * change: centralizing arm resources in ~/.arm (suggested by Sebastian and also thanks to feedback from rransom)
+    * change: centralizing seth resources in ~/.seth (suggested by Sebastian and also thanks to feedback from rransom)
     * change: using exponential backoff of ps/proc resource resolutions when calls fail or tor isn't running
     * change: reordered resolvers by order of performance
-    * change: when tor's man page is unavailable falling back to descriptions provided with arm (often the case with tbb)
+    * change: when tor's man page is unavailable falling back to descriptions provided with seth (often the case with tbb)
     * change: dropping support for graphing of custom ps attributes (feature was never used, kinda pointless, and incompatible with the proc enhancement)
     * fix: providing proper cpu samplings rather than an average over the life of the process
     * fix: expanding relative paths for the authentication cookie (mostly a problem for tbb instances)
@@ -211,7 +211,7 @@ Platform specific enhancements including BSD compatibility and vastly improved p
     * fix: connection resolution wasn't finding results if tor was running under a different name
     * fix: brought all Linux connection resolvers into parity (established tcp connections only)
     * fix: commands with quoted pipes were being mis-parsed by the sysTools' call function
-    * fix (1/11/11, r24064): including platform, python version, and arm/tor configurations in debug dumps
+    * fix (1/11/11, r24064): including platform, python version, and seth/tor configurations in debug dumps
     * fix (1/11/11, r24064): properly parse the ps field when displaying decimal seconds (patch by Fabian)
     * fix (1/11/11, r24064): error when initial resource lookups fail (caught by Trystero)
     * fix (1/12/11, r24075): decimal seconds in the ps uptime field were being misparsed (patch by Fabian)
@@ -227,7 +227,7 @@ Introducing a new page for managing tor's configuration, along with several othe
           o sorting by any of the config attributes
     * change: numerous revisions in preparation for being included in debian, thanks to weasel
           o moved deb/rpm build resources out of the source repository and added helper scripts
-          o moved the arm install location to /usr/share/arm
+          o moved the seth install location to /usr/share/seth
           o purging the autogenerated egg file from the deb build
           o using temporary file utility for man page compression to avoid potential security issues (thanks to asn)
           o including dh_pysupport flag so it'll recognize the private python module (thanks to Emilio Pozuelo Monfort)
@@ -242,18 +242,18 @@ Introducing a new page for managing tor's configuration, along with several othe
           o fix: scrolling was buggy if comments were being stripped
           o fix: more helpful messages for validation errors
           o fix: unnecessary whitespace was being stripped
-    * added: INFO level logging for the arm startup time
+    * added: INFO level logging for the seth startup time
     * change: removing all references to the controller password after we've connected to tor (request by ioerror)
     * change: using curses.textpad to improve text fields (supports arrow keys, emacs keybindings, etc)
-    * change: revised the arm config interface (simplified and expanded to include maps)
+    * change: revised the seth config interface (simplified and expanded to include maps)
     * fix: verbose logging was causing the application to freeze due to an n^2 deduplication implementation, disabling this feature for now when it takes too long (caught by NightMonkey)
     * fix: wasn't loading the settings.cfg if starting starter from the src directory (caught by NightMonkey)
     * fix: displaying empty conf contents caused crashes when calling math.log10(0) (caught by NightMonkey)
     * fix: persisting results from scraping the man page to greatly reduce startup time (idea by nickm)
-    * fix: path for the sample armrc was wrong in the man page (caught by weasel)
-    * fix: the arm starter was only executable from the arm directory
+    * fix: path for the sample sethrc was wrong in the man page (caught by weasel)
+    * fix: the seth starter was only executable from the seth directory
     * fix: not all worker threads were daemons, causing the process to persist in a broken state after exceptions and when quitting via ctrl+c
-    * fix: custom armrcs resulted in the parsing config options being unavailable
+    * fix: custom sethrcs resulted in the parsing config options being unavailable
     * fix: rounding error in rendering the scrollbar, causing it to shrink a line when at the bottom
     * fix: crashing issue when the 'queries.ps.rate' config value was undefined and the stats graph was displayed
     * fix: making the interface more resilient to being resized while popups are visible
@@ -276,7 +276,7 @@ Numerous improvements, most notably being an expanded log panel, installer, and 
           o dividers for the date, bordering all events that occurred on the same day
           o hiding duplicate log entries (feature request by asn)
           o coalescing updates if they're numerous, such as running at the DEBUG runlevel
-          o providing a notice if tor supports event types that arm doesn't, and logging them as the 'UNKNOWN' type
+          o providing a notice if tor supports event types that seth doesn't, and logging them as the 'UNKNOWN' type
           o condensing the label for runlevel event ranges further if they're identical for multiple types
           o options for:
                 + saving logged events to a file, either via snapshots or running persistence
@@ -288,7 +288,7 @@ Numerous improvements, most notably being an expanded log panel, installer, and 
           o minor bug fixes including:
                 + added handling for BUILDTIMEOUT_SET events
                 + dropping brackets from label if no events are being logged
-                + merging tor and arm backlogs according to timestamps
+                + merging tor and seth backlogs according to timestamps
                 + regex matches were failing for multiline log entries
     * change: using PidFile entry to fetch pid if available (idea by arma)
     * change: dropping irrelevant information from the header when not running as a relay
@@ -317,12 +317,12 @@ Numerous improvements, most notably being an expanded log panel, installer, and 
 6/7/10 - version 1.3.6 (r22617)
 Rewrite of the first third of the interface, providing vastly improved performance, maintainability, and a few very nice features. This improved the refresh rate (which is also related to system resource usage) from 30ms to 4ms (an 87% improvement).
 
-    * added: settings are fetched from an optional armrc (update rates, controller password, caching, runlevels, etc)
+    * added: settings are fetched from an optional sethrc (update rates, controller password, caching, runlevels, etc)
     * added: system tools util providing simplified usage, suppression of leaks to stdout, logging, and optional caching
     * added: wrapper for accessing TorCtl providing:
           o client side caching for commonly fetched relay information (fingerprint, descriptor, etc)
           o singleton accessor and convenience functions, simplifying interface code
-          o wrapper allowing reattachment to new controllers (ie, arm still works if tor's stopped then restarted - still in the works)
+          o wrapper allowing reattachment to new controllers (ie, seth still works if tor's stopped then restarted - still in the works)
     * change: full rewrite of the header panel, providing:
           o notice for when tor's disconnected (with time-stamp)
           o lightweight redrawing (smarter caching and moved updating into a daemon thread)
@@ -349,7 +349,7 @@ Rewrite of the first third of the interface, providing vastly improved performan
 4/8/10 - version 1.3.5 (r22148)
 Utility and service rewrite (refactored roughly a third of the codebase, including revised APIs and much better documentation).
 
-    * added: centralized logging utility for handling arm events, simplifying several parts of the interface
+    * added: centralized logging utility for handling seth events, simplifying several parts of the interface
     * added: rewrote connection resolver, including:
           o fallback support for 'ss' and 'lsof' (requested by dun, John Case, and Christopher Davis)
           o readjusts resolution rate if calls prove burdensome
@@ -365,7 +365,7 @@ Utility and service rewrite (refactored roughly a third of the codebase, includi
     * fix: removed workaround for mysterious torrc validation bug (was accidentally already fixed - thanks to dun for lending a test environment)
     * fix: size and time labels weren't doing integer truncation (rounding was unintended and frustratingly difficult to get rid of)
     * fix: hack to prevent log panel from drawing before being positioned
-    * fix: arm crashed if torrc was an empty file
+    * fix: seth crashed if torrc was an empty file
     * fix: wasn't consistently bolding help keys
 
 3/7/10 - version 1.3.4 (r21852)
@@ -413,7 +413,7 @@ Had enough of a siesta - getting back into development beginning with a rewrite 
 
     * added: made authentication a little smarter, using PROTOCOLINFO to autodetect authentication type and cookie location
     * change: made 'blind mode' (disables connection queries) a startup option rather than flag in source (request by Sebastian)
-    * change: all log events (including arm) are now set via character flags, with TorCtl events log as their own toggleable type
+    * change: all log events (including seth) are now set via character flags, with TorCtl events log as their own toggleable type
     * change: starting log label with runlevel events, condensing if logging a range
     * change: simplifying command line parsing via getopt
     * fix: blind mode now prevents all netstats (including connection counts and halting resolver thread), improving performance
@@ -440,12 +440,12 @@ This will be the last update for a while since I'm about to start a new job.
     * fix: stretching connection lines to fill full screen
 
 10/21/09 - version 1.2.1 (r20814)
-Substantial bundle of changes including torrc validation, improved arm event logging, and numerous bug fixes.
+Substantial bundle of changes including torrc validation, improved seth event logging, and numerous bug fixes.
 
     * added: verifies loaded torrc consistency against tor's actual state (gives warning and providing corrections)
     * added: checks for torrc entries that are irrelevant due to duplication (gives notices and highlights)
     * added: log provides TorCtl events (hack... so ugly...)
-    * added: option for logging runlevel events of arm, tor, or both
+    * added: option for logging runlevel events of seth, tor, or both
     * added: ARM-DEBUG event for netstat query time
     * added: providing progress bar when resolving a batch of hostnames
     * change: providing prompt notice when tor's control port is closed
@@ -490,7 +490,7 @@ Bundle of semi-low hanging fruit, including a few issues discussed on irc.
     * added: showing extra parameters in connection listings if room's available
     * added: identifying directory server connections
     * change: providing an error message if running an incompatible python version (issue spotted by arma)
-    * change: giving arm a version to help in bug reports
+    * change: giving seth a version to help in bug reports
     * change: minor tweak to the wording of a faq entry (requested by Sebastian)
     * fix: wasn't accounting for RelayBandwidthRate/Burst in effective bandwidth (caught by hexa and arma)
     * fix: timing issue when shutting down (caught by arma)
@@ -498,7 +498,7 @@ Bundle of semi-low hanging fruit, including a few issues discussed on irc.
     * fix: preserving old results when netstat fails
 
 9/6/09 - r20493
-Several substantial features (last tasks for arm's todo list).
+Several substantial features (last tasks for seth's todo list).
 
     * added: scroll bars for connections listing and event log
     * added: made log scrollable (feature request by StrangeCharm)
@@ -581,7 +581,7 @@ Quick fixes based on discussion on irc.
     * fix: missing import for the socket module
 
 7/20/09 - r20096, r20097, r20098
-Couple fixes so arm plays nicely in the case of multiple running tor instances.
+Couple fixes so seth plays nicely in the case of multiple running tor instances.
 
     * fix: can now deal with multiple tor instances: checks pid of process with the open control port
     * fix: if only one tor process is running use that pid (netstat fails if running as a different user
@@ -599,7 +599,7 @@ Miscellaneous fix and feature batch.
     * added: relay's flags to the header
     * added: listing by relay nickname
     * added: additional event aliases and option for NEWCONSENSUS
-    * added (phobos): screenshot of arm in action so people can see what it looks like
+    * added (phobos): screenshot of seth in action so people can see what it looks like
     * change: use constant "Listing" label for sorting rather than current view
     * change: removed 'reload torrc' option (deceptive and useless)
     * fix: updates cached consensus mappings with NEWDESC and NEWCONSENSUS events
@@ -609,7 +609,7 @@ Resolved a few quick bugs:
 
     * fix: added fingerprint lookup cache to resolve substantial performance issue
     * fix: hostname resolution progress accounts for newly added entries (no more negative progress)
-    * fix: resolved bug that prevented arm from starting if too small
+    * fix: resolved bug that prevented seth from starting if too small
     * fix: ordering issue when sorting unresolved ip addresses
 
 7/11/09 - r19975
@@ -693,7 +693,7 @@ Few small tweaks including:
     * change: make inclusion of 'unknown' events toggleable
 
 5/24/09 - r19548, r19549, r19550, r19551
-Initial version of arm (terminal relay status monitor). Repository set up by arma.
+Initial version of seth (terminal relay status monitor). Repository set up by arma.
 
     * fix: bug concerning undefined exit policy
     * fix: resolved issue that prevented monitor from functioning in terminals without curs_set support
