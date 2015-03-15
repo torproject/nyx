@@ -469,8 +469,12 @@ def get_sampling(last_sampling = None):
   }
 
   class Sampling(collections.namedtuple('Sampling', attr.keys())):
+    def __init__(self, **attr):
+      super(Sampling, self).__init__(**attr)
+      self._attr = attr
+
     def format(self, message, crop_width = None):
-      formatted_msg = message.format(**super(Sampling, self).__dict__)
+      formatted_msg = message.format(**self._attr)
 
       if crop_width:
         formatted_msg = str_tools.crop(formatted_msg, crop_width)
