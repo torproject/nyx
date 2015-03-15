@@ -178,7 +178,6 @@ features.graph.type bandwidth
 # accounting.show
 #   provides accounting stats if AccountingMax was set
 
-features.graph.bw.prepopulate true
 features.graph.bw.transferInBytes false
 features.graph.bw.accounting.show true
 

@@ -19,7 +19,7 @@ import seth.controller
 import seth.popups
 import seth.util.tracker
 
-from seth.util import bandwidth_from_state, join, msg, panel, tor_controller
+from seth.util import join, msg, panel, tor_controller
 
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
@@ -77,7 +77,6 @@ CONFIG = conf.config_dict('seth', {
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 150,
   'features.panels.show.connection': True,
-  'features.graph.bw.prepopulate': True,
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
   'tor.chroot': '',
@@ -200,7 +199,7 @@ class BandwidthStats(GraphCategory):
           entry_comp = entry.split(',')
 
           if len(entry_comp) != 2 or not entry_comp[0].isdigit() or not entry_comp[1].isdigit():
-            log.warn("Tor's 'GETINFO bw-event-cache' provided malformed output: %s" % bw_entries)
+            log.warn(msg('panel.graphing.bw_event_cache_malformed', response = bw_entries))
             is_successful = False
             break
 
@@ -208,7 +207,7 @@ class BandwidthStats(GraphCategory):
           self.secondary.update(int(entry_comp[1]))
 
         if is_successful:
-          log.info('Bandwidth graph has information for the last %s' % str_tools.time_label(len(bw_entries.split()), is_long = True))
+          log.info(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(len(bw_entries.split()), is_long = True)))
 
       read_total = controller.get_info('traffic/read', None)
       write_total = controller.get_info('traffic/written', None)
@@ -270,39 +269,6 @@ class BandwidthStats(GraphCategory):
         stats.append('observed: %s/s' % self._size_label(observed_bw))
 
     self.title_stats = stats
-
-  def prepopulate_from_state(self):
-    """
-    Attempts to use tor's state file to prepopulate values for the 15 minute
-    interval via the BWHistoryReadValues/BWHistoryWriteValues values.
-
-    :returns: **float** for the number of seconds of data missing
-
-    :raises: **ValueError** if unable to get the bandwidth information from our
-      state file
-    """
-
-    def update_values(stat, entries, latest_time):
-      # fill missing entries with the last value
-
-      missing_entries = int((time.time() - latest_time) / 900)
-      entries = entries + [entries[-1]] * missing_entries
-
-      # pad if too short and truncate if too long
-
-      entry_count = CONFIG['features.graph.max_width']
-      entries = [0] * (entry_count - len(entries)) + entries[-entry_count:]
-
-      stat.values[Interval.FIFTEEN_MINUTE] = entries
-      stat.max_value[Interval.FIFTEEN_MINUTE] = max(entries)
-      stat.latest_value = entries[-1] * 900
-
-    stats = bandwidth_from_state()
-
-    update_values(self.primary, stats.read_entries, stats.last_read_time)
-    update_values(self.secondary, stats.write_entries, stats.last_write_time)
-
-    return time.time() - min(stats.last_read_time, stats.last_write_time)
 
   def _size_label(self, byte_count, decimal = 1):
     """
@@ -387,23 +353,7 @@ class GraphPanel(panel.Panel):
     self.set_pause_attr('_stats')
     self.set_pause_attr('_accounting_stats')
 
-    # prepopulates bandwidth values from state file
-
     controller = tor_controller()
-
-    if controller.is_alive() and CONFIG['features.graph.bw.prepopulate']:
-      try:
-        missing_seconds = self._stats[GraphStat.BANDWIDTH].prepopulate_from_state()
-
-        if missing_seconds:
-          log.notice(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(missing_seconds, 0, True)))
-        else:
-          log.notice(msg('panel.graphing.prepopulation_all_successful'))
-
-        self.update_interval = Interval.FIFTEEN_MINUTE
-      except ValueError as exc:
-        log.info(msg('panel.graphing.prepopulation_failure', error = exc))
-
     controller.add_event_listener(self._update_accounting, EventType.BW)
     controller.add_event_listener(self._update_stats, EventType.BW)
     controller.add_status_listener(lambda *args: self.redraw(True))
