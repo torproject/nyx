@@ -2,6 +2,7 @@
 Helper functions for working with tor's configuration file.
 """
 
+import codecs
 import os
 import time
 import socket
@@ -237,6 +238,7 @@ def load_option_descriptions(load_path = None, check_version = True):
       last_category, last_description = Category.GENERAL, ""
 
       for line in man_call_results:
+        line = codecs.latin_1_encode(line, 'replace')[0]
         line = ui_tools.get_printable(line)
         stripped_line = line.strip()
 
