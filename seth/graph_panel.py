@@ -11,6 +11,7 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
          25s  50   1m   1.6  2.0           25s  50   1m   1.6  2.0
 """
 
+import collections
 import copy
 import curses
 import time
@@ -27,6 +28,8 @@ from stem.util import conf, enum, log, str_tools, system
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
+
+DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'accounting'))
 
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
@@ -545,57 +548,66 @@ class GraphPanel(panel.Panel):
       return
 
     stat = self.get_attr('_stats')[self.displayed_stat]
-    subgraph_width = min(width / 2, CONFIG['features.graph.max_width'])
+
+    attr = DrawAttributes(
+      stat = type(stat)(stat),  # clone the GraphCategory
+      subgraph_height = self._graph_height + 2,  # graph rows + header + x-axis label
+      subgraph_width = min(width / 2, CONFIG['features.graph.max_width']),
+      interval = self.update_interval,
+      bounds_type = self.bounds_type,
+      accounting = self.get_attr('_accounting_stats'),
+    )
 
     if self.is_title_visible():
-      self.addstr(0, 0, stat.title(width), curses.A_STANDOUT)
+      self.addstr(0, 0, attr.stat.title(width), curses.A_STANDOUT)
 
-    self._draw_subgraph(stat.primary, 0, subgraph_width, PRIMARY_COLOR)
-    self._draw_subgraph(stat.secondary, subgraph_width, subgraph_width, SECONDARY_COLOR)
+    self._draw_subgraph(attr, attr.stat.primary, 0, PRIMARY_COLOR)
+    self._draw_subgraph(attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
 
-    if self.displayed_stat == GraphStat.BANDWIDTH:
+    if attr.stat.stat_type() == GraphStat.BANDWIDTH:
       if width <= COLLAPSE_WIDTH:
-        self._draw_bandwidth_stats(stat, width, subgraph_width)
+        self._draw_bandwidth_stats(attr, width)
 
-      self._draw_accounting_stats()
+      if attr.accounting:
+        self._draw_accounting_stats(attr)
 
-  def _draw_subgraph(self, data, x, width, color):
-    subgraph_columns = width - 5
-    min_bound, max_bound = self._get_graph_bounds(data, subgraph_columns)
+  def _draw_subgraph(self, attr, data, x, color):
+    subgraph_columns = attr.subgraph_width - 5
+    min_bound, max_bound = self._get_graph_bounds(attr, data, subgraph_columns)
 
-    y_axis_labels = self._get_y_axis_labels(data, min_bound, max_bound)
+    x_axis_labels = self._get_x_axis_labels(attr, subgraph_columns)
+    y_axis_labels = self._get_y_axis_labels(attr, data, min_bound, max_bound)
     axis_offset = max([len(label) for label in y_axis_labels.values()])
-    x_axis_labels = self._get_x_axis_labels(subgraph_columns, axis_offset)
 
-    self.addstr(1, x, data.header(width), curses.A_BOLD, color)
+    self.addstr(1, x, data.header(attr.subgraph_width), curses.A_BOLD, color)
 
     for x_offset, label in x_axis_labels.items():
-      self.addstr(self._graph_height + 2, x + x_offset, label, color)
+      self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
 
     for y, label in y_axis_labels.items():
       self.addstr(y, x, label, color)
 
     for col in range(subgraph_columns):
-      column_count = int(data.values[self.update_interval][col]) - min_bound
-      column_height = int(min(self._graph_height, self._graph_height * column_count / (max(1, max_bound) - min_bound)))
+      column_count = int(data.values[attr.interval][col]) - min_bound
+      column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
 
       for row in range(column_height):
-        self.addstr(self._graph_height + 1 - row, x + col + axis_offset + 1, ' ', curses.A_STANDOUT, color)
+        self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', curses.A_STANDOUT, color)
 
-  def _get_graph_bounds(self, data, subgraph_columns):
+  def _get_graph_bounds(self, attr, data, subgraph_columns):
     """
     Provides the range the graph shows (ie, its minimum and maximum value).
     """
 
     min_bound, max_bound = 0, 0
-    values = data.values[self.update_interval][:subgraph_columns]
+    values = data.values[attr.interval][:subgraph_columns]
 
-    if self.bounds_type == Bounds.GLOBAL_MAX:
-      max_bound = data.max_value[self.update_interval]
+    if attr.bounds_type == Bounds.GLOBAL_MAX:
+      max_bound = data.max_value[attr.interval]
     elif subgraph_columns > 0:
       max_bound = max(values)  # local maxima
 
-    if self.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
+    if attr.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
       min_bound = min(values)
 
       # if the max = min pick zero so we still display something
@@ -605,7 +617,7 @@ class GraphPanel(panel.Panel):
 
     return min_bound, max_bound
 
-  def _get_y_axis_labels(self, data, min_bound, max_bound):
+  def _get_y_axis_labels(self, attr, data, min_bound, max_bound):
     """
     Provides the labels for the y-axis. This is a mapping of the position it
     should be drawn at to its text.
@@ -613,25 +625,25 @@ class GraphPanel(panel.Panel):
 
     y_axis_labels = {
       2: data.y_axis_label(max_bound),
-      self._graph_height + 1: data.y_axis_label(min_bound),
+      attr.subgraph_height - 1: data.y_axis_label(min_bound),
     }
 
-    ticks = (self._graph_height - 3) / 2
+    ticks = (attr.subgraph_height - 5) / 2
 
     for i in range(ticks):
-      row = self._graph_height - (2 * i) - 3
+      row = attr.subgraph_height - (2 * i) - 5
 
-      if self._graph_height % 2 == 0 and i >= (ticks / 2):
+      if attr.subgraph_height % 2 == 0 and i >= (ticks / 2):
         row -= 1  # make extra gap be in the middle when we're an even size
 
-      val = (max_bound - min_bound) * (self._graph_height - row - 1) / (self._graph_height - 1)
+      val = (max_bound - min_bound) * (attr.subgraph_height - row - 3) / (attr.subgraph_height - 3)
 
       if val not in (min_bound, max_bound):
         y_axis_labels[row + 2] = data.y_axis_label(val)
 
     return y_axis_labels
 
-  def _get_x_axis_labels(self, subgraph_columns, axis_offset):
+  def _get_x_axis_labels(self, attr, subgraph_columns):
     """
     Provides the labels for the x-axis. We include the units for only its first
     value, then bump the precision for subsequent units. For example...
@@ -641,7 +653,7 @@ class GraphPanel(panel.Panel):
 
     x_axis_labels = {}
 
-    interval_sec = INTERVAL_SECONDS[self.update_interval]
+    interval_sec = INTERVAL_SECONDS[attr.interval]
     interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
     units_label, decimal_precision = None, 0
 
@@ -659,44 +671,40 @@ class GraphPanel(panel.Panel):
         # if constrained on space then strips labeling since already provided
         time_label = time_label[:-1]
 
-      x_axis_labels[axis_offset + x] = time_label
+      x_axis_labels[x] = time_label
 
     return x_axis_labels
 
-  def _draw_bandwidth_stats(self, stat, width, subgraph_width):
+  def _draw_bandwidth_stats(self, attr, width):
     """
     Replaces the x-axis labeling with bandwidth stats. This is done on small
     screens since this information otherwise wouldn't fit.
     """
 
-    labeling_line = DEFAULT_CONTENT_HEIGHT + self._graph_height - 2
+    labeling_line = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4
     self.addstr(labeling_line, 0, ' ' * width)  # clear line
 
-    runtime = time.time() - stat.start_time
-    primary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.primary.total), _size_label(stat.primary.total / runtime))
-    secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.secondary.total), _size_label(stat.secondary.total / runtime))
+    runtime = time.time() - attr.stat.start_time
+    primary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.primary.total), _size_label(attr.stat.primary.total / runtime))
+    secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.secondary.total), _size_label(attr.stat.secondary.total / runtime))
 
     self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
-    self.addstr(labeling_line, subgraph_width + 1, secondary_footer, SECONDARY_COLOR)
+    self.addstr(labeling_line, attr.subgraph_width + 1, secondary_footer, SECONDARY_COLOR)
 
-  def _draw_accounting_stats(self):
-    accounting_stats = self.get_attr('_accounting_stats')
-    y = DEFAULT_CONTENT_HEIGHT + self._graph_height
-
-    if not accounting_stats:
-      return
+  def _draw_accounting_stats(self, attr):
+    y = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2
 
     if tor_controller().is_alive():
-      hibernate_color = CONFIG['attr.hibernate_color'].get(accounting_stats.status, 'red')
+      hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, 'red')
 
       x = self.addstr(y, 0, 'Accounting (', curses.A_BOLD)
-      x = self.addstr(y, x, accounting_stats.status, curses.A_BOLD, hibernate_color)
+      x = self.addstr(y, x, attr.accounting.status, curses.A_BOLD, hibernate_color)
       x = self.addstr(y, x, ')', curses.A_BOLD)
 
-      self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(accounting_stats.time_until_reset))
+      self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
 
-      self.addstr(y + 1, 2, '%s / %s' % (accounting_stats.read_bytes, accounting_stats.read_limit), PRIMARY_COLOR)
-      self.addstr(y + 1, 37, '%s / %s' % (accounting_stats.written_bytes, accounting_stats.write_limit), SECONDARY_COLOR)
+      self.addstr(y + 1, 2, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
+      self.addstr(y + 1, 37, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
     else:
       self.addstr(y, 0, 'Accounting:', curses.A_BOLD)
       self.addstr(y, 12, 'Connection Closed...')
