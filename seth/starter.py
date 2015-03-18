@@ -11,7 +11,6 @@ import os
 import platform
 import sys
 import time
-import threading
 
 import seth
 import seth.arguments
