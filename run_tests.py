@@ -3,7 +3,7 @@
 # See LICENSE for licensing information
 
 """
-Runs arm's unit tests. This is a curses application so we're pretty limited on
+Runs seth's unit tests. This is a curses application so we're pretty limited on
 the test coverage we can achieve, but exercising what we can.
 """
 
@@ -13,15 +13,15 @@ import unittest
 import stem.util.conf
 import stem.util.test_tools
 
-from arm.util import uses_settings
+from seth.util import uses_settings
 
 ARM_BASE = os.path.dirname(__file__)
 
 SRC_PATHS = [os.path.join(ARM_BASE, path) for path in (
-  'arm',
+  'seth',
   'test',
   'run_tests.py',
-  'run_arm',
+  'run_seth',
 )]
 
 

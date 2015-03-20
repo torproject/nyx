@@ -1,5 +1,5 @@
 """
-Unit tests for arm.
+Unit tests for seth.
 """
 
 __all__ = [

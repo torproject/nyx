@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from arm.util.tracker import ResourceTracker, _resources_via_ps, _resources_via_proc
+from seth.util.tracker import ResourceTracker, _resources_via_ps, _resources_via_proc
 
 from mock import Mock, patch
 
@@ -12,10 +12,10 @@ PS_OUTPUT = """\
 
 
 class TestResourceTracker(unittest.TestCase):
-  @patch('arm.util.tracker.tor_controller')
-  @patch('arm.util.tracker._resources_via_proc')
-  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
-  @patch('arm.util.tracker.proc.is_available', Mock(return_value = True))
+  @patch('seth.util.tracker.tor_controller')
+  @patch('seth.util.tracker._resources_via_proc')
+  @patch('seth.util.tracker.system', Mock(return_value = Mock()))
+  @patch('seth.util.tracker.proc.is_available', Mock(return_value = True))
   def test_fetching_samplings(self, resources_via_proc_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     resources_via_proc_mock.return_value = (105.3, 2.4, 8072, 0.3)
@@ -47,11 +47,11 @@ class TestResourceTracker(unittest.TestCase):
 
     resources_via_proc_mock.assert_called_with(12345)
 
-  @patch('arm.util.tracker.tor_controller')
-  @patch('arm.util.tracker.proc.is_available')
-  @patch('arm.util.tracker._resources_via_ps', Mock(return_value = (105.3, 2.4, 8072, 0.3)))
-  @patch('arm.util.tracker._resources_via_proc', Mock(return_value = (340.3, 3.2, 6020, 0.26)))
-  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
+  @patch('seth.util.tracker.tor_controller')
+  @patch('seth.util.tracker.proc.is_available')
+  @patch('seth.util.tracker._resources_via_ps', Mock(return_value = (105.3, 2.4, 8072, 0.3)))
+  @patch('seth.util.tracker._resources_via_proc', Mock(return_value = (340.3, 3.2, 6020, 0.26)))
+  @patch('seth.util.tracker.system', Mock(return_value = Mock()))
   def test_picking_proc_or_ps(self, is_proc_available_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
 
@@ -85,11 +85,11 @@ class TestResourceTracker(unittest.TestCase):
       self.assertEqual(0.3, resources.memory_percent)
       self.assertTrue((time.time() - resources.timestamp) < 0.5)
 
-  @patch('arm.util.tracker.tor_controller')
-  @patch('arm.util.tracker._resources_via_ps', Mock(return_value = (105.3, 2.4, 8072, 0.3)))
-  @patch('arm.util.tracker._resources_via_proc', Mock(side_effect = IOError()))
-  @patch('arm.util.tracker.system', Mock(return_value = Mock()))
-  @patch('arm.util.tracker.proc.is_available', Mock(return_value = True))
+  @patch('seth.util.tracker.tor_controller')
+  @patch('seth.util.tracker._resources_via_ps', Mock(return_value = (105.3, 2.4, 8072, 0.3)))
+  @patch('seth.util.tracker._resources_via_proc', Mock(side_effect = IOError()))
+  @patch('seth.util.tracker.system', Mock(return_value = Mock()))
+  @patch('seth.util.tracker.proc.is_available', Mock(return_value = True))
   def test_failing_over_to_ps(self, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
 
@@ -121,7 +121,7 @@ class TestResourceTracker(unittest.TestCase):
       self.assertEqual(0.3, resources.memory_percent)
       self.assertTrue((time.time() - resources.timestamp) < 0.5)
 
-  @patch('arm.util.tracker.system.call', Mock(return_value = PS_OUTPUT.split('\n')))
+  @patch('seth.util.tracker.system.call', Mock(return_value = PS_OUTPUT.split('\n')))
   def test_resources_via_ps(self):
     total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _resources_via_ps(12345)
 
@@ -131,9 +131,9 @@ class TestResourceTracker(unittest.TestCase):
     self.assertEqual(0.004, memory_in_percent)
 
   @patch('time.time', Mock(return_value = 1388967218.973117))
-  @patch('arm.util.tracker.proc.stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
-  @patch('arm.util.tracker.proc.memory_usage', Mock(return_value = (19300352, 6432)))
-  @patch('arm.util.tracker.proc.physical_memory', Mock(return_value = 4825088000))
+  @patch('seth.util.tracker.proc.stats', Mock(return_value = (1.5, 0.5, 1388967200.9)))
+  @patch('seth.util.tracker.proc.memory_usage', Mock(return_value = (19300352, 6432)))
+  @patch('seth.util.tracker.proc.physical_memory', Mock(return_value = 4825088000))
   def test_resources_via_proc(self):
     total_cpu_time, uptime, memory_in_bytes, memory_in_percent = _resources_via_proc(12345)
 

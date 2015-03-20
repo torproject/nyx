@@ -2,7 +2,7 @@ import unittest
 
 from mock import Mock, patch
 
-from arm.arguments import DEFAULT_ARGS, parse, expand_events, missing_event_types
+from seth.arguments import DEFAULT_ARGS, parse, expand_events, missing_event_types
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -106,7 +106,7 @@ class TestExpandEvents(unittest.TestCase):
 
 
 class TestMissingEventTypes(unittest.TestCase):
-  @patch('arm.arguments.tor_controller')
+  @patch('seth.arguments.tor_controller')
   def test_with_a_failed_query(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = None
@@ -114,7 +114,7 @@ class TestMissingEventTypes(unittest.TestCase):
 
     self.assertEqual([], missing_event_types())
 
-  @patch('arm.arguments.tor_controller')
+  @patch('seth.arguments.tor_controller')
   def test_without_unrecognized_events(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR'
@@ -122,7 +122,7 @@ class TestMissingEventTypes(unittest.TestCase):
 
     self.assertEqual([], missing_event_types())
 
-  @patch('arm.arguments.tor_controller')
+  @patch('seth.arguments.tor_controller')
   def test_with_unrecognized_events(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'EVENT1 DEBUG INFO NOTICE WARN EVENT2 ERR EVENT3'

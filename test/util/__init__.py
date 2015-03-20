@@ -1,5 +1,5 @@
 """
-Unit tests for arm's utilities.
+Unit tests for seth's utilities.
 """
 
-__all__ = []
+__all__ = ['bandwidth_from_state']
