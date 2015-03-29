@@ -6,7 +6,7 @@ if [ $? = 0 ]; then
   
   # provide notice if we installed successfully
   if [ $? = 0 ]; then
-    echo "installed to /usr/share/seth"
+    echo "installed to /usr/share/nyx"
   fi
   
   # cleans up the automatically built temporary files

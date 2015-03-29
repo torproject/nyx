@@ -2,7 +2,7 @@ import unittest
 
 from mock import Mock, patch
 
-from seth.arguments import DEFAULT_ARGS, parse, expand_events, missing_event_types
+from nyx.arguments import DEFAULT_ARGS, parse, expand_events, missing_event_types
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -68,7 +68,7 @@ class TestArgumentParsing(unittest.TestCase):
 class TestExpandEvents(unittest.TestCase):
   def test_examples(self):
     self.assertEqual(set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT']), expand_events('inUt'))
-    self.assertEqual(set(['NOTICE', 'WARN', 'ERR', 'ARM_WARN', 'ARM_ERR']), expand_events('N4'))
+    self.assertEqual(set(['NOTICE', 'WARN', 'ERR', 'NYX_WARN', 'NYX_ERR']), expand_events('N4'))
     self.assertEqual(set(), expand_events('cfX'))
 
   def test_runlevel_expansion(self):
@@ -78,11 +78,11 @@ class TestExpandEvents(unittest.TestCase):
     self.assertEqual(set(['WARN', 'ERR']), expand_events('W'))
     self.assertEqual(set(['ERR']), expand_events('E'))
 
-    self.assertEqual(set(['ARM_DEBUG', 'ARM_INFO', 'ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('1'))
-    self.assertEqual(set(['ARM_INFO', 'ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('2'))
-    self.assertEqual(set(['ARM_NOTICE', 'ARM_WARN', 'ARM_ERR']), expand_events('3'))
-    self.assertEqual(set(['ARM_WARN', 'ARM_ERR']), expand_events('4'))
-    self.assertEqual(set(['ARM_ERR']), expand_events('5'))
+    self.assertEqual(set(['NYX_DEBUG', 'NYX_INFO', 'NYX_NOTICE', 'NYX_WARN', 'NYX_ERR']), expand_events('1'))
+    self.assertEqual(set(['NYX_INFO', 'NYX_NOTICE', 'NYX_WARN', 'NYX_ERR']), expand_events('2'))
+    self.assertEqual(set(['NYX_NOTICE', 'NYX_WARN', 'NYX_ERR']), expand_events('3'))
+    self.assertEqual(set(['NYX_WARN', 'NYX_ERR']), expand_events('4'))
+    self.assertEqual(set(['NYX_ERR']), expand_events('5'))
 
   def test_short_circuit_options(self):
     # Check that the 'A' and 'X' options short circuit normal parsing,
@@ -106,7 +106,7 @@ class TestExpandEvents(unittest.TestCase):
 
 
 class TestMissingEventTypes(unittest.TestCase):
-  @patch('seth.arguments.tor_controller')
+  @patch('nyx.arguments.tor_controller')
   def test_with_a_failed_query(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = None
@@ -114,7 +114,7 @@ class TestMissingEventTypes(unittest.TestCase):
 
     self.assertEqual([], missing_event_types())
 
-  @patch('seth.arguments.tor_controller')
+  @patch('nyx.arguments.tor_controller')
   def test_without_unrecognized_events(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR'
@@ -122,7 +122,7 @@ class TestMissingEventTypes(unittest.TestCase):
 
     self.assertEqual([], missing_event_types())
 
-  @patch('seth.arguments.tor_controller')
+  @patch('nyx.arguments.tor_controller')
   def test_with_unrecognized_events(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'EVENT1 DEBUG INFO NOTICE WARN EVENT2 ERR EVENT3'

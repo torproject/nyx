@@ -1,0 +1,243 @@
+# Startup options
+tor.password
+startup.events N3
+startup.dataDirectory ~/.nyx
+
+# Seconds between querying information
+
+queries.connections.rate 5
+queries.resources.rate 5
+queries.port_usage.rate 5
+
+queries.refreshRate.rate 5
+
+# allows individual panels to be included/excluded
+features.panels.show.graph true
+features.panels.show.log true
+features.panels.show.connection true
+features.panels.show.config true
+features.panels.show.torrc true
+
+# Renders the interface with color if set and the terminal supports it
+features.colorInterface true
+
+# Uses ACS (alternate character support) to display nice borders. This may not
+# work on all terminals.
+features.acsSupport true
+
+# Replaces all colored content (ie, anything that isn't white) with this
+# color. Valid options are:
+# none, red, green, yellow, blue, cyan, magenta, black, white
+features.colorOverride none
+
+# Includes unicode characters in the interface.
+features.printUnicode true
+
+# Checks the torrc for issues, warning and hilighting problems if true
+features.torrc.validate true
+
+# Set this if you're running in a chroot jail or other environment where tor's
+# resources (log, state, etc) should have a prefix in their paths.
+
+tor.chroot
+
+# If set, nyx appends any log messages it reports while running to the given
+# log file. This does not take filters into account or include prepopulated
+# events.
+features.logFile 
+
+# Seconds to wait on user input before refreshing content
+features.redrawRate 5
+
+# Rate (seconds) to periodically redraw the screen, disabled if zero. This
+# shouldn't be necessary, but can correct issues if the terminal gets into a
+# funky state.
+features.refreshRate 5
+
+# Confirms promt to confirm when quiting if true
+features.confirmQuit true
+
+# Paremters for the log panel
+# ---------------------------
+# showDateDividers
+#   show borders with dates for entries from previous days
+# showDuplicateEntries
+#   shows all log entries if true, otherwise collapses similar entries with an
+#   indicator for how much is being hidden
+# entryDuration
+#   number of days log entries are kept before being dropped (if zero then
+#   they're kept until cropped due to caching limits)
+# maxLinesPerEntry
+#   max number of lines to display for a single log entry
+# prepopulate
+#   attempts to read past events from the log file if true
+# prepopulateReadLimit
+#   maximum entries read from the log file, used to prevent huge log files from
+#   causing a slow startup time.
+# maxRefreshRate
+#   rate limiting (in milliseconds) for drawing the log if updates are made
+#   rapidly (for instance, when at the DEBUG runlevel)
+# regex
+#   preconfigured regular expression pattern, up to five will be loaded
+
+features.log.showDateDividers true
+features.log.showDuplicateEntries false
+features.log.entryDuration 7
+features.log.maxLinesPerEntry 6
+features.log.prepopulate true
+features.log.prepopulateReadLimit 5000
+features.log.maxRefreshRate 300
+#features.log.regex My First Regex Pattern
+#features.log.regex ^My Second Regex Pattern$
+
+# Paremters for the config panel
+# ---------------------------
+# order
+#   three comma separated configuration attributes, options including:
+#
+#     * CATEGORY
+#     * OPTION
+#     * VALUE
+#     * TYPE
+#     * ARG_USAGE
+#     * SUMMARY
+#     * DESCRIPTION
+#     * MAN_ENTRY
+#     * IS_DEFAULT
+#
+# selectionDetails.height
+#   rows of data for the panel showing details on the current selection, this
+#   is disabled entirely if zero
+# features.config.prepopulateEditValues
+#   when editing config values the current value is prepopulated if true, and
+#   left blank otherwise
+# state.colWidth.*
+#   column content width
+# state.showPrivateOptions
+#   tor provides config options of the form "__<option>" that can be dangerous
+#   to set, if true nyx provides these on the config panel
+# state.showVirtualOptions
+#   virtual options are placeholders for other option groups, never having
+#   values or being setable themselves
+# file.showScrollbars
+#   displays scrollbars when the torrc content is longer than the display
+# file.maxLinesPerEntry
+#   max number of lines to display for a single entry in the torrc
+
+features.config.order MAN_ENTRY, OPTION, IS_DEFAULT
+features.config.selectionDetails.height 6
+features.config.prepopulateEditValues true
+features.config.state.colWidth.option 25
+features.config.state.colWidth.value 15
+features.config.state.showPrivateOptions false
+features.config.state.showVirtualOptions false
+features.config.file.showScrollbars true
+features.config.file.maxLinesPerEntry 8
+
+# Descriptions for tor's configuration options can be loaded from its man page
+# to give usage information on the settings page. They can also be persisted to
+# a file to speed future lookups.
+# ---------------------------
+# enabled
+#   allows the descriptions to be fetched from the man page if true
+# persist
+#   caches the descriptions (substantially saving on future startup times)
+
+features.config.descriptions.enabled true
+features.config.descriptions.persist true
+
+# General graph parameters
+# ------------------------
+# height
+#   height of graphed stats
+# maxWidth
+#   maximum number of graphed entries
+# interval
+#   each second,   5 seconds,     30 seconds,  minutely,      
+#   15 minute,     30 minute,     hourly,      daily
+# bound
+#   global_max - global maximum (highest value ever seen)
+#   local_max - local maximum (highest value currently on the graph)
+#   tight - local maximum and minimum
+# type
+#   none, bandwidth, connections, resources
+
+features.graph.height 7
+features.graph.maxWidth 150
+features.graph.interval each second
+features.graph.bound local_max
+features.graph.type bandwidth
+
+# Parameters for graphing bandwidth stats
+# ---------------------------------------
+# prepopulate
+#   attempts to use tor's state file to prepopulate the bandwidth graph at the
+#   15-minute interval (this requires the minimum of a day's worth of uptime)
+# transferInBytes
+#   shows rate measurments in bytes if true, bits otherwise
+# accounting.show
+#   provides accounting stats if AccountingMax was set
+
+features.graph.bw.transferInBytes false
+features.graph.bw.accounting.show true
+
+# Parameters for connection display
+# ---------------------------------
+# listingType
+#   the primary category of information shown by default, options including:
+#
+#   * IP_ADDRESS
+#   * HOSTNAME
+#   * FINGERPRINT
+#   * NICKNAME
+#
+# order
+#   three comma separated configuration attributes, options including:
+#
+#   * CATEGORY
+#   * UPTIME
+#   * LISTING
+#   * IP_ADDRESS
+#   * PORT
+#   * HOSTNAME
+#   * FINGERPRINT
+#   * NICKNAME
+#   * COUNTRY
+#
+# refreshRate
+#   rate at which the connection panel contents is redrawn (if higher than the
+#   connection resolution rate then reducing this won't casue new data to
+#   appear more frequently - just increase the rate at which the uptime field
+#   is updated)
+# resolveApps
+#   issues lsof queries to determining the applications involved in local
+#   SOCKS and CONTROL connections
+# markInitialConnections
+#   if true, the uptime of the initial connections when we start are marked
+#   with a '+' (these uptimes are estimates since nyx can only track a
+#   connection's duration while it runs)
+# showIps
+#   shows ip addresses for other tor relays, dropping this information if
+#   false
+# showExitPort
+#   shows port related information of exit connections we relay if true
+# showColumn.*
+#   toggles the visability of the connection table columns
+
+features.connection.listingType IP_ADDRESS
+features.connection.order CATEGORY, LISTING, UPTIME
+features.connection.refreshRate 5
+features.connection.resolveApps true
+features.connection.markInitialConnections true
+features.connection.showIps true
+features.connection.showExitPort true
+features.connection.showColumn.fingerprint true
+features.connection.showColumn.nickname true
+features.connection.showColumn.destination true
+features.connection.showColumn.expandedIp true
+
+# Caching parameters
+cache.logPanel.size 1000
+cache.nyxLog.size 1000
+cache.nyxLog.trimSize 200
+

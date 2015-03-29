@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from seth.util.tracker import ConnectionTracker
+from nyx.util.tracker import ConnectionTracker
 
 from stem.util import connection
 
@@ -13,10 +13,10 @@ CONNECTION_3 = connection.Connection('127.0.0.1', 1059, '74.125.28.106', 80, 'tc
 
 
 class TestConnectionTracker(unittest.TestCase):
-  @patch('seth.util.tracker.tor_controller')
-  @patch('seth.util.tracker.connection.get_connections')
-  @patch('seth.util.tracker.system', Mock(return_value = Mock()))
-  @patch('seth.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
+  @patch('nyx.util.tracker.tor_controller')
+  @patch('nyx.util.tracker.connection.get_connections')
+  @patch('nyx.util.tracker.system', Mock(return_value = Mock()))
+  @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_fetching_connections(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     get_value_mock.return_value = [CONNECTION_1, CONNECTION_2, CONNECTION_3]
@@ -36,10 +36,10 @@ class TestConnectionTracker(unittest.TestCase):
       self.assertEqual(2, daemon.run_counter())
       self.assertEqual([], connections)
 
-  @patch('seth.util.tracker.tor_controller')
-  @patch('seth.util.tracker.connection.get_connections')
-  @patch('seth.util.tracker.system', Mock(return_value = Mock()))
-  @patch('seth.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
+  @patch('nyx.util.tracker.tor_controller')
+  @patch('nyx.util.tracker.connection.get_connections')
+  @patch('nyx.util.tracker.system', Mock(return_value = Mock()))
+  @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
   def test_resolver_failover(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     get_value_mock.side_effect = IOError()

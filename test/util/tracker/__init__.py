@@ -1,5 +1,5 @@
 """
-Unit tests for seth's tracker utilities.
+Unit tests for nyx's tracker utilities.
 """
 
 __all__ = [

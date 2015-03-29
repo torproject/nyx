@@ -1,5 +1,5 @@
 """
-Unit tests for seth.
+Unit tests for nyx.
 """
 
 __all__ = [

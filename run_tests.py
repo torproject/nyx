@@ -3,7 +3,7 @@
 # See LICENSE for licensing information
 
 """
-Runs seth's unit tests. This is a curses application so we're pretty limited on
+Runs nyx's unit tests. This is a curses application so we're pretty limited on
 the test coverage we can achieve, but exercising what we can.
 """
 
@@ -13,24 +13,24 @@ import unittest
 import stem.util.conf
 import stem.util.test_tools
 
-from seth.util import uses_settings
+from nyx.util import uses_settings
 
-ARM_BASE = os.path.dirname(__file__)
+NYX_BASE = os.path.dirname(__file__)
 
-SRC_PATHS = [os.path.join(ARM_BASE, path) for path in (
-  'seth',
+SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
+  'nyx',
   'test',
   'run_tests.py',
-  'run_seth',
+  'run_nyx',
 )]
 
 
 @uses_settings
 def main():
   test_config = stem.util.conf.get_config('test')
-  test_config.load(os.path.join(ARM_BASE, 'test', 'settings.cfg'))
+  test_config.load(os.path.join(NYX_BASE, 'test', 'settings.cfg'))
 
-  orphaned_pyc = stem.util.test_tools.clean_orphaned_pyc(ARM_BASE)
+  orphaned_pyc = stem.util.test_tools.clean_orphaned_pyc(NYX_BASE)
 
   for path in orphaned_pyc:
     print 'Deleted orphaned pyc file: %s' % path
