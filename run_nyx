@@ -2,6 +2,7 @@
 # Copyright 2014, Damian Johnson and The Tor Project
 # See LICENSE for licensing information
 
+import distutils.spawn
 import sys
 
 import nyx.starter
@@ -35,12 +36,24 @@ def _check_prereq():
   try:
     import stem
   except ImportError:
-    raise ImportError("nyx requires stem, try running 'sudo apt-get install python-stem'")
+    if distutils.spawn.find_executable('pip') is not None:
+      advice = "try running 'sudo pip install stem'"
+    elif distutils.spawn.find_executable('apt-get') is not None:
+      advice = "try running 'sudo apt-get install python-stem'"
+    else:
+      advice = "you can find it at https://stem.torproject.org/download.html"
+
+    raise ImportError("nyx requires stem, %s" % advice)
 
   try:
     import curses
   except ImportError:
-    raise ImportError("nyx requires curses, try running 'sudo apt-get install python-curses'")
+    if distutils.spawn.find_executable('apt-get') is not None:
+      advice = ", try running 'sudo apt-get install python-curses'"
+    else:
+      advice = ''  # not sure what to do for other platforms
+
+    raise ImportError("nyx requires curses" + advice)
 
 
 if __name__ == '__main__':
