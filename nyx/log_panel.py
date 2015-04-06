@@ -190,82 +190,63 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
     if is_file_subset:
       read_limit = add_limit
 
-  # tries opening the log file, cropping results to avoid choking on huge logs
-
-  lines = []
-
-  try:
-    if read_limit:
-      lines = system.call('tail -n %i %s' % (read_limit, logging_location))
-
-      if not lines:
-        raise IOError()
-    else:
-      log_file = open(logging_location, 'r')
-      lines = log_file.readlines()
-      log_file.close()
-  except IOError:
-    log.warn("Unable to read tor's log file: %s" % logging_location)
-
-  if not lines:
-    return []
-
   logged_events = []
   current_unix_time, current_local_time = time.time(), time.localtime()
 
-  for i in range(len(lines) - 1, -1, -1):
-    line = lines[i]
+  try:
+    for line in system.tail(logging_location, read_limit):
+      # entries look like:
+      # Jul 15 18:29:48.806 [notice] Parsing GEOIP file.
 
-    # entries look like:
-    # Jul 15 18:29:48.806 [notice] Parsing GEOIP file.
+      line_comp = line.split()
 
-    line_comp = line.split()
+      # Checks that we have all the components we expect. This could happen if
+      # we're either not parsing a tor log or in weird edge cases (like being
+      # out of disk space)
 
-    # Checks that we have all the components we expect. This could happen if
-    # we're either not parsing a tor log or in weird edge cases (like being
-    # out of disk space)
+      if len(line_comp) < 4:
+        continue
 
-    if len(line_comp) < 4:
-      continue
+      event_type = line_comp[3][1:-1].upper()
 
-    event_type = line_comp[3][1:-1].upper()
+      if event_type in runlevels:
+        # converts timestamp to unix time
 
-    if event_type in runlevels:
-      # converts timestamp to unix time
+        timestamp = ' '.join(line_comp[:3])
 
-      timestamp = ' '.join(line_comp[:3])
+        # strips the decimal seconds
 
-      # strips the decimal seconds
+        if '.' in timestamp:
+          timestamp = timestamp[:timestamp.find('.')]
 
-      if '.' in timestamp:
-        timestamp = timestamp[:timestamp.find('.')]
+        # Ignoring wday and yday since they aren't used.
+        #
+        # Pretend the year is 2012, because 2012 is a leap year, and parsing a
+        # date with strptime fails if Feb 29th is passed without a year that's
+        # actually a leap year. We can't just use the current year, because we
+        # might be parsing old logs which didn't get rotated.
+        #
+        # https://trac.torproject.org/projects/tor/ticket/5265
 
-      # Ignoring wday and yday since they aren't used.
-      #
-      # Pretend the year is 2012, because 2012 is a leap year, and parsing a
-      # date with strptime fails if Feb 29th is passed without a year that's
-      # actually a leap year. We can't just use the current year, because we
-      # might be parsing old logs which didn't get rotated.
-      #
-      # https://trac.torproject.org/projects/tor/ticket/5265
+        timestamp = '2012 ' + timestamp
+        event_time_comp = list(time.strptime(timestamp, '%Y %b %d %H:%M:%S'))
+        event_time_comp[8] = current_local_time.tm_isdst
+        event_time = time.mktime(event_time_comp)  # converts local to unix time
 
-      timestamp = '2012 ' + timestamp
-      event_time_comp = list(time.strptime(timestamp, '%Y %b %d %H:%M:%S'))
-      event_time_comp[8] = current_local_time.tm_isdst
-      event_time = time.mktime(event_time_comp)  # converts local to unix time
+        # The above is gonna be wrong if the logs are for the previous year. If
+        # the event's in the future then correct for this.
 
-      # The above is gonna be wrong if the logs are for the previous year. If
-      # the event's in the future then correct for this.
+        if event_time > current_unix_time + 60:
+          event_time_comp[0] -= 1
+          event_time = time.mktime(event_time_comp)
 
-      if event_time > current_unix_time + 60:
-        event_time_comp[0] -= 1
-        event_time = time.mktime(event_time_comp)
+        event_msg = ' '.join(line_comp[4:])
+        logged_events.append(LogEntry(event_time, event_type, event_msg, RUNLEVEL_EVENT_COLOR[event_type]))
 
-      event_msg = ' '.join(line_comp[4:])
-      logged_events.append(LogEntry(event_time, event_type, event_msg, RUNLEVEL_EVENT_COLOR[event_type]))
-
-    if 'opening log file' in line:
-      break  # this entry marks the start of this tor instance
+      if 'opening log file' in line:
+        break  # this entry marks the start of this tor instance
+  except IOError:
+    log.warn("Unable to read tor's log file: %s" % logging_location)
 
   if add_limit:
     logged_events = logged_events[:add_limit]
