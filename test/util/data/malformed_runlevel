@@ -1,0 +1,21 @@
+Apr 06 11:03:39.000 [notice] Tor 0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) opening new log file.
+Apr 06 11:03:39.832 [notice] Tor v0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) running on Linux with Libevent 2.0.16-stable, OpenSSL 1.0.1 and Zlib 1.2.3.4.
+Apr 06 11:03:39.832 [notice] Tor can't help you if you use it wrong! Learn how to be safe at https://www.torproject.org/download/download#warning
+Apr 06 11:03:39.833 [notice] This version is not a stable Tor release. Expect more bugs than usual.
+Apr 06 11:03:39.833 [notice] Read configuration file "/home/atagar/.tor/torrc".
+Apr 06 11:03:39.838 [notice] Opening Socks listener on 127.0.0.1:9050
+Apr 06 11:03:39.838 [notice] Opening Control listener on 127.0.0.1:9051
+Apr 06 11:03:39.000 [notice] Bootstrapped 0%: Starting
+Apr 06 11:03:42.000 [notice] Bootstrapped 45%: Asking for relay descriptors
+Apr 06 11:03:43.000 [notice] Bootstrapped 50%: Loading relay descriptors
+Apr 06 11:03:49.000 [notice] New control connection opened from 127.0.0.1.
+Apr 06 11:03:51.000 [notice] Bootstrapped 55%: Loading relay descriptors
+Apr 06 11:03:51.000 [notice] Bootstrapped 63%: Loading relay descriptors
+Apr 06 11:03:51.000 [notice] Bootstrapped 69%: Loading relay descriptors
+Apr 06 11:03:51.000 [notice] Bootstrapped 74%: Loading relay descriptors
+Apr 06 11:03:52.000 [notice] Bootstrapped 80%: Connecting to the Tor network
+Apr 06 11:03:52.000 [unrecognized] Bootstrapped 90%: Establishing a Tor circuit
+Apr 06 11:03:53.000 [notice] Tor has successfully opened a circuit. Looks like client functionality is working.
+Apr 06 11:03:53.000 [notice] Bootstrapped 100%: Done
+Apr 06 11:03:55.000 [notice] New control connection opened from 127.0.0.1.
+Apr 06 11:53:46.000 [notice] Interrupt: exiting cleanly.

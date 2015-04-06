@@ -14,12 +14,13 @@ import threading
 import stem
 from stem.control import State
 from stem.response import events
-from stem.util import conf, log, str_tools, system
+from stem.util import conf, log, str_tools
 
 import nyx.arguments
 import nyx.popups
 from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
+from nyx.util.log import read_tor_log
 
 RUNLEVEL_EVENT_COLOR = {
   log.DEBUG: 'magenta',
@@ -124,136 +125,12 @@ def load_log_messages():
       COMMON_LOG_MESSAGES[event_type] = messages
 
 
-def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
-  """
-  Parses tor's log file for past events matching the given runlevels, providing
-  a list of log entries (ordered newest to oldest). Limiting the number of read
-  entries is suggested to avoid parsing everything from logs in the GB and TB
-  range.
-
-  Arguments:
-    runlevels - event types (DEBUG - ERR) to be returned
-    read_limit - max lines of the log file that'll be read (unlimited if None)
-    add_limit  - maximum entries to provide back (unlimited if None)
-  """
-
-  start_time = time.time()
-
-  if not runlevels:
-    return []
-
-  # checks tor's configuration for the log file's location (if any exists)
-
-  logging_types, logging_location = None, None
-
-  for logging_entry in tor_controller().get_conf('Log', [], True):
-    # looks for an entry like: notice file /var/log/tor/notices.log
-
-    entry_comp = logging_entry.split()
+def log_file_path():
+  for log_entry in tor_controller().get_conf('Log', [], True):
+    entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
 
     if entry_comp[1] == 'file':
-      logging_types, logging_location = entry_comp[0], entry_comp[2]
-      break
-
-  if not logging_location:
-    return []
-
-  # includes the prefix for tor paths
-
-  logging_location = CONFIG['tor.chroot'] + logging_location
-
-  # if the runlevels argument is a superset of the log file then we can
-  # limit the read contents to the add_limit
-
-  runlevels = list(log.Runlevel)
-  logging_types = logging_types.upper()
-
-  if add_limit and (not read_limit or read_limit > add_limit):
-    if '-' in logging_types:
-      div_index = logging_types.find('-')
-      start_index = runlevels.index(logging_types[:div_index])
-      end_index = runlevels.index(logging_types[div_index + 1:])
-      log_file_run_levels = runlevels[start_index:end_index + 1]
-    else:
-      start_index = runlevels.index(logging_types)
-      log_file_run_levels = runlevels[start_index:]
-
-    # checks if runlevels we're reporting are a superset of the file's contents
-
-    is_file_subset = True
-
-    for runlevel_type in log_file_run_levels:
-      if runlevel_type not in runlevels:
-        is_file_subset = False
-        break
-
-    if is_file_subset:
-      read_limit = add_limit
-
-  logged_events = []
-  current_unix_time, current_local_time = time.time(), time.localtime()
-
-  try:
-    for line in system.tail(logging_location, read_limit):
-      # entries look like:
-      # Jul 15 18:29:48.806 [notice] Parsing GEOIP file.
-
-      line_comp = line.split()
-
-      # Checks that we have all the components we expect. This could happen if
-      # we're either not parsing a tor log or in weird edge cases (like being
-      # out of disk space)
-
-      if len(line_comp) < 4:
-        continue
-
-      event_type = line_comp[3][1:-1].upper()
-
-      if event_type in runlevels:
-        # converts timestamp to unix time
-
-        timestamp = ' '.join(line_comp[:3])
-
-        # strips the decimal seconds
-
-        if '.' in timestamp:
-          timestamp = timestamp[:timestamp.find('.')]
-
-        # Ignoring wday and yday since they aren't used.
-        #
-        # Pretend the year is 2012, because 2012 is a leap year, and parsing a
-        # date with strptime fails if Feb 29th is passed without a year that's
-        # actually a leap year. We can't just use the current year, because we
-        # might be parsing old logs which didn't get rotated.
-        #
-        # https://trac.torproject.org/projects/tor/ticket/5265
-
-        timestamp = '2012 ' + timestamp
-        event_time_comp = list(time.strptime(timestamp, '%Y %b %d %H:%M:%S'))
-        event_time_comp[8] = current_local_time.tm_isdst
-        event_time = time.mktime(event_time_comp)  # converts local to unix time
-
-        # The above is gonna be wrong if the logs are for the previous year. If
-        # the event's in the future then correct for this.
-
-        if event_time > current_unix_time + 60:
-          event_time_comp[0] -= 1
-          event_time = time.mktime(event_time_comp)
-
-        event_msg = ' '.join(line_comp[4:])
-        logged_events.append(LogEntry(event_time, event_type, event_msg, RUNLEVEL_EVENT_COLOR[event_type]))
-
-      if 'opening log file' in line:
-        break  # this entry marks the start of this tor instance
-  except IOError:
-    log.warn("Unable to read tor's log file: %s" % logging_location)
-
-  if add_limit:
-    logged_events = logged_events[:add_limit]
-
-  log.info("Read %i entries from tor's log file: %s (read limit: %i, runtime: %0.3f)" % (len(logged_events), logging_location, read_limit, time.time() - start_time))
-
-  return logged_events
+      return CONFIG['tor.chroot'] + entry_comp[2]
 
 
 def get_daybreaks(events, ignore_time_for_cache = False):
@@ -571,10 +448,18 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if CONFIG['features.log.prepopulate']:
       set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
       read_limit = CONFIG['features.log.prepopulateReadLimit']
-      add_limit = CONFIG['cache.log_panel.size']
 
-      for entry in get_log_file_entries(set_runlevels, read_limit, add_limit):
-        self.msg_log.append(entry)
+      logging_location = log_file_path()
+
+      if logging_location:
+        try:
+          for entry in read_tor_log(logging_location, read_limit):
+            if entry.runlevel in set_runlevels:
+              self.msg_log.append(LogEntry(entry.timestamp, entry.runlevel, entry.message, RUNLEVEL_EVENT_COLOR[entry.runlevel]))
+        except IOError as exc:
+          log.info("Unable to read log located at %s: %s" % (logging_location, exc))
+        except ValueError as exc:
+          log.info(str(exc))
 
     # crops events that are either too old, or more numerous than the caching size
 

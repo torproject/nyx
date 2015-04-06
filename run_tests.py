@@ -13,7 +13,7 @@ import unittest
 import stem.util.conf
 import stem.util.test_tools
 
-from nyx.util import uses_settings
+import nyx.util
 
 NYX_BASE = os.path.dirname(__file__)
 
@@ -25,8 +25,9 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
 )]
 
 
-@uses_settings
+@nyx.util.uses_settings
 def main():
+  nyx.util.TESTING = True
   test_config = stem.util.conf.get_config('test')
   test_config.load(os.path.join(NYX_BASE, 'test', 'settings.cfg'))
 

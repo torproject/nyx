@@ -17,11 +17,13 @@ import sys
 
 import stem.connection
 import stem.util.conf
+import stem.util.log
 
 from nyx.util import log
 
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
+TESTING = False
 
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'config'), lazy_load = False)
@@ -105,5 +107,10 @@ def msg(message, config, **attr):
   try:
     return config.get('msg.%s' % message).format(**attr)
   except:
-    log.notice('BUG: We attempted to use an undefined string resource (%s)' % message)
+    msg = 'BUG: We attempted to use an undefined string resource (%s)' % message
+
+    if TESTING:
+      raise ValueError(msg)
+
+    stem.util.log.notice(msg)
     return ''
