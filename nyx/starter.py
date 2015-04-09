@@ -129,7 +129,7 @@ def _setup_debug_logging(args):
       with open(args.config) as nyxrc_file:
         nyxrc_content = nyxrc_file.read()
     except IOError as exc:
-      nyxrc_content = "[unable to read file: %s]" % exc.strerror
+      nyxrc_content = '[unable to read file: %s]' % exc.strerror
 
   log.trace(
     'debug.header',
@@ -270,7 +270,7 @@ def _set_process_name():
   "nyx <input args>".
   """
 
-  stem.util.system.set_process_name("nyx\0%s" % "\0".join(sys.argv[1:]))
+  stem.util.system.set_process_name('nyx\0%s' % '\0'.join(sys.argv[1:]))
 
 
 def _shutdown_daemons(controller):

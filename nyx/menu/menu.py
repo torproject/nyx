@@ -99,7 +99,7 @@ def show_menu():
 
       # provide a message saying how to close the menu
 
-      control.set_msg("Press m or esc to close the menu.", curses.A_BOLD, True)
+      control.set_msg('Press m or esc to close the menu.', curses.A_BOLD, True)
 
       # renders the menu bar, noting where the open submenu is positioned
 
@@ -112,7 +112,7 @@ def show_menu():
           draw_format |= curses.A_UNDERLINE
           selection_left = draw_left
 
-        draw_label = " %s " % top_level_item.get_label()[1]
+        draw_label = ' %s ' % top_level_item.get_label()[1]
         popup.addstr(0, draw_left, draw_label, draw_format)
         popup.addch(0, draw_left + len(draw_label), curses.ACS_VLINE)
 
@@ -158,8 +158,8 @@ def _draw_submenu(cursor, level, top, left):
 
   # formatted string so we can display aligned menu entries
 
-  label_format = " %%-%is%%-%is%%-%is " % (prefix_col_size, middle_col_size, suffix_col_size)
-  menu_width = len(label_format % ("", "", ""))
+  label_format = ' %%-%is%%-%is%%-%is ' % (prefix_col_size, middle_col_size, suffix_col_size)
+  menu_width = len(label_format % ('', '', ''))
 
   popup, _, _ = nyx.popups.init(len(submenu.get_children()), menu_width, top, left, below_static = False)
 
@@ -169,7 +169,7 @@ def _draw_submenu(cursor, level, top, left):
   try:
     # sets the background color
 
-    popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
+    popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color('red'))
 
     draw_top, selection_top = 0, 0
 

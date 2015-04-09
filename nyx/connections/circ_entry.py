@@ -20,7 +20,7 @@ ADDRESS_LOOKUP_CACHE = {}
 
 class CircEntry(conn_entry.ConnectionEntry):
   def __init__(self, circuit_id, status, purpose, path):
-    conn_entry.ConnectionEntry.__init__(self, "127.0.0.1", "0", "127.0.0.1", "0")
+    conn_entry.ConnectionEntry.__init__(self, '127.0.0.1', '0', '127.0.0.1', '0')
 
     self.circuit_id = circuit_id
     self.status = status
@@ -54,25 +54,25 @@ class CircEntry(conn_entry.ConnectionEntry):
     self.lines = [self.lines[0]]
     controller = tor_controller()
 
-    if status == "BUILT" and not self.lines[0].is_built:
-      exit_ip, exit_port = get_relay_address(controller, path[-1], ("192.168.0.1", "0"))
+    if status == 'BUILT' and not self.lines[0].is_built:
+      exit_ip, exit_port = get_relay_address(controller, path[-1], ('192.168.0.1', '0'))
       self.lines[0].set_exit(exit_ip, exit_port, path[-1])
 
     for i in range(len(path)):
       relay_fingerprint = path[i]
-      relay_ip, relay_port = get_relay_address(controller, relay_fingerprint, ("192.168.0.1", "0"))
+      relay_ip, relay_port = get_relay_address(controller, relay_fingerprint, ('192.168.0.1', '0'))
 
       if i == len(path) - 1:
-        if status == "BUILT":
-          placement_type = "Exit"
+        if status == 'BUILT':
+          placement_type = 'Exit'
         else:
-          placement_type = "Extending"
+          placement_type = 'Extending'
       elif i == 0:
-        placement_type = "Guard"
+        placement_type = 'Guard'
       else:
-        placement_type = "Middle"
+        placement_type = 'Middle'
 
-      placement_label = "%i / %s" % (i + 1, placement_type)
+      placement_label = '%i / %s' % (i + 1, placement_type)
 
       self.lines.append(CircLine(relay_ip, relay_port, relay_fingerprint, placement_label))
 
@@ -86,13 +86,13 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, circuit_id, purpose):
-    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", "0.0.0.0", "0", False, False)
+    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', '0.0.0.0', '0', False, False)
     self.circuit_id = circuit_id
     self.purpose = purpose
     self.is_built = False
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", exit_address, exit_port, False, False)
+    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', exit_address, exit_port, False, False)
     self.is_built = True
     self.foreign.fingerprint_overwrite = exit_fingerprint
 
@@ -101,7 +101,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
 
   def get_destination_label(self, max_length, include_locale=False, include_hostname=False):
     if not self.is_built:
-      return "Building..."
+      return 'Building...'
 
     return conn_entry.ConnectionLine.get_destination_label(self, max_length, include_locale, include_hostname)
 
@@ -111,20 +111,20 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     shown completely (not enough room) is dropped.
     """
 
-    etc_attr = ["Purpose: %s" % self.purpose, "Circuit ID: %s" % self.circuit_id]
+    etc_attr = ['Purpose: %s' % self.purpose, 'Circuit ID: %s' % self.circuit_id]
 
     for i in range(len(etc_attr), -1, -1):
-      etc_label = ", ".join(etc_attr[:i])
+      etc_label = ', '.join(etc_attr[:i])
 
       if len(etc_label) <= width:
-        return ("%%-%is" % width) % etc_label
+        return ('%%-%is' % width) % etc_label
 
-    return ""
+    return ''
 
   def get_details(self, width):
     if not self.is_built:
       detail_format = (curses.A_BOLD, conn_entry.CATEGORY_COLOR[self.get_type()])
-      return [("Building Circuit...", detail_format)]
+      return [('Building Circuit...', detail_format)]
     else:
       return conn_entry.ConnectionLine.get_details(self, width)
 
@@ -137,7 +137,7 @@ class CircLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label):
-    conn_entry.ConnectionLine.__init__(self, "127.0.0.1", "0", remote_address, remote_port)
+    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', remote_address, remote_port)
     self.foreign.fingerprint_overwrite = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False
@@ -182,42 +182,42 @@ class CircLine(conn_entry.ConnectionLine):
 
     baseline_space = 14 + 5
 
-    dst, etc = "", ""
+    dst, etc = '', ''
 
     if listing_type == entries.ListingType.IP_ADDRESS:
       # TODO: include hostname when that's available
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
-      dst = "%-53s" % self.get_destination_label(53, include_locale = True)
+      dst = '%-53s' % self.get_destination_label(53, include_locale = True)
 
       # fills the nickname into the empty space here
 
-      dst = "%s%-25s   " % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
+      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.HOSTNAME:
       # min space for the hostname is 40 characters
 
       etc = self.get_etc_content(width - baseline_space - 40, listing_type)
-      dst_layout = "%%-%is" % (width - baseline_space - len(etc))
+      dst_layout = '%%-%is' % (width - baseline_space - len(etc))
       dst = dst_layout % self.foreign.get_hostname(self.foreign.get_address())
     elif listing_type == entries.ListingType.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
 
-      dst = "%-55s" % self.foreign.get_fingerprint()
+      dst = '%-55s' % self.foreign.get_fingerprint()
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     else:
       # min space for the nickname is 56 characters
 
       etc = self.get_etc_content(width - baseline_space - 56, listing_type)
-      dst_layout = "%%-%is" % (width - baseline_space - len(etc))
+      dst_layout = '%%-%is' % (width - baseline_space - len(etc))
       dst = dst_layout % self.foreign.get_nickname()
 
     return ((dst + etc, line_format),
-            (" " * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
-            ("%-14s" % self.placement_label, line_format))
+            (' ' * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
+            ('%-14s' % self.placement_label, line_format))
 
 
 def get_relay_address(controller, relay_fingerprint, default = None):
@@ -234,10 +234,10 @@ def get_relay_address(controller, relay_fingerprint, default = None):
   if controller.is_alive():
     # query the address if it isn't yet cached
     if relay_fingerprint not in ADDRESS_LOOKUP_CACHE:
-      if relay_fingerprint == controller.get_info("fingerprint", None):
+      if relay_fingerprint == controller.get_info('fingerprint', None):
         # this is us, simply check the config
-        my_address = controller.get_info("address", None)
-        my_or_port = controller.get_conf("ORPort", None)
+        my_address = controller.get_info('address', None)
+        my_or_port = controller.get_conf('ORPort', None)
 
         if my_address and my_or_port:
           ADDRESS_LOOKUP_CACHE[relay_fingerprint] = (my_address, my_or_port)

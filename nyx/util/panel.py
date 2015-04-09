@@ -41,13 +41,13 @@ def _no_op(arg):
 
 
 FORMAT_TAGS = {
-  "<b>": (_no_op, curses.A_BOLD),
-  "<u>": (_no_op, curses.A_UNDERLINE),
-  "<h>": (_no_op, curses.A_STANDOUT),
+  '<b>': (_no_op, curses.A_BOLD),
+  '<u>': (_no_op, curses.A_UNDERLINE),
+  '<h>': (_no_op, curses.A_STANDOUT),
 }
 
 for color_label in ui_tools.COLOR_LIST:
-  FORMAT_TAGS["<%s>" % color_label] = (ui_tools.get_color, color_label)
+  FORMAT_TAGS['<%s>' % color_label] = (ui_tools.get_color, color_label)
 
 # prevents curses redraws if set
 HALT_ACTIVITY = False
@@ -174,13 +174,13 @@ class Panel(object):
     the value when it was last unpaused (or its current value if we're
     currently unpaused). For instance...
 
-    > self.set_pause_attr("myVar")
+    > self.set_pause_attr('myVar')
     > self.myVar = 5
-    > self.myVar = 6  # self.get_attr("myVar") -> 6
+    > self.myVar = 6  # self.get_attr('myVar') -> 6
     > self.set_paused(True)
-    > self.myVar = 7  # self.get_attr("myVar") -> 6
+    > self.myVar = 7  # self.get_attr('myVar') -> 6
     > self.set_paused(False)
-    > self.myVar = 7  # self.get_attr("myVar") -> 7
+    > self.myVar = 7  # self.get_attr('myVar') -> 7
 
     Arguments:
       attr - parameter to be tracked for get_attr
@@ -553,7 +553,7 @@ class Panel(object):
     exception for invalid formatting). Unrecognized tags are treated as normal
     text. This should only be called from the context of a panel's draw method.
 
-    Text in multiple color tags (for instance "<blue><red>hello</red></blue>")
+    Text in multiple color tags (for instance '<blue><red>hello</red></blue>')
     uses the bitwise OR of those flags (hint: that's probably not what you
     want).
 
@@ -577,8 +577,8 @@ class Panel(object):
         expected_tags = FORMAT_TAGS.keys() + expected_close_tags
 
         while next_tag is None:
-          tag_start = unused_msg.find("<", tmp_checked)
-          tag_end = unused_msg.find(">", tag_start) + 1 if tag_start != -1 else -1
+          tag_start = unused_msg.find('<', tmp_checked)
+          tag_end = unused_msg.find('>', tag_start) + 1 if tag_start != -1 else -1
 
           if tag_start == -1 or tag_end == -1:
             break  # no more tags to consume
@@ -598,7 +598,7 @@ class Panel(object):
           unused_msg = unused_msg[tag_end:]
         else:
           msg_segment = unused_msg
-          unused_msg = ""
+          unused_msg = ''
 
         # adds text before tag with current formatting
 
@@ -613,12 +613,12 @@ class Panel(object):
         # applies tag attributes for future text
 
         if next_tag:
-          format_tag = "<" + next_tag[2:] if next_tag.startswith("</") else next_tag
+          format_tag = '<' + next_tag[2:] if next_tag.startswith('</') else next_tag
           format_match = FORMAT_TAGS[format_tag][0](FORMAT_TAGS[format_tag][1])
 
-          if not next_tag.startswith("</"):
+          if not next_tag.startswith('</'):
             # open tag - add formatting
-            expected_close_tags.append("</" + next_tag[1:])
+            expected_close_tags.append('</' + next_tag[1:])
             formatting.append(format_match)
           else:
             # close tag - remove formatting
@@ -630,10 +630,10 @@ class Panel(object):
 
       if expected_close_tags and not unused_msg:
         # if we're done then raise an exception for any unclosed tags (tisk, tisk)
-        base_msg = "Unclosed formatting tag%s:" % ("s" if len(expected_close_tags) > 1 else "")
+        base_msg = 'Unclosed formatting tag%s:' % ('s' if len(expected_close_tags) > 1 else '')
         raise ValueError("%s: '%s'\n  \"%s\"" % (base_msg, "', '".join(expected_close_tags), msg))
 
-  def getstr(self, y, x, initial_text = "", text_format = None, max_width = None, validator = None):
+  def getstr(self, y, x, initial_text = '', text_format = None, max_width = None, validator = None):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
@@ -765,9 +765,9 @@ class Panel(object):
 
     for i in range(scrollbar_height):
       if i >= slider_top and i <= slider_top + slider_size:
-        self.addstr(i + draw_top, draw_left, " ", curses.A_STANDOUT)
+        self.addstr(i + draw_top, draw_left, ' ', curses.A_STANDOUT)
       else:
-        self.addstr(i + draw_top, draw_left, " ")
+        self.addstr(i + draw_top, draw_left, ' ')
 
     # draws box around the scroll bar
 

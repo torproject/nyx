@@ -22,46 +22,46 @@ from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
 
 RUNLEVEL_EVENT_COLOR = {
-  log.DEBUG: "magenta",
-  log.INFO: "blue",
-  log.NOTICE: "green",
-  log.WARN: "yellow",
-  log.ERR: "red",
+  log.DEBUG: 'magenta',
+  log.INFO: 'blue',
+  log.NOTICE: 'green',
+  log.WARN: 'yellow',
+  log.ERR: 'red',
 }
 
-DAYBREAK_EVENT = "DAYBREAK"  # special event for marking when the date changes
+DAYBREAK_EVENT = 'DAYBREAK'  # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
 
 def conf_handler(key, value):
-  if key == "features.log.max_lines_per_entry":
+  if key == 'features.log.max_lines_per_entry':
     return max(1, value)
-  elif key == "features.log.prepopulateReadLimit":
+  elif key == 'features.log.prepopulateReadLimit':
     return max(0, value)
-  elif key == "features.log.maxRefreshRate":
+  elif key == 'features.log.maxRefreshRate':
     return max(10, value)
-  elif key == "cache.log_panel.size":
+  elif key == 'cache.log_panel.size':
     return max(1000, value)
 
 
-CONFIG = conf.config_dict("nyx", {
-  "features.log_file": "",
-  "features.log.showDateDividers": True,
-  "features.log.showDuplicateEntries": False,
-  "features.log.entryDuration": 7,
-  "features.log.max_lines_per_entry": 6,
-  "features.log.prepopulate": True,
-  "features.log.prepopulateReadLimit": 5000,
-  "features.log.maxRefreshRate": 300,
-  "features.log.regex": [],
-  "cache.log_panel.size": 1000,
-  "msg.misc.event_types": '',
-  "tor.chroot": '',
+CONFIG = conf.config_dict('nyx', {
+  'features.log_file': '',
+  'features.log.showDateDividers': True,
+  'features.log.showDuplicateEntries': False,
+  'features.log.entryDuration': 7,
+  'features.log.max_lines_per_entry': 6,
+  'features.log.prepopulate': True,
+  'features.log.prepopulateReadLimit': 5000,
+  'features.log.maxRefreshRate': 300,
+  'features.log.regex': [],
+  'cache.log_panel.size': 1000,
+  'msg.misc.event_types': '',
+  'tor.chroot': '',
 }, conf_handler)
 
-DUPLICATE_MSG = " [%i duplicate%s hidden]"
+DUPLICATE_MSG = ' [%i duplicate%s hidden]'
 
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its
@@ -113,12 +113,12 @@ def load_log_messages():
   """
 
   global COMMON_LOG_MESSAGES
-  nyx_config = conf.get_config("nyx")
+  nyx_config = conf.get_config('nyx')
 
   COMMON_LOG_MESSAGES = {}
 
   for conf_key in nyx_config.keys():
-    if conf_key.startswith("dedup."):
+    if conf_key.startswith('dedup.'):
       event_type = conf_key[4:].upper()
       messages = nyx_config.get(conf_key, [])
       COMMON_LOG_MESSAGES[event_type] = messages
@@ -146,12 +146,12 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
 
   logging_types, logging_location = None, None
 
-  for logging_entry in tor_controller().get_conf("Log", [], True):
+  for logging_entry in tor_controller().get_conf('Log', [], True):
     # looks for an entry like: notice file /var/log/tor/notices.log
 
     entry_comp = logging_entry.split()
 
-    if entry_comp[1] == "file":
+    if entry_comp[1] == 'file':
       logging_types, logging_location = entry_comp[0], entry_comp[2]
       break
 
@@ -169,8 +169,8 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
   logging_types = logging_types.upper()
 
   if add_limit and (not read_limit or read_limit > add_limit):
-    if "-" in logging_types:
-      div_index = logging_types.find("-")
+    if '-' in logging_types:
+      div_index = logging_types.find('-')
       start_index = runlevels.index(logging_types[:div_index])
       end_index = runlevels.index(logging_types[div_index + 1:])
       log_file_run_levels = runlevels[start_index:end_index + 1]
@@ -196,12 +196,12 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
 
   try:
     if read_limit:
-      lines = system.call("tail -n %i %s" % (read_limit, logging_location))
+      lines = system.call('tail -n %i %s' % (read_limit, logging_location))
 
       if not lines:
         raise IOError()
     else:
-      log_file = open(logging_location, "r")
+      log_file = open(logging_location, 'r')
       lines = log_file.readlines()
       log_file.close()
   except IOError:
@@ -233,12 +233,12 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
     if event_type in runlevels:
       # converts timestamp to unix time
 
-      timestamp = " ".join(line_comp[:3])
+      timestamp = ' '.join(line_comp[:3])
 
       # strips the decimal seconds
 
-      if "." in timestamp:
-        timestamp = timestamp[:timestamp.find(".")]
+      if '.' in timestamp:
+        timestamp = timestamp[:timestamp.find('.')]
 
       # Ignoring wday and yday since they aren't used.
       #
@@ -249,8 +249,8 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
       #
       # https://trac.torproject.org/projects/tor/ticket/5265
 
-      timestamp = "2012 " + timestamp
-      event_time_comp = list(time.strptime(timestamp, "%Y %b %d %H:%M:%S"))
+      timestamp = '2012 ' + timestamp
+      event_time_comp = list(time.strptime(timestamp, '%Y %b %d %H:%M:%S'))
       event_time_comp[8] = current_local_time.tm_isdst
       event_time = time.mktime(event_time_comp)  # converts local to unix time
 
@@ -261,10 +261,10 @@ def get_log_file_entries(runlevels, read_limit = None, add_limit = None):
         event_time_comp[0] -= 1
         event_time = time.mktime(event_time_comp)
 
-      event_msg = " ".join(line_comp[4:])
+      event_msg = ' '.join(line_comp[4:])
       logged_events.append(LogEntry(event_time, event_type, event_msg, RUNLEVEL_EVENT_COLOR[event_type]))
 
-    if "opening log file" in line:
+    if 'opening log file' in line:
       break  # this entry marks the start of this tor instance
 
   if add_limit:
@@ -306,7 +306,7 @@ def get_daybreaks(events, ignore_time_for_cache = False):
 
     if event_day != last_day:
       marker_timestamp = (event_day * 86400) + TIMEZONE_OFFSET
-      new_listing.append(LogEntry(marker_timestamp, DAYBREAK_EVENT, "", "white"))
+      new_listing.append(LogEntry(marker_timestamp, DAYBREAK_EVENT, '', 'white'))
 
     new_listing.append(entry)
     last_day = event_day
@@ -400,7 +400,7 @@ def is_duplicate(event, event_set, get_duplicates = False):
           # if it starts with an asterisk then check the whole message rather
           # than just the start
 
-          if common_msg[0] == "*":
+          if common_msg[0] == '*':
             is_duplicate = common_msg[1:] in event.msg and common_msg[1:] in forward_entry.msg
           else:
             is_duplicate = event.msg.startswith(common_msg) and forward_entry.msg.startswith(common_msg)
@@ -424,7 +424,7 @@ class LogEntry():
   """
   Individual log file entry, having the following attributes:
     timestamp - unix timestamp for when the event occurred
-    event_type - event type that occurred ("INFO", "BW", "NYX_WARN", etc)
+    event_type - event type that occurred ('INFO', 'BW', 'NYX_WARN', etc)
     msg       - message that was logged
     color     - color of the log entry
   """
@@ -447,12 +447,12 @@ class LogEntry():
     if include_date:
       # not the common case so skip caching
       entry_time = time.localtime(self.timestamp)
-      time_label = "%i/%i/%i %02i:%02i:%02i" % (entry_time[1], entry_time[2], entry_time[0], entry_time[3], entry_time[4], entry_time[5])
-      return "%s [%s] %s" % (time_label, self.type, self.msg)
+      time_label = '%i/%i/%i %02i:%02i:%02i' % (entry_time[1], entry_time[2], entry_time[0], entry_time[3], entry_time[4], entry_time[5])
+      return '%s [%s] %s' % (time_label, self.type, self.msg)
 
     if not self._display_message:
       entry_time = time.localtime(self.timestamp)
-      self._display_message = "%02i:%02i:%02i [%s] %s" % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
+      self._display_message = '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
 
     return self._display_message
 
@@ -464,7 +464,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   """
 
   def __init__(self, stdscr, logged_events):
-    panel.Panel.__init__(self, stdscr, "log", 0)
+    panel.Panel.__init__(self, stdscr, 'log', 0)
     logging.Handler.__init__(self, level = log.logging_level(log.DEBUG))
 
     self.setFormatter(logging.Formatter(
@@ -485,7 +485,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     self.filter_options = []
 
-    for filter in CONFIG["features.log.regex"]:
+    for filter in CONFIG['features.log.regex']:
       # checks if we can't have more filters
 
       if len(self.filter_options) >= MAX_REGEX_FILTERS:
@@ -495,7 +495,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         re.compile(filter)
         self.filter_options.append(filter)
       except re.error as exc:
-        log.notice("Invalid regular expression pattern (%s): %s" % (exc, filter))
+        log.notice('Invalid regular expression pattern (%s): %s' % (exc, filter))
 
     self.logged_events = []  # needs to be set before we receive any events
 
@@ -504,7 +504,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     self.logged_events = self.set_event_listening(logged_events)
 
-    self.set_pause_attr("msg_log")       # tracks the message log when we're paused
+    self.set_pause_attr('msg_log')       # tracks the message log when we're paused
     self.msg_log = []                    # log entries, sorted by the timestamp
     self.regex_filter = None             # filter for presented log events (no filtering if None)
     self.last_content_height = 0         # height of the rendered content when last drawn
@@ -544,8 +544,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # opens log file if we'll be saving entries
 
-    if CONFIG["features.log_file"]:
-      log_path = CONFIG["features.log_file"]
+    if CONFIG['features.log_file']:
+      log_path = CONFIG['features.log_file']
 
       try:
         # make dir if the path doesn't already exist
@@ -555,24 +555,24 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         if not os.path.exists(base_dir):
           os.makedirs(base_dir)
 
-        self.log_file = open(log_path, "a")
-        log.notice("nyx %s opening log file (%s)" % (__version__, log_path))
+        self.log_file = open(log_path, 'a')
+        log.notice('nyx %s opening log file (%s)' % (__version__, log_path))
       except IOError as exc:
-        log.error("Unable to write to log file: %s" % exc.strerror)
+        log.error('Unable to write to log file: %s' % exc.strerror)
         self.log_file = None
       except OSError as exc:
-        log.error("Unable to write to log file: %s" % exc)
+        log.error('Unable to write to log file: %s' % exc)
         self.log_file = None
 
     stem_logger = log.get_logger()
     stem_logger.addHandler(self)
 
   def emit(self, record):
-    if record.levelname == "WARNING":
-      record.levelname = "WARN"
+    if record.levelname == 'WARNING':
+      record.levelname = 'WARN'
 
     event_color = RUNLEVEL_EVENT_COLOR[record.levelname]
-    self.register_event(LogEntry(int(record.created), "NYX_%s" % record.levelname, record.msg, event_color))
+    self.register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg, event_color))
 
   def reprepopulate_events(self):
     """
@@ -587,10 +587,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # fetches past tor events from log file, if available
 
-    if CONFIG["features.log.prepopulate"]:
+    if CONFIG['features.log.prepopulate']:
       set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
-      read_limit = CONFIG["features.log.prepopulateReadLimit"]
-      add_limit = CONFIG["cache.log_panel.size"]
+      read_limit = CONFIG['features.log.prepopulateReadLimit']
+      add_limit = CONFIG['cache.log_panel.size']
 
       for entry in get_log_file_entries(set_runlevels, read_limit, add_limit):
         self.msg_log.append(entry)
@@ -610,8 +610,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
                    deduplicated
     """
 
-    nyx_config = conf.get_config("nyx")
-    nyx_config.set("features.log.showDuplicateEntries", str(is_visible))
+    nyx_config = conf.get_config('nyx')
+    nyx_config.set('features.log.showDuplicateEntries', str(is_visible))
 
   def register_tor_event(self, event):
     """
@@ -619,24 +619,24 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     register_event().
     """
 
-    msg, color = ' '.join(str(event).split(' ')[1:]), "white"
+    msg, color = ' '.join(str(event).split(' ')[1:]), 'white'
 
     if isinstance(event, events.CircuitEvent):
-      color = "yellow"
+      color = 'yellow'
     elif isinstance(event, events.BandwidthEvent):
-      color = "cyan"
-      msg = "READ: %i, WRITTEN: %i" % (event.read, event.written)
+      color = 'cyan'
+      msg = 'READ: %i, WRITTEN: %i' % (event.read, event.written)
     elif isinstance(event, events.LogEvent):
       color = RUNLEVEL_EVENT_COLOR[event.runlevel]
       msg = event.message
     elif isinstance(event, events.NetworkStatusEvent):
-      color = "blue"
+      color = 'blue'
     elif isinstance(event, events.NewConsensusEvent):
-      color = "magenta"
+      color = 'magenta'
     elif isinstance(event, events.GuardEvent):
-      color = "yellow"
+      color = 'yellow'
     elif event.type not in nyx.arguments.TOR_EVENT_TYPES.values():
-      color = "red"  # unknown event type
+      color = 'red'  # unknown event type
 
     self.register_event(LogEntry(event.arrived_at, event.type, msg, color))
 
@@ -659,10 +659,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     if self.log_file:
       try:
-        self.log_file.write(event.get_display_message(True) + "\n")
+        self.log_file.write(event.get_display_message(True) + '\n')
         self.log_file.flush()
       except IOError as exc:
-        log.error("Unable to write to log file: %s" % exc.strerror)
+        log.error('Unable to write to log file: %s' % exc.strerror)
         self.log_file = None
 
     self.vals_lock.acquire()
@@ -754,7 +754,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Prompts the user to add a new regex filter.
     """
 
-    regex_input = nyx.popups.input_prompt("Regular expression: ")
+    regex_input = nyx.popups.input_prompt('Regular expression: ')
 
     if regex_input:
       try:
@@ -765,7 +765,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         self.filter_options.insert(0, regex_input)
       except re.error as exc:
-        nyx.popups.show_msg("Unable to compile expression: %s" % exc, 2)
+        nyx.popups.show_msg('Unable to compile expression: %s' % exc, 2)
 
   def show_event_selection_prompt(self):
     """
@@ -781,15 +781,15 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         # displays the available flags
 
         popup.win.box()
-        popup.addstr(0, 0, "Event Types:", curses.A_STANDOUT)
-        event_lines = CONFIG['msg.misc.event_types'].split("\n")
+        popup.addstr(0, 0, 'Event Types:', curses.A_STANDOUT)
+        event_lines = CONFIG['msg.misc.event_types'].split('\n')
 
         for i in range(len(event_lines)):
           popup.addstr(i + 1, 1, event_lines[i][6:])
 
         popup.win.refresh()
 
-        user_input = nyx.popups.input_prompt("Events to log: ")
+        user_input = nyx.popups.input_prompt('Events to log: ')
 
         if user_input:
           user_input = user_input.replace(' ', '')  # strips spaces
@@ -797,7 +797,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
           try:
             self.set_logged_events(nyx.arguments.expand_events(user_input))
           except ValueError as exc:
-            nyx.popups.show_msg("Invalid flags: %s" % str(exc), 2)
+            nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
       finally:
         nyx.popups.finalize()
 
@@ -806,14 +806,14 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
 
-    path_input = nyx.popups.input_prompt("Path to save log snapshot: ")
+    path_input = nyx.popups.input_prompt('Path to save log snapshot: ')
 
     if path_input:
       try:
         self.save_snapshot(path_input)
-        nyx.popups.show_msg("Saved: %s" % path_input, 2)
+        nyx.popups.show_msg('Saved: %s' % path_input, 2)
       except IOError as exc:
-        nyx.popups.show_msg("Unable to save snapshot: %s" % exc.strerror, 2)
+        nyx.popups.show_msg('Unable to save snapshot: %s' % exc.strerror, 2)
 
   def clear(self):
     """
@@ -847,7 +847,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     except OSError as exc:
       raise IOError("unable to make directory '%s'" % base_dir)
 
-    snapshot_file = open(path, "w")
+    snapshot_file = open(path, 'w')
     self.vals_lock.acquire()
 
     try:
@@ -855,7 +855,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         is_visible = not self.regex_filter or self.regex_filter.search(entry.get_display_message())
 
         if is_visible:
-          snapshot_file.write(entry.get_display_message(True) + "\n")
+          snapshot_file.write(entry.get_display_message(True) + '\n')
 
       self.vals_lock.release()
     except Exception as exc:
@@ -874,11 +874,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.vals_lock.release()
     elif key.match('u'):
       self.vals_lock.acquire()
-      self.set_duplicate_visability(not CONFIG["features.log.showDuplicateEntries"])
+      self.set_duplicate_visability(not CONFIG['features.log.showDuplicateEntries'])
       self.redraw(True)
       self.vals_lock.release()
     elif key.match('c'):
-      msg = "This will clear the log. Are you sure (c again to confirm)?"
+      msg = 'This will clear the log. Are you sure (c again to confirm)?'
       key_press = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
 
       if key_press.match('c'):
@@ -887,7 +887,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       # Provides menu to pick regular expression filters or adding new ones:
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
 
-      options = ["None"] + self.filter_options + ["New..."]
+      options = ['None'] + self.filter_options + ['New...']
       old_selection = 0 if not self.regex_filter else 1
 
       # does all activity under a curses lock to prevent redraws when adding
@@ -896,7 +896,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       panel.CURSES_LOCK.acquire()
 
       try:
-        selection = nyx.popups.show_menu("Log Filter:", options, old_selection)
+        selection = nyx.popups.show_menu('Log Filter:', options, old_selection)
 
         # applies new setting
 
@@ -938,7 +938,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     contain up to two lines. Starts with newest entries.
     """
 
-    current_log = self.get_attr("msg_log")
+    current_log = self.get_attr('msg_log')
 
     self.vals_lock.acquire()
     self._last_logged_events, self._last_update = list(current_log), time.time()
@@ -967,14 +967,14 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     seen_first_date_divider = False
     divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
-    is_dates_shown = self.regex_filter is None and CONFIG["features.log.showDateDividers"]
+    is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
     event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
 
-    if not CONFIG["features.log.showDuplicateEntries"]:
+    if not CONFIG['features.log.showDuplicateEntries']:
       deduplicated_log = get_duplicates(event_log)
 
       if deduplicated_log is None:
-        log.warn("Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.")
+        log.warn('Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.')
         self.set_duplicate_visability(True)
         deduplicated_log = [(entry, 0) for entry in event_log]
     else:
@@ -1006,7 +1006,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         # top of the divider
 
         if line_count >= 1 and line_count < height and show_daybreaks:
-          time_label = time.strftime(" %B %d, %Y ", time.localtime(entry.timestamp))
+          time_label = time.strftime(' %B %d, %Y ', time.localtime(entry.timestamp))
           self.addch(line_count, divider_indent, curses.ACS_ULCORNER, *divider_attr)
           self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, *divider_attr)
           self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD, *divider_attr)
@@ -1023,19 +1023,19 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         display_queue = []
 
-        msg_comp = entry.get_display_message().split("\n")
+        msg_comp = entry.get_display_message().split('\n')
 
         for i in range(len(msg_comp)):
-          font = curses.A_BOLD if "ERR" in entry.type else curses.A_NORMAL  # emphasizes ERR messages
+          font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
           display_queue.append((msg_comp[i].strip(), (font, entry.color), i != len(msg_comp) - 1))
 
         if duplicate_count:
-          plural_label = "s" if duplicate_count > 1 else ""
+          plural_label = 's' if duplicate_count > 1 else ''
           duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
           display_queue.append((duplicate_msg, duplicate_attr, False))
 
         cursor_location, line_offset = msg_indent, 0
-        max_entries_per_line = CONFIG["features.log.max_lines_per_entry"]
+        max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
 
         while display_queue:
           msg, format, include_break = display_queue.pop(0)
@@ -1087,12 +1087,12 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     new_content_height = line_count + self.scroll - 1
     content_height_delta = abs(self.last_content_height - new_content_height)
-    force_redraw, force_redraw_reason = True, ""
+    force_redraw, force_redraw_reason = True, ''
 
     if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
-      force_redraw_reason = "estimate was off by %i" % content_height_delta
+      force_redraw_reason = 'estimate was off by %i' % content_height_delta
     elif new_content_height > height and self.scroll + height - 1 > new_content_height:
-      force_redraw_reason = "scrolled off the bottom of the page"
+      force_redraw_reason = 'scrolled off the bottom of the page'
     elif not is_scroll_bar_visible and new_content_height > height - 1:
       force_redraw_reason = "scroll bar wasn't previously visible"
     elif is_scroll_bar_visible and new_content_height <= height - 1:
@@ -1103,7 +1103,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self.last_content_height = new_content_height
 
     if force_redraw:
-      log.debug("redrawing the log panel with the corrected content height (%s)" % force_redraw_reason)
+      log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
       self.redraw(True)
 
     self.vals_lock.release()
@@ -1124,7 +1124,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     while not self._halt:
       current_day = days_since()
       time_since_reset = time.time() - self._last_update
-      max_log_update_rate = CONFIG["features.log.maxRefreshRate"] / 1000.0
+      max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 
       sleep_time = 0
 
@@ -1173,20 +1173,20 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # accounts for runlevel naming difference
 
-    if "ERROR" in events:
-      events.add("ERR")
-      events.remove("ERROR")
+    if 'ERROR' in events:
+      events.add('ERR')
+      events.remove('ERROR')
 
-    if "WARNING" in events:
-      events.add("WARN")
-      events.remove("WARNING")
+    if 'WARNING' in events:
+      events.add('WARN')
+      events.remove('WARNING')
 
     tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
-    nyx_events = events.intersection(set(["NYX_%s" % runlevel for runlevel in log.Runlevel.keys()]))
+    nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in log.Runlevel.keys()]))
 
     # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
 
-    if "UNKNOWN" in events:
+    if 'UNKNOWN' in events:
       tor_events.update(set(nyx.arguments.missing_event_types()))
 
     controller = tor_controller()
@@ -1210,7 +1210,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self.reprepopulate_events()
       self.redraw(True)
     elif event_type == State.CLOSED:
-      log.notice("Tor control port closed")
+      log.notice('Tor control port closed')
 
   def _get_title(self, width):
     """
@@ -1219,7 +1219,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     This truncates the attributes (with an ellipse) if too long, and condenses
     runlevel ranges if there's three or more in a row (for instance NYX_INFO,
-    NYX_NOTICE, and NYX_WARN becomes "NYX_INFO - WARN").
+    NYX_NOTICE, and NYX_WARN becomes 'NYX_INFO - WARN').
 
     Arguments:
       width - width constraint the label needs to fix in
@@ -1242,10 +1242,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     if not events_list:
       if not current_pattern:
-        panel_label = "Events:"
+        panel_label = 'Events:'
       else:
         label_pattern = str_tools.crop(current_pattern, width - 18)
-        panel_label = "Events (filter: %s):" % label_pattern
+        panel_label = 'Events (filter: %s):' % label_pattern
     else:
       # does the following with all runlevel types (tor, nyx, and stem):
       # - pulls to the start of the list
@@ -1261,9 +1261,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       reversed_runlevels = list(log.Runlevel)
       reversed_runlevels.reverse()
 
-      for prefix in ("NYX_", ""):
+      for prefix in ('NYX_', ''):
         # blank ending runlevel forces the break condition to be reached at the end
-        for runlevel in reversed_runlevels + [""]:
+        for runlevel in reversed_runlevels + ['']:
           event_type = prefix + runlevel
           if runlevel and event_type in events_list:
             # runlevel event found, move to the tmp list
@@ -1302,28 +1302,28 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
             prefixes = [entry[0] for entry in matches] + [prefix]
 
             for k in range(len(prefixes)):
-              if prefixes[k] == "":
-                prefixes[k] = "TOR"
+              if prefixes[k] == '':
+                prefixes[k] = 'TOR'
               else:
-                prefixes[k] = prefixes[k].replace("_", "")
+                prefixes[k] = prefixes[k].replace('_', '')
 
-            events_list.insert(0, "%s %s - %s" % ("/".join(prefixes), start_level, end_level))
+            events_list.insert(0, '%s %s - %s' % ('/'.join(prefixes), start_level, end_level))
           else:
-            events_list.insert(0, "%s%s - %s" % (prefix, start_level, end_level))
+            events_list.insert(0, '%s%s - %s' % (prefix, start_level, end_level))
 
       # truncates to use an ellipsis if too long, for instance:
 
-      attr_label = ", ".join(events_list)
+      attr_label = ', '.join(events_list)
 
       if current_pattern:
-        attr_label += " - filter: %s" % current_pattern
+        attr_label += ' - filter: %s' % current_pattern
 
       attr_label = str_tools.crop(attr_label, width - 10, 1)
 
       if attr_label:
-        attr_label = " (%s)" % attr_label
+        attr_label = ' (%s)' % attr_label
 
-      panel_label = "Events%s:" % attr_label
+      panel_label = 'Events%s:' % attr_label
 
     # cache results and return
 
@@ -1343,12 +1343,12 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       event_listing - listing of log entries
     """
 
-    cache_size = CONFIG["cache.log_panel.size"]
+    cache_size = CONFIG['cache.log_panel.size']
 
     if len(event_listing) > cache_size:
       del event_listing[cache_size:]
 
-    log_ttl = CONFIG["features.log.entryDuration"]
+    log_ttl = CONFIG['features.log.entryDuration']
 
     if log_ttl > 0:
       current_day = days_since()

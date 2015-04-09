@@ -156,7 +156,7 @@ def _resources_via_ps(pid):
   #     TIME      ELAPSED    RSS %MEM
   #  0:04.40        37:57  18772  0.9
 
-  ps_call = system.call("ps -p {pid} -o cputime,etime,rss,%mem".format(pid = pid))
+  ps_call = system.call('ps -p {pid} -o cputime,etime,rss,%mem'.format(pid = pid))
 
   if ps_call and len(ps_call) >= 2:
     stats = ps_call[1].strip().split()
@@ -172,7 +172,7 @@ def _resources_via_ps(pid):
       except ValueError:
         pass
 
-  raise IOError("unrecognized output from ps: %s" % ps_call)
+  raise IOError('unrecognized output from ps: %s' % ps_call)
 
 
 def _resources_via_proc(pid):
@@ -274,11 +274,11 @@ def _process_for_ports(local_ports, remote_ports):
         elif remote_port in remote_ports:
           results[remote_port] = cmd
       except ValueError as exc:
-        raise IOError("unrecognized output from lsof (%s): %s" % (exc, line))
+        raise IOError('unrecognized output from lsof (%s): %s' % (exc, line))
 
     return results
 
-  raise IOError("no results from lsof")
+  raise IOError('no results from lsof')
 
 
 class Daemon(threading.Thread):

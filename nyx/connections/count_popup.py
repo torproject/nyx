@@ -10,7 +10,7 @@ import nyx.popups
 
 from stem.util import connection, enum, log
 
-CountType = enum.Enum("CLIENT_LOCALE", "EXIT_PORT")
+CountType = enum.Enum('CLIENT_LOCALE', 'EXIT_PORT')
 EXIT_USAGE_WIDTH = 15
 
 
@@ -43,12 +43,12 @@ def showCountDialog(count_type, counts):
     # dialog title
 
     if count_type == CountType.CLIENT_LOCALE:
-      title = "Client Locales"
+      title = 'Client Locales'
     elif count_type == CountType.EXIT_PORT:
-      title = "Exiting Port Usage"
+      title = 'Exiting Port Usage'
     else:
-      title = ""
-      log.warn("Unrecognized count type: %s" % count_type)
+      title = ''
+      log.warn('Unrecognized count type: %s' % count_type)
 
     popup.addstr(0, 0, title, curses.A_STANDOUT)
 
@@ -72,7 +72,7 @@ def showCountDialog(count_type, counts):
       if count_type == CountType.EXIT_PORT:
         key_width += EXIT_USAGE_WIDTH
 
-      label_format = "%%-%is %%%ii (%%%%%%-2i)" % (key_width, val_width)
+      label_format = '%%-%is %%%ii (%%%%%%-2i)' % (key_width, val_width)
 
       for i in range(height - 4):
         k, v = sorted_counts[i]
@@ -83,7 +83,7 @@ def showCountDialog(count_type, counts):
           usage = connection.port_usage(k)
 
           if usage:
-            key_format = "%%-%is   %%s" % (key_width - EXIT_USAGE_WIDTH)
+            key_format = '%%-%is   %%s' % (key_width - EXIT_USAGE_WIDTH)
             k = key_format % (k, usage[:EXIT_USAGE_WIDTH - 3])
 
         label = label_format % (k, v, v * 100 / value_total)
@@ -99,9 +99,9 @@ def showCountDialog(count_type, counts):
         fill_width = v * (width - 4 - label_width) / value_total
 
         for j in range(fill_width):
-          popup.addstr(i + 1, 3 + label_width + j, " ", curses.A_STANDOUT, 'red')
+          popup.addstr(i + 1, 3 + label_width + j, ' ', curses.A_STANDOUT, 'red')
 
-      popup.addstr(height - 2, 2, "Press any key...")
+      popup.addstr(height - 2, 2, 'Press any key...')
 
     popup.win.refresh()
 

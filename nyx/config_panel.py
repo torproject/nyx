@@ -19,67 +19,67 @@ from stem.util import conf, enum, str_tools
 # modified, have their descriptions fetched, or even get a complete listing
 # of what's available.
 
-State = enum.Enum("TOR", "NYX")  # state to be presented
+State = enum.Enum('TOR', 'NYX')  # state to be presented
 
 # mappings of option categories to the color for their entries
 
 CATEGORY_COLOR = {
-  tor_config.Category.GENERAL: "green",
-  tor_config.Category.CLIENT: "blue",
-  tor_config.Category.RELAY: "yellow",
-  tor_config.Category.DIRECTORY: "magenta",
-  tor_config.Category.AUTHORITY: "red",
-  tor_config.Category.HIDDEN_SERVICE: "cyan",
-  tor_config.Category.TESTING: "white",
-  tor_config.Category.UNKNOWN: "white",
+  tor_config.Category.GENERAL: 'green',
+  tor_config.Category.CLIENT: 'blue',
+  tor_config.Category.RELAY: 'yellow',
+  tor_config.Category.DIRECTORY: 'magenta',
+  tor_config.Category.AUTHORITY: 'red',
+  tor_config.Category.HIDDEN_SERVICE: 'cyan',
+  tor_config.Category.TESTING: 'white',
+  tor_config.Category.UNKNOWN: 'white',
 }
 
 # attributes of a ConfigEntry
 
 Field = enum.Enum(
-  "CATEGORY",
-  "OPTION",
-  "VALUE",
-  "TYPE",
-  "ARG_USAGE",
-  "SUMMARY",
-  "DESCRIPTION",
-  "MAN_ENTRY",
-  "IS_DEFAULT",
+  'CATEGORY',
+  'OPTION',
+  'VALUE',
+  'TYPE',
+  'ARG_USAGE',
+  'SUMMARY',
+  'DESCRIPTION',
+  'MAN_ENTRY',
+  'IS_DEFAULT',
 )
 
 FIELD_ATTR = {
-  Field.CATEGORY: ("Category", "red"),
-  Field.OPTION: ("Option Name", "blue"),
-  Field.VALUE: ("Value", "cyan"),
-  Field.TYPE: ("Arg Type", "green"),
-  Field.ARG_USAGE: ("Arg Usage", "yellow"),
-  Field.SUMMARY: ("Summary", "green"),
-  Field.DESCRIPTION: ("Description", "white"),
-  Field.MAN_ENTRY: ("Man Page Entry", "blue"),
-  Field.IS_DEFAULT: ("Is Default", "magenta"),
+  Field.CATEGORY: ('Category', 'red'),
+  Field.OPTION: ('Option Name', 'blue'),
+  Field.VALUE: ('Value', 'cyan'),
+  Field.TYPE: ('Arg Type', 'green'),
+  Field.ARG_USAGE: ('Arg Usage', 'yellow'),
+  Field.SUMMARY: ('Summary', 'green'),
+  Field.DESCRIPTION: ('Description', 'white'),
+  Field.MAN_ENTRY: ('Man Page Entry', 'blue'),
+  Field.IS_DEFAULT: ('Is Default', 'magenta'),
 }
 
 
 def conf_handler(key, value):
-  if key == "features.config.selectionDetails.height":
+  if key == 'features.config.selectionDetails.height':
     return max(0, value)
-  elif key == "features.config.state.colWidth.option":
+  elif key == 'features.config.state.colWidth.option':
     return max(5, value)
-  elif key == "features.config.state.colWidth.value":
+  elif key == 'features.config.state.colWidth.value':
     return max(5, value)
-  elif key == "features.config.order":
+  elif key == 'features.config.order':
     return conf.parse_enum_csv(key, value[0], Field, 3)
 
 
-CONFIG = conf.config_dict("nyx", {
-  "features.config.order": [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
-  "features.config.selectionDetails.height": 6,
-  "features.config.prepopulateEditValues": True,
-  "features.config.state.showPrivateOptions": False,
-  "features.config.state.showVirtualOptions": False,
-  "features.config.state.colWidth.option": 25,
-  "features.config.state.colWidth.value": 15,
+CONFIG = conf.config_dict('nyx', {
+  'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
+  'features.config.selectionDetails.height': 6,
+  'features.config.prepopulateEditValues': True,
+  'features.config.state.showPrivateOptions': False,
+  'features.config.state.showVirtualOptions': False,
+  'features.config.state.colWidth.option': 25,
+  'features.config.state.colWidth.value': 15,
 }, conf_handler)
 
 
@@ -119,8 +119,8 @@ class ConfigEntry():
     else:
       self.fields[Field.MAN_ENTRY] = 99999  # sorts non-man entries last
       self.fields[Field.CATEGORY] = tor_config.Category.UNKNOWN
-      self.fields[Field.ARG_USAGE] = ""
-      self.fields[Field.DESCRIPTION] = ""
+      self.fields[Field.ARG_USAGE] = ''
+      self.fields[Field.DESCRIPTION] = ''
 
     # uses the full man page description if a summary is unavailable
 
@@ -174,7 +174,7 @@ class ConfigEntry():
       option_label = str_tools.crop(self.get(Field.OPTION), option_width)
       value_label = str_tools.crop(self.get(Field.VALUE), value_width)
       summary_label = str_tools.crop(self.get(Field.SUMMARY), summary_width, None)
-      line_text_layout = "%%-%is %%-%is %%-%is" % (option_width, value_width, summary_width)
+      line_text_layout = '%%-%is %%-%is %%-%is' % (option_width, value_width, summary_width)
       self.label_cache = line_text_layout % (option_label, value_label, summary_label)
       self.label_cache_args = arg_set
 
@@ -196,17 +196,17 @@ class ConfigEntry():
     value's type to provide a user friendly representation if able.
     """
 
-    conf_value = ", ".join(tor_controller().get_conf(self.get(Field.OPTION), [], True))
+    conf_value = ', '.join(tor_controller().get_conf(self.get(Field.OPTION), [], True))
 
     # provides nicer values for recognized types
 
     if not conf_value:
-      conf_value = "<none>"
-    elif self.get(Field.TYPE) == "Boolean" and conf_value in ("0", "1"):
-      conf_value = "False" if conf_value == "0" else "True"
-    elif self.get(Field.TYPE) == "DataSize" and conf_value.isdigit():
+      conf_value = '<none>'
+    elif self.get(Field.TYPE) == 'Boolean' and conf_value in ('0', '1'):
+      conf_value = 'False' if conf_value == '0' else 'True'
+    elif self.get(Field.TYPE) == 'DataSize' and conf_value.isdigit():
       conf_value = str_tools.size_label(int(conf_value))
-    elif self.get(Field.TYPE) == "TimeInterval" and conf_value.isdigit():
+    elif self.get(Field.TYPE) == 'TimeInterval' and conf_value.isdigit():
       conf_value = str_tools.time_label(int(conf_value), is_long = True)
 
     return conf_value
@@ -219,7 +219,7 @@ class ConfigPanel(panel.Panel):
   """
 
   def __init__(self, stdscr, config_type):
-    panel.Panel.__init__(self, stdscr, "configuration", 0)
+    panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
     self.config_type = config_type
     self.conf_contents = []
@@ -258,10 +258,10 @@ class ConfigPanel(panel.Panel):
     if self.config_type == State.TOR:
       controller, config_option_lines = tor_controller(), []
       custom_options = tor_config.get_custom_options()
-      config_option_query = controller.get_info("config/names", None)
+      config_option_query = controller.get_info('config/names', None)
 
       if config_option_query:
-        config_option_lines = config_option_query.strip().split("\n")
+        config_option_lines = config_option_query.strip().split('\n')
 
       for line in config_option_lines:
         # lines are of the form "<option> <type>[ <documentation>]", like:
@@ -269,14 +269,14 @@ class ConfigPanel(panel.Panel):
         # documentation is aparently only in older versions (for instance,
         # 0.2.1.25)
 
-        line_comp = line.strip().split(" ")
+        line_comp = line.strip().split(' ')
         conf_option, conf_type = line_comp[0], line_comp[1]
 
         # skips private and virtual entries if not configured to show them
 
-        if not CONFIG["features.config.state.showPrivateOptions"] and conf_option.startswith("__"):
+        if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
           continue
-        elif not CONFIG["features.config.state.showVirtualOptions"] and conf_type == "Virtual":
+        elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
           continue
 
         self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
@@ -284,7 +284,7 @@ class ConfigPanel(panel.Panel):
     elif self.config_type == State.NYX:
       # loaded via the conf utility
 
-      nyx_config = conf.get_config("nyx")
+      nyx_config = conf.get_config('nyx')
 
       for key in nyx_config.keys():
         pass  # TODO: implement
@@ -335,10 +335,10 @@ class ConfigPanel(panel.Panel):
     self.vals_lock.acquire()
 
     if ordering:
-      CONFIG["features.config.order"] = ordering
+      CONFIG['features.config.order'] = ordering
 
-    self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG["features.config.order"])))
-    self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG["features.config.order"])))
+    self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
+    self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
     self.vals_lock.release()
 
   def show_sort_dialog(self):
@@ -348,9 +348,9 @@ class ConfigPanel(panel.Panel):
 
     # set ordering for config options
 
-    title_label = "Config Option Ordering:"
+    title_label = 'Config Option Ordering:'
     options = [FIELD_ATTR[field][0] for field in Field]
-    old_selection = [FIELD_ATTR[field][0] for field in CONFIG["features.config.order"]]
+    old_selection = [FIELD_ATTR[field][0] for field in CONFIG['features.config.order']]
     option_colors = dict([FIELD_ATTR[field] for field in Field])
     results = popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
@@ -363,7 +363,7 @@ class ConfigPanel(panel.Panel):
     with self.vals_lock:
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
-        detail_panel_height = CONFIG["features.config.selectionDetails.height"]
+        detail_panel_height = CONFIG['features.config.selectionDetails.height']
 
         if detail_panel_height > 0 and detail_panel_height + 2 <= page_height:
           page_height -= (detail_panel_height + 1)
@@ -382,26 +382,26 @@ class ConfigPanel(panel.Panel):
           config_option = selection.get(Field.OPTION)
 
           if selection.is_unset():
-            initial_value = ""
+            initial_value = ''
           else:
             initial_value = selection.get(Field.VALUE)
 
-          prompt_msg = "%s Value (esc to cancel): " % config_option
-          is_prepopulated = CONFIG["features.config.prepopulateEditValues"]
-          new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else "")
+          prompt_msg = '%s Value (esc to cancel): ' % config_option
+          is_prepopulated = CONFIG['features.config.prepopulateEditValues']
+          new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
 
           if new_value is not None and new_value != initial_value:
             try:
-              if selection.get(Field.TYPE) == "Boolean":
+              if selection.get(Field.TYPE) == 'Boolean':
                 # if the value's a boolean then allow for 'true' and 'false' inputs
 
-                if new_value.lower() == "true":
-                  new_value = "1"
-                elif new_value.lower() == "false":
-                  new_value = "0"
-              elif selection.get(Field.TYPE) == "LineList":
+                if new_value.lower() == 'true':
+                  new_value = '1'
+                elif new_value.lower() == 'false':
+                  new_value = '0'
+              elif selection.get(Field.TYPE) == 'LineList':
                 # set_option accepts list inputs when there's multiple values
-                new_value = new_value.split(",")
+                new_value = new_value.split(',')
 
               tor_controller().set_conf(config_option, new_value)
 
@@ -416,7 +416,7 @@ class ConfigPanel(panel.Panel):
 
               self.redraw(True)
             except Exception as exc:
-              popups.show_msg("%s (press any key)" % exc)
+              popups.show_msg('%s (press any key)' % exc)
       elif key.match('a'):
         self.show_all = not self.show_all
         self.redraw(True)
@@ -447,9 +447,9 @@ class ConfigPanel(panel.Panel):
       # displayed options (truncating the labels if there's limited room)
 
       if width >= 30:
-        selection_options = ("Save", "Save As...", "Cancel")
+        selection_options = ('Save', 'Save As...', 'Cancel')
       else:
-        selection_options = ("Save", "Save As", "X")
+        selection_options = ('Save', 'Save As', 'X')
 
       # checks if we can show options beside the last line of visible content
 
@@ -488,15 +488,15 @@ class ConfigPanel(panel.Panel):
 
         popup.win.erase()
         popup.win.box()
-        popup.addstr(0, 0, "Configuration being saved:", curses.A_STANDOUT)
+        popup.addstr(0, 0, 'Configuration being saved:', curses.A_STANDOUT)
 
         visible_config_lines = height - 3 if is_option_line_separate else height - 2
 
         for i in range(visible_config_lines):
           line = str_tools.crop(config_lines[i], width - 2)
 
-          if " " in line:
-            option, arg = line.split(" ", 1)
+          if ' ' in line:
+            option, arg = line.split(' ', 1)
             popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
             popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
           else:
@@ -517,9 +517,9 @@ class ConfigPanel(panel.Panel):
             break
 
           selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-          popup.addstr(height - 2, draw_x, "[")
+          popup.addstr(height - 2, draw_x, '[')
           popup.addstr(height - 2, draw_x + 1, option_label, selection_format, curses.A_BOLD)
-          popup.addstr(height - 2, draw_x + len(option_label) + 1, "]")
+          popup.addstr(height - 2, draw_x + len(option_label) + 1, ']')
 
           draw_x -= 1  # space gap between the options
 
@@ -540,11 +540,11 @@ class ConfigPanel(panel.Panel):
         try:
           config_location = loaded_torrc.get_config_location()
         except IOError:
-          config_location = ""
+          config_location = ''
 
         if selection == 1:
           # prompts user for a configuration location
-          config_location = popups.input_prompt("Save to (esc to cancel): ", config_location)
+          config_location = popups.input_prompt('Save to (esc to cancel): ', config_location)
 
           if not config_location:
             prompt_canceled = True
@@ -552,9 +552,9 @@ class ConfigPanel(panel.Panel):
         if not prompt_canceled:
           try:
             tor_config.save_conf(config_location, config_lines)
-            msg = "Saved configuration to %s" % config_location
+            msg = 'Saved configuration to %s' % config_location
           except IOError as exc:
-            msg = "Unable to save configuration (%s)" % exc.strerror
+            msg = 'Unable to save configuration (%s)' % exc.strerror
 
           popups.show_msg(msg, 2)
     finally:
@@ -577,7 +577,7 @@ class ConfigPanel(panel.Panel):
 
     # panel with details for the current selection
 
-    detail_panel_height = CONFIG["features.config.selectionDetails.height"]
+    detail_panel_height = CONFIG['features.config.selectionDetails.height']
     is_scrollbar_visible = False
 
     if detail_panel_height == 0 or detail_panel_height + 2 >= height:
@@ -602,9 +602,9 @@ class ConfigPanel(panel.Panel):
     # draws the top label
 
     if self.is_title_visible():
-      config_type = "Tor" if self.config_type == State.TOR else "Arm"
+      config_type = 'Tor' if self.config_type == State.TOR else 'Arm'
       hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
-      title_label = "%s Configuration (%s):" % (config_type, hidden_msg)
+      title_label = '%s Configuration (%s):' % (config_type, hidden_msg)
       self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
     # draws left-hand scroll bar if content's longer than the height
@@ -615,8 +615,8 @@ class ConfigPanel(panel.Panel):
       scroll_offset = 3
       self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_height - 1, len(self._get_config_options()), 1 + detail_panel_height)
 
-    option_width = CONFIG["features.config.state.colWidth.option"]
-    value_width = CONFIG["features.config.state.colWidth.value"]
+    option_width = CONFIG['features.config.state.colWidth.option']
+    value_width = CONFIG['features.config.state.colWidth.value']
     description_width = max(0, width - scroll_offset - option_width - value_width - 2)
 
     # if the description column is overly long then use its space for the
@@ -667,7 +667,7 @@ class ConfigPanel(panel.Panel):
     # first entry:
     # <option> (<category> Option)
 
-    option_label = " (%s Option)" % selection.get(Field.CATEGORY)
+    option_label = ' (%s Option)' % selection.get(Field.CATEGORY)
     self.addstr(1, 2, selection.get(Field.OPTION) + option_label, *selection_format)
 
     # second entry:
@@ -675,20 +675,20 @@ class ConfigPanel(panel.Panel):
 
     if detail_panel_height >= 3:
       value_attr = []
-      value_attr.append("default" if selection.get(Field.IS_DEFAULT) else "custom")
+      value_attr.append('default' if selection.get(Field.IS_DEFAULT) else 'custom')
       value_attr.append(selection.get(Field.TYPE))
-      value_attr.append("usage: %s" % (selection.get(Field.ARG_USAGE)))
-      value_attr_label = ", ".join(value_attr)
+      value_attr.append('usage: %s' % (selection.get(Field.ARG_USAGE)))
+      value_attr_label = ', '.join(value_attr)
 
       value_label_width = width - 12 - len(value_attr_label)
       value_label = str_tools.crop(selection.get(Field.VALUE), value_label_width)
 
-      self.addstr(2, 2, "Value: %s (%s)" % (value_label, value_attr_label), *selection_format)
+      self.addstr(2, 2, 'Value: %s (%s)' % (value_label, value_attr_label), *selection_format)
 
     # remainder is filled with the man page description
 
     description_height = max(0, detail_panel_height - 3)
-    description_content = "Description: " + selection.get(Field.DESCRIPTION)
+    description_content = 'Description: ' + selection.get(Field.DESCRIPTION)
 
     for i in range(description_height):
       # checks if we're done writing the description
@@ -699,14 +699,14 @@ class ConfigPanel(panel.Panel):
       # there's a leading indent after the first line
 
       if i > 0:
-        description_content = "  " + description_content
+        description_content = '  ' + description_content
 
       # we only want to work with content up until the next newline
 
-      if "\n" in description_content:
-        line_content, description_content = description_content.split("\n", 1)
+      if '\n' in description_content:
+        line_content, description_content = description_content.split('\n', 1)
       else:
-        line_content, description_content = description_content, ""
+        line_content, description_content = description_content, ''
 
       if i != description_height - 1:
         # there's more lines to display

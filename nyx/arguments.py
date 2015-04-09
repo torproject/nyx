@@ -18,7 +18,7 @@ DEFAULT_ARGS = {
   'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
-  'config': os.path.expanduser("~/.nyx/nyxrc"),
+  'config': os.path.expanduser('~/.nyx/nyxrc'),
   'debug_path': None,
   'logged_events': 'N3',
   'print_version': False,

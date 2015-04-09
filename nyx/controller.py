@@ -31,25 +31,25 @@ NYX_CONTROLLER = None
 
 
 def conf_handler(key, value):
-  if key == "features.redrawRate":
+  if key == 'features.redrawRate':
     return max(1, value)
-  elif key == "features.refreshRate":
+  elif key == 'features.refreshRate':
     return max(0, value)
 
 
-CONFIG = conf.config_dict("nyx", {
-  "startup.events": "N3",
-  "startup.data_directory": "~/.nyx",
-  "features.acsSupport": True,
-  "features.panels.show.graph": True,
-  "features.panels.show.log": True,
-  "features.panels.show.connection": True,
-  "features.panels.show.config": True,
-  "features.panels.show.torrc": True,
-  "features.redrawRate": 5,
-  "features.refreshRate": 5,
-  "features.confirmQuit": True,
-  "start_time": 0,
+CONFIG = conf.config_dict('nyx', {
+  'startup.events': 'N3',
+  'startup.data_directory': '~/.nyx',
+  'features.acsSupport': True,
+  'features.panels.show.graph': True,
+  'features.panels.show.log': True,
+  'features.panels.show.connection': True,
+  'features.panels.show.config': True,
+  'features.panels.show.torrc': True,
+  'features.redrawRate': 5,
+  'features.refreshRate': 5,
+  'features.confirmQuit': True,
+  'start_time': 0,
 }, conf_handler)
 
 
@@ -101,18 +101,18 @@ def init_controller(stdscr, start_time):
   page_panels, first_page_panels = [], []
 
   # first page: graph and log
-  if CONFIG["features.panels.show.graph"]:
+  if CONFIG['features.panels.show.graph']:
     first_page_panels.append(nyx.graph_panel.GraphPanel(stdscr))
 
-  if CONFIG["features.panels.show.log"]:
-    expanded_events = nyx.arguments.expand_events(CONFIG["startup.events"])
+  if CONFIG['features.panels.show.log']:
+    expanded_events = nyx.arguments.expand_events(CONFIG['startup.events'])
     first_page_panels.append(nyx.log_panel.LogPanel(stdscr, expanded_events))
 
   if first_page_panels:
     page_panels.append(first_page_panels)
 
   # second page: connections
-  if CONFIG["features.panels.show.connection"]:
+  if CONFIG['features.panels.show.connection']:
     page_panels.append([nyx.connections.conn_panel.ConnectionPanel(stdscr)])
 
     # The DisableDebuggerAttachment will prevent our connection panel from really
@@ -121,7 +121,7 @@ def init_controller(stdscr, start_time):
 
     controller = tor_controller()
 
-    if controller.get_conf("DisableDebuggerAttachment", None) == "1":
+    if controller.get_conf('DisableDebuggerAttachment', None) == '1':
       log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that nyx can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
       nyx.util.tracker.get_connection_tracker().set_paused(True)
     else:
@@ -137,10 +137,10 @@ def init_controller(stdscr, start_time):
         tor_cmd = system.name_by_pid(tor_pid)
 
         if tor_cmd is None:
-          tor_cmd = "tor"
+          tor_cmd = 'tor'
 
         resolver = nyx.util.tracker.get_connection_tracker()
-        log.info("Operating System: %s, Connection Resolvers: %s" % (os.uname()[0], ", ".join(resolver._resolvers)))
+        log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
         resolver.start()
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
@@ -150,12 +150,12 @@ def init_controller(stdscr, start_time):
 
   # third page: config
 
-  if CONFIG["features.panels.show.config"]:
+  if CONFIG['features.panels.show.config']:
     page_panels.append([nyx.config_panel.ConfigPanel(stdscr, nyx.config_panel.State.TOR)])
 
   # fourth page: torrc
 
-  if CONFIG["features.panels.show.torrc"]:
+  if CONFIG['features.panels.show.torrc']:
     page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr, nyx.torrc_panel.Config.TORRC)])
 
   # initializes the controller
@@ -169,8 +169,8 @@ class LabelPanel(panel.Panel):
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, "msg", 0, height=1)
-    self.msg_text = ""
+    panel.Panel.__init__(self, stdscr, 'msg', 0, height=1)
+    self.msg_text = ''
     self.msg_attr = curses.A_NORMAL
 
   def set_message(self, msg, attr = None):
@@ -255,7 +255,7 @@ class Controller:
     """
 
     if page_number < 0 or page_number >= self.get_page_count():
-      raise ValueError("Invalid page number: %i" % page_number)
+      raise ValueError('Invalid page number: %i' % page_number)
 
     if page_number != self._page:
       self._page = page_number
@@ -378,8 +378,8 @@ class Controller:
 
     current_time = time.time()
 
-    if CONFIG["features.refreshRate"] != 0:
-      if self._last_drawn + CONFIG["features.refreshRate"] <= current_time:
+    if CONFIG['features.refreshRate'] != 0:
+      if self._last_drawn + CONFIG['features.refreshRate'] <= current_time:
         force = True
 
     display_panels = self.get_display_panels()
@@ -431,17 +431,17 @@ class Controller:
     """
 
     if msg is None:
-      msg = ""
+      msg = ''
 
       if attr is None:
         if not self._is_paused:
-          msg = "page %i / %i - m: menu, p: pause, h: page help, q: quit" % (self._page + 1, len(self._page_panels))
+          msg = 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (self._page + 1, len(self._page_panels))
           attr = curses.A_NORMAL
         else:
-          msg = "Paused"
+          msg = 'Paused'
           attr = curses.A_STANDOUT
 
-    control_panel = self.get_panel("msg")
+    control_panel = self.get_panel('msg')
     control_panel.set_message(msg, attr)
 
     if redraw:
@@ -455,10 +455,10 @@ class Controller:
     with a slash and is created if it doesn't already exist.
     """
 
-    data_dir = os.path.expanduser(CONFIG["startup.data_directory"])
+    data_dir = os.path.expanduser(CONFIG['startup.data_directory'])
 
-    if not data_dir.endswith("/"):
-      data_dir += "/"
+    if not data_dir.endswith('/'):
+      data_dir += '/'
 
     if not os.path.exists(data_dir):
       os.makedirs(data_dir)
@@ -480,11 +480,11 @@ def heartbeat_check(is_unresponsive):
   if controller.is_alive():
     if not is_unresponsive and (time.time() - last_heartbeat) >= 10:
       is_unresponsive = True
-      log.notice("Relay unresponsive (last heartbeat: %s)" % time.ctime(last_heartbeat))
+      log.notice('Relay unresponsive (last heartbeat: %s)' % time.ctime(last_heartbeat))
     elif is_unresponsive and (time.time() - last_heartbeat) < 10:
       # really shouldn't happen (meant Tor froze for a bit)
       is_unresponsive = False
-      log.notice("Relay resumed")
+      log.notice('Relay resumed')
 
   return is_unresponsive
 
@@ -505,7 +505,7 @@ def conn_reset_listener(controller, event_type, _):
       # do this instead since it wants to do validation and redraw _after_ the
       # new contents are loaded.
 
-      if get_controller().get_panel("torrc") is None:
+      if get_controller().get_panel('torrc') is None:
         tor_config.get_torrc().load(True)
 
 
@@ -520,13 +520,13 @@ def start_nyx(stdscr):
   init_controller(stdscr, CONFIG['start_time'])
   control = get_controller()
 
-  if not CONFIG["features.acsSupport"]:
+  if not CONFIG['features.acsSupport']:
     ui_tools.disable_acs()
 
   # provides notice about any unused config keys
 
-  for key in conf.get_config("nyx").unused_keys():
-    log.notice("Unused configuration entry: %s" % key)
+  for key in conf.get_config('nyx').unused_keys():
+    log.notice('Unused configuration entry: %s' % key)
 
   # tells daemon panels to start
 
@@ -549,7 +549,7 @@ def start_nyx(stdscr):
 
   # logs the initialization time
 
-  log.info("nyx started (initialization took %0.3f seconds)" % (time.time() - CONFIG['start_time']))
+  log.info('nyx started (initialization took %0.3f seconds)' % (time.time() - CONFIG['start_time']))
 
   # main draw loop
 
@@ -575,7 +575,7 @@ def start_nyx(stdscr):
     if override_key:
       key, override_key = override_key, None
     else:
-      curses.halfdelay(CONFIG["features.redrawRate"] * 10)
+      curses.halfdelay(CONFIG['features.redrawRate'] * 10)
       key = panel.KeyInput(stdscr.getch())
 
     if key.match('right'):
@@ -589,8 +589,8 @@ def start_nyx(stdscr):
     elif key.match('q'):
       # provides prompt to confirm that nyx should exit
 
-      if CONFIG["features.confirmQuit"]:
-        msg = "Are you sure (q again to confirm)?"
+      if CONFIG['features.confirmQuit']:
+        msg = 'Are you sure (q again to confirm)?'
         confirmation_key = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
         quit_confirmed = confirmation_key.match('q')
       else:
@@ -608,7 +608,7 @@ def start_nyx(stdscr):
         try:
           tor_controller().signal(stem.Signal.RELOAD)
         except IOError as exc:
-          log.error("Error detected when reloading tor: %s" % exc.strerror)
+          log.error('Error detected when reloading tor: %s' % exc.strerror)
     elif key.match('h'):
       override_key = nyx.popups.show_help_popup()
     elif key == ord('l') - 96:

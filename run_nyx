@@ -31,7 +31,7 @@ def _check_prereq():
   major_version, minor_version = sys.version_info[0:2]
 
   if major_version < 2 or (major_version == 2 and minor_version < 6):
-    raise ImportError("nyx requires python version 2.6 or greater")
+    raise ImportError('nyx requires python version 2.6 or greater')
 
   try:
     import stem
@@ -41,9 +41,9 @@ def _check_prereq():
     elif distutils.spawn.find_executable('apt-get') is not None:
       advice = "try running 'sudo apt-get install python-stem'"
     else:
-      advice = "you can find it at https://stem.torproject.org/download.html"
+      advice = 'you can find it at https://stem.torproject.org/download.html'
 
-    raise ImportError("nyx requires stem, %s" % advice)
+    raise ImportError('nyx requires stem, %s' % advice)
 
   try:
     import curses
@@ -53,7 +53,7 @@ def _check_prereq():
     else:
       advice = ''  # not sure what to do for other platforms
 
-    raise ImportError("nyx requires curses" + advice)
+    raise ImportError('nyx requires curses' + advice)
 
 
 if __name__ == '__main__':

@@ -23,37 +23,37 @@ from stem.util import conf, connection, enum, str_tools
 #   Directory    Fetching tor consensus information.
 #   Control      Tor controller (nyx, vidalia, etc).
 
-Category = enum.Enum("INBOUND", "OUTBOUND", "EXIT", "HIDDEN", "SOCKS", "CIRCUIT", "DIRECTORY", "CONTROL")
+Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
 
 CATEGORY_COLOR = {
-  Category.INBOUND: "green",
-  Category.OUTBOUND: "blue",
-  Category.EXIT: "red",
-  Category.HIDDEN: "magenta",
-  Category.SOCKS: "yellow",
-  Category.CIRCUIT: "cyan",
-  Category.DIRECTORY: "magenta",
-  Category.CONTROL: "red",
+  Category.INBOUND: 'green',
+  Category.OUTBOUND: 'blue',
+  Category.EXIT: 'red',
+  Category.HIDDEN: 'magenta',
+  Category.SOCKS: 'yellow',
+  Category.CIRCUIT: 'cyan',
+  Category.DIRECTORY: 'magenta',
+  Category.CONTROL: 'red',
 }
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
 
-LABEL_FORMAT = "%s  -->  %s  %s%s"
+LABEL_FORMAT = '%s  -->  %s  %s%s'
 LABEL_MIN_PADDING = 2  # min space between listing label and following data
 
 # sort value for scrubbed ip addresses
 
 SCRUBBED_IP_VAL = 255 ** 4
 
-CONFIG = conf.config_dict("nyx", {
-  "features.connection.markInitialConnections": True,
-  "features.connection.showIps": True,
-  "features.connection.showExitPort": True,
-  "features.connection.showColumn.fingerprint": True,
-  "features.connection.showColumn.nickname": True,
-  "features.connection.showColumn.destination": True,
-  "features.connection.showColumn.expandedIp": True,
+CONFIG = conf.config_dict('nyx', {
+  'features.connection.markInitialConnections': True,
+  'features.connection.showIps': True,
+  'features.connection.showExitPort': True,
+  'features.connection.showColumn.fingerprint': True,
+  'features.connection.showColumn.nickname': True,
+  'features.connection.showColumn.destination': True,
+  'features.connection.showColumn.expandedIp': True,
 })
 
 FINGERPRINT_TRACKER = None
@@ -134,7 +134,7 @@ class Endpoint:
     """
 
     controller = tor_controller()
-    return controller.get_info("ip-to-country/%s" % self.address, default)
+    return controller.get_info('ip-to-country/%s' % self.address, default)
 
   def get_fingerprint(self):
     """
@@ -156,7 +156,7 @@ class Endpoint:
     if my_fingerprint:
       return my_fingerprint
     else:
-      return "UNKNOWN"
+      return 'UNKNOWN'
 
   def get_nickname(self):
     """
@@ -166,15 +166,15 @@ class Endpoint:
 
     my_fingerprint = self.get_fingerprint()
 
-    if my_fingerprint != "UNKNOWN":
+    if my_fingerprint != 'UNKNOWN':
       my_nickname = get_fingerprint_tracker().get_relay_nickname(my_fingerprint)
 
       if my_nickname:
         return my_nickname
       else:
-        return "UNKNOWN"
+        return 'UNKNOWN'
     else:
-      return "UNKNOWN"
+      return 'UNKNOWN'
 
 
 class ConnectionEntry(entries.ConnectionPanelEntry):
@@ -204,16 +204,16 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
       return connection_line.sort_port
     elif attr == entries.SortAttr.HOSTNAME:
       if connection_line.is_private():
-        return ""
+        return ''
 
-      return connection_line.foreign.get_hostname("")
+      return connection_line.foreign.get_hostname('')
     elif attr == entries.SortAttr.FINGERPRINT:
       return connection_line.foreign.get_fingerprint()
     elif attr == entries.SortAttr.NICKNAME:
       my_nickname = connection_line.foreign.get_nickname()
 
-      if my_nickname == "UNKNOWN":
-        return "z" * 20  # orders at the end
+      if my_nickname == 'UNKNOWN':
+        return 'z' * 20  # orders at the end
       else:
         return my_nickname.lower()
     elif attr == entries.SortAttr.CATEGORY:
@@ -222,9 +222,9 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
       return connection_line.start_time
     elif attr == entries.SortAttr.COUNTRY:
       if connection.is_private_address(self.lines[0].foreign.get_address()):
-        return ""
+        return ''
       else:
-        return connection_line.foreign.get_locale("")
+        return connection_line.foreign.get_locale('')
     else:
       return entries.ConnectionPanelEntry.get_sort_value(self, attr, listing_type)
 
@@ -245,7 +245,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # overwrite the local fingerprint with ours
 
     controller = tor_controller()
-    self.local.fingerprint_overwrite = controller.get_info("fingerprint", None)
+    self.local.fingerprint_overwrite = controller.get_info('fingerprint', None)
 
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -262,18 +262,18 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.application_pid = None
     self.is_application_resolving = False
 
-    my_or_port = controller.get_conf("ORPort", None)
-    my_dir_port = controller.get_conf("DirPort", None)
-    my_socks_port = controller.get_conf("SocksPort", "9050")
-    my_ctl_port = controller.get_conf("ControlPort", None)
+    my_or_port = controller.get_conf('ORPort', None)
+    my_dir_port = controller.get_conf('DirPort', None)
+    my_socks_port = controller.get_conf('SocksPort', '9050')
+    my_ctl_port = controller.get_conf('ControlPort', None)
     my_hidden_service_ports = get_hidden_service_ports(controller)
 
     # the ORListenAddress can overwrite the ORPort
 
-    listen_addr = controller.get_conf("ORListenAddress", None)
+    listen_addr = controller.get_conf('ORListenAddress', None)
 
-    if listen_addr and ":" in listen_addr:
-      my_or_port = listen_addr[listen_addr.find(":") + 1:]
+    if listen_addr and ':' in listen_addr:
+      my_or_port = listen_addr[listen_addr.find(':') + 1:]
 
     if local_port in (my_or_port, my_dir_port):
       self.base_type = Category.INBOUND
@@ -300,7 +300,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     ip_value = 0
 
-    for comp in self.foreign.get_address().split("."):
+    for comp in self.foreign.get_address().split('.'):
       ip_value *= 255
       ip_value += int(comp)
 
@@ -346,12 +346,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # fill in the current uptime and return the results
 
-    if CONFIG["features.connection.markInitialConnections"]:
-      time_prefix = "+" if self.is_initial_connection else " "
+    if CONFIG['features.connection.markInitialConnections']:
+      time_prefix = '+' if self.is_initial_connection else ' '
     else:
-      time_prefix = ""
+      time_prefix = ''
 
-    time_label = time_prefix + "%5s" % str_tools.time_label(current_time - self.start_time, 1)
+    time_label = time_prefix + '%5s' % str_tools.time_label(current_time - self.start_time, 1)
     my_listing[2] = (time_label, my_listing[2][1])
 
     return my_listing
@@ -375,14 +375,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # postType - ")   "
 
     line_format = CATEGORY_COLOR[entry_type]
-    time_width = 6 if CONFIG["features.connection.markInitialConnections"] else 5
+    time_width = 6 if CONFIG['features.connection.markInitialConnections'] else 5
 
-    draw_entry = [(" ", line_format),
+    draw_entry = [(' ', line_format),
                   (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
-                  (" " * time_width, line_format),
-                  (" (", line_format),
+                  (' ' * time_width, line_format),
+                  (' (', line_format),
                   (entry_type.upper(), line_format, curses.A_BOLD),
-                  (")" + " " * (9 - len(entry_type)), line_format)]
+                  (')' + ' ' * (9 - len(entry_type)), line_format)]
 
     return draw_entry
 
@@ -408,7 +408,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     connection or exit traffic.
     """
 
-    if not CONFIG["features.connection.showIps"]:
+    if not CONFIG['features.connection.showIps']:
       return True
 
     # This is used to scrub private information from the interface. Relaying
@@ -424,7 +424,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       controller = tor_controller()
 
       my_flags = []
-      my_fingerprint = self.get_info("fingerprint", None)
+      my_fingerprint = self.get_info('fingerprint', None)
 
       if my_fingerprint:
         my_status_entry = self.controller.get_network_status(my_fingerprint)
@@ -432,7 +432,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if my_status_entry:
           my_flags = my_status_entry.flags
 
-      if "Guard" in my_flags or controller.get_conf("BridgeRelay", None) == "1":
+      if 'Guard' in my_flags or controller.get_conf('BridgeRelay', None) == '1':
         all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
 
         return all_matches == []
@@ -445,7 +445,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # will take a bit more work to propagate the information up from the
       # connection resolver.
 
-      return self.foreign.get_port() != "53"
+      return self.foreign.get_port() != '53'
 
     # for everything else this isn't a concern
 
@@ -474,7 +474,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         controller = tor_controller()
         destination_fingerprint = self.foreign.get_fingerprint()
 
-        if destination_fingerprint == "UNKNOWN":
+        if destination_fingerprint == 'UNKNOWN':
           # Not a known relay. This might be an exit connection.
 
           if is_exiting_allowed(controller, self.foreign.get_address(), self.foreign.get_port()):
@@ -493,7 +493,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # mirror).
 
             for circ in my_circuits:
-              if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != "BUILT" or len(circ.path) > 1):
+              if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != 'BUILT' or len(circ.path) > 1):
                 self.cached_type = Category.CIRCUIT  # matched a probable guard connection
 
             # if we fell through, we can eliminate ourselves as a guard in the future
@@ -504,7 +504,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             # Checks if we match a built, single hop circuit.
 
             for circ in my_circuits:
-              if circ.path and circ.path[0][0] == destination_fingerprint and circ.status == "BUILT" and len(circ.path) == 1:
+              if circ.path and circ.path[0][0] == destination_fingerprint and circ.status == 'BUILT' and len(circ.path) == 1:
                 self.cached_type = Category.DIRECTORY
 
             # if we fell through, eliminate ourselves as a directory connection
@@ -528,58 +528,58 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # for applications show the command/pid
 
     if self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      display_label = ""
+      display_label = ''
 
       if self.application_name:
         if self.application_pid:
-          display_label = "%s (%s)" % (self.application_name, self.application_pid)
+          display_label = '%s (%s)' % (self.application_name, self.application_pid)
         else:
           display_label = self.application_name
       elif self.is_application_resolving:
-        display_label = "resolving..."
+        display_label = 'resolving...'
       else:
-        display_label = "UNKNOWN"
+        display_label = 'UNKNOWN'
 
       if len(display_label) < width:
-        return ("%%-%is" % width) % display_label
+        return ('%%-%is' % width) % display_label
       else:
-        return ""
+        return ''
 
     # for everything else display connection/consensus information
 
     destination_address = self.get_destination_label(26, include_locale = True)
-    etc, used_space = "", 0
+    etc, used_space = '', 0
 
     if listing_type == entries.ListingType.IP_ADDRESS:
-      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
 
-        etc += "%-40s  " % self.foreign.get_fingerprint()
+        etc += '%-40s  ' % self.foreign.get_fingerprint()
         used_space += 42
 
-      if width > used_space + 10 and CONFIG["features.connection.showColumn.nickname"]:
+      if width > used_space + 10 and CONFIG['features.connection.showColumn.nickname']:
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
         nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
-        etc += ("%%-%is  " % nickname_space) % nickname_label
+        etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += nickname_space + 2
     elif listing_type == entries.ListingType.HOSTNAME:
-      if width > used_space + 28 and CONFIG["features.connection.showColumn.destination"]:
+      if width > used_space + 28 and CONFIG['features.connection.showColumn.destination']:
         # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % destination_address
+        etc += '%-26s  ' % destination_address
         used_space += 28
 
-      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.get_fingerprint()
+        etc += '%-40s  ' % self.foreign.get_fingerprint()
         used_space += 42
 
-      if width > used_space + 17 and CONFIG["features.connection.showColumn.nickname"]:
+      if width > used_space + 17 and CONFIG['features.connection.showColumn.nickname']:
         # show nickname (column width: min 17 characters, uses half of the remainder)
         nickname_space = 15 + (width - (used_space + 17)) / 2
         nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
-        etc += ("%%-%is  " % nickname_space) % nickname_label
+        etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += (nickname_space + 2)
     elif listing_type == entries.ListingType.FINGERPRINT:
       if width > used_space + 17:
@@ -591,31 +591,31 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # ip/port/locale (column width: 28 characters)
 
         is_locale_included = width > used_space + 45
-        is_locale_included &= CONFIG["features.connection.showColumn.destination"]
+        is_locale_included &= CONFIG['features.connection.showColumn.destination']
 
         if is_locale_included:
           nickname_space -= 28
 
-        if CONFIG["features.connection.showColumn.nickname"]:
+        if CONFIG['features.connection.showColumn.nickname']:
           nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
-          etc += ("%%-%is  " % nickname_space) % nickname_label
+          etc += ('%%-%is  ' % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
         if is_locale_included:
-          etc += "%-26s  " % destination_address
+          etc += '%-26s  ' % destination_address
           used_space += 28
     else:
-      if width > used_space + 42 and CONFIG["features.connection.showColumn.fingerprint"]:
+      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
-        etc += "%-40s  " % self.foreign.get_fingerprint()
+        etc += '%-40s  ' % self.foreign.get_fingerprint()
         used_space += 42
 
-      if width > used_space + 28 and CONFIG["features.connection.showColumn.destination"]:
+      if width > used_space + 28 and CONFIG['features.connection.showColumn.destination']:
         # show destination ip/port/locale (column width: 28 characters)
-        etc += "%-26s  " % destination_address
+        etc += '%-26s  ' % destination_address
         used_space += 28
 
-    return ("%%-%is" % width) % etc
+    return ('%%-%is' % width) % etc
 
   def _get_listing_content(self, width, listing_type):
     """
@@ -635,13 +635,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # - base data for the listing
     # - that extra field plus any previous
 
-    used_space = len(LABEL_FORMAT % tuple([""] * 4)) + LABEL_MIN_PADDING
-    local_port = ":%s" % self.local.get_port() if self.include_port else ""
+    used_space = len(LABEL_FORMAT % tuple([''] * 4)) + LABEL_MIN_PADDING
+    local_port = ':%s' % self.local.get_port() if self.include_port else ''
 
-    src, dst, etc = "", "", ""
+    src, dst, etc = '', '', ''
 
     if listing_type == entries.ListingType.IP_ADDRESS:
-      my_external_address = controller.get_info("address", self.local.get_address())
+      my_external_address = controller.get_info('address', self.local.get_address())
       address_differ = my_external_address != self.local.get_address()
 
       # Expanding doesn't make sense, if the connection isn't actually
@@ -665,11 +665,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # (their fingerprint and nickname are both for us). Reversing the
         # fields here to keep the same column alignments.
 
-        src = "%-21s" % destination_address
-        dst = "%-26s" % src_address
+        src = '%-21s' % destination_address
+        dst = '%-26s' % src_address
       else:
-        src = "%-21s" % src_address  # ip:port = max of 21 characters
-        dst = "%-26s" % destination_address  # ip:port (xx) = max of 26 characters
+        src = '%-21s' % src_address  # ip:port = max of 21 characters
+        dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
 
       used_space += len(src) + len(dst)  # base data requires 47 characters
 
@@ -679,10 +679,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       is_expanded_address_visible = width > used_space + 28
 
-      if is_expanded_address_visible and CONFIG["features.connection.showColumn.fingerprint"]:
+      if is_expanded_address_visible and CONFIG['features.connection.showColumn.fingerprint']:
         is_expanded_address_visible = width < used_space + 42 or width > used_space + 70
 
-      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses and CONFIG["features.connection.showColumn.expandedIp"]:
+      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses and CONFIG['features.connection.showColumn.expandedIp']:
         # include the internal address in the src (extra 28 characters)
 
         internal_address = self.local.get_address() + local_port
@@ -692,9 +692,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # when the src and dst are swapped later
 
         if my_type == Category.INBOUND:
-          src = "%-21s  -->  %s" % (src, internal_address)
+          src = '%-21s  -->  %s' % (src, internal_address)
         else:
-          src = "%-21s  -->  %s" % (internal_address, src)
+          src = '%-21s  -->  %s' % (internal_address, src)
 
         used_space += 28
 
@@ -705,7 +705,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # TODO: when actually functional the src and dst need to be swapped for
       # SOCKS and CONTROL connections
 
-      src = "localhost%-6s" % local_port
+      src = 'localhost%-6s' % local_port
       used_space += len(src)
       min_hostname_space = 40
 
@@ -716,24 +716,24 @@ class ConnectionLine(entries.ConnectionPanelLine):
       used_space = width  # prevents padding at the end
 
       if self.is_private():
-        dst = ("%%-%is" % hostname_space) % "<scrubbed>"
+        dst = ('%%-%is' % hostname_space) % '<scrubbed>'
       else:
         hostname = self.foreign.get_hostname(self.foreign.get_address())
-        port_label = ":%-5s" % self.foreign.get_port() if self.include_port else ""
+        port_label = ':%-5s' % self.foreign.get_port() if self.include_port else ''
 
         # truncates long hostnames and sets dst to <hostname>:<port>
 
         hostname = str_tools.crop(hostname, hostname_space, 0)
-        dst = ("%%-%is" % hostname_space) % (hostname + port_label)
+        dst = ('%%-%is' % hostname_space) % (hostname + port_label)
     elif listing_type == entries.ListingType.FINGERPRINT:
-      src = "localhost"
+      src = 'localhost'
 
       if my_type == Category.CONTROL:
-        dst = "localhost"
+        dst = 'localhost'
       else:
         dst = self.foreign.get_fingerprint()
 
-      dst = "%-40s" % dst
+      dst = '%-40s' % dst
 
       used_space += len(src) + len(dst)  # base data requires 49 characters
 
@@ -762,12 +762,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       # pads dst entry to its max space
 
-      dst = ("%%-%is" % (base_space - len(src))) % dst
+      dst = ('%%-%is' % (base_space - len(src))) % dst
 
     if my_type == Category.INBOUND:
       src, dst = dst, src
 
-    padding = " " * (width - used_space + LABEL_MIN_PADDING)
+    padding = ' ' * (width - used_space + LABEL_MIN_PADDING)
 
     return LABEL_FORMAT % (src, dst, etc, padding)
 
@@ -779,9 +779,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - max length of lines
     """
 
-    lines = [""] * 7
-    lines[0] = "address: %s" % self.get_destination_label(width - 11)
-    lines[1] = "locale: %s" % ("??" if self.is_private() else self.foreign.get_locale("??"))
+    lines = [''] * 7
+    lines[0] = 'address: %s' % self.get_destination_label(width - 11)
+    lines[1] = 'locale: %s' % ('??' if self.is_private() else self.foreign.get_locale('??'))
 
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
@@ -793,15 +793,15 @@ class ConnectionLine(entries.ConnectionPanelLine):
     fingerprint = self.foreign.get_fingerprint()
     controller = tor_controller()
 
-    if fingerprint != "UNKNOWN":
+    if fingerprint != 'UNKNOWN':
       # single match - display information available about it
 
-      ns_entry = controller.get_info("ns/id/%s" % fingerprint, None)
-      desc_entry = controller.get_info("desc/id/%s" % fingerprint, None)
+      ns_entry = controller.get_info('ns/id/%s' % fingerprint, None)
+      desc_entry = controller.get_info('desc/id/%s' % fingerprint, None)
 
       # append the fingerprint to the second line
 
-      lines[1] = "%-13sfingerprint: %s" % (lines[1], fingerprint)
+      lines[1] = '%-13sfingerprint: %s' % (lines[1], fingerprint)
 
       if ns_entry:
         # example consensus entry:
@@ -810,18 +810,18 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # w Bandwidth=2540
         # p accept 20-23,43,53,79-81,88,110,143,194,443
 
-        ns_lines = ns_entry.split("\n")
+        ns_lines = ns_entry.split('\n')
 
-        first_line_comp = ns_lines[0].split(" ")
+        first_line_comp = ns_lines[0].split(' ')
 
         if len(first_line_comp) >= 9:
           _, nickname, _, _, published_date, published_time, _, or_port, dir_port = first_line_comp[:9]
         else:
-          nickname, published_date, published_time, or_port, dir_port = "", "", "", "", ""
+          nickname, published_date, published_time, or_port, dir_port = '', '', '', '', ''
 
-        flags = "unknown"
+        flags = 'unknown'
 
-        if len(ns_lines) >= 2 and ns_lines[1].startswith("s "):
+        if len(ns_lines) >= 2 and ns_lines[1].startswith('s '):
           flags = ns_lines[1][2:]
 
         exit_policy = None
@@ -833,62 +833,62 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if exit_policy:
           policy_label = exit_policy.summary()
         else:
-          policy_label = "unknown"
+          policy_label = 'unknown'
 
-        dir_port_label = "" if dir_port == "0" else "dirport: %s" % dir_port
-        lines[2] = "nickname: %-25s orport: %-10s %s" % (nickname, or_port, dir_port_label)
-        lines[3] = "published: %s %s" % (published_time, published_date)
-        lines[4] = "flags: %s" % flags.replace(" ", ", ")
-        lines[5] = "exit policy: %s" % policy_label
+        dir_port_label = '' if dir_port == '0' else 'dirport: %s' % dir_port
+        lines[2] = 'nickname: %-25s orport: %-10s %s' % (nickname, or_port, dir_port_label)
+        lines[3] = 'published: %s %s' % (published_time, published_date)
+        lines[4] = 'flags: %s' % flags.replace(' ', ', ')
+        lines[5] = 'exit policy: %s' % policy_label
 
       if desc_entry:
-        tor_version, platform, contact = "", "", ""
+        tor_version, platform, contact = '', '', ''
 
-        for desc_line in desc_entry.split("\n"):
-          if desc_line.startswith("platform"):
+        for desc_line in desc_entry.split('\n'):
+          if desc_line.startswith('platform'):
             # has the tor version and platform, ex:
             # platform Tor 0.2.1.29 (r318f470bc5f2ad43) on Linux x86_64
 
-            tor_version = desc_line[13:desc_line.find(" ", 13)]
-            platform = desc_line[desc_line.rfind(" on ") + 4:]
-          elif desc_line.startswith("contact"):
+            tor_version = desc_line[13:desc_line.find(' ', 13)]
+            platform = desc_line[desc_line.rfind(' on ') + 4:]
+          elif desc_line.startswith('contact'):
             contact = desc_line[8:]
 
             # clears up some highly common obscuring
 
-            for alias in (" at ", " AT "):
-              contact = contact.replace(alias, "@")
+            for alias in (' at ', ' AT '):
+              contact = contact.replace(alias, '@')
 
-            for alias in (" dot ", " DOT "):
-              contact = contact.replace(alias, ".")
+            for alias in (' dot ', ' DOT '):
+              contact = contact.replace(alias, '.')
 
             break  # contact lines come after the platform
 
-        lines[3] = "%-35s os: %-14s version: %s" % (lines[3], platform, tor_version)
+        lines[3] = '%-35s os: %-14s version: %s' % (lines[3], platform, tor_version)
 
         # contact information is an optional field
 
         if contact:
-          lines[6] = "contact: %s" % contact
+          lines[6] = 'contact: %s' % contact
     else:
       all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
 
       if all_matches:
         # multiple matches
-        lines[2] = "Multiple matches, possible fingerprints are:"
+        lines[2] = 'Multiple matches, possible fingerprints are:'
 
         for i in range(len(all_matches)):
           is_last_line = i == 3
 
           relay_port, relay_fingerprint = all_matches[i]
-          line_text = "%i. or port: %-5s fingerprint: %s" % (i, relay_port, relay_fingerprint)
+          line_text = '%i. or port: %-5s fingerprint: %s' % (i, relay_port, relay_fingerprint)
 
           # if there's multiple lines remaining at the end then give a count
 
           remaining_relays = len(all_matches) - i
 
           if is_last_line and remaining_relays > 1:
-            line_text = "... %i more" % remaining_relays
+            line_text = '... %i more' % remaining_relays
 
           lines[3 + i] = line_text
 
@@ -896,7 +896,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             break
       else:
         # no consensus entry for this ip address
-        lines[2] = "No consensus data found"
+        lines[2] = 'No consensus data found'
 
     # crops any lines that are too long
 
@@ -925,12 +925,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # the port and port derived data can be hidden by config or without include_port
 
-    include_port = self.include_port and (CONFIG["features.connection.showExitPort"] or self.get_type() != Category.EXIT)
+    include_port = self.include_port and (CONFIG['features.connection.showExitPort'] or self.get_type() != Category.EXIT)
 
     # destination of the connection
 
-    address_label = "<scrubbed>" if self.is_private() else self.foreign.get_address()
-    port_label = ":%s" % self.foreign.get_port() if include_port else ""
+    address_label = '<scrubbed>' if self.is_private() else self.foreign.get_address()
+    port_label = ':%s' % self.foreign.get_port() if include_port else ''
     destination_address = address_label + port_label
 
     # Only append the extra info if there's at least a couple characters of
@@ -946,20 +946,20 @@ class ConnectionLine(entries.ConnectionPanelLine):
           # BitTorrent is a common protocol to truncate, so just use "Torrent"
           # if there's not enough room.
 
-          if len(purpose) > space_available and purpose == "BitTorrent":
-            purpose = "Torrent"
+          if len(purpose) > space_available and purpose == 'BitTorrent':
+            purpose = 'Torrent'
 
           # crops with a hyphen if too long
 
           purpose = str_tools.crop(purpose, space_available, ending = str_tools.Ending.HYPHEN)
 
-          destination_address += " (%s)" % purpose
+          destination_address += ' (%s)' % purpose
       elif not connection.is_private_address(self.foreign.get_address()):
         extra_info = []
         controller = tor_controller()
 
         if include_locale and not controller.is_geoip_unavailable():
-          foreign_locale = self.foreign.get_locale("??")
+          foreign_locale = self.foreign.get_locale('??')
           extra_info.append(foreign_locale)
           space_available -= len(foreign_locale) + 2
 
@@ -976,7 +976,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
             space_available -= len(destination_hostname)
 
         if extra_info:
-          destination_address += " (%s)" % ", ".join(extra_info)
+          destination_address += ' (%s)' % ', '.join(extra_info)
 
     return destination_address[:max_length]
 
@@ -990,9 +990,9 @@ def get_hidden_service_ports(controller, default = []):
   """
 
   result = []
-  hs_options = controller.get_conf_map("HiddenServiceOptions", {})
+  hs_options = controller.get_conf_map('HiddenServiceOptions', {})
 
-  for entry in hs_options.get("HiddenServicePort", []):
+  for entry in hs_options.get('HiddenServicePort', []):
     # HiddenServicePort entries are of the form...
     #
     #   VIRTPORT [TARGET]
@@ -1040,7 +1040,7 @@ def is_exiting_allowed(controller, ip_address, port):
 
     our_policy = controller.get_exit_policy(None)
 
-    if our_policy and our_policy.is_exiting_allowed() and port == "53":
+    if our_policy and our_policy.is_exiting_allowed() and port == '53':
       result = True
     else:
       result = our_policy and our_policy.can_exit_to(ip_address, port)
@@ -1166,9 +1166,9 @@ class FingerprintTracker:
     if controller.is_alive():
       # query the nickname if it isn't yet cached
       if relay_fingerprint not in self._nickname_lookup_cache:
-        if relay_fingerprint == controller.get_info("fingerprint", None):
+        if relay_fingerprint == controller.get_info('fingerprint', None):
           # this is us, simply check the config
-          my_nickname = controller.get_conf("Nickname", "Unnamed")
+          my_nickname = controller.get_conf('Nickname', 'Unnamed')
           self._nickname_lookup_cache[relay_fingerprint] = my_nickname
         else:
           ns_entry = controller.get_network_status(relay_fingerprint, None)
@@ -1197,9 +1197,9 @@ class FingerprintTracker:
 
     # checks if this matches us
 
-    if relay_address == controller.get_info("address", None):
-      if not relay_port or str(relay_port) == controller.get_conf("ORPort", None):
-        return controller.get_info("fingerprint", None)
+    if relay_address == controller.get_info('address', None):
+      if not relay_port or str(relay_port) == controller.get_conf('ORPort', None):
+        return controller.get_info('fingerprint', None)
 
     # if we haven't yet populated the ip -> fingerprint mappings then do so
 

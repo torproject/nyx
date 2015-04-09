@@ -127,7 +127,7 @@ class HistoryValidator(TextInputValidator):
 
     # the fields input prior to selecting a backlog item
 
-    self.custom_input = ""
+    self.custom_input = ''
 
   def handle_key(self, key, textbox):
     if key in (curses.KEY_UP, curses.KEY_DOWN):

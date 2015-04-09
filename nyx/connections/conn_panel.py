@@ -22,27 +22,27 @@ DETAILS_HEIGHT = 7
 
 # listing types
 
-Listing = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
+Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
 
 
 def conf_handler(key, value):
-  if key == "features.connection.listing_type":
+  if key == 'features.connection.listing_type':
     return conf.parse_enum(key, value, Listing)
-  elif key == "features.connection.refreshRate":
+  elif key == 'features.connection.refreshRate':
     return max(1, value)
-  elif key == "features.connection.order":
+  elif key == 'features.connection.order':
     return conf.parse_enum_csv(key, value[0], entries.SortAttr, 3)
 
 
-CONFIG = conf.config_dict("nyx", {
-  "features.connection.resolveApps": True,
-  "features.connection.listing_type": Listing.IP_ADDRESS,
-  "features.connection.order": [
+CONFIG = conf.config_dict('nyx', {
+  'features.connection.resolveApps': True,
+  'features.connection.listing_type': Listing.IP_ADDRESS,
+  'features.connection.order': [
     entries.SortAttr.CATEGORY,
     entries.SortAttr.LISTING,
     entries.SortAttr.UPTIME],
-  "features.connection.refreshRate": 5,
-  "features.connection.showIps": True,
+  'features.connection.refreshRate': 5,
+  'features.connection.showIps': True,
 }, conf_handler)
 
 
@@ -53,7 +53,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, "connections", 0)
+    panel.Panel.__init__(self, stdscr, 'connections', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
@@ -63,12 +63,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # TODO: This is a little sucky in that it won't work if showIps changes
     # while we're running (... but nyx doesn't allow for that atm)
 
-    if not CONFIG["features.connection.showIps"] and CONFIG["features.connection.listing_type"] == 0:
-      nyx_config = conf.get_config("nyx")
-      nyx_config.set("features.connection.listing_type", Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
+    if not CONFIG['features.connection.showIps'] and CONFIG['features.connection.listing_type'] == 0:
+      nyx_config = conf.get_config('nyx')
+      nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
 
     self._scroller = ui_tools.Scroller(True)
-    self._title = "Connections:"  # title line of the panel
+    self._title = 'Connections:'  # title line of the panel
     self._entries = []            # last fetched display entries
     self._entry_lines = []        # individual lines rendered from the entries listing
     self._show_details = False    # presents the details panel if true
@@ -89,7 +89,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # last day's clients.
 
     controller = tor_controller()
-    bridge_clients = controller.get_info("status/clients-seen", None)
+    bridge_clients = controller.get_info('status/clients-seen', None)
 
     if bridge_clients:
       # Response has a couple arguments...
@@ -98,14 +98,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       country_summary = None
 
       for arg in bridge_clients.split():
-        if arg.startswith("CountrySummary="):
+        if arg.startswith('CountrySummary='):
           country_summary = arg[15:]
           break
 
       if country_summary:
-        for entry in country_summary.split(","):
-          if re.match("^..=[0-9]+$", entry):
-            locale, count = entry.split("=", 1)
+        for entry in country_summary.split(','):
+          if re.match('^..=[0-9]+$', entry):
+            locale, count = entry.split('=', 1)
             self._client_locale_usage[locale] = int(count)
 
     # Last sampling received from the ConnectionResolver, used to detect when
@@ -168,12 +168,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.vals_lock.acquire()
 
     if ordering:
-      nyx_config = conf.get_config("nyx")
+      nyx_config = conf.get_config('nyx')
 
       ordering_keys = [entries.SortAttr.keys()[entries.SortAttr.index_of(v)] for v in ordering]
-      nyx_config.set("features.connection.order", ", ".join(ordering_keys))
+      nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
-    self._entries.sort(key = lambda i: (i.get_sort_values(CONFIG["features.connection.order"], self.get_listing_type())))
+    self._entries.sort(key = lambda i: (i.get_sort_values(CONFIG['features.connection.order'], self.get_listing_type())))
 
     self._entry_lines = []
 
@@ -187,7 +187,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Provides the priority content we list connections by.
     """
 
-    return CONFIG["features.connection.listing_type"]
+    return CONFIG['features.connection.listing_type']
 
   def set_listing_type(self, listing_type):
     """
@@ -202,12 +202,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self.vals_lock.acquire()
 
-    nyx_config = conf.get_config("nyx")
-    nyx_config.set("features.connection.listing_type", Listing.keys()[Listing.index_of(listing_type)])
+    nyx_config = conf.get_config('nyx')
+    nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(listing_type)])
 
     # if we're sorting by the listing then we need to resort
 
-    if entries.SortAttr.LISTING in CONFIG["features.connection.order"]:
+    if entries.SortAttr.LISTING in CONFIG['features.connection.order']:
       self.set_sort_order()
 
     self.vals_lock.release()
@@ -220,7 +220,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     controller = tor_controller()
 
     my_flags = []
-    my_fingerprint = self.get_info("fingerprint", None)
+    my_fingerprint = self.get_info('fingerprint', None)
 
     if my_fingerprint:
       my_status_entry = self.controller.get_network_status(my_fingerprint)
@@ -228,7 +228,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if my_status_entry:
         my_flags = my_status_entry.flags
 
-    return "Guard" in my_flags or controller.get_conf("BridgeRelay", None) == "1"
+    return 'Guard' in my_flags or controller.get_conf('BridgeRelay', None) == '1'
 
   def is_exits_allowed(self):
     """
@@ -237,7 +237,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     controller = tor_controller()
 
-    if not controller.get_conf("ORPort", None):
+    if not controller.get_conf('ORPort', None):
       return False  # no ORPort
 
     policy = controller.get_exit_policy(None)
@@ -251,9 +251,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     # set ordering for connection options
 
-    title_label = "Connection Ordering:"
+    title_label = 'Connection Ordering:'
     options = list(entries.SortAttr)
-    old_selection = CONFIG["features.connection.order"]
+    old_selection = CONFIG['features.connection.order']
     option_colors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
     results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
@@ -280,8 +280,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       elif key.match('u'):
         # provides a menu to pick the connection resolver
 
-        title = "Resolver Util:"
-        options = ["auto"] + list(connection.Resolver)
+        title = 'Resolver Util:'
+        options = ['auto'] + list(connection.Resolver)
         conn_resolver = nyx.util.tracker.get_connection_tracker()
 
         current_overwrite = conn_resolver.get_custom_resolver()
@@ -301,7 +301,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       elif key.match('l'):
         # provides a menu to pick the primary information we list connections by
 
-        title = "List By:"
+        title = 'List By:'
         options = list(entries.ListingType)
 
         # dropping the HOSTNAME listing type until we support displaying that content
@@ -347,7 +347,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     while not self._halt:
       current_time = time.time()
 
-      if self.is_paused() or not self._is_tor_running or current_time - last_draw < CONFIG["features.connection.refreshRate"]:
+      if self.is_paused() or not self._is_tor_running or current_time - last_draw < CONFIG['features.connection.refreshRate']:
         self._cond.acquire()
 
         if not self._halt:
@@ -363,8 +363,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # we may have missed multiple updates due to being paused, showing
         # another panel, etc so last_draw might need to jump multiple ticks
 
-        draw_ticks = (time.time() - last_draw) / CONFIG["features.connection.refreshRate"]
-        last_draw += CONFIG["features.connection.refreshRate"] * draw_ticks
+        draw_ticks = (time.time() - last_draw) / CONFIG['features.connection.refreshRate']
+        last_draw += CONFIG['features.connection.refreshRate'] * draw_ticks
 
   def get_help(self):
     resolver_util = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
@@ -431,7 +431,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # title label with connection counts
 
     if self.is_title_visible():
-      title = "Connection Details:" if self._show_details else self._title
+      title = 'Connection Details:' if self._show_details else self._title
       self.addstr(0, 0, title, curses.A_STANDOUT)
 
     scroll_offset = 0
@@ -518,7 +518,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
-      if not (circ.status == "BUILT" and len(circ.path) == 1):
+      if not (circ.status == 'BUILT' and len(circ.path) == 1):
         new_circuits[circ.id] = (circ.status, circ.purpose, [entry[0] for entry in circ.path])
 
     # Populates new_entries with any of our old entries that still exist.
@@ -594,12 +594,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     for category in category_types:
       if type_counts[category] > 0:
-        count_labels.append("%i %s" % (type_counts[category], category.lower()))
+        count_labels.append('%i %s' % (type_counts[category], category.lower()))
 
     if count_labels:
-      self._title = "Connections (%s):" % ", ".join(count_labels)
+      self._title = 'Connections (%s):' % ', '.join(count_labels)
     else:
-      self._title = "Connections:"
+      self._title = 'Connections:'
 
     self._entries = new_entries
 
@@ -622,7 +622,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
                   until the next update if true
     """
 
-    if self.app_resolve_since_update or not CONFIG["features.connection.resolveApps"]:
+    if self.app_resolve_since_update or not CONFIG['features.connection.resolveApps']:
       return
 
     unresolved_lines = [l for l in self._entry_lines if isinstance(l, conn_entry.ConnectionLine) and l.is_unresolved_application()]

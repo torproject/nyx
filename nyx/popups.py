@@ -33,7 +33,7 @@ def init(height = -1, width = -1, top = 0, left = 0, below_static = True):
   else:
     sticky_height = 0
 
-  popup = panel.Panel(control.get_screen(), "popup", top + sticky_height, left, height, width)
+  popup = panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
   popup.set_visible(True)
 
   # Redraws the popup to prepare a subwindow instance. If none is spawned then
@@ -58,7 +58,7 @@ def finalize():
   panel.CURSES_LOCK.release()
 
 
-def input_prompt(msg, initial_value = ""):
+def input_prompt(msg, initial_value = ''):
   """
   Prompts the user to enter a string on the control line (which usually
   displays the page number and basic controls).
@@ -70,7 +70,7 @@ def input_prompt(msg, initial_value = ""):
 
   panel.CURSES_LOCK.acquire()
   control = nyx.controller.get_controller()
-  msg_panel = control.get_panel("msg")
+  msg_panel = control.get_panel('msg')
   msg_panel.set_message(msg)
   msg_panel.redraw(True)
   user_input = msg_panel.getstr(0, len(msg), initial_value)
@@ -136,7 +136,7 @@ def show_help_popup():
     # test doing afterward in case of overwriting
 
     popup.win.box()
-    popup.addstr(0, 0, "Page %i Commands:" % (control.get_page() + 1), curses.A_STANDOUT)
+    popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), curses.A_STANDOUT)
 
     for i in range(len(help_options)):
       if i / 2 >= height - 2:
@@ -149,7 +149,7 @@ def show_help_popup():
       key, description, selection = help_options[i]
 
       if key:
-        description = ": " + description
+        description = ': ' + description
 
       row = (i / 2) + 1
       col = 2 if i % 2 == 0 else 41
@@ -160,14 +160,14 @@ def show_help_popup():
       col += len(description)
 
       if selection:
-        popup.addstr(row, col, " (")
+        popup.addstr(row, col, ' (')
         popup.addstr(row, col + 2, selection, curses.A_BOLD)
-        popup.addstr(row, col + 2 + len(selection), ")")
+        popup.addstr(row, col + 2 + len(selection), ')')
 
     # tells user to press a key if the lower left is unoccupied
 
     if len(help_options) < 13 and height == 9:
-      popup.addstr(7, 2, "Press any key...")
+      popup.addstr(7, 2, 'Press any key...')
 
     popup.win.refresh()
     curses.cbreak()
@@ -196,12 +196,12 @@ def show_about_popup():
     control = nyx.controller.get_controller()
 
     popup.win.box()
-    popup.addstr(0, 0, "About:", curses.A_STANDOUT)
-    popup.addstr(1, 2, "nyx, version %s (released %s)" % (__version__, __release_date__), curses.A_BOLD)
-    popup.addstr(2, 4, "Written by Damian Johnson (atagar@torproject.org)")
-    popup.addstr(3, 4, "Project page: www.atagar.com/nyx")
-    popup.addstr(5, 2, "Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)")
-    popup.addstr(7, 2, "Press any key...")
+    popup.addstr(0, 0, 'About:', curses.A_STANDOUT)
+    popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), curses.A_BOLD)
+    popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
+    popup.addstr(3, 4, 'Project page: www.atagar.com/nyx')
+    popup.addstr(5, 2, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
+    popup.addstr(7, 2, 'Press any key...')
     popup.win.refresh()
 
     curses.cbreak()
@@ -242,15 +242,15 @@ def show_sort_dialog(title, options, old_selection, option_colors):
     curses.cbreak()         # wait indefinitely for key presses (no timeout)
 
     selection_options = list(options)
-    selection_options.append("Cancel")
+    selection_options.append('Cancel')
 
     while len(new_selections) < len(old_selection):
       popup.win.erase()
       popup.win.box()
       popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-      _draw_sort_selection(popup, 1, 2, "Current Order: ", old_selection, option_colors)
-      _draw_sort_selection(popup, 2, 2, "New Order: ", new_selections, option_colors)
+      _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
+      _draw_sort_selection(popup, 2, 2, 'New Order: ', new_selections, option_colors)
 
       # presents remaining options, each row having up to four options with
       # spacing of nineteen cells
@@ -280,7 +280,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
       elif key.is_selection():
         selection = selection_options[cursor_location]
 
-        if selection == "Cancel":
+        if selection == 'Cancel':
           break
         else:
           new_selections.append(selection)
@@ -318,14 +318,14 @@ def _draw_sort_selection(popup, y, x, prefix, options, option_colors):
 
   for i in range(len(options)):
     sort_type = options[i]
-    sort_color = ui_tools.get_color(option_colors.get(sort_type, "white"))
+    sort_color = ui_tools.get_color(option_colors.get(sort_type, 'white'))
     popup.addstr(y, x, sort_type, sort_color | curses.A_BOLD)
     x += len(sort_type)
 
     # comma divider between options, if this isn't the last
 
     if i < len(options) - 1:
-      popup.addstr(y, x, ", ", curses.A_BOLD)
+      popup.addstr(y, x, ', ', curses.A_BOLD)
       x += 2
 
 
@@ -368,9 +368,9 @@ def show_menu(title, options, old_selection):
       for i in range(len(options)):
         label = options[i]
         format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-        tab = "> " if i == old_selection else "  "
+        tab = '> ' if i == old_selection else '  '
         popup.addstr(i + 1, 2, tab)
-        popup.addstr(i + 1, 4, " %s " % label, format)
+        popup.addstr(i + 1, 4, ' %s ' % label, format)
 
       popup.win.refresh()
 

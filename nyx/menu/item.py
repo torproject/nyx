@@ -21,7 +21,7 @@ class MenuItem():
     suffix for this item.
     """
 
-    return ("", self._label, "")
+    return ('', self._label, '')
 
   def get_parent(self):
     """
@@ -120,11 +120,11 @@ class Submenu(MenuItem):
 
   def get_label(self):
     """
-    Provides our label with a ">" suffix to indicate that we have suboptions.
+    Provides our label with a '>' suffix to indicate that we have suboptions.
     """
 
     my_label = MenuItem.get_label(self)[1]
-    return ("", my_label, " >")
+    return ('', my_label, ' >')
 
   def add(self, menu_item):
     """
@@ -189,12 +189,12 @@ class SelectionMenuItem(MenuItem):
 
   def get_label(self):
     """
-    Provides our label with a "[X]" prefix if selected and "[ ]" if not.
+    Provides our label with a '[X]' prefix if selected and '[ ]' if not.
     """
 
     my_label = MenuItem.get_label(self)[1]
-    my_prefix = "[X] " if self.is_selected() else "[ ] "
-    return (my_prefix, my_label, "")
+    my_prefix = '[X] ' if self.is_selected() else '[ ] '
+    return (my_prefix, my_label, '')
 
   def select(self):
     """

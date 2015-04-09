@@ -15,18 +15,18 @@ from stem.util import conf, enum, str_tools
 
 
 def conf_handler(key, value):
-  if key == "features.config.file.max_lines_per_entry":
+  if key == 'features.config.file.max_lines_per_entry':
     return max(1, value)
 
 
-CONFIG = conf.config_dict("nyx", {
-  "features.config.file.showScrollbars": True,
-  "features.config.file.max_lines_per_entry": 8,
+CONFIG = conf.config_dict('nyx', {
+  'features.config.file.showScrollbars': True,
+  'features.config.file.max_lines_per_entry': 8,
 }, conf_handler)
 
 # TODO: The nyxrc use case is incomplete. There should be equivilant reloading
 # and validation capabilities to the torrc.
-Config = enum.Enum("TORRC", "NYXRC")  # configuration file types that can be displayed
+Config = enum.Enum('TORRC', 'NYXRC')  # configuration file types that can be displayed
 
 
 class TorrcPanel(panel.Panel):
@@ -36,7 +36,7 @@ class TorrcPanel(panel.Panel):
   """
 
   def __init__(self, stdscr, config_type):
-    panel.Panel.__init__(self, stdscr, "torrc", 0)
+    panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
     self.vals_lock = threading.RLock()
     self.config_type = config_type
@@ -113,9 +113,9 @@ class TorrcPanel(panel.Panel):
       tor_config.get_torrc().load()
       self._last_content_height_args = None
       self.redraw(True)
-      result_msg = "torrc reloaded"
+      result_msg = 'torrc reloaded'
     except IOError:
-      result_msg = "failed to reload torrc"
+      result_msg = 'failed to reload torrc'
 
     self._last_content_height_args = None
     self.redraw(True)
@@ -182,7 +182,7 @@ class TorrcPanel(panel.Panel):
       conf_location = loaded_torrc.get_config_location()
 
       if not loaded_torrc.is_loaded():
-        rendered_contents = ["### Unable to load the torrc ###"]
+        rendered_contents = ['### Unable to load the torrc ###']
       else:
         rendered_contents = loaded_torrc.get_display_contents(self.strip_comments)
 
@@ -192,7 +192,7 @@ class TorrcPanel(panel.Panel):
 
       loaded_torrc.get_lock().release()
     else:
-      loaded_nyxrc = conf.get_config("nyx")
+      loaded_nyxrc = conf.get_config('nyx')
       conf_location = loaded_nyxrc._path
       rendered_contents = list(loaded_nyxrc._raw_contents)
 
@@ -210,7 +210,7 @@ class TorrcPanel(panel.Panel):
 
     scroll_offset = 0
 
-    if CONFIG["features.config.file.showScrollbars"] and self._last_content_height > height - 1:
+    if CONFIG['features.config.file.showScrollbars'] and self._last_content_height > height - 1:
       scroll_offset = 3
       self.add_scroll_bar(self.scroll, self.scroll + height - 1, self._last_content_height, 1)
 
@@ -219,9 +219,9 @@ class TorrcPanel(panel.Panel):
     # draws the top label
 
     if self.is_title_visible():
-      source_label = "Tor" if self.config_type == Config.TORRC else "Arm"
-      location_label = " (%s)" % conf_location if conf_location else ""
-      self.addstr(0, 0, "%s Configuration File%s:" % (source_label, location_label), curses.A_STANDOUT)
+      source_label = 'Tor' if self.config_type == Config.TORRC else 'Nyx'
+      location_label = ' (%s)' % conf_location if conf_location else ''
+      self.addstr(0, 0, '%s Configuration File%s:' % (source_label, location_label), curses.A_STANDOUT)
 
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
@@ -245,7 +245,7 @@ class TorrcPanel(panel.Panel):
 
       # parses the comment
 
-      comment_index = line_text.find("#")
+      comment_index = line_text.find('#')
 
       if comment_index != -1:
         line_comp['comment'][0] = line_text[comment_index:]
@@ -254,7 +254,7 @@ class TorrcPanel(panel.Panel):
       # splits the option and argument, preserving any whitespace around them
 
       stripped_line = line_text.strip()
-      option_index = stripped_line.find(" ")
+      option_index = stripped_line.find(' ')
 
       if is_multiline:
         # part of a multiline entry started on a previous line so everything
@@ -273,7 +273,7 @@ class TorrcPanel(panel.Panel):
       # with a slash
 
       if stripped_line:
-        is_multiline = stripped_line.endswith("\\")
+        is_multiline = stripped_line.endswith('\\')
 
       # gets the correction
 
@@ -296,13 +296,13 @@ class TorrcPanel(panel.Panel):
       # draws the line number
 
       if self.show_line_num and display_line < height and display_line >= 1:
-        line_number_str = ("%%%ii" % (line_number_offset - 1)) % (line_number + 1)
+        line_number_str = ('%%%ii' % (line_number_offset - 1)) % (line_number + 1)
         self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD, 'yellow')
 
       # draws the rest of the components with line wrap
 
       cursor_location, line_offset = line_number_offset + scroll_offset, 0
-      max_lines_per_entry = CONFIG["features.config.file.max_lines_per_entry"]
+      max_lines_per_entry = CONFIG['features.config.file.max_lines_per_entry']
       display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
 
       while display_queue:

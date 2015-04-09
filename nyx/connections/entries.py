@@ -8,20 +8,20 @@ from stem.util import enum
 
 # attributes we can list entries by
 
-ListingType = enum.Enum(("IP_ADDRESS", "IP Address"), "HOSTNAME", "FINGERPRINT", "NICKNAME")
+ListingType = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
 
-SortAttr = enum.Enum("CATEGORY", "UPTIME", "LISTING", "IP_ADDRESS", "PORT", "HOSTNAME", "FINGERPRINT", "NICKNAME", "COUNTRY")
+SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'HOSTNAME', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
 SORT_COLORS = {
-  SortAttr.CATEGORY: "red",
-  SortAttr.UPTIME: "yellow",
-  SortAttr.LISTING: "green",
-  SortAttr.IP_ADDRESS: "blue",
-  SortAttr.PORT: "blue",
-  SortAttr.HOSTNAME: "magenta",
-  SortAttr.FINGERPRINT: "cyan",
-  SortAttr.NICKNAME: "cyan",
-  SortAttr.COUNTRY: "blue",
+  SortAttr.CATEGORY: 'red',
+  SortAttr.UPTIME: 'yellow',
+  SortAttr.LISTING: 'green',
+  SortAttr.IP_ADDRESS: 'blue',
+  SortAttr.PORT: 'blue',
+  SortAttr.HOSTNAME: 'magenta',
+  SortAttr.FINGERPRINT: 'cyan',
+  SortAttr.NICKNAME: 'cyan',
+  SortAttr.COUNTRY: 'blue',
 }
 
 # maximum number of ports a system can have
@@ -95,7 +95,7 @@ class ConnectionPanelEntry:
       elif listing_type == ListingType.NICKNAME:
         return self.get_sort_value(SortAttr.NICKNAME, listing_type)
 
-    return ""
+    return ''
 
   def reset_display(self):
     """

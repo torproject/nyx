@@ -385,14 +385,14 @@ def is_wide_characters_supported():
 
     lib_dependency_lines = None
 
-    if system.is_available("ldd"):
-      lib_dependency_lines = system.call("ldd %s" % _curses.__file__)
-    elif system.is_available("otool"):
-      lib_dependency_lines = system.call("otool -L %s" % _curses.__file__)
+    if system.is_available('ldd'):
+      lib_dependency_lines = system.call('ldd %s' % _curses.__file__)
+    elif system.is_available('otool'):
+      lib_dependency_lines = system.call('otool -L %s' % _curses.__file__)
 
     if lib_dependency_lines:
       for line in lib_dependency_lines:
-        if "libncursesw" in line:
+        if 'libncursesw' in line:
           return True
   except:
     pass
