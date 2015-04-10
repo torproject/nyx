@@ -58,6 +58,7 @@ def main():
       check_newlines = True,
       check_trailing_whitespace = True,
       check_exception_keyword = True,
+      prefer_single_quotes = True,
     )
 
     for path, issues in pep8_issues.items():
@@ -70,8 +71,8 @@ def main():
     for file_path in static_check_issues:
       print '* %s' % file_path
 
-      for line_number, msg in static_check_issues[file_path]:
-        print '  line %-4s - %s' % (line_number, msg)
+      for issue in static_check_issues[file_path]:
+        print '  line %-4s - %-40s %s' % (issue.line_number, issue.message, issue.line)
 
       print
 

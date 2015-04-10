@@ -457,7 +457,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
             if entry.runlevel in set_runlevels:
               self.msg_log.append(LogEntry(entry.timestamp, entry.runlevel, entry.message, RUNLEVEL_EVENT_COLOR[entry.runlevel]))
         except IOError as exc:
-          log.info("Unable to read log located at %s: %s" % (logging_location, exc))
+          log.info('Unable to read log located at %s: %s' % (logging_location, exc))
         except ValueError as exc:
           log.info(str(exc))
 

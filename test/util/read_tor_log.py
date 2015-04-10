@@ -49,7 +49,7 @@ class TestReadTorLog(unittest.TestCase):
       list(read_tor_log(data_path('malformed_runlevel')))
       self.fail("Malformed content should've raised a ValueError")
     except ValueError as exc:
-      self.assertTrue("has an unrecognized runlevel: [unrecognized]" in str(exc))
+      self.assertTrue('has an unrecognized runlevel: [unrecognized]' in str(exc))
 
   def test_with_malformed_date(self):
     try:
