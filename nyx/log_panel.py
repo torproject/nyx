@@ -28,14 +28,6 @@ try:
 except ImportError:
   from stem.util.lru_cache import lru_cache
 
-RUNLEVEL_EVENT_COLOR = {
-  log.DEBUG: 'magenta',
-  log.INFO: 'blue',
-  log.NOTICE: 'green',
-  log.WARN: 'yellow',
-  log.ERR: 'red',
-}
-
 DAYBREAK_EVENT = 'DAYBREAK'  # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
@@ -66,6 +58,7 @@ CONFIG = conf.config_dict('nyx', {
   'cache.log_panel.size': 1000,
   'msg.misc.event_types': '',
   'tor.chroot': '',
+  'attr.log_color': {},
 }, conf_handler)
 
 DUPLICATE_MSG = ' [%i duplicate%s hidden]'
@@ -283,11 +276,11 @@ class LogEntry():
     color     - color of the log entry
   """
 
-  def __init__(self, timestamp, event_type, msg, color):
+  def __init__(self, timestamp, event_type, msg):
     self.timestamp = timestamp
     self.type = event_type
     self.msg = msg
-    self.color = color
+    self.color = CONFIG['attr.log_color'].get(event_type, 'white')
 
   @lru_cache()
   def get_display_message(self, include_date = False):
@@ -415,8 +408,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if record.levelname == 'WARNING':
       record.levelname = 'WARN'
 
-    event_color = RUNLEVEL_EVENT_COLOR[record.levelname]
-    self.register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg, event_color))
+    self.register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def reprepopulate_events(self):
     """
@@ -441,7 +433,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         try:
           for entry in read_tor_log(logging_location, read_limit):
             if entry.runlevel in set_runlevels:
-              self.msg_log.append(LogEntry(entry.timestamp, entry.runlevel, entry.message, RUNLEVEL_EVENT_COLOR[entry.runlevel]))
+              self.msg_log.append(LogEntry(entry.timestamp, entry.runlevel, entry.message))
         except IOError as exc:
           log.info('Unable to read log located at %s: %s' % (logging_location, exc))
         except ValueError as exc:
@@ -471,26 +463,14 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     register_event().
     """
 
-    msg, color = ' '.join(str(event).split(' ')[1:]), 'white'
+    msg = ' '.join(str(event).split(' ')[1:])
 
-    if isinstance(event, events.CircuitEvent):
-      color = 'yellow'
-    elif isinstance(event, events.BandwidthEvent):
-      color = 'cyan'
+    if isinstance(event, events.BandwidthEvent):
       msg = 'READ: %i, WRITTEN: %i' % (event.read, event.written)
     elif isinstance(event, events.LogEvent):
-      color = RUNLEVEL_EVENT_COLOR[event.runlevel]
       msg = event.message
-    elif isinstance(event, events.NetworkStatusEvent):
-      color = 'blue'
-    elif isinstance(event, events.NewConsensusEvent):
-      color = 'magenta'
-    elif isinstance(event, events.GuardEvent):
-      color = 'yellow'
-    elif event.type not in nyx.arguments.TOR_EVENT_TYPES.values():
-      color = 'red'  # unknown event type
 
-    self.register_event(LogEntry(event.arrived_at, event.type, msg, color))
+    self.register_event(LogEntry(event.arrived_at, event.type, msg))
 
   def register_event(self, event):
     """
