@@ -283,7 +283,7 @@ class LogEntry():
     self.color = CONFIG['attr.log_color'].get(event_type, 'white')
 
   @lru_cache()
-  def get_display_message(self, include_date = False):
+  def get_display_message(self):
     """
     Provides the entry's message for the log.
 
@@ -291,13 +291,8 @@ class LogEntry():
       include_date - appends the event's date to the start of the message
     """
 
-    if include_date:
-      entry_time = time.localtime(self.timestamp)
-      time_label = '%i/%i/%i %02i:%02i:%02i' % (entry_time[1], entry_time[2], entry_time[0], entry_time[3], entry_time[4], entry_time[5])
-      return '%s [%s] %s' % (time_label, self.type, self.msg)
-    else:
-      entry_time = time.localtime(self.timestamp)
-      return '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
+    entry_time = time.localtime(self.timestamp)
+    return '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
 
 
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
@@ -491,7 +486,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     if self.log_file:
       try:
-        self.log_file.write(event.get_display_message(True) + '\n')
+        self.log_file.write(event.get_display_message() + '\n')
         self.log_file.flush()
       except IOError as exc:
         log.error('Unable to write to log file: %s' % exc.strerror)
@@ -687,7 +682,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         is_visible = not self.regex_filter or self.regex_filter.search(entry.get_display_message())
 
         if is_visible:
-          snapshot_file.write(entry.get_display_message(True) + '\n')
+          snapshot_file.write(entry.get_display_message() + '\n')
 
       self.vals_lock.release()
     except Exception as exc:
