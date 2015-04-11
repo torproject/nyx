@@ -22,6 +22,12 @@ from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
 from nyx.util.log import read_tor_log
 
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
+
 RUNLEVEL_EVENT_COLOR = {
   log.DEBUG: 'magenta',
   log.INFO: 'blue',
@@ -71,11 +77,6 @@ DUPLICATE_MSG = ' [%i duplicate%s hidden]'
 
 CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 
-# static starting portion of common log entries, fetched from the config when
-# needed if None
-
-COMMON_LOG_MESSAGES = None
-
 # cached values and the arguments that generated it for the get_daybreaks and
 # get_duplicates functions
 
@@ -108,21 +109,21 @@ def days_since(timestamp = None):
   return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
 
-def load_log_messages():
+@lru_cache()
+def common_log_messages():
   """
   Fetches a mapping of common log messages to their runlevels from the config.
   """
 
-  global COMMON_LOG_MESSAGES
   nyx_config = conf.get_config('nyx')
-
-  COMMON_LOG_MESSAGES = {}
+  messages = {}
 
   for conf_key in nyx_config.keys():
     if conf_key.startswith('dedup.'):
       event_type = conf_key[4:].upper()
-      messages = nyx_config.get(conf_key, [])
-      COMMON_LOG_MESSAGES[event_type] = messages
+      messages[event_type] = nyx_config.get(conf_key, [])
+
+  return messages
 
 
 def log_file_path():
@@ -191,11 +192,6 @@ def get_duplicates(events):
   if CACHED_DUPLICATES_ARGUMENTS == events:
     return list(CACHED_DUPLICATES_RESULT)
 
-  # loads common log entries from the config if they haven't been
-
-  if COMMON_LOG_MESSAGES is None:
-    load_log_messages()
-
   start_time = time.time()
   events_remaining = list(events)
   return_events = []
@@ -253,8 +249,8 @@ def is_duplicate(event, event_set, get_duplicates = False):
 
       if event.msg == forward_entry.msg:
         is_duplicate = True
-      elif event.type in COMMON_LOG_MESSAGES:
-        for common_msg in COMMON_LOG_MESSAGES[event.type]:
+      else:
+        for common_msg in common_log_messages().get(event.type, []):
           # if it starts with an asterisk then check the whole message rather
           # than just the start
 
@@ -292,8 +288,8 @@ class LogEntry():
     self.type = event_type
     self.msg = msg
     self.color = color
-    self._display_message = None
 
+  @lru_cache()
   def get_display_message(self, include_date = False):
     """
     Provides the entry's message for the log.
@@ -303,16 +299,12 @@ class LogEntry():
     """
 
     if include_date:
-      # not the common case so skip caching
       entry_time = time.localtime(self.timestamp)
       time_label = '%i/%i/%i %02i:%02i:%02i' % (entry_time[1], entry_time[2], entry_time[0], entry_time[3], entry_time[4], entry_time[5])
       return '%s [%s] %s' % (time_label, self.type, self.msg)
-
-    if not self._display_message:
+    else:
       entry_time = time.localtime(self.timestamp)
-      self._display_message = '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
-
-    return self._display_message
+      return '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
 
 
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
@@ -332,12 +324,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     threading.Thread.__init__(self)
     self.setDaemon(True)
-
-    # Make sure that the msg.* messages are loaded. Lazy loading it later is
-    # fine, but this way we're sure it happens before warning about unused
-    # config options.
-
-    load_log_messages()
 
     # regex filters the user has defined
 
