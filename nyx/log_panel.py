@@ -169,8 +169,17 @@ def get_duplicates(events):
   return_events = []
 
   while events_remaining:
-    entry = events_remaining.pop(0)
-    duplicate_indices = is_duplicate(entry, events_remaining, True)
+    entry, duplicate_indices = events_remaining.pop(0), []
+
+    for i, earlier_entry in enumerate(events_remaining):
+      # if showing dates then do duplicate detection for each day, rather
+      # than globally
+
+      if earlier_entry.type == DAYBREAK_EVENT:
+        break
+
+      if entry.is_duplicate(earlier_entry):
+        duplicate_indices.append(i)
 
     # checks if the call timeout has been reached
 
@@ -190,43 +199,6 @@ def get_duplicates(events):
   CACHED_DUPLICATES_RESULT = list(return_events)
 
   return return_events
-
-
-def is_duplicate(event, event_set, get_duplicates = False):
-  """
-  True if the event is a duplicate for something in the event_set, false
-  otherwise. If the get_duplicates flag is set this provides the indices of
-  the duplicates instead.
-
-  Arguments:
-    event         - event to search for duplicates of
-    event_set      - set to look for the event in
-    get_duplicates - instead of providing back a boolean this gives a list of
-                    the duplicate indices in the event_set
-  """
-
-  duplicate_indices = []
-
-  for i in range(len(event_set)):
-    forward_entry = event_set[i]
-
-    # if showing dates then do duplicate detection for each day, rather
-    # than globally
-
-    if forward_entry.type == DAYBREAK_EVENT:
-      break
-
-    if event.type == forward_entry.type:
-      if event.is_duplicate(forward_entry):
-        if get_duplicates:
-          duplicate_indices.append(i)
-        else:
-          return True
-
-  if get_duplicates:
-    return duplicate_indices
-  else:
-    return False
 
 
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
