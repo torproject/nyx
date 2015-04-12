@@ -34,7 +34,7 @@ def _common_log_messages():
 
   for conf_key in nyx_config.keys():
     if conf_key.startswith('dedup.'):
-      event_type = conf_key[4:]
+      event_type = conf_key[6:]
       messages[event_type] = nyx_config.get(conf_key, [])
 
   return messages
@@ -69,10 +69,10 @@ class LogEntry(object):
     :returns: **True** if the given log message is a duplicate of us and **False** otherwise
     """
 
-    if self.message == entry.message:
-      return True
-    elif self.type != entry.type:
+    if self.type != entry.type:
       return False
+    elif self.message == entry.message:
+      return True
 
     for common_msg in _common_log_messages().get(self.type, []):
       # if it starts with an asterisk then check the whole message rather
