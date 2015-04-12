@@ -24,12 +24,6 @@ from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
 from nyx.util.log import LogEntry, read_tor_log
 
-try:
-  # added in python 3.2
-  from functools import lru_cache
-except ImportError:
-  from stem.util.lru_cache import lru_cache
-
 DAYBREAK_EVENT = 'DAYBREAK'  # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
@@ -102,23 +96,6 @@ def days_since(timestamp = None):
     timestamp = time.time()
 
   return int((timestamp - TIMEZONE_OFFSET) / 86400)
-
-
-@lru_cache()
-def common_log_messages():
-  """
-  Fetches a mapping of common log messages to their runlevels from the config.
-  """
-
-  nyx_config = conf.get_config('nyx')
-  messages = {}
-
-  for conf_key in nyx_config.keys():
-    if conf_key.startswith('dedup.'):
-      event_type = conf_key[4:].upper()
-      messages[event_type] = nyx_config.get(conf_key, [])
-
-  return messages
 
 
 def log_file_path():
@@ -240,24 +217,7 @@ def is_duplicate(event, event_set, get_duplicates = False):
       break
 
     if event.type == forward_entry.type:
-      is_duplicate = False
-
-      if event.msg == forward_entry.msg:
-        is_duplicate = True
-      else:
-        for common_msg in common_log_messages().get(event.type, []):
-          # if it starts with an asterisk then check the whole message rather
-          # than just the start
-
-          if common_msg[0] == '*':
-            is_duplicate = common_msg[1:] in event.msg and common_msg[1:] in forward_entry.msg
-          else:
-            is_duplicate = event.msg.startswith(common_msg) and forward_entry.msg.startswith(common_msg)
-
-          if is_duplicate:
-            break
-
-      if is_duplicate:
+      if event.is_duplicate(forward_entry):
         if get_duplicates:
           duplicate_indices.append(i)
         else:

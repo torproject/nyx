@@ -5,12 +5,39 @@ runlevels.
 
 import time
 
+import stem.util.conf
 import stem.util.log
 import stem.util.system
 
 import nyx.util
 
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
+
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+
+
+@lru_cache()
+def _common_log_messages():
+  """
+  Provides a mapping of message types to its common log messages. These are
+  message prefixes unless it starts with an asterisk, in which case it can
+  appear anywhere in the message.
+
+  :returns: **dict** of the form {event_type => [msg1, msg2...]}
+  """
+
+  nyx_config, messages = stem.util.conf.get_config('nyx'), {}
+
+  for conf_key in nyx_config.keys():
+    if conf_key.startswith('dedup.'):
+      event_type = conf_key[4:]
+      messages[event_type] = nyx_config.get(conf_key, [])
+
+  return messages
 
 
 class LogEntry(object):
@@ -33,6 +60,32 @@ class LogEntry(object):
 
     entry_time = time.localtime(self.timestamp)
     self.display_message = '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.message)
+
+  @lru_cache()
+  def is_duplicate(self, entry):
+    """
+    Checks if we are a duplicate of the given message or not.
+
+    :returns: **True** if the given log message is a duplicate of us and **False** otherwise
+    """
+
+    if self.message == entry.message:
+      return True
+    elif self.type != entry.type:
+      return False
+
+    for common_msg in _common_log_messages().get(self.type, []):
+      # if it starts with an asterisk then check the whole message rather
+      # than just the start
+
+      if common_msg[0] == '*':
+        if common_msg[1:] in self.message and common_msg[1:] in entry.message:
+          return True
+      else:
+        if self.message.startswith(common_msg) and entry.message.startswith(common_msg):
+          return True
+
+    return False
 
   def __eq__(self, other):
     if isinstance(other, LogEntry):
