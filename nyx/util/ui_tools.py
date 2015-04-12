@@ -39,7 +39,7 @@ CONFIG = conf.config_dict('nyx', {
 
 def is_color_supported():
   """
-  Checks if curses presently supports rendering colors.
+  Checks if curses currently supports rendering colors.
 
   :returns: **True** if colors can be rendered, **False** otherwise
   """

@@ -12,15 +12,17 @@ import logging
 import threading
 
 import stem
+import stem.response.events
+
 from stem.control import State
-from stem.response import events
 from stem.util import conf, log, str_tools
 
 import nyx.arguments
 import nyx.popups
+
 from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
-from nyx.util.log import read_tor_log
+from nyx.util.log import LogEntry, read_tor_log
 
 try:
   # added in python 3.2
@@ -158,7 +160,7 @@ def get_daybreaks(events, ignore_time_for_cache = False):
 
     if event_day != last_day:
       marker_timestamp = (event_day * 86400) + TIMEZONE_OFFSET
-      new_listing.append(LogEntry(marker_timestamp, DAYBREAK_EVENT, '', 'white'))
+      new_listing.append(LogEntry(marker_timestamp, DAYBREAK_EVENT, ''))
 
     new_listing.append(entry)
     last_day = event_day
@@ -265,34 +267,6 @@ def is_duplicate(event, event_set, get_duplicates = False):
     return duplicate_indices
   else:
     return False
-
-
-class LogEntry():
-  """
-  Individual log file entry, having the following attributes:
-    timestamp - unix timestamp for when the event occurred
-    event_type - event type that occurred ('INFO', 'BW', 'NYX_WARN', etc)
-    msg       - message that was logged
-    color     - color of the log entry
-  """
-
-  def __init__(self, timestamp, event_type, msg):
-    self.timestamp = timestamp
-    self.type = event_type
-    self.msg = msg
-    self.color = CONFIG['attr.log_color'].get(event_type, 'white')
-
-  @lru_cache()
-  def get_display_message(self):
-    """
-    Provides the entry's message for the log.
-
-    Arguments:
-      include_date - appends the event's date to the start of the message
-    """
-
-    entry_time = time.localtime(self.timestamp)
-    return '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.msg)
 
 
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
@@ -427,8 +401,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       if logging_location:
         try:
           for entry in read_tor_log(logging_location, read_limit):
-            if entry.runlevel in set_runlevels:
-              self.msg_log.append(LogEntry(entry.timestamp, entry.runlevel, entry.message))
+            if entry.type in set_runlevels:
+              self.msg_log.append(entry)
         except IOError as exc:
           log.info('Unable to read log located at %s: %s' % (logging_location, exc))
         except ValueError as exc:
@@ -460,9 +434,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     msg = ' '.join(str(event).split(' ')[1:])
 
-    if isinstance(event, events.BandwidthEvent):
+    if isinstance(event, stem.response.events.BandwidthEvent):
       msg = 'READ: %i, WRITTEN: %i' % (event.read, event.written)
-    elif isinstance(event, events.LogEvent):
+    elif isinstance(event, stem.response.events.LogEvent):
       msg = event.message
 
     self.register_event(LogEntry(event.arrived_at, event.type, msg))
@@ -478,15 +452,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if event.type not in self.logged_events:
       return
 
-    # strips control characters to avoid screwing up the terminal
-
-    event.msg = ui_tools.get_printable(event.msg)
-
     # note event in the log file if we're saving them
 
     if self.log_file:
       try:
-        self.log_file.write(event.get_display_message() + '\n')
+        self.log_file.write(event.display_message + '\n')
         self.log_file.flush()
       except IOError as exc:
         log.error('Unable to write to log file: %s' % exc.strerror)
@@ -498,7 +468,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # notifies the display that it has new content
 
-    if not self.regex_filter or self.regex_filter.search(event.get_display_message()):
+    if not self.regex_filter or self.regex_filter.search(event.display_message):
       self._cond.acquire()
       self._cond.notifyAll()
       self._cond.release()
@@ -679,10 +649,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     try:
       for entry in self.msg_log:
-        is_visible = not self.regex_filter or self.regex_filter.search(entry.get_display_message())
+        is_visible = not self.regex_filter or self.regex_filter.search(entry.display_message)
 
         if is_visible:
-          snapshot_file.write(entry.get_display_message() + '\n')
+          snapshot_file.write(entry.display_message + '\n')
 
       self.vals_lock.release()
     except Exception as exc:
@@ -814,7 +784,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     while deduplicated_log:
       entry, duplicate_count = deduplicated_log.pop(0)
 
-      if self.regex_filter and not self.regex_filter.search(entry.get_display_message()):
+      if self.regex_filter and not self.regex_filter.search(entry.display_message):
         continue  # filter doesn't match log message - skip
 
       # checks if we should be showing a divider with the date
@@ -850,11 +820,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         display_queue = []
 
-        msg_comp = entry.get_display_message().split('\n')
+        msg_comp = entry.display_message.split('\n')
 
         for i in range(len(msg_comp)):
           font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-          display_queue.append((msg_comp[i].strip(), (font, entry.color), i != len(msg_comp) - 1))
+          display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
 
         if duplicate_count:
           plural_label = 's' if duplicate_count > 1 else ''

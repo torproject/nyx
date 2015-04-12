@@ -3,7 +3,6 @@ Logging utilities, primiarily short aliases for logging a message at various
 runlevels.
 """
 
-import collections
 import time
 
 import stem.util.log
@@ -11,13 +10,38 @@ import stem.util.system
 
 import nyx.util
 
-LogEntry = collections.namedtuple('LogEntry', [
-  'timestamp',
-  'runlevel',
-  'message',
-])
-
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+
+
+class LogEntry(object):
+  """
+  Individual tor or nyx log entry.
+
+  **Note:** Tor doesn't include the date in its timestamps so the year
+  component may be inaccurate. (:trac:`15607`)
+
+  :var int timestamp: unix timestamp for when the event occured
+  :var str type: event type
+  :var str message: event's message
+  :var str display_message: message annotated with our time and runlevel
+  """
+
+  def __init__(self, timestamp, type, message):
+    self.timestamp = timestamp
+    self.type = type
+    self.message = message
+
+    entry_time = time.localtime(self.timestamp)
+    self.display_message = '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.message)
+
+  def __eq__(self, other):
+    if isinstance(other, LogEntry):
+      return hash(self) == hash(other)
+    else:
+      return False
+
+  def __hash__(self):
+    return hash(self.display_message)
 
 
 def trace(msg, **attr):
@@ -59,13 +83,6 @@ def _log(runlevel, message, **attr):
 def read_tor_log(path, read_limit = None):
   """
   Provides logging messages from a tor log file, from newest to oldest.
-  LogEntry this provides have three attributes...
-
-    * **timestamp** (int)
-    * **runlevel** (str)
-    * **message** (str)
-
-  **Note:** The 'timestamp' has a hardcoded year of 2012 due to :trac:`15607`.
 
   :param str path: logging location to read from
   :param int read_limit: maximum number of lines to read from the file
