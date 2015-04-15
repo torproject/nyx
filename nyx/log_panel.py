@@ -316,35 +316,32 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Clears the event log and repopulates it from the nyx and tor backlogs.
     """
 
-    self.vals_lock.acquire()
+    with self.vals_lock:
+      # clears the event log
 
-    # clears the event log
+      self.msg_log = []
 
-    self.msg_log = []
+      # fetches past tor events from log file, if available
 
-    # fetches past tor events from log file, if available
+      if CONFIG['features.log.prepopulate']:
+        set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
+        read_limit = CONFIG['features.log.prepopulateReadLimit']
 
-    if CONFIG['features.log.prepopulate']:
-      set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
-      read_limit = CONFIG['features.log.prepopulateReadLimit']
+        logging_location = log_file_path()
 
-      logging_location = log_file_path()
+        if logging_location:
+          try:
+            for entry in read_tor_log(logging_location, read_limit):
+              if entry.type in set_runlevels:
+                self.msg_log.append(entry)
+          except IOError as exc:
+            log.info('Unable to read log located at %s: %s' % (logging_location, exc))
+          except ValueError as exc:
+            log.info(str(exc))
 
-      if logging_location:
-        try:
-          for entry in read_tor_log(logging_location, read_limit):
-            if entry.type in set_runlevels:
-              self.msg_log.append(entry)
-        except IOError as exc:
-          log.info('Unable to read log located at %s: %s' % (logging_location, exc))
-        except ValueError as exc:
-          log.info(str(exc))
+      # crops events that are either too old, or more numerous than the caching size
 
-    # crops events that are either too old, or more numerous than the caching size
-
-    self._trim_events(self.msg_log)
-
-    self.vals_lock.release()
+      self._trim_events(self.msg_log)
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -394,18 +391,16 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         log.error('Unable to write to log file: %s' % exc.strerror)
         self.log_file = None
 
-    self.vals_lock.acquire()
-    self.msg_log.insert(0, event)
-    self._trim_events(self.msg_log)
+    with self.vals_lock:
+      self.msg_log.insert(0, event)
+      self._trim_events(self.msg_log)
 
-    # notifies the display that it has new content
+      # notifies the display that it has new content
 
-    if not self.regex_filter or self.regex_filter.search(event.display_message):
-      self._cond.acquire()
-      self._cond.notifyAll()
-      self._cond.release()
-
-    self.vals_lock.release()
+      if not self.regex_filter or self.regex_filter.search(event.display_message):
+        self._cond.acquire()
+        self._cond.notifyAll()
+        self._cond.release()
 
   def set_logged_events(self, event_types):
     """
@@ -418,15 +413,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if event_types == self.logged_events:
       return
 
-    self.vals_lock.acquire()
+    with self.vals_lock:
+      # configures the controller to listen for these tor events, and provides
+      # back a subset without anything we're failing to listen to
 
-    # configures the controller to listen for these tor events, and provides
-    # back a subset without anything we're failing to listen to
-
-    set_types = self.set_event_listening(event_types)
-    self.logged_events = set_types
-    self.redraw(True)
-    self.vals_lock.release()
+      set_types = self.set_event_listening(event_types)
+      self.logged_events = set_types
+      self.redraw(True)
 
   def get_filter(self):
     """
@@ -447,10 +440,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     if log_filter == self.regex_filter:
       return
 
-    self.vals_lock.acquire()
-    self.regex_filter = log_filter
-    self.redraw(True)
-    self.vals_lock.release()
+    with self.vals_lock:
+      self.regex_filter = log_filter
+      self.redraw(True)
 
   def make_filter_selection(self, selected_option):
     """
@@ -549,10 +541,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Clears the contents of the event log.
     """
 
-    self.vals_lock.acquire()
-    self.msg_log = []
-    self.redraw(True)
-    self.vals_lock.release()
+    with self.vals_lock:
+      self.msg_log = []
+      self.redraw(True)
 
   def save_snapshot(self, path):
     """
@@ -577,19 +568,16 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       raise IOError("unable to make directory '%s'" % base_dir)
 
     snapshot_file = open(path, 'w')
-    self.vals_lock.acquire()
 
-    try:
-      for entry in self.msg_log:
-        is_visible = not self.regex_filter or self.regex_filter.search(entry.display_message)
+    with self.vals_lock:
+      try:
+        for entry in self.msg_log:
+          is_visible = not self.regex_filter or self.regex_filter.search(entry.display_message)
 
-        if is_visible:
-          snapshot_file.write(entry.display_message + '\n')
-
-      self.vals_lock.release()
-    except Exception as exc:
-      self.vals_lock.release()
-      raise exc
+          if is_visible:
+            snapshot_file.write(entry.display_message + '\n')
+      except Exception as exc:
+        raise exc
 
   def handle_key(self, key):
     if key.is_scroll():
@@ -597,15 +585,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
 
       if self.scroll != new_scroll:
-        self.vals_lock.acquire()
-        self.scroll = new_scroll
-        self.redraw(True)
-        self.vals_lock.release()
+        with self.vals_lock:
+          self.scroll = new_scroll
+          self.redraw(True)
     elif key.match('u'):
-      self.vals_lock.acquire()
-      self.set_duplicate_visability(not CONFIG['features.log.showDuplicateEntries'])
-      self.redraw(True)
-      self.vals_lock.release()
+      with self.vals_lock:
+        self.set_duplicate_visability(not CONFIG['features.log.showDuplicateEntries'])
+        self.redraw(True)
     elif key.match('c'):
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
       key_press = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
@@ -669,173 +655,171 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     current_log = self.get_attr('msg_log')
 
-    self.vals_lock.acquire()
-    self._last_logged_events, self._last_update = list(current_log), time.time()
+    with self.vals_lock:
+      self._last_logged_events, self._last_update = list(current_log), time.time()
 
-    # draws the top label
+      # draws the top label
 
-    if self.is_title_visible():
-      self.addstr(0, 0, self._get_title(width), curses.A_STANDOUT)
+      if self.is_title_visible():
+        self.addstr(0, 0, self._get_title(width), curses.A_STANDOUT)
 
-    # restricts scroll location to valid bounds
+      # restricts scroll location to valid bounds
 
-    self.scroll = max(0, min(self.scroll, self.last_content_height - height + 1))
+      self.scroll = max(0, min(self.scroll, self.last_content_height - height + 1))
 
-    # draws left-hand scroll bar if content's longer than the height
+      # draws left-hand scroll bar if content's longer than the height
 
-    msg_indent, divider_indent = 1, 0  # offsets for scroll bar
-    is_scroll_bar_visible = self.last_content_height > height - 1
+      msg_indent, divider_indent = 1, 0  # offsets for scroll bar
+      is_scroll_bar_visible = self.last_content_height > height - 1
 
-    if is_scroll_bar_visible:
-      msg_indent, divider_indent = 3, 2
-      self.add_scroll_bar(self.scroll, self.scroll + height - 1, self.last_content_height, 1)
+      if is_scroll_bar_visible:
+        msg_indent, divider_indent = 3, 2
+        self.add_scroll_bar(self.scroll, self.scroll + height - 1, self.last_content_height, 1)
 
-    # draws log entries
+      # draws log entries
 
-    line_count = 1 - self.scroll
-    seen_first_date_divider = False
-    divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
+      line_count = 1 - self.scroll
+      seen_first_date_divider = False
+      divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
-    is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
-    event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
+      is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
+      event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
 
-    if not CONFIG['features.log.showDuplicateEntries']:
-      deduplicated_log = get_duplicates(event_log)
+      if not CONFIG['features.log.showDuplicateEntries']:
+        deduplicated_log = get_duplicates(event_log)
 
-      if deduplicated_log is None:
-        log.warn('Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.')
-        self.set_duplicate_visability(True)
+        if deduplicated_log is None:
+          log.warn('Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.')
+          self.set_duplicate_visability(True)
+          deduplicated_log = [(entry, 0) for entry in event_log]
+      else:
         deduplicated_log = [(entry, 0) for entry in event_log]
-    else:
-      deduplicated_log = [(entry, 0) for entry in event_log]
 
-    # determines if we have the minimum width to show date dividers
+      # determines if we have the minimum width to show date dividers
 
-    show_daybreaks = width - divider_indent >= 3
+      show_daybreaks = width - divider_indent >= 3
 
-    while deduplicated_log:
-      entry, duplicate_count = deduplicated_log.pop(0)
+      while deduplicated_log:
+        entry, duplicate_count = deduplicated_log.pop(0)
 
-      if self.regex_filter and not self.regex_filter.search(entry.display_message):
-        continue  # filter doesn't match log message - skip
+        if self.regex_filter and not self.regex_filter.search(entry.display_message):
+          continue  # filter doesn't match log message - skip
 
-      # checks if we should be showing a divider with the date
+        # checks if we should be showing a divider with the date
 
-      if entry.type == DAYBREAK_EVENT:
-        # bottom of the divider
+        if entry.type == DAYBREAK_EVENT:
+          # bottom of the divider
 
-        if seen_first_date_divider:
+          if seen_first_date_divider:
+            if line_count >= 1 and line_count < height and show_daybreaks:
+              self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
+              self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
+              self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
+
+            line_count += 1
+
+          # top of the divider
+
           if line_count >= 1 and line_count < height and show_daybreaks:
+            time_label = time.strftime(' %B %d, %Y ', time.localtime(entry.timestamp))
+            self.addch(line_count, divider_indent, curses.ACS_ULCORNER, *divider_attr)
+            self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, *divider_attr)
+            self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD, *divider_attr)
+
+            line_length = width - divider_indent - len(time_label) - 3
+            self.hline(line_count, divider_indent + len(time_label) + 2, line_length, *divider_attr)
+            self.addch(line_count, divider_indent + len(time_label) + 2 + line_length, curses.ACS_URCORNER, *divider_attr)
+
+          seen_first_date_divider = True
+          line_count += 1
+        else:
+          # entry contents to be displayed, tuples of the form:
+          # (msg, formatting, includeLinebreak)
+
+          display_queue = []
+
+          msg_comp = entry.display_message.split('\n')
+
+          for i in range(len(msg_comp)):
+            font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
+            display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
+
+          if duplicate_count:
+            plural_label = 's' if duplicate_count > 1 else ''
+            duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
+            display_queue.append((duplicate_msg, duplicate_attr, False))
+
+          cursor_location, line_offset = msg_indent, 0
+          max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
+
+          while display_queue:
+            msg, format, include_break = display_queue.pop(0)
+            draw_line = line_count + line_offset
+
+            if line_offset == max_entries_per_line:
+              break
+
+            max_msg_size = width - cursor_location - 1
+
+            if len(msg) > max_msg_size:
+              # message is too long - break it up
+              if line_offset == max_entries_per_line - 1:
+                msg = str_tools.crop(msg, max_msg_size)
+              else:
+                msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
+                display_queue.insert(0, (remainder.strip(), format, include_break))
+
+              include_break = True
+
+            if draw_line < height and draw_line >= 1:
+              if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
+                self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
+                self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
+
+              self.addstr(draw_line, cursor_location, msg, *format)
+
+            cursor_location += len(msg)
+
+            if include_break or not display_queue:
+              line_offset += 1
+              cursor_location = msg_indent + ENTRY_INDENT
+
+          line_count += line_offset
+
+        # if this is the last line and there's room, then draw the bottom of the divider
+
+        if not deduplicated_log and seen_first_date_divider:
+          if line_count < height and show_daybreaks:
             self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
             self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
             self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
 
           line_count += 1
 
-        # top of the divider
+      # redraw the display if...
+      # - last_content_height was off by too much
+      # - we're off the bottom of the page
 
-        if line_count >= 1 and line_count < height and show_daybreaks:
-          time_label = time.strftime(' %B %d, %Y ', time.localtime(entry.timestamp))
-          self.addch(line_count, divider_indent, curses.ACS_ULCORNER, *divider_attr)
-          self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, *divider_attr)
-          self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD, *divider_attr)
+      new_content_height = line_count + self.scroll - 1
+      content_height_delta = abs(self.last_content_height - new_content_height)
+      force_redraw, force_redraw_reason = True, ''
 
-          line_length = width - divider_indent - len(time_label) - 3
-          self.hline(line_count, divider_indent + len(time_label) + 2, line_length, *divider_attr)
-          self.addch(line_count, divider_indent + len(time_label) + 2 + line_length, curses.ACS_URCORNER, *divider_attr)
-
-        seen_first_date_divider = True
-        line_count += 1
+      if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
+        force_redraw_reason = 'estimate was off by %i' % content_height_delta
+      elif new_content_height > height and self.scroll + height - 1 > new_content_height:
+        force_redraw_reason = 'scrolled off the bottom of the page'
+      elif not is_scroll_bar_visible and new_content_height > height - 1:
+        force_redraw_reason = "scroll bar wasn't previously visible"
+      elif is_scroll_bar_visible and new_content_height <= height - 1:
+        force_redraw_reason = "scroll bar shouldn't be visible"
       else:
-        # entry contents to be displayed, tuples of the form:
-        # (msg, formatting, includeLinebreak)
+        force_redraw = False
 
-        display_queue = []
+      self.last_content_height = new_content_height
 
-        msg_comp = entry.display_message.split('\n')
-
-        for i in range(len(msg_comp)):
-          font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-          display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
-
-        if duplicate_count:
-          plural_label = 's' if duplicate_count > 1 else ''
-          duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
-          display_queue.append((duplicate_msg, duplicate_attr, False))
-
-        cursor_location, line_offset = msg_indent, 0
-        max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
-
-        while display_queue:
-          msg, format, include_break = display_queue.pop(0)
-          draw_line = line_count + line_offset
-
-          if line_offset == max_entries_per_line:
-            break
-
-          max_msg_size = width - cursor_location - 1
-
-          if len(msg) > max_msg_size:
-            # message is too long - break it up
-            if line_offset == max_entries_per_line - 1:
-              msg = str_tools.crop(msg, max_msg_size)
-            else:
-              msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
-              display_queue.insert(0, (remainder.strip(), format, include_break))
-
-            include_break = True
-
-          if draw_line < height and draw_line >= 1:
-            if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
-              self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
-              self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
-
-            self.addstr(draw_line, cursor_location, msg, *format)
-
-          cursor_location += len(msg)
-
-          if include_break or not display_queue:
-            line_offset += 1
-            cursor_location = msg_indent + ENTRY_INDENT
-
-        line_count += line_offset
-
-      # if this is the last line and there's room, then draw the bottom of the divider
-
-      if not deduplicated_log and seen_first_date_divider:
-        if line_count < height and show_daybreaks:
-          self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
-          self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
-          self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
-
-        line_count += 1
-
-    # redraw the display if...
-    # - last_content_height was off by too much
-    # - we're off the bottom of the page
-
-    new_content_height = line_count + self.scroll - 1
-    content_height_delta = abs(self.last_content_height - new_content_height)
-    force_redraw, force_redraw_reason = True, ''
-
-    if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
-      force_redraw_reason = 'estimate was off by %i' % content_height_delta
-    elif new_content_height > height and self.scroll + height - 1 > new_content_height:
-      force_redraw_reason = 'scrolled off the bottom of the page'
-    elif not is_scroll_bar_visible and new_content_height > height - 1:
-      force_redraw_reason = "scroll bar wasn't previously visible"
-    elif is_scroll_bar_visible and new_content_height <= height - 1:
-      force_redraw_reason = "scroll bar shouldn't be visible"
-    else:
-      force_redraw = False
-
-    self.last_content_height = new_content_height
-
-    if force_redraw:
-      log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
-      self.redraw(True)
-
-    self.vals_lock.release()
+      if force_redraw:
+        log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
+        self.redraw(True)
 
   def redraw(self, force_redraw=False, block=False):
     # determines if the content needs to be redrawn or not
@@ -957,110 +941,108 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # usually the attributes used to make the label are decently static, so
     # provide cached results if they're unchanged
 
-    self.vals_lock.acquire()
-    current_pattern = self.regex_filter.pattern if self.regex_filter else None
-    is_unchanged = self._title_args[0] == self.logged_events
-    is_unchanged &= self._title_args[1] == current_pattern
-    is_unchanged &= self._title_args[2] == width
+    with self.vals_lock:
+      current_pattern = self.regex_filter.pattern if self.regex_filter else None
+      is_unchanged = self._title_args[0] == self.logged_events
+      is_unchanged &= self._title_args[1] == current_pattern
+      is_unchanged &= self._title_args[2] == width
 
-    if is_unchanged:
-      self.vals_lock.release()
-      return self._title_cache
+      if is_unchanged:
+        return self._title_cache
 
-    events_list = list(self.logged_events)
+      events_list = list(self.logged_events)
 
-    if not events_list:
-      if not current_pattern:
-        panel_label = 'Events:'
+      if not events_list:
+        if not current_pattern:
+          panel_label = 'Events:'
+        else:
+          label_pattern = str_tools.crop(current_pattern, width - 18)
+          panel_label = 'Events (filter: %s):' % label_pattern
       else:
-        label_pattern = str_tools.crop(current_pattern, width - 18)
-        panel_label = 'Events (filter: %s):' % label_pattern
-    else:
-      # does the following with all runlevel types (tor, nyx, and stem):
-      # - pulls to the start of the list
-      # - condenses range if there's three or more in a row (ex. "NYX_INFO - WARN")
-      # - condense further if there's identical runlevel ranges for multiple
-      #   types (ex. "NOTICE - ERR, NYX_NOTICE - ERR" becomes "TOR/NYX NOTICE - ERR")
+        # does the following with all runlevel types (tor, nyx, and stem):
+        # - pulls to the start of the list
+        # - condenses range if there's three or more in a row (ex. "NYX_INFO - WARN")
+        # - condense further if there's identical runlevel ranges for multiple
+        #   types (ex. "NOTICE - ERR, NYX_NOTICE - ERR" becomes "TOR/NYX NOTICE - ERR")
 
-      tmp_runlevels = []  # runlevels pulled from the list (just the runlevel part)
-      runlevel_ranges = []  # tuple of type, start_level, end_level for ranges to be consensed
+        tmp_runlevels = []  # runlevels pulled from the list (just the runlevel part)
+        runlevel_ranges = []  # tuple of type, start_level, end_level for ranges to be consensed
 
-      # reverses runlevels and types so they're appended in the right order
+        # reverses runlevels and types so they're appended in the right order
 
-      reversed_runlevels = list(log.Runlevel)
-      reversed_runlevels.reverse()
+        reversed_runlevels = list(log.Runlevel)
+        reversed_runlevels.reverse()
 
-      for prefix in ('NYX_', ''):
-        # blank ending runlevel forces the break condition to be reached at the end
-        for runlevel in reversed_runlevels + ['']:
-          event_type = prefix + runlevel
-          if runlevel and event_type in events_list:
-            # runlevel event found, move to the tmp list
-            events_list.remove(event_type)
-            tmp_runlevels.append(runlevel)
-          elif tmp_runlevels:
-            # adds all tmp list entries to the start of events_list
-            if len(tmp_runlevels) >= 3:
-              # save condense sequential runlevels to be added later
-              runlevel_ranges.append((prefix, tmp_runlevels[-1], tmp_runlevels[0]))
-            else:
-              # adds runlevels individaully
-              for tmp_runlevel in tmp_runlevels:
-                events_list.insert(0, prefix + tmp_runlevel)
-
-            tmp_runlevels = []
-
-      # adds runlevel ranges, condensing if there's identical ranges
-
-      for i in range(len(runlevel_ranges)):
-        if runlevel_ranges[i]:
-          prefix, start_level, end_level = runlevel_ranges[i]
-
-          # check for matching ranges
-
-          matches = []
-
-          for j in range(i + 1, len(runlevel_ranges)):
-            if runlevel_ranges[j] and runlevel_ranges[j][1] == start_level and runlevel_ranges[j][2] == end_level:
-              matches.append(runlevel_ranges[j])
-              runlevel_ranges[j] = None
-
-          if matches:
-            # strips underscores and replaces empty entries with "TOR"
-
-            prefixes = [entry[0] for entry in matches] + [prefix]
-
-            for k in range(len(prefixes)):
-              if prefixes[k] == '':
-                prefixes[k] = 'TOR'
+        for prefix in ('NYX_', ''):
+          # blank ending runlevel forces the break condition to be reached at the end
+          for runlevel in reversed_runlevels + ['']:
+            event_type = prefix + runlevel
+            if runlevel and event_type in events_list:
+              # runlevel event found, move to the tmp list
+              events_list.remove(event_type)
+              tmp_runlevels.append(runlevel)
+            elif tmp_runlevels:
+              # adds all tmp list entries to the start of events_list
+              if len(tmp_runlevels) >= 3:
+                # save condense sequential runlevels to be added later
+                runlevel_ranges.append((prefix, tmp_runlevels[-1], tmp_runlevels[0]))
               else:
-                prefixes[k] = prefixes[k].replace('_', '')
+                # adds runlevels individaully
+                for tmp_runlevel in tmp_runlevels:
+                  events_list.insert(0, prefix + tmp_runlevel)
 
-            events_list.insert(0, '%s %s - %s' % ('/'.join(prefixes), start_level, end_level))
-          else:
-            events_list.insert(0, '%s%s - %s' % (prefix, start_level, end_level))
+              tmp_runlevels = []
 
-      # truncates to use an ellipsis if too long, for instance:
+        # adds runlevel ranges, condensing if there's identical ranges
 
-      attr_label = ', '.join(events_list)
+        for i in range(len(runlevel_ranges)):
+          if runlevel_ranges[i]:
+            prefix, start_level, end_level = runlevel_ranges[i]
 
-      if current_pattern:
-        attr_label += ' - filter: %s' % current_pattern
+            # check for matching ranges
 
-      attr_label = str_tools.crop(attr_label, width - 10, 1)
+            matches = []
 
-      if attr_label:
-        attr_label = ' (%s)' % attr_label
+            for j in range(i + 1, len(runlevel_ranges)):
+              if runlevel_ranges[j] and runlevel_ranges[j][1] == start_level and runlevel_ranges[j][2] == end_level:
+                matches.append(runlevel_ranges[j])
+                runlevel_ranges[j] = None
 
-      panel_label = 'Events%s:' % attr_label
+            if matches:
+              # strips underscores and replaces empty entries with "TOR"
 
-    # cache results and return
+              prefixes = [entry[0] for entry in matches] + [prefix]
 
-    self._title_cache = panel_label
-    self._title_args = (list(self.logged_events), current_pattern, width)
-    self.vals_lock.release()
+              for k in range(len(prefixes)):
+                if prefixes[k] == '':
+                  prefixes[k] = 'TOR'
+                else:
+                  prefixes[k] = prefixes[k].replace('_', '')
 
-    return panel_label
+              events_list.insert(0, '%s %s - %s' % ('/'.join(prefixes), start_level, end_level))
+            else:
+              events_list.insert(0, '%s%s - %s' % (prefix, start_level, end_level))
+
+        # truncates to use an ellipsis if too long, for instance:
+
+        attr_label = ', '.join(events_list)
+
+        if current_pattern:
+          attr_label += ' - filter: %s' % current_pattern
+
+        attr_label = str_tools.crop(attr_label, width - 10, 1)
+
+        if attr_label:
+          attr_label = ' (%s)' % attr_label
+
+        panel_label = 'Events%s:' % attr_label
+
+      # cache results and return
+
+      self._title_cache = panel_label
+      self._title_args = (list(self.logged_events), current_pattern, width)
+
+      return panel_label
 
   def _trim_events(self, event_listing):
     """
