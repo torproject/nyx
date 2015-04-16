@@ -45,7 +45,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.log_file': '',
   'features.log.showDateDividers': True,
   'features.log.showDuplicateEntries': False,
-  'features.log.entryDuration': 7,
   'features.log.max_lines_per_entry': 6,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
@@ -341,7 +340,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
       # crops events that are either too old, or more numerous than the caching size
 
-      self._trim_events(self.msg_log)
+      if len(self.msg_log) > CONFIG['cache.log_panel.size']:
+        del self.msg_log[CONFIG['cache.log_panel.size']:]
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -393,7 +393,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     with self.vals_lock:
       self.msg_log.insert(0, event)
-      self._trim_events(self.msg_log)
+
+      if len(self.msg_log) > CONFIG['cache.log_panel.size']:
+        del self.msg_log[CONFIG['cache.log_panel.size']:]
 
       # notifies the display that it has new content
 
@@ -1043,38 +1045,3 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self._title_args = (list(self.logged_events), current_pattern, width)
 
       return panel_label
-
-  def _trim_events(self, event_listing):
-    """
-    Crops events that have either:
-    - grown beyond the cache limit
-    - outlived the configured log duration
-
-    Argument:
-      event_listing - listing of log entries
-    """
-
-    cache_size = CONFIG['cache.log_panel.size']
-
-    if len(event_listing) > cache_size:
-      del event_listing[cache_size:]
-
-    log_ttl = CONFIG['features.log.entryDuration']
-
-    if log_ttl > 0:
-      current_day = days_since()
-
-      breakpoint = None  # index at which to crop from
-
-      for i in range(len(event_listing) - 1, -1, -1):
-        days_since_event = current_day - days_since(event_listing[i].timestamp)
-
-        if days_since_event > log_ttl:
-          breakpoint = i  # older than the ttl
-        else:
-          break
-
-      # removes entries older than the ttl
-
-      if breakpoint is not None:
-        del event_listing[breakpoint:]
