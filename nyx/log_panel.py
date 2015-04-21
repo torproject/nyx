@@ -22,7 +22,7 @@ import nyx.popups
 
 from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
-from nyx.util.log import LogEntry, read_tor_log
+from nyx.util.log import LogGroup, LogEntry, read_tor_log
 
 DAYBREAK_EVENT = 'DAYBREAK'  # special event for marking when the date changes
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
@@ -70,12 +70,6 @@ CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 
 CACHED_DAYBREAKS_ARGUMENTS = (None, None)  # events, current day
 CACHED_DAYBREAKS_RESULT = None
-CACHED_DUPLICATES_ARGUMENTS = None  # events
-CACHED_DUPLICATES_RESULT = None
-
-# duration we'll wait for the deduplication function before giving up (in ms)
-
-DEDUPLICATION_TIMEOUT = 100
 
 # maximum number of regex filters we'll remember
 
@@ -147,59 +141,6 @@ def get_daybreaks(events, ignore_time_for_cache = False):
   return new_listing
 
 
-def get_duplicates(events):
-  """
-  Deduplicates a list of log entries, providing back a tuple listing with the
-  log entry and count of duplicates following it. Entries in different days are
-  not considered to be duplicates. This times out, returning None if it takes
-  longer than DEDUPLICATION_TIMEOUT.
-
-  Arguments:
-    events - chronologically ordered listing of events
-  """
-
-  global CACHED_DUPLICATES_ARGUMENTS, CACHED_DUPLICATES_RESULT
-
-  if CACHED_DUPLICATES_ARGUMENTS == events:
-    return list(CACHED_DUPLICATES_RESULT)
-
-  start_time = time.time()
-  events_remaining = list(events)
-  return_events = []
-
-  while events_remaining:
-    entry, duplicate_indices = events_remaining.pop(0), []
-
-    for i, earlier_entry in enumerate(events_remaining):
-      # if showing dates then do duplicate detection for each day, rather
-      # than globally
-
-      if earlier_entry.type == DAYBREAK_EVENT:
-        break
-
-      if entry.is_duplicate(earlier_entry):
-        duplicate_indices.append(i)
-
-    # checks if the call timeout has been reached
-
-    if (time.time() - start_time) > DEDUPLICATION_TIMEOUT / 1000.0:
-      return None
-
-    # drops duplicate entries
-
-    duplicate_indices.reverse()
-
-    for i in duplicate_indices:
-      del events_remaining[i]
-
-    return_events.append((entry, len(duplicate_indices)))
-
-  CACHED_DUPLICATES_ARGUMENTS = list(events)
-  CACHED_DUPLICATES_RESULT = list(return_events)
-
-  return return_events
-
-
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
   """
   Listens for and displays tor, nyx, and stem events. This can prepopulate
@@ -241,12 +182,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     self.logged_events = self.set_event_listening(logged_events)
 
-    self.set_pause_attr('msg_log')       # tracks the message log when we're paused
-    self.msg_log = []                    # log entries, sorted by the timestamp
     self.regex_filter = None             # filter for presented log events (no filtering if None)
     self.last_content_height = 0         # height of the rendered content when last drawn
     self.log_file = None                 # file log messages are saved to (skipped if None)
     self.scroll = 0
+
+    self.set_pause_attr('_msg_log')
+    self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
 
     self._last_update = -1               # time the content was last revised
     self._halt = False                   # terminates thread if true
@@ -272,7 +214,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # leaving last_content_height as being too low causes initialization problems
 
-    self.last_content_height = len(self.msg_log)
+    self.last_content_height = len(self._msg_log)
 
     # adds listeners for tor and stem events
 
@@ -318,7 +260,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     with self.vals_lock:
       # clears the event log
 
-      self.msg_log = []
+      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
 
       # fetches past tor events from log file, if available
 
@@ -330,18 +272,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         if logging_location:
           try:
-            for entry in read_tor_log(logging_location, read_limit):
+            for entry in reversed(list(read_tor_log(logging_location, read_limit))):
               if entry.type in set_runlevels:
-                self.msg_log.append(entry)
+                self._msg_log.add(entry.timestamp, entry.type, entry.message)
           except IOError as exc:
             log.info('Unable to read log located at %s: %s' % (logging_location, exc))
           except ValueError as exc:
             log.info(str(exc))
-
-      # crops events that are either too old, or more numerous than the caching size
-
-      if len(self.msg_log) > CONFIG['cache.log_panel.size']:
-        del self.msg_log[CONFIG['cache.log_panel.size']:]
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -392,17 +329,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         self.log_file = None
 
     with self.vals_lock:
-      self.msg_log.insert(0, event)
-
-      if len(self.msg_log) > CONFIG['cache.log_panel.size']:
-        del self.msg_log[CONFIG['cache.log_panel.size']:]
+      self._msg_log.add(event.timestamp, event.type, event.message)
 
       # notifies the display that it has new content
 
       if not self.regex_filter or self.regex_filter.search(event.display_message):
-        self._cond.acquire()
-        self._cond.notifyAll()
-        self._cond.release()
+        with self._cond:
+          self._cond.notifyAll()
 
   def set_logged_events(self, event_types):
     """
@@ -544,7 +477,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     """
 
     with self.vals_lock:
-      self.msg_log = []
+      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
       self.redraw(True)
 
   def save_snapshot(self, path):
@@ -573,7 +506,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     with self.vals_lock:
       try:
-        for entry in self.msg_log:
+        for entry in reversed(self._msg_log):
           is_visible = not self.regex_filter or self.regex_filter.search(entry.display_message)
 
           if is_visible:
@@ -655,10 +588,11 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     contain up to two lines. Starts with newest entries.
     """
 
-    current_log = self.get_attr('msg_log')
+    event_log = self.get_attr('_msg_log')
 
     with self.vals_lock:
-      self._last_logged_events, self._last_update = list(current_log), time.time()
+      self._last_logged_events, self._last_update = event_log, time.time()
+      event_log = list(event_log)
 
       # draws the top label
 
@@ -684,16 +618,17 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       seen_first_date_divider = False
       divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
-      is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
-      event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else list(current_log)
+      # TODO: fix daybreak handling
+      # is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
+      # event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else current_log
 
       if not CONFIG['features.log.showDuplicateEntries']:
-        deduplicated_log = get_duplicates(event_log)
+        deduplicated_log = []
 
-        if deduplicated_log is None:
-          log.warn('Deduplication took too long. Its current implementation has difficulty handling large logs so disabling it to keep the interface responsive.')
-          self.set_duplicate_visability(True)
-          deduplicated_log = [(entry, 0) for entry in event_log]
+        for entry in event_log:
+          if not entry.is_duplicate:
+            duplicate_count = len(entry.duplicates) if entry.duplicates else 0
+            deduplicated_log.append((entry, duplicate_count))
       else:
         deduplicated_log = [(entry, 0) for entry in event_log]
 
@@ -843,18 +778,15 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
       sleep_time = 0
 
-      if (self.msg_log == self._last_logged_events and last_day == current_day) or self.is_paused():
+      if (self._msg_log == self._last_logged_events and last_day == current_day) or self.is_paused():
         sleep_time = 5
       elif time_since_reset < max_log_update_rate:
         sleep_time = max(0.05, max_log_update_rate - time_since_reset)
 
       if sleep_time:
-        self._cond.acquire()
-
-        if not self._halt:
-          self._cond.wait(sleep_time)
-
-        self._cond.release()
+        with self._cond:
+          if not self._halt:
+            self._cond.wait(sleep_time)
       else:
         last_day = current_day
         self.redraw(True)
@@ -869,10 +801,9 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     Halts further resolutions and terminates the thread.
     """
 
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
+    with self._cond:
+      self._halt = True
+      self._cond.notifyAll()
 
   def set_event_listening(self, events):
     """

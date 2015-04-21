@@ -4,6 +4,7 @@ runlevels.
 """
 
 import time
+import threading
 
 import stem.util.conf
 import stem.util.log
@@ -40,6 +41,61 @@ def _common_log_messages():
   return messages
 
 
+class LogGroup(object):
+  """
+  Thread safe collection of LogEntry instancs, which maintains a certain size
+  and supports deduplication.
+  """
+
+  def __init__(self, max_size):
+    self._max_size = max_size
+    self._entries = []
+    self._lock = threading.RLock()
+
+  def add(self, timestamp, type, message):
+    entry = LogEntry(timestamp, type, message)
+
+    with self._lock:
+      duplicate = None
+
+      for existing_entry in self._entries:
+        if entry.is_duplicate_of(existing_entry):
+          duplicate = existing_entry
+          break
+
+      if duplicate:
+        if not duplicate.duplicates:
+          duplicate.duplicates = [duplicate]
+
+        duplicate.is_duplicate = True
+        entry.duplicates = duplicate.duplicates
+        entry.duplicates.insert(0, entry)
+
+      self._entries.insert(0, entry)
+
+      while len(self._entries) > self._max_size:
+        self.pop()
+
+  def pop(self):
+    with self._lock:
+      last_entry = self._entries.pop()
+
+      # By design if the last entry is a duplicate it will also be the last
+      # item in its duplicate group.
+
+      if last_entry.is_duplicate:
+        last_entry.duplicates.pop()
+
+  def __len__(self):
+    with self._lock:
+      return len(self._entries)
+
+  def __iter__(self):
+    with self._lock:
+      for entry in self._entries:
+        yield entry
+
+
 class LogEntry(object):
   """
   Individual tor or nyx log entry.
@@ -51,6 +107,10 @@ class LogEntry(object):
   :var str type: event type
   :var str message: event's message
   :var str display_message: message annotated with our time and runlevel
+
+  :var bool is_duplicate: true if this matches other messages in the group and
+    isn't the first
+  :var list duplicates: messages that are identical to thsi one
   """
 
   def __init__(self, timestamp, type, message):
@@ -61,8 +121,11 @@ class LogEntry(object):
     entry_time = time.localtime(self.timestamp)
     self.display_message = '%02i:%02i:%02i [%s] %s' % (entry_time[3], entry_time[4], entry_time[5], self.type, self.message)
 
+    self.is_duplicate = False
+    self.duplicates = None
+
   @lru_cache()
-  def is_duplicate(self, entry):
+  def is_duplicate_of(self, entry):
     """
     Checks if we are a duplicate of the given message or not.
 
