@@ -1,6 +1,7 @@
+import os
 import unittest
 
-from nyx.util.log import LogGroup, LogEntry
+from nyx.util.log import LogGroup, LogEntry, read_tor_log
 
 
 class TestLogGroup(unittest.TestCase):
@@ -85,3 +86,61 @@ class TestLogGroup(unittest.TestCase):
     self.assertEqual(None, group_items[0].duplicates)
     self.assertEqual(bootstrap_messages, [e.message for e in group_items[1].duplicates])
     self.assertEqual([False, False, True, True, False], [e.is_duplicate for e in group_items])
+
+  def test_deduplication_with_daybreaks(self):
+    group = LogGroup(100, group_by_day = True)
+    test_log_path = os.path.join(os.path.dirname(__file__), 'data', 'daybreak_deduplication')
+
+    for entry in reversed(list(read_tor_log(test_log_path))):
+      group.add_entry(entry)
+
+    # Entries should consist of two days of results...
+    #
+    # Day 1:
+    # 10:24:27 [NOTICE] New control connection opened from 127.0.0.1.
+    # 10:21:31 [NOTICE] New control connection opened from 127.0.0.1.
+    # 10:19:24 [NOTICE] New control connection opened from 127.0.0.1.
+    # 10:16:38 [NOTICE] New control connection opened from 127.0.0.1.
+    # 10:16:38 [NOTICE] New control connection opened from 127.0.0.1.
+    # 05:44:40 [NOTICE] Heartbeat: Tor's uptime is 18:00 hours, with 0 circuits open. I've sent 862 kB and received 9.05 MB.
+    #
+    # Day 2:
+    # 23:44:40 [NOTICE] Heartbeat: Tor's uptime is 12:00 hours, with 1 circuits open. I've sent 794 kB and received 7.32 MB.
+    # 19:02:44 [NOTICE] New control connection opened from 127.0.0.1.
+    # 18:52:47 [NOTICE] New control connection opened from 127.0.0.1.
+    # 18:11:56 [NOTICE] New control connection opened from 127.0.0.1.
+    # 17:44:40 [NOTICE] Heartbeat: Tor's uptime is 6:00 hours, with 0 circuits open. I've sent 539 kB and received 4.25 MB.
+    # 11:45:03 [NOTICE] New control connection opened from 127.0.0.1.
+    # 11:44:49 [NOTICE] Bootstrapped 100%: Done
+    # ... etc...
+
+    group_items = list(group)
+
+    # First day
+
+    self.assertEqual('New control connection opened from 127.0.0.1.', group_items[0].message)
+    self.assertEqual(5, len(group_items[0].duplicates))
+    self.assertFalse(group_items[0].is_duplicate)
+
+    for entry in group_items[1:5]:
+      self.assertEqual('New control connection opened from 127.0.0.1.', entry.message)
+      self.assertEqual(5, len(entry.duplicates))
+      self.assertTrue(entry.is_duplicate)
+
+    self.assertEqual("Heartbeat: Tor's uptime is 18:00 hours, with 0 circuits open. I've sent 862 kB and received 9.05 MB.", group_items[5].message)
+    self.assertEqual(None, group_items[5].duplicates)
+    self.assertFalse(group_items[5].is_duplicate)
+
+    # Second day
+
+    self.assertEqual("Heartbeat: Tor's uptime is 12:00 hours, with 1 circuits open. I've sent 794 kB and received 7.32 MB.", group_items[6].message)
+    self.assertEqual(2, len(group_items[6].duplicates))
+    self.assertFalse(group_items[6].is_duplicate)
+
+    self.assertEqual('New control connection opened from 127.0.0.1.', group_items[8].message)
+    self.assertEqual(4, len(group_items[8].duplicates))
+    self.assertTrue(group_items[8].is_duplicate)
+
+    self.assertEqual("Heartbeat: Tor's uptime is 6:00 hours, with 0 circuits open. I've sent 539 kB and received 4.25 MB.", group_items[10].message)
+    self.assertEqual(2, len(group_items[10].duplicates))
+    self.assertTrue(group_items[10].is_duplicate)

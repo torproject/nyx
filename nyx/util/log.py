@@ -19,6 +19,19 @@ except ImportError:
   from stem.util.lru_cache import lru_cache
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
+
+
+def days_since(timestamp):
+  """
+  Provides the number of days since a given unix timestamp, by local time.
+
+  :param int timestamp: unix timestamp to provide time since
+
+  :reutrns: **int** with the number of days since this event
+  """
+
+  return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
 
 @lru_cache()
@@ -47,19 +60,24 @@ class LogGroup(object):
   and supports deduplication.
   """
 
-  def __init__(self, max_size):
+  def __init__(self, max_size, group_by_day = False):
     self._max_size = max_size
+    self._group_by_day = group_by_day
     self._entries = []
     self._lock = threading.RLock()
 
   def add(self, timestamp, type, message):
-    entry = LogEntry(timestamp, type, message)
+    self.add_entry(LogEntry(timestamp, type, message))
 
+  def add_entry(self, entry):
     with self._lock:
       duplicate = None
+      our_day = entry.days_since()
 
       for existing_entry in self._entries:
-        if entry.is_duplicate_of(existing_entry):
+        if self._group_by_day and our_day != existing_entry.days_since():
+          break
+        elif entry.is_duplicate_of(existing_entry):
           duplicate = existing_entry
           break
 
@@ -149,6 +167,15 @@ class LogEntry(object):
           return True
 
     return False
+
+  def days_since(self):
+    """
+    Provides the number of days since this event, by local time.
+
+    :reutrns: **int** with the number of days since this event
+    """
+
+    return days_since(self.timestamp)
 
   def __eq__(self, other):
     if isinstance(other, LogEntry):

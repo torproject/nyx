@@ -22,10 +22,7 @@ import nyx.popups
 
 from nyx import __version__
 from nyx.util import panel, tor_controller, ui_tools
-from nyx.util.log import LogGroup, LogEntry, read_tor_log
-
-DAYBREAK_EVENT = 'DAYBREAK'  # special event for marking when the date changes
-TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
+from nyx.util.log import LogGroup, LogEntry, read_tor_log, days_since
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -65,30 +62,9 @@ DUPLICATE_MSG = ' [%i duplicate%s hidden]'
 
 CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 
-# cached values and the arguments that generated it for the get_daybreaks and
-# get_duplicates functions
-
-CACHED_DAYBREAKS_ARGUMENTS = (None, None)  # events, current day
-CACHED_DAYBREAKS_RESULT = None
-
 # maximum number of regex filters we'll remember
 
 MAX_REGEX_FILTERS = 5
-
-
-def days_since(timestamp = None):
-  """
-  Provides the number of days since the epoch converted to local time (rounded
-  down).
-
-  Arguments:
-    timestamp - unix timestamp to convert, current time if undefined
-  """
-
-  if timestamp is None:
-    timestamp = time.time()
-
-  return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
 
 def log_file_path():
@@ -97,48 +73,6 @@ def log_file_path():
 
     if entry_comp[1] == 'file':
       return CONFIG['tor.chroot'] + entry_comp[2]
-
-
-def get_daybreaks(events, ignore_time_for_cache = False):
-  """
-  Provides the input events back with special 'DAYBREAK_EVENT' markers inserted
-  whenever the date changed between log entries (or since the most recent
-  event). The timestamp matches the beginning of the day for the following
-  entry.
-
-  Arguments:
-    events             - chronologically ordered listing of events
-    ignore_time_for_cache - skips taking the day into consideration for providing
-                         cached results if true
-  """
-
-  global CACHED_DAYBREAKS_ARGUMENTS, CACHED_DAYBREAKS_RESULT
-
-  if not events:
-    return []
-
-  new_listing = []
-  current_day = days_since()
-  last_day = current_day
-
-  if CACHED_DAYBREAKS_ARGUMENTS[0] == events and \
-    (ignore_time_for_cache or CACHED_DAYBREAKS_ARGUMENTS[1] == current_day):
-    return list(CACHED_DAYBREAKS_RESULT)
-
-  for entry in events:
-    event_day = days_since(entry.timestamp)
-
-    if event_day != last_day:
-      marker_timestamp = (event_day * 86400) + TIMEZONE_OFFSET
-      new_listing.append(LogEntry(marker_timestamp, DAYBREAK_EVENT, ''))
-
-    new_listing.append(entry)
-    last_day = event_day
-
-  CACHED_DAYBREAKS_ARGUMENTS = (list(events), current_day)
-  CACHED_DAYBREAKS_RESULT = list(new_listing)
-
-  return new_listing
 
 
 class LogPanel(panel.Panel, threading.Thread, logging.Handler):
@@ -188,7 +122,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     self.scroll = 0
 
     self.set_pause_attr('_msg_log')
-    self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
+    self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
 
     self._last_update = -1               # time the content was last revised
     self._halt = False                   # terminates thread if true
@@ -260,7 +194,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     with self.vals_lock:
       # clears the event log
 
-      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
+      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
 
       # fetches past tor events from log file, if available
 
@@ -477,7 +411,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     """
 
     with self.vals_lock:
-      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'])
+      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
       self.redraw(True)
 
   def save_snapshot(self, path):
@@ -635,6 +569,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       # determines if we have the minimum width to show date dividers
 
       show_daybreaks = width - divider_indent >= 3
+      last_day = deduplicated_log[0][0].days_since()
 
       while deduplicated_log:
         entry, duplicate_count = deduplicated_log.pop(0)
@@ -644,7 +579,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         # checks if we should be showing a divider with the date
 
-        if entry.type == DAYBREAK_EVENT:
+        if last_day != entry.days_since():
           # bottom of the divider
 
           if seen_first_date_divider:
@@ -669,57 +604,59 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
           seen_first_date_divider = True
           line_count += 1
-        else:
-          # entry contents to be displayed, tuples of the form:
-          # (msg, formatting, includeLinebreak)
 
-          display_queue = []
+        # entry contents to be displayed, tuples of the form:
+        # (msg, formatting, includeLinebreak)
 
-          msg_comp = entry.display_message.split('\n')
+        display_queue = []
 
-          for i in range(len(msg_comp)):
-            font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-            display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
+        msg_comp = entry.display_message.split('\n')
 
-          if duplicate_count:
-            plural_label = 's' if duplicate_count > 1 else ''
-            duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
-            display_queue.append((duplicate_msg, duplicate_attr, False))
+        for i in range(len(msg_comp)):
+          font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
+          display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
 
-          cursor_location, line_offset = msg_indent, 0
-          max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
+        if duplicate_count:
+          plural_label = 's' if duplicate_count > 1 else ''
+          duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
+          display_queue.append((duplicate_msg, duplicate_attr, False))
 
-          while display_queue:
-            msg, format, include_break = display_queue.pop(0)
-            draw_line = line_count + line_offset
+        # TODO: a fix made line_offset unused, and probably broke max_entries_per_line... not sure if we care
 
-            if line_offset == max_entries_per_line:
-              break
+        cursor_location, line_offset = msg_indent, 0
+        max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
 
-            max_msg_size = width - cursor_location - 1
+        while display_queue:
+          msg, format, include_break = display_queue.pop(0)
+          draw_line = line_count + line_offset
 
-            if len(msg) > max_msg_size:
-              # message is too long - break it up
-              if line_offset == max_entries_per_line - 1:
-                msg = str_tools.crop(msg, max_msg_size)
-              else:
-                msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
-                display_queue.insert(0, (remainder.strip(), format, include_break))
+          if line_offset == max_entries_per_line:
+            break
 
-              include_break = True
+          max_msg_size = width - cursor_location - 1
 
-            if draw_line < height and draw_line >= 1:
-              if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
-                self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
-                self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
+          if len(msg) > max_msg_size:
+            # message is too long - break it up
+            if line_offset == max_entries_per_line - 1:
+              msg = str_tools.crop(msg, max_msg_size)
+            else:
+              msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
+              display_queue.insert(0, (remainder.strip(), format, include_break))
 
-              self.addstr(draw_line, cursor_location, msg, *format)
+            include_break = True
 
-            cursor_location += len(msg)
+          if draw_line < height and draw_line >= 1:
+            if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
+              self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
+              self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
 
-            if include_break or not display_queue:
-              line_offset += 1
-              cursor_location = msg_indent + ENTRY_INDENT
+            self.addstr(draw_line, cursor_location, msg, *format)
+
+          cursor_location += len(msg)
+
+          if include_break or not display_queue:
+            line_count += 1
+            cursor_location = msg_indent + ENTRY_INDENT
 
           line_count += line_offset
 
@@ -732,6 +669,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
             self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
 
           line_count += 1
+
+        last_day = entry.days_since()
 
       # redraw the display if...
       # - last_content_height was off by too much
@@ -769,10 +708,10 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     responsive if additions are less frequent.
     """
 
-    last_day = days_since()  # used to determine if the date has changed
+    last_day = days_since(time.time())  # used to determine if the date has changed
 
     while not self._halt:
-      current_day = days_since()
+      current_day = days_since(time.time())
       time_since_reset = time.time() - self._last_update
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 

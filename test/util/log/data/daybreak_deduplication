@@ -1,0 +1,37 @@
+Apr 24 19:50:42.000 [notice] Heartbeat: Tor's uptime is 12 days 0:00 hours, with 0 circuits open. I've sent 4.94 MB and received 130.17 MB.
+Apr 24 19:50:42.000 [notice] Average packaged cell fullness: 65.101%. TLS write overhead: 11%
+Apr 25 01:50:42.000 [notice] Heartbeat: Tor's uptime is 12 days 6:00 hours, with 0 circuits open. I've sent 5.00 MB and received 131.87 MB.
+Apr 25 01:50:42.000 [notice] Average packaged cell fullness: 64.927%. TLS write overhead: 11%
+Apr 25 07:50:42.000 [notice] Heartbeat: Tor's uptime is 12 days 12:00 hours, with 0 circuits open. I've sent 5.08 MB and received 134.19 MB.
+Apr 25 07:50:42.000 [notice] Average packaged cell fullness: 64.587%. TLS write overhead: 11%
+Apr 25 11:44:21.000 [notice] New control connection opened from 127.0.0.1.
+Apr 25 11:44:33.000 [notice] Interrupt: exiting cleanly.
+Apr 25 11:44:36.000 [notice] Tor 0.2.7.0-alpha-dev (git-63a90f2df4dcd7ff) opening log file.
+Apr 25 11:44:36.492 [notice] Tor v0.2.7.0-alpha-dev (git-63a90f2df4dcd7ff) running on Linux with Libevent 2.0.16-stable, OpenSSL 1.0.1 and Zlib 1.2.3.4.
+Apr 25 11:44:36.492 [notice] Tor can't help you if you use it wrong! Learn how to be safe at https://www.torproject.org/download/download#warning
+Apr 25 11:44:36.492 [notice] This version is not a stable Tor release. Expect more bugs than usual.
+Apr 25 11:44:36.525 [notice] Read configuration file "/home/atagar/.tor/torrc".
+Apr 25 11:44:36.530 [notice] Opening Socks listener on 127.0.0.1:9050
+Apr 25 11:44:36.530 [notice] Opening Control listener on 127.0.0.1:9051
+Apr 25 11:44:36.000 [notice] Bootstrapped 0%: Starting
+Apr 25 11:44:39.000 [notice] Bootstrapped 45%: Asking for relay descriptors
+Apr 25 11:44:40.000 [notice] Bootstrapped 50%: Loading relay descriptors
+Apr 25 11:44:47.000 [notice] Bootstrapped 55%: Loading relay descriptors
+Apr 25 11:44:47.000 [notice] Bootstrapped 62%: Loading relay descriptors
+Apr 25 11:44:48.000 [notice] Bootstrapped 72%: Loading relay descriptors
+Apr 25 11:44:48.000 [notice] Bootstrapped 80%: Connecting to the Tor network
+Apr 25 11:44:48.000 [notice] Bootstrapped 90%: Establishing a Tor circuit
+Apr 25 11:44:49.000 [notice] Tor has successfully opened a circuit. Looks like client functionality is working.
+Apr 25 11:44:49.000 [notice] Bootstrapped 100%: Done
+Apr 25 11:45:03.000 [notice] New control connection opened from 127.0.0.1.
+Apr 25 17:44:40.000 [notice] Heartbeat: Tor's uptime is 6:00 hours, with 0 circuits open. I've sent 539 kB and received 4.25 MB.
+Apr 25 18:11:56.000 [notice] New control connection opened from 127.0.0.1.
+Apr 25 18:52:47.000 [notice] New control connection opened from 127.0.0.1.
+Apr 25 19:02:44.000 [notice] New control connection opened from 127.0.0.1.
+Apr 25 23:44:40.000 [notice] Heartbeat: Tor's uptime is 12:00 hours, with 1 circuits open. I've sent 794 kB and received 7.32 MB.
+Apr 26 05:44:40.000 [notice] Heartbeat: Tor's uptime is 18:00 hours, with 0 circuits open. I've sent 862 kB and received 9.05 MB.
+Apr 26 10:16:38.000 [notice] New control connection opened from 127.0.0.1.
+Apr 26 10:19:24.000 [notice] New control connection opened from 127.0.0.1.
+Apr 26 10:21:31.000 [notice] New control connection opened from 127.0.0.1.
+Apr 26 10:24:27.000 [notice] New control connection opened from 127.0.0.1.
+Apr 26 10:24:46.000 [notice] New control connection opened from 127.0.0.1.
