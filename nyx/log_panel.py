@@ -148,7 +148,7 @@ class LogPanel(panel.Panel, threading.Thread):
         try:
           for entry in reversed(list(read_tor_log(logging_location, read_limit))):
             if entry.type in set_runlevels:
-              self._msg_log.add(entry.timestamp, entry.type, entry.message)
+              self._msg_log.add(entry)
         except IOError as exc:
           log.info('Unable to read log located at %s: %s' % (logging_location, exc))
         except ValueError as exc:
@@ -756,7 +756,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.log_file = None
 
     with self.vals_lock:
-      self._msg_log.add(event.timestamp, event.type, event.message)
+      self._msg_log.add(event)
 
       # notifies the display that it has new content
 

@@ -135,10 +135,7 @@ class LogGroup(object):
     self._entries = []
     self._lock = threading.RLock()
 
-  def add(self, timestamp, type, message):
-    self.add_entry(LogEntry(timestamp, type, message))
-
-  def add_entry(self, entry):
+  def add(self, entry):
     with self._lock:
       duplicate = None
       our_day = entry.days_since()
