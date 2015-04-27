@@ -137,7 +137,23 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     self._last_logged_events = []
 
-    self.reprepopulate_events()
+    # fetches past tor events from log file, if available
+
+    if CONFIG['features.log.prepopulate']:
+      set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
+      read_limit = CONFIG['features.log.prepopulateReadLimit']
+
+      logging_location = log_file_path()
+
+      if logging_location:
+        try:
+          for entry in reversed(list(read_tor_log(logging_location, read_limit))):
+            if entry.type in set_runlevels:
+              self._msg_log.add(entry.timestamp, entry.type, entry.message)
+        except IOError as exc:
+          log.info('Unable to read log located at %s: %s' % (logging_location, exc))
+        except ValueError as exc:
+          log.info(str(exc))
 
     # leaving last_content_height as being too low causes initialization problems
 
@@ -146,7 +162,12 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # adds listeners for tor and stem events
 
     controller = tor_controller()
-    controller.add_status_listener(self._reset_listener)
+
+    def reset_listener(controller, event_type, _):
+      if event_type == State.CLOSED:
+        log.notice('Tor control port closed')
+
+    controller.add_status_listener(reset_listener)
 
     # opens log file if we'll be saving entries
 
@@ -178,34 +199,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       record.levelname = 'WARN'
 
     self.register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
-
-  def reprepopulate_events(self):
-    """
-    Clears the event log and repopulates it from the nyx and tor backlogs.
-    """
-
-    with self.vals_lock:
-      # clears the event log
-
-      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
-
-      # fetches past tor events from log file, if available
-
-      if CONFIG['features.log.prepopulate']:
-        set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
-        read_limit = CONFIG['features.log.prepopulateReadLimit']
-
-        logging_location = log_file_path()
-
-        if logging_location:
-          try:
-            for entry in reversed(list(read_tor_log(logging_location, read_limit))):
-              if entry.type in set_runlevels:
-                self._msg_log.add(entry.timestamp, entry.type, entry.message)
-          except IOError as exc:
-            log.info('Unable to read log located at %s: %s' % (logging_location, exc))
-          except ValueError as exc:
-            log.info(str(exc))
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -779,13 +772,3 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # provides back the input set minus events we failed to set
 
     return sorted(tor_events.union(nyx_events))
-
-  def _reset_listener(self, controller, event_type, _):
-    # if we're attaching to a new tor instance then clears the log and
-    # prepopulates it with the content belonging to this instance
-
-    if event_type == State.INIT:
-      self.reprepopulate_events()
-      self.redraw(True)
-    elif event_type == State.CLOSED:
-      log.notice('Tor control port closed')
