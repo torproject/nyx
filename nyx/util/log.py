@@ -20,6 +20,7 @@ except ImportError:
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
+CONFIG = stem.util.conf.config_dict('nyx', {'tor.chroot': ''})
 
 
 def days_since(timestamp):
@@ -32,6 +33,23 @@ def days_since(timestamp):
   """
 
   return int((timestamp - TIMEZONE_OFFSET) / 86400)
+
+
+def log_file_path(controller):
+  """
+  Provides the path where tor's log file resides, if one exists.
+
+  :params stem.control.Controller controller: tor controller connection
+
+  :returns: **str** with the absolute path of our log file, or **None** if one
+    doesn't exist
+  """
+
+  for log_entry in controller.get_conf('Log', [], True):
+    entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
+
+    if entry_comp[1] == 'file':
+      return CONFIG['tor.chroot'] + entry_comp[2]
 
 
 @lru_cache()

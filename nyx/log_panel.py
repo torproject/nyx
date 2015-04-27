@@ -21,7 +21,7 @@ import nyx.popups
 
 from nyx import __version__
 from nyx.util import join, panel, tor_controller, ui_tools
-from nyx.util.log import TOR_RUNLEVELS, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since
+from nyx.util.log import TOR_RUNLEVELS, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since, log_file_path
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -48,7 +48,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.regex': [],
   'cache.log_panel.size': 1000,
   'msg.misc.event_types': '',
-  'tor.chroot': '',
   'attr.log_color': {},
 }, conf_handler)
 
@@ -69,14 +68,6 @@ MAX_REGEX_FILTERS = 5
 stem_logger = stem.util.log.get_logger()
 NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
 stem_logger.addHandler(NYX_LOGGER)
-
-
-def log_file_path():
-  for log_entry in tor_controller().get_conf('Log', [], True):
-    entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
-
-    if entry_comp[1] == 'file':
-      return CONFIG['tor.chroot'] + entry_comp[2]
 
 
 class LogPanel(panel.Panel, threading.Thread):
@@ -115,7 +106,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self.regex_filter = None             # filter for presented log events (no filtering if None)
     self.last_content_height = 0         # height of the rendered content when last drawn
-    self.log_file = None                 # file log messages are saved to (skipped if None)
+    self._log_file = None                # file log messages are saved to (skipped if None)
     self.scroll = 0
 
     self.set_pause_attr('_msg_log')
@@ -142,7 +133,7 @@ class LogPanel(panel.Panel, threading.Thread):
       set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
       read_limit = CONFIG['features.log.prepopulateReadLimit']
 
-      logging_location = log_file_path()
+      logging_location = log_file_path(tor_controller())
 
       if logging_location:
         try:
@@ -188,14 +179,14 @@ class LogPanel(panel.Panel, threading.Thread):
         if not os.path.exists(base_dir):
           os.makedirs(base_dir)
 
-        self.log_file = open(log_path, 'a')
+        self._log_file = open(log_path, 'a')
         log.notice('nyx %s opening log file (%s)' % (__version__, log_path))
       except IOError as exc:
         log.error('Unable to write to log file: %s' % exc.strerror)
-        self.log_file = None
+        self._log_file = None
       except OSError as exc:
         log.error('Unable to write to log file: %s' % exc)
-        self.log_file = None
+        self._log_file = None
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -747,13 +738,13 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # note event in the log file if we're saving them
 
-    if self.log_file:
+    if self._log_file:
       try:
-        self.log_file.write(event.display_message + '\n')
-        self.log_file.flush()
+        self._log_file.write(event.display_message + '\n')
+        self._log_file.flush()
       except IOError as exc:
         log.error('Unable to write to log file: %s' % exc.strerror)
-        self.log_file = None
+        self._log_file = None
 
     with self.vals_lock:
       self._msg_log.add(event)
