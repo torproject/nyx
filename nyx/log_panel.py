@@ -8,7 +8,6 @@ import re
 import os
 import time
 import curses
-import logging
 import threading
 
 import stem
@@ -64,6 +63,13 @@ CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 
 MAX_REGEX_FILTERS = 5
 
+# Log buffer so we start collecting stem/nyx events when imported. This is used
+# to make our LogPanel when curses initializes.
+
+stem_logger = stem.util.log.get_logger()
+NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
+stem_logger.addHandler(NYX_LOGGER)
+
 
 def log_file_path():
   for log_entry in tor_controller().get_conf('Log', [], True):
@@ -73,7 +79,7 @@ def log_file_path():
       return CONFIG['tor.chroot'] + entry_comp[2]
 
 
-class LogPanel(panel.Panel, threading.Thread, logging.Handler):
+class LogPanel(panel.Panel, threading.Thread):
   """
   Listens for and displays tor, nyx, and stem events. This can prepopulate
   from tor's log file if it exists.
@@ -81,13 +87,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
   def __init__(self, stdscr, logged_events):
     panel.Panel.__init__(self, stdscr, 'log', 0)
-    logging.Handler.__init__(self, level = log.logging_level(log.DEBUG))
-
-    self.setFormatter(logging.Formatter(
-      fmt = '%(asctime)s [%(levelname)s] %(message)s',
-      datefmt = '%m/%d/%Y %H:%M:%S'),
-    )
-
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
@@ -155,6 +154,13 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         except ValueError as exc:
           log.info(str(exc))
 
+    # stop logging to NYX_LOGGER, adding its event backlog and future ones
+
+    for event in NYX_LOGGER:
+      self._register_nyx_event(event)
+
+    NYX_LOGGER.emit = self._register_nyx_event
+
     # leaving last_content_height as being too low causes initialization problems
 
     self.last_content_height = len(self._msg_log)
@@ -191,15 +197,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
         log.error('Unable to write to log file: %s' % exc)
         self.log_file = None
 
-    stem_logger = log.get_logger()
-    stem_logger.addHandler(self)
-
-  def emit(self, record):
-    if record.levelname == 'WARNING':
-      record.levelname = 'WARN'
-
-    self.register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
-
   def set_duplicate_visability(self, is_visible):
     """
     Sets if duplicate log entries are collaped or expanded.
@@ -211,51 +208,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     nyx_config = conf.get_config('nyx')
     nyx_config.set('features.log.showDuplicateEntries', str(is_visible))
-
-  def register_tor_event(self, event):
-    """
-    Translates a stem.response.event.Event instance into a LogEvent, and calls
-    register_event().
-    """
-
-    msg = ' '.join(str(event).split(' ')[1:])
-
-    if isinstance(event, stem.response.events.BandwidthEvent):
-      msg = 'READ: %i, WRITTEN: %i' % (event.read, event.written)
-    elif isinstance(event, stem.response.events.LogEvent):
-      msg = event.message
-
-    self.register_event(LogEntry(event.arrived_at, event.type, msg))
-
-  def register_event(self, event):
-    """
-    Notes event and redraws log. If paused it's held in a temporary buffer.
-
-    Arguments:
-      event - LogEntry for the event that occurred
-    """
-
-    if event.type not in self.logged_events:
-      return
-
-    # note event in the log file if we're saving them
-
-    if self.log_file:
-      try:
-        self.log_file.write(event.display_message + '\n')
-        self.log_file.flush()
-      except IOError as exc:
-        log.error('Unable to write to log file: %s' % exc.strerror)
-        self.log_file = None
-
-    with self.vals_lock:
-      self._msg_log.add(event.timestamp, event.type, event.message)
-
-      # notifies the display that it has new content
-
-      if not self.regex_filter or self.regex_filter.search(event.display_message):
-        with self._cond:
-          self._cond.notifyAll()
 
   def set_logged_events(self, event_types):
     """
@@ -761,14 +713,53 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       tor_events.update(set(nyx.arguments.missing_event_types()))
 
     controller = tor_controller()
-    controller.remove_event_listener(self.register_tor_event)
+    controller.remove_event_listener(self._register_tor_event)
 
     for event_type in list(tor_events):
       try:
-        controller.add_event_listener(self.register_tor_event, event_type)
+        controller.add_event_listener(self._register_tor_event, event_type)
       except stem.ProtocolError:
         tor_events.remove(event_type)
 
     # provides back the input set minus events we failed to set
 
     return sorted(tor_events.union(nyx_events))
+
+  def _register_tor_event(self, event):
+    msg = ' '.join(str(event).split(' ')[1:])
+
+    if isinstance(event, stem.response.events.BandwidthEvent):
+      msg = 'READ: %i, WRITTEN: %i' % (event.read, event.written)
+    elif isinstance(event, stem.response.events.LogEvent):
+      msg = event.message
+
+    self._register_event(LogEntry(event.arrived_at, event.type, msg))
+
+  def _register_nyx_event(self, record):
+    if record.levelname == 'WARNING':
+      record.levelname = 'WARN'
+
+    self._register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
+
+  def _register_event(self, event):
+    if event.type not in self.logged_events:
+      return
+
+    # note event in the log file if we're saving them
+
+    if self.log_file:
+      try:
+        self.log_file.write(event.display_message + '\n')
+        self.log_file.flush()
+      except IOError as exc:
+        log.error('Unable to write to log file: %s' % exc.strerror)
+        self.log_file = None
+
+    with self.vals_lock:
+      self._msg_log.add(event.timestamp, event.type, event.message)
+
+      # notifies the display that it has new content
+
+      if not self.regex_filter or self.regex_filter.search(event.display_message):
+        with self._cond:
+          self._cond.notifyAll()

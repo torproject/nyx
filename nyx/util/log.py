@@ -39,7 +39,7 @@ def condense_runlevels(*events):
   """
   Provides runlevel events with condensed. For example...
 
-    >>> condense_runlevels(['DEBUG', 'NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARN', 'NYX_ERR', 'BW'])
+    >>> condense_runlevels('DEBUG', 'NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARN', 'NYX_ERR', 'BW')
     ['TOR/NYX NOTICE-ERROR', 'DEBUG', 'BW']
 
   :param list events: event types to be condensed
