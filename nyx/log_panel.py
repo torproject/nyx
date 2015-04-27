@@ -21,8 +21,8 @@ import nyx.arguments
 import nyx.popups
 
 from nyx import __version__
-from nyx.util import panel, tor_controller, ui_tools
-from nyx.util.log import LogGroup, LogEntry, read_tor_log, days_since
+from nyx.util import join, panel, tor_controller, ui_tools
+from nyx.util.log import TOR_RUNLEVELS, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -52,8 +52,6 @@ CONFIG = conf.config_dict('nyx', {
   'tor.chroot': '',
   'attr.log_color': {},
 }, conf_handler)
-
-DUPLICATE_MSG = ' [%i duplicate%s hidden]'
 
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its
@@ -138,11 +136,6 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
     # last set of events we've drawn with
 
     self._last_logged_events = []
-
-    # _get_title (args: logged_events, regex_filter pattern, width)
-
-    self._title_cache = None
-    self._title_args = (None, None, None)
 
     self.reprepopulate_events()
 
@@ -531,7 +524,15 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       # draws the top label
 
       if self.is_title_visible():
-        self.addstr(0, 0, self._get_title(width), curses.A_STANDOUT)
+        comp = condense_runlevels(*self.logged_events)
+
+        if self.regex_filter:
+          comp.append('filter: %s' % self.regex_filter)
+
+        comp_str = join(comp, ', ', width - 10)
+        title = 'Events (%s):' % comp_str if comp_str else 'Events:'
+
+        self.addstr(0, 0, title, curses.A_STANDOUT)
 
       # restricts scroll location to valid bounds
 
@@ -618,7 +619,7 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
         if duplicate_count:
           plural_label = 's' if duplicate_count > 1 else ''
-          duplicate_msg = DUPLICATE_MSG % (duplicate_count, plural_label)
+          duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural_label)
           display_queue.append((duplicate_msg, duplicate_attr, False))
 
         # TODO: a fix made line_offset unused, and probably broke max_entries_per_line... not sure if we care
@@ -758,16 +759,8 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
 
     # accounts for runlevel naming difference
 
-    if 'ERROR' in events:
-      events.add('ERR')
-      events.remove('ERROR')
-
-    if 'WARNING' in events:
-      events.add('WARN')
-      events.remove('WARNING')
-
     tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
-    nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in log.Runlevel.keys()]))
+    nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in TOR_RUNLEVELS]))
 
     # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
 
@@ -796,122 +789,3 @@ class LogPanel(panel.Panel, threading.Thread, logging.Handler):
       self.redraw(True)
     elif event_type == State.CLOSED:
       log.notice('Tor control port closed')
-
-  def _get_title(self, width):
-    """
-    Provides the label used for the panel, looking like:
-      Events (NYX NOTICE - ERR, BW - filter: prepopulate):
-
-    This truncates the attributes (with an ellipse) if too long, and condenses
-    runlevel ranges if there's three or more in a row (for instance NYX_INFO,
-    NYX_NOTICE, and NYX_WARN becomes 'NYX_INFO - WARN').
-
-    Arguments:
-      width - width constraint the label needs to fix in
-    """
-
-    # usually the attributes used to make the label are decently static, so
-    # provide cached results if they're unchanged
-
-    with self.vals_lock:
-      current_pattern = self.regex_filter.pattern if self.regex_filter else None
-      is_unchanged = self._title_args[0] == self.logged_events
-      is_unchanged &= self._title_args[1] == current_pattern
-      is_unchanged &= self._title_args[2] == width
-
-      if is_unchanged:
-        return self._title_cache
-
-      events_list = list(self.logged_events)
-
-      if not events_list:
-        if not current_pattern:
-          panel_label = 'Events:'
-        else:
-          label_pattern = str_tools.crop(current_pattern, width - 18)
-          panel_label = 'Events (filter: %s):' % label_pattern
-      else:
-        # does the following with all runlevel types (tor, nyx, and stem):
-        # - pulls to the start of the list
-        # - condenses range if there's three or more in a row (ex. "NYX_INFO - WARN")
-        # - condense further if there's identical runlevel ranges for multiple
-        #   types (ex. "NOTICE - ERR, NYX_NOTICE - ERR" becomes "TOR/NYX NOTICE - ERR")
-
-        tmp_runlevels = []  # runlevels pulled from the list (just the runlevel part)
-        runlevel_ranges = []  # tuple of type, start_level, end_level for ranges to be consensed
-
-        # reverses runlevels and types so they're appended in the right order
-
-        reversed_runlevels = list(log.Runlevel)
-        reversed_runlevels.reverse()
-
-        for prefix in ('NYX_', ''):
-          # blank ending runlevel forces the break condition to be reached at the end
-          for runlevel in reversed_runlevels + ['']:
-            event_type = prefix + runlevel
-            if runlevel and event_type in events_list:
-              # runlevel event found, move to the tmp list
-              events_list.remove(event_type)
-              tmp_runlevels.append(runlevel)
-            elif tmp_runlevels:
-              # adds all tmp list entries to the start of events_list
-              if len(tmp_runlevels) >= 3:
-                # save condense sequential runlevels to be added later
-                runlevel_ranges.append((prefix, tmp_runlevels[-1], tmp_runlevels[0]))
-              else:
-                # adds runlevels individaully
-                for tmp_runlevel in tmp_runlevels:
-                  events_list.insert(0, prefix + tmp_runlevel)
-
-              tmp_runlevels = []
-
-        # adds runlevel ranges, condensing if there's identical ranges
-
-        for i in range(len(runlevel_ranges)):
-          if runlevel_ranges[i]:
-            prefix, start_level, end_level = runlevel_ranges[i]
-
-            # check for matching ranges
-
-            matches = []
-
-            for j in range(i + 1, len(runlevel_ranges)):
-              if runlevel_ranges[j] and runlevel_ranges[j][1] == start_level and runlevel_ranges[j][2] == end_level:
-                matches.append(runlevel_ranges[j])
-                runlevel_ranges[j] = None
-
-            if matches:
-              # strips underscores and replaces empty entries with "TOR"
-
-              prefixes = [entry[0] for entry in matches] + [prefix]
-
-              for k in range(len(prefixes)):
-                if prefixes[k] == '':
-                  prefixes[k] = 'TOR'
-                else:
-                  prefixes[k] = prefixes[k].replace('_', '')
-
-              events_list.insert(0, '%s %s - %s' % ('/'.join(prefixes), start_level, end_level))
-            else:
-              events_list.insert(0, '%s%s - %s' % (prefix, start_level, end_level))
-
-        # truncates to use an ellipsis if too long, for instance:
-
-        attr_label = ', '.join(events_list)
-
-        if current_pattern:
-          attr_label += ' - filter: %s' % current_pattern
-
-        attr_label = str_tools.crop(attr_label, width - 10, 1)
-
-        if attr_label:
-          attr_label = ' (%s)' % attr_label
-
-        panel_label = 'Events%s:' % attr_label
-
-      # cache results and return
-
-      self._title_cache = panel_label
-      self._title_args = (list(self.logged_events), current_pattern, width)
-
-      return panel_label

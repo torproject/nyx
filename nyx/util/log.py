@@ -35,6 +35,75 @@ def days_since(timestamp):
 
 
 @lru_cache()
+def condense_runlevels(*events):
+  """
+  Provides runlevel events with condensed. For example...
+
+    >>> condense_runlevels(['DEBUG', 'NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARN', 'NYX_ERR', 'BW'])
+    ['TOR/NYX NOTICE-ERROR', 'DEBUG', 'BW']
+
+  :param list events: event types to be condensed
+
+  :returns: **list** of the input events, with condensed runlevels
+  """
+
+  def ranges(runlevels):
+    ranges = []
+
+    while runlevels:
+      # provides the (start, end) for a contiguous range
+      start = end = runlevels[0]
+
+      for r in TOR_RUNLEVELS[TOR_RUNLEVELS.index(start):]:
+        if r in runlevels:
+          runlevels.remove(r)
+          end = r
+        else:
+          break
+
+      ranges.append((start, end))
+
+    return ranges
+
+  events = list(events)
+  tor_runlevels, nyx_runlevels = [], []
+
+  for r in TOR_RUNLEVELS:
+    if r in events:
+      tor_runlevels.append(r)
+      events.remove(r)
+
+    if 'NYX_%s' % r in events:
+      nyx_runlevels.append(r)
+      events.remove('NYX_%s' % r)
+
+  tor_ranges = ranges(tor_runlevels)
+  nyx_ranges = ranges(nyx_runlevels)
+
+  result = []
+
+  for runlevel_range in tor_ranges:
+    if runlevel_range[0] == runlevel_range[1]:
+      range_label = runlevel_range[0]
+    else:
+      range_label = '%s-%s' % (runlevel_range[0], runlevel_range[1])
+
+    if runlevel_range in nyx_ranges:
+      result.append('TOR/NYX %s' % range_label)
+      nyx_ranges.remove(runlevel_range)
+    else:
+      result.append(range_label)
+
+  for runlevel_range in nyx_ranges:
+    if runlevel_range[0] == runlevel_range[1]:
+      result.append('NYX %s' % runlevel_range[0])
+    else:
+      result.append('NYX %s-%s' % (runlevel_range[0], runlevel_range[1]))
+
+  return result + events
+
+
+@lru_cache()
 def _common_log_messages():
   """
   Provides a mapping of message types to its common log messages. These are
