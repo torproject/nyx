@@ -3,6 +3,7 @@ Logging utilities, primiarily short aliases for logging a message at various
 runlevels.
 """
 
+import os
 import time
 import threading
 
@@ -10,6 +11,7 @@ import stem.util.conf
 import stem.util.log
 import stem.util.system
 
+import nyx
 import nyx.util
 
 try:
@@ -269,6 +271,39 @@ class LogEntry(object):
 
   def __hash__(self):
     return hash(self.display_message)
+
+
+class LogFileOutput(object):
+  """
+  File where log messages we receive are written. If unable to do so then a
+  notification is logged and further write attempts are skipped.
+  """
+
+  def __init__(self, path):
+    self._file = None
+
+    if path:
+      try:
+        path_dir = os.path.dirname(path)
+
+        if not os.path.exists(path_dir):
+          os.makedirs(path_dir)
+
+        self._file = open(path, 'a')
+        notice('nyx %s opening log file (%s)' % (nyx.__version__, path))
+      except IOError as exc:
+        error('Unable to write to log file: %s' % exc.strerror)
+      except OSError as exc:
+        error('Unable to write to log file: %s' % exc)
+
+  def write(self, msg):
+    if self._file:
+      try:
+        self._file.write(msg + '\n')
+        self._file.flush()
+      except IOError as exc:
+        error('Unable to write to log file: %s' % exc.strerror)
+        self._file = None
 
 
 def trace(msg, **attr):

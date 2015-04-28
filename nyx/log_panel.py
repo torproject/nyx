@@ -19,9 +19,8 @@ from stem.util import conf, log, str_tools
 import nyx.arguments
 import nyx.popups
 
-from nyx import __version__
 from nyx.util import join, panel, tor_controller, ui_tools
-from nyx.util.log import TOR_RUNLEVELS, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since, log_file_path
+from nyx.util.log import TOR_RUNLEVELS, LogFileOutput, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since, log_file_path
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -106,7 +105,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self.regex_filter = None             # filter for presented log events (no filtering if None)
     self.last_content_height = 0         # height of the rendered content when last drawn
-    self._log_file = None                # file log messages are saved to (skipped if None)
+    self._log_file = LogFileOutput(CONFIG['features.log_file'])
     self.scroll = 0
 
     self.set_pause_attr('_msg_log')
@@ -165,28 +164,6 @@ class LogPanel(panel.Panel, threading.Thread):
         log.notice('Tor control port closed')
 
     controller.add_status_listener(reset_listener)
-
-    # opens log file if we'll be saving entries
-
-    if CONFIG['features.log_file']:
-      log_path = CONFIG['features.log_file']
-
-      try:
-        # make dir if the path doesn't already exist
-
-        base_dir = os.path.dirname(log_path)
-
-        if not os.path.exists(base_dir):
-          os.makedirs(base_dir)
-
-        self._log_file = open(log_path, 'a')
-        log.notice('nyx %s opening log file (%s)' % (__version__, log_path))
-      except IOError as exc:
-        log.error('Unable to write to log file: %s' % exc.strerror)
-        self._log_file = None
-      except OSError as exc:
-        log.error('Unable to write to log file: %s' % exc)
-        self._log_file = None
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -736,18 +713,9 @@ class LogPanel(panel.Panel, threading.Thread):
     if event.type not in self.logged_events:
       return
 
-    # note event in the log file if we're saving them
-
-    if self._log_file:
-      try:
-        self._log_file.write(event.display_message + '\n')
-        self._log_file.flush()
-      except IOError as exc:
-        log.error('Unable to write to log file: %s' % exc.strerror)
-        self._log_file = None
-
     with self.vals_lock:
       self._msg_log.add(event)
+      self._log_file.write(event.display_message)
 
       # notifies the display that it has new content
 
