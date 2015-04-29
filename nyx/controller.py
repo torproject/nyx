@@ -500,7 +500,9 @@ def conn_reset_listener(controller, event_type, _):
   if resolver.is_alive():
     resolver.set_paused(event_type == State.CLOSED)
 
-    if event_type in (State.INIT, State.RESET):
+    if event_type == State.CLOSED:
+      log.notice('Tor control port closed')
+    elif event_type in (State.INIT, State.RESET):
       # Reload the torrc contents. If the torrc panel is present then it will
       # do this instead since it wants to do validation and redraw _after_ the
       # new contents are loaded.

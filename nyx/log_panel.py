@@ -13,7 +13,6 @@ import threading
 import stem
 import stem.response.events
 
-from stem.control import State
 from stem.util import conf, log, str_tools
 
 import nyx.arguments
@@ -154,16 +153,6 @@ class LogPanel(panel.Panel, threading.Thread):
     # leaving last_content_height as being too low causes initialization problems
 
     self.last_content_height = len(self._msg_log)
-
-    # adds listeners for tor and stem events
-
-    controller = tor_controller()
-
-    def reset_listener(controller, event_type, _):
-      if event_type == State.CLOSED:
-        log.notice('Tor control port closed')
-
-    controller.add_status_listener(reset_listener)
 
   def set_duplicate_visability(self, is_visible):
     """
