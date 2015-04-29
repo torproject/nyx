@@ -128,18 +128,15 @@ class LogPanel(panel.Panel, threading.Thread):
     # fetches past tor events from log file, if available
 
     if CONFIG['features.log.prepopulate']:
-      set_runlevels = list(set.intersection(set(self.logged_events), set(list(log.Runlevel))))
-      read_limit = CONFIG['features.log.prepopulateReadLimit']
+      log_location = log_file_path(tor_controller())
 
-      logging_location = log_file_path(tor_controller())
-
-      if logging_location:
+      if log_location:
         try:
-          for entry in reversed(list(read_tor_log(logging_location, read_limit))):
-            if entry.type in set_runlevels:
+          for entry in reversed(list(read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
+            if entry.type in self.logged_events:
               self._msg_log.add(entry)
         except IOError as exc:
-          log.info('Unable to read log located at %s: %s' % (logging_location, exc))
+          log.info('Unable to read log located at %s: %s' % (log_location, exc))
         except ValueError as exc:
           log.info(str(exc))
 

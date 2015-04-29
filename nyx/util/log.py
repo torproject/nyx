@@ -3,6 +3,7 @@ Logging utilities, primiarily short aliases for logging a message at various
 runlevels.
 """
 
+import datetime
 import os
 import time
 import threading
@@ -376,18 +377,23 @@ def read_tor_log(path, read_limit = None):
 
     runlevel = line_comp[3][1:-1].upper()
     msg = ' '.join(line_comp[4:])
+    current_year = str(datetime.datetime.now().year)
 
-    # Pretending the year is 2012 because 2012 is a leap year. We don't know
-    # the actual year (#15607) so picking something else risks strptime failing
-    # when it reads Feb 29th (#5265).
+    # Pretending it's the current year. We don't know the actual year (#15607)
+    # and this may fail due to leap years when picking Feb 29th (#5265).
 
     try:
-      timestamp_str = '2012 ' + ' '.join(line_comp[:3])
+      timestamp_str = current_year + ' ' + ' '.join(line_comp[:3])
       timestamp_str = timestamp_str.split('.', 1)[0]  # drop fractional seconds
       timestamp_comp = list(time.strptime(timestamp_str, '%Y %b %d %H:%M:%S'))
       timestamp_comp[8] = isdst
 
       timestamp = int(time.mktime(timestamp_comp))  # converts local to unix time
+
+      if timestamp > time.time():
+        # log entry is from before a year boundary
+        timestamp_comp[0] -= 1
+        timestamp = int(time.mktime(timestamp_comp))
     except ValueError:
       raise ValueError("Log located at %s has a timestamp we don't recognize: %s" % (path, ' '.join(line_comp[:3])))
 
