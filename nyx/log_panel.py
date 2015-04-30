@@ -369,9 +369,7 @@ class LogPanel(panel.Panel, threading.Thread):
       # does all activity under a curses lock to prevent redraws when adding
       # new filters
 
-      panel.CURSES_LOCK.acquire()
-
-      try:
+      with CURSES_LOCK:
         selection = nyx.popups.show_menu('Log Filter:', options, old_selection)
 
         # applies new setting
@@ -383,8 +381,6 @@ class LogPanel(panel.Panel, threading.Thread):
           self.show_filter_prompt()
         elif selection != -1:
           self.make_filter_selection(self.filter_options[selection - 1])
-      finally:
-        panel.CURSES_LOCK.release()
 
       if len(self.filter_options) > MAX_REGEX_FILTERS:
         del self.filter_options[MAX_REGEX_FILTERS:]

@@ -208,6 +208,7 @@ class Controller:
       page_panels   - list of pages, each being a list of the panels on it
     """
 
+    self.quit_signal = False
     self._screen = stdscr
     self._sticky_panels = sticky_panels
     self._page_panels = page_panels
@@ -465,6 +466,9 @@ class Controller:
 
     return data_dir
 
+  def quit(self):
+    self.quit_signal = True
+
 
 def heartbeat_check(is_unresponsive):
   """
@@ -558,7 +562,7 @@ def start_nyx(stdscr):
   override_key = None      # uses this rather than waiting on user input
   is_unresponsive = False  # flag for heartbeat responsiveness check
 
-  while True:
+  while not control.quit_signal:
     display_panels = control.get_display_panels()
     is_unresponsive = heartbeat_check(is_unresponsive)
 
