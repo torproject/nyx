@@ -4,7 +4,6 @@ for. This provides prepopulation from the log file and supports filtering by
 regular expressions.
 """
 
-import re
 import os
 import time
 import curses
@@ -19,7 +18,7 @@ import nyx.arguments
 import nyx.popups
 
 from nyx.util import join, panel, tor_controller, ui_tools
-from nyx.util.log import TOR_RUNLEVELS, LogFileOutput, LogGroup, LogEntry, read_tor_log, condense_runlevels, days_since, log_file_path
+from nyx.util.log import TOR_RUNLEVELS, LogFileOutput, LogGroup, LogEntry, LogFilters, read_tor_log, condense_runlevels, days_since, log_file_path
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -56,10 +55,6 @@ CONFIG = conf.config_dict('nyx', {
 
 CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 
-# maximum number of regex filters we'll remember
-
-MAX_REGEX_FILTERS = 5
-
 # Log buffer so we start collecting stem/nyx events when imported. This is used
 # to make our LogPanel when curses initializes.
 
@@ -79,21 +74,7 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    # regex filters the user has defined
-
-    self.filter_options = []
-
-    for filter in CONFIG['features.log.regex']:
-      # checks if we can't have more filters
-
-      if len(self.filter_options) >= MAX_REGEX_FILTERS:
-        break
-
-      try:
-        re.compile(filter)
-        self.filter_options.append(filter)
-      except re.error as exc:
-        log.notice('Invalid regular expression pattern (%s): %s' % (exc, filter))
+    self._filter = LogFilters(initial_filters = CONFIG['features.log.regex'])
 
     self.logged_events = []  # needs to be set before we receive any events
 
@@ -102,7 +83,6 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self.logged_events = self.set_event_listening(logged_events)
 
-    self.regex_filter = None             # filter for presented log events (no filtering if None)
     self.last_content_height = 0         # height of the rendered content when last drawn
     self._log_file = LogFileOutput(CONFIG['features.log_file'])
     self.scroll = 0
@@ -113,11 +93,6 @@ class LogPanel(panel.Panel, threading.Thread):
     self._last_update = -1               # time the content was last revised
     self._halt = False                   # terminates thread if true
     self._cond = threading.Condition()   # used for pausing/resuming the thread
-
-    # restricts concurrent write access to attributes used to draw the display
-    # and pausing:
-    # msg_log, logged_events, regex_filter, scroll
-
     self.vals_lock = threading.RLock()
 
     # cached parameters (invalidated if arguments for them change)
@@ -187,49 +162,7 @@ class LogPanel(panel.Panel, threading.Thread):
     Provides our currently selected regex filter.
     """
 
-    return self.filter_options[0] if self.regex_filter else None
-
-  def set_filter(self, log_filter):
-    """
-    Filters log entries according to the given regular expression.
-
-    Arguments:
-      log_filter - regular expression used to determine which messages are
-                  shown, None if no filter should be applied
-    """
-
-    if log_filter == self.regex_filter:
-      return
-
-    with self.vals_lock:
-      self.regex_filter = log_filter
-      self.redraw(True)
-
-  def make_filter_selection(self, selected_option):
-    """
-    Makes the given filter selection, applying it to the log and reorganizing
-    our filter selection.
-
-    Arguments:
-      selected_option - regex filter we've already added, None if no filter
-                       should be applied
-    """
-
-    if selected_option:
-      try:
-        self.set_filter(re.compile(selected_option))
-
-        # move selection to top
-
-        self.filter_options.remove(selected_option)
-        self.filter_options.insert(0, selected_option)
-      except re.error as exc:
-        # shouldn't happen since we've already checked validity
-
-        log.warn("Invalid regular expression ('%s': %s) - removing from listing" % (selected_option, exc))
-        self.filter_options.remove(selected_option)
-    else:
-      self.set_filter(None)
+    return self._filter
 
   def show_filter_prompt(self):
     """
@@ -239,15 +172,7 @@ class LogPanel(panel.Panel, threading.Thread):
     regex_input = nyx.popups.input_prompt('Regular expression: ')
 
     if regex_input:
-      try:
-        self.set_filter(re.compile(regex_input))
-
-        if regex_input in self.filter_options:
-          self.filter_options.remove(regex_input)
-
-        self.filter_options.insert(0, regex_input)
-      except re.error as exc:
-        nyx.popups.show_msg('Unable to compile expression: %s' % exc, 2)
+      self._filter.select(regex_input)
 
   def show_event_selection_prompt(self):
     """
@@ -333,7 +258,7 @@ class LogPanel(panel.Panel, threading.Thread):
     with self.vals_lock:
       try:
         for entry in reversed(self._msg_log):
-          is_visible = not self.regex_filter or self.regex_filter.search(entry.display_message)
+          is_visible = self._filter.match(entry.display_message)
 
           if is_visible:
             snapshot_file.write(entry.display_message + '\n')
@@ -363,27 +288,24 @@ class LogPanel(panel.Panel, threading.Thread):
       # Provides menu to pick regular expression filters or adding new ones:
       # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
 
-      options = ['None'] + self.filter_options + ['New...']
-      old_selection = 0 if not self.regex_filter else 1
+      options = ['None'] + self._filter.latest_selections() + ['New...']
+      old_selection = 0 if not self._filter.selection() else 1
 
       # does all activity under a curses lock to prevent redraws when adding
       # new filters
 
-      with CURSES_LOCK:
+      with panel.CURSES_LOCK:
         selection = nyx.popups.show_menu('Log Filter:', options, old_selection)
 
         # applies new setting
 
         if selection == 0:
-          self.set_filter(None)
+          self._filter.select(None)
         elif selection == len(options) - 1:
           # selected 'New...' option - prompt user to input regular expression
           self.show_filter_prompt()
         elif selection != -1:
-          self.make_filter_selection(self.filter_options[selection - 1])
-
-      if len(self.filter_options) > MAX_REGEX_FILTERS:
-        del self.filter_options[MAX_REGEX_FILTERS:]
+          self._filter.select(self._filter.latest_selections()[selection - 1])
     elif key.match('e'):
       self.show_event_selection_prompt()
     elif key.match('a'):
@@ -399,7 +321,7 @@ class LogPanel(panel.Panel, threading.Thread):
       ('down arrow', 'scroll log down a line', None),
       ('a', 'save snapshot of the log', None),
       ('e', 'change logged events', None),
-      ('f', 'log regex filter', 'enabled' if self.regex_filter else 'disabled'),
+      ('f', 'log regex filter', 'enabled' if self._filter.selection() else 'disabled'),
       ('u', 'duplicate log entries', 'visible' if CONFIG['features.log.showDuplicateEntries'] else 'hidden'),
       ('c', 'clear event log', None),
     ]
@@ -419,10 +341,10 @@ class LogPanel(panel.Panel, threading.Thread):
       # draws the top label
 
       if self.is_title_visible():
-        comp = condense_runlevels(*self.logged_events)
+        comp = list(condense_runlevels(*self.logged_events))
 
-        if self.regex_filter:
-          comp.append('filter: %s' % self.regex_filter)
+        if self._filter.selection():
+          comp.append('filter: %s' % self._filter.selection())
 
         comp_str = join(comp, ', ', width - 10)
         title = 'Events (%s):' % comp_str if comp_str else 'Events:'
@@ -470,7 +392,7 @@ class LogPanel(panel.Panel, threading.Thread):
       while deduplicated_log:
         entry, duplicate_count = deduplicated_log.pop(0)
 
-        if self.regex_filter and not self.regex_filter.search(entry.display_message):
+        if not self._filter.match(entry.display_message):
           continue  # filter doesn't match log message - skip
 
         # checks if we should be showing a divider with the date
@@ -701,6 +623,6 @@ class LogPanel(panel.Panel, threading.Thread):
 
       # notifies the display that it has new content
 
-      if not self.regex_filter or self.regex_filter.search(event.display_message):
+      if self._filter.match(event.display_message):
         with self._cond:
           self._cond.notifyAll()

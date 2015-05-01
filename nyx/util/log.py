@@ -3,8 +3,10 @@ Logging utilities, primiarily short aliases for logging a message at various
 runlevels.
 """
 
+import collections
 import datetime
 import os
+import re
 import time
 import threading
 
@@ -305,6 +307,53 @@ class LogFileOutput(object):
       except IOError as exc:
         error('Unable to write to log file: %s' % exc.strerror)
         self._file = None
+
+
+class LogFilters(object):
+  """
+  Regular expression filtering for log output. This is thread safe and tracks
+  the latest selections.
+  """
+
+  def __init__(self, initial_filters = None, max_filters = 5):
+    self._max_filters = max_filters
+    self._selected = None
+    self._past_filters = collections.OrderedDict()
+    self._lock = threading.RLock()
+
+    if initial_filters:
+      for regex in initial_filters:
+        self.select(regex)
+
+      self.select(None)
+
+  def select(self, regex):
+    with self._lock:
+      if regex is None:
+        self._selected = None
+        return
+
+      if regex in self._past_filters:
+        del self._past_filters[regex]
+
+      try:
+        self._past_filters[regex] = re.compile(regex)
+        self._selected = regex
+
+        if len(self._past_filters) > self._max_filters:
+          self._past_filters.popitem(False)
+      except re.error as exc:
+        notice('Invalid regular expression pattern (%s): %s' % (exc, regex))
+
+  def selection(self):
+    return self._selected
+
+  def latest_selections(self):
+    return list(reversed(self._past_filters.keys()))
+
+  def match(self, message):
+    regex_filter = self._past_filters.get(self._selected)
+    return not regex_filter or bool(regex_filter.search(message))
 
 
 def trace(msg, **attr):
