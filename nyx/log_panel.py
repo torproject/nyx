@@ -16,11 +16,9 @@ from stem.util import conf, log, str_tools
 
 import nyx.arguments
 import nyx.popups
+import nyx.util.log
 
 from nyx.util import join, panel, tor_controller, ui_tools
-from nyx.util.log import LogFileOutput, LogGroup, LogEntry, LogFilters, read_tor_log, condense_runlevels, listen_for_events, days_since, log_file_path
-
-ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
 
 def conf_handler(key, value):
@@ -74,10 +72,10 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._logged_event_types = listen_for_events(self._register_tor_event, logged_events)
-    self._logged_events = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
-    self._log_file = LogFileOutput(CONFIG['features.log_file'])
-    self._filter = LogFilters(initial_filters = CONFIG['features.log.regex'])
+    self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
+    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
+    self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.log_file'])
+    self._filter = nyx.util.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
 
     self.set_pause_attr('_logged_events')
 
@@ -97,11 +95,11 @@ class LogPanel(panel.Panel, threading.Thread):
     # fetches past tor events from log file, if available
 
     if CONFIG['features.log.prepopulate']:
-      log_location = log_file_path(tor_controller())
+      log_location = nyx.util.log.log_file_path(tor_controller())
 
       if log_location:
         try:
-          for entry in reversed(list(read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
+          for entry in reversed(list(nyx.util.log.read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
             if entry.type in self._logged_event_types:
               self._logged_events.add(entry)
         except IOError as exc:
@@ -180,7 +178,7 @@ class LogPanel(panel.Panel, threading.Thread):
           try:
             if event_types != self._logged_event_types:
               with self.vals_lock:
-                self._logged_event_types = listen_for_events(self._register_tor_event, event_types)
+                self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
                 self.redraw(True)
           except ValueError as exc:
             nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
@@ -207,7 +205,7 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     with self.vals_lock:
-      self._logged_events = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
+      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
       self.redraw(True)
 
   def save_snapshot(self, path):
@@ -320,7 +318,7 @@ class LogPanel(panel.Panel, threading.Thread):
       # draws the top label
 
       if self.is_title_visible():
-        comp = list(condense_runlevels(*self._logged_event_types))
+        comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
 
         if self._filter.selection():
           comp.append('filter: %s' % self._filter.selection())
@@ -453,7 +451,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
           if include_break or not display_queue:
             line_count += 1
-            cursor_location = msg_indent + ENTRY_INDENT
+            cursor_location = msg_indent + 2  # indent following lines
 
           line_count += line_offset
 
@@ -501,10 +499,10 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
 
-    last_day = days_since(time.time())  # used to determine if the date has changed
+    last_day = nyx.util.log.days_since(time.time())  # used to determine if the date has changed
 
     while not self._halt:
-      current_day = days_since(time.time())
+      current_day = nyx.util.log.days_since(time.time())
       time_since_reset = time.time() - self._last_update
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 
@@ -545,13 +543,13 @@ class LogPanel(panel.Panel, threading.Thread):
     elif isinstance(event, stem.response.events.LogEvent):
       msg = event.message
 
-    self._register_event(LogEntry(event.arrived_at, event.type, msg))
+    self._register_event(nyx.util.log.LogEntry(event.arrived_at, event.type, msg))
 
   def _register_nyx_event(self, record):
     if record.levelname == 'WARNING':
       record.levelname = 'WARN'
 
-    self._register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
+    self._register_event(nyx.util.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):
     if event.type not in self._logged_event_types:
