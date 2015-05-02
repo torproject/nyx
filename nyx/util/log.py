@@ -126,6 +126,42 @@ def condense_runlevels(*events):
   return result + events
 
 
+def listen_for_events(listener, events):
+  """
+  Configures tor to notify a function of these event types. If tor is
+  configured to notify this listener then the old listener is replaced.
+
+  :param function listener: listener to be notified
+  :param list events: event types to attempt to set
+
+  :returns: **list** of event types we're successfully now listening to
+  """
+
+  import nyx.arguments
+  events = set(events)  # drops duplicates
+
+  # accounts for runlevel naming difference
+
+  tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
+  nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in TOR_RUNLEVELS]))
+
+  # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
+
+  if 'UNKNOWN' in events:
+    tor_events.update(set(nyx.arguments.missing_event_types()))
+
+  controller = nyx.util.tor_controller()
+  controller.remove_event_listener(listener)
+
+  for event_type in list(tor_events):
+    try:
+      controller.add_event_listener(listener, event_type)
+    except stem.ProtocolError:
+      tor_events.remove(event_type)
+
+  return sorted(tor_events.union(nyx_events))
+
+
 @lru_cache()
 def _common_log_messages():
   """

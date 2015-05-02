@@ -18,7 +18,7 @@ import nyx.arguments
 import nyx.popups
 
 from nyx.util import join, panel, tor_controller, ui_tools
-from nyx.util.log import TOR_RUNLEVELS, LogFileOutput, LogGroup, LogEntry, LogFilters, read_tor_log, condense_runlevels, days_since, log_file_path
+from nyx.util.log import LogFileOutput, LogGroup, LogEntry, LogFilters, read_tor_log, condense_runlevels, listen_for_events, days_since, log_file_path
 
 ENTRY_INDENT = 2  # spaces an entry's message is indented after the first line
 
@@ -74,21 +74,15 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
+    self._logged_event_types = listen_for_events(self._register_tor_event, logged_events)
+    self._logged_events = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
+    self._log_file = LogFileOutput(CONFIG['features.log_file'])
     self._filter = LogFilters(initial_filters = CONFIG['features.log.regex'])
 
-    self.logged_events = []  # needs to be set before we receive any events
-
-    # restricts the input to the set of events we can listen to, and
-    # configures the controller to liten to them
-
-    self.logged_events = self.set_event_listening(logged_events)
+    self.set_pause_attr('_logged_events')
 
     self.last_content_height = 0         # height of the rendered content when last drawn
-    self._log_file = LogFileOutput(CONFIG['features.log_file'])
     self.scroll = 0
-
-    self.set_pause_attr('_msg_log')
-    self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
 
     self._last_update = -1               # time the content was last revised
     self._halt = False                   # terminates thread if true
@@ -108,8 +102,8 @@ class LogPanel(panel.Panel, threading.Thread):
       if log_location:
         try:
           for entry in reversed(list(read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
-            if entry.type in self.logged_events:
-              self._msg_log.add(entry)
+            if entry.type in self._logged_event_types:
+              self._logged_events.add(entry)
         except IOError as exc:
           log.info('Unable to read log located at %s: %s' % (log_location, exc))
         except ValueError as exc:
@@ -124,7 +118,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # leaving last_content_height as being too low causes initialization problems
 
-    self.last_content_height = len(self._msg_log)
+    self.last_content_height = len(self._logged_events)
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -137,25 +131,6 @@ class LogPanel(panel.Panel, threading.Thread):
 
     nyx_config = conf.get_config('nyx')
     nyx_config.set('features.log.showDuplicateEntries', str(is_visible))
-
-  def set_logged_events(self, event_types):
-    """
-    Sets the event types recognized by the panel.
-
-    Arguments:
-      event_types - event types to be logged
-    """
-
-    if event_types == self.logged_events:
-      return
-
-    with self.vals_lock:
-      # configures the controller to listen for these tor events, and provides
-      # back a subset without anything we're failing to listen to
-
-      set_types = self.set_event_listening(event_types)
-      self.logged_events = set_types
-      self.redraw(True)
 
   def get_filter(self):
     """
@@ -200,9 +175,13 @@ class LogPanel(panel.Panel, threading.Thread):
 
         if user_input:
           user_input = user_input.replace(' ', '')  # strips spaces
+          event_types = nyx.arguments.expand_events(user_input)
 
           try:
-            self.set_logged_events(nyx.arguments.expand_events(user_input))
+            if event_types != self._logged_event_types:
+              with self.vals_lock:
+                self._logged_event_types = listen_for_events(self._register_tor_event, event_types)
+                self.redraw(True)
           except ValueError as exc:
             nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
       finally:
@@ -228,7 +207,7 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     with self.vals_lock:
-      self._msg_log = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
+      self._logged_events = LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
       self.redraw(True)
 
   def save_snapshot(self, path):
@@ -257,7 +236,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     with self.vals_lock:
       try:
-        for entry in reversed(self._msg_log):
+        for entry in reversed(self._logged_events):
           is_visible = self._filter.match(entry.display_message)
 
           if is_visible:
@@ -332,7 +311,7 @@ class LogPanel(panel.Panel, threading.Thread):
     contain up to two lines. Starts with newest entries.
     """
 
-    event_log = self.get_attr('_msg_log')
+    event_log = self.get_attr('_logged_events')
 
     with self.vals_lock:
       self._last_logged_events, self._last_update = event_log, time.time()
@@ -341,7 +320,7 @@ class LogPanel(panel.Panel, threading.Thread):
       # draws the top label
 
       if self.is_title_visible():
-        comp = list(condense_runlevels(*self.logged_events))
+        comp = list(condense_runlevels(*self._logged_event_types))
 
         if self._filter.selection():
           comp.append('filter: %s' % self._filter.selection())
@@ -515,10 +494,6 @@ class LogPanel(panel.Panel, threading.Thread):
         log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
         self.redraw(True)
 
-  def redraw(self, force_redraw=False, block=False):
-    # determines if the content needs to be redrawn or not
-    panel.Panel.redraw(self, force_redraw, block)
-
   def run(self):
     """
     Redraws the display, coalescing updates if events are rapidly logged (for
@@ -535,7 +510,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
       sleep_time = 0
 
-      if (self._msg_log == self._last_logged_events and last_day == current_day) or self.is_paused():
+      if (self._logged_events == self._last_logged_events and last_day == current_day) or self.is_paused():
         sleep_time = 5
       elif time_since_reset < max_log_update_rate:
         sleep_time = max(0.05, max_log_update_rate - time_since_reset)
@@ -562,41 +537,6 @@ class LogPanel(panel.Panel, threading.Thread):
       self._halt = True
       self._cond.notifyAll()
 
-  def set_event_listening(self, events):
-    """
-    Configures the events Tor listens for, filtering non-tor events from what we
-    request from the controller. This returns a sorted list of the events we
-    successfully set.
-
-    Arguments:
-      events - event types to attempt to set
-    """
-
-    events = set(events)  # drops duplicates
-
-    # accounts for runlevel naming difference
-
-    tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
-    nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in TOR_RUNLEVELS]))
-
-    # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
-
-    if 'UNKNOWN' in events:
-      tor_events.update(set(nyx.arguments.missing_event_types()))
-
-    controller = tor_controller()
-    controller.remove_event_listener(self._register_tor_event)
-
-    for event_type in list(tor_events):
-      try:
-        controller.add_event_listener(self._register_tor_event, event_type)
-      except stem.ProtocolError:
-        tor_events.remove(event_type)
-
-    # provides back the input set minus events we failed to set
-
-    return sorted(tor_events.union(nyx_events))
-
   def _register_tor_event(self, event):
     msg = ' '.join(str(event).split(' ')[1:])
 
@@ -614,11 +554,11 @@ class LogPanel(panel.Panel, threading.Thread):
     self._register_event(LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):
-    if event.type not in self.logged_events:
+    if event.type not in self._logged_event_types:
       return
 
     with self.vals_lock:
-      self._msg_log.add(event)
+      self._logged_events.add(event)
       self._log_file.write(event.display_message)
 
       # notifies the display that it has new content
