@@ -79,18 +79,13 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self.set_pause_attr('_logged_events')
 
-    self.last_content_height = 0         # height of the rendered content when last drawn
-    self.scroll = 0
+    self._last_content_height = 0  # height of the rendered content when last drawn
+    self._scroll = 0
 
-    self._last_update = -1               # time the content was last revised
-    self._halt = False                   # terminates thread if true
+    self._halt = False  # terminates thread if true
     self._pause_condition = threading.Condition()
     self._lock = threading.RLock()
-
-    # cached parameters (invalidated if arguments for them change)
-    # last set of events we've drawn with
-
-    self._last_logged_events = []
+    self._has_new_event = False
 
     # fetches past tor events from log file, if available
 
@@ -116,7 +111,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # leaving last_content_height as being too low causes initialization problems
 
-    self.last_content_height = len(self._logged_events)
+    self._last_content_height = len(self._logged_events)
 
   def set_duplicate_visability(self, is_visible):
     """
@@ -244,11 +239,11 @@ class LogPanel(panel.Panel, threading.Thread):
   def handle_key(self, key):
     if key.is_scroll():
       page_height = self.get_preferred_size()[0] - 1
-      new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
+      new_scroll = ui_tools.get_scroll_position(key, self._scroll, page_height, self._last_content_height)
 
-      if self.scroll != new_scroll:
+      if self._scroll != new_scroll:
         with self._lock:
-          self.scroll = new_scroll
+          self._scroll = new_scroll
           self.redraw(True)
     elif key.match('u'):
       with self._lock:
@@ -303,11 +298,8 @@ class LogPanel(panel.Panel, threading.Thread):
     ]
 
   def draw(self, width, height):
-    event_log = self.get_attr('_logged_events')
-
     with self._lock:
-      self._last_logged_events, self._last_update = event_log, time.time()
-      event_log = list(event_log)
+      event_log = list(self.get_attr('_logged_events'))
 
       # draws the top label
 
@@ -324,20 +316,20 @@ class LogPanel(panel.Panel, threading.Thread):
 
       # restricts scroll location to valid bounds
 
-      self.scroll = max(0, min(self.scroll, self.last_content_height - height + 1))
+      self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
       # draws left-hand scroll bar if content's longer than the height
 
       msg_indent, divider_indent = 1, 0  # offsets for scroll bar
-      is_scroll_bar_visible = self.last_content_height > height - 1
+      is_scroll_bar_visible = self._last_content_height > height - 1
 
       if is_scroll_bar_visible:
         msg_indent, divider_indent = 3, 2
-        self.add_scroll_bar(self.scroll, self.scroll + height - 1, self.last_content_height, 1)
+        self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
       # draws log entries
 
-      line_count = 1 - self.scroll
+      line_count = 1 - self._scroll
       seen_first_date_divider = False
       divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
@@ -459,13 +451,13 @@ class LogPanel(panel.Panel, threading.Thread):
       # - last_content_height was off by too much
       # - we're off the bottom of the page
 
-      new_content_height = line_count + self.scroll - 1
-      content_height_delta = abs(self.last_content_height - new_content_height)
+      new_content_height = line_count + self._scroll - 1
+      content_height_delta = abs(self._last_content_height - new_content_height)
       force_redraw, force_redraw_reason = True, ''
 
       if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
         force_redraw_reason = 'estimate was off by %i' % content_height_delta
-      elif new_content_height > height and self.scroll + height - 1 > new_content_height:
+      elif new_content_height > height and self._scroll + height - 1 > new_content_height:
         force_redraw_reason = 'scrolled off the bottom of the page'
       elif not is_scroll_bar_visible and new_content_height > height - 1:
         force_redraw_reason = "scroll bar wasn't previously visible"
@@ -474,7 +466,8 @@ class LogPanel(panel.Panel, threading.Thread):
       else:
         force_redraw = False
 
-      self.last_content_height = new_content_height
+      self._last_content_height = new_content_height
+      self._has_new_event = False
 
       if force_redraw:
         log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
@@ -487,16 +480,16 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
 
-    last_day = nyx.util.log.days_since(time.time())  # used to determine if the date has changed
+    last_ran, last_day = -1, nyx.util.log.days_since(time.time())
 
     while not self._halt:
       current_day = nyx.util.log.days_since(time.time())
-      time_since_reset = time.time() - self._last_update
+      time_since_reset = time.time() - last_ran
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 
       sleep_time = 0
 
-      if (self._logged_events == self._last_logged_events and last_day == current_day) or self.is_paused():
+      if (not self._has_new_event and last_day == current_day) or self.is_paused():
         sleep_time = 5
       elif time_since_reset < max_log_update_rate:
         sleep_time = max(0.05, max_log_update_rate - time_since_reset)
@@ -505,18 +498,15 @@ class LogPanel(panel.Panel, threading.Thread):
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(sleep_time)
-      else:
-        last_day = current_day
-        self.redraw(True)
 
-        # makes sure that we register this as an update, otherwise lacking the
-        # curses lock can cause a busy wait here
+        continue
 
-        self._last_update = time.time()
+      last_ran, last_day = time.time(), current_day
+      self.redraw(True)
 
   def stop(self):
     """
-    Halts further resolutions and terminates the thread.
+    Halts further updates and terminates the thread.
     """
 
     with self._pause_condition:
@@ -550,5 +540,7 @@ class LogPanel(panel.Panel, threading.Thread):
       # notifies the display that it has new content
 
       if self._filter.match(event.display_message):
+        self._has_new_event = True
+
         with self._pause_condition:
           self._pause_condition.notifyAll()
