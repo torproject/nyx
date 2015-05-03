@@ -84,8 +84,8 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self._last_update = -1               # time the content was last revised
     self._halt = False                   # terminates thread if true
-    self._cond = threading.Condition()   # used for pausing/resuming the thread
-    self.vals_lock = threading.RLock()
+    self._pause_condition = threading.Condition()
+    self._lock = threading.RLock()
 
     # cached parameters (invalidated if arguments for them change)
     # last set of events we've drawn with
@@ -177,7 +177,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
           try:
             if event_types != self._logged_event_types:
-              with self.vals_lock:
+              with self._lock:
                 self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
                 self.redraw(True)
           except ValueError as exc:
@@ -204,7 +204,7 @@ class LogPanel(panel.Panel, threading.Thread):
     Clears the contents of the event log.
     """
 
-    with self.vals_lock:
+    with self._lock:
       self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
       self.redraw(True)
 
@@ -230,17 +230,16 @@ class LogPanel(panel.Panel, threading.Thread):
     except OSError as exc:
       raise IOError("unable to make directory '%s'" % base_dir)
 
-    snapshot_file = open(path, 'w')
+    with self._lock:
+      with open(path, 'w') as snapshot_file:
+        try:
+          for entry in reversed(self._logged_events):
+            is_visible = self._filter.match(entry.display_message)
 
-    with self.vals_lock:
-      try:
-        for entry in reversed(self._logged_events):
-          is_visible = self._filter.match(entry.display_message)
-
-          if is_visible:
-            snapshot_file.write(entry.display_message + '\n')
-      except Exception as exc:
-        raise exc
+            if is_visible:
+              snapshot_file.write(entry.display_message + '\n')
+        except Exception as exc:
+          raise IOError("unable to write to '%s': %s" % (path, exc))
 
   def handle_key(self, key):
     if key.is_scroll():
@@ -248,11 +247,11 @@ class LogPanel(panel.Panel, threading.Thread):
       new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self.last_content_height)
 
       if self.scroll != new_scroll:
-        with self.vals_lock:
+        with self._lock:
           self.scroll = new_scroll
           self.redraw(True)
     elif key.match('u'):
-      with self.vals_lock:
+      with self._lock:
         self.set_duplicate_visability(not CONFIG['features.log.showDuplicateEntries'])
         self.redraw(True)
     elif key.match('c'):
@@ -304,27 +303,22 @@ class LogPanel(panel.Panel, threading.Thread):
     ]
 
   def draw(self, width, height):
-    """
-    Redraws message log. Entries stretch to use available space and may
-    contain up to two lines. Starts with newest entries.
-    """
-
     event_log = self.get_attr('_logged_events')
 
-    with self.vals_lock:
+    with self._lock:
       self._last_logged_events, self._last_update = event_log, time.time()
       event_log = list(event_log)
 
       # draws the top label
 
       if self.is_title_visible():
-        comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
+        title_comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
 
         if self._filter.selection():
-          comp.append('filter: %s' % self._filter.selection())
+          title_comp.append('filter: %s' % self._filter.selection())
 
-        comp_str = join(comp, ', ', width - 10)
-        title = 'Events (%s):' % comp_str if comp_str else 'Events:'
+        title_comp_str = join(title_comp, ', ', width - 10)
+        title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
 
         self.addstr(0, 0, title, curses.A_STANDOUT)
 
@@ -347,27 +341,21 @@ class LogPanel(panel.Panel, threading.Thread):
       seen_first_date_divider = False
       divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
 
-      # TODO: fix daybreak handling
-      # is_dates_shown = self.regex_filter is None and CONFIG['features.log.showDateDividers']
-      # event_log = get_daybreaks(current_log, self.is_paused()) if is_dates_shown else current_log
-
-      if not CONFIG['features.log.showDuplicateEntries']:
-        deduplicated_log = []
-
-        for entry in event_log:
-          if not entry.is_duplicate:
-            duplicate_count = len(entry.duplicates) if entry.duplicates else 0
-            deduplicated_log.append((entry, duplicate_count))
-      else:
-        deduplicated_log = [(entry, 0) for entry in event_log]
-
       # determines if we have the minimum width to show date dividers
 
       show_daybreaks = width - divider_indent >= 3
-      last_day = deduplicated_log[0][0].days_since()
+      last_day = event_log[0].days_since() if event_log else 0
 
-      while deduplicated_log:
-        entry, duplicate_count = deduplicated_log.pop(0)
+      for i in range(len(event_log)):
+        entry = event_log[i]
+        is_last = i == len(event_log) - 1
+
+        if CONFIG['features.log.showDuplicateEntries']:
+          duplicate_count = 0
+        elif entry.is_duplicate:
+          continue
+        else:
+          duplicate_count = len(entry.duplicates) if entry.duplicates else 0
 
         if not self._filter.match(entry.display_message):
           continue  # filter doesn't match log message - skip
@@ -457,7 +445,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
         # if this is the last line and there's room, then draw the bottom of the divider
 
-        if not deduplicated_log and seen_first_date_divider:
+        if is_last and seen_first_date_divider:
           if line_count < height and show_daybreaks:
             self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
             self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
@@ -514,9 +502,9 @@ class LogPanel(panel.Panel, threading.Thread):
         sleep_time = max(0.05, max_log_update_rate - time_since_reset)
 
       if sleep_time:
-        with self._cond:
+        with self._pause_condition:
           if not self._halt:
-            self._cond.wait(sleep_time)
+            self._pause_condition.wait(sleep_time)
       else:
         last_day = current_day
         self.redraw(True)
@@ -531,9 +519,9 @@ class LogPanel(panel.Panel, threading.Thread):
     Halts further resolutions and terminates the thread.
     """
 
-    with self._cond:
+    with self._pause_condition:
       self._halt = True
-      self._cond.notifyAll()
+      self._pause_condition.notifyAll()
 
   def _register_tor_event(self, event):
     msg = ' '.join(str(event).split(' ')[1:])
@@ -555,12 +543,12 @@ class LogPanel(panel.Panel, threading.Thread):
     if event.type not in self._logged_event_types:
       return
 
-    with self.vals_lock:
+    with self._lock:
       self._logged_events.add(event)
       self._log_file.write(event.display_message)
 
       # notifies the display that it has new content
 
       if self._filter.match(event.display_message):
-        with self._cond:
-          self._cond.notifyAll()
+        with self._pause_condition:
+          self._pause_condition.notifyAll()
