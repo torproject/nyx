@@ -331,7 +331,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
       line_count = 1 - self._scroll
       seen_first_date_divider = False
-      divider_attr, duplicate_attr = (curses.A_BOLD, 'yellow'), (curses.A_BOLD, 'green')
+      divider_attr = (curses.A_BOLD, 'yellow')
 
       # determines if we have the minimum width to show date dividers
 
@@ -342,15 +342,10 @@ class LogPanel(panel.Panel, threading.Thread):
         entry = event_log[i]
         is_last = i == len(event_log) - 1
 
-        if CONFIG['features.log.showDuplicateEntries']:
-          duplicate_count = 0
-        elif entry.is_duplicate:
-          continue
-        else:
-          duplicate_count = len(entry.duplicates) if entry.duplicates else 0
-
-        if not self._filter.match(entry.display_message):
-          continue  # filter doesn't match log message - skip
+        if entry.is_duplicate and not CONFIG['features.log.showDuplicateEntries']:
+          continue  # deduplicated message
+        elif not self._filter.match(entry.display_message):
+          continue  # filter doesn't match log message
 
         # checks if we should be showing a divider with the date
 
@@ -380,60 +375,13 @@ class LogPanel(panel.Panel, threading.Thread):
           seen_first_date_divider = True
           line_count += 1
 
-        # entry contents to be displayed, tuples of the form:
-        # (msg, formatting, includeLinebreak)
+        line_count_start = line_count
+        line_count = self._draw_entry(msg_indent, line_count, width, entry, height)
 
-        display_queue = []
-
-        msg_comp = entry.display_message.split('\n')
-
-        for i in range(len(msg_comp)):
-          font = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasizes ERR messages
-          display_queue.append((msg_comp[i].strip(), (font, CONFIG['attr.log_color'].get(entry.type, 'white')), i != len(msg_comp) - 1))
-
-        if duplicate_count:
-          plural_label = 's' if duplicate_count > 1 else ''
-          duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural_label)
-          display_queue.append((duplicate_msg, duplicate_attr, False))
-
-        # TODO: a fix made line_offset unused, and probably broke max_entries_per_line... not sure if we care
-
-        cursor_location, line_offset = msg_indent, 0
-        max_entries_per_line = CONFIG['features.log.max_lines_per_entry']
-
-        while display_queue:
-          msg, format, include_break = display_queue.pop(0)
-          draw_line = line_count + line_offset
-
-          if line_offset == max_entries_per_line:
-            break
-
-          max_msg_size = width - cursor_location - 1
-
-          if len(msg) > max_msg_size:
-            # message is too long - break it up
-            if line_offset == max_entries_per_line - 1:
-              msg = str_tools.crop(msg, max_msg_size)
-            else:
-              msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
-              display_queue.insert(0, (remainder.strip(), format, include_break))
-
-            include_break = True
-
-          if draw_line < height and draw_line >= 1:
-            if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
-              self.addch(draw_line, divider_indent, curses.ACS_VLINE, *divider_attr)
-              self.addch(draw_line, width - 1, curses.ACS_VLINE, *divider_attr)
-
-            self.addstr(draw_line, cursor_location, msg, *format)
-
-          cursor_location += len(msg)
-
-          if include_break or not display_queue:
-            line_count += 1
-            cursor_location = msg_indent + 2  # indent following lines
-
-          line_count += line_offset
+        for y in range(line_count_start, line_count):
+          if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
+            self.addch(y, divider_indent, curses.ACS_VLINE, *divider_attr)
+            self.addch(y, width - 1, curses.ACS_VLINE, *divider_attr)
 
         # if this is the last line and there's room, then draw the bottom of the divider
 
@@ -472,6 +420,46 @@ class LogPanel(panel.Panel, threading.Thread):
       if force_redraw:
         log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
         self.redraw(True)
+
+  def _draw_entry(self, x, y, width, entry, height):
+    """
+    Presents a log entry with line wrapping.
+    """
+
+    def draw_line(x, y, width, msg, *attr):
+      msg, remaining_lines = msg.split('\n', 1) if ('\n' in msg) else (msg, '')
+      msg, cropped = str_tools.crop(msg, width - x - 1, min_crop = 4, ending = str_tools.Ending.HYPHEN, get_remainder = True)
+      x = self.addstr(y, x, msg, *attr) if y > 0 else 0  # draw unless it would cover the title
+      return x, (cropped + '\n' + remaining_lines).strip()
+
+    def draw_msg(min_x, x, y, width, msg, *attr):
+      orig_y = y
+
+      while msg:
+        x, msg = draw_line(x, y, width, msg, *attr)
+
+        if (y - orig_y + 1) >= CONFIG['features.log.max_lines_per_entry']:
+          break
+
+        if msg:
+          msg = '  ' + msg  # indent the next line
+          x, y = min_x, y + 1
+
+      return x, y
+
+    min_x, msg = x, entry.display_message
+    boldness = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasize ERR messages
+    color = CONFIG['attr.log_color'].get(entry.type, 'white')
+
+    x, y = draw_msg(min_x, x, y, width, msg, boldness, color)
+
+    if entry.duplicates and not CONFIG['features.log.showDuplicateEntries']:
+      duplicate_count = len(entry.duplicates) - 1
+      plural = 's' if duplicate_count > 1 else ''
+      duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
+      x, y = draw_msg(min_x, x, y, width, duplicate_msg, curses.A_BOLD, 'green')
+
+    return y + 1
 
   def run(self):
     """
