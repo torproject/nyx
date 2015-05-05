@@ -179,7 +179,7 @@ def get_printable(line, keep_newlines = True):
   return line
 
 
-def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):
+def draw_box(panel, top, left, width, height, *attributes):
   """
   Draws a box in the panel with the given bounds.
 
@@ -192,21 +192,30 @@ def draw_box(panel, top, left, width, height, attr=curses.A_NORMAL):
     attr   - text attributes
   """
 
+  format_attr = curses.A_NORMAL
+
+  for attr in attributes:
+    if isinstance(attr, str):
+      format_attr |= get_color(attr)
+    else:
+      format_attr |= attr
+
   # draws the top and bottom
 
-  panel.hline(top, left + 1, width - 2, attr)
-  panel.hline(top + height - 1, left + 1, width - 2, attr)
+  panel.hline(top, left + 1, width - 2, format_attr)
+  panel.hline(top + height - 1, left + 1, width - 2, format_attr)
 
   # draws the left and right sides
 
-  panel.vline(top + 1, left, height - 2, attr)
-  panel.vline(top + 1, left + width - 1, height - 2, attr)
+  panel.vline(top + 1, left, height - 2, format_attr)
+  panel.vline(top + 1, left + width - 1, height - 2, format_attr)
 
   # draws the corners
 
-  panel.addch(top, left, curses.ACS_ULCORNER, attr)
-  panel.addch(top, left + width - 1, curses.ACS_URCORNER, attr)
-  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, attr)
+  panel.addch(top, left, curses.ACS_ULCORNER, format_attr)
+  panel.addch(top, left + width - 1, curses.ACS_URCORNER, format_attr)
+  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, format_attr)
+  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, format_attr)
 
 
 def get_scroll_position(key, position, page_height, content_height, is_cursor = False):

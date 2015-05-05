@@ -300,106 +300,53 @@ class LogPanel(panel.Panel, threading.Thread):
   def draw(self, width, height):
     with self._lock:
       event_log = list(self.get_attr('_logged_events'))
-
-      # draws the top label
-
-      if self.is_title_visible():
-        title_comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
-
-        if self._filter.selection():
-          title_comp.append('filter: %s' % self._filter.selection())
-
-        title_comp_str = join(title_comp, ', ', width - 10)
-        title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
-
-        self.addstr(0, 0, title, curses.A_STANDOUT)
-
-      # restricts scroll location to valid bounds
-
       self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
-      # draws left-hand scroll bar if content's longer than the height
-
-      msg_indent, divider_indent = 1, 0  # offsets for scroll bar
       is_scroll_bar_visible = self._last_content_height > height - 1
 
       if is_scroll_bar_visible:
-        msg_indent, divider_indent = 3, 2
         self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
-      # draws log entries
+      x, y = 3 if is_scroll_bar_visible else 1, 1 - self._scroll
 
-      line_count = 1 - self._scroll
-      seen_first_date_divider = False
-      divider_attr = (curses.A_BOLD, 'yellow')
+      # group entries by date, filtering out those that aren't visible
 
-      # determines if we have the minimum width to show date dividers
+      days_ago_to_entries = {}
 
-      show_daybreaks = width - divider_indent >= 3
-      last_day = event_log[0].days_since() if event_log else 0
-
-      for i in range(len(event_log)):
-        entry = event_log[i]
-        is_last = i == len(event_log) - 1
-
+      for entry in event_log:
         if entry.is_duplicate and not CONFIG['features.log.showDuplicateEntries']:
           continue  # deduplicated message
         elif not self._filter.match(entry.display_message):
           continue  # filter doesn't match log message
 
-        # checks if we should be showing a divider with the date
+        days_ago_to_entries.setdefault(entry.days_since(), []).append(entry)
 
-        if last_day != entry.days_since():
-          # bottom of the divider
+      for days_ago in sorted(days_ago_to_entries.keys()):
+        if days_ago == 0:
+          for entry in days_ago_to_entries[days_ago]:
+            y = self._draw_entry(x, y, width, entry)
+        else:
+          original_y, y = y, y + 1
 
-          if seen_first_date_divider:
-            if line_count >= 1 and line_count < height and show_daybreaks:
-              self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
-              self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
-              self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
+          for entry in days_ago_to_entries[days_ago]:
+            y = self._draw_entry(x, y, width, entry)
 
-            line_count += 1
+          ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, curses.A_BOLD, 'yellow')
+          time_label = time.strftime(' %B %d, %Y ', time.localtime(days_ago_to_entries[days_ago][0].timestamp))
+          self.addstr(original_y, x + 1, time_label, curses.A_BOLD, curses.A_BOLD, 'yellow')
 
-          # top of the divider
+          y += 1
 
-          if line_count >= 1 and line_count < height and show_daybreaks:
-            time_label = time.strftime(' %B %d, %Y ', time.localtime(entry.timestamp))
-            self.addch(line_count, divider_indent, curses.ACS_ULCORNER, *divider_attr)
-            self.addch(line_count, divider_indent + 1, curses.ACS_HLINE, *divider_attr)
-            self.addstr(line_count, divider_indent + 2, time_label, curses.A_BOLD, *divider_attr)
+      # drawing the title after the content, so we'll clear content from the top line
 
-            line_length = width - divider_indent - len(time_label) - 3
-            self.hline(line_count, divider_indent + len(time_label) + 2, line_length, *divider_attr)
-            self.addch(line_count, divider_indent + len(time_label) + 2 + line_length, curses.ACS_URCORNER, *divider_attr)
-
-          seen_first_date_divider = True
-          line_count += 1
-
-        line_count_start = line_count
-        line_count = self._draw_entry(msg_indent, line_count, width, entry, height)
-
-        for y in range(line_count_start, line_count):
-          if seen_first_date_divider and width - divider_indent >= 3 and show_daybreaks:
-            self.addch(y, divider_indent, curses.ACS_VLINE, *divider_attr)
-            self.addch(y, width - 1, curses.ACS_VLINE, *divider_attr)
-
-        # if this is the last line and there's room, then draw the bottom of the divider
-
-        if is_last and seen_first_date_divider:
-          if line_count < height and show_daybreaks:
-            self.addch(line_count, divider_indent, curses.ACS_LLCORNER, *divider_attr)
-            self.hline(line_count, divider_indent + 1, width - divider_indent - 2, *divider_attr)
-            self.addch(line_count, width - 1, curses.ACS_LRCORNER, *divider_attr)
-
-          line_count += 1
-
-        last_day = entry.days_since()
+      if self.is_title_visible():
+        self._draw_title(width)
 
       # redraw the display if...
       # - last_content_height was off by too much
       # - we're off the bottom of the page
 
-      new_content_height = line_count + self._scroll - 1
+      new_content_height = y + self._scroll - 1
       content_height_delta = abs(self._last_content_height - new_content_height)
       force_redraw, force_redraw_reason = True, ''
 
@@ -421,7 +368,23 @@ class LogPanel(panel.Panel, threading.Thread):
         log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
         self.redraw(True)
 
-  def _draw_entry(self, x, y, width, entry, height):
+  def _draw_title(self, width):
+    """
+    Panel title with the event types we're logging and our regex filter if set.
+    """
+
+    self.addstr(0, 0, ' ' * width)  # clear line
+    title_comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
+
+    if self._filter.selection():
+      title_comp.append('filter: %s' % self._filter.selection())
+
+    title_comp_str = join(title_comp, ', ', width - 10)
+    title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
+
+    self.addstr(0, 0, title, curses.A_STANDOUT)
+
+  def _draw_entry(self, x, y, width, entry):
     """
     Presents a log entry with line wrapping.
     """
@@ -429,7 +392,7 @@ class LogPanel(panel.Panel, threading.Thread):
     def draw_line(x, y, width, msg, *attr):
       msg, remaining_lines = msg.split('\n', 1) if ('\n' in msg) else (msg, '')
       msg, cropped = str_tools.crop(msg, width - x - 1, min_crop = 4, ending = str_tools.Ending.HYPHEN, get_remainder = True)
-      x = self.addstr(y, x, msg, *attr) if y > 0 else 0  # draw unless it would cover the title
+      x = self.addstr(y, x, msg, *attr)
       return x, (cropped + '\n' + remaining_lines).strip()
 
     def draw_msg(min_x, x, y, width, msg, *attr):
@@ -439,7 +402,7 @@ class LogPanel(panel.Panel, threading.Thread):
         x, msg = draw_line(x, y, width, msg, *attr)
 
         if (y - orig_y + 1) >= CONFIG['features.log.max_lines_per_entry']:
-          break
+          break  # filled up the maximum number of lines we're allowing for
 
         if msg:
           msg = '  ' + msg  # indent the next line
