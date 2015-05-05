@@ -20,10 +20,9 @@ import nyx.controller
 import nyx.popups
 import nyx.util.tracker
 
-from nyx.util import join, msg, panel, tor_controller
-
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
+from nyx.util import join, msg, panel, tor_controller
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))

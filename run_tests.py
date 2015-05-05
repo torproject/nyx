@@ -13,7 +13,7 @@ import unittest
 import stem.util.conf
 import stem.util.test_tools
 
-from nyx.util import uses_settings
+import nyx.util
 
 NYX_BASE = os.path.dirname(__file__)
 
@@ -25,8 +25,9 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
 )]
 
 
-@uses_settings
+@nyx.util.uses_settings
 def main():
+  nyx.util.TESTING = True
   test_config = stem.util.conf.get_config('test')
   test_config.load(os.path.join(NYX_BASE, 'test', 'settings.cfg'))
 
@@ -57,6 +58,7 @@ def main():
       check_newlines = True,
       check_trailing_whitespace = True,
       check_exception_keyword = True,
+      prefer_single_quotes = True,
     )
 
     for path, issues in pep8_issues.items():
@@ -69,8 +71,8 @@ def main():
     for file_path in static_check_issues:
       print '* %s' % file_path
 
-      for line_number, msg in static_check_issues[file_path]:
-        print '  line %-4s - %s' % (line_number, msg)
+      for issue in static_check_issues[file_path]:
+        print '  line %-4s - %-40s %s' % (issue.line_number, issue.message, issue.line)
 
       print
 

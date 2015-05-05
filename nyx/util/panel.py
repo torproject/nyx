@@ -435,7 +435,7 @@ class Panel(object):
     finally:
       CURSES_LOCK.release()
 
-  def hline(self, y, x, length, attr=curses.A_NORMAL):
+  def hline(self, y, x, length, *attributes):
     """
     Draws a horizontal line. This should only be called from the context of a
     panel's draw method.
@@ -447,15 +447,23 @@ class Panel(object):
       attr   - text attributes
     """
 
+    format_attr = curses.A_NORMAL
+
+    for attr in attributes:
+      if isinstance(attr, str):
+        format_attr |= ui_tools.get_color(attr)
+      else:
+        format_attr |= attr
+
     if self.win and self.max_x > x and self.max_y > y:
       try:
         draw_length = min(length, self.max_x - x)
-        self.win.hline(y, x, curses.ACS_HLINE | attr, draw_length)
+        self.win.hline(y, x, curses.ACS_HLINE | format_attr, draw_length)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
 
-  def vline(self, y, x, length, attr=curses.A_NORMAL):
+  def vline(self, y, x, length, *attributes):
     """
     Draws a vertical line. This should only be called from the context of a
     panel's draw method.
@@ -467,15 +475,23 @@ class Panel(object):
       attr   - text attributes
     """
 
+    format_attr = curses.A_NORMAL
+
+    for attr in attributes:
+      if isinstance(attr, str):
+        format_attr |= ui_tools.get_color(attr)
+      else:
+        format_attr |= attr
+
     if self.win and self.max_x > x and self.max_y > y:
       try:
         draw_length = min(length, self.max_y - y)
-        self.win.vline(y, x, curses.ACS_VLINE | attr, draw_length)
+        self.win.vline(y, x, curses.ACS_VLINE | format_attr, draw_length)
       except:
         # in edge cases drawing could cause a _curses.error
         pass
 
-  def addch(self, y, x, char, attr=curses.A_NORMAL):
+  def addch(self, y, x, char, *attributes):
     """
     Draws a single character. This should only be called from the context of a
     panel's draw method.
@@ -487,9 +503,17 @@ class Panel(object):
       attr - text attributes
     """
 
+    format_attr = curses.A_NORMAL
+
+    for attr in attributes:
+      if isinstance(attr, str):
+        format_attr |= ui_tools.get_color(attr)
+      else:
+        format_attr |= attr
+
     if self.win and self.max_x > x and self.max_y > y:
       try:
-        self.win.addch(y, x, char, attr)
+        self.win.addch(y, x, char, format_attr)
       except:
         # in edge cases drawing could cause a _curses.error
         pass

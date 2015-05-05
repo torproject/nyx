@@ -10,14 +10,13 @@ import time
 import curses
 import threading
 
+import stem
+
 import nyx.controller
 import nyx.popups
 
-import stem
-
 from stem.control import Listener
 from stem.util import conf, log, proc, str_tools, system
-
 from nyx.util import msg, tor_controller, panel, tracker
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns

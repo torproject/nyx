@@ -213,12 +213,14 @@ def make_log_menu(log_panel):
 
   # filter submenu
 
+  log_filter = log_panel.get_filter()
+
   filter_menu = nyx.menu.item.Submenu('Filter')
-  filter_group = nyx.menu.item.SelectionGroup(log_panel.make_filter_selection, log_panel.get_filter())
+  filter_group = nyx.menu.item.SelectionGroup(log_filter.select, log_filter.selection())
 
   filter_menu.add(nyx.menu.item.SelectionMenuItem('None', filter_group, None))
 
-  for option in log_panel.filter_options:
+  for option in log_filter.latest_selections():
     filter_menu.add(nyx.menu.item.SelectionMenuItem(option, filter_group, option))
 
   filter_menu.add(nyx.menu.item.MenuItem('New...', log_panel.show_filter_prompt))

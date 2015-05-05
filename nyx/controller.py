@@ -208,6 +208,7 @@ class Controller:
       page_panels   - list of pages, each being a list of the panels on it
     """
 
+    self.quit_signal = False
     self._screen = stdscr
     self._sticky_panels = sticky_panels
     self._page_panels = page_panels
@@ -465,6 +466,9 @@ class Controller:
 
     return data_dir
 
+  def quit(self):
+    self.quit_signal = True
+
 
 def heartbeat_check(is_unresponsive):
   """
@@ -500,7 +504,9 @@ def conn_reset_listener(controller, event_type, _):
   if resolver.is_alive():
     resolver.set_paused(event_type == State.CLOSED)
 
-    if event_type in (State.INIT, State.RESET):
+    if event_type == State.CLOSED:
+      log.notice('Tor control port closed')
+    elif event_type in (State.INIT, State.RESET):
       # Reload the torrc contents. If the torrc panel is present then it will
       # do this instead since it wants to do validation and redraw _after_ the
       # new contents are loaded.
@@ -556,7 +562,7 @@ def start_nyx(stdscr):
   override_key = None      # uses this rather than waiting on user input
   is_unresponsive = False  # flag for heartbeat responsiveness check
 
-  while True:
+  while not control.quit_signal:
     display_panels = control.get_display_panels()
     is_unresponsive = heartbeat_check(is_unresponsive)
 
