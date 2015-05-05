@@ -59,8 +59,6 @@ features.confirmQuit true
 
 # Paremters for the log panel
 # ---------------------------
-# showDateDividers
-#   show borders with dates for entries from previous days
 # showDuplicateEntries
 #   shows all log entries if true, otherwise collapses similar entries with an
 #   indicator for how much is being hidden
@@ -77,7 +75,6 @@ features.confirmQuit true
 # regex
 #   preconfigured regular expression pattern, up to five will be loaded
 
-features.log.showDateDividers true
 features.log.showDuplicateEntries false
 features.log.maxLinesPerEntry 6
 features.log.prepopulate true

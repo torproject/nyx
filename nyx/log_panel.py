@@ -22,7 +22,7 @@ from nyx.util import join, panel, tor_controller, ui_tools
 
 
 def conf_handler(key, value):
-  if key == 'features.log.max_lines_per_entry':
+  if key == 'features.log.maxLinesPerEntry':
     return max(1, value)
   elif key == 'features.log.prepopulateReadLimit':
     return max(0, value)
@@ -33,10 +33,9 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
-  'features.log_file': '',
-  'features.log.showDateDividers': True,
+  'features.logFile': '',
   'features.log.showDuplicateEntries': False,
-  'features.log.max_lines_per_entry': 6,
+  'features.log.maxLinesPerEntry': 6,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,
@@ -73,8 +72,8 @@ class LogPanel(panel.Panel, threading.Thread):
     self.setDaemon(True)
 
     self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
-    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
-    self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.log_file'])
+    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'])
+    self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.logFile'])
     self._filter = nyx.util.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
 
     self.set_pause_attr('_logged_events')
@@ -200,7 +199,7 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     with self._lock:
-      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = CONFIG['features.log.showDateDividers'])
+      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'])
       self.redraw(True)
 
   def save_snapshot(self, path):
@@ -401,7 +400,7 @@ class LogPanel(panel.Panel, threading.Thread):
       while msg:
         x, msg = draw_line(x, y, width, msg, *attr)
 
-        if (y - orig_y + 1) >= CONFIG['features.log.max_lines_per_entry']:
+        if (y - orig_y + 1) >= CONFIG['features.log.maxLinesPerEntry']:
           break  # filled up the maximum number of lines we're allowing for
 
         if msg:
