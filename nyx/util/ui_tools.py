@@ -179,6 +179,26 @@ def get_printable(line, keep_newlines = True):
   return line
 
 
+def curses_format(*attributes):
+  """
+  Provides the curses integer code for a series of attributes.
+
+  :param list attributes: curses attributes or color names
+
+  :returns: **int** that can be used with curses
+  """
+
+  format_attr = curses.A_NORMAL
+
+  for attr in attributes:
+    if isinstance(attr, str):
+      format_attr |= get_color(attr)
+    else:
+      format_attr |= attr
+
+  return format_attr
+
+
 def draw_box(panel, top, left, width, height, *attributes):
   """
   Draws a box in the panel with the given bounds.
@@ -192,13 +212,7 @@ def draw_box(panel, top, left, width, height, *attributes):
     attr   - text attributes
   """
 
-  format_attr = curses.A_NORMAL
-
-  for attr in attributes:
-    if isinstance(attr, str):
-      format_attr |= get_color(attr)
-    else:
-      format_attr |= attr
+  format_attr = curses_format(*attributes)
 
   # draws the top and bottom
 

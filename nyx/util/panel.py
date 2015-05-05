@@ -447,13 +447,7 @@ class Panel(object):
       attr   - text attributes
     """
 
-    format_attr = curses.A_NORMAL
-
-    for attr in attributes:
-      if isinstance(attr, str):
-        format_attr |= ui_tools.get_color(attr)
-      else:
-        format_attr |= attr
+    format_attr = ui_tools.curses_format(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -475,13 +469,7 @@ class Panel(object):
       attr   - text attributes
     """
 
-    format_attr = curses.A_NORMAL
-
-    for attr in attributes:
-      if isinstance(attr, str):
-        format_attr |= ui_tools.get_color(attr)
-      else:
-        format_attr |= attr
+    format_attr = ui_tools.curses_format(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -503,13 +491,7 @@ class Panel(object):
       attr - text attributes
     """
 
-    format_attr = curses.A_NORMAL
-
-    for attr in attributes:
-      if isinstance(attr, str):
-        format_attr |= ui_tools.get_color(attr)
-      else:
-        format_attr |= attr
+    format_attr = ui_tools.curses_format(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -531,13 +513,7 @@ class Panel(object):
       attr - text attributes
     """
 
-    format_attr = curses.A_NORMAL
-
-    for attr in attributes:
-      if isinstance(attr, str):
-        format_attr |= ui_tools.get_color(attr)
-      else:
-        format_attr |= attr
+    format_attr = ui_tools.curses_format(*attributes)
 
     # subwindows need a single character buffer (either in the x or y
     # direction) from actual content to prevent crash when shrank
