@@ -43,8 +43,6 @@ CONFIG = conf.config_dict('nyx', {
   'attr.log_color': {},
 }, conf_handler)
 
-TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
-
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its
 # position. Letting the estimate be too inaccurate results in a display bug, so
@@ -294,7 +292,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
       # group entries by date, filtering out those that aren't visible
 
-      days_ago_to_entries = {}
+      day_to_entries, today = {}, nyx.util.log.day_count(time.time())
 
       for entry in event_log:
         if entry.is_duplicate and not CONFIG['features.log.showDuplicateEntries']:
@@ -302,20 +300,20 @@ class LogPanel(panel.Panel, threading.Thread):
         elif not self._filter.match(entry.display_message):
           continue  # filter doesn't match log message
 
-        days_ago_to_entries.setdefault(entry.days_since(), []).append(entry)
+        day_to_entries.setdefault(entry.day_count(), []).append(entry)
 
-      for days_ago in sorted(days_ago_to_entries.keys()):
-        if days_ago == 0:
-          for entry in days_ago_to_entries[days_ago]:
+      for day in sorted(day_to_entries.keys(), reverse = True):
+        if day == today:
+          for entry in day_to_entries[day]:
             y = self._draw_entry(x, y, width, entry)
         else:
           original_y, y = y, y + 1
 
-          for entry in days_ago_to_entries[days_ago]:
+          for entry in day_to_entries[day]:
             y = self._draw_entry(x, y, width, entry)
 
           ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, curses.A_BOLD, 'yellow')
-          time_label = time.strftime(' %B %d, %Y ', time.localtime(days_ago_to_entries[days_ago][0].timestamp))
+          time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
           self.addstr(original_y, x + 1, time_label, curses.A_BOLD, curses.A_BOLD, 'yellow')
 
           y += 1
@@ -414,10 +412,10 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
 
-    last_ran, last_day = -1, int((time.time() - TIMEZONE_OFFSET) / 86400)
+    last_ran, last_day = -1, nyx.util.log.day_count(time.time())
 
     while not self._halt:
-      current_day = int((time.time() - TIMEZONE_OFFSET) / 86400)
+      current_day = nyx.util.log.day_count(time.time())
       time_since_reset = time.time() - last_ran
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 

@@ -24,25 +24,21 @@ except ImportError:
   from stem.util.lru_cache import lru_cache
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 CONFIG = stem.util.conf.config_dict('nyx', {'tor.chroot': ''})
 
 
-def days_since(timestamp):
+def day_count(timestamp):
   """
-  Provides the number of days since a given unix timestamp, by local time.
-  Daybreaks are rolled over at midnight. For instance, 5pm today would report
-  zero, and 5pm yesterday would report one.
+  Provoides a unique number for the day a given timestamp falls on, by local
+  time. Daybreaks are rolled over at midnight.
 
-  :param int timestamp: unix timestamp to provide time since
+  :param int timestamp: unix timestamp to provide a count for
 
-  :reutrns: **int** with the number of days since this event
+  :reutrns: **int** for the day it falls on
   """
 
-  # unix timestamp for today at midnight
-
-  midnight = time.mktime(datetime.datetime.today().date().timetuple())
-
-  return int((midnight - timestamp) / 86400)
+  return int((timestamp - TIMEZONE_OFFSET) / 86400)
 
 
 def log_file_path(controller):
@@ -202,10 +198,10 @@ class LogGroup(object):
   def add(self, entry):
     with self._lock:
       duplicate = None
-      our_day = entry.days_since()
+      our_day = entry.day_count()
 
       for existing_entry in self._entries:
-        if self._group_by_day and our_day != existing_entry.days_since():
+        if self._group_by_day and our_day != existing_entry.day_count():
           break
         elif entry.is_duplicate_of(existing_entry):
           duplicate = existing_entry
@@ -298,14 +294,14 @@ class LogEntry(object):
 
     return False
 
-  def days_since(self):
+  def day_count(self):
     """
-    Provides the number of days since this event, by local time.
+    Provides the day this event occured on by local time.
 
-    :reutrns: **int** with the number of days since this event
+    :reutrns: **int** with the day this occured on
     """
 
-    return days_since(self.timestamp)
+    return day_count(self.timestamp)
 
   def __eq__(self, other):
     if isinstance(other, LogEntry):
