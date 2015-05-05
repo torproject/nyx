@@ -24,20 +24,25 @@ except ImportError:
   from stem.util.lru_cache import lru_cache
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
-TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 CONFIG = stem.util.conf.config_dict('nyx', {'tor.chroot': ''})
 
 
 def days_since(timestamp):
   """
   Provides the number of days since a given unix timestamp, by local time.
+  Daybreaks are rolled over at midnight. For instance, 5pm today would report
+  zero, and 5pm yesterday would report one.
 
   :param int timestamp: unix timestamp to provide time since
 
   :reutrns: **int** with the number of days since this event
   """
 
-  return int((timestamp - TIMEZONE_OFFSET) / 86400)
+  # unix timestamp for today at midnight
+
+  midnight = time.mktime(datetime.datetime.today().date().timetuple())
+
+  return int((midnight - timestamp) / 86400)
 
 
 def log_file_path(controller):
