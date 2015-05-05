@@ -9,15 +9,13 @@ import time
 import curses
 import threading
 
-import stem
 import stem.response.events
-
-from stem.util import conf, log, str_tools
 
 import nyx.arguments
 import nyx.popups
 import nyx.util.log
 
+from stem.util import conf, log, str_tools
 from nyx.util import join, panel, tor_controller, ui_tools
 
 
@@ -45,6 +43,8 @@ CONFIG = conf.config_dict('nyx', {
   'attr.log_color': {},
 }, conf_handler)
 
+TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
+
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its
 # position. Letting the estimate be too inaccurate results in a display bug, so
@@ -55,14 +55,14 @@ CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 # Log buffer so we start collecting stem/nyx events when imported. This is used
 # to make our LogPanel when curses initializes.
 
-stem_logger = stem.util.log.get_logger()
+stem_logger = log.get_logger()
 NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
 stem_logger.addHandler(NYX_LOGGER)
 
 
 class LogPanel(panel.Panel, threading.Thread):
   """
-  Listens for and displays tor, nyx, and stem events. This can prepopulate
+  Listens for and displays tor, nyx, and stem events. This prepopulates
   from tor's log file if it exists.
   """
 
@@ -71,19 +71,16 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
+    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
-    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'])
     self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.logFile'])
     self._filter = nyx.util.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
 
     self.set_pause_attr('_logged_events')
 
-    self._last_content_height = 0  # height of the rendered content when last drawn
-    self._scroll = 0
-
     self._halt = False  # terminates thread if true
-    self._pause_condition = threading.Condition()
     self._lock = threading.RLock()
+    self._pause_condition = threading.Condition()
     self._has_new_event = False
 
     # fetches past tor events from log file, if available
@@ -101,24 +98,22 @@ class LogPanel(panel.Panel, threading.Thread):
         except ValueError as exc:
           log.info(str(exc))
 
-    # stop logging to NYX_LOGGER, adding its event backlog and future ones
+    self._last_content_height = len(self._logged_events)  # height of the rendered content when last drawn
+    self._scroll = 0
+
+    # merge NYX_LOGGER into us, and listen for its future events
 
     for event in NYX_LOGGER:
       self._register_nyx_event(event)
 
     NYX_LOGGER.emit = self._register_nyx_event
 
-    # leaving last_content_height as being too low causes initialization problems
-
-    self._last_content_height = len(self._logged_events)
-
   def set_duplicate_visability(self, is_visible):
     """
     Sets if duplicate log entries are collaped or expanded.
 
-    Arguments:
-      is_visible - if true all log entries are shown, otherwise they're
-                   deduplicated
+    :param bool is_visible: if **True** all log entries are shown, otherwise
+      they're deduplicated
     """
 
     nyx_config = conf.get_config('nyx')
@@ -166,10 +161,10 @@ class LogPanel(panel.Panel, threading.Thread):
         user_input = nyx.popups.input_prompt('Events to log: ')
 
         if user_input:
-          user_input = user_input.replace(' ', '')  # strips spaces
-          event_types = nyx.arguments.expand_events(user_input)
-
           try:
+            user_input = user_input.replace(' ', '')  # strip spaces
+            event_types = nyx.arguments.expand_events(user_input)
+
             if event_types != self._logged_event_types:
               with self._lock:
                 self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
@@ -191,7 +186,7 @@ class LogPanel(panel.Panel, threading.Thread):
         self.save_snapshot(path_input)
         nyx.popups.show_msg('Saved: %s' % path_input, 2)
       except IOError as exc:
-        nyx.popups.show_msg('Unable to save snapshot: %s' % exc.strerror, 2)
+        nyx.popups.show_msg('Unable to save snapshot: %s' % exc, 2)
 
   def clear(self):
     """
@@ -199,17 +194,17 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     with self._lock:
-      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'])
+      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
       self.redraw(True)
 
   def save_snapshot(self, path):
     """
     Saves the log events currently being displayed to the given path. This
-    takes filers into account. This overwrites the file if it already exists,
-    and raises an IOError if there's a problem.
+    takes filers into account. This overwrites the file if it already exists.
 
-    Arguments:
-      path - path where to save the log snapshot
+    :param str path: path where to save the log snapshot
+
+    :raises: **IOError** if unsuccessful
     """
 
     path = os.path.abspath(os.path.expanduser(path))
@@ -227,10 +222,8 @@ class LogPanel(panel.Panel, threading.Thread):
     with self._lock:
       with open(path, 'w') as snapshot_file:
         try:
-          for entry in reversed(self._logged_events):
-            is_visible = self._filter.match(entry.display_message)
-
-            if is_visible:
+          for entry in reversed(list(self._logged_events)):
+            if self._filter.match(entry.display_message):
               snapshot_file.write(entry.display_message + '\n')
         except Exception as exc:
           raise IOError("unable to write to '%s': %s" % (path, exc))
@@ -255,19 +248,10 @@ class LogPanel(panel.Panel, threading.Thread):
       if key_press.match('c'):
         self.clear()
     elif key.match('f'):
-      # Provides menu to pick regular expression filters or adding new ones:
-      # for syntax see: http://docs.python.org/library/re.html#regular-expression-syntax
-
-      options = ['None'] + self._filter.latest_selections() + ['New...']
-      old_selection = 0 if not self._filter.selection() else 1
-
-      # does all activity under a curses lock to prevent redraws when adding
-      # new filters
-
       with panel.CURSES_LOCK:
-        selection = nyx.popups.show_menu('Log Filter:', options, old_selection)
-
-        # applies new setting
+        initial_selection = 1 if self._filter.selection() else 0
+        options = ['None'] + self._filter.latest_selections() + ['New...']
+        selection = nyx.popups.show_menu('Log Filter:', options, initial_selection)
 
         if selection == 0:
           self._filter.select(None)
@@ -430,10 +414,10 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
 
-    last_ran, last_day = -1, nyx.util.log.days_since(time.time())
+    last_ran, last_day = -1, int((time.time() - TIMEZONE_OFFSET) / 86400)
 
     while not self._halt:
-      current_day = nyx.util.log.days_since(time.time())
+      current_day = int((time.time() - TIMEZONE_OFFSET) / 86400)
       time_since_reset = time.time() - last_ran
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 
