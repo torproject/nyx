@@ -392,6 +392,13 @@ class LogFilters(object):
     regex_filter = self._past_filters.get(self._selected)
     return not regex_filter or bool(regex_filter.search(message))
 
+  def clone(self):
+    with self._lock:
+      clone = LogFilters(max_filters = self._max_filters)
+      clone._selected = self._selected
+      clone._past_filters = self._past_filters
+      return clone
+
 
 def trace(msg, **attr):
   _log(stem.util.log.TRACE, msg, **attr)

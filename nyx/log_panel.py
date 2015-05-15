@@ -69,15 +69,15 @@ class LogPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
-    self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
+    self._event_log = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
     self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.logFile'])
     self._filter = nyx.util.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
+    self._show_duplicates = CONFIG['features.log.showDuplicateEntries']
 
-    self.set_pause_attr('_logged_events')
+    self.set_pause_attr('_event_log')
 
     self._halt = False  # terminates thread if true
-    self._lock = threading.RLock()
     self._pause_condition = threading.Condition()
     self._has_new_event = False
 
@@ -89,14 +89,14 @@ class LogPanel(panel.Panel, threading.Thread):
       if log_location:
         try:
           for entry in reversed(list(nyx.util.log.read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
-            if entry.type in self._logged_event_types:
-              self._logged_events.add(entry)
+            if entry.type in self._event_types:
+              self._event_log.add(entry)
         except IOError as exc:
           log.info('Unable to read log located at %s: %s' % (log_location, exc))
         except ValueError as exc:
           log.info(str(exc))
 
-    self._last_content_height = len(self._logged_events)  # height of the rendered content when last drawn
+    self._last_content_height = len(self._event_log)  # height of the rendered content when last drawn
     self._scroll = 0
 
     # merge NYX_LOGGER into us, and listen for its future events
@@ -114,8 +114,7 @@ class LogPanel(panel.Panel, threading.Thread):
       they're deduplicated
     """
 
-    nyx_config = conf.get_config('nyx')
-    nyx_config.set('features.log.showDuplicateEntries', str(is_visible))
+    self._show_duplicates = is_visible
 
   def get_filter(self):
     """
@@ -163,10 +162,9 @@ class LogPanel(panel.Panel, threading.Thread):
             user_input = user_input.replace(' ', '')  # strip spaces
             event_types = nyx.arguments.expand_events(user_input)
 
-            if event_types != self._logged_event_types:
-              with self._lock:
-                self._logged_event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
-                self.redraw(True)
+            if event_types != self._event_types:
+              self._event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
+              self.redraw(True)
           except ValueError as exc:
             nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
       finally:
@@ -191,9 +189,8 @@ class LogPanel(panel.Panel, threading.Thread):
     Clears the contents of the event log.
     """
 
-    with self._lock:
-      self._logged_events = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
-      self.redraw(True)
+    self._event_log = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self.redraw(True)
 
   def save_snapshot(self, path):
     """
@@ -217,14 +214,16 @@ class LogPanel(panel.Panel, threading.Thread):
     except OSError as exc:
       raise IOError("unable to make directory '%s'" % base_dir)
 
-    with self._lock:
-      with open(path, 'w') as snapshot_file:
-        try:
-          for entry in reversed(list(self._logged_events)):
-            if self._filter.match(entry.display_message):
-              snapshot_file.write(entry.display_message + '\n')
-        except Exception as exc:
-          raise IOError("unable to write to '%s': %s" % (path, exc))
+    event_log = list(self._event_log)
+    event_filter = self._filter.clone()
+
+    with open(path, 'w') as snapshot_file:
+      try:
+        for entry in reversed(event_log):
+          if event_filter.match(entry.display_message):
+            snapshot_file.write(entry.display_message + '\n')
+      except Exception as exc:
+        raise IOError("unable to write to '%s': %s" % (path, exc))
 
   def handle_key(self, key):
     if key.is_scroll():
@@ -232,13 +231,11 @@ class LogPanel(panel.Panel, threading.Thread):
       new_scroll = ui_tools.get_scroll_position(key, self._scroll, page_height, self._last_content_height)
 
       if self._scroll != new_scroll:
-        with self._lock:
-          self._scroll = new_scroll
-          self.redraw(True)
-    elif key.match('u'):
-      with self._lock:
-        self.set_duplicate_visability(not CONFIG['features.log.showDuplicateEntries'])
+        self._scroll = new_scroll
         self.redraw(True)
+    elif key.match('u'):
+      self.set_duplicate_visability(not self._show_duplicates)
+      self.redraw(True)
     elif key.match('c'):
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
       key_press = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
@@ -274,98 +271,103 @@ class LogPanel(panel.Panel, threading.Thread):
       ('a', 'save snapshot of the log', None),
       ('e', 'change logged events', None),
       ('f', 'log regex filter', 'enabled' if self._filter.selection() else 'disabled'),
-      ('u', 'duplicate log entries', 'visible' if CONFIG['features.log.showDuplicateEntries'] else 'hidden'),
+      ('u', 'duplicate log entries', 'visible' if self._show_duplicates else 'hidden'),
       ('c', 'clear event log', None),
     ]
 
   def draw(self, width, height):
-    with self._lock:
-      event_log = list(self.get_attr('_logged_events'))
-      self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
+    self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
-      is_scroll_bar_visible = self._last_content_height > height - 1
+    event_log = list(self.get_attr('_event_log'))
+    event_filter = self._filter.clone()
+    event_types = list(self._event_types)
+    scroll = int(self._scroll)
+    last_content_height = int(self._last_content_height)
+    show_duplicates = self._show_duplicates
 
-      if is_scroll_bar_visible:
-        self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
+    is_scroll_bar_visible = last_content_height > height - 1
 
-      x, y = 3 if is_scroll_bar_visible else 1, 1 - self._scroll
+    if is_scroll_bar_visible:
+      self.add_scroll_bar(scroll, scroll + height - 1, last_content_height, 1)
 
-      # group entries by date, filtering out those that aren't visible
+    x, y = 3 if is_scroll_bar_visible else 1, 1 - scroll
 
-      day_to_entries, today = {}, nyx.util.log.day_count(time.time())
+    # group entries by date, filtering out those that aren't visible
 
-      for entry in event_log:
-        if entry.is_duplicate and not CONFIG['features.log.showDuplicateEntries']:
-          continue  # deduplicated message
-        elif not self._filter.match(entry.display_message):
-          continue  # filter doesn't match log message
+    day_to_entries, today = {}, nyx.util.log.day_count(time.time())
 
-        day_to_entries.setdefault(entry.day_count(), []).append(entry)
+    for entry in event_log:
+      if entry.is_duplicate and not show_duplicates:
+        continue  # deduplicated message
+      elif not event_filter.match(entry.display_message):
+        continue  # filter doesn't match log message
 
-      for day in sorted(day_to_entries.keys(), reverse = True):
-        if day == today:
-          for entry in day_to_entries[day]:
-            y = self._draw_entry(x, y, width, entry)
-        else:
-          original_y, y = y, y + 1
+      day_to_entries.setdefault(entry.day_count(), []).append(entry)
 
-          for entry in day_to_entries[day]:
-            y = self._draw_entry(x, y, width, entry)
-
-          ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, curses.A_BOLD, 'yellow')
-          time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
-          self.addstr(original_y, x + 1, time_label, curses.A_BOLD, curses.A_BOLD, 'yellow')
-
-          y += 1
-
-      # drawing the title after the content, so we'll clear content from the top line
-
-      if self.is_title_visible():
-        self._draw_title(width)
-
-      # redraw the display if...
-      # - last_content_height was off by too much
-      # - we're off the bottom of the page
-
-      new_content_height = y + self._scroll - 1
-      content_height_delta = abs(self._last_content_height - new_content_height)
-      force_redraw, force_redraw_reason = True, ''
-
-      if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
-        force_redraw_reason = 'estimate was off by %i' % content_height_delta
-      elif new_content_height > height and self._scroll + height - 1 > new_content_height:
-        force_redraw_reason = 'scrolled off the bottom of the page'
-      elif not is_scroll_bar_visible and new_content_height > height - 1:
-        force_redraw_reason = "scroll bar wasn't previously visible"
-      elif is_scroll_bar_visible and new_content_height <= height - 1:
-        force_redraw_reason = "scroll bar shouldn't be visible"
+    for day in sorted(day_to_entries.keys(), reverse = True):
+      if day == today:
+        for entry in day_to_entries[day]:
+          y = self._draw_entry(x, y, width, entry, show_duplicates)
       else:
-        force_redraw = False
+        original_y, y = y, y + 1
 
-      self._last_content_height = new_content_height
-      self._has_new_event = False
+        for entry in day_to_entries[day]:
+          y = self._draw_entry(x, y, width, entry, show_duplicates)
 
-      if force_redraw:
-        log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
-        self.redraw(True)
+        ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, curses.A_BOLD, 'yellow')
+        time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
+        self.addstr(original_y, x + 1, time_label, curses.A_BOLD, curses.A_BOLD, 'yellow')
 
-  def _draw_title(self, width):
+        y += 1
+
+    # drawing the title after the content, so we'll clear content from the top line
+
+    if self.is_title_visible():
+      self._draw_title(width, event_types, event_filter)
+
+    # redraw the display if...
+    # - last_content_height was off by too much
+    # - we're off the bottom of the page
+
+    new_content_height = y + scroll - 1
+    content_height_delta = abs(last_content_height - new_content_height)
+    force_redraw, force_redraw_reason = True, ''
+
+    if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
+      force_redraw_reason = 'estimate was off by %i' % content_height_delta
+    elif new_content_height > height and self._scroll + height - 1 > new_content_height:
+      force_redraw_reason = 'scrolled off the bottom of the page'
+    elif not is_scroll_bar_visible and new_content_height > height - 1:
+      force_redraw_reason = "scroll bar wasn't previously visible"
+    elif is_scroll_bar_visible and new_content_height <= height - 1:
+      force_redraw_reason = "scroll bar shouldn't be visible"
+    else:
+      force_redraw = False
+
+    self._last_content_height = new_content_height
+    self._has_new_event = False
+
+    if force_redraw:
+      log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
+      self.redraw(True)
+
+  def _draw_title(self, width, event_types, event_filter):
     """
     Panel title with the event types we're logging and our regex filter if set.
     """
 
     self.addstr(0, 0, ' ' * width)  # clear line
-    title_comp = list(nyx.util.log.condense_runlevels(*self._logged_event_types))
+    title_comp = list(nyx.util.log.condense_runlevels(*event_types))
 
-    if self._filter.selection():
-      title_comp.append('filter: %s' % self._filter.selection())
+    if event_filter.selection():
+      title_comp.append('filter: %s' % event_filter.selection())
 
     title_comp_str = join(title_comp, ', ', width - 10)
     title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
 
     self.addstr(0, 0, title, curses.A_STANDOUT)
 
-  def _draw_entry(self, x, y, width, entry):
+  def _draw_entry(self, x, y, width, entry, show_duplicates):
     """
     Presents a log entry with line wrapping.
     """
@@ -397,7 +399,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     x, y = draw_msg(min_x, x, y, width, msg, boldness, color)
 
-    if entry.duplicates and not CONFIG['features.log.showDuplicateEntries']:
+    if entry.duplicates and not show_duplicates:
       duplicate_count = len(entry.duplicates) - 1
       plural = 's' if duplicate_count > 1 else ''
       duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
@@ -462,17 +464,16 @@ class LogPanel(panel.Panel, threading.Thread):
     self._register_event(nyx.util.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):
-    if event.type not in self._logged_event_types:
+    if event.type not in self._event_types:
       return
 
-    with self._lock:
-      self._logged_events.add(event)
-      self._log_file.write(event.display_message)
+    self._event_log.add(event)
+    self._log_file.write(event.display_message)
 
-      # notifies the display that it has new content
+    # notifies the display that it has new content
 
-      if self._filter.match(event.display_message):
-        self._has_new_event = True
+    if self._filter.match(event.display_message):
+      self._has_new_event = True
 
-        with self._pause_condition:
-          self._pause_condition.notifyAll()
+      with self._pause_condition:
+        self._pause_condition.notifyAll()
