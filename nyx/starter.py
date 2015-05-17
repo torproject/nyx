@@ -174,13 +174,10 @@ def _warn_if_root(controller):
   Give a notice if tor or nyx are running with root.
   """
 
-  tor_user = controller.get_user(None)
-
-  if tor_user == 'root':
+  if controller.get_user(None) == 'root':
     log.notice('setup.tor_is_running_as_root')
   elif os.getuid() == 0:
-    tor_user = tor_user if tor_user else '<tor user>'
-    log.notice('setup.nyx_is_running_as_root', tor_user = tor_user)
+    log.notice('setup.nyx_is_running_as_root')
 
 
 def _warn_if_unable_to_get_pid(controller):
