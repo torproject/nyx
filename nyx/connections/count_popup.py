@@ -28,84 +28,80 @@ def showCountDialog(count_type, counts):
   no_stats_msg = "Usage stats aren't available yet, press any key..."
 
   if is_no_stats:
-    popup, width, height = nyx.popups.init(3, len(no_stats_msg) + 4)
+    height, width = 3, len(no_stats_msg) + 4
   else:
-    popup, width, height = nyx.popups.init(4 + max(1, len(counts)), 80)
+    height, width = 4 + max(1, len(counts)), 80
 
-  if not popup:
-    return
+  with nyx.popups.popup_window(height, width) as (popup, height, width):
+    if popup:
+      control = nyx.controller.get_controller()
 
-  try:
-    control = nyx.controller.get_controller()
+      popup.win.box()
 
-    popup.win.box()
+      # dialog title
 
-    # dialog title
+      if count_type == CountType.CLIENT_LOCALE:
+        title = 'Client Locales'
+      elif count_type == CountType.EXIT_PORT:
+        title = 'Exiting Port Usage'
+      else:
+        title = ''
+        log.warn('Unrecognized count type: %s' % count_type)
 
-    if count_type == CountType.CLIENT_LOCALE:
-      title = 'Client Locales'
-    elif count_type == CountType.EXIT_PORT:
-      title = 'Exiting Port Usage'
-    else:
-      title = ''
-      log.warn('Unrecognized count type: %s' % count_type)
+      popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-    popup.addstr(0, 0, title, curses.A_STANDOUT)
+      if is_no_stats:
+        popup.addstr(1, 2, no_stats_msg, curses.A_BOLD, 'cyan')
+      else:
+        sorted_counts = sorted(counts.iteritems(), key=operator.itemgetter(1))
+        sorted_counts.reverse()
 
-    if is_no_stats:
-      popup.addstr(1, 2, no_stats_msg, curses.A_BOLD, 'cyan')
-    else:
-      sorted_counts = sorted(counts.iteritems(), key=operator.itemgetter(1))
-      sorted_counts.reverse()
+        # constructs string formatting for the max key and value display width
 
-      # constructs string formatting for the max key and value display width
+        key_width, val_width, value_total = 3, 1, 0
 
-      key_width, val_width, value_total = 3, 1, 0
+        for k, v in sorted_counts:
+          key_width = max(key_width, len(k))
+          val_width = max(val_width, len(str(v)))
+          value_total += v
 
-      for k, v in sorted_counts:
-        key_width = max(key_width, len(k))
-        val_width = max(val_width, len(str(v)))
-        value_total += v
-
-      # extra space since we're adding usage informaion
-
-      if count_type == CountType.EXIT_PORT:
-        key_width += EXIT_USAGE_WIDTH
-
-      label_format = '%%-%is %%%ii (%%%%%%-2i)' % (key_width, val_width)
-
-      for i in range(height - 4):
-        k, v = sorted_counts[i]
-
-        # includes a port usage column
+        # extra space since we're adding usage informaion
 
         if count_type == CountType.EXIT_PORT:
-          usage = connection.port_usage(k)
+          key_width += EXIT_USAGE_WIDTH
 
-          if usage:
-            key_format = '%%-%is   %%s' % (key_width - EXIT_USAGE_WIDTH)
-            k = key_format % (k, usage[:EXIT_USAGE_WIDTH - 3])
+        label_format = '%%-%is %%%ii (%%%%%%-2i)' % (key_width, val_width)
 
-        label = label_format % (k, v, v * 100 / value_total)
-        popup.addstr(i + 1, 2, label, curses.A_BOLD, 'green')
+        for i in range(height - 4):
+          k, v = sorted_counts[i]
 
-        # All labels have the same size since they're based on the max widths.
-        # If this changes then this'll need to be the max label width.
+          # includes a port usage column
 
-        label_width = len(label)
+          if count_type == CountType.EXIT_PORT:
+            usage = connection.port_usage(k)
 
-        # draws simple bar graph for percentages
+            if usage:
+              key_format = '%%-%is   %%s' % (key_width - EXIT_USAGE_WIDTH)
+              k = key_format % (k, usage[:EXIT_USAGE_WIDTH - 3])
 
-        fill_width = v * (width - 4 - label_width) / value_total
+          label = label_format % (k, v, v * 100 / value_total)
+          popup.addstr(i + 1, 2, label, curses.A_BOLD, 'green')
 
-        for j in range(fill_width):
-          popup.addstr(i + 1, 3 + label_width + j, ' ', curses.A_STANDOUT, 'red')
+          # All labels have the same size since they're based on the max widths.
+          # If this changes then this'll need to be the max label width.
 
-      popup.addstr(height - 2, 2, 'Press any key...')
+          label_width = len(label)
 
-    popup.win.refresh()
+          # draws simple bar graph for percentages
 
-    curses.cbreak()
-    control.key_input()
-  finally:
-    nyx.popups.finalize()
+          fill_width = v * (width - 4 - label_width) / value_total
+
+          for j in range(fill_width):
+            popup.addstr(i + 1, 3 + label_width + j, ' ', curses.A_STANDOUT, 'red')
+
+        popup.addstr(height - 2, 2, 'Press any key...')
+
+      popup.win.refresh()
+
+      curses.cbreak()
+      control.key_input()

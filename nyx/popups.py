@@ -10,52 +10,55 @@ from nyx import __version__, __release_date__
 from nyx.util import panel, ui_tools
 
 
-def init(height = -1, width = -1, top = 0, left = 0, below_static = True):
+def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True):
   """
-  Preparation for displaying a popup. This creates a popup with a valid
-  subwindow instance. If that's successful then the curses lock is acquired
-  and this returns a tuple of the...
-  (popup, draw width, draw height)
-  Otherwise this leaves curses unlocked and returns None.
+  Provides a popup dialog you can use in a 'with' block...
 
-  Arguments:
-    height      - maximum height of the popup
-    width       - maximum width of the popup
-    top         - top position, relative to the sticky content
-    left        - left position from the screen
-    below_static - positions popup below static content if true
-  """
+    with popup_window(5, 10) as (popup, width, height):
+      if popup:
+        ... do stuff...
 
-  control = nyx.controller.get_controller()
+  This popup has a lock on the curses interface for the duration of the block,
+  preventing other draw operations from taking place. If the popup isn't
+  visible then the popup it returns will be **None**.
 
-  if below_static:
-    sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
-  else:
-    sticky_height = 0
+  :param int height: maximum height of the popup
+  :param int width: maximum width of the popup
+  :param int top: top position, relative to the sticky content
+  :param int left: left position from the screen
+  :param bool below_static: positions popup below static content if True
 
-  popup = panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
-  popup.set_visible(True)
-
-  # Redraws the popup to prepare a subwindow instance. If none is spawned then
-  # the panel can't be drawn (for instance, due to not being visible).
-
-  popup.redraw(True)
-
-  if popup.win is not None:
-    panel.CURSES_LOCK.acquire()
-    return (popup, popup.max_x - 1, popup.max_y)
-  else:
-    return (None, 0, 0)
-
-
-def finalize():
-  """
-  Cleans up after displaying a popup, releasing the cureses lock and redrawing
-  the rest of the display.
+  :returns: tuple of the form (subwindow, width, height) when used in a with block
   """
 
-  nyx.controller.get_controller().request_redraw()
-  panel.CURSES_LOCK.release()
+  class _Popup(object):
+    def __enter__(self):
+      control = nyx.controller.get_controller()
+
+      if below_static:
+        sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
+      else:
+        sticky_height = 0
+
+      popup = panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
+      popup.set_visible(True)
+
+      # Redraws the popup to prepare a subwindow instance. If none is spawned then
+      # the panel can't be drawn (for instance, due to not being visible).
+
+      popup.redraw(True)
+
+      if popup.win is not None:
+        panel.CURSES_LOCK.acquire()
+        return (popup, popup.max_x - 1, popup.max_y)
+      else:
+        return (None, 0, 0)
+
+    def __exit__(self, exit_type, value, traceback):
+      nyx.controller.get_controller().request_redraw()
+      panel.CURSES_LOCK.release()
+
+  return _Popup()
 
 
 def input_prompt(msg, initial_value = ''):
@@ -112,68 +115,61 @@ def show_help_popup():
   properly, this is an arrow, enter, or scroll key then this returns None.
   """
 
-  popup, _, height = init(9, 80)
+  with popup_window(9, 80) as (popup, _, height):
+    if popup:
+      exit_key = None
+      control = nyx.controller.get_controller()
+      page_panels = control.get_display_panels()
 
-  if not popup:
-    return
+      # the first page is the only one with multiple panels, and it looks better
+      # with the log entries first, so reversing the order
 
-  exit_key = None
+      page_panels.reverse()
 
-  try:
-    control = nyx.controller.get_controller()
-    page_panels = control.get_display_panels()
+      help_options = []
 
-    # the first page is the only one with multiple panels, and it looks better
-    # with the log entries first, so reversing the order
+      for entry in page_panels:
+        help_options += entry.get_help()
 
-    page_panels.reverse()
+      # test doing afterward in case of overwriting
 
-    help_options = []
+      popup.win.box()
+      popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), curses.A_STANDOUT)
 
-    for entry in page_panels:
-      help_options += entry.get_help()
+      for i in range(len(help_options)):
+        if i / 2 >= height - 2:
+          break
 
-    # test doing afterward in case of overwriting
+        # draws entries in the form '<key>: <description>[ (<selection>)]', for
+        # instance...
+        # u: duplicate log entries (hidden)
 
-    popup.win.box()
-    popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), curses.A_STANDOUT)
+        key, description, selection = help_options[i]
 
-    for i in range(len(help_options)):
-      if i / 2 >= height - 2:
-        break
+        if key:
+          description = ': ' + description
 
-      # draws entries in the form '<key>: <description>[ (<selection>)]', for
-      # instance...
-      # u: duplicate log entries (hidden)
+        row = (i / 2) + 1
+        col = 2 if i % 2 == 0 else 41
 
-      key, description, selection = help_options[i]
+        popup.addstr(row, col, key, curses.A_BOLD)
+        col += len(key)
+        popup.addstr(row, col, description)
+        col += len(description)
 
-      if key:
-        description = ': ' + description
+        if selection:
+          popup.addstr(row, col, ' (')
+          popup.addstr(row, col + 2, selection, curses.A_BOLD)
+          popup.addstr(row, col + 2 + len(selection), ')')
 
-      row = (i / 2) + 1
-      col = 2 if i % 2 == 0 else 41
+      # tells user to press a key if the lower left is unoccupied
 
-      popup.addstr(row, col, key, curses.A_BOLD)
-      col += len(key)
-      popup.addstr(row, col, description)
-      col += len(description)
+      if len(help_options) < 13 and height == 9:
+        popup.addstr(7, 2, 'Press any key...')
 
-      if selection:
-        popup.addstr(row, col, ' (')
-        popup.addstr(row, col + 2, selection, curses.A_BOLD)
-        popup.addstr(row, col + 2 + len(selection), ')')
-
-    # tells user to press a key if the lower left is unoccupied
-
-    if len(help_options) < 13 and height == 9:
-      popup.addstr(7, 2, 'Press any key...')
-
-    popup.win.refresh()
-    curses.cbreak()
-    exit_key = control.key_input()
-  finally:
-    finalize()
+      popup.win.refresh()
+      curses.cbreak()
+      exit_key = control.key_input()
 
   if not exit_key.is_selection() and not exit_key.is_scroll() and \
     not exit_key.match('left', 'right'):
@@ -187,27 +183,21 @@ def show_about_popup():
   Presents a popup with author and version information.
   """
 
-  popup, _, height = init(9, 80)
+  with popup_window(9, 80) as (popup, _, height):
+    if popup:
+      control = nyx.controller.get_controller()
 
-  if not popup:
-    return
+      popup.win.box()
+      popup.addstr(0, 0, 'About:', curses.A_STANDOUT)
+      popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), curses.A_BOLD)
+      popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
+      popup.addstr(3, 4, 'Project page: www.atagar.com/nyx')
+      popup.addstr(5, 2, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
+      popup.addstr(7, 2, 'Press any key...')
+      popup.win.refresh()
 
-  try:
-    control = nyx.controller.get_controller()
-
-    popup.win.box()
-    popup.addstr(0, 0, 'About:', curses.A_STANDOUT)
-    popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), curses.A_BOLD)
-    popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
-    popup.addstr(3, 4, 'Project page: www.atagar.com/nyx')
-    popup.addstr(5, 2, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
-    popup.addstr(7, 2, 'Press any key...')
-    popup.win.refresh()
-
-    curses.cbreak()
-    control.key_input()
-  finally:
-    finalize()
+      curses.cbreak()
+      control.key_input()
 
 
 def show_sort_dialog(title, options, old_selection, option_colors):
@@ -230,66 +220,59 @@ def show_sort_dialog(title, options, old_selection, option_colors):
     option_colors - mappings of options to their color
   """
 
-  popup, _, _ = init(9, 80)
+  with popup_window(9, 80) as (popup, _, _):
+    if popup:
+      new_selections = []  # new ordering
+      cursor_location = 0     # index of highlighted option
+      curses.cbreak()         # wait indefinitely for key presses (no timeout)
 
-  if not popup:
-    return
+      selection_options = list(options)
+      selection_options.append('Cancel')
 
-  new_selections = []  # new ordering
+      while len(new_selections) < len(old_selection):
+        popup.win.erase()
+        popup.win.box()
+        popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-  try:
-    cursor_location = 0     # index of highlighted option
-    curses.cbreak()         # wait indefinitely for key presses (no timeout)
+        _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
+        _draw_sort_selection(popup, 2, 2, 'New Order: ', new_selections, option_colors)
 
-    selection_options = list(options)
-    selection_options.append('Cancel')
+        # presents remaining options, each row having up to four options with
+        # spacing of nineteen cells
 
-    while len(new_selections) < len(old_selection):
-      popup.win.erase()
-      popup.win.box()
-      popup.addstr(0, 0, title, curses.A_STANDOUT)
+        row, col = 4, 0
 
-      _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
-      _draw_sort_selection(popup, 2, 2, 'New Order: ', new_selections, option_colors)
+        for i in range(len(selection_options)):
+          option_format = curses.A_STANDOUT if cursor_location == i else curses.A_NORMAL
+          popup.addstr(row, col * 19 + 2, selection_options[i], option_format)
+          col += 1
 
-      # presents remaining options, each row having up to four options with
-      # spacing of nineteen cells
+          if col == 4:
+            row, col = row + 1, 0
 
-      row, col = 4, 0
+        popup.win.refresh()
 
-      for i in range(len(selection_options)):
-        option_format = curses.A_STANDOUT if cursor_location == i else curses.A_NORMAL
-        popup.addstr(row, col * 19 + 2, selection_options[i], option_format)
-        col += 1
+        key = nyx.controller.get_controller().key_input()
 
-        if col == 4:
-          row, col = row + 1, 0
+        if key.match('left'):
+          cursor_location = max(0, cursor_location - 1)
+        elif key.match('right'):
+          cursor_location = min(len(selection_options) - 1, cursor_location + 1)
+        elif key.match('up'):
+          cursor_location = max(0, cursor_location - 4)
+        elif key.match('down'):
+          cursor_location = min(len(selection_options) - 1, cursor_location + 4)
+        elif key.is_selection():
+          selection = selection_options[cursor_location]
 
-      popup.win.refresh()
-
-      key = nyx.controller.get_controller().key_input()
-
-      if key.match('left'):
-        cursor_location = max(0, cursor_location - 1)
-      elif key.match('right'):
-        cursor_location = min(len(selection_options) - 1, cursor_location + 1)
-      elif key.match('up'):
-        cursor_location = max(0, cursor_location - 4)
-      elif key.match('down'):
-        cursor_location = min(len(selection_options) - 1, cursor_location + 4)
-      elif key.is_selection():
-        selection = selection_options[cursor_location]
-
-        if selection == 'Cancel':
-          break
-        else:
-          new_selections.append(selection)
-          selection_options.remove(selection)
-          cursor_location = min(cursor_location, len(selection_options) - 1)
-      elif key == 27:
-        break  # esc - cancel
-  finally:
-    finalize()
+          if selection == 'Cancel':
+            break
+          else:
+            new_selections.append(selection)
+            selection_options.remove(selection)
+            cursor_location = min(cursor_location, len(selection_options) - 1)
+        elif key == 27:
+          break  # esc - cancel
 
   if len(new_selections) == len(old_selection):
     return new_selections
@@ -343,50 +326,45 @@ def show_menu(title, options, old_selection):
   """
 
   max_width = max(map(len, options)) + 9
-  popup, _, _ = init(len(options) + 2, max_width)
 
-  if not popup:
-    return
+  with popup_window(len(options) + 2, max_width) as (popup, _, _):
+    if popup:
+      selection = old_selection if old_selection != -1 else 0
 
-  selection = old_selection if old_selection != -1 else 0
+      # hides the title of the first panel on the page
 
-  try:
-    # hides the title of the first panel on the page
+      control = nyx.controller.get_controller()
+      top_panel = control.get_display_panels(include_sticky = False)[0]
+      top_panel.set_title_visible(False)
+      top_panel.redraw(True)
 
-    control = nyx.controller.get_controller()
-    top_panel = control.get_display_panels(include_sticky = False)[0]
-    top_panel.set_title_visible(False)
-    top_panel.redraw(True)
+      curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
-    curses.cbreak()   # wait indefinitely for key presses (no timeout)
+      while True:
+        popup.win.erase()
+        popup.win.box()
+        popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-    while True:
-      popup.win.erase()
-      popup.win.box()
-      popup.addstr(0, 0, title, curses.A_STANDOUT)
+        for i in range(len(options)):
+          label = options[i]
+          format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+          tab = '> ' if i == old_selection else '  '
+          popup.addstr(i + 1, 2, tab)
+          popup.addstr(i + 1, 4, ' %s ' % label, format)
 
-      for i in range(len(options)):
-        label = options[i]
-        format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-        tab = '> ' if i == old_selection else '  '
-        popup.addstr(i + 1, 2, tab)
-        popup.addstr(i + 1, 4, ' %s ' % label, format)
+        popup.win.refresh()
 
-      popup.win.refresh()
+        key = control.key_input()
 
-      key = control.key_input()
+        if key.match('up'):
+          selection = max(0, selection - 1)
+        elif key.match('down'):
+          selection = min(len(options) - 1, selection + 1)
+        elif key.is_selection():
+          break
+        elif key.match('esc'):
+          selection = -1
+          break
 
-      if key.match('up'):
-        selection = max(0, selection - 1)
-      elif key.match('down'):
-        selection = min(len(options) - 1, selection + 1)
-      elif key.is_selection():
-        break
-      elif key.match('esc'):
-        selection = -1
-        break
-  finally:
-    top_panel.set_title_visible(True)
-    finalize()
-
+  top_panel.set_title_visible(True)
   return selection

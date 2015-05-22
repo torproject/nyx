@@ -66,43 +66,37 @@ def show_descriptor_popup(conn_panel):
 
       popup_height, popup_width = get_preferred_size(display_text, conn_panel.max_x, show_line_number)
 
-      popup, _, height = nyx.popups.init(popup_height, popup_width)
+      with nyx.popups.popup_window(popup_height, popup_width) as (popup, _, height):
+        if popup:
+          scroll, is_changed = 0, True
 
-      if not popup:
-        break
+          while not is_done:
+            if is_changed:
+              draw(popup, fingerprint, display_text, display_color, scroll, show_line_number)
+              is_changed = False
 
-      scroll, is_changed = 0, True
+            key = control.key_input()
 
-      try:
-        while not is_done:
-          if is_changed:
-            draw(popup, fingerprint, display_text, display_color, scroll, show_line_number)
-            is_changed = False
+            if key.is_scroll():
+              # TODO: This is a bit buggy in that scrolling is by display_text
+              # lines rather than the displayed lines, causing issues when
+              # content wraps. The result is that we can't have a scrollbar and
+              # can't scroll to the bottom if there's a multi-line being
+              # displayed. However, trying to correct this introduces a big can
+              # of worms and after hours decided that this isn't worth the
+              # effort...
 
-          key = control.key_input()
+              new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(display_text))
 
-          if key.is_scroll():
-            # TODO: This is a bit buggy in that scrolling is by display_text
-            # lines rather than the displayed lines, causing issues when
-            # content wraps. The result is that we can't have a scrollbar and
-            # can't scroll to the bottom if there's a multi-line being
-            # displayed. However, trying to correct this introduces a big can
-            # of worms and after hours decided that this isn't worth the
-            # effort...
+              if scroll != new_scroll:
+                scroll, is_changed = new_scroll, True
+            elif key.is_selection() or key.match('d'):
+              is_done = True  # closes popup
+            elif key.match('left', 'right'):
+              # navigation - pass on to conn_panel and recreate popup
 
-            new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(display_text))
-
-            if scroll != new_scroll:
-              scroll, is_changed = new_scroll, True
-          elif key.is_selection() or key.match('d'):
-            is_done = True  # closes popup
-          elif key.match('left', 'right'):
-            # navigation - pass on to conn_panel and recreate popup
-
-            conn_panel.handle_key(panel.KeyInput(curses.KEY_UP) if key.match('left') else panel.KeyInput(curses.KEY_DOWN))
-            break
-      finally:
-        nyx.popups.finalize()
+              conn_panel.handle_key(panel.KeyInput(curses.KEY_UP) if key.match('left') else panel.KeyInput(curses.KEY_DOWN))
+              break
   finally:
     conn_panel.set_title_visible(True)
     conn_panel.redraw(True)

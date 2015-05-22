@@ -140,10 +140,8 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # allow user to enter new types of events to log - unchanged if left blank
 
-    popup, width, height = nyx.popups.init(11, 80)
-
-    if popup:
-      try:
+    with nyx.popups.popup_window(11, 80) as (popup, width, height):
+      if popup:
         # displays the available flags
 
         popup.win.box()
@@ -167,8 +165,6 @@ class LogPanel(panel.Panel, threading.Thread):
               self.redraw(True)
           except ValueError as exc:
             nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
-      finally:
-        nyx.popups.finalize()
 
   def show_snapshot_prompt(self):
     """

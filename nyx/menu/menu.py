@@ -76,64 +76,59 @@ class MenuCursor:
 
 
 def show_menu():
-  popup, _, _ = nyx.popups.init(1, below_static = False)
+  with nyx.popups.popup_window(1, below_static = False) as (popup, width, height):
+    if popup:
+      control = nyx.controller.get_controller()
 
-  if not popup:
-    return
+      # generates the menu and uses the initial selection of the first item in
+      # the file menu
 
-  control = nyx.controller.get_controller()
+      menu = nyx.menu.actions.make_menu()
+      cursor = MenuCursor(menu.get_children()[0].get_children()[0])
 
-  try:
-    # generates the menu and uses the initial selection of the first item in
-    # the file menu
+      while not cursor.is_done():
+        # sets the background color
 
-    menu = nyx.menu.actions.make_menu()
-    cursor = MenuCursor(menu.get_children()[0].get_children()[0])
+        popup.win.clear()
+        popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
+        selection_hierarchy = cursor.get_selection().get_hierarchy()
 
-    while not cursor.is_done():
-      # sets the background color
+        # provide a message saying how to close the menu
 
-      popup.win.clear()
-      popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
-      selection_hierarchy = cursor.get_selection().get_hierarchy()
+        control.set_msg('Press m or esc to close the menu.', curses.A_BOLD, True)
 
-      # provide a message saying how to close the menu
+        # renders the menu bar, noting where the open submenu is positioned
 
-      control.set_msg('Press m or esc to close the menu.', curses.A_BOLD, True)
+        draw_left, selection_left = 0, 0
 
-      # renders the menu bar, noting where the open submenu is positioned
+        for top_level_item in menu.get_children():
+          draw_format = curses.A_BOLD
 
-      draw_left, selection_left = 0, 0
+          if top_level_item == selection_hierarchy[1]:
+            draw_format |= curses.A_UNDERLINE
+            selection_left = draw_left
 
-      for top_level_item in menu.get_children():
-        draw_format = curses.A_BOLD
+          draw_label = ' %s ' % top_level_item.get_label()[1]
+          popup.addstr(0, draw_left, draw_label, draw_format)
+          popup.addch(0, draw_left + len(draw_label), curses.ACS_VLINE)
 
-        if top_level_item == selection_hierarchy[1]:
-          draw_format |= curses.A_UNDERLINE
-          selection_left = draw_left
+          draw_left += len(draw_label) + 1
 
-        draw_label = ' %s ' % top_level_item.get_label()[1]
-        popup.addstr(0, draw_left, draw_label, draw_format)
-        popup.addch(0, draw_left + len(draw_label), curses.ACS_VLINE)
+        # recursively shows opened submenus
 
-        draw_left += len(draw_label) + 1
+        _draw_submenu(cursor, 1, 1, selection_left)
 
-      # recursively shows opened submenus
+        popup.win.refresh()
 
-      _draw_submenu(cursor, 1, 1, selection_left)
+        curses.cbreak()
+        cursor.handle_key(control.key_input())
 
-      popup.win.refresh()
+        # redraws the rest of the interface if we're rendering on it again
 
-      curses.cbreak()
-      cursor.handle_key(control.key_input())
+        if not cursor.is_done():
+          control.redraw()
 
-      # redraws the rest of the interface if we're rendering on it again
-
-      if not cursor.is_done():
-        control.redraw()
-  finally:
-    control.set_msg()
-    nyx.popups.finalize()
+  control.set_msg()
 
 
 def _draw_submenu(cursor, level, top, left):
