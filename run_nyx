@@ -2,59 +2,7 @@
 # Copyright 2014, Damian Johnson and The Tor Project
 # See LICENSE for licensing information
 
-import distutils.spawn
-import sys
-
-import nyx.starter
-
-def main():
-  try:
-    _check_prereq()
-  except ImportError as exc:
-    print exc
-    sys.exit(1)
-
-  nyx.starter.main()
-
-
-def _check_prereq():
-  """
-  Checks for nyx's prerequisistes...
-
-    * python 2.6 or later
-    * stem
-    * curses
-
-  :raises: **ImportError** if any of our prerequisites aren't met
-  """
-
-  major_version, minor_version = sys.version_info[0:2]
-
-  if major_version < 2 or (major_version == 2 and minor_version < 6):
-    raise ImportError('nyx requires python version 2.6 or greater')
-
-  try:
-    import stem
-  except ImportError:
-    if distutils.spawn.find_executable('pip') is not None:
-      advice = "try running 'sudo pip install stem'"
-    elif distutils.spawn.find_executable('apt-get') is not None:
-      advice = "try running 'sudo apt-get install python-stem'"
-    else:
-      advice = 'you can find it at https://stem.torproject.org/download.html'
-
-    raise ImportError('nyx requires stem, %s' % advice)
-
-  try:
-    import curses
-  except ImportError:
-    if distutils.spawn.find_executable('apt-get') is not None:
-      advice = ", try running 'sudo apt-get install python-curses'"
-    else:
-      advice = ''  # not sure what to do for other platforms
-
-    raise ImportError('nyx requires curses' + advice)
-
+import nyx
 
 if __name__ == '__main__':
-  main()
+  nyx.main()
