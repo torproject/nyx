@@ -28,7 +28,7 @@ TESTING = False
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'config'), lazy_load = False)
 except IOError as exc:
-  print "Unable to load nyx's internal configurations: %s" % exc
+  print("Unable to load nyx's internal configurations: %s" % exc)
   sys.exit(1)
 
 

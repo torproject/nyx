@@ -35,22 +35,22 @@ def main(config):
     args = nyx.arguments.parse(sys.argv[1:])
     config.set('startup.events', args.logged_events)
   except ValueError as exc:
-    print exc
+    print(exc)
     sys.exit(1)
 
   if args.print_help:
-    print nyx.arguments.get_help()
+    print(nyx.arguments.get_help())
     sys.exit()
   elif args.print_version:
-    print nyx.arguments.get_version()
+    print(nyx.arguments.get_version())
     sys.exit()
 
   if args.debug_path is not None:
     try:
       _setup_debug_logging(args)
-      print msg('debug.saving_to_path', path = args.debug_path)
+      print(msg('debug.saving_to_path', path = args.debug_path))
     except IOError as exc:
-      print msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror)
+      print(msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror))
       sys.exit(1)
 
   _load_user_nyxrc(args.config)
@@ -91,7 +91,7 @@ def main(config):
     curses.wrapper(nyx.controller.start_nyx)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
-      print msg('setup.unknown_term', term = os.environ['TERM'])
+      print(msg('setup.unknown_term', term = os.environ['TERM']))
     else:
       raise exc
   except KeyboardInterrupt:
