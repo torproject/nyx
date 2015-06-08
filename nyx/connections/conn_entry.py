@@ -6,6 +6,8 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
+import nyx.util.ui_tools
+
 from nyx.util import tor_controller
 from nyx.connections import entries
 
@@ -374,14 +376,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = CATEGORY_COLOR[entry_type]
+    line_format = nyx.util.ui_tools.get_color(CATEGORY_COLOR[entry_type])
     time_width = 6 if CONFIG['features.connection.markInitialConnections'] else 5
 
     draw_entry = [(' ', line_format),
                   (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
                   (' ' * time_width, line_format),
                   (' (', line_format),
-                  (entry_type.upper(), line_format, curses.A_BOLD),
+                  (entry_type.upper(), line_format | curses.A_BOLD),
                   (')' + ' ' * (9 - len(entry_type)), line_format)]
 
     return draw_entry

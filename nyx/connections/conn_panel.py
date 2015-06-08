@@ -462,7 +462,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for msg, attr in draw_entry:
         attr |= extra_format
-        self.addstr(draw_line, x_offset, msg, *attr)
+        self.addstr(draw_line, x_offset, msg, attr)
         x_offset += len(msg)
 
       if draw_line >= height:

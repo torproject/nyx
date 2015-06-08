@@ -10,6 +10,8 @@ followed by an entry for each hop in the circuit. For instance:
 
 import curses
 
+import nyx.util.ui_tools
+
 from nyx.connections import entries, conn_entry
 from nyx.util import tor_controller
 
@@ -172,7 +174,7 @@ class CircLine(conn_entry.ConnectionLine):
     return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    line_format = conn_entry.CATEGORY_COLOR[self.get_type()]
+    line_format = nyx.util.ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
 
     # The required widths are the sum of the following:
     # initial space (1 character)
