@@ -137,12 +137,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
 
     self._is_tor_running = event_type in (State.INIT, State.RESET)
-
-    if self._is_tor_running:
-      self._halt_time = None
-    else:
-      self._halt_time = time.time()
-
+    self._halt_time = None if self._is_tor_running else time.time()
     self.redraw(True)
 
   def get_pause_time(self):
@@ -220,10 +215,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     controller = tor_controller()
 
     my_flags = []
-    my_fingerprint = self.get_info('fingerprint', None)
+    my_fingerprint = controller.get_info('fingerprint', None)
 
     if my_fingerprint:
-      my_status_entry = self.controller.get_network_status(my_fingerprint)
+      my_status_entry = controller.get_network_status(my_fingerprint)
 
       if my_status_entry:
         my_flags = my_status_entry.flags
@@ -338,9 +333,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # run during nyx's interface initialization (otherwise there's a
     # noticeable pause before the first redraw).
 
-    self._cond.acquire()
-    self._cond.wait(0.2)
-    self._cond.release()
+    with self._cond:
+      self._cond.wait(0.2)
+
     self._update()             # populates initial entries
     self._resolve_apps(False)  # resolves initial applications
 
@@ -348,12 +343,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       current_time = time.time()
 
       if self.is_paused() or not self._is_tor_running or current_time - last_draw < CONFIG['features.connection.refreshRate']:
-        self._cond.acquire()
-
-        if not self._halt:
-          self._cond.wait(0.2)
-
-        self._cond.release()
+        with self._cond:
+          if not self._halt:
+            self._cond.wait(0.2)
       else:
         # updates content if their's new results, otherwise just redraws
 
@@ -483,10 +475,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Halts further resolutions and terminates the thread.
     """
 
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
+    with self._cond:
+      self._halt = True
+      self._cond.notifyAll()
 
   def _update(self):
     """
