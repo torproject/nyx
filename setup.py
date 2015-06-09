@@ -14,9 +14,6 @@ from distutils import log
 from distutils.core import setup
 from distutils.command.install import install
 
-DEFAULT_MAN_PAGE_PATH = '/usr/share/man/man1/nyx.1.gz'
-DEFAULT_SAMPLE_PATH = '/usr/share/doc/nyx/nyxrc.sample'
-
 
 class NyxInstaller(install):
   """
@@ -34,14 +31,14 @@ class NyxInstaller(install):
   """
 
   user_options = install.user_options + [
-    ('man-page=', None, 'man page location (default: %s)' % DEFAULT_MAN_PAGE_PATH),
-    ('sample-path=', None, 'example nyxrc location (default: %s)' % DEFAULT_SAMPLE_PATH),
+    ('man-page=', None, 'man page location'),
+    ('sample-path=', None, 'example nyxrc location'),
   ]
 
   def initialize_options(self):
     install.initialize_options(self)
-    self.man_page = DEFAULT_MAN_PAGE_PATH
-    self.sample_path = DEFAULT_SAMPLE_PATH
+    self.man_page = None
+    self.sample_path = None
 
   def run(self):
     install.run(self)
