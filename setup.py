@@ -45,22 +45,24 @@ class NyxInstaller(install):
   def run(self):
     install.run(self)
 
-    # Install our bin script. We do this ourselves rather than with the setup()
-    # method's scripts argument because we want to call the script 'nyx' rather
-    # than 'run_nyx'.
-
-    bin_dest = os.path.join(self.install_scripts, 'nyx')
-    self.mkpath(self.install_scripts)
-    shutil.copyfile('run_nyx', bin_dest)
-    mode = ((os.stat(bin_dest)[stat.ST_MODE]) | 0o555) & 0o7777
-    os.chmod(bin_dest, mode)
-    log.info("installed bin script to '%s'" % bin_dest)
+    self.install_bin_script('run_nyx', os.path.join(self.install_scripts, 'nyx'))
 
     if self.man_page:
       self.install_man_page(os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
 
     if self.sample_path:
       self.install_sample('nyxrc.sample', self.sample_path)
+
+  def install_bin_script(self, source, dest):
+    # Install our bin script. We do this ourselves rather than with the setup()
+    # method's scripts argument because we want to call the script 'nyx' rather
+    # than 'run_nyx'.
+
+    self.mkpath(os.path.dirname(dest))
+    shutil.copyfile(source, dest)
+    mode = ((os.stat(dest)[stat.ST_MODE]) | 0o555) & 0o7777
+    os.chmod(dest, mode)
+    log.info("installed bin script to '%s'" % dest)
 
   def install_man_page(self, source, dest):
     if not os.path.exists(source):
