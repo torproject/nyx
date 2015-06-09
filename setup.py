@@ -17,38 +17,6 @@ DEFAULT_MAN_PAGE_PATH = '/usr/share/man/man1/nyx.1.gz'
 DEFAULT_SAMPLE_PATH = '/usr/share/doc/nyx/nyxrc.sample'
 
 
-def mkdir_for(path):
-  path_dir = os.path.dirname(path)
-
-  if not os.path.exists(path_dir):
-    try:
-      os.makedirs(path_dir)
-    except OSError as exc:
-      raise OSError(None, "unable to make directory %s (%s)" % (path_dir, exc.strerror.lower()))
-
-
-def install_man_page(source, dest):
-  if not os.path.exists(source):
-    raise OSError(None, "man page doesn't exist at '%s'" % source)
-
-  mkdir_for(dest)
-  open_func = gzip.open if dest.endswith('.gz') else open
-
-  with open(source, 'rb') as source_file:
-    with open_func(dest, 'wb') as dest_file:
-      dest_file.write(source_file.read())
-      log.info("installed man page to '%s'" % dest)
-
-
-def install_sample(source, dest):
-  if not os.path.exists(source):
-    raise OSError(None, "nyxrc sample doesn't exist at '%s'" % source)
-
-  mkdir_for(dest)
-  shutil.copyfile(source, dest)
-  log.info("installed sample nyxrc to '%s'" % dest)
-
-
 class NyxInstaller(install):
   """
   Nyx installer. This adds the following additional options...
@@ -82,17 +50,37 @@ class NyxInstaller(install):
     # than 'run_nyx'.
 
     bin_dest = os.path.join(self.install_scripts, 'nyx')
-    mkdir_for(bin_dest)
+    self.mkpath(self.install_scripts)
     shutil.copyfile('run_nyx', bin_dest)
     mode = ((os.stat(bin_dest)[stat.ST_MODE]) | 0o555) & 0o7777
     os.chmod(bin_dest, mode)
     log.info("installed bin script to '%s'" % bin_dest)
 
     if self.man_page:
-      install_man_page(os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
+      self.install_man_page(os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
 
     if self.sample_path:
-      install_sample('nyxrc.sample', self.sample_path)
+      self.install_sample('nyxrc.sample', self.sample_path)
+
+  def install_man_page(self, source, dest):
+    if not os.path.exists(source):
+      raise OSError(None, "man page doesn't exist at '%s'" % source)
+
+    self.mkpath(os.path.dirname(dest))
+    open_func = gzip.open if dest.endswith('.gz') else open
+
+    with open(source, 'rb') as source_file:
+      with open_func(dest, 'wb') as dest_file:
+        dest_file.write(source_file.read())
+        log.info("installed man page to '%s'" % dest)
+
+  def install_sample(self, source, dest):
+    if not os.path.exists(source):
+      raise OSError(None, "nyxrc sample doesn't exist at '%s'" % source)
+
+    self.mkpath(os.path.dirname(dest))
+    shutil.copyfile(source, dest)
+    log.info("installed sample nyxrc to '%s'" % dest)
 
 
 # installation requires us to be in our setup.py's directory
