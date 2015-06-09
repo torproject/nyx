@@ -6,6 +6,7 @@ import gzip
 import os
 import shutil
 import stat
+import sysconfig
 
 import nyx
 
@@ -57,9 +58,22 @@ class NyxInstaller(install):
     # Install our bin script. We do this ourselves rather than with the setup()
     # method's scripts argument because we want to call the script 'nyx' rather
     # than 'run_nyx'.
+    #
+    # If using setuptools this would be better replaced with its entry_points.
 
     self.mkpath(os.path.dirname(dest))
-    shutil.copyfile(source, dest)
+
+    with open(source, 'rb') as source_file:
+      with open(dest, 'wb') as dest_file:
+        orig_shebang = source_file.readline()
+
+        python_cmd = 'python%s%s' % (sysconfig.get_config_var('VERSION'), sysconfig.get_config_var('EXE'))
+        new_shebang = '#!%s\n' % os.path.join(sysconfig.get_config_var('BINDIR'), python_cmd)
+
+        log.info("adjusting bin script's shebang line '%s' -> '%s'" % (orig_shebang.strip(), new_shebang.strip()))
+        dest_file.write(new_shebang)
+        dest_file.write(source_file.read())
+
     mode = ((os.stat(dest)[stat.ST_MODE]) | 0o555) & 0o7777
     os.chmod(dest, mode)
     log.info("installed bin script to '%s'" % dest)
