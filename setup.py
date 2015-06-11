@@ -44,12 +44,8 @@ class NyxInstaller(install):
     install.run(self)
 
     self.install_bin_script('run_nyx', os.path.join(self.install_scripts, 'nyx'))
-
-    if self.man_page:
-      self.install_man_page(os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
-
-    if self.sample_path:
-      self.install_sample('nyxrc.sample', self.sample_path)
+    self.install_file('man page', os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
+    self.install_file('nyxrc sample', 'nyxrc.sample', self.sample_path)
 
   def install_bin_script(self, source, dest):
     # Install our bin script. We do this ourselves rather than with the setup()
@@ -75,9 +71,12 @@ class NyxInstaller(install):
     os.chmod(dest, mode)
     log.info("installed bin script to '%s'" % dest)
 
-  def install_man_page(self, source, dest):
-    if not os.path.exists(source):
-      raise OSError(None, "man page doesn't exist at '%s'" % source)
+  def install_file(self, resource, source, dest):
+    if not dest:
+      log.info('skipping installation of the %s' % resource)
+      return
+    elif not os.path.exists(source):
+      raise OSError(None, "%s doesn't exist at '%s'" % (resource, source))
 
     self.mkpath(os.path.dirname(dest))
     open_func = gzip.open if dest.endswith('.gz') else open
@@ -85,15 +84,7 @@ class NyxInstaller(install):
     with open(source, 'rb') as source_file:
       with open_func(dest, 'wb') as dest_file:
         dest_file.write(source_file.read())
-        log.info("installed man page to '%s'" % dest)
-
-  def install_sample(self, source, dest):
-    if not os.path.exists(source):
-      raise OSError(None, "nyxrc sample doesn't exist at '%s'" % source)
-
-    self.mkpath(os.path.dirname(dest))
-    shutil.copyfile(source, dest)
-    log.info("installed sample nyxrc to '%s'" % dest)
+        log.info("installed %s to '%s'" % (resource, dest))
 
 
 # installation requires us to be in our setup.py's directory
