@@ -20,20 +20,20 @@ class TestInstallation(unittest.TestCase):
 
     try:
       os.chdir(base_directory)
-      stem.util.system.call('python setup.py install --prefix /tmp/nyx_test --man-page /tmp/nyx_test/nyx.1.gz --sample-path /tmp/nyx_test/nyxrc.sample')
-      stem.util.system.call('python setup.py clean --all')  # tidy up the build directory
+      stem.util.system.call(sys.executable + ' setup.py install --prefix /tmp/nyx_test --man-page /tmp/nyx_test/nyx.1.gz --sample-path /tmp/nyx_test/nyxrc.sample')
+      stem.util.system.call(sys.executable + ' setup.py clean --all')  # tidy up the build directory
       site_packages_paths = glob.glob('/tmp/nyx_test/lib*/*/site-packages')
 
       if len(site_packages_paths) != 1:
         self.fail('We should only have a single site-packages directory, but instead had: %s' % site_packages_paths)
 
-      self.assertEqual(nyx.__version__, stem.util.system.call(['python', '-c', "import sys;sys.path.insert(0, '%s');import nyx;print(nyx.__version__)" % site_packages_paths[0]])[0])
+      self.assertEqual(nyx.__version__, stem.util.system.call([sys.executable, '-c', "import sys;sys.path.insert(0, '%s');import nyx;print(nyx.__version__)" % site_packages_paths[0]])[0])
 
-      process_path = sys.path + ['/tmp/nyx_test/lib/python2.7/site-packages']
+      process_path = [site_packages_paths[0]] + sys.path
       process = subprocess.Popen(['/tmp/nyx_test/bin/nyx', '--help'], stdout = subprocess.PIPE, env = {'PYTHONPATH': ':'.join(process_path)})
       stdout = process.communicate()[0]
 
-      self.assertTrue(stdout.startswith('Usage nyx [OPTION]'))
+      self.assertTrue(stdout.startswith(b'Usage nyx [OPTION]'))
     finally:
       shutil.rmtree('/tmp/nyx_test')
       os.chdir(original_cwd)

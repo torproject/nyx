@@ -7,7 +7,7 @@ import curses
 import threading
 
 import nyx.controller
-import popups
+import nyx.popups
 
 from nyx.util import panel, tor_config, tor_controller, ui_tools
 
@@ -352,7 +352,7 @@ class ConfigPanel(panel.Panel):
     options = [FIELD_ATTR[field][0] for field in Field]
     old_selection = [FIELD_ATTR[field][0] for field in CONFIG['features.config.order']]
     option_colors = dict([FIELD_ATTR[field] for field in Field])
-    results = popups.show_sort_dialog(title_label, options, old_selection, option_colors)
+    results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
     if results:
       # converts labels back to enums
@@ -388,7 +388,7 @@ class ConfigPanel(panel.Panel):
 
           prompt_msg = '%s Value (esc to cancel): ' % config_option
           is_prepopulated = CONFIG['features.config.prepopulateEditValues']
-          new_value = popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
+          new_value = nyx.popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
 
           if new_value is not None and new_value != initial_value:
             try:
@@ -416,7 +416,7 @@ class ConfigPanel(panel.Panel):
 
               self.redraw(True)
             except Exception as exc:
-              popups.show_msg('%s (press any key)' % exc)
+              nyx.popups.show_msg('%s (press any key)' % exc)
       elif key.match('a'):
         self.show_all = not self.show_all
         self.redraw(True)
@@ -438,7 +438,7 @@ class ConfigPanel(panel.Panel):
     # display a popup for saving the current configuration
 
     config_lines = tor_config.get_custom_options(True)
-    popup, width, height = popups.init(len(config_lines) + 2)
+    popup, width, height = nyx.popups.init(len(config_lines) + 2)
 
     if not popup:
       return
@@ -544,7 +544,7 @@ class ConfigPanel(panel.Panel):
 
         if selection == 1:
           # prompts user for a configuration location
-          config_location = popups.input_prompt('Save to (esc to cancel): ', config_location)
+          config_location = nyx.popups.input_prompt('Save to (esc to cancel): ', config_location)
 
           if not config_location:
             prompt_canceled = True
@@ -556,9 +556,9 @@ class ConfigPanel(panel.Panel):
           except IOError as exc:
             msg = 'Unable to save configuration (%s)' % exc.strerror
 
-          popups.show_msg(msg, 2)
+          nyx.popups.show_msg(msg, 2)
     finally:
-      popups.finalize()
+      nyx.popups.finalize()
 
   def get_help(self):
     return [

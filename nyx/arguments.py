@@ -251,4 +251,4 @@ def missing_event_types():
 
   tor_event_types = response.split(' ')
   recognized_types = TOR_EVENT_TYPES.values()
-  return filter(lambda x: x not in recognized_types, tor_event_types)
+  return list(filter(lambda x: x not in recognized_types, tor_event_types))

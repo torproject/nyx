@@ -4,7 +4,6 @@
 
 import gzip
 import os
-import shutil
 import stat
 import sysconfig
 
@@ -64,7 +63,7 @@ class NyxInstaller(install):
         new_shebang = '#!%s\n' % os.path.join(sysconfig.get_config_var('BINDIR'), python_cmd)
 
         log.info("adjusting bin script's shebang line '%s' -> '%s'" % (orig_shebang.strip(), new_shebang.strip()))
-        dest_file.write(new_shebang)
+        dest_file.write(str.encode(new_shebang))
         dest_file.write(source_file.read())
 
     mode = ((os.stat(dest)[stat.ST_MODE]) | 0o555) & 0o7777

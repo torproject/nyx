@@ -481,7 +481,7 @@ def read_tor_log(path, read_limit = None):
       timestamp_comp = list(time.strptime(timestamp_str, '%Y %b %d %H:%M:%S'))
       timestamp_comp[8] = isdst
 
-      timestamp = int(time.mktime(timestamp_comp))  # converts local to unix time
+      timestamp = int(time.mktime(tuple(timestamp_comp)))  # converts local to unix time
 
       if timestamp > time.time():
         # log entry is from before a year boundary

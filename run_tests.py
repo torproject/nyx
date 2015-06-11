@@ -34,13 +34,13 @@ def main():
   orphaned_pyc = stem.util.test_tools.clean_orphaned_pyc(NYX_BASE)
 
   for path in orphaned_pyc:
-    print 'Deleted orphaned pyc file: %s' % path
+    print('Deleted orphaned pyc file: %s' % path)
 
   tests = unittest.defaultTestLoader.discover('test', pattern='*.py')
   test_runner = unittest.TextTestRunner()
   test_runner.run(tests)
 
-  print
+  print('')
 
   static_check_issues = {}
 
@@ -66,13 +66,13 @@ def main():
         static_check_issues.setdefault(path, []).append(issue)
 
   if static_check_issues:
-    print 'STATIC CHECKS'
+    print('STATIC CHECKS')
 
     for file_path in static_check_issues:
-      print '* %s' % file_path
+      print('* %s' % file_path)
 
       for issue in static_check_issues[file_path]:
-        print '  line %-4s - %-40s %s' % (issue.line_number, issue.message, issue.line)
+        print('  line %-4s - %-40s %s' % (issue.line_number, issue.message, issue.line))
 
       print
 
