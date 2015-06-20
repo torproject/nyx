@@ -16,9 +16,8 @@ from stem.util import str_tools
 
 LINE_NUM_COLOR = 'yellow'
 HEADER_COLOR = 'cyan'
-HEADER_PREFIX = ['ns/id/', 'desc/id/']
+HEADER_PREFIX = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
 
-SIG_COLOR = 'red'
 SIG_START_KEYS = ['-----BEGIN RSA PUBLIC KEY-----', '-----BEGIN SIGNATURE-----']
 SIG_END_KEYS = ['-----END RSA PUBLIC KEY-----', '-----END SIGNATURE-----']
 
@@ -58,7 +57,7 @@ def show_descriptor_popup(conn_panel):
       if fingerprint == 'UNKNOWN':
         fingerprint = None
 
-      display_text = get_display_text(fingerprint)
+      display_text = _display_text(fingerprint)
       display_color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
       show_line_number = fingerprint is not None
 
@@ -92,10 +91,11 @@ def show_descriptor_popup(conn_panel):
                 scroll, is_changed = new_scroll, True
             elif key.is_selection() or key.match('d'):
               is_done = True  # closes popup
-            elif key.match('left', 'right'):
-              # navigation - pass on to conn_panel and recreate popup
-
-              conn_panel.handle_key(panel.KeyInput(curses.KEY_UP) if key.match('left') else panel.KeyInput(curses.KEY_DOWN))
+            elif key.match('left'):
+              conn_panel.handle_key(panel.KeyInput(curses.KEY_UP))
+              break
+            elif key.match('right'):
+              conn_panel.handle_key(panel.KeyInput(curses.KEY_DOWN))
               break
   finally:
     conn_panel.set_title_visible(True)
@@ -103,34 +103,32 @@ def show_descriptor_popup(conn_panel):
     panel.CURSES_LOCK.release()
 
 
-def get_display_text(fingerprint):
+def _display_text(fingerprint):
   """
-  Provides the descriptor and consensus entry for a relay. This is a list of
-  lines to be displayed by the dialog.
+  Provides the descriptors for a relay.
+
+  :param str fingerprint: relay fingerprint to be looked up
+
+  :returns: **list** with the lines that should be displayed in the dialog
   """
 
   if not fingerprint:
     return [UNRESOLVED_MSG]
 
-  controller, description = tor_controller(), []
+  controller = tor_controller()
+  router_status_entry = controller.get_network_status(fingerprint, None)
+  microdescriptor = controller.get_microdescriptor(fingerprint, None)
+  server_descriptor = controller.get_server_descriptor(fingerprint, None)
 
-  description.append('ns/id/%s' % fingerprint)
-  consensus_entry = controller.get_info('ns/id/%s' % fingerprint, None)
+  description = 'Consensus:\n\n%s' % (router_status_entry if router_status_entry else ERROR_MSG)
 
-  if consensus_entry:
-    description += consensus_entry.split('\n')
-  else:
-    description += [ERROR_MSG, '']
+  if server_descriptor:
+    description += '\n\nServer Descriptor:\n\n%s' % server_descriptor
 
-  description.append('desc/id/%s' % fingerprint)
-  descriptor_entry = controller.get_info('desc/id/%s' % fingerprint, None)
+  if microdescriptor:
+    description += '\n\nMicrodescriptor:\n\n%s' % microdescriptor
 
-  if descriptor_entry:
-    description += descriptor_entry.split('\n')
-  else:
-    description += [ERROR_MSG]
-
-  return description
+  return description.split('\n')
 
 
 def get_preferred_size(text, max_width, show_line_number):
@@ -208,14 +206,11 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
     elif line_text in SIG_START_KEYS:
       keyword, value = line_text, ''
       is_encryption_block = True
-      draw_format = SIG_COLOR
     elif line_text in SIG_END_KEYS:
       keyword, value = line_text, ''
       is_encryption_block = False
-      draw_format = SIG_COLOR
     elif is_encryption_block:
       keyword, value = '', line_text
-      draw_format = SIG_COLOR
     elif ' ' in line_text:
       div_index = line_text.find(' ')
       keyword, value = line_text[:div_index], line_text[div_index:]
