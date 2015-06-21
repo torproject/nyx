@@ -505,7 +505,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_value()]
     new_circuits = {}
 
-    for circ in tor_controller().get_circuits():
+    for circ in tor_controller().get_circuits([]):
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
