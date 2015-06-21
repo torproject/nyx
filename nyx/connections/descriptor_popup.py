@@ -59,11 +59,11 @@ def show_descriptor_popup(conn_panel):
 
       display_text = _display_text(fingerprint)
       display_color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
-      show_line_number = fingerprint is not None
+      show_line_numbers = fingerprint is not None
 
       # determines the maximum popup size the display_text can fill
 
-      popup_height, popup_width = get_preferred_size(display_text, conn_panel.max_x, show_line_number)
+      popup_height, popup_width = _preferred_size(display_text, conn_panel.max_x, show_line_numbers)
 
       with nyx.popups.popup_window(popup_height, popup_width) as (popup, _, height):
         if popup:
@@ -71,7 +71,7 @@ def show_descriptor_popup(conn_panel):
 
           while not is_done:
             if is_changed:
-              draw(popup, fingerprint, display_text, display_color, scroll, show_line_number)
+              draw(popup, fingerprint, display_text, display_color, scroll, show_line_numbers)
               is_changed = False
 
             key = control.key_input()
@@ -131,31 +131,29 @@ def _display_text(fingerprint):
   return description.split('\n')
 
 
-def get_preferred_size(text, max_width, show_line_number):
+def _preferred_size(text, max_width, show_line_numbers):
   """
-  Provides the (height, width) tuple for the preferred size of the given text.
+  Provides the preferred dimensions of our dialog.
+
+  :param list text: lines of text to be shown
+  :param int max_width: maximum width the dialog can be
+  :param bool show_line_numbers: if we should leave room for line numbers
+
+  :returns: **tuple** of the preferred (height, width)
   """
 
   width, height = 0, len(text) + 2
-  line_number_width = int(math.log10(len(text))) + 1
+  line_number_width = int(math.log10(len(text))) + 2 if show_line_numbers else 0
+  max_content_width = max_width - line_number_width - 4
 
   for line in text:
-    # width includes content, line number field, and border
-
-    line_width = len(line) + 5
-
-    if show_line_number:
-      line_width += line_number_width
-
-    width = max(width, line_width)
-
-    # tracks number of extra lines that will be taken due to text wrap
-    height += (line_width - 2) / max_width
+    width = min(max_width, max(width, len(line) + line_number_width + 4))
+    height += len(line) / max_content_width  # extra lines due to text wrap
 
   return (height, width)
 
 
-def draw(popup, fingerprint, display_text, display_color, scroll, show_line_number):
+def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numbers):
   popup.win.erase()
   popup.win.box()
   x_offset = 2
@@ -186,7 +184,7 @@ def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numb
     line_text = display_text[i].strip()
     x_offset = 2
 
-    if show_line_number:
+    if show_line_numbers:
       line_number_label = ('%%%ii' % line_number_width) % (i + 1)
 
       popup.addstr(draw_line, x_offset, line_number_label, curses.A_BOLD, LINE_NUM_COLOR)
