@@ -311,8 +311,29 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if selection != -1:
           self.set_listing_type(options[selection])
       elif key.match('d'):
-        # presents popup for raw consensus data
-        descriptor_popup.show_descriptor_popup(self)
+        self.set_title_visible(False)
+        self.redraw(True)
+
+        while True:
+          selection = self.get_selection()
+
+          if not selection:
+            break
+
+          color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
+          fingerprint = None if selection.foreign.get_fingerprint() == 'UNKNOWN' else selection.foreign.get_fingerprint()
+          is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+          key = descriptor_popup.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
+
+          if not key or key.is_selection() or key.match('d'):
+            break  # closes popup
+          elif key.match('left'):
+            self.handle_key(panel.KeyInput(curses.KEY_UP))
+          elif key.match('right'):
+            self.handle_key(panel.KeyInput(curses.KEY_DOWN))
+
+        self.set_title_visible(True)
+        self.redraw(True)
       elif key.match('c') and self.is_clients_allowed():
         count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
       elif key.match('e') and self.is_exits_allowed():

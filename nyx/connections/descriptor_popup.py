@@ -6,9 +6,8 @@ import math
 import curses
 
 import nyx.popups
-import nyx.connections.conn_entry
 
-from nyx.util import panel, tor_controller, ui_tools
+from nyx.util import tor_controller, ui_tools
 
 from stem.util import str_tools
 
@@ -22,70 +21,51 @@ UNRESOLVED_MSG = 'No consensus data available'
 ERROR_MSG = 'Unable to retrieve data'
 
 
-def show_descriptor_popup(conn_panel):
+def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
   """
-  Presents consensus descriptor in popup window with the following controls:
-  Up, Down, Page Up, Page Down - scroll descriptor
-  Right, Left - next / previous connection
-  Enter, Space, d, D - close popup
+  Provides a dialog showing the descriptors for a given relay.
 
-  Arguments:
-    conn_panel - connection panel providing the dialog
+  :param str fingerprint: fingerprint of the relay to be shown
+  :param str color: text color of the dialog
+  :param int max_width: maximum width of the dialog
+  :param function is_close_key: method to indicate if a key should close the
+    dialog or not
+
+  :returns: :class:`~nyx.util.panel.KeyInput` for the keyboard input that
+    closed the dialog
   """
 
-  # hides the title of the connection panel
+  if fingerprint:
+    title = 'Consensus Descriptor:'
+    lines = _display_text(fingerprint)
+    show_line_numbers = True
+  else:
+    title = 'Consensus Descriptor (%s):' % fingerprint
+    lines = [UNRESOLVED_MSG]
+    show_line_numbers = False
 
-  conn_panel.set_title_visible(False)
-  conn_panel.redraw(True)
+  popup_height, popup_width = _preferred_size(lines, max_width, show_line_numbers)
 
-  control = nyx.controller.get_controller()
+  with nyx.popups.popup_window(popup_height, popup_width) as (popup, _, height):
+    if not popup:
+      return None
 
-  with panel.CURSES_LOCK:
+    scroll, redraw = 0, True
+
     while True:
-      selection = conn_panel.get_selection()
+      if redraw:
+        _draw(popup, title, lines, color, scroll, show_line_numbers)
+        redraw = False
 
-      if not selection:
-        break
+      key = nyx.controller.get_controller().key_input()
 
-      fingerprint = selection.foreign.get_fingerprint()
+      if key.is_scroll():
+        new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(lines))
 
-      if fingerprint == 'UNKNOWN':
-        title = 'Consensus Descriptor (%s):' % fingerprint
-        lines = [UNRESOLVED_MSG]
-        show_line_numbers = False
-      else:
-        title = 'Consensus Descriptor:'
-        lines = _display_text(fingerprint)
-        show_line_numbers = True
-
-      color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
-      popup_height, popup_width = _preferred_size(lines, conn_panel.max_x, show_line_numbers)
-
-      with nyx.popups.popup_window(popup_height, popup_width) as (popup, _, height):
-        if popup:
-          scroll = 0
-          _draw(popup, title, lines, color, scroll, show_line_numbers)
-
-          while True:
-            key = control.key_input()
-
-            if key.is_scroll():
-              new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(lines))
-
-              if scroll != new_scroll:
-                scroll = new_scroll
-                _draw(popup, title, lines, color, scroll, show_line_numbers)
-            elif key.is_selection() or key.match('d'):
-              return  # closes popup
-            elif key.match('left'):
-              conn_panel.handle_key(panel.KeyInput(curses.KEY_UP))
-              break
-            elif key.match('right'):
-              conn_panel.handle_key(panel.KeyInput(curses.KEY_DOWN))
-              break
-
-  conn_panel.set_title_visible(True)
-  conn_panel.redraw(True)
+        if scroll != new_scroll:
+          scroll, redraw = new_scroll, True
+      elif is_close_key(key):
+        return key
 
 
 def _display_text(fingerprint):
