@@ -156,12 +156,10 @@ def _draw_submenu(cursor, level, top, left):
   label_format = ' %%-%is%%-%is%%-%is ' % (prefix_col_size, middle_col_size, suffix_col_size)
   menu_width = len(label_format % ('', '', ''))
 
-  popup, _, _ = nyx.popups.init(len(submenu.get_children()), menu_width, top, left, below_static = False)
+  with nyx.popups.popup_window(len(submenu.get_children()), menu_width, top, left, below_static = False) as (popup, _, _):
+    if not popup:
+      return
 
-  if not popup:
-    return
-
-  try:
     # sets the background color
 
     popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color('red'))
@@ -183,5 +181,3 @@ def _draw_submenu(cursor, level, top, left):
     # shows the next submenu
 
     _draw_submenu(cursor, level + 1, top + selection_top, left + menu_width)
-  finally:
-    nyx.popups.finalize()
