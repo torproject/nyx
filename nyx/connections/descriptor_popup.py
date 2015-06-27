@@ -12,14 +12,11 @@ from nyx.util import panel, tor_controller, ui_tools
 
 from stem.util import str_tools
 
-# field keywords used to identify areas for coloring
-
-LINE_NUM_COLOR = 'yellow'
+HEADERS = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
 HEADER_COLOR = 'cyan'
-HEADER_PREFIX = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
+LINE_NUMBER_COLOR = 'yellow'
 
-SIG_START_KEYS = ['-----BEGIN RSA PUBLIC KEY-----', '-----BEGIN SIGNATURE-----']
-SIG_END_KEYS = ['-----END RSA PUBLIC KEY-----', '-----END SIGNATURE-----']
+BLOCK_START, BLOCK_END = '-----BEGIN ', '-----END '
 
 UNRESOLVED_MSG = 'No consensus data available'
 ERROR_MSG = 'Unable to retrieve data'
@@ -42,11 +39,9 @@ def show_descriptor_popup(conn_panel):
   conn_panel.redraw(True)
 
   control = nyx.controller.get_controller()
-  panel.CURSES_LOCK.acquire()
-  is_done = False
 
-  try:
-    while not is_done:
+  with panel.CURSES_LOCK:
+    while True:
       selection = conn_panel.get_selection()
 
       if not selection:
@@ -55,52 +50,42 @@ def show_descriptor_popup(conn_panel):
       fingerprint = selection.foreign.get_fingerprint()
 
       if fingerprint == 'UNKNOWN':
-        fingerprint = None
+        title = 'Consensus Descriptor (%s):' % fingerprint
+        lines = [UNRESOLVED_MSG]
+        show_line_numbers = False
+      else:
+        title = 'Consensus Descriptor:'
+        lines = _display_text(fingerprint)
+        show_line_numbers = True
 
-      display_text = _display_text(fingerprint)
-      display_color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
-      show_line_numbers = fingerprint is not None
-
-      # determines the maximum popup size the display_text can fill
-
-      popup_height, popup_width = _preferred_size(display_text, conn_panel.max_x, show_line_numbers)
+      color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
+      popup_height, popup_width = _preferred_size(lines, conn_panel.max_x, show_line_numbers)
 
       with nyx.popups.popup_window(popup_height, popup_width) as (popup, _, height):
         if popup:
-          scroll, is_changed = 0, True
+          scroll = 0
+          _draw(popup, title, lines, color, scroll, show_line_numbers)
 
-          while not is_done:
-            if is_changed:
-              draw(popup, fingerprint, display_text, display_color, scroll, show_line_numbers)
-              is_changed = False
-
+          while True:
             key = control.key_input()
 
             if key.is_scroll():
-              # TODO: This is a bit buggy in that scrolling is by display_text
-              # lines rather than the displayed lines, causing issues when
-              # content wraps. The result is that we can't have a scrollbar and
-              # can't scroll to the bottom if there's a multi-line being
-              # displayed. However, trying to correct this introduces a big can
-              # of worms and after hours decided that this isn't worth the
-              # effort...
-
-              new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(display_text))
+              new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(lines))
 
               if scroll != new_scroll:
-                scroll, is_changed = new_scroll, True
+                scroll = new_scroll
+                _draw(popup, title, lines, color, scroll, show_line_numbers)
             elif key.is_selection() or key.match('d'):
-              is_done = True  # closes popup
+              return  # closes popup
             elif key.match('left'):
               conn_panel.handle_key(panel.KeyInput(curses.KEY_UP))
               break
             elif key.match('right'):
               conn_panel.handle_key(panel.KeyInput(curses.KEY_DOWN))
               break
-  finally:
-    conn_panel.set_title_visible(True)
-    conn_panel.redraw(True)
-    panel.CURSES_LOCK.release()
+
+  conn_panel.set_title_visible(True)
+  conn_panel.redraw(True)
 
 
 def _display_text(fingerprint):
@@ -111,9 +96,6 @@ def _display_text(fingerprint):
 
   :returns: **list** with the lines that should be displayed in the dialog
   """
-
-  if not fingerprint:
-    return [UNRESOLVED_MSG]
 
   controller = tor_controller()
   router_status_entry = controller.get_network_status(fingerprint, None)
@@ -153,108 +135,60 @@ def _preferred_size(text, max_width, show_line_numbers):
   return (height, width)
 
 
-def draw(popup, fingerprint, display_text, display_color, scroll, show_line_numbers):
+def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
+  def draw_msg(popup, min_x, x, y, width, msg, *attr):
+    while msg:
+      draw_msg, msg = str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
+
+      if not draw_msg:
+        draw_msg, msg = str_tools.crop(msg, width - x), ''  # first word is longer than the line
+
+      x = popup.addstr(y, x, draw_msg, *attr)
+
+      if msg:
+        x, y = min_x, y + 1
+
+    return x, y
+
   popup.win.erase()
-  popup.win.box()
-  x_offset = 2
 
-  if fingerprint:
-    title = 'Consensus Descriptor (%s):' % fingerprint
-  else:
-    title = 'Consensus Descriptor:'
+  line_number_width = int(math.log10(len(lines))) + 1
+  in_block = False   # flag indicating if we're currently in crypto content
+  width = popup.max_x - 2  # leave space on the right for the border and an empty line
+  height = popup.max_y - 2  # height of the dialog without the top and bottom border
+  offset = line_number_width + 3 if show_line_numbers else 2
 
-  popup.addstr(0, 0, title, curses.A_STANDOUT)
+  y = 1
 
-  line_number_width = int(math.log10(len(display_text))) + 1
-  is_encryption_block = False   # flag indicating if we're currently displaying a key
+  for i, line in enumerate(lines):
+    keyword, value = line, ''
+    color = entry_color
 
-  # checks if first line is in an encryption block
+    if line in HEADERS:
+      color = HEADER_COLOR
+    elif line.startswith(BLOCK_START):
+      in_block = True
+    elif line.startswith(BLOCK_END):
+      in_block = False
+    elif in_block:
+      keyword, value = '', line
+    elif ' ' in line and line != UNRESOLVED_MSG and line != ERROR_MSG:
+      keyword, value = line.split(' ', 1)
 
-  for i in range(0, scroll):
-    line_text = display_text[i].strip()
-
-    if line_text in SIG_START_KEYS:
-      is_encryption_block = True
-    elif line_text in SIG_END_KEYS:
-      is_encryption_block = False
-
-  draw_line, page_height = 1, popup.max_y - 2
-
-  for i in range(scroll, scroll + page_height):
-    line_text = display_text[i].strip()
-    x_offset = 2
+    if i < scroll:
+      continue
 
     if show_line_numbers:
-      line_number_label = ('%%%ii' % line_number_width) % (i + 1)
+      popup.addstr(y, 2, str(i + 1).rjust(line_number_width), curses.A_BOLD, LINE_NUMBER_COLOR)
 
-      popup.addstr(draw_line, x_offset, line_number_label, curses.A_BOLD, LINE_NUM_COLOR)
-      x_offset += line_number_width + 1
+    x, y = draw_msg(popup, offset, offset, y, width, keyword, color, curses.A_BOLD)
+    x, y = draw_msg(popup, offset, x + 1, y, width, value, color)
 
-    # Most consensus and descriptor lines are keyword/value pairs. Both are
-    # shown with the same color, but the keyword is bolded.
+    y += 1
 
-    keyword, value = line_text, ''
-    draw_format = display_color
-
-    if line_text.startswith(HEADER_PREFIX[0]) or line_text.startswith(HEADER_PREFIX[1]):
-      keyword, value = line_text, ''
-      draw_format = HEADER_COLOR
-    elif line_text == UNRESOLVED_MSG or line_text == ERROR_MSG:
-      keyword, value = line_text, ''
-    elif line_text in SIG_START_KEYS:
-      keyword, value = line_text, ''
-      is_encryption_block = True
-    elif line_text in SIG_END_KEYS:
-      keyword, value = line_text, ''
-      is_encryption_block = False
-    elif is_encryption_block:
-      keyword, value = '', line_text
-    elif ' ' in line_text:
-      div_index = line_text.find(' ')
-      keyword, value = line_text[:div_index], line_text[div_index:]
-
-    display_queue = [(keyword, (draw_format, curses.A_BOLD)), (value, (draw_format,))]
-    cursor_location = x_offset
-
-    while display_queue:
-      msg, msg_format = display_queue.pop(0)
-
-      if not msg:
-        continue
-
-      max_msg_size = popup.max_x - 1 - cursor_location
-
-      if len(msg) >= max_msg_size:
-        # needs to split up the line
-
-        msg, remainder = str_tools.crop(msg, max_msg_size, None, ending = None, get_remainder = True)
-
-        if x_offset == cursor_location and msg == '':
-          # first word is longer than the line
-
-          msg = str_tools.crop(remainder, max_msg_size)
-
-          if ' ' in remainder:
-            remainder = remainder.split(' ', 1)[1]
-          else:
-            remainder = ''
-
-        popup.addstr(draw_line, cursor_location, msg, *msg_format)
-        cursor_location = x_offset
-
-        if remainder:
-          display_queue.insert(0, (remainder.strip(), msg_format))
-          draw_line += 1
-      else:
-        popup.addstr(draw_line, cursor_location, msg, *msg_format)
-        cursor_location += len(msg)
-
-      if draw_line > page_height:
-        break
-
-    draw_line += 1
-
-    if draw_line > page_height:
+    if y > height:
       break
 
+  popup.win.box()
+  popup.addstr(0, 0, title, curses.A_STANDOUT)
   popup.win.refresh()
