@@ -137,12 +137,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
 
     self._is_tor_running = event_type in (State.INIT, State.RESET)
-
-    if self._is_tor_running:
-      self._halt_time = None
-    else:
-      self._halt_time = time.time()
-
+    self._halt_time = None if self._is_tor_running else time.time()
     self.redraw(True)
 
   def get_pause_time(self):
@@ -220,10 +215,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     controller = tor_controller()
 
     my_flags = []
-    my_fingerprint = self.get_info('fingerprint', None)
+    my_fingerprint = controller.get_info('fingerprint', None)
 
     if my_fingerprint:
-      my_status_entry = self.controller.get_network_status(my_fingerprint)
+      my_status_entry = controller.get_network_status(my_fingerprint)
 
       if my_status_entry:
         my_flags = my_status_entry.flags
@@ -316,8 +311,29 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if selection != -1:
           self.set_listing_type(options[selection])
       elif key.match('d'):
-        # presents popup for raw consensus data
-        descriptor_popup.show_descriptor_popup(self)
+        self.set_title_visible(False)
+        self.redraw(True)
+
+        while True:
+          selection = self.get_selection()
+
+          if not selection:
+            break
+
+          color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
+          fingerprint = None if selection.foreign.get_fingerprint() == 'UNKNOWN' else selection.foreign.get_fingerprint()
+          is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+          key = descriptor_popup.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
+
+          if not key or key.is_selection() or key.match('d'):
+            break  # closes popup
+          elif key.match('left'):
+            self.handle_key(panel.KeyInput(curses.KEY_UP))
+          elif key.match('right'):
+            self.handle_key(panel.KeyInput(curses.KEY_DOWN))
+
+        self.set_title_visible(True)
+        self.redraw(True)
       elif key.match('c') and self.is_clients_allowed():
         count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
       elif key.match('e') and self.is_exits_allowed():
@@ -338,9 +354,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # run during nyx's interface initialization (otherwise there's a
     # noticeable pause before the first redraw).
 
-    self._cond.acquire()
-    self._cond.wait(0.2)
-    self._cond.release()
+    with self._cond:
+      self._cond.wait(0.2)
+
     self._update()             # populates initial entries
     self._resolve_apps(False)  # resolves initial applications
 
@@ -348,12 +364,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       current_time = time.time()
 
       if self.is_paused() or not self._is_tor_running or current_time - last_draw < CONFIG['features.connection.refreshRate']:
-        self._cond.acquire()
-
-        if not self._halt:
-          self._cond.wait(0.2)
-
-        self._cond.release()
+        with self._cond:
+          if not self._halt:
+            self._cond.wait(0.2)
       else:
         # updates content if their's new results, otherwise just redraws
 
@@ -470,7 +483,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for msg, attr in draw_entry:
         attr |= extra_format
-        self.addstr(draw_line, x_offset, msg, *attr)
+        self.addstr(draw_line, x_offset, msg, attr)
         x_offset += len(msg)
 
       if draw_line >= height:
@@ -483,10 +496,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Halts further resolutions and terminates the thread.
     """
 
-    self._cond.acquire()
-    self._halt = True
-    self._cond.notifyAll()
-    self._cond.release()
+    with self._cond:
+      self._halt = True
+      self._cond.notifyAll()
 
   def _update(self):
     """
@@ -514,7 +526,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_value()]
     new_circuits = {}
 
-    for circ in tor_controller().get_circuits():
+    for circ in tor_controller().get_circuits([]):
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 

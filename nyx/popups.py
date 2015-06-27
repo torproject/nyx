@@ -71,16 +71,15 @@ def input_prompt(msg, initial_value = ''):
     initial_value - initial value of the field
   """
 
-  panel.CURSES_LOCK.acquire()
-  control = nyx.controller.get_controller()
-  msg_panel = control.get_panel('msg')
-  msg_panel.set_message(msg)
-  msg_panel.redraw(True)
-  user_input = msg_panel.getstr(0, len(msg), initial_value)
-  control.set_msg()
-  panel.CURSES_LOCK.release()
+  with panel.CURSES_LOCK:
+    control = nyx.controller.get_controller()
+    msg_panel = control.get_panel('msg')
+    msg_panel.set_message(msg)
+    msg_panel.redraw(True)
+    user_input = msg_panel.getstr(0, len(msg), initial_value)
+    control.set_msg()
 
-  return user_input
+    return user_input
 
 
 def show_msg(msg, max_wait = -1, attr = curses.A_STANDOUT):
