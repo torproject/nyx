@@ -10,7 +10,7 @@ import threading
 import nyx.popups
 import nyx.util.tracker
 
-from nyx.connections import count_popup, descriptor_popup, entries, conn_entry, circ_entry
+from nyx.connections import descriptor_popup, entries, conn_entry, circ_entry
 from nyx.util import panel, tor_controller, tracker, ui_tools
 
 from stem.control import State
@@ -23,6 +23,8 @@ DETAILS_HEIGHT = 7
 # listing types
 
 Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
+
+EXIT_USAGE_WIDTH = 15
 
 
 def conf_handler(key, value):
@@ -335,9 +337,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         self.set_title_visible(True)
         self.redraw(True)
       elif key.match('c') and self.is_clients_allowed():
-        count_popup.showCountDialog(count_popup.CountType.CLIENT_LOCALE, self._client_locale_usage)
+        nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
       elif key.match('e') and self.is_exits_allowed():
-        count_popup.showCountDialog(count_popup.CountType.EXIT_PORT, self._exit_port_usage)
+        counts = {}
+        key_width = max(map(len, self._exit_port_usage.keys()))
+
+        for k, v in self._exit_port_usage.items():
+          usage = connection.port_usage(k)
+
+          if usage:
+            k = k.ljust(key_width + 3) + usage.ljust(EXIT_USAGE_WIDTH)
+
+          counts[k] = v
+
+        nyx.popups.show_count_dialog('Exiting Port Usage', counts)
       else:
         return False
 

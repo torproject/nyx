@@ -3,11 +3,14 @@ Functions for displaying popups in the interface.
 """
 
 import curses
+import operator
 
 import nyx.controller
 
 from nyx import __version__, __release_date__
 from nyx.util import panel, ui_tools
+
+NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
 
 def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True):
@@ -197,6 +200,54 @@ def show_about_popup():
 
       curses.cbreak()
       control.key_input()
+
+
+def show_count_dialog(title, counts):
+  """
+  Provides a dialog with bar graphs and percentages for the given set of
+  counts. Pressing any key closes the dialog.
+
+  :param str title: dialog title
+  :param dict counts: mapping of labels to their value
+  """
+
+  if not counts:
+    height, width = 3, len(NO_STATS_MSG) + 4
+  else:
+    height, width = 4 + max(1, len(counts)), 80
+
+  with nyx.popups.popup_window(height, width) as (popup, width, height):
+    if not popup:
+      return
+
+    if not counts:
+      popup.addstr(1, 2, NO_STATS_MSG, curses.A_BOLD, 'cyan')
+    else:
+      key_width, val_width, value_total = 3, 1, 0
+
+      for k, v in counts.items():
+        key_width = max(key_width, len(k))
+        val_width = max(val_width, len(str(v)))
+        value_total += v
+
+      sorted_counts = sorted(counts.iteritems(), key = operator.itemgetter(1), reverse = True)
+      graph_width = width - key_width - val_width - 11  # border, extra spaces, and percentage column
+
+      for y, (k, v) in enumerate(sorted_counts):
+        label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
+        x = popup.addstr(y + 1, 2, label, curses.A_BOLD, 'green')
+
+        for j in range(graph_width * v / value_total):
+          popup.addstr(y + 1, x + j + 1, ' ', curses.A_STANDOUT, 'red')
+
+      popup.addstr(height - 2, 2, 'Press any key...')
+
+    popup.win.box()
+    popup.addstr(0, 0, title, curses.A_STANDOUT)
+    popup.win.refresh()
+
+    curses.cbreak()
+    nyx.controller.get_controller().key_input()
 
 
 def show_sort_dialog(title, options, old_selection, option_colors):
