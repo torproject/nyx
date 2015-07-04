@@ -420,23 +420,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
     my_type = self.get_type()
 
     if my_type == Category.INBOUND:
-      # if we're a guard or bridge and the connection doesn't belong to a
-      # known relay then it might be client traffic
-
       controller = tor_controller()
 
-      my_flags = []
-      my_fingerprint = self.get_info('fingerprint', None)
-
-      if my_fingerprint:
-        my_status_entry = self.controller.get_network_status(my_fingerprint)
-
-        if my_status_entry:
-          my_flags = my_status_entry.flags
-
-      if 'Guard' in my_flags or controller.get_conf('BridgeRelay', None) == '1':
+      if controller.is_user_traffic_allowed().inbound:
         all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
-
         return all_matches == []
     elif my_type == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our

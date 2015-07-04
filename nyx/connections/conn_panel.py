@@ -200,38 +200,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if entries.SortAttr.LISTING in CONFIG['features.connection.order']:
         self.set_sort_order()
 
-  def is_clients_allowed(self):
-    """
-    True if client connections are permissable, false otherwise.
-    """
-
-    controller = tor_controller()
-
-    my_flags = []
-    my_fingerprint = controller.get_info('fingerprint', None)
-
-    if my_fingerprint:
-      my_status_entry = controller.get_network_status(my_fingerprint)
-
-      if my_status_entry:
-        my_flags = my_status_entry.flags
-
-    return 'Guard' in my_flags or controller.get_conf('BridgeRelay', None) == '1'
-
-  def is_exits_allowed(self):
-    """
-    True if exit connections are permissable, false otherwise.
-    """
-
-    controller = tor_controller()
-
-    if not controller.get_conf('ORPort', None):
-      return False  # no ORPort
-
-    policy = controller.get_exit_policy(None)
-
-    return policy and policy.is_exiting_allowed()
-
   def show_sort_dialog(self):
     """
     Provides the sort dialog for our connections.
@@ -250,6 +218,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
   def handle_key(self, key):
     with self.vals_lock:
+      user_traffic_allowed = tor_controller().is_user_traffic_allowed()
+
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
 
@@ -327,9 +297,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         self.set_title_visible(True)
         self.redraw(True)
-      elif key.match('c') and self.is_clients_allowed():
+      elif key.match('c') and user_traffic_allowed.inbound:
         nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
-      elif key.match('e') and self.is_exits_allowed():
+      elif key.match('e') and user_traffic_allowed.outbound:
         counts = {}
         key_width = max(map(len, self._exit_port_usage.keys()))
 
@@ -385,6 +355,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
   def get_help(self):
     resolver_util = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
+    user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
     options = [
       ('up arrow', 'scroll up a line', None),
@@ -395,10 +366,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       ('d', 'raw consensus descriptor', None),
     ]
 
-    if self.is_clients_allowed():
+    if user_traffic_allowed.inbound:
       options.append(('c', 'client locale usage summary', None))
 
-    if self.is_exits_allowed():
+    if user_traffic_allowed.outbound:
       options.append(('e', 'exit port usage summary', None))
 
     options.append(('l', 'listed identity', self.get_listing_type().lower()))
