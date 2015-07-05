@@ -197,11 +197,6 @@ features.graph.bw.accounting.show true
 #   * NICKNAME
 #   * COUNTRY
 #
-# refreshRate
-#   rate at which the connection panel contents is redrawn (if higher than the
-#   connection resolution rate then reducing this won't casue new data to
-#   appear more frequently - just increase the rate at which the uptime field
-#   is updated)
 # resolveApps
 #   issues lsof queries to determining the applications involved in local
 #   SOCKS and CONTROL connections
@@ -219,7 +214,6 @@ features.graph.bw.accounting.show true
 
 features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
-features.connection.refreshRate 5
 features.connection.resolveApps true
 features.connection.markInitialConnections true
 features.connection.showIps true

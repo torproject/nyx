@@ -25,13 +25,12 @@ DETAILS_HEIGHT = 7
 Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
 
 EXIT_USAGE_WIDTH = 15
+UPDATE_RATE = 5  # rate in seconds at which we refresh
 
 
 def conf_handler(key, value):
   if key == 'features.connection.listing_type':
     return conf.parse_enum(key, value, Listing)
-  elif key == 'features.connection.refreshRate':
-    return max(1, value)
   elif key == 'features.connection.order':
     return conf.parse_enum_csv(key, value[0], entries.SortAttr, 3)
 
@@ -43,7 +42,6 @@ CONFIG = conf.config_dict('nyx', {
     entries.SortAttr.CATEGORY,
     entries.SortAttr.LISTING,
     entries.SortAttr.UPTIME],
-  'features.connection.refreshRate': 5,
   'features.connection.showIps': True,
 }, conf_handler)
 
@@ -78,9 +76,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._last_update = -1        # time the content was last revised
     self._is_tor_running = True   # indicates if tor is currently running or not
     self._halt_time = None        # time when tor was stopped
-    self._halt = False            # terminates thread if true
-    self._cond = threading.Condition()  # used for pausing the thread
     self.vals_lock = threading.RLock()
+
+    self._pause_condition = threading.Condition()
+    self._halt = False  # terminates thread if true
 
     # Tracks exiting port and client country statistics
 
@@ -322,36 +321,19 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Keeps connections listing updated, checking for new entries at a set rate.
     """
 
-    last_draw = time.time() - 1
-
-    # Fetches out initial connection results. The wait is so this doesn't
-    # run during nyx's interface initialization (otherwise there's a
-    # noticeable pause before the first redraw).
-
-    with self._cond:
-      self._cond.wait(0.2)
-
-    self._update()             # populates initial entries
-    self._resolve_apps(False)  # resolves initial applications
+    last_ran = -1
 
     while not self._halt:
-      current_time = time.time()
-
-      if self.is_paused() or not self._is_tor_running or current_time - last_draw < CONFIG['features.connection.refreshRate']:
-        with self._cond:
+      if self.is_paused() or not self._is_tor_running or (time.time() - last_ran) < UPDATE_RATE:
+        with self._pause_condition:
           if not self._halt:
-            self._cond.wait(0.2)
-      else:
-        # updates content if their's new results, otherwise just redraws
+            self._pause_condition.wait(0.2)
 
-        self._update()
-        self.redraw(True)
+        continue  # done waiting, try again
 
-        # we may have missed multiple updates due to being paused, showing
-        # another panel, etc so last_draw might need to jump multiple ticks
-
-        draw_ticks = (time.time() - last_draw) / CONFIG['features.connection.refreshRate']
-        last_draw += CONFIG['features.connection.refreshRate'] * draw_ticks
+      self._update()
+      self.redraw(True)
+      last_ran = time.time()
 
   def get_help(self):
     resolver_util = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
@@ -364,6 +346,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       ('page down', 'scroll down a page', None),
       ('enter', 'show connection details', None),
       ('d', 'raw consensus descriptor', None),
+      ('l', 'listed identity', self.get_listing_type().lower()),
+      ('s', 'sort ordering', None),
+      ('u', 'resolving utility', 'auto' if resolver_util is None else resolver_util),
     ]
 
     if user_traffic_allowed.inbound:
@@ -372,9 +357,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if user_traffic_allowed.outbound:
       options.append(('e', 'exit port usage summary', None))
 
-    options.append(('l', 'listed identity', self.get_listing_type().lower()))
-    options.append(('s', 'sort ordering', None))
-    options.append(('u', 'resolving utility', 'auto' if resolver_util is None else resolver_util))
     return options
 
   def get_selection(self):
@@ -468,9 +450,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Halts further resolutions and terminates the thread.
     """
 
-    with self._cond:
+    with self._pause_condition:
       self._halt = True
-      self._cond.notifyAll()
+      self._pause_condition.notifyAll()
 
   def _update(self):
     """
