@@ -225,7 +225,7 @@ class ConfigPanel(panel.Panel):
     self.conf_contents = []
     self.conf_important_contents = []
     self.scroller = ui_tools.Scroller(True)
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
 
     # shows all configuration options if true, otherwise only the ones with
     # the 'important' flag are shown
@@ -332,7 +332,7 @@ class ConfigPanel(panel.Panel):
                  set ordering
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       if ordering:
         CONFIG['features.config.order'] = ordering
 
@@ -358,7 +358,7 @@ class ConfigPanel(panel.Panel):
       self.set_sort_order(result_enums)
 
   def handle_key(self, key):
-    with self.vals_lock:
+    with self._vals_lock:
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
         detail_panel_height = CONFIG['features.config.selectionDetails.height']
@@ -571,7 +571,7 @@ class ConfigPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    with self.vals_lock:
+    with self._vals_lock:
       # panel with details for the current selection
 
       detail_panel_height = CONFIG['features.config.selectionDetails.height']

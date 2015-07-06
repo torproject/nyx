@@ -38,7 +38,7 @@ class TorrcPanel(panel.Panel):
   def __init__(self, stdscr, config_type):
     panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
     self.config_type = config_type
     self.scroll = 0
     self.show_line_num = True     # shows left aligned line numbers
@@ -122,7 +122,7 @@ class TorrcPanel(panel.Panel):
     nyx.popups.show_msg(result_msg, 1)
 
   def handle_key(self, key):
-    with self.vals_lock:
+    with self._vals_lock:
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
         new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
@@ -160,7 +160,7 @@ class TorrcPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    with self.vals_lock:
+    with self._vals_lock:
       # If true, we assume that the cached value in self._last_content_height is
       # still accurate, and stop drawing when there's nothing more to display.
       # Otherwise the self._last_content_height is suspect, and we'll process all

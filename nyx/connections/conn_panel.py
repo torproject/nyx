@@ -76,7 +76,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._last_update = -1        # time the content was last revised
     self._is_tor_running = True   # indicates if tor is currently running or not
     self._halt_time = None        # time when tor was stopped
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
 
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
@@ -158,7 +158,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
                  set ordering
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       if ordering:
         nyx_config = conf.get_config('nyx')
 
@@ -190,7 +190,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if self.get_listing_type() == listing_type:
       return
 
-    with self.vals_lock:
+    with self._vals_lock:
       nyx_config = conf.get_config('nyx')
       nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(listing_type)])
 
@@ -216,7 +216,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order(results)
 
   def handle_key(self, key):
-    with self.vals_lock:
+    with self._vals_lock:
       user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
       if key.is_scroll():
@@ -367,7 +367,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     return self._scroller.get_cursor_selection(self._entry_lines)
 
   def draw(self, width, height):
-    with self.vals_lock:
+    with self._vals_lock:
       # if we don't have any contents then refuse to show details
 
       if not self._entries:
@@ -469,7 +469,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     conn_resolver = nyx.util.tracker.get_connection_tracker()
     current_resolution_count = conn_resolver.run_counter()
 
-    with self.vals_lock:
+    with self._vals_lock:
       new_entries = []  # the new results we'll display
 
       # Fetches new connections and client circuits...

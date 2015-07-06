@@ -822,7 +822,7 @@ class Torrc():
   def __init__(self):
     self.contents = None
     self.config_location = None
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
 
     # cached results for the current contents
     self.displayable_contents = None
@@ -842,7 +842,7 @@ class Torrc():
                    warning for this before then logs a warning
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       # clears contents and caches
       self.contents, self.config_location = None, None
       self.displayable_contents = None
@@ -859,7 +859,6 @@ class Torrc():
           log.warn('Unable to load torrc (%s)' % exc.strerror)
           self.is_foad_fail_warned = True
 
-        self.vals_lock.release()
         raise exc
 
   def is_loaded(self):
@@ -882,7 +881,7 @@ class Torrc():
     Provides the contents of the configuration file.
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       return list(self.contents) if self.contents else None
 
   def get_display_contents(self, strip = False):
@@ -898,7 +897,7 @@ class Torrc():
       strip - removes comments and extra whitespace if true
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       if not self.is_loaded():
         return None
       else:
@@ -927,7 +926,7 @@ class Torrc():
     results.
     """
 
-    with self.vals_lock:
+    with self._vals_lock:
       if not self.is_loaded():
         return None
       else:
@@ -949,7 +948,7 @@ class Torrc():
     Provides the lock governing concurrent access to the contents.
     """
 
-    return self.vals_lock
+    return self._vals_lock
 
   def log_validation_issues(self):
     """
