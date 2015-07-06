@@ -466,7 +466,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if destination_fingerprint == 'UNKNOWN':
           # Not a known relay. This might be an exit connection.
 
-          if is_exiting_allowed(controller, self.foreign.get_address(), self.foreign.get_port()):
+          if is_exiting_allowed(controller, self.foreign.get_address(), self.foreign.get_port() if self.foreign.get_port() else None):
             self.cached_type = Category.EXIT
         elif self._possible_client or self._possible_directory:
           # This belongs to a known relay. If we haven't eliminated ourselves as
