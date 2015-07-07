@@ -249,7 +249,6 @@ def make_connections_menu(conn_panel):
   listing_group = nyx.menu.item.SelectionGroup(conn_panel.set_listing_type, conn_panel.get_listing_type())
 
   listing_options = list(nyx.connections.entries.ListingType)
-  listing_options.remove(nyx.connections.entries.ListingType.HOSTNAME)
 
   for option in listing_options:
     connections_menu.add(nyx.menu.item.SelectionMenuItem(option, listing_group, option))

@@ -101,11 +101,11 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   def get_type(self):
     return conn_entry.Category.CIRCUIT
 
-  def get_destination_label(self, max_length, include_locale=False, include_hostname=False):
+  def get_destination_label(self, max_length, include_locale = False):
     if not self.is_built:
       return 'Building...'
 
-    return conn_entry.ConnectionLine.get_destination_label(self, max_length, include_locale, include_hostname)
+    return conn_entry.ConnectionLine.get_destination_label(self, max_length, include_locale)
 
   def get_etc_content(self, width, listing_type):
     """
@@ -187,7 +187,6 @@ class CircLine(conn_entry.ConnectionLine):
     dst, etc = '', ''
 
     if listing_type == entries.ListingType.IP_ADDRESS:
-      # TODO: include hostname when that's available
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
@@ -198,12 +197,6 @@ class CircLine(conn_entry.ConnectionLine):
       dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
-    elif listing_type == entries.ListingType.HOSTNAME:
-      # min space for the hostname is 40 characters
-
-      etc = self.get_etc_content(width - baseline_space - 40, listing_type)
-      dst_layout = '%%-%is' % (width - baseline_space - len(etc))
-      dst = dst_layout % self.foreign.get_hostname(self.foreign.get_address())
     elif listing_type == entries.ListingType.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char

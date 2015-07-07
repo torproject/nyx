@@ -22,7 +22,7 @@ DETAILS_HEIGHT = 7
 
 # listing types
 
-Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
+Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
 
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
@@ -256,10 +256,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         title = 'List By:'
         options = list(entries.ListingType)
-
-        # dropping the HOSTNAME listing type until we support displaying that content
-
-        options.remove(nyx.connections.entries.ListingType.HOSTNAME)
 
         old_selection = options.index(self.get_listing_type())
         selection = nyx.popups.show_menu(title, options, old_selection)

@@ -8,9 +8,9 @@ from stem.util import enum
 
 # attributes we can list entries by
 
-ListingType = enum.Enum(('IP_ADDRESS', 'IP Address'), 'HOSTNAME', 'FINGERPRINT', 'NICKNAME')
+ListingType = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
 
-SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'HOSTNAME', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
+SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
 SORT_COLORS = {
   SortAttr.CATEGORY: 'red',
@@ -18,7 +18,6 @@ SORT_COLORS = {
   SortAttr.LISTING: 'green',
   SortAttr.IP_ADDRESS: 'blue',
   SortAttr.PORT: 'blue',
-  SortAttr.HOSTNAME: 'magenta',
   SortAttr.FINGERPRINT: 'cyan',
   SortAttr.NICKNAME: 'cyan',
   SortAttr.COUNTRY: 'blue',
@@ -88,8 +87,6 @@ class ConnectionPanelEntry:
         sort_value = self.get_sort_value(SortAttr.IP_ADDRESS, listing_type) * PORT_COUNT
         sort_value += self.get_sort_value(SortAttr.PORT, listing_type)
         return sort_value
-      elif listing_type == ListingType.HOSTNAME:
-        return self.get_sort_value(SortAttr.HOSTNAME, listing_type)
       elif listing_type == ListingType.FINGERPRINT:
         return self.get_sort_value(SortAttr.FINGERPRINT, listing_type)
       elif listing_type == ListingType.NICKNAME:

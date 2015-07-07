@@ -105,28 +105,6 @@ class Endpoint:
 
     return self.port
 
-  def get_hostname(self, default = None):
-    """
-    Provides the hostname associated with the relay's address. This is a
-    non-blocking call and returns None if the address either can't be resolved
-    or hasn't been resolved yet.
-
-    Arguments:
-      default - return value if no hostname is available
-    """
-
-    # TODO: skipping all hostname resolution to be safe for now
-    # try:
-    #   myHostname = hostnames.resolve(self.address)
-    # except:
-    #   # either a ValueError or IOError depending on the source of the lookup failure
-    #   myHostname = None
-    #
-    # if not myHostname: return default
-    # else: return myHostname
-
-    return default
-
   def get_locale(self, default=None):
     """
     Provides the two letter country code for the IP address' locale.
@@ -204,11 +182,6 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
       return connection_line.sort_address
     elif attr == entries.SortAttr.PORT:
       return connection_line.sort_port
-    elif attr == entries.SortAttr.HOSTNAME:
-      if connection_line.is_private():
-        return ''
-
-      return connection_line.foreign.get_hostname('')
     elif attr == entries.SortAttr.FINGERPRINT:
       return connection_line.foreign.get_fingerprint()
     elif attr == entries.SortAttr.NICKNAME:
@@ -319,11 +292,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
       src - <internal addr:port> --> <external addr:port>
       dst - <destination addr:port>
       etc - <fingerprint> <nickname>
-
-    ListingType.HOSTNAME:
-      src - localhost:<port>
-      dst - <destination hostname:port>
-      etc - <destination addr:port> <fingerprint> <nickname>
 
     ListingType.FINGERPRINT:
       src - localhost
@@ -553,23 +521,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
         nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
         etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += nickname_space + 2
-    elif listing_type == entries.ListingType.HOSTNAME:
-      if width > used_space + 28 and CONFIG['features.connection.showColumn.destination']:
-        # show destination ip/port/locale (column width: 28 characters)
-        etc += '%-26s  ' % destination_address
-        used_space += 28
-
-      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
-        # show fingerprint (column width: 42 characters)
-        etc += '%-40s  ' % self.foreign.get_fingerprint()
-        used_space += 42
-
-      if width > used_space + 17 and CONFIG['features.connection.showColumn.nickname']:
-        # show nickname (column width: min 17 characters, uses half of the remainder)
-        nickname_space = 15 + (width - (used_space + 17)) / 2
-        nickname_label = str_tools.crop(self.foreign.get_nickname(), nickname_space, 0)
-        etc += ('%%-%is  ' % nickname_space) % nickname_label
-        used_space += (nickname_space + 2)
     elif listing_type == entries.ListingType.FINGERPRINT:
       if width > used_space + 17:
         # show nickname (column width: min 17 characters, consumes any remaining space)
@@ -650,9 +601,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       if my_type in (Category.SOCKS, Category.CONTROL):
         # Like inbound connections these need their source and destination to
-        # be swapped. However, this only applies when listing by IP or hostname
-        # (their fingerprint and nickname are both for us). Reversing the
-        # fields here to keep the same column alignments.
+        # be swapped. However, this only applies when listing by IP (their
+        # fingerprint and nickname are both for us). Reversing the fields here
+        # to keep the same column alignments.
 
         src = '%-21s' % destination_address
         dst = '%-26s' % src_address
@@ -689,31 +640,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       etc = self.get_etc_content(width - used_space, listing_type)
       used_space += len(etc)
-    elif listing_type == entries.ListingType.HOSTNAME:
-      # 15 characters for source, and a min of 40 reserved for the destination
-      # TODO: when actually functional the src and dst need to be swapped for
-      # SOCKS and CONTROL connections
-
-      src = 'localhost%-6s' % local_port
-      used_space += len(src)
-      min_hostname_space = 40
-
-      etc = self.get_etc_content(width - used_space - min_hostname_space, listing_type)
-      used_space += len(etc)
-
-      hostname_space = width - used_space
-      used_space = width  # prevents padding at the end
-
-      if self.is_private():
-        dst = ('%%-%is' % hostname_space) % '<scrubbed>'
-      else:
-        hostname = self.foreign.get_hostname(self.foreign.get_address())
-        port_label = ':%-5s' % self.foreign.get_port() if self.include_port else ''
-
-        # truncates long hostnames and sets dst to <hostname>:<port>
-
-        hostname = str_tools.crop(hostname, hostname_space, 0)
-        dst = ('%%-%is' % hostname_space) % (hostname + port_label)
     elif listing_type == entries.ListingType.FINGERPRINT:
       src = 'localhost'
 
@@ -894,7 +820,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     return lines
 
-  def get_destination_label(self, max_length, include_locale = False, include_hostname = False):
+  def get_destination_label(self, max_length, include_locale = False):
     """
     Provides a short description of the destination. This is made up of two
     components, the base <ip addr>:<port> and an extra piece of information in
@@ -902,14 +828,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     Extra information is...
     - the port's purpose for exit connections
-    - the locale and/or hostname if set to do so, the address isn't private,
-      and isn't on the local network
+    - the locale, the address isn't private and isn't on the local network
     - nothing otherwise
 
     Arguments:
       max_length       - maximum length of the string returned
       include_locale   - possibly includes the locale
-      include_hostname - possibly includes the hostname
     """
 
     # the port and port derived data can be hidden by config or without include_port
@@ -951,18 +875,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
           foreign_locale = self.foreign.get_locale('??')
           extra_info.append(foreign_locale)
           space_available -= len(foreign_locale) + 2
-
-        if include_hostname:
-          destination_hostname = self.foreign.get_hostname()
-
-          if destination_hostname:
-            # determines the full space available, taking into account the ", "
-            # dividers if there's multiple pieces of extra data
-
-            max_hostname_space = space_available - 2 * len(extra_info)
-            destination_hostname = str_tools.crop(destination_hostname, max_hostname_space)
-            extra_info.append(destination_hostname)
-            space_available -= len(destination_hostname)
 
         if extra_info:
           destination_address += ' (%s)' % ', '.join(extra_info)
