@@ -98,9 +98,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       country_summary = None
 
-      for arg in bridge_clients.split():
-        if arg.startswith('CountrySummary='):
-          country_summary = arg[15:]
+      for line in bridge_clients.split():
+        if line.startswith('CountrySummary='):
+          country_summary = line[15:]
           break
 
       if country_summary:
@@ -117,10 +117,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # resolver for the command/pid associated with SOCKS, HIDDEN, and CONTROL connections
 
     self._app_resolver = tracker.get_port_usage_tracker()
-
-    # rate limits appResolver queries to once per update
-
-    self.app_resolve_since_update = False
 
     # mark the initially exitsing connection uptimes as being estimates
 
@@ -417,12 +413,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for line_number in range(scroll_location, len(self._entry_lines)):
         entry_line = self._entry_lines[line_number]
 
-        # if this is an unresolved SOCKS, HIDDEN, or CONTROL entry then queue up
-        # resolution for the applicaitions they belong to
-
-        if isinstance(entry_line, conn_entry.ConnectionLine) and entry_line.is_unresolved_application():
-          self._resolve_apps()
-
         # hilighting if this is the selected line
 
         extra_format = curses.A_STANDOUT if entry_line == cursor_selection else curses.A_NORMAL
@@ -458,8 +448,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
     Fetches the newest resolved connections.
     """
-
-    self.app_resolve_since_update = False
 
     # if we don't have an initialized resolver then this is a no-op
 
@@ -576,17 +564,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count
 
-  def _resolve_apps(self, flag_query = True):
+      self._resolve_apps()
+
+  def _resolve_apps(self):
     """
     Triggers an asynchronous query for all unresolved SOCKS, HIDDEN, and
     CONTROL entries.
-
-    Arguments:
-      flag_query - sets a flag to prevent further call from being respected
-                  until the next update if true
     """
 
-    if self.app_resolve_since_update or not CONFIG['features.connection.resolveApps']:
+    if not CONFIG['features.connection.resolveApps']:
       return
 
     unresolved_lines = [l for l in self._entry_lines if isinstance(l, conn_entry.ConnectionLine) and l.is_unresolved_application()]
@@ -633,6 +619,3 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             line.is_application_resolving = False
       else:
         line.is_application_resolving = self._app_resolver.is_alive
-
-    if flag_query:
-      self.app_resolve_since_update = True
