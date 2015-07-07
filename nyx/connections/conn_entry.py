@@ -241,7 +241,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     my_dir_port = controller.get_conf('DirPort', None)
     my_socks_port = controller.get_conf('SocksPort', '9050')
     my_ctl_port = controller.get_conf('ControlPort', None)
-    my_hidden_service_ports = get_hidden_service_ports(controller)
+
+    # get all target ports in our hidden service configuation
+
+    my_hidden_service_ports = []
+
+    for hs_config in controller.get_hidden_service_conf({}).values():
+      my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
 
     # the ORListenAddress can overwrite the ORPort
 
@@ -880,48 +886,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
           destination_address += ' (%s)' % ', '.join(extra_info)
 
     return destination_address[:max_length]
-
-
-def get_hidden_service_ports(controller, default = []):
-  """
-  Provides the target ports hidden services are configured to use.
-
-  Arguments:
-    default - value provided back if unable to query the hidden service ports
-  """
-
-  result = []
-  hs_options = controller.get_conf_map('HiddenServiceOptions', {})
-
-  for entry in hs_options.get('HiddenServicePort', []):
-    # HiddenServicePort entries are of the form...
-    #
-    #   VIRTPORT [TARGET]
-    #
-    # ... with the TARGET being an address, port, or address:port. If the
-    # target port isn't defined then uses the VIRTPORT.
-
-    hs_port = None
-
-    if ' ' in entry:
-      virtport, target = entry.split(' ', 1)
-
-      if ':' in target:
-        hs_port = target.split(':', 1)[1]  # target is an address:port
-      elif target.isdigit():
-        hs_port = target  # target is a port
-      else:
-        hs_port = virtport  # target is an address
-    else:
-      hs_port = entry  # just has the virtual port
-
-    if hs_port.isdigit():
-      result.append(hs_port)
-
-  if result:
-    return result
-  else:
-    return default
 
 
 def is_exiting_allowed(controller, ip_address, port):
