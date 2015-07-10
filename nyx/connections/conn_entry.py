@@ -440,7 +440,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if destination_fingerprint == 'UNKNOWN':
           # Not a known relay. This might be an exit connection.
 
-          if is_exiting_allowed(controller, self.foreign.get_address(), self.foreign.get_port() if self.foreign.get_port() else None):
+          exit_policy = controller.get_exit_policy(None)
+          port = self.foreign.get_port() if self.foreign.get_port() else None
+
+          if exit_policy and exit_policy.can_exit_to(self.foreign.get_address(), port):
             self.cached_type = Category.EXIT
         elif self._possible_client or self._possible_directory:
           # This belongs to a known relay. If we haven't eliminated ourselves as
@@ -886,31 +889,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
           destination_address += ' (%s)' % ', '.join(extra_info)
 
     return destination_address[:max_length]
-
-
-def is_exiting_allowed(controller, ip_address, port):
-  """
-  Checks if the given destination can be exited to by this relay, returning
-  True if so and False otherwise.
-  """
-
-  result = False
-
-  if controller.is_alive():
-    # If we allow any exiting then this could be relayed DNS queries,
-    # otherwise the policy is checked. Tor still makes DNS connections to
-    # test when exiting isn't allowed, but nothing is relayed over them.
-    # I'm registering these as non-exiting to avoid likely user confusion:
-    # https://trac.torproject.org/projects/tor/ticket/965
-
-    our_policy = controller.get_exit_policy(None)
-
-    if our_policy and our_policy.is_exiting_allowed() and port == '53':
-      result = True
-    else:
-      result = our_policy and our_policy.can_exit_to(ip_address, port)
-
-  return result
 
 
 class FingerprintTracker:
