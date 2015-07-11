@@ -131,7 +131,7 @@ class Endpoint:
     # try again with that to narrow the results.
 
     if not my_fingerprint and not self.is_not_or_port:
-      my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address, self.port)
+      my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address, int(self.port))
 
     if my_fingerprint:
       return my_fingerprint
@@ -397,7 +397,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+        all_matches = get_fingerprint_tracker().get_all_relay_fingerprints(self.foreign.get_address())
         return all_matches == []
     elif my_type == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
@@ -795,7 +795,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if contact:
           lines[6] = 'contact: %s' % contact
     else:
-      all_matches = get_fingerprint_tracker().get_relay_fingerprint(self.foreign.get_address(), get_all_matches = True)
+      all_matches = get_fingerprint_tracker().get_all_relay_fingerprints(self.foreign.get_address())
 
       if all_matches:
         # multiple matches
@@ -893,178 +893,99 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
 class FingerprintTracker:
   def __init__(self):
-    # mappings of ip -> [(port, fingerprint), ...]
+    self._fingerprint_cache = None  # {address => [(port, fingerprint), ..]} for relays
+    self._nickname_cache = {}  # fingerprint => nickname lookup cache
 
-    self._fingerprint_mappings = None
+    tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
 
-    # lookup cache with fingerprint -> nickname mappings
+  def _new_consensus_event(self, event):
+    self._nickname_cache = {}
+    self._relay_fingerprints(event.desc)
 
-    self._nickname_lookup_cache = {}
-
-    controller = tor_controller()
-
-    controller.add_event_listener(self.new_consensus_event, stem.control.EventType.NEWCONSENSUS)
-    controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
-
-  def new_consensus_event(self, event):
-    self._nickname_lookup_cache = {}
-
-    if self._fingerprint_mappings is not None:
-      self._fingerprint_mappings = self._get_fingerprint_mappings(event.desc)
-
-  def new_desc_event(self, event):
-    # If we're tracking ip address -> fingerprint mappings then update with
-    # the new relays.
-
-    if self._fingerprint_mappings is not None:
-      desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
-
-      for fingerprint in desc_fingerprints:
-        # gets consensus data for the new descriptor
-
-        try:
-          desc = tor_controller().get_network_status(fingerprint)
-        except stem.ControllerError:
-          continue
-
-        # updates fingerprintMappings with new data
-
-        if desc.address in self._fingerprint_mappings:
-          # if entry already exists with the same orport, remove it
-
-          orport_match = None
-
-          for entry_port, entry_fingerprint in self._fingerprint_mappings[desc.address]:
-            if entry_port == desc.or_port:
-              orport_match = (entry_port, entry_fingerprint)
-              break
-
-          if orport_match:
-            self._fingerprint_mappings[desc.address].remove(orport_match)
-
-          # add the new entry
-
-          self._fingerprint_mappings[desc.address].append((desc.or_port, desc.fingerprint))
-        else:
-          self._fingerprint_mappings[desc.address] = [(desc.or_port, desc.fingerprint)]
-
-  def get_relay_fingerprint(self, relay_address, relay_port = None, get_all_matches = False):
+  def get_relay_fingerprint(self, address, port = None):
     """
-    Provides the fingerprint associated with the given address. If there's
-    multiple potential matches or the mapping is unknown then this returns
-    None. This disambiguates the fingerprint if there's multiple relays on
-    the same ip address by several methods, one of them being to pick relays
-    we have a connection with.
+    Provides the relay running at a given location. If there's multiple relays
+    and no port is provided to disambiguate then this returns **None**.
 
-    Arguments:
-      relay_address  - address of relay to be returned
-      relay_port     - orport of relay (to further narrow the results)
-      get_all_matches - ignores the relay_port and provides all of the
-                      (port, fingerprint) tuples matching the given
-                      address
+    :param str address: address to be checked
+    :param int port: optional ORPort to match against
+
+    :returns: **str** with the fingerprint of the relay running there
     """
 
     controller = tor_controller()
 
-    # TODO: normalize callers
-
-    if isinstance(relay_port, str):
-      relay_port = int(relay_port)
-
-    if not controller.is_alive():
-      return None
-
-    # checks if this matches us
-
-    if not get_all_matches and relay_address == controller.get_info('address', None):
-      if not relay_port or relay_port in controller.get_ports(stem.control.Listener.OR, []):
+    if address == controller.get_info('address', None):
+      if not port or port in controller.get_ports(stem.control.Listener.OR, []):
         return controller.get_info('fingerprint', None)
 
-    # populates the ip -> fingerprint mappings if not yet available
+    matches = self._relay_fingerprints().get(address, [])
 
-    if self._fingerprint_mappings is None:
-      self._fingerprint_mappings = self._get_fingerprint_mappings()
+    if len(matches) == 1:
+      match_port, match_fingerprint = matches[0]
+      return match_fingerprint if (not port or port == match_port) else None
+    elif len(matches) > 1 and port:
+      # there's multiple matches and we have a port to disambiguate with
 
-    if get_all_matches:
-      return self._fingerprint_mappings.get(relay_address, [])
-    else:
-      potential_matches = self._fingerprint_mappings.get(relay_address)
+      for match_port, match_fingerprint in matches:
+        if port == match_port:
+          return match_fingerprint
 
-      if not potential_matches:
-        return None  # no relay matches this ip address
+    return None
 
-      if len(potential_matches) == 1:
-        # There's only one relay belonging to this ip address. If the port
-        # matches then we're done.
-
-        match = potential_matches[0]
-
-        if relay_port and match[0] != relay_port:
-          return None
-        else:
-          return match[1]
-      elif relay_port:
-        # multiple potential matches, so trying to match based on the port
-
-        for entry_port, entry_fingerprint in potential_matches:
-          if entry_port == relay_port:
-            return entry_fingerprint
-
-        return None
-
-  def get_relay_nickname(self, relay_fingerprint):
+  def get_all_relay_fingerprints(self, address):
     """
-    Provides the nickname associated with the given relay. This provides None
-    if no such relay exists, and "Unnamed" if the name hasn't been set.
+    Provides a [(port, fingerprint)...] tuple of all relays on a given address.
 
-    Arguments:
-      relay_fingerprint - fingerprint of the relay
+    :param str address: address to be checked
+
+    :returns: **list** of port/fingerprint tuples running on it
     """
 
-    result = None
+    return self._relay_fingerprints().get(address, [])
+
+  def get_relay_nickname(self, fingerprint):
+    """
+    Provides the nickname associated with the given relay.
+
+    :param str fingerprint: relay to look up
+
+    :reutrns: **str** with the nickname ("Unnamed" if unset), and **None** if
+      no such relay exists
+    """
+
     controller = tor_controller()
 
-    if controller.is_alive():
-      # query the nickname if it isn't yet cached
-      if relay_fingerprint not in self._nickname_lookup_cache:
-        if relay_fingerprint == controller.get_info('fingerprint', None):
-          # this is us, simply check the config
-          my_nickname = controller.get_conf('Nickname', 'Unnamed')
-          self._nickname_lookup_cache[relay_fingerprint] = my_nickname
-        else:
-          ns_entry = controller.get_network_status(relay_fingerprint, None)
+    if fingerprint not in self._nickname_cache:
+      if fingerprint == controller.get_info('fingerprint', None):
+        self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
+      else:
+        ns_entry = controller.get_network_status(fingerprint, None)
 
-          if ns_entry:
-            self._nickname_lookup_cache[relay_fingerprint] = ns_entry.nickname
+        if ns_entry:
+          self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
 
-      result = self._nickname_lookup_cache[relay_fingerprint]
+    return self._nickname_cache.get(fingerprint)
 
-    return result
-
-  def _get_fingerprint_mappings(self, descriptors = None):
+  def _relay_fingerprints(self, descriptors = None):
     """
-    Provides IP address to (port, fingerprint) tuple mappings for all of the
-    currently cached relays.
+    Provides a cached mapping of 'address => [(port, fingerprint)...]' for
+    relays. If not yet available then this retrieves the information.
 
-    Arguments:
-      descriptors - router status entries (fetched if not provided)
+    :param list descriptors: update the cache with these router status entries
+
+    :returns: **dict** of addresses to the port/fingerprint tuples running there
     """
 
-    results = {}
-    controller = tor_controller()
-
-    if controller.is_alive():
-      # fetch the current network status if not provided
-
+    if descriptors or self._fingerprint_cache is None:
       if not descriptors:
-        try:
-          descriptors = controller.get_network_statuses()
-        except stem.ControllerError:
-          descriptors = []
+        descriptors = tor_controller().get_network_statuses([])
 
-      # construct mappings of ips to relay data
+      results = {}
 
       for desc in descriptors:
         results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
 
-    return results
+      self._fingerprint_cache = results
+
+    return self._fingerprint_cache
