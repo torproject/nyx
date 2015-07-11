@@ -897,10 +897,6 @@ class FingerprintTracker:
 
     self._fingerprint_mappings = None
 
-    # lookup cache with (ip, port) -> fingerprint mappings
-
-    self._fingerprint_lookup_cache = {}
-
     # lookup cache with fingerprint -> nickname mappings
 
     self._nickname_lookup_cache = {}
@@ -911,7 +907,6 @@ class FingerprintTracker:
     controller.add_event_listener(self.new_desc_event, stem.control.EventType.NEWDESC)
 
   def new_consensus_event(self, event):
-    self._fingerprint_lookup_cache = {}
     self._nickname_lookup_cache = {}
 
     if self._fingerprint_mappings is not None:
@@ -920,8 +915,6 @@ class FingerprintTracker:
   def new_desc_event(self, event):
     # If we're tracking ip address -> fingerprint mappings then update with
     # the new relays.
-
-    self._fingerprint_lookup_cache = {}
 
     if self._fingerprint_mappings is not None:
       desc_fingerprints = [fingerprint for (fingerprint, nickname) in event.relays]
@@ -971,28 +964,53 @@ class FingerprintTracker:
                       address
     """
 
-    result = None
     controller = tor_controller()
 
-    if controller.is_alive():
-      if get_all_matches:
-        # populates the ip -> fingerprint mappings if not yet available
-        if self._fingerprint_mappings is None:
-          self._fingerprint_mappings = self._get_fingerprint_mappings()
+    # TODO: normalize callers
 
-        if relay_address in self._fingerprint_mappings:
-          result = self._fingerprint_mappings[relay_address]
+    if isinstance(relay_port, str):
+      relay_port = int(relay_port)
+
+    if not controller.is_alive():
+      return None
+
+    # checks if this matches us
+
+    if not get_all_matches and relay_address == controller.get_info('address', None):
+      if not relay_port or relay_port in controller.get_ports(stem.control.Listener.OR, []):
+        return controller.get_info('fingerprint', None)
+
+    # populates the ip -> fingerprint mappings if not yet available
+
+    if self._fingerprint_mappings is None:
+      self._fingerprint_mappings = self._get_fingerprint_mappings()
+
+    if get_all_matches:
+      return self._fingerprint_mappings.get(relay_address, [])
+    else:
+      potential_matches = self._fingerprint_mappings.get(relay_address)
+
+      if not potential_matches:
+        return None  # no relay matches this ip address
+
+      if len(potential_matches) == 1:
+        # There's only one relay belonging to this ip address. If the port
+        # matches then we're done.
+
+        match = potential_matches[0]
+
+        if relay_port and match[0] != relay_port:
+          return None
         else:
-          result = []
-      else:
-        # query the fingerprint if it isn't yet cached
-        if (relay_address, relay_port) not in self._fingerprint_lookup_cache:
-          relay_fingerprint = self._get_relay_fingerprint(controller, relay_address, relay_port)
-          self._fingerprint_lookup_cache[(relay_address, relay_port)] = relay_fingerprint
+          return match[1]
+      elif relay_port:
+        # multiple potential matches, so trying to match based on the port
 
-        result = self._fingerprint_lookup_cache[(relay_address, relay_port)]
+        for entry_port, entry_fingerprint in potential_matches:
+          if entry_port == relay_port:
+            return entry_fingerprint
 
-    return result
+        return None
 
   def get_relay_nickname(self, relay_fingerprint):
     """
@@ -1022,55 +1040,6 @@ class FingerprintTracker:
       result = self._nickname_lookup_cache[relay_fingerprint]
 
     return result
-
-  def _get_relay_fingerprint(self, controller, relay_address, relay_port):
-    """
-    Provides the fingerprint associated with the address/port combination.
-
-    Arguments:
-      relay_address - address of relay to be returned
-      relay_port    - orport of relay (to further narrow the results)
-    """
-
-    # If we were provided with a string port then convert to an int (so
-    # lookups won't mismatch based on type).
-
-    if isinstance(relay_port, str):
-      relay_port = int(relay_port)
-
-    # checks if this matches us
-
-    if relay_address == controller.get_info('address', None):
-      if not relay_port or str(relay_port) == controller.get_conf('ORPort', None):
-        return controller.get_info('fingerprint', None)
-
-    # if we haven't yet populated the ip -> fingerprint mappings then do so
-
-    if self._fingerprint_mappings is None:
-      self._fingerprint_mappings = self._get_fingerprint_mappings()
-
-    potential_matches = self._fingerprint_mappings.get(relay_address)
-
-    if not potential_matches:
-      return None  # no relay matches this ip address
-
-    if len(potential_matches) == 1:
-      # There's only one relay belonging to this ip address. If the port
-      # matches then we're done.
-
-      match = potential_matches[0]
-
-      if relay_port and match[0] != relay_port:
-        return None
-      else:
-        return match[1]
-    elif relay_port:
-      # Multiple potential matches, so trying to match based on the port.
-      for entry_port, entry_fingerprint in potential_matches:
-        if entry_port == relay_port:
-          return entry_fingerprint
-
-    return None
 
   def _get_fingerprint_mappings(self, descriptors = None):
     """
