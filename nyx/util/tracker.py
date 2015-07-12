@@ -6,6 +6,7 @@ Background tasks for gathering information about the tor process.
   get_connection_tracker - provides a ConnectionTracker for our tor process
   get_resource_tracker - provides a ResourceTracker for our tor process
   get_port_usage_tracker - provides a PortUsageTracker for our system
+  get_consensus_tracker - provides a ConsensusTracker for our tor process
 
   stop_trackers - halts any active trackers
 
@@ -27,6 +28,12 @@ Background tasks for gathering information about the tor process.
     |- set_paused - pauses or continues work
     +- stop - stops further work by the daemon
 
+  ConsensusTracker - performant lookups for consensus related information
+    |- update - updates the consensus information we're based on
+    |- get_relay_nickname - provides the nickname for a given relay
+    |- get_relay_fingerprint - provides the relay running at a location
+    +- get_all_relay_fingerprints - provides all relays running at a location
+
 .. data:: Resources
 
   Resource usage information retrieved about the tor process.
@@ -43,7 +50,8 @@ import collections
 import time
 import threading
 
-from stem.control import State
+import stem.control
+
 from stem.util import conf, connection, proc, str_tools, system
 
 from nyx.util import log, tor_controller
@@ -57,6 +65,7 @@ CONFIG = conf.config_dict('nyx', {
 CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
 PORT_USAGE_TRACKER = None
+CONSENSUS_TRACKER = None
 
 Resources = collections.namedtuple('Resources', [
   'cpu_sample',
@@ -105,6 +114,19 @@ def get_port_usage_tracker():
     PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['queries.port_usage.rate'])
 
   return PORT_USAGE_TRACKER
+
+
+def get_consensus_tracker():
+  """
+  Singleton for tracking the connections established by tor.
+  """
+
+  global CONSENSUS_TRACKER
+
+  if CONSENSUS_TRACKER is None:
+    CONSENSUS_TRACKER = ConsensusTracker()
+
+  return CONSENSUS_TRACKER
 
 
 def stop_trackers():
@@ -305,7 +327,7 @@ class Daemon(threading.Thread):
 
     controller = tor_controller()
     controller.add_status_listener(self._tor_status_listener)
-    self._tor_status_listener(controller, State.INIT, None)
+    self._tor_status_listener(controller, stem.control.State.INIT, None)
 
   def run(self):
     while not self._halt:
@@ -393,7 +415,7 @@ class Daemon(threading.Thread):
 
   def _tor_status_listener(self, controller, event_type, _):
     with self._process_lock:
-      if not self._halt and event_type in (State.INIT, State.RESET):
+      if not self._halt and event_type in (stem.control.State.INIT, stem.control.State.RESET):
         tor_pid = controller.get_pid(None)
         tor_cmd = system.name_by_pid(tor_pid) if tor_pid else None
 
@@ -664,3 +686,98 @@ class PortUsageTracker(Daemon):
         log.debug('tracker.unable_to_get_port_usages', exc = exc)
 
       return False
+
+
+class ConsensusTracker(object):
+  """
+  Provides performant lookups of consensus information.
+  """
+
+  def __init__(self):
+    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
+    self._nickname_cache = {}  # fingerprint => nickname lookup cache
+
+    tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+
+  def _new_consensus_event(self, event):
+    self._nickname_cache = {}
+    self.update(event.desc)
+
+  def update(self, router_status_entries):
+    """
+    Updates our cache with the given router status entries.
+
+    :param list router_status_entries: router status entries to populate our cache with
+    """
+
+    new_fingerprint_cache = {}
+
+    for desc in router_status_entries:
+      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+
+    self._fingerprint_cache = new_fingerprint_cache
+
+  def get_relay_nickname(self, fingerprint):
+    """
+    Provides the nickname associated with the given relay.
+
+    :param str fingerprint: relay to look up
+
+    :reutrns: **str** with the nickname ("Unnamed" if unset), and **None** if
+      no such relay exists
+    """
+
+    controller = tor_controller()
+
+    if fingerprint not in self._nickname_cache:
+      if fingerprint == controller.get_info('fingerprint', None):
+        self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
+      else:
+        ns_entry = controller.get_network_status(fingerprint, None)
+
+        if ns_entry:
+          self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
+
+    return self._nickname_cache.get(fingerprint)
+
+  def get_relay_fingerprint(self, address, port = None):
+    """
+    Provides the relay running at a given location. If there's multiple relays
+    and no port is provided to disambiguate then this returns **None**.
+
+    :param str address: address to be checked
+    :param int port: optional ORPort to match against
+
+    :returns: **str** with the fingerprint of the relay running there
+    """
+
+    controller = tor_controller()
+
+    if address == controller.get_info('address', None):
+      if not port or port in controller.get_ports(stem.control.Listener.OR, []):
+        return controller.get_info('fingerprint', None)
+
+    matches = self._fingerprint_cache.get(address, [])
+
+    if len(matches) == 1:
+      match_port, match_fingerprint = matches[0]
+      return match_fingerprint if (not port or port == match_port) else None
+    elif len(matches) > 1 and port:
+      # there's multiple matches and we have a port to disambiguate with
+
+      for match_port, match_fingerprint in matches:
+        if port == match_port:
+          return match_fingerprint
+
+    return None
+
+  def get_all_relay_fingerprints(self, address):
+    """
+    Provides a [(port, fingerprint)...] tuple of all relays on a given address.
+
+    :param str address: address to be checked
+
+    :returns: **list** of port/fingerprint tuples running on it
+    """
+
+    return self._fingerprint_cache.get(address, [])

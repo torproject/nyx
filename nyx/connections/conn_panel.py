@@ -332,7 +332,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # iteration to hide the lag.
 
       if last_ran == -1:
-        conn_entry.get_fingerprint_tracker().update(tor_controller().get_network_statuses([]))
+        nyx.util.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
 
       last_ran = time.time()
 

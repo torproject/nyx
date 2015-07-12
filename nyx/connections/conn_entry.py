@@ -6,12 +6,11 @@ Connection panel entries related to actual connections to or from the system
 import time
 import curses
 
+import nyx.util.tracker
 import nyx.util.ui_tools
 
 from nyx.util import tor_controller
 from nyx.connections import entries
-
-import stem.control
 
 from stem.util import conf, connection, enum, str_tools
 
@@ -57,17 +56,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.connection.showColumn.destination': True,
   'features.connection.showColumn.expandedIp': True,
 })
-
-FINGERPRINT_TRACKER = None
-
-
-def get_fingerprint_tracker():
-  global FINGERPRINT_TRACKER
-
-  if FINGERPRINT_TRACKER is None:
-    FINGERPRINT_TRACKER = FingerprintTracker()
-
-  return FINGERPRINT_TRACKER
 
 
 class Endpoint:
@@ -125,13 +113,13 @@ class Endpoint:
     if self.fingerprint_overwrite:
       return self.fingerprint_overwrite
 
-    my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address)
+    my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.address)
 
     # If there were multiple matches and our port is likely the ORPort then
     # try again with that to narrow the results.
 
     if not my_fingerprint and not self.is_not_or_port:
-      my_fingerprint = get_fingerprint_tracker().get_relay_fingerprint(self.address, int(self.port))
+      my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.address, int(self.port))
 
     if my_fingerprint:
       return my_fingerprint
@@ -147,7 +135,7 @@ class Endpoint:
     my_fingerprint = self.get_fingerprint()
 
     if my_fingerprint != 'UNKNOWN':
-      my_nickname = get_fingerprint_tracker().get_relay_nickname(my_fingerprint)
+      my_nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(my_fingerprint)
 
       if my_nickname:
         return my_nickname
@@ -397,7 +385,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        all_matches = get_fingerprint_tracker().get_all_relay_fingerprints(self.foreign.get_address())
+        all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.foreign.get_address())
         return all_matches == []
     elif my_type == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
@@ -795,7 +783,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if contact:
           lines[6] = 'contact: %s' % contact
     else:
-      all_matches = get_fingerprint_tracker().get_all_relay_fingerprints(self.foreign.get_address())
+      all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.foreign.get_address())
 
       if all_matches:
         # multiple matches
@@ -889,94 +877,3 @@ class ConnectionLine(entries.ConnectionPanelLine):
           destination_address += ' (%s)' % ', '.join(extra_info)
 
     return destination_address[:max_length]
-
-
-class FingerprintTracker:
-  def __init__(self):
-    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
-    self._nickname_cache = {}  # fingerprint => nickname lookup cache
-
-    tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
-
-  def _new_consensus_event(self, event):
-    self._nickname_cache = {}
-    self.update(event.desc)
-
-  def update(self, router_status_entries):
-    """
-    Updates our cache with the given router status entries.
-
-    :param list router_status_entries: router status entries to populate our cache with
-    """
-
-    new_fingerprint_cache = {}
-
-    for desc in router_status_entries:
-      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
-
-    self._fingerprint_cache = new_fingerprint_cache
-
-  def get_relay_fingerprint(self, address, port = None):
-    """
-    Provides the relay running at a given location. If there's multiple relays
-    and no port is provided to disambiguate then this returns **None**.
-
-    :param str address: address to be checked
-    :param int port: optional ORPort to match against
-
-    :returns: **str** with the fingerprint of the relay running there
-    """
-
-    controller = tor_controller()
-
-    if address == controller.get_info('address', None):
-      if not port or port in controller.get_ports(stem.control.Listener.OR, []):
-        return controller.get_info('fingerprint', None)
-
-    matches = self._fingerprint_cache.get(address, [])
-
-    if len(matches) == 1:
-      match_port, match_fingerprint = matches[0]
-      return match_fingerprint if (not port or port == match_port) else None
-    elif len(matches) > 1 and port:
-      # there's multiple matches and we have a port to disambiguate with
-
-      for match_port, match_fingerprint in matches:
-        if port == match_port:
-          return match_fingerprint
-
-    return None
-
-  def get_all_relay_fingerprints(self, address):
-    """
-    Provides a [(port, fingerprint)...] tuple of all relays on a given address.
-
-    :param str address: address to be checked
-
-    :returns: **list** of port/fingerprint tuples running on it
-    """
-
-    return self._fingerprint_cache.get(address, [])
-
-  def get_relay_nickname(self, fingerprint):
-    """
-    Provides the nickname associated with the given relay.
-
-    :param str fingerprint: relay to look up
-
-    :reutrns: **str** with the nickname ("Unnamed" if unset), and **None** if
-      no such relay exists
-    """
-
-    controller = tor_controller()
-
-    if fingerprint not in self._nickname_cache:
-      if fingerprint == controller.get_info('fingerprint', None):
-        self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
-      else:
-        ns_entry = controller.get_network_status(fingerprint, None)
-
-        if ns_entry:
-          self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
-
-    return self._nickname_cache.get(fingerprint)
