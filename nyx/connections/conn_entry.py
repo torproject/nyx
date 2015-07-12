@@ -65,7 +65,7 @@ def get_fingerprint_tracker():
   global FINGERPRINT_TRACKER
 
   if FINGERPRINT_TRACKER is None:
-    FINGERPRINT_TRACKER = FingerprintTracker()
+    FINGERPRINT_TRACKER = FingerprintTracker(tor_controller().get_network_statuses([]))
 
   return FINGERPRINT_TRACKER
 
@@ -892,15 +892,23 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
 
 class FingerprintTracker:
-  def __init__(self):
-    self._fingerprint_cache = None  # {address => [(port, fingerprint), ..]} for relays
+  def __init__(self, router_status_entries):
+    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
     self._nickname_cache = {}  # fingerprint => nickname lookup cache
+
+    for desc in router_status_entries:
+      self._fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
 
     tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
 
   def _new_consensus_event(self, event):
+    new_fingerprint_cache = {}
+
+    for desc in event.desc:
+      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+
+    self._fingerprint_cache = new_fingerprint_cache
     self._nickname_cache = {}
-    self._relay_fingerprints(event.desc)
 
   def get_relay_fingerprint(self, address, port = None):
     """
@@ -919,7 +927,7 @@ class FingerprintTracker:
       if not port or port in controller.get_ports(stem.control.Listener.OR, []):
         return controller.get_info('fingerprint', None)
 
-    matches = self._relay_fingerprints().get(address, [])
+    matches = self._fingerprint_cache.get(address, [])
 
     if len(matches) == 1:
       match_port, match_fingerprint = matches[0]
@@ -942,7 +950,7 @@ class FingerprintTracker:
     :returns: **list** of port/fingerprint tuples running on it
     """
 
-    return self._relay_fingerprints().get(address, [])
+    return self._fingerprint_cache.get(address, [])
 
   def get_relay_nickname(self, fingerprint):
     """
@@ -966,26 +974,3 @@ class FingerprintTracker:
           self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
 
     return self._nickname_cache.get(fingerprint)
-
-  def _relay_fingerprints(self, descriptors = None):
-    """
-    Provides a cached mapping of 'address => [(port, fingerprint)...]' for
-    relays. If not yet available then this retrieves the information.
-
-    :param list descriptors: update the cache with these router status entries
-
-    :returns: **dict** of addresses to the port/fingerprint tuples running there
-    """
-
-    if descriptors or self._fingerprint_cache is None:
-      if not descriptors:
-        descriptors = tor_controller().get_network_statuses([])
-
-      results = {}
-
-      for desc in descriptors:
-        results.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
-
-      self._fingerprint_cache = results
-
-    return self._fingerprint_cache
