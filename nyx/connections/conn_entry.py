@@ -65,7 +65,7 @@ def get_fingerprint_tracker():
   global FINGERPRINT_TRACKER
 
   if FINGERPRINT_TRACKER is None:
-    FINGERPRINT_TRACKER = FingerprintTracker(tor_controller().get_network_statuses([]))
+    FINGERPRINT_TRACKER = FingerprintTracker()
 
   return FINGERPRINT_TRACKER
 
@@ -892,23 +892,29 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
 
 class FingerprintTracker:
-  def __init__(self, router_status_entries):
+  def __init__(self):
     self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
     self._nickname_cache = {}  # fingerprint => nickname lookup cache
-
-    for desc in router_status_entries:
-      self._fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
 
     tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
 
   def _new_consensus_event(self, event):
+    self._nickname_cache = {}
+    self.update(event.desc)
+
+  def update(self, router_status_entries):
+    """
+    Updates our cache with the given router status entries.
+
+    :param list router_status_entries: router status entries to populate our cache with
+    """
+
     new_fingerprint_cache = {}
 
-    for desc in event.desc:
+    for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
 
     self._fingerprint_cache = new_fingerprint_cache
-    self._nickname_cache = {}
 
   def get_relay_fingerprint(self, address, port = None):
     """
