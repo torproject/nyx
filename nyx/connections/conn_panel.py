@@ -275,7 +275,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             break
 
           color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
-          fingerprint = None if selection.foreign.get_fingerprint() == 'UNKNOWN' else selection.foreign.get_fingerprint()
+          fingerprint = selection.foreign.get_fingerprint()
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
           key = descriptor_popup.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
 

@@ -723,7 +723,7 @@ class ConsensusTracker(object):
 
     :param str fingerprint: relay to look up
 
-    :reutrns: **str** with the nickname ("Unnamed" if unset), and **None** if
+    :returns: **str** with the nickname ("Unnamed" if unset), and **None** if
       no such relay exists
     """
 

@@ -194,21 +194,21 @@ class CircLine(conn_entry.ConnectionLine):
 
       # fills the nickname into the empty space here
 
-      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.foreign.get_nickname(), 25, 0))
+      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.foreign.get_nickname('UNKNOWN'), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
 
-      dst = '%-55s' % self.foreign.get_fingerprint()
+      dst = '%-55s' % self.foreign.get_fingerprint('UNKNOWN')
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     else:
       # min space for the nickname is 56 characters
 
       etc = self.get_etc_content(width - baseline_space - 56, listing_type)
       dst_layout = '%%-%is' % (width - baseline_space - len(etc))
-      dst = dst_layout % self.foreign.get_nickname()
+      dst = dst_layout % self.foreign.get_nickname('UNKNOWN')
 
     return ((dst + etc, line_format),
             (' ' * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
