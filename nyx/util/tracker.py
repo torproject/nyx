@@ -32,7 +32,8 @@ Background tasks for gathering information about the tor process.
     |- update - updates the consensus information we're based on
     |- get_relay_nickname - provides the nickname for a given relay
     |- get_relay_fingerprint - provides the relay running at a location
-    +- get_all_relay_fingerprints - provides all relays running at a location
+    |- get_all_relay_fingerprints - provides all relays running at a location
+    +- get_relay_address - provides the address a relay is running at
 
 .. data:: Resources
 
@@ -696,6 +697,7 @@ class ConsensusTracker(object):
   def __init__(self):
     self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
     self._nickname_cache = {}  # fingerprint => nickname lookup cache
+    self._address_cache = {}
 
     tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
 
@@ -711,11 +713,14 @@ class ConsensusTracker(object):
     """
 
     new_fingerprint_cache = {}
+    new_address_cache = {}
 
     for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+      new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
 
     self._fingerprint_cache = new_fingerprint_cache
+    self._address_cache = new_address_cache
 
   def get_relay_nickname(self, fingerprint):
     """
@@ -781,3 +786,23 @@ class ConsensusTracker(object):
     """
 
     return self._fingerprint_cache.get(address, [])
+
+  def get_relay_address(self, fingerprint, default):
+    """
+    Provides the (address, port) tuple where a relay is running.
+
+    :param str fingerprint: fingerprint to be checked
+
+    :returns: **tuple** with a **str** address and **int** port
+    """
+
+    controller = tor_controller()
+
+    if fingerprint == controller.get_info('fingerprint', None):
+      my_address = controller.get_info('address', None)
+      my_or_ports = controller.get_ports(stem.control.Listener.OR, [])
+
+      if my_address and len(my_or_ports) == 1:
+        return (my_address, my_or_ports[0])
+
+    return self._address_cache.get(fingerprint, default)

@@ -10,14 +10,12 @@ followed by an entry for each hop in the circuit. For instance:
 
 import curses
 
+import nyx.util.tracker
 import nyx.util.ui_tools
 
 from nyx.connections import entries, conn_entry
-from nyx.util import tor_controller
 
 from stem.util import str_tools
-
-ADDRESS_LOOKUP_CACHE = {}
 
 
 class CircEntry(conn_entry.ConnectionEntry):
@@ -54,15 +52,14 @@ class CircEntry(conn_entry.ConnectionEntry):
 
     self.status = status
     self.lines = [self.lines[0]]
-    controller = tor_controller()
 
     if status == 'BUILT' and not self.lines[0].is_built:
-      exit_ip, exit_port = get_relay_address(controller, path[-1], ('192.168.0.1', '0'))
+      exit_ip, exit_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(path[-1], ('192.168.0.1', 0))
       self.lines[0].set_exit(exit_ip, exit_port, path[-1])
 
     for i in range(len(path)):
       relay_fingerprint = path[i]
-      relay_ip, relay_port = get_relay_address(controller, relay_fingerprint, ('192.168.0.1', '0'))
+      relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(relay_fingerprint, ('192.168.0.1', 0))
 
       if i == len(path) - 1:
         if status == 'BUILT':
@@ -213,36 +210,3 @@ class CircLine(conn_entry.ConnectionLine):
     return ((dst + etc, line_format),
             (' ' * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
             ('%-14s' % self.placement_label, line_format))
-
-
-def get_relay_address(controller, relay_fingerprint, default = None):
-  """
-  Provides the (IP Address, ORPort) tuple for a given relay. If the lookup
-  fails then this returns the default.
-
-  Arguments:
-    relay_fingerprint - fingerprint of the relay
-  """
-
-  result = default
-
-  if controller.is_alive():
-    # query the address if it isn't yet cached
-    if relay_fingerprint not in ADDRESS_LOOKUP_CACHE:
-      if relay_fingerprint == controller.get_info('fingerprint', None):
-        # this is us, simply check the config
-        my_address = controller.get_info('address', None)
-        my_or_port = controller.get_conf('ORPort', None)
-
-        if my_address and my_or_port:
-          ADDRESS_LOOKUP_CACHE[relay_fingerprint] = (my_address, my_or_port)
-      else:
-        # check the consensus for the relay
-        relay = controller.get_network_status(relay_fingerprint, None)
-
-        if relay:
-          ADDRESS_LOOKUP_CACHE[relay_fingerprint] = (relay.address, relay.or_port)
-
-    result = ADDRESS_LOOKUP_CACHE.get(relay_fingerprint, default)
-
-  return result
