@@ -68,6 +68,14 @@ RESOURCE_TRACKER = None
 PORT_USAGE_TRACKER = None
 CONSENSUS_TRACKER = None
 
+# Extending stem's Connection tuple with attributes for the uptime of the
+# connection.
+
+Connection = collections.namedtuple('Connection', [
+  'start_time',
+  'is_legacy',  # boolean to indicate if the connection predated us
+] + list(stem.util.connection.Connection._fields))
+
 Resources = collections.namedtuple('Resources', [
   'cpu_sample',
   'cpu_average',
@@ -441,8 +449,10 @@ class ConnectionTracker(Daemon):
     super(ConnectionTracker, self).__init__(rate)
 
     self._connections = []
+    self._start_times = {}  # connection => (unix_timestamp, is_legacy)
     self._resolvers = connection.system_resolvers()
     self._custom_resolver = None
+    self._is_first_run = True
 
     # Number of times in a row we've either failed with our current resolver or
     # concluded that our rate is too low.
@@ -462,12 +472,16 @@ class ConnectionTracker(Daemon):
 
     try:
       start_time = time.time()
+      new_connections, new_start_times = [], {}
 
-      self._connections = connection.get_connections(
-        resolver,
-        process_pid = process_pid,
-        process_name = process_name,
-      )
+      for conn in connection.get_connections(resolver, process_pid = process_pid, process_name = process_name):
+        conn_start_time, is_legacy = self._start_times.get(conn, (start_time, self._is_first_run))
+        new_start_times[conn] = (conn_start_time, is_legacy)
+        new_connections.append(Connection(conn_start_time, is_legacy, *conn))
+
+      self._connections = new_connections
+      self._start_times = new_start_times
+      self._is_first_run = False
 
       runtime = time.time() - start_time
 
@@ -539,7 +553,7 @@ class ConnectionTracker(Daemon):
     """
     Provides a listing of tor's latest connections.
 
-    :returns: **list** of :class:`~stem.util.connection.Connection` we last
+    :returns: **list** of :class:`~nyx.util.tracker.Connection` we last
       retrieved, an empty list if our tracker's been stopped
     """
 
