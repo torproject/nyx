@@ -9,6 +9,7 @@ followed by an entry for each hop in the circuit. For instance:
 """
 
 import curses
+import time
 
 import nyx.util.tracker
 import nyx.util.ui_tools
@@ -20,7 +21,7 @@ from stem.util import str_tools
 
 class CircEntry(conn_entry.ConnectionEntry):
   def __init__(self, circuit_id, status, purpose, path):
-    conn_entry.ConnectionEntry.__init__(self, '127.0.0.1', '0', '127.0.0.1', '0')
+    conn_entry.ConnectionEntry.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
 
     self.circuit_id = circuit_id
     self.status = status
@@ -85,13 +86,13 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, circuit_id, purpose):
-    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', '0.0.0.0', '0', False, False)
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
     self.circuit_id = circuit_id
     self.purpose = purpose
     self.is_built = False
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', exit_address, exit_port, False, False)
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
     self.is_built = True
     self.foreign.fingerprint_overwrite = exit_fingerprint
 
@@ -136,7 +137,7 @@ class CircLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label):
-    conn_entry.ConnectionLine.__init__(self, '127.0.0.1', '0', remote_address, remote_port)
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
     self.foreign.fingerprint_overwrite = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False

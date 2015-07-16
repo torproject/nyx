@@ -454,12 +454,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Fetches the newest resolved connections.
     """
 
-    # if we don't have an initialized resolver then this is a no-op
-
-    if not nyx.util.tracker.get_connection_tracker().is_alive():
-      return
-
     conn_resolver = nyx.util.tracker.get_connection_tracker()
+
+    if not conn_resolver.is_alive():
+      return  # if we're not fetching connections then this is a no-op
+
     current_resolution_count = conn_resolver.run_counter()
 
     with self._vals_lock:
@@ -469,7 +468,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # new_connections  [(local ip, local port, foreign ip, foreign port)...]
       # new_circuits     {circuit_id => (status, purpose, path)...}
 
-      new_connections = [(conn.local_address, conn.local_port, conn.remote_address, conn.remote_port) for conn in conn_resolver.get_value()]
+      new_connections = conn_resolver.get_value()
       new_circuits = {}
 
       for circ in tor_controller().get_circuits([]):
@@ -493,13 +492,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             new_entries.append(old_entry)
             del new_circuits[old_entry.circuit_id]
         elif isinstance(old_entry, conn_entry.ConnectionEntry):
-          connection_line = old_entry.getLines()[0]
-          conn_attr = (connection_line.local.get_address(), connection_line.local.get_port(),
-                       connection_line.foreign.get_address(), connection_line.foreign.get_port())
-
-          if conn_attr in new_connections:
+          if old_entry.connection in new_connections:
             new_entries.append(old_entry)
-            new_connections.remove(conn_attr)
+            new_connections.remove(old_entry.connection)
 
       # Reset any display attributes for the entries we're keeping
 
@@ -508,8 +503,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       # Adds any new connection and circuit entries.
 
-      for local_address, local_port, remote_address, remote_port in new_connections:
-        new_conn_entry = conn_entry.ConnectionEntry(local_address, local_port, remote_address, remote_port)
+      for conn in new_connections:
+        new_conn_entry = conn_entry.ConnectionEntry(conn)
         new_conn_line = new_conn_entry.getLines()[0]
 
         if new_conn_line.get_type() != conn_entry.Category.CIRCUIT:

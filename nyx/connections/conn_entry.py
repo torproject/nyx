@@ -3,7 +3,6 @@ Connection panel entries related to actual connections to or from the system
 (ie, results seen by netstat, lsof, etc).
 """
 
-import time
 import curses
 
 import nyx.util.tracker
@@ -127,9 +126,10 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
   application, and controller categories.
   """
 
-  def __init__(self, local_address, local_port, remote_address, remote_port):
+  def __init__(self, conn):
     entries.ConnectionPanelEntry.__init__(self)
-    self.lines = [ConnectionLine(local_address, local_port, remote_address, remote_port)]
+    self.connection = conn
+    self.lines = [ConnectionLine(conn)]
 
   def get_sort_value(self, attr, listing_type):
     """
@@ -157,7 +157,7 @@ class ConnectionEntry(entries.ConnectionPanelEntry):
     elif attr == entries.SortAttr.CATEGORY:
       return Category.index_of(connection_line.get_type())
     elif attr == entries.SortAttr.UPTIME:
-      return connection_line.start_time
+      return self.connection.start_time
     elif attr == entries.SortAttr.COUNTRY:
       if connection.is_private_address(self.lines[0].foreign.get_address()):
         return ''
@@ -172,13 +172,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
   Display component of the ConnectionEntry.
   """
 
-  def __init__(self, local_address, local_port, remote_address, remote_port, include_port=True, include_expanded_addresses=True):
+  def __init__(self, conn, include_port=True, include_expanded_addresses=True):
     entries.ConnectionPanelLine.__init__(self)
 
-    self.local = Endpoint(local_address, int(local_port))
-    self.foreign = Endpoint(remote_address, int(remote_port))
-    self.start_time = time.time()
-    self.is_initial_connection = False
+    self.local = Endpoint(conn.local_address, int(conn.local_port))
+    self.foreign = Endpoint(conn.remote_address, int(conn.remote_port))
+    self.connection = conn
 
     # overwrite the local fingerprint with ours
 
@@ -219,14 +218,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
     if listen_addr and ':' in listen_addr:
       my_or_port = listen_addr[listen_addr.find(':') + 1:]
 
-    if local_port in (my_or_port, my_dir_port):
+    if conn.local_port in (my_or_port, my_dir_port):
       self.base_type = Category.INBOUND
       self.local.is_or_port = True
-    elif local_port == my_socks_port:
+    elif conn.local_port == my_socks_port:
       self.base_type = Category.SOCKS
-    elif remote_port in my_hidden_service_ports:
+    elif conn.remote_port in my_hidden_service_ports:
       self.base_type = Category.HIDDEN
-    elif local_port == my_ctl_port:
+    elif conn.local_port == my_ctl_port:
       self.base_type = Category.CONTROL
     else:
       self.base_type = Category.OUTBOUND
@@ -286,11 +285,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # fill in the current uptime and return the results
 
     if CONFIG['features.connection.markInitialConnections']:
-      time_prefix = '+' if self.is_initial_connection else ' '
+      time_prefix = '+' if self.connection.is_legacy else ' '
     else:
       time_prefix = ''
 
-    time_label = time_prefix + '%5s' % str_tools.time_label(current_time - self.start_time, 1)
+    time_label = time_prefix + '%5s' % str_tools.time_label(current_time - self.connection.start_time, 1)
     my_listing[2] = (time_label, my_listing[2][1])
 
     return my_listing
