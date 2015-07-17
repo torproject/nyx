@@ -464,46 +464,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     with self._vals_lock:
       new_entries = []  # the new results we'll display
 
-      # Fetches new connections and client circuits...
-      # new_connections  [(local ip, local port, foreign ip, foreign port)...]
-      # new_circuits     {circuit_id => (status, purpose, path)...}
-
-      new_connections = conn_resolver.get_value()
-      new_circuits = {}
-
-      for circ in tor_controller().get_circuits([]):
-        # Skips established single-hop circuits (these are for directory
-        # fetches, not client circuits)
-
-        if not (circ.status == 'BUILT' and len(circ.path) == 1):
-          new_circuits[circ.id] = circ
-
-      # Populates new_entries with any of our old entries that still exist.
-      # This is both for performance and to keep from resetting the uptime
-      # attributes. Note that CircEntries are a ConnectionEntry subclass so
-      # we need to check for them first.
-
-      for old_entry in self._entries:
-        if isinstance(old_entry, circ_entry.CircEntry):
-          new_entry = new_circuits.get(old_entry.circuit_id)
-
-          if new_entry:
-            old_entry.update(new_entry.status, [entry[0] for entry in new_entry.path])
-            new_entries.append(old_entry)
-            del new_circuits[old_entry.circuit_id]
-        elif isinstance(old_entry, conn_entry.ConnectionEntry):
-          if old_entry.connection in new_connections:
-            new_entries.append(old_entry)
-            new_connections.remove(old_entry.connection)
-
-      # Reset any display attributes for the entries we're keeping
-
-      for entry in new_entries:
-        entry.reset_display()
-
-      # Adds any new connection and circuit entries.
-
-      for conn in new_connections:
+      for conn in conn_resolver.get_value():
         new_conn_entry = conn_entry.ConnectionEntry(conn)
         new_conn_line = new_conn_entry.getLines()[0]
 
@@ -523,8 +484,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
               exit_port = new_conn_line.foreign.get_port()
               self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-      for circuit_id in new_circuits:
-        new_entries.append(circ_entry.CircEntry(new_circuits[circuit_id]))
+      for circ in tor_controller().get_circuits([]):
+        # Skips established single-hop circuits (these are for directory
+        # fetches, not client circuits)
+
+        if not (circ.status == 'BUILT' and len(circ.path) == 1):
+          new_entries.append(circ_entry.CircEntry(circ))
 
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last
