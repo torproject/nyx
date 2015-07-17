@@ -9,7 +9,7 @@ followed by an entry for each hop in the circuit. For instance:
 """
 
 import curses
-import time
+import datetime
 
 import nyx.util.tracker
 import nyx.util.ui_tools
@@ -19,10 +19,15 @@ from nyx.connections import entries, conn_entry
 from stem.util import str_tools
 
 
+def to_unix_time(dt):
+  return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
+
+
 class CircEntry(conn_entry.ConnectionEntry):
   def __init__(self, circ):
-    conn_entry.ConnectionEntry.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
+    conn_entry.ConnectionEntry.__init__(self, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
 
+    self._circuit = circ
     self.circuit_id = circ.id
     self.status = circ.status
 
@@ -33,7 +38,7 @@ class CircEntry(conn_entry.ConnectionEntry):
     if len(purpose) >= 2:
       purpose = purpose[0].upper() + purpose[1:].lower()
 
-    self.lines = [CircHeaderLine(self.circuit_id, purpose)]
+    self.lines = [CircHeaderLine(circ)]
 
     # Overwrites attributes of the initial line to make it more fitting as the
     # header for our listing.
@@ -76,7 +81,7 @@ class CircEntry(conn_entry.ConnectionEntry):
 
       placement_label = '%i / %s' % (i + 1, placement_type)
 
-      self.lines.append(CircLine(relay_ip, relay_port, relay_fingerprint, placement_label))
+      self.lines.append(CircLine(relay_ip, relay_port, relay_fingerprint, placement_label, to_unix_time(self._circuit.created)))
 
     self.lines[-1].is_last = True
 
@@ -87,14 +92,15 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   lines except that its etc field has circuit attributes.
   """
 
-  def __init__(self, circuit_id, purpose):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
-    self.circuit_id = circuit_id
-    self.purpose = purpose
+  def __init__(self, circ):
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
+    self.circuit_id = circ.id
+    self.purpose = circ.purpose
     self.is_built = False
+    self._timestamp = to_unix_time(circ.created)
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(self._timestamp, False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
     self.is_built = True
     self.foreign.fingerprint_overwrite = exit_fingerprint
 
@@ -138,8 +144,8 @@ class CircLine(conn_entry.ConnectionLine):
   caching, etc).
   """
 
-  def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
+  def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
+    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
     self.foreign.fingerprint_overwrite = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False
