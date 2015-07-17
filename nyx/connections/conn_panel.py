@@ -476,7 +476,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # fetches, not client circuits)
 
         if not (circ.status == 'BUILT' and len(circ.path) == 1):
-          new_circuits[circ.id] = (circ.status, circ.purpose, [entry[0] for entry in circ.path])
+          new_circuits[circ.id] = circ
 
       # Populates new_entries with any of our old entries that still exist.
       # This is both for performance and to keep from resetting the uptime
@@ -488,7 +488,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           new_entry = new_circuits.get(old_entry.circuit_id)
 
           if new_entry:
-            old_entry.update(new_entry[0], new_entry[2])
+            old_entry.update(new_entry.status, [entry[0] for entry in new_entry.path])
             new_entries.append(old_entry)
             del new_circuits[old_entry.circuit_id]
         elif isinstance(old_entry, conn_entry.ConnectionEntry):
@@ -524,8 +524,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
               self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
       for circuit_id in new_circuits:
-        status, purpose, path = new_circuits[circuit_id]
-        new_entries.append(circ_entry.CircEntry(circuit_id, status, purpose, path))
+        new_entries.append(circ_entry.CircEntry(new_circuits[circuit_id]))
 
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last

@@ -20,13 +20,15 @@ from stem.util import str_tools
 
 
 class CircEntry(conn_entry.ConnectionEntry):
-  def __init__(self, circuit_id, status, purpose, path):
+  def __init__(self, circ):
     conn_entry.ConnectionEntry.__init__(self, nyx.util.tracker.Connection(time.time(), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
 
-    self.circuit_id = circuit_id
-    self.status = status
+    self.circuit_id = circ.id
+    self.status = circ.status
 
     # drops to lowercase except the first letter
+
+    purpose = circ.purpose
 
     if len(purpose) >= 2:
       purpose = purpose[0].upper() + purpose[1:].lower()
@@ -38,7 +40,7 @@ class CircEntry(conn_entry.ConnectionEntry):
 
     self.lines[0].base_type = conn_entry.Category.CIRCUIT
 
-    self.update(status, path)
+    self.update(circ.status, [entry[0] for entry in circ.path])
 
   def update(self, status, path):
     """
