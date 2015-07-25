@@ -4,6 +4,7 @@ Listing of the currently established connections tor has made.
 
 import re
 import time
+import collections
 import curses
 import threading
 
@@ -68,7 +69,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
 
     self._scroller = ui_tools.Scroller(True)
-    self._title = 'Connections:'  # title line of the panel
     self._entries = []            # last fetched display entries
     self._entry_lines = []        # individual lines rendered from the entries listing
     self._show_details = False    # presents the details panel if true
@@ -401,8 +401,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # title label with connection counts
 
       if self.is_title_visible():
-        title = 'Connection Details:' if self._show_details else self._title
-        self.addstr(0, 0, title, curses.A_STANDOUT)
+        self._draw_title(self._entries)
 
       scroll_offset = 0
 
@@ -439,6 +438,18 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         if draw_line >= height:
           break
+
+  def _draw_title(self, entries):
+    if self._show_details:
+      title = 'Connection Details:'
+    elif not entries:
+      title = 'Connections:'
+    else:
+      counts = collections.Counter([entry.get_lines()[0].get_type() for entry in entries])
+      count_labels = ['%i %s' % (counts[category], category.lower()) for category in conn_entry.Category if counts[category]]
+      title = 'Connections (%s):' % ', '.join(count_labels)
+
+    self.addstr(0, 0, title, curses.A_STANDOUT)
 
   def stop(self):
     """
@@ -484,33 +495,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         elif entry_line.get_type() == conn_entry.Category.EXIT:
           exit_port = entry_line.foreign.get_port()
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
-
-      # Counts the relays in each of the categories. This also flushes the
-      # type cache for all of the connections (in case its changed since last
-      # fetched).
-
-      category_types = list(conn_entry.Category)
-      type_counts = dict((type, 0) for type in category_types)
-
-      for entry in new_entries:
-        if isinstance(entry, conn_entry.ConnectionEntry):
-          type_counts[entry.get_lines()[0].get_type()] += 1
-        elif isinstance(entry, circ_entry.CircEntry):
-          type_counts[conn_entry.Category.CIRCUIT] += 1
-
-      # makes labels for all the categories with connections (ie,
-      # "21 outbound", "1 control", etc)
-
-      count_labels = []
-
-      for category in category_types:
-        if type_counts[category] > 0:
-          count_labels.append('%i %s' % (type_counts[category], category.lower()))
-
-      if count_labels:
-        self._title = 'Connections (%s):' % ', '.join(count_labels)
-      else:
-        self._title = 'Connections:'
 
       self._entries = new_entries
 
