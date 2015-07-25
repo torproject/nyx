@@ -4,6 +4,8 @@ entry itself (ie, Tor connection, client circuit, etc) and the lines it
 consists of in the listing.
 """
 
+import datetime
+
 from stem.util import enum
 
 # attributes we can list entries by
@@ -28,6 +30,10 @@ SORT_COLORS = {
 PORT_COUNT = 65536
 
 
+def to_unix_time(dt):
+  return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
+
+
 class ConnectionPanelEntry:
   """
   Common parent for connection panel entries. This consists of a list of lines
@@ -38,6 +44,42 @@ class ConnectionPanelEntry:
   def __init__(self):
     self.lines = []
     self.flush_cache = True
+
+  @staticmethod
+  def from_circuit(circ):
+    import nyx.connections.circ_entry
+    import nyx.connections.conn_entry
+    import nyx.util.tracker
+
+    # TODO: should be ConnectionPanelEntry rather than a ConnectionEntry, but
+    # looks like that presently provides sorting
+
+    entry = nyx.connections.conn_entry.ConnectionEntry(nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
+    entry.lines = [nyx.connections.circ_entry.CircHeaderLine(circ)]
+
+    path = [path_entry[0] for path_entry in circ.path]
+
+    if circ.status == 'BUILT':
+      exit_ip, exit_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(path[-1], ('192.168.0.1', 0))
+      entry.lines[0].set_exit(exit_ip, exit_port, path[-1])
+
+    for i, relay_fingerprint in enumerate(path):
+      relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(relay_fingerprint, ('192.168.0.1', 0))
+
+      if i == len(path) - 1:
+        placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
+      elif i == 0:
+        placement_type = 'Guard'
+      else:
+        placement_type = 'Middle'
+
+      placement_label = '%i / %s' % (i + 1, placement_type)
+
+      entry.lines.append(nyx.connections.circ_entry.CircLine(relay_ip, relay_port, relay_fingerprint, placement_label, to_unix_time(circ.created)))
+
+    entry.lines[-1].is_last = True
+
+    return entry
 
   def get_lines(self):
     """

@@ -12,7 +12,7 @@ import threading
 import nyx.popups
 import nyx.util.tracker
 
-from nyx.connections import descriptor_popup, entries, conn_entry, circ_entry
+from nyx.connections import descriptor_popup, entries, conn_entry
 from nyx.util import panel, tor_controller, tracker, ui_tools
 
 from stem.control import State
@@ -477,7 +477,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # fetches, not client circuits)
 
         if not (circ.status == 'BUILT' and len(circ.path) == 1):
-          new_entries.append(circ_entry.CircEntry(circ))
+          new_entries.append(entries.ConnectionPanelEntry.from_circuit(circ))
 
       # update stats for client and exit connections
 
