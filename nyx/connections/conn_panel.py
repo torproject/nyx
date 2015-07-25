@@ -6,6 +6,7 @@ import re
 import time
 import collections
 import curses
+import itertools
 import threading
 
 import nyx.popups
@@ -162,11 +163,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
       self._entries.sort(key = lambda i: (i.get_sort_values(CONFIG['features.connection.order'], self.get_listing_type())))
-
-      self._entry_lines = []
-
-      for entry in self._entries:
-        self._entry_lines += entry.get_lines()
+      self._entry_lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
 
   def get_listing_type(self):
     """
@@ -496,12 +493,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           exit_port = entry_line.foreign.get_port()
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-      self._entries = new_entries
-
-      self._entry_lines = []
-
-      for entry in self._entries:
-        self._entry_lines += entry.get_lines()
+      self._entries, self._entry_lines = new_entries, list(itertools.chain.from_iterable([entry.get_lines() for entry in new_entries]))
 
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count
