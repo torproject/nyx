@@ -122,7 +122,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     for entry in self._entries:
       if isinstance(entry, conn_entry.ConnectionEntry):
-        entry.getLines()[0].is_initial_connection = True
+        entry.get_lines()[0].is_initial_connection = True
 
     # listens for when tor stops so we know to stop reflecting changes
 
@@ -166,7 +166,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._entry_lines = []
 
       for entry in self._entries:
-        self._entry_lines += entry.getLines()
+        self._entry_lines += entry.get_lines()
 
   def get_listing_type(self):
     """
@@ -462,27 +462,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     current_resolution_count = conn_resolver.run_counter()
 
     with self._vals_lock:
-      new_entries = []  # the new results we'll display
-
-      for conn in conn_resolver.get_value():
-        new_conn_entry = conn_entry.ConnectionEntry(conn)
-        new_conn_line = new_conn_entry.getLines()[0]
-
-        if new_conn_line.get_type() != conn_entry.Category.CIRCUIT:
-          new_entries.append(new_conn_entry)
-
-          # updates exit port and client locale usage information
-          if new_conn_line.is_private():
-            if new_conn_line.get_type() == conn_entry.Category.INBOUND:
-              # client connection, update locale information
-
-              client_locale = new_conn_line.foreign.get_locale()
-
-              if client_locale:
-                self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
-            elif new_conn_line.get_type() == conn_entry.Category.EXIT:
-              exit_port = new_conn_line.foreign.get_port()
-              self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
+      new_entries = [conn_entry.ConnectionEntry(conn) for conn in conn_resolver.get_value()]
 
       for circ in tor_controller().get_circuits([]):
         # Skips established single-hop circuits (these are for directory
@@ -490,6 +470,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         if not (circ.status == 'BUILT' and len(circ.path) == 1):
           new_entries.append(circ_entry.CircEntry(circ))
+
+      # update stats for client and exit connections
+
+      for entry in new_entries:
+        entry_line = entry.get_lines()[0]
+
+        if entry_line.is_private() and entry_line.get_type() == conn_entry.Category.INBOUND:
+          client_locale = entry_line.foreign.get_locale()
+
+          if client_locale:
+            self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
+        elif entry_line.get_type() == conn_entry.Category.EXIT:
+          exit_port = entry_line.foreign.get_port()
+          self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
       # Counts the relays in each of the categories. This also flushes the
       # type cache for all of the connections (in case its changed since last
@@ -500,7 +494,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for entry in new_entries:
         if isinstance(entry, conn_entry.ConnectionEntry):
-          type_counts[entry.getLines()[0].get_type()] += 1
+          type_counts[entry.get_lines()[0].get_type()] += 1
         elif isinstance(entry, circ_entry.CircEntry):
           type_counts[conn_entry.Category.CIRCUIT] += 1
 
@@ -523,7 +517,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._entry_lines = []
 
       for entry in self._entries:
-        self._entry_lines += entry.getLines()
+        self._entry_lines += entry.get_lines()
 
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count

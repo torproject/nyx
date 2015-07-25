@@ -39,7 +39,7 @@ class ConnectionPanelEntry:
     self.lines = []
     self.flush_cache = True
 
-  def getLines(self):
+  def get_lines(self):
     """
     Provides the individual lines in the connection listing.
     """
@@ -51,7 +51,7 @@ class ConnectionPanelEntry:
     return self.lines
 
   def _get_lines(self, old_results):
-    # implementation of getLines
+    # implementation of get_lines
 
     for line in old_results:
       line.reset_display()
