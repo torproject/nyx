@@ -11,6 +11,7 @@ import nyx.util.ui_tools
 from nyx.util import tor_controller
 from nyx.connections import entries
 
+from stem.control import Listener
 from stem.util import conf, connection, enum, str_tools
 
 # Connection Categories:
@@ -82,10 +83,10 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.application_pid = None
     self.is_application_resolving = False
 
-    my_or_port = controller.get_conf('ORPort', None)
-    my_dir_port = controller.get_conf('DirPort', None)
-    my_socks_port = controller.get_conf('SocksPort', '9050')
-    my_ctl_port = controller.get_conf('ControlPort', None)
+    socks_ports = controller.get_ports(Listener.SOCKS, [])
+    or_ports = controller.get_ports(Listener.OR, [])
+    dir_ports = controller.get_ports(Listener.DIR, [])
+    control_ports = controller.get_ports(Listener.CONTROL, [])
 
     # get all target ports in our hidden service configuation
 
@@ -94,20 +95,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     for hs_config in controller.get_hidden_service_conf({}).values():
       my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
 
-    # the ORListenAddress can overwrite the ORPort
-
-    listen_addr = controller.get_conf('ORListenAddress', None)
-
-    if listen_addr and ':' in listen_addr:
-      my_or_port = listen_addr[listen_addr.find(':') + 1:]
-
-    if conn.local_port in (my_or_port, my_dir_port):
+    if conn.local_port in or_ports or conn.local_port in dir_ports:
       self.base_type = Category.INBOUND
-    elif conn.local_port == my_socks_port:
+    elif conn.local_port in socks_ports:
       self.base_type = Category.SOCKS
     elif conn.remote_port in my_hidden_service_ports:
       self.base_type = Category.HIDDEN
-    elif conn.local_port == my_ctl_port:
+    elif conn.local_port in control_ports:
       self.base_type = Category.CONTROL
     else:
       self.base_type = Category.OUTBOUND
