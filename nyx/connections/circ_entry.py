@@ -30,11 +30,18 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     self.purpose = circ.purpose.capitalize()
     self.is_built = False
     self._timestamp = entries.to_unix_time(circ.created)
+    self._remote_fingerprint = None
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
     conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(self._timestamp, False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
     self.is_built = True
-    self.foreign.fingerprint_overwrite = exit_fingerprint
+    self._remote_fingerprint = exit_fingerprint
+
+  def get_fingerprint(self, default = None):
+    if self._remote_fingerprint:
+      return self._remote_fingerprint
+    else:
+      return conn_entry.ConnectionLine.get_fingerprint(self, default)
 
   def get_type(self):
     return conn_entry.Category.CIRCUIT
@@ -78,13 +85,16 @@ class CircLine(conn_entry.ConnectionLine):
 
   def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
     conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
-    self.foreign.fingerprint_overwrite = remote_fingerprint
+    self._remote_fingerprint = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False
 
     # determines the sort of left hand bracketing we use
 
     self.is_last = False
+
+  def get_fingerprint(self, default = None):
+    self._remote_fingerprint
 
   def get_type(self):
     return conn_entry.Category.CIRCUIT
@@ -132,21 +142,21 @@ class CircLine(conn_entry.ConnectionLine):
 
       # fills the nickname into the empty space here
 
-      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.foreign.get_nickname('UNKNOWN'), 25, 0))
+      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.get_nickname('UNKNOWN'), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     elif listing_type == entries.ListingType.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
 
-      dst = '%-55s' % self.foreign.get_fingerprint('UNKNOWN')
+      dst = '%-55s' % self.get_fingerprint('UNKNOWN')
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
     else:
       # min space for the nickname is 56 characters
 
       etc = self.get_etc_content(width - baseline_space - 56, listing_type)
       dst_layout = '%%-%is' % (width - baseline_space - len(etc))
-      dst = dst_layout % self.foreign.get_nickname('UNKNOWN')
+      dst = dst_layout % self.get_nickname('UNKNOWN')
 
     return ((dst + etc, line_format),
             (' ' * (width - baseline_space - len(dst) - len(etc) + 5), line_format),

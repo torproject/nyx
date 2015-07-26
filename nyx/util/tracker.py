@@ -748,7 +748,7 @@ class ConsensusTracker(object):
 
     controller = tor_controller()
 
-    if fingerprint not in self._nickname_cache:
+    if fingerprint and fingerprint not in self._nickname_cache:
       if fingerprint == controller.get_info('fingerprint', None):
         self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
       else:

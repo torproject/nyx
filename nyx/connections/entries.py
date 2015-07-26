@@ -132,9 +132,9 @@ class ConnectionPanelEntry:
     elif attr == SortAttr.PORT:
       return connection_line.sort_port
     elif attr == SortAttr.FINGERPRINT:
-      return connection_line.foreign.get_fingerprint('UNKNOWN')
+      return connection_line.get_fingerprint('UNKNOWN')
     elif attr == SortAttr.NICKNAME:
-      my_nickname = connection_line.foreign.get_nickname()
+      my_nickname = connection_line.get_nickname()
 
       if my_nickname:
         return my_nickname.lower()

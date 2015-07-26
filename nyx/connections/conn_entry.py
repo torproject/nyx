@@ -53,47 +53,6 @@ CONFIG = conf.config_dict('nyx', {
 })
 
 
-class Endpoint:
-  """
-  Connection endpoint, with basic consensus information if a relay.
-  """
-
-  def __init__(self, address, port):
-    self._address = address
-    self._port = port
-    self.is_or_port = False  # if set, consider the port to possibly be an ORPort
-
-    # if set then this overwrites fingerprint lookups
-
-    self.fingerprint_overwrite = None
-
-  def get_fingerprint(self, default = None):
-    """
-    Provides the fingerprint of this relay.
-    """
-
-    if self.fingerprint_overwrite:
-      return self.fingerprint_overwrite
-
-    my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self._address, self._port if self.is_or_port else None)
-    return my_fingerprint if my_fingerprint else default
-
-  def get_nickname(self, default = None):
-    """
-    Provides the nickname of this relay.
-    """
-
-    fingerprint = self.get_fingerprint()
-
-    if fingerprint:
-      nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
-
-      if nickname:
-        return nickname
-
-    return default
-
-
 class ConnectionLine(entries.ConnectionPanelLine):
   """
   Display component of the ConnectionEntry.
@@ -102,14 +61,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
   def __init__(self, conn, include_port=True, include_expanded_addresses=True):
     entries.ConnectionPanelLine.__init__(self)
 
-    self.local = Endpoint(conn.local_address, int(conn.local_port))
-    self.foreign = Endpoint(conn.remote_address, int(conn.remote_port))
     self.connection = conn
 
     # overwrite the local fingerprint with ours
 
     controller = tor_controller()
-    self.local.fingerprint_overwrite = controller.get_info('fingerprint', None)
 
     # True if the connection has matched the properties of a client/directory
     # connection every time we've checked. The criteria we check is...
@@ -147,7 +103,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     if conn.local_port in (my_or_port, my_dir_port):
       self.base_type = Category.INBOUND
-      self.local.is_or_port = True
     elif conn.local_port == my_socks_port:
       self.base_type = Category.SOCKS
     elif conn.remote_port in my_hidden_service_ports:
@@ -156,7 +111,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
       self.base_type = Category.CONTROL
     else:
       self.base_type = Category.OUTBOUND
-      self.foreign.is_or_port = True
 
     self.cached_type = None
 
@@ -183,6 +137,25 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
 
     return tor_controller().get_info('ip-to-country/%s' % self.connection.remote_address, default)
+
+  def get_fingerprint(self, default = None):
+    """
+    Provides the fingerprint of this relay.
+    """
+
+    if self.base_type == Category.OUTBOUND:
+      my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
+      return my_fingerprint if my_fingerprint else default
+    else:
+      return default  # inbound connections don't have an ORPort we can resolve
+
+  def get_nickname(self, default = None):
+    """
+    Provides the nickname of this relay.
+    """
+
+    nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
+    return nickname if nickname else default
 
   def get_listing_entry(self, width, current_time, listing_type):
     """
@@ -331,7 +304,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # tor_tools util keeping this a quick lookup.
 
         controller = tor_controller()
-        destination_fingerprint = self.foreign.get_fingerprint()
+        destination_fingerprint = self.get_fingerprint()
 
         if not destination_fingerprint:
           # Not a known relay. This might be an exit connection.
@@ -416,14 +389,14 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
 
-        etc += '%-40s  ' % self.foreign.get_fingerprint('UNKNOWN')
+        etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
         used_space += 42
 
       if width > used_space + 10 and CONFIG['features.connection.showColumn.nickname']:
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
-        nickname_label = str_tools.crop(self.foreign.get_nickname('UNKNOWN'), nickname_space, 0)
+        nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
         etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += nickname_space + 2
     elif listing_type == entries.ListingType.FINGERPRINT:
@@ -442,7 +415,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           nickname_space -= 28
 
         if CONFIG['features.connection.showColumn.nickname']:
-          nickname_label = str_tools.crop(self.foreign.get_nickname('UNKNOWN'), nickname_space, 0)
+          nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
           etc += ('%%-%is  ' % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
@@ -452,7 +425,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     else:
       if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
-        etc += '%-40s  ' % self.foreign.get_fingerprint('UNKNOWN')
+        etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
         used_space += 42
 
       if width > used_space + 28 and CONFIG['features.connection.showColumn.destination']:
@@ -551,7 +524,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if my_type == Category.CONTROL:
         dst = 'localhost'
       else:
-        dst = self.foreign.get_fingerprint('UNKNOWN')
+        dst = self.get_fingerprint('UNKNOWN')
 
       dst = '%-40s' % dst
 
@@ -561,12 +534,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
       used_space += len(etc)
     else:
       # base data requires 50 min characters
-      src = self.local.get_nickname('UNKNOWN')
+      src = controller.get_conf('nickname', 'UNKNOWN')
 
       if my_type == Category.CONTROL:
-        dst = self.local.get_nickname('UNKNOWN')
+        dst = controller.get_conf('nickname', 'UNKNOWN')
       else:
-        dst = self.foreign.get_nickname('UNKNOWN')
+        dst = self.get_nickname('UNKNOWN')
 
       min_base_space = 50
 
@@ -610,7 +583,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # - if no consensus data is available then say so (probably a client or
     #   exit connection)
 
-    fingerprint = self.foreign.get_fingerprint()
+    fingerprint = self.get_fingerprint()
     controller = tor_controller()
 
     if fingerprint:
