@@ -485,7 +485,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         entry_line = entry.get_lines()[0]
 
         if entry_line.is_private() and entry_line.get_type() == conn_entry.Category.INBOUND:
-          client_locale = entry_line.foreign.get_locale()
+          client_locale = entry_line.get_locale(None)
 
           if client_locale:
             self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1

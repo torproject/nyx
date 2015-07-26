@@ -149,7 +149,7 @@ class ConnectionPanelEntry:
       if connection_line.connection.is_private_address(self.lines[0].connection.remote_address):
         return ''
       else:
-        return connection_line.foreign.get_locale('')
+        return connection_line.get_locale('')
     elif attr == SortAttr.LISTING:
       if listing_type == ListingType.IP_ADDRESS:
         # uses the IP address as the primary value, and port as secondary

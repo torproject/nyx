@@ -67,13 +67,6 @@ class Endpoint:
 
     self.fingerprint_overwrite = None
 
-  def get_locale(self, default = None):
-    """
-    Provides the two letter country code of this relay.
-    """
-
-    return tor_controller().get_info('ip-to-country/%s' % self._address, default)
-
   def get_fingerprint(self, default = None):
     """
     Provides the fingerprint of this relay.
@@ -183,6 +176,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     self.sort_address = ip_value
     self.sort_port = self.connection.remote_port
+
+  def get_locale(self, default = None):
+    """
+    Provides the two letter country code for the remote endpoint.
+    """
+
+    return tor_controller().get_info('ip-to-country/%s' % self.connection.remote_address, default)
 
   def get_listing_entry(self, width, current_time, listing_type):
     """
@@ -601,7 +601,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     lines = [''] * 7
     lines[0] = 'address: %s' % self.get_destination_label(width - 11)
-    lines[1] = 'locale: %s' % ('??' if self.is_private() else self.foreign.get_locale('??'))
+    lines[1] = 'locale: %s' % ('??' if self.is_private() else self.get_locale('??'))
 
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
@@ -777,7 +777,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         controller = tor_controller()
 
         if include_locale and not controller.is_geoip_unavailable():
-          foreign_locale = self.foreign.get_locale('??')
+          foreign_locale = self.get_locale('??')
           extra_info.append(foreign_locale)
           space_available -= len(foreign_locale) + 2
 
