@@ -42,10 +42,6 @@ CATEGORY_COLOR = {
 LABEL_FORMAT = '%s  -->  %s  %s%s'
 LABEL_MIN_PADDING = 2  # min space between listing label and following data
 
-# sort value for scrubbed ip addresses
-
-SCRUBBED_IP_VAL = 255 ** 4
-
 CONFIG = conf.config_dict('nyx', {
   'features.connection.markInitialConnections': True,
   'features.connection.showIps': True,
@@ -117,54 +113,6 @@ class Endpoint:
         return nickname
 
     return default
-
-
-class ConnectionEntry(entries.ConnectionPanelEntry):
-  """
-  Represents a connection being made to or from this system. These only
-  concern real connections so it includes the inbound, outbound, directory,
-  application, and controller categories.
-  """
-
-  def __init__(self, conn):
-    entries.ConnectionPanelEntry.__init__(self)
-    self.connection = conn
-    self.lines = [ConnectionLine(conn)]
-
-  def get_sort_value(self, attr, listing_type):
-    """
-    Provides the value of a single attribute used for sorting purposes.
-    """
-
-    connection_line = self.lines[0]
-
-    if attr == entries.SortAttr.IP_ADDRESS:
-      if connection_line.is_private():
-        return SCRUBBED_IP_VAL  # orders at the end
-
-      return connection_line.sort_address
-    elif attr == entries.SortAttr.PORT:
-      return connection_line.sort_port
-    elif attr == entries.SortAttr.FINGERPRINT:
-      return connection_line.foreign.get_fingerprint('UNKNOWN')
-    elif attr == entries.SortAttr.NICKNAME:
-      my_nickname = connection_line.foreign.get_nickname()
-
-      if my_nickname:
-        return my_nickname.lower()
-      else:
-        return 'z' * 20  # orders at the end
-    elif attr == entries.SortAttr.CATEGORY:
-      return Category.index_of(connection_line.get_type())
-    elif attr == entries.SortAttr.UPTIME:
-      return self.connection.start_time
-    elif attr == entries.SortAttr.COUNTRY:
-      if connection.is_private_address(self.lines[0].foreign.get_address()):
-        return ''
-      else:
-        return connection_line.foreign.get_locale('')
-    else:
-      return entries.ConnectionPanelEntry.get_sort_value(self, attr, listing_type)
 
 
 class ConnectionLine(entries.ConnectionPanelLine):

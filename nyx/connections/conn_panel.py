@@ -470,7 +470,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     current_resolution_count = conn_resolver.run_counter()
 
     with self._vals_lock:
-      new_entries = [conn_entry.ConnectionEntry(conn) for conn in conn_resolver.get_value()]
+      new_entries = [entries.ConnectionPanelEntry.from_connection(conn) for conn in conn_resolver.get_value()]
 
       for circ in tor_controller().get_circuits([]):
         # Skips established single-hop circuits (these are for directory

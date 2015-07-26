@@ -29,32 +29,36 @@ SORT_COLORS = {
 
 PORT_COUNT = 65536
 
+# sort value for scrubbed ip addresses
+
+SCRUBBED_IP_VAL = 255 ** 4
+
 
 def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
 
 
 class ConnectionPanelEntry:
-  """
-  Common parent for connection panel entries. This consists of a list of lines
-  in the panel listing. This caches results until the display indicates that
-  they should be flushed.
-  """
-
-  def __init__(self):
+  def __init__(self, start_time):
     self.lines = []
     self.flush_cache = True
+    self.start_time = start_time
+    self.lines = []
+
+  @staticmethod
+  def from_connection(conn):
+    import nyx.connections.conn_entry
+
+    entry = ConnectionPanelEntry(conn.start_time)
+    entry.lines = [nyx.connections.conn_entry.ConnectionLine(conn)]
+    return entry
 
   @staticmethod
   def from_circuit(circ):
     import nyx.connections.circ_entry
-    import nyx.connections.conn_entry
     import nyx.util.tracker
 
-    # TODO: should be ConnectionPanelEntry rather than a ConnectionEntry, but
-    # looks like that presently provides sorting
-
-    entry = nyx.connections.conn_entry.ConnectionEntry(nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, '127.0.0.1', 0, 'tcp'))
+    entry = ConnectionPanelEntry(to_unix_time(circ.created))
     entry.lines = [nyx.connections.circ_entry.CircHeaderLine(circ)]
 
     path = [path_entry[0] for path_entry in circ.path]
@@ -116,14 +120,37 @@ class ConnectionPanelEntry:
   def get_sort_value(self, attr, listing_type):
     """
     Provides the value of a single attribute used for sorting purposes.
-
-    Arguments:
-      attr        - list of SortAttr values for the field being sorted on
-      listing_type - ListingType enumeration for the attribute we're listing
-                    entries by
     """
 
-    if attr == SortAttr.LISTING:
+    connection_line = self.lines[0]
+
+    if attr == SortAttr.IP_ADDRESS:
+      if connection_line.is_private():
+        return SCRUBBED_IP_VAL  # orders at the end
+
+      return connection_line.sort_address
+    elif attr == SortAttr.PORT:
+      return connection_line.sort_port
+    elif attr == SortAttr.FINGERPRINT:
+      return connection_line.foreign.get_fingerprint('UNKNOWN')
+    elif attr == SortAttr.NICKNAME:
+      my_nickname = connection_line.foreign.get_nickname()
+
+      if my_nickname:
+        return my_nickname.lower()
+      else:
+        return 'z' * 20  # orders at the end
+    elif attr == SortAttr.CATEGORY:
+      import nyx.connections.conn_entry
+      return nyx.connections.conn_entry.Category.index_of(connection_line.get_type())
+    elif attr == SortAttr.UPTIME:
+      return self.start_time
+    elif attr == SortAttr.COUNTRY:
+      if connection_line.connection.is_private_address(self.lines[0].foreign.get_address()):
+        return ''
+      else:
+        return connection_line.foreign.get_locale('')
+    elif attr == SortAttr.LISTING:
       if listing_type == ListingType.IP_ADDRESS:
         # uses the IP address as the primary value, and port as secondary
         sort_value = self.get_sort_value(SortAttr.IP_ADDRESS, listing_type) * PORT_COUNT
@@ -133,8 +160,8 @@ class ConnectionPanelEntry:
         return self.get_sort_value(SortAttr.FINGERPRINT, listing_type)
       elif listing_type == ListingType.NICKNAME:
         return self.get_sort_value(SortAttr.NICKNAME, listing_type)
-
-    return ''
+    else:
+      return ''
 
   def reset_display(self):
     """
