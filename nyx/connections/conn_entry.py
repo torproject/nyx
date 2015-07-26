@@ -243,10 +243,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     detail_format = (curses.A_BOLD, CATEGORY_COLOR[self.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
-  def reset_display(self):
-    entries.ConnectionPanelLine.reset_display(self)
-    self.cached_type = None
-
   def is_private(self):
     """
     Returns true if the endpoint is private, possibly belonging to a client

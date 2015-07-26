@@ -41,9 +41,7 @@ def to_unix_time(dt):
 class ConnectionPanelEntry:
   def __init__(self, start_time):
     self.lines = []
-    self.flush_cache = True
     self.start_time = start_time
-    self.lines = []
 
   @staticmethod
   def from_connection(conn):
@@ -90,19 +88,7 @@ class ConnectionPanelEntry:
     Provides the individual lines in the connection listing.
     """
 
-    if self.flush_cache:
-      self.lines = self._get_lines(self.lines)
-      self.flush_cache = False
-
     return self.lines
-
-  def _get_lines(self, old_results):
-    # implementation of get_lines
-
-    for line in old_results:
-      line.reset_display()
-
-    return old_results
 
   def get_sort_values(self, sort_attrs, listing_type):
     """
@@ -162,13 +148,6 @@ class ConnectionPanelEntry:
         return self.get_sort_value(SortAttr.NICKNAME, listing_type)
     else:
       return ''
-
-  def reset_display(self):
-    """
-    Flushes cached display results.
-    """
-
-    self.flush_cache = True
 
 
 class ConnectionPanelLine:
@@ -235,11 +214,3 @@ class ConnectionPanelLine:
   def _get_details(self, width):
     # implementation of get_details
     return []
-
-  def reset_display(self):
-    """
-    Flushes cached display results.
-    """
-
-    self._listing_cache_args = (None, None)
-    self._details_cache_args = None
