@@ -146,7 +146,7 @@ class ConnectionPanelEntry:
     elif attr == SortAttr.UPTIME:
       return self.start_time
     elif attr == SortAttr.COUNTRY:
-      if connection_line.connection.is_private_address(self.lines[0].foreign.get_address()):
+      if connection_line.connection.is_private_address(self.lines[0].connection.remote_address):
         return ''
       else:
         return connection_line.foreign.get_locale('')

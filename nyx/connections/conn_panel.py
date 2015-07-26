@@ -490,7 +490,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if client_locale:
             self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
         elif entry_line.get_type() == conn_entry.Category.EXIT:
-          exit_port = entry_line.foreign.get_port()
+          exit_port = entry_line.connection.remote_port
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
       self._entries, self._entry_lines = new_entries, list(itertools.chain.from_iterable([entry.get_lines() for entry in new_entries]))
@@ -516,8 +516,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     app_ports = []
 
     for line in unresolved_lines:
-      app_conn = line.local if line.get_type() == conn_entry.Category.HIDDEN else line.foreign
-      app_ports.append(app_conn.get_port())
+      app_ports.append(line.connection.local_port if line.get_type() == conn_entry.Category.HIDDEN else line.connection.remote_port)
 
     # Queue up resolution for the unresolved ports (skips if it's still working
     # on the last query).
@@ -538,7 +537,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     for line in unresolved_lines:
       is_local = line.get_type() == conn_entry.Category.HIDDEN
-      line_port = line.local.get_port() if is_local else line.foreign.get_port()
+      line_port = line.connection.local_port if is_local else line.connection.remote_port
 
       if line_port in app_results:
         # sets application attributes if there's a result with this as the

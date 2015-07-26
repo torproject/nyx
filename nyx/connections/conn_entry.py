@@ -59,34 +59,20 @@ class Endpoint:
   """
 
   def __init__(self, address, port):
-    self.address = address
-    self.port = port
+    self._address = address
+    self._port = port
     self.is_or_port = False  # if set, consider the port to possibly be an ORPort
 
     # if set then this overwrites fingerprint lookups
 
     self.fingerprint_overwrite = None
 
-  def get_address(self):
-    """
-    Provides the address of the endpoint.
-    """
-
-    return self.address
-
-  def get_port(self):
-    """
-    Provides the port of the endpoint.
-    """
-
-    return self.port
-
   def get_locale(self, default = None):
     """
     Provides the two letter country code of this relay.
     """
 
-    return tor_controller().get_info('ip-to-country/%s' % self.address, default)
+    return tor_controller().get_info('ip-to-country/%s' % self._address, default)
 
   def get_fingerprint(self, default = None):
     """
@@ -96,7 +82,7 @@ class Endpoint:
     if self.fingerprint_overwrite:
       return self.fingerprint_overwrite
 
-    my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.address, self.port if self.is_or_port else None)
+    my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self._address, self._port if self.is_or_port else None)
     return my_fingerprint if my_fingerprint else default
 
   def get_nickname(self, default = None):
@@ -191,12 +177,12 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     ip_value = 0
 
-    for comp in self.foreign.get_address().split('.'):
+    for comp in self.connection.remote_address.split('.'):
       ip_value *= 255
       ip_value += int(comp)
 
     self.sort_address = ip_value
-    self.sort_port = int(self.foreign.get_port())
+    self.sort_port = self.connection.remote_port
 
   def get_listing_entry(self, width, current_time, listing_type):
     """
@@ -307,7 +293,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.foreign.get_address())
+        all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)
         return all_matches == []
     elif my_type == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
@@ -318,7 +304,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       # will take a bit more work to propagate the information up from the
       # connection resolver.
 
-      return self.foreign.get_port() != '53'
+      return self.connection.remote_port != 53
 
     # for everything else this isn't a concern
 
@@ -351,9 +337,9 @@ class ConnectionLine(entries.ConnectionPanelLine):
           # Not a known relay. This might be an exit connection.
 
           exit_policy = controller.get_exit_policy(None)
-          port = self.foreign.get_port() if self.foreign.get_port() else None
+          port = self.connection.remote_port if self.connection.remote_port else None
 
-          if exit_policy and exit_policy.can_exit_to(self.foreign.get_address(), port):
+          if exit_policy and exit_policy.can_exit_to(self.connection.remote_address, port):
             self.cached_type = Category.EXIT
         elif self._possible_client or self._possible_directory:
           # This belongs to a known relay. If we haven't eliminated ourselves as
@@ -495,13 +481,13 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # - that extra field plus any previous
 
     used_space = len(LABEL_FORMAT % tuple([''] * 4)) + LABEL_MIN_PADDING
-    local_port = ':%s' % self.local.get_port() if self.include_port else ''
+    local_port = ':%s' % self.connection.local_port if self.include_port else ''
 
     src, dst, etc = '', '', ''
 
     if listing_type == entries.ListingType.IP_ADDRESS:
-      my_external_address = controller.get_info('address', self.local.get_address())
-      address_differ = my_external_address != self.local.get_address()
+      my_external_address = controller.get_info('address', self.connection.local_address)
+      address_differ = my_external_address != self.connection.local_address
 
       # Expanding doesn't make sense, if the connection isn't actually
       # going through Tor's external IP address. As there isn't a known
@@ -516,7 +502,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if is_expansion_type:
         src_address = my_external_address + local_port
       else:
-        src_address = self.local.get_address() + local_port
+        src_address = self.connection.local_address + local_port
 
       if my_type in (Category.SOCKS, Category.CONTROL):
         # Like inbound connections these need their source and destination to
@@ -544,7 +530,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses and CONFIG['features.connection.showColumn.expandedIp']:
         # include the internal address in the src (extra 28 characters)
 
-        internal_address = self.local.get_address() + local_port
+        internal_address = self.connection.local_address + local_port
 
         # If this is an inbound connection then reverse ordering so it's:
         # <foreign> --> <external> --> <internal>
@@ -705,7 +691,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         if contact:
           lines[6] = 'contact: %s' % contact
     else:
-      all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.foreign.get_address())
+      all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)
 
       if all_matches:
         # multiple matches
@@ -761,8 +747,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # destination of the connection
 
-    address_label = '<scrubbed>' if self.is_private() else self.foreign.get_address()
-    port_label = ':%s' % self.foreign.get_port() if include_port else ''
+    address_label = '<scrubbed>' if self.is_private() else self.connection.remote_address
+    port_label = ':%s' % self.connection.remote_port if include_port else ''
     destination_address = address_label + port_label
 
     # Only append the extra info if there's at least a couple characters of
@@ -772,7 +758,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       space_available = max_length - len(destination_address) - 3
 
       if self.get_type() == Category.EXIT and include_port:
-        purpose = connection.port_usage(self.foreign.get_port())
+        purpose = connection.port_usage(self.connection.remote_port)
 
         if purpose:
           # BitTorrent is a common protocol to truncate, so just use "Torrent"
@@ -786,7 +772,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
           purpose = str_tools.crop(purpose, space_available, ending = str_tools.Ending.HYPHEN)
 
           destination_address += ' (%s)' % purpose
-      elif not connection.is_private_address(self.foreign.get_address()):
+      elif not connection.is_private_address(self.connection.remote_address):
         extra_info = []
         controller = tor_controller()
 
