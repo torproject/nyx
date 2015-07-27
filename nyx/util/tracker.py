@@ -299,8 +299,11 @@ def _process_for_ports(local_ports, remote_ports):
   # python  2462 atagar    3u  IPv4  14047      0t0  TCP localhost:37277->localhost:9051 (ESTABLISHED)
   # python  3444 atagar    3u  IPv4  22023      0t0  TCP localhost:51849->localhost:9051 (ESTABLISHED)
 
-  lsof_cmd = 'lsof -nP ' + ' '.join(['-i tcp:%s' % port for port in (local_ports + remote_ports)])
-  lsof_call = system.call(lsof_cmd)
+  try:
+    lsof_cmd = 'lsof -nP ' + ' '.join(['-i tcp:%s' % port for port in (local_ports + remote_ports)])
+    lsof_call = system.call(lsof_cmd)
+  except OSError as exc:
+    raise IOError(exc)
 
   if lsof_call:
     results = {}
@@ -698,7 +701,8 @@ class PortUsageTracker(Daemon):
         ports.remove(port)
 
     try:
-      result.update(_process_for_ports(ports, ports))
+      if ports:
+        result.update(_process_for_ports(ports, ports))
 
       self._processes_for_ports = result
       self._failure_count = 0

@@ -540,15 +540,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       line_port = line.connection.local_port if is_local else line.connection.remote_port
 
       if line_port in app_results:
-        # sets application attributes if there's a result with this as the
-        # inbound port
+        result = app_results[line_port]
 
-        for inbound_port, outbound_port, cmd, pid in app_results[line_port]:
-          app_port = outbound_port if is_local else inbound_port
-
-          if line_port == app_port:
-            line.application_name = cmd
-            line.application_pid = pid
-            line.is_application_resolving = False
+        line.application_name = result.name
+        line.application_pid = result.pid
+        line.is_application_resolving = False
       else:
         line.is_application_resolving = self._app_resolver.is_alive
