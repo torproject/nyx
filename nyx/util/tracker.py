@@ -95,6 +95,7 @@ def get_connection_tracker():
 
   if CONNECTION_TRACKER is None:
     CONNECTION_TRACKER = ConnectionTracker(CONFIG['queries.connections.rate'])
+    CONNECTION_TRACKER.start()
 
   return CONNECTION_TRACKER
 
@@ -108,6 +109,7 @@ def get_resource_tracker():
 
   if RESOURCE_TRACKER is None:
     RESOURCE_TRACKER = ResourceTracker(CONFIG['queries.resources.rate'])
+    RESOURCE_TRACKER.start()
 
   return RESOURCE_TRACKER
 
@@ -121,6 +123,7 @@ def get_port_usage_tracker():
 
   if PORT_USAGE_TRACKER is None:
     PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['queries.port_usage.rate'])
+    PORT_USAGE_TRACKER.start()
 
   return PORT_USAGE_TRACKER
 
@@ -146,9 +149,10 @@ def stop_trackers():
   """
 
   def halt_trackers():
-    trackers = filter(lambda t: t.is_alive(), [
-      get_resource_tracker(),
-      get_connection_tracker(),
+    trackers = filter(lambda t: t and t.is_alive(), [
+      CONNECTION_TRACKER,
+      RESOURCE_TRACKER,
+      PORT_USAGE_TRACKER,
     ])
 
     for tracker in trackers:

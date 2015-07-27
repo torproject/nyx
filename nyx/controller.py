@@ -141,7 +141,6 @@ def init_controller(stdscr, start_time):
 
         resolver = nyx.util.tracker.get_connection_tracker()
         log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
-        resolver.start()
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused
