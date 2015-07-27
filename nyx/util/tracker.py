@@ -85,6 +85,11 @@ Resources = collections.namedtuple('Resources', [
   'timestamp',
 ])
 
+Process = collections.namedtuple('Process', [
+  'pid',
+  'name',
+])
+
 
 def get_connection_tracker():
   """
@@ -248,7 +253,7 @@ def _process_for_ports(local_ports, remote_ports):
   :param list local_ports: local port numbers to look up
   :param list remote_ports: remote port numbers to look up
 
-  :returns: **dict** mapping the ports to the associated process names
+  :returns: **dict** mapping the ports to the associated **Process**
 
   :raises: **IOError** if unsuccessful
   """
@@ -257,12 +262,15 @@ def _process_for_ports(local_ports, remote_ports):
     line_comp = line.split()
 
     if not line:
-      return None, None, None  # blank line
+      return None, None, None, None  # blank line
     elif len(line_comp) != 10:
-      raise ValueError('lines are expected to have ten fields')
+      raise ValueError('lines are expected to have ten fields: %s' % line)
     elif line_comp[9] != '(ESTABLISHED)':
-      return None, None, None  # connection isn't established
+      return None, None, None, None  # connection isn't established
+    elif not line_comp[1].isdigit():
+      raise ValueError('expected the pid (which is the second value) to be an integer: %s' % line)
 
+    pid = int(line_comp[1])
     cmd = line_comp[0]
     port_map = line_comp[8]
 
@@ -282,7 +290,7 @@ def _process_for_ports(local_ports, remote_ports):
     elif not connection.is_valid_port(remote_port):
       raise ValueError("'%s' isn't a valid port" % remote_port)
 
-    return int(local_port), int(remote_port), cmd
+    return int(local_port), int(remote_port), pid, cmd
 
   # atagar@fenrir:~/Desktop/nyx$ lsof -i tcp:51849 -i tcp:37277
   # COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
@@ -302,12 +310,12 @@ def _process_for_ports(local_ports, remote_ports):
 
     for line in lsof_call:
       try:
-        local_port, remote_port, cmd = _parse_lsof_line(line)
+        local_port, remote_port, pid, cmd = _parse_lsof_line(line)
 
         if local_port in local_ports:
-          results[local_port] = cmd
+          results[local_port] = Process(pid, cmd)
         elif remote_port in remote_ports:
-          results[remote_port] = cmd
+          results[remote_port] = Process(pid, cmd)
       except ValueError as exc:
         raise IOError('unrecognized output from lsof (%s): %s' % (exc, line))
 
@@ -668,7 +676,7 @@ class PortUsageTracker(Daemon):
 
     :param list ports: port numbers to look up
 
-    :returns: **dict** mapping port numbers to the process using it
+    :returns: **dict** mapping port numbers to the **Process** using it
     """
 
     self._last_requested_ports = ports

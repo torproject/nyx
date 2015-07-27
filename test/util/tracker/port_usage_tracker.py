@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from nyx.util.tracker import PortUsageTracker, _process_for_ports
+from nyx.util.tracker import Process, PortUsageTracker, _process_for_ports
 
 from mock import Mock, patch
 
@@ -50,7 +50,7 @@ class TestPortUsageTracker(unittest.TestCase):
     self.assertEqual({}, _process_for_ports([80, 443], []))
     self.assertEqual({}, _process_for_ports([], [80, 443]))
 
-    self.assertEqual({37277: 'python', 51849: 'tor'}, _process_for_ports([37277], [51849]))
+    self.assertEqual({37277: Process(2462, 'python'), 51849: Process(2001, 'tor')}, _process_for_ports([37277], [51849]))
 
   @patch('nyx.util.tracker.system.call')
   def test_process_for_ports_malformed(self, call_mock):
