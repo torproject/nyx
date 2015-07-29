@@ -13,7 +13,7 @@ import nyx.popups
 import nyx.util.tracker
 
 from nyx.connections import descriptor_popup, entries, conn_entry
-from nyx.util import panel, tor_controller, tracker, ui_tools
+from nyx.util import panel, tor_controller, ui_tools
 
 from stem.control import State
 from stem.util import conf, connection, enum
@@ -114,10 +114,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # it changes.
 
     self._last_resource_fetch = -1
-
-    # resolver for the command/pid associated with SOCKS, HIDDEN, and CONTROL connections
-
-    self._app_resolver = tracker.get_port_usage_tracker()
 
     # mark the initially exitsing connection uptimes as being estimates
 
@@ -509,41 +505,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if not CONFIG['features.connection.resolveApps']:
       return
 
-    unresolved_lines = [l for l in self._entry_lines if isinstance(l, conn_entry.ConnectionLine) and l.is_unresolved_application()]
-
-    # get the ports used for unresolved applications
-
     app_ports = []
 
-    for line in unresolved_lines:
-      app_ports.append(line.connection.local_port if line.get_type() == conn_entry.Category.HIDDEN else line.connection.remote_port)
+    for line in self._entry_lines:
+      if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.HIDDEN, conn_entry.Category.CONTROL):
+        app_ports.append(line.connection.local_port if line.get_type() == conn_entry.Category.HIDDEN else line.connection.remote_port)
 
-    # Queue up resolution for the unresolved ports (skips if it's still working
-    # on the last query).
-
-    if app_ports and not self._app_resolver.is_alive():
-      self._app_resolver.get_processes_using_ports(app_ports)
-
-    # Fetches results. If the query finishes quickly then this is what we just
-    # asked for, otherwise these belong to an earlier resolution.
-    #
-    # The application resolver might have given up querying (for instance, if
-    # the lsof lookups aren't working on this platform or lacks permissions).
-    # The is_application_resolving flag lets the unresolved entries indicate if there's
-    # a lookup in progress for them or not.
-
-    time.sleep(0.2)  # TODO: previous resolver only blocked while awaiting a lookup
-    app_results = self._app_resolver.get_processes_using_ports(app_ports)
-
-    for line in unresolved_lines:
-      is_local = line.get_type() == conn_entry.Category.HIDDEN
-      line_port = line.connection.local_port if is_local else line.connection.remote_port
-
-      if line_port in app_results:
-        result = app_results[line_port]
-
-        line.application_name = result.name
-        line.application_pid = result.pid
-        line.is_application_resolving = False
-      else:
-        line.is_application_resolving = self._app_resolver.is_alive
+    nyx.util.tracker.get_port_usage_tracker().query(app_ports)

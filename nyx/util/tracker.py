@@ -670,7 +670,20 @@ class PortUsageTracker(Daemon):
     self._processes_for_ports = {}
     self._failure_count = 0  # number of times in a row we've failed to get results
 
-  def get_processes_using_ports(self, ports):
+  def fetch(self, port):
+    """
+    Provides the process running on the given port. This retrieves the results
+    from our cache, so it only works if we've already issued a query() request
+    for it and gotten results.
+
+    :param int port: port number to look up
+
+    :returns: **Process** using the given port, or **None** if it's unavailable
+    """
+
+    return self._processes_for_ports.get(port)
+
+  def query(self, ports):
     """
     Registers a given set of ports for further lookups, and returns the last
     set of 'port => process' mappings we retrieved. Note that this means that

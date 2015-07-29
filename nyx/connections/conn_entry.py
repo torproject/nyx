@@ -77,12 +77,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self._possible_client = True
     self._possible_directory = True
 
-    # attributes for SOCKS, HIDDEN, and CONTROL connections
-
-    self.application_name = None
-    self.application_pid = None
-    self.is_application_resolving = False
-
     socks_ports = controller.get_ports(Listener.SOCKS, [])
     or_ports = controller.get_ports(Listener.OR, [])
     dir_ports = controller.get_ports(Listener.DIR, [])
@@ -151,6 +145,16 @@ class ConnectionLine(entries.ConnectionPanelLine):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
+  def get_process(self):
+    """
+    Local process using this connection. This is only available for socks,
+    hidden service, and controller connections. This is **None** if the
+    application is either still being resolved or can't be determined.
+    """
+
+    port = self.connection.local_port if self.get_type() == Category.HIDDEN else self.connection.remote_port
+    return nyx.util.tracker.get_port_usage_tracker().fetch(port)
+
   def get_listing_entry(self, width, current_time, listing_type):
     """
     Provides the tuple list for this connection's listing. Lines are composed
@@ -194,13 +198,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     my_listing[2] = (time_label, my_listing[2][1])
 
     return my_listing
-
-  def is_unresolved_application(self):
-    """
-    True if our display uses application information that hasn't yet been resolved.
-    """
-
-    return self.application_name is None and self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
 
   def _get_listing_entry(self, width, current_time, listing_type):
     entry_type = self.get_type()
@@ -354,16 +351,16 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     if self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
       display_label = ''
+      process = self.get_process()
 
-      if self.application_name:
-        if self.application_pid:
-          display_label = '%s (%s)' % (self.application_name, self.application_pid)
+      if process:
+        if process.pid:
+          display_label = '%s (%s)' % (process.name, process.pid)
         else:
-          display_label = self.application_name
-      elif self.is_application_resolving:
-        display_label = 'resolving...'
+          display_label = process.name
       else:
-        display_label = 'UNKNOWN'
+        # TODO: We should differentiate between 'resolving...' and 'unknown'
+        display_label = 'resolving...'
 
       if len(display_label) < width:
         return ('%%-%is' % width) % display_label
