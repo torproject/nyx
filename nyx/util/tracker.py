@@ -666,7 +666,8 @@ class PortUsageTracker(Daemon):
   def __init__(self, rate):
     super(PortUsageTracker, self).__init__(rate)
 
-    self._last_requested_ports = []
+    self._last_requested_local_ports = []
+    self._last_requested_remote_ports = []
     self._processes_for_ports = {}
     self._failure_count = 0  # number of times in a row we've failed to get results
 
@@ -683,25 +684,28 @@ class PortUsageTracker(Daemon):
 
     return self._processes_for_ports.get(port)
 
-  def query(self, ports):
+  def query(self, local_ports, remote_ports):
     """
     Registers a given set of ports for further lookups, and returns the last
     set of 'port => process' mappings we retrieved. Note that this means that
     we will not return the requested ports unless they're requested again after
     a successful lookup has been performed.
 
-    :param list ports: port numbers to look up
+    :param list local_ports: local port numbers to look up
+    :param list remote_ports: remote port numbers to look up
 
     :returns: **dict** mapping port numbers to the **Process** using it
     """
 
-    self._last_requested_ports = ports
+    self._last_requested_local_ports = local_ports
+    self._last_requested_remote_ports = remote_ports
     return self._processes_for_ports
 
   def _task(self, process_pid, process_name):
-    ports = self._last_requested_ports
+    local_ports = self._last_requested_local_ports
+    remote_ports = self._last_requested_remote_ports
 
-    if not ports:
+    if not local_ports and not remote_ports:
       return True
 
     result = {}
@@ -709,13 +713,16 @@ class PortUsageTracker(Daemon):
     # Use cached results from our last lookup if available.
 
     for port, process in self._processes_for_ports.items():
-      if port in ports:
+      if port in local_ports:
         result[port] = process
-        ports.remove(port)
+        local_ports.remove(port)
+      elif port in remote_ports:
+        result[port] = process
+        remote_ports.remove(port)
 
     try:
-      if ports:
-        result.update(_process_for_ports(ports, ports))
+      if local_ports or remote_ports:
+        result.update(_process_for_ports(local_ports, remote_ports))
 
       self._processes_for_ports = result
       self._failure_count = 0

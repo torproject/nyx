@@ -91,10 +91,10 @@ class TestPortUsageTracker(unittest.TestCase):
     with PortUsageTracker(0.02) as daemon:
       time.sleep(0.01)
 
-      self.assertEqual({}, daemon.query([37277, 51849]))
+      self.assertEqual({}, daemon.query([37277, 51849], []))
       time.sleep(0.04)
 
-      self.assertEqual({37277: 'python', 51849: 'tor'}, daemon.query([37277, 51849]))
+      self.assertEqual({37277: 'python', 51849: 'tor'}, daemon.query([37277, 51849], []))
 
   @patch('nyx.util.tracker.tor_controller')
   @patch('nyx.util.tracker._process_for_ports')
@@ -110,7 +110,7 @@ class TestPortUsageTracker(unittest.TestCase):
       time.sleep(0.05)
       self.assertEqual(0, daemon._failure_count)
 
-      daemon.query([37277, 51849])
+      daemon.query([37277, 51849], [])
       time.sleep(0.03)
       self.assertTrue(daemon.is_alive())
       time.sleep(0.1)

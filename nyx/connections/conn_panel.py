@@ -494,21 +494,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count
 
-      self._resolve_apps()
+      if CONFIG['features.connection.resolveApps']:
+        local_ports, remote_ports = []
 
-  def _resolve_apps(self):
-    """
-    Triggers an asynchronous query for all unresolved SOCKS, HIDDEN, and
-    CONTROL entries.
-    """
+        for line in self._entry_lines:
+          if line.get_type() == conn_entry.Category.HIDDEN:
+            local_ports.append(line.connection.local_port)
+          elif line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
+            remote_ports.append(line.connection.remote_port)
 
-    if not CONFIG['features.connection.resolveApps']:
-      return
-
-    app_ports = []
-
-    for line in self._entry_lines:
-      if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.HIDDEN, conn_entry.Category.CONTROL):
-        app_ports.append(line.connection.local_port if line.get_type() == conn_entry.Category.HIDDEN else line.connection.remote_port)
-
-    nyx.util.tracker.get_port_usage_tracker().query(app_ports)
+        nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
