@@ -495,12 +495,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._last_resource_fetch = current_resolution_count
 
       if CONFIG['features.connection.resolveApps']:
-        local_ports, remote_ports = []
+        local_ports, remote_ports = [], []
 
         for line in self._entry_lines:
-          if line.get_type() == conn_entry.Category.HIDDEN:
-            local_ports.append(line.connection.local_port)
-          elif line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
-            remote_ports.append(line.connection.remote_port)
+          if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
+            local_ports.append(line.connection.remote_port)
+          elif line.get_type() == conn_entry.Category.HIDDEN:
+            remote_ports.append(line.connection.local_port)
 
         nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)

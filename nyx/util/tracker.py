@@ -91,6 +91,14 @@ Process = collections.namedtuple('Process', [
 ])
 
 
+class UnresolvedResult(Exception):
+  'Indicates the application being used by a port is still being determined.'
+
+
+class UnknownApplication(Exception):
+  'No application could be determined for this port.'
+
+
 def get_connection_tracker():
   """
   Singleton for tracking the connections established by tor.
@@ -253,7 +261,8 @@ def _process_for_ports(local_ports, remote_ports):
   :param list local_ports: local port numbers to look up
   :param list remote_ports: remote port numbers to look up
 
-  :returns: **dict** mapping the ports to the associated **Process**
+  :returns: **dict** mapping the ports to the associated **Process**, or
+    **None** if it can't be determined
 
   :raises: **IOError** if unsuccessful
   """
@@ -321,6 +330,9 @@ def _process_for_ports(local_ports, remote_ports):
           results[remote_port] = Process(pid, cmd)
       except ValueError as exc:
         raise IOError('unrecognized output from lsof (%s): %s' % (exc, line))
+
+    for unknown_port in set(local_ports).union(remote_ports).difference(results.keys()):
+      results[unknown_port] = None
 
     return results
 
@@ -679,10 +691,24 @@ class PortUsageTracker(Daemon):
 
     :param int port: port number to look up
 
-    :returns: **Process** using the given port, or **None** if it's unavailable
+    :returns: **Process** using the given port
+
+    :raises:
+      * :class:`nyx.util.tracker.UnresolvedResult` if the application is still
+        being determined
+      * :class:`nyx.util.tracker.UnknownApplication` if the we tried to resolve
+        the application but it couldn't be determined
     """
 
-    return self._processes_for_ports.get(port)
+    try:
+      result = self._processes_for_ports[port]
+
+      if result is None:
+        raise UnknownApplication()
+      else:
+        return result
+    except KeyError:
+      raise UnresolvedResult()
 
   def query(self, local_ports, remote_ports):
     """

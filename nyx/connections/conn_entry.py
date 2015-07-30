@@ -145,16 +145,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
-  def get_process(self):
-    """
-    Local process using this connection. This is only available for socks,
-    hidden service, and controller connections. This is **None** if the
-    application is either still being resolved or can't be determined.
-    """
-
-    port = self.connection.local_port if self.get_type() == Category.HIDDEN else self.connection.remote_port
-    return nyx.util.tracker.get_port_usage_tracker().fetch(port)
-
   def get_listing_entry(self, width, current_time, listing_type):
     """
     Provides the tuple list for this connection's listing. Lines are composed
@@ -350,17 +340,15 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # for applications show the command/pid
 
     if self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      display_label = ''
-      process = self.get_process()
+      port = self.connection.local_port if self.get_type() == Category.HIDDEN else self.connection.remote_port
 
-      if process:
-        if process.pid:
-          display_label = '%s (%s)' % (process.name, process.pid)
-        else:
-          display_label = process.name
-      else:
-        # TODO: We should differentiate between 'resolving...' and 'unknown'
+      try:
+        process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
+        display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
+      except nyx.util.tracker.UnresolvedResult:
         display_label = 'resolving...'
+      except nyx.util.tracker.UnknownApplication:
+        display_label = 'UNKNOWN'
 
       if len(display_label) < width:
         return ('%%-%is' % width) % display_label

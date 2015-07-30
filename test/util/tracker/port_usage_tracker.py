@@ -47,8 +47,8 @@ class TestPortUsageTracker(unittest.TestCase):
   @patch('nyx.util.tracker.system.call', Mock(return_value = LSOF_OUTPUT.split('\n')))
   def test_process_for_ports(self):
     self.assertEqual({}, _process_for_ports([], []))
-    self.assertEqual({}, _process_for_ports([80, 443], []))
-    self.assertEqual({}, _process_for_ports([], [80, 443]))
+    self.assertEqual({80: None, 443: None}, _process_for_ports([80, 443], []))
+    self.assertEqual({80: None, 443: None}, _process_for_ports([], [80, 443]))
 
     self.assertEqual({37277: Process(2462, 'python'), 51849: Process(2001, 'tor')}, _process_for_ports([37277], [51849]))
 
@@ -63,7 +63,7 @@ class TestPortUsageTracker(unittest.TestCase):
 
     for test_input in test_inputs:
       call_mock.return_value = test_input.split('\n')
-      self.assertEqual({}, _process_for_ports([80], [443]))
+      self.assertEqual({80: None, 443: None}, _process_for_ports([80], [443]))
 
     # Isuses that are reported as errors.
 
