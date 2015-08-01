@@ -438,7 +438,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif not entries:
       title = 'Connections:'
     else:
-      counts = collections.Counter([entry.get_lines()[0].get_type() for entry in entries])
+      counts = collections.Counter([entry.get_type() for entry in entries])
       count_labels = ['%i %s' % (counts[category], category.lower()) for category in conn_entry.Category if counts[category]]
       title = 'Connections (%s):' % ', '.join(count_labels)
 
@@ -481,12 +481,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for entry in new_entries:
         entry_line = entry.get_lines()[0]
 
-        if entry_line.is_private() and entry_line.get_type() == conn_entry.Category.INBOUND:
+        if entry_line.is_private() and entry.get_type() == conn_entry.Category.INBOUND:
           client_locale = entry_line.get_locale(None)
 
           if client_locale:
             self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
-        elif entry_line.get_type() == conn_entry.Category.EXIT:
+        elif entry.get_type() == conn_entry.Category.EXIT:
           exit_port = entry_line.connection.remote_port
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
@@ -501,9 +501,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for entry in new_entries:
         line = entry.get_lines()[0]
 
-        if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
+        if entry.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
           local_ports.append(line.connection.remote_port)
-        elif line.get_type() == conn_entry.Category.HIDDEN:
+        elif entry.get_type() == conn_entry.Category.HIDDEN:
           remote_ports.append(line.connection.local_port)
 
       nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)

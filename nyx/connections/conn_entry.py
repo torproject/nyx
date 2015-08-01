@@ -11,7 +11,6 @@ import nyx.util.ui_tools
 from nyx.util import tor_controller
 from nyx.connections import entries
 
-from stem.control import Listener
 from stem.util import conf, connection, enum, str_tools
 
 # Connection Categories:
@@ -59,12 +58,11 @@ class ConnectionLine(entries.ConnectionPanelLine):
   Display component of the ConnectionEntry.
   """
 
-  def __init__(self, conn, include_port=True, include_expanded_addresses=True):
+  def __init__(self, entry, conn, include_port=True, include_expanded_addresses=True):
     entries.ConnectionPanelLine.__init__(self)
 
+    self._entry = entry
     self.connection = conn
-
-    self.cached_type = None
 
     # includes the port or expanded ip address field when displaying listing
     # information if true
@@ -225,80 +223,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     return False
 
   def get_type(self):
-    """
-    Provides our best guess at the current type of the connection. This
-    depends on consensus results, our current client circuits, etc. Results
-    are cached until this entry's display is reset.
-    """
-
-    # caches both to simplify the calls and to keep the type consistent until
-    # we want to reflect changes
-
-    if not self.cached_type:
-      controller = tor_controller()
-
-      my_hidden_service_ports = []  # ports belonging to our hidden service configuation
-
-      for hs_config in controller.get_hidden_service_conf({}).values():
-        my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
-
-      if self.connection.local_port in controller.get_ports(Listener.OR, []):
-        base_type = Category.INBOUND
-      elif self.connection.local_port in controller.get_ports(Listener.DIR, []):
-        base_type = Category.INBOUND
-      elif self.connection.local_port in controller.get_ports(Listener.SOCKS, []):
-        base_type = Category.SOCKS
-      elif self.connection.remote_port in my_hidden_service_ports:
-        base_type = Category.HIDDEN
-      elif self.connection.local_port in controller.get_ports(Listener.CONTROL, []):
-        base_type = Category.CONTROL
-      else:
-        # Currently the only non-static categories are OUTBOUND vs...
-        # - EXIT since this depends on the current consensus
-        # - CIRCUIT if this is likely to belong to our guard usage
-        # - DIRECTORY if this is a single-hop circuit (directory mirror?)
-        #
-        # The exitability, circuits, and fingerprints are all cached by the
-        # tor_tools util keeping this a quick lookup.
-
-        base_type = Category.OUTBOUND
-        destination_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
-
-        if not destination_fingerprint:
-          # Not a known relay. This might be an exit connection.
-
-          exit_policy = controller.get_exit_policy(None)
-          port = self.connection.remote_port if self.connection.remote_port else None
-
-          if exit_policy and exit_policy.can_exit_to(self.connection.remote_address, port):
-            self.cached_type = Category.EXIT
-        else:
-          # This belongs to a known relay. If we haven't eliminated ourselves as
-          # a possible client or directory connection then check if it still
-          # holds true.
-
-          my_circuits = controller.get_circuits([])
-
-          # Checks that this belongs to the first hop in a circuit that's
-          # either unestablished or longer than a single hop (ie, anything but
-          # a built 1-hop connection since those are most likely a directory
-          # mirror).
-
-          for circ in my_circuits:
-            if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != 'BUILT' or len(circ.path) > 1):
-              self.cached_type = Category.CIRCUIT  # matched a probable guard connection
-
-          if not self.cached_type:
-            # Checks if we match a built, single hop circuit.
-
-            for circ in my_circuits:
-              if circ.path and circ.path[0][0] == destination_fingerprint and circ.status == 'BUILT' and len(circ.path) == 1:
-                self.cached_type = Category.DIRECTORY
-
-      if not self.cached_type:
-        self.cached_type = base_type
-
-    return self.cached_type
+    return self._entry.get_type()
 
   def get_etc_content(self, width, listing_type):
     """

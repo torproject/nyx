@@ -6,6 +6,9 @@ consists of in the listing.
 
 import datetime
 
+from nyx.util import tor_controller
+
+from stem.control import Listener
 from stem.util import enum
 
 # attributes we can list entries by
@@ -39,25 +42,27 @@ def to_unix_time(dt):
 
 
 class ConnectionPanelEntry:
-  def __init__(self, start_time):
+  def __init__(self, connection_type, start_time):
     self.lines = []
-    self.start_time = start_time
+    self._connection_type = connection_type
+    self._start_time = start_time
 
   @staticmethod
   def from_connection(conn):
     import nyx.connections.conn_entry
 
-    entry = ConnectionPanelEntry(conn.start_time)
-    entry.lines = [nyx.connections.conn_entry.ConnectionLine(conn)]
+    entry = ConnectionPanelEntry(get_type(conn), conn.start_time)
+    entry.lines = [nyx.connections.conn_entry.ConnectionLine(entry, conn)]
     return entry
 
   @staticmethod
   def from_circuit(circ):
     import nyx.connections.circ_entry
+    import nyx.connections.conn_entry
     import nyx.util.tracker
 
-    entry = ConnectionPanelEntry(to_unix_time(circ.created))
-    entry.lines = [nyx.connections.circ_entry.CircHeaderLine(circ)]
+    entry = ConnectionPanelEntry(nyx.connections.conn_entry.Category.CIRCUIT, to_unix_time(circ.created))
+    entry.lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
 
     path = [path_entry[0] for path_entry in circ.path]
 
@@ -77,11 +82,19 @@ class ConnectionPanelEntry:
 
       placement_label = '%i / %s' % (i + 1, placement_type)
 
-      entry.lines.append(nyx.connections.circ_entry.CircLine(relay_ip, relay_port, relay_fingerprint, placement_label, to_unix_time(circ.created)))
+      entry.lines.append(nyx.connections.circ_entry.CircLine(entry, relay_ip, relay_port, relay_fingerprint, placement_label, to_unix_time(circ.created)))
 
     entry.lines[-1].is_last = True
 
     return entry
+
+  def get_type(self):
+    """
+    Provides our best guess at the current type of the connection. This
+    depends on consensus results, our current client circuits, etc.
+    """
+
+    return self._connection_type
 
   def get_lines(self):
     """
@@ -128,9 +141,9 @@ class ConnectionPanelEntry:
         return 'z' * 20  # orders at the end
     elif attr == SortAttr.CATEGORY:
       import nyx.connections.conn_entry
-      return nyx.connections.conn_entry.Category.index_of(connection_line.get_type())
+      return nyx.connections.conn_entry.Category.index_of(self.get_type())
     elif attr == SortAttr.UPTIME:
-      return self.start_time
+      return self._start_time
     elif attr == SortAttr.COUNTRY:
       if connection_line.connection.is_private_address(self.lines[0].connection.remote_address):
         return ''
@@ -214,3 +227,45 @@ class ConnectionPanelLine:
   def _get_details(self, width):
     # implementation of get_details
     return []
+
+
+def get_type(connection):
+  import nyx.connections.conn_entry
+  import nyx.util.tracker
+
+  controller = tor_controller()
+
+  my_hidden_service_ports = []  # ports belonging to our hidden service configuation
+
+  for hs_config in controller.get_hidden_service_conf({}).values():
+    my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
+
+  if connection.local_port in controller.get_ports(Listener.OR, []):
+    return nyx.connections.conn_entry.Category.INBOUND
+  elif connection.local_port in controller.get_ports(Listener.DIR, []):
+    return nyx.connections.conn_entry.Category.INBOUND
+  elif connection.local_port in controller.get_ports(Listener.SOCKS, []):
+    return nyx.connections.conn_entry.Category.SOCKS
+  elif connection.remote_port in my_hidden_service_ports:
+    return nyx.connections.conn_entry.Category.HIDDEN
+  elif connection.local_port in controller.get_ports(Listener.CONTROL, []):
+    return nyx.connections.conn_entry.Category.CONTROL
+  else:
+    destination_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(connection.remote_address, connection.remote_port)
+
+    if not destination_fingerprint:
+      # Not a known relay. This might be an exit connection.
+
+      exit_policy = controller.get_exit_policy(None)
+
+      if exit_policy and exit_policy.can_exit_to(connection.remote_address, connection.remote_port):
+        return nyx.connections.conn_entry.Category.EXIT
+    else:
+      for circ in controller.get_circuits([]):
+        if circ.path[0][0] == destination_fingerprint and circ.status == 'BUILT':
+          # Tor builds one-hop circuits to retrieve directory information.
+          # If longer this is likely a connection to a guard.
+
+          return nyx.connections.conn_entry.Category.DIRECTORY if len(circ.path) == 1 else nyx.connections.conn_entry.Category.CIRCUIT
+
+    return nyx.connections.conn_entry.Category.OUTBOUND

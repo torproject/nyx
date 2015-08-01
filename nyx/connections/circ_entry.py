@@ -24,8 +24,8 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   lines except that its etc field has circuit attributes.
   """
 
-  def __init__(self, circ):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(entries.to_unix_time(circ.created), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
+  def __init__(self, entry, circ):
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(entries.to_unix_time(circ.created), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
     self.circuit_id = circ.id
     self.purpose = circ.purpose.capitalize()
     self.is_built = False
@@ -33,7 +33,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     self._remote_fingerprint = None
 
   def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(self._timestamp, False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
+    conn_entry.ConnectionLine.__init__(self, self._entry, nyx.util.tracker.Connection(self._timestamp, False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
     self.is_built = True
     self._remote_fingerprint = exit_fingerprint
 
@@ -42,9 +42,6 @@ class CircHeaderLine(conn_entry.ConnectionLine):
       return self._remote_fingerprint
     else:
       return conn_entry.ConnectionLine.get_fingerprint(self, default)
-
-  def get_type(self):
-    return conn_entry.Category.CIRCUIT
 
   def get_destination_label(self, max_length, include_locale = False):
     if not self.is_built:
@@ -83,8 +80,8 @@ class CircLine(conn_entry.ConnectionLine):
   caching, etc).
   """
 
-  def __init__(self, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
-    conn_entry.ConnectionLine.__init__(self, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
+  def __init__(self, entry, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
     self._remote_fingerprint = remote_fingerprint
     self.placement_label = placement_label
     self.include_port = False
@@ -95,9 +92,6 @@ class CircLine(conn_entry.ConnectionLine):
 
   def get_fingerprint(self, default = None):
     self._remote_fingerprint
-
-  def get_type(self):
-    return conn_entry.Category.CIRCUIT
 
   def get_listing_prefix(self):
     if self.is_last:
