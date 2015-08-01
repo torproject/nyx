@@ -68,15 +68,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     controller = tor_controller()
 
-    # True if the connection has matched the properties of a client/directory
-    # connection every time we've checked. The criteria we check is...
-    #   client    - first hop in an established circuit
-    #   directory - matches an established single-hop circuit (probably a
-    #               directory mirror)
-
-    self._possible_client = True
-    self._possible_directory = True
-
     socks_ports = controller.get_ports(Listener.SOCKS, [])
     or_ports = controller.get_ports(Listener.OR, [])
     dir_ports = controller.get_ports(Listener.DIR, [])
@@ -291,37 +282,28 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
           if exit_policy and exit_policy.can_exit_to(self.connection.remote_address, port):
             self.cached_type = Category.EXIT
-        elif self._possible_client or self._possible_directory:
+        else:
           # This belongs to a known relay. If we haven't eliminated ourselves as
           # a possible client or directory connection then check if it still
           # holds true.
 
           my_circuits = controller.get_circuits([])
 
-          if self._possible_client:
-            # Checks that this belongs to the first hop in a circuit that's
-            # either unestablished or longer than a single hop (ie, anything but
-            # a built 1-hop connection since those are most likely a directory
-            # mirror).
+          # Checks that this belongs to the first hop in a circuit that's
+          # either unestablished or longer than a single hop (ie, anything but
+          # a built 1-hop connection since those are most likely a directory
+          # mirror).
 
-            for circ in my_circuits:
-              if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != 'BUILT' or len(circ.path) > 1):
-                self.cached_type = Category.CIRCUIT  # matched a probable guard connection
+          for circ in my_circuits:
+            if circ.path and circ.path[0][0] == destination_fingerprint and (circ.status != 'BUILT' or len(circ.path) > 1):
+              self.cached_type = Category.CIRCUIT  # matched a probable guard connection
 
-            # if we fell through, we can eliminate ourselves as a guard in the future
-            if not self.cached_type:
-              self._possible_client = False
-
-          if self._possible_directory:
+          if not self.cached_type:
             # Checks if we match a built, single hop circuit.
 
             for circ in my_circuits:
               if circ.path and circ.path[0][0] == destination_fingerprint and circ.status == 'BUILT' and len(circ.path) == 1:
                 self.cached_type = Category.DIRECTORY
-
-            # if we fell through, eliminate ourselves as a directory connection
-            if not self.cached_type:
-              self._possible_directory = False
 
       if not self.cached_type:
         self.cached_type = self.base_type
