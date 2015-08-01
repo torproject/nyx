@@ -64,33 +64,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     self.connection = conn
 
-    # overwrite the local fingerprint with ours
-
-    controller = tor_controller()
-
-    socks_ports = controller.get_ports(Listener.SOCKS, [])
-    or_ports = controller.get_ports(Listener.OR, [])
-    dir_ports = controller.get_ports(Listener.DIR, [])
-    control_ports = controller.get_ports(Listener.CONTROL, [])
-
-    # get all target ports in our hidden service configuation
-
-    my_hidden_service_ports = []
-
-    for hs_config in controller.get_hidden_service_conf({}).values():
-      my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
-
-    if conn.local_port in or_ports or conn.local_port in dir_ports:
-      self.base_type = Category.INBOUND
-    elif conn.local_port in socks_ports:
-      self.base_type = Category.SOCKS
-    elif conn.remote_port in my_hidden_service_ports:
-      self.base_type = Category.HIDDEN
-    elif conn.local_port in control_ports:
-      self.base_type = Category.CONTROL
-    else:
-      self.base_type = Category.OUTBOUND
-
     self.cached_type = None
 
     # includes the port or expanded ip address field when displaying listing
@@ -122,7 +95,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     Provides the fingerprint of this relay.
     """
 
-    if self.base_type == Category.OUTBOUND:
+    if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
       my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
       return my_fingerprint if my_fingerprint else default
     else:
@@ -262,7 +235,24 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # we want to reflect changes
 
     if not self.cached_type:
-      if self.base_type == Category.OUTBOUND:
+      controller = tor_controller()
+
+      my_hidden_service_ports = []  # ports belonging to our hidden service configuation
+
+      for hs_config in controller.get_hidden_service_conf({}).values():
+        my_hidden_service_ports += [entry[2] for entry in hs_config['HiddenServicePort']]
+
+      if self.connection.local_port in controller.get_ports(Listener.OR, []):
+        base_type = Category.INBOUND
+      elif self.connection.local_port in controller.get_ports(Listener.DIR, []):
+        base_type = Category.INBOUND
+      elif self.connection.local_port in controller.get_ports(Listener.SOCKS, []):
+        base_type = Category.SOCKS
+      elif self.connection.remote_port in my_hidden_service_ports:
+        base_type = Category.HIDDEN
+      elif self.connection.local_port in controller.get_ports(Listener.CONTROL, []):
+        base_type = Category.CONTROL
+      else:
         # Currently the only non-static categories are OUTBOUND vs...
         # - EXIT since this depends on the current consensus
         # - CIRCUIT if this is likely to belong to our guard usage
@@ -271,8 +261,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
         # The exitability, circuits, and fingerprints are all cached by the
         # tor_tools util keeping this a quick lookup.
 
-        controller = tor_controller()
-        destination_fingerprint = self.get_fingerprint()
+        base_type = Category.OUTBOUND
+        destination_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
 
         if not destination_fingerprint:
           # Not a known relay. This might be an exit connection.
@@ -306,7 +296,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
                 self.cached_type = Category.DIRECTORY
 
       if not self.cached_type:
-        self.cached_type = self.base_type
+        self.cached_type = base_type
 
     return self.cached_type
 
