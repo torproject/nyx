@@ -459,22 +459,23 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
 
     conn_resolver = nyx.util.tracker.get_connection_tracker()
+    current_resolution_count = conn_resolver.run_counter()
 
     if not conn_resolver.is_alive():
       return  # if we're not fetching connections then this is a no-op
+    elif current_resolution_count == self._last_resource_fetch:
+      return  # no new connections to process
 
-    current_resolution_count = conn_resolver.run_counter()
+    new_entries = [entries.ConnectionPanelEntry.from_connection(conn) for conn in conn_resolver.get_value()]
+
+    for circ in tor_controller().get_circuits([]):
+      # Skips established single-hop circuits (these are for directory
+      # fetches, not client circuits)
+
+      if not (circ.status == 'BUILT' and len(circ.path) == 1):
+        new_entries.append(entries.ConnectionPanelEntry.from_circuit(circ))
 
     with self._vals_lock:
-      new_entries = [entries.ConnectionPanelEntry.from_connection(conn) for conn in conn_resolver.get_value()]
-
-      for circ in tor_controller().get_circuits([]):
-        # Skips established single-hop circuits (these are for directory
-        # fetches, not client circuits)
-
-        if not (circ.status == 'BUILT' and len(circ.path) == 1):
-          new_entries.append(entries.ConnectionPanelEntry.from_circuit(circ))
-
       # update stats for client and exit connections
 
       for entry in new_entries:
@@ -494,13 +495,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count
 
-      if CONFIG['features.connection.resolveApps']:
-        local_ports, remote_ports = [], []
+    if CONFIG['features.connection.resolveApps']:
+      local_ports, remote_ports = [], []
 
-        for line in self._entry_lines:
-          if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
-            local_ports.append(line.connection.remote_port)
-          elif line.get_type() == conn_entry.Category.HIDDEN:
-            remote_ports.append(line.connection.local_port)
+      for entry in new_entries:
+        line = entry.get_lines()[0]
 
-        nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+        if line.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
+          local_ports.append(line.connection.remote_port)
+        elif line.get_type() == conn_entry.Category.HIDDEN:
+          remote_ports.append(line.connection.local_port)
+
+      nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
