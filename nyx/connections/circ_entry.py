@@ -77,17 +77,29 @@ class CircLine(conn_entry.ConnectionLine):
   caching, etc).
   """
 
-  def __init__(self, entry, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'), False)
-    self._remote_fingerprint = remote_fingerprint
-    self.placement_label = placement_label
+  def __init__(self, entry, circ, fingerprint, timestamp):
+    relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), False)
+    self._fingerprint = fingerprint
+
+    circ_path = [path_entry[0] for path_entry in circ.path]
+    circ_index = circ_path.index(fingerprint)
+
+    if circ_index == len(circ_path) - 1:
+      placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
+    elif circ_index == 0:
+      placement_type = 'Guard'
+    else:
+      placement_type = 'Middle'
+
+    self.placement_label = '%i / %s' % (circ_index + 1, placement_type)
 
     # determines the sort of left hand bracketing we use
 
-    self.is_last = False
+    self.is_last = circ_index == len(circ_path) - 1
 
   def get_fingerprint(self, default = None):
-    self._remote_fingerprint
+    self._fingerprint
 
   def get_listing_prefix(self):
     if self.is_last:

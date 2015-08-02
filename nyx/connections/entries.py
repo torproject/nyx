@@ -77,28 +77,12 @@ class ConnectionPanelEntry:
   def from_circuit(circ):
     import nyx.connections.circ_entry
     import nyx.connections.conn_entry
-    import nyx.util.tracker
 
     entry = ConnectionPanelEntry(nyx.connections.conn_entry.Category.CIRCUIT, to_unix_time(circ.created))
     entry.lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
 
-    path = [path_entry[0] for path_entry in circ.path]
-
-    for i, relay_fingerprint in enumerate(path):
-      relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(relay_fingerprint, ('192.168.0.1', 0))
-
-      if i == len(path) - 1:
-        placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
-      elif i == 0:
-        placement_type = 'Guard'
-      else:
-        placement_type = 'Middle'
-
-      placement_label = '%i / %s' % (i + 1, placement_type)
-
-      entry.lines.append(nyx.connections.circ_entry.CircLine(entry, relay_ip, relay_port, relay_fingerprint, placement_label, to_unix_time(circ.created)))
-
-    entry.lines[-1].is_last = True
+    for fingerprint, _ in circ.path:
+      entry.lines.append(nyx.connections.circ_entry.CircLine(entry, circ, fingerprint, to_unix_time(circ.created)))
 
     return entry
 
