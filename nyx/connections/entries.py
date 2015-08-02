@@ -84,10 +84,6 @@ class ConnectionPanelEntry:
 
     path = [path_entry[0] for path_entry in circ.path]
 
-    if circ.status == 'BUILT':
-      exit_ip, exit_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(path[-1], ('192.168.0.1', 0))
-      entry.lines[0].set_exit(exit_ip, exit_port, path[-1])
-
     for i, relay_fingerprint in enumerate(path):
       relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(relay_fingerprint, ('192.168.0.1', 0))
 

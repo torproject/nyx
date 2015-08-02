@@ -25,23 +25,20 @@ class CircHeaderLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, entry, circ):
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(entries.to_unix_time(circ.created), False, '127.0.0.1', 0, '0.0.0.0', 0, 'tcp'), False, False)
-    self.circuit_id = circ.id
-    self.purpose = circ.purpose.capitalize()
-    self.is_built = False
-    self._timestamp = entries.to_unix_time(circ.created)
-    self._remote_fingerprint = None
+    if circ.status == 'BUILT':
+      self._remote_fingerprint = circ.path[-1][0]
+      exit_address, exit_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(self._remote_fingerprint, ('192.168.0.1', 0))
+      self.is_built = True
+    else:
+      exit_address, exit_port = '0.0.0.0', 0
+      self.is_built = False
+      self._remote_fingerprint = None
 
-  def set_exit(self, exit_address, exit_port, exit_fingerprint):
-    conn_entry.ConnectionLine.__init__(self, self._entry, nyx.util.tracker.Connection(self._timestamp, False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
-    self.is_built = True
-    self._remote_fingerprint = exit_fingerprint
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(entries.to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
+    self.circuit = circ
 
   def get_fingerprint(self, default = None):
-    if self._remote_fingerprint:
-      return self._remote_fingerprint
-    else:
-      return conn_entry.ConnectionLine.get_fingerprint(self, default)
+    return self._remote_fingerprint if self._remote_fingerprint else conn_entry.ConnectionLine.get_fingerprint(self, default)
 
   def get_destination_label(self, max_length, include_locale = False):
     if not self.is_built:
@@ -55,7 +52,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
     shown completely (not enough room) is dropped.
     """
 
-    etc_attr = ['Purpose: %s' % self.purpose, 'Circuit ID: %s' % self.circuit_id]
+    etc_attr = ['Purpose: %s' % self.circuit.purpose.capitalize(), 'Circuit ID: %s' % self.circuit.id]
 
     for i in range(len(etc_attr), -1, -1):
       etc_label = ', '.join(etc_attr[:i])
@@ -81,10 +78,9 @@ class CircLine(conn_entry.ConnectionLine):
   """
 
   def __init__(self, entry, remote_address, remote_port, remote_fingerprint, placement_label, timestamp):
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'))
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, remote_address, remote_port, 'tcp'), False)
     self._remote_fingerprint = remote_fingerprint
     self.placement_label = placement_label
-    self.include_port = False
 
     # determines the sort of left hand bracketing we use
 
