@@ -35,10 +35,24 @@ PORT_COUNT = 65536
 # sort value for scrubbed ip addresses
 
 SCRUBBED_IP_VAL = 255 ** 4
+ADDRESS_CACHE = {}
 
 
 def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
+
+
+def address_to_int(address):
+  if address not in ADDRESS_CACHE:
+    ip_value = 0
+
+    for comp in address.split('.'):
+      ip_value *= 255
+      ip_value += int(comp)
+
+    ADDRESS_CACHE[address] = ip_value
+
+  return ADDRESS_CACHE[address]
 
 
 class ConnectionPanelEntry:
@@ -127,9 +141,9 @@ class ConnectionPanelEntry:
       if connection_line.is_private():
         return SCRUBBED_IP_VAL  # orders at the end
 
-      return connection_line.sort_address
+      return address_to_int(connection_line.connection.remote_address)
     elif attr == SortAttr.PORT:
-      return connection_line.sort_port
+      return connection_line.connection.remote_port
     elif attr == SortAttr.FINGERPRINT:
       return connection_line.get_fingerprint('UNKNOWN')
     elif attr == SortAttr.NICKNAME:

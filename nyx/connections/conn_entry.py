@@ -70,17 +70,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     self.include_port = include_port
     self.include_expanded_addresses = include_expanded_addresses
 
-    # cached immutable values used for sorting
-
-    ip_value = 0
-
-    for comp in self.connection.remote_address.split('.'):
-      ip_value *= 255
-      ip_value += int(comp)
-
-    self.sort_address = ip_value
-    self.sort_port = self.connection.remote_port
-
   def get_locale(self, default = None):
     """
     Provides the two letter country code for the remote endpoint.
