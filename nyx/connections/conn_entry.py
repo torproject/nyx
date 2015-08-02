@@ -175,42 +175,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
     detail_format = (curses.A_BOLD, CATEGORY_COLOR[self.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
-  def is_private(self):
-    """
-    Returns true if the endpoint is private, possibly belonging to a client
-    connection or exit traffic.
-    """
-
-    if not CONFIG['features.connection.showIps']:
-      return True
-
-    # This is used to scrub private information from the interface. Relaying
-    # etiquette (and wiretapping laws) say these are bad things to look at so
-    # DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
-
-    my_type = self.get_type()
-
-    if my_type == Category.INBOUND:
-      controller = tor_controller()
-
-      if controller.is_user_traffic_allowed().inbound:
-        all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)
-        return all_matches == []
-    elif my_type == Category.EXIT:
-      # DNS connections exiting us aren't private (since they're hitting our
-      # resolvers). Everything else, however, is.
-
-      # TODO: Ideally this would also double check that it's a UDP connection
-      # (since DNS is the only UDP connections Tor will relay), however this
-      # will take a bit more work to propagate the information up from the
-      # connection resolver.
-
-      return self.connection.remote_port != 53
-
-    # for everything else this isn't a concern
-
-    return False
-
   def get_type(self):
     return self._entry.get_type()
 
@@ -435,7 +399,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     lines = [''] * 7
     lines[0] = 'address: %s' % self.get_destination_label(width - 11)
-    lines[1] = 'locale: %s' % ('??' if self.is_private() else self.get_locale('??'))
+    lines[1] = 'locale: %s' % ('??' if self._entry.is_private() else self.get_locale('??'))
 
     # Remaining data concerns the consensus results, with three possible cases:
     # - if there's a single match then display its details
@@ -581,7 +545,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # destination of the connection
 
-    address_label = '<scrubbed>' if self.is_private() else self.connection.remote_address
+    address_label = '<scrubbed>' if self._entry.is_private() else self.connection.remote_address
     port_label = ':%s' % self.connection.remote_port if include_port else ''
     destination_address = address_label + port_label
 

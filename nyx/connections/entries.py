@@ -9,7 +9,7 @@ import datetime
 from nyx.util import tor_controller
 
 from stem.control import Listener
-from stem.util import enum
+from stem.util import conf, enum
 
 # attributes we can list entries by
 
@@ -36,6 +36,10 @@ PORT_COUNT = 65536
 
 SCRUBBED_IP_VAL = 255 ** 4
 ADDRESS_CACHE = {}
+
+CONFIG = conf.config_dict('nyx', {
+  'features.connection.showIps': True,
+})
 
 
 def to_unix_time(dt):
@@ -110,6 +114,37 @@ class ConnectionPanelEntry:
 
     return self._connection_type
 
+  def is_private(self):
+    """
+    Returns true if the endpoint is private, possibly belonging to a client
+    connection or exit traffic.
+
+    This is used to scrub private information from the interface. Relaying
+    etiquette (and wiretapping laws) say these are bad things to look at so
+    DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
+    """
+
+    import nyx.connections.conn_entry
+    import nyx.util.tracker
+
+    if not CONFIG['features.connection.showIps']:
+      return True
+
+    if self.get_type() == nyx.connections.conn_entry.Category.INBOUND:
+      controller = tor_controller()
+
+      if controller.is_user_traffic_allowed().inbound:
+        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)) == 0
+    elif self.get_type() == nyx.connections.conn_entry.Category.EXIT:
+      # DNS connections exiting us aren't private (since they're hitting our
+      # resolvers). Everything else, however, is.
+
+      return self.connection.remote_port != 53 or self.connection.protocol != 'udp'
+
+    # for everything else this isn't a concern
+
+    return False
+
   def get_lines(self):
     """
     Provides the individual lines in the connection listing.
@@ -138,7 +173,7 @@ class ConnectionPanelEntry:
     connection_line = self.lines[0]
 
     if attr == SortAttr.IP_ADDRESS:
-      if connection_line.is_private():
+      if self.is_private():
         return SCRUBBED_IP_VAL  # orders at the end
 
       return address_to_int(connection_line.connection.remote_address)
