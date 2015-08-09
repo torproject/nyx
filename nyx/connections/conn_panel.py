@@ -158,7 +158,18 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         ordering_keys = [entries.SortAttr.keys()[entries.SortAttr.index_of(v)] for v in ordering]
         nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
-      self._entries.sort(key = lambda i: (i.get_sort_values(CONFIG['features.connection.order'], self.get_listing_type())))
+      def sort_type(attr):
+        if attr == entries.SortAttr.LISTING:
+          if self.get_listing_type() == entries.ListingType.IP_ADDRESS:
+            return entries.SortAttr.IP_ADDRESS
+          elif self.get_listing_type() == entries.ListingType.FINGERPRINT:
+            return entries.SortAttr.FINGERPRINT
+          elif self.get_listing_type() == entries.ListingType.NICKNAME:
+            return entries.SortAttr.NICKNAME
+
+        return attr
+
+      self._entries.sort(key = lambda i: [i.get_sort_value(sort_type(attr)) for attr in CONFIG['features.connection.order']])
       self._entry_lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
 
   def get_listing_type(self):

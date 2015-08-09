@@ -132,20 +132,7 @@ class ConnectionPanelEntry:
 
     return self.lines
 
-  def get_sort_values(self, sort_attrs, listing_type):
-    """
-    Provides the value used in comparisons to sort based on the given
-    attribute.
-
-    Arguments:
-      sort_attrs   - list of SortAttr values for the field being sorted on
-      listing_type - ListingType enumeration for the attribute we're listing
-                    entries by
-    """
-
-    return [self.get_sort_value(attr, listing_type) for attr in sort_attrs]
-
-  def get_sort_value(self, attr, listing_type):
+  def get_sort_value(self, attr):
     """
     Provides the value of a single attribute used for sorting purposes.
     """
@@ -156,18 +143,15 @@ class ConnectionPanelEntry:
       if self.is_private():
         return SCRUBBED_IP_VAL  # orders at the end
 
-      return address_to_int(connection_line.connection.remote_address)
+      sort_value = address_to_int(connection_line.connection.remote_address) * PORT_COUNT
+      sort_value += connection_line.connection.remote_port
+      return sort_value
     elif attr == SortAttr.PORT:
       return connection_line.connection.remote_port
     elif attr == SortAttr.FINGERPRINT:
       return connection_line.get_fingerprint('UNKNOWN')
     elif attr == SortAttr.NICKNAME:
-      my_nickname = connection_line.get_nickname()
-
-      if my_nickname:
-        return my_nickname.lower()
-      else:
-        return 'z' * 20  # orders at the end
+      return connection_line.get_nickname('z' * 20)
     elif attr == SortAttr.CATEGORY:
       import nyx.connections.conn_entry
       return nyx.connections.conn_entry.Category.index_of(self.get_type())
@@ -178,16 +162,6 @@ class ConnectionPanelEntry:
         return ''
       else:
         return connection_line.get_locale('')
-    elif attr == SortAttr.LISTING:
-      if listing_type == ListingType.IP_ADDRESS:
-        # uses the IP address as the primary value, and port as secondary
-        sort_value = self.get_sort_value(SortAttr.IP_ADDRESS, listing_type) * PORT_COUNT
-        sort_value += self.get_sort_value(SortAttr.PORT, listing_type)
-        return sort_value
-      elif listing_type == ListingType.FINGERPRINT:
-        return self.get_sort_value(SortAttr.FINGERPRINT, listing_type)
-      elif listing_type == ListingType.NICKNAME:
-        return self.get_sort_value(SortAttr.NICKNAME, listing_type)
     else:
       return ''
 
@@ -224,8 +198,6 @@ class ConnectionPanelLine:
       width       - available space to display in
       current_time - unix timestamp for what the results should consider to be
                     the current time (this may be ignored due to caching)
-      listing_type - ListingType enumeration for the highest priority content
-                    to be displayed
     """
 
     if self._listing_cache_args != (width, listing_type):
