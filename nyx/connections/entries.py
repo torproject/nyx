@@ -28,15 +28,6 @@ SORT_COLORS = {
   SortAttr.COUNTRY: 'blue',
 }
 
-# maximum number of ports a system can have
-
-PORT_COUNT = 65536
-
-# sort value for scrubbed ip addresses
-
-SCRUBBED_IP_VAL = 255 ** 4
-ADDRESS_CACHE = {}
-
 CONFIG = conf.config_dict('nyx', {
   'features.connection.showIps': True,
 })
@@ -44,19 +35,6 @@ CONFIG = conf.config_dict('nyx', {
 
 def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
-
-
-def address_to_int(address):
-  if address not in ADDRESS_CACHE:
-    ip_value = 0
-
-    for comp in address.split('.'):
-      ip_value *= 255
-      ip_value += int(comp)
-
-    ADDRESS_CACHE[address] = ip_value
-
-  return ADDRESS_CACHE[address]
 
 
 class ConnectionPanelEntry:
@@ -141,11 +119,14 @@ class ConnectionPanelEntry:
 
     if attr == SortAttr.IP_ADDRESS:
       if self.is_private():
-        return SCRUBBED_IP_VAL  # orders at the end
+        return 255 ** 4  # orders at the end
 
-      sort_value = address_to_int(connection_line.connection.remote_address) * PORT_COUNT
-      sort_value += connection_line.connection.remote_port
-      return sort_value
+      ip_value = 0
+
+      for octet in connection_line.connection.remote_address.split('.'):
+        ip_value = ip_value * 255 + int(octet)
+
+      return ip_value * 65536 + connection_line.connection.remote_port
     elif attr == SortAttr.PORT:
       return connection_line.connection.remote_port
     elif attr == SortAttr.FINGERPRINT:
