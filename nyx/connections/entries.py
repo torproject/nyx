@@ -72,8 +72,9 @@ class ConnectionPanelEntry(object):
 
   def get_type(self):
     """
-    Provides our best guess at the current type of the connection. This
-    depends on consensus results, our current client circuits, etc.
+    Provides our best guess at the type of connection this is.
+
+    :returns: **Category** for the connection's type
     """
 
     return self._connection_type
@@ -81,12 +82,11 @@ class ConnectionPanelEntry(object):
   @lru_cache()
   def is_private(self):
     """
-    Returns true if the endpoint is private, possibly belonging to a client
-    connection or exit traffic.
-
-    This is used to scrub private information from the interface. Relaying
+    Checks if information about this endpoint should be scrubbed. Relaying
     etiquette (and wiretapping laws) say these are bad things to look at so
     DON'T CHANGE THIS UNLESS YOU HAVE A DAMN GOOD REASON!
+
+    :returns: **bool** indicating if connection information is sensive or not
     """
 
     import nyx.connections.conn_entry
@@ -112,7 +112,9 @@ class ConnectionPanelEntry(object):
 
   def get_lines(self):
     """
-    Provides the individual lines in the connection listing.
+    Provides individual lines of connection information.
+
+    :returns: **list** of **ConnectionLine** concerning this entry
     """
 
     return self.lines
@@ -120,7 +122,11 @@ class ConnectionPanelEntry(object):
   @lru_cache()
   def get_sort_value(self, attr):
     """
-    Provides the value of a single attribute used for sorting purposes.
+    Value for sorting by a given attribute.
+
+    :param SortAtt attr: attribute to be sorted by
+
+    :returns: comparable object by the given attribute
     """
 
     connection_line = self.lines[0]
