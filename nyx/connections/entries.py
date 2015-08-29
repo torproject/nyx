@@ -11,6 +11,12 @@ from nyx.util import tor_controller
 from stem.control import Listener
 from stem.util import conf, enum
 
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
+
 # attributes we can list entries by
 
 ListingType = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
@@ -37,7 +43,7 @@ def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
 
 
-class ConnectionPanelEntry:
+class ConnectionPanelEntry(object):
   def __init__(self, connection_type, start_time):
     self.lines = []
     self._connection_type = connection_type
@@ -72,6 +78,7 @@ class ConnectionPanelEntry:
 
     return self._connection_type
 
+  @lru_cache()
   def is_private(self):
     """
     Returns true if the endpoint is private, possibly belonging to a client
@@ -110,6 +117,7 @@ class ConnectionPanelEntry:
 
     return self.lines
 
+  @lru_cache()
   def get_sort_value(self, attr):
     """
     Provides the value of a single attribute used for sorting purposes.
