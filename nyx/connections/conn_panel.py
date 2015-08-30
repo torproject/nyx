@@ -158,18 +158,43 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         ordering_keys = [entries.SortAttr.keys()[entries.SortAttr.index_of(v)] for v in ordering]
         nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
-      def sort_type(attr):
+      def sort_value(entry, attr):
         if attr == entries.SortAttr.LISTING:
           if self.get_listing_type() == entries.ListingType.IP_ADDRESS:
-            return entries.SortAttr.IP_ADDRESS
+            attr = entries.SortAttr.IP_ADDRESS
           elif self.get_listing_type() == entries.ListingType.FINGERPRINT:
-            return entries.SortAttr.FINGERPRINT
+            attr = entries.SortAttr.FINGERPRINT
           elif self.get_listing_type() == entries.ListingType.NICKNAME:
-            return entries.SortAttr.NICKNAME
+            attr = entries.SortAttr.NICKNAME
 
-        return attr
+        connection_line = entry.get_lines()[0]
 
-      self._entries.sort(key = lambda i: [i.get_sort_value(sort_type(attr)) for attr in CONFIG['features.connection.order']])
+        if attr == entries.SortAttr.IP_ADDRESS:
+          if entry.is_private():
+            return 255 ** 4  # orders at the end
+
+          ip_value = 0
+
+          for octet in connection_line.connection.remote_address.split('.'):
+            ip_value = ip_value * 255 + int(octet)
+
+          return ip_value * 65536 + connection_line.connection.remote_port
+        elif attr == entries.SortAttr.PORT:
+          return connection_line.connection.remote_port
+        elif attr == entries.SortAttr.FINGERPRINT:
+          return connection_line.get_fingerprint('UNKNOWN')
+        elif attr == entries.SortAttr.NICKNAME:
+          return connection_line.get_nickname('z' * 20)
+        elif attr == entries.SortAttr.CATEGORY:
+          return conn_entry.Category.index_of(entry.get_type())
+        elif attr == entries.SortAttr.UPTIME:
+          return connection_line.connection.start_time
+        elif attr == entries.SortAttr.COUNTRY:
+          return '' if entry.is_private() else connection_line.get_locale('')
+        else:
+          return ''
+
+      self._entries.sort(key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
       self._entry_lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
 
   def get_listing_type(self):

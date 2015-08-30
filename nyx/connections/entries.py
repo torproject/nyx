@@ -113,44 +113,6 @@ class Entry(object):
 
     return self._lines
 
-  @lru_cache()
-  def get_sort_value(self, attr):
-    """
-    Value for sorting by a given attribute.
-
-    :param SortAtt attr: attribute to be sorted by
-
-    :returns: comparable object by the given attribute
-    """
-
-    connection_line = self._lines[0]
-
-    if attr == SortAttr.IP_ADDRESS:
-      if self.is_private():
-        return 255 ** 4  # orders at the end
-
-      ip_value = 0
-
-      for octet in connection_line.connection.remote_address.split('.'):
-        ip_value = ip_value * 255 + int(octet)
-
-      return ip_value * 65536 + connection_line.connection.remote_port
-    elif attr == SortAttr.PORT:
-      return connection_line.connection.remote_port
-    elif attr == SortAttr.FINGERPRINT:
-      return connection_line.get_fingerprint('UNKNOWN')
-    elif attr == SortAttr.NICKNAME:
-      return connection_line.get_nickname('z' * 20)
-    elif attr == SortAttr.CATEGORY:
-      import nyx.connections.conn_entry
-      return nyx.connections.conn_entry.Category.index_of(self.get_type())
-    elif attr == SortAttr.UPTIME:
-      return connection_line.connection.start_time
-    elif attr == SortAttr.COUNTRY:
-      return '' if self.is_private() else connection_line.get_locale('')
-    else:
-      return ''
-
 
 class ConnectionPanelLine:
   """
