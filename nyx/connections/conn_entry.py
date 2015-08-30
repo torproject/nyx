@@ -82,7 +82,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     Provides the fingerprint of this relay.
     """
 
-    if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
+    if self._entry.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
       my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
       return my_fingerprint if my_fingerprint else default
     else:
@@ -141,7 +141,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     return my_listing
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    entry_type = self.get_type()
+    entry_type = self._entry.get_type()
 
     # Lines are split into the following components in reverse:
     # init gap - " "
@@ -172,11 +172,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self.get_type()])
+    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self._entry.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
-
-  def get_type(self):
-    return self._entry.get_type()
 
   def get_etc_content(self, width, listing_type):
     """
@@ -189,8 +186,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # for applications show the command/pid
 
-    if self.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      port = self.connection.local_port if self.get_type() == Category.HIDDEN else self.connection.remote_port
+    if self._entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+      port = self.connection.local_port if self._entry.get_type() == Category.HIDDEN else self.connection.remote_port
 
       try:
         process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
@@ -270,7 +267,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     """
 
     controller = tor_controller()
-    my_type = self.get_type()
+    my_type = self._entry.get_type()
     destination_address = self.get_destination_label(26, include_locale = True)
 
     # The required widths are the sum of the following:
@@ -541,7 +538,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     # the port and port derived data can be hidden by config or without include_port
 
-    include_port = self.include_port and (CONFIG['features.connection.showExitPort'] or self.get_type() != Category.EXIT)
+    include_port = self.include_port and (CONFIG['features.connection.showExitPort'] or self._entry.get_type() != Category.EXIT)
 
     # destination of the connection
 
@@ -555,7 +552,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     if len(destination_address) + 5 <= max_length:
       space_available = max_length - len(destination_address) - 3
 
-      if self.get_type() == Category.EXIT and include_port:
+      if self._entry.get_type() == Category.EXIT and include_port:
         purpose = connection.port_usage(self.connection.remote_port)
 
         if purpose:

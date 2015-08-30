@@ -69,7 +69,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
 
   def get_details(self, width):
     if not self.is_built:
-      detail_format = (curses.A_BOLD, conn_entry.CATEGORY_COLOR[self.get_type()])
+      detail_format = (curses.A_BOLD, conn_entry.CATEGORY_COLOR[self._entry.get_type()])
       return [('Building Circuit...', detail_format)]
     else:
       return conn_entry.ConnectionLine.get_details(self, width)
@@ -127,7 +127,7 @@ class CircLine(conn_entry.ConnectionLine):
     return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    line_format = nyx.util.ui_tools.get_color(conn_entry.CATEGORY_COLOR[self.get_type()])
+    line_format = nyx.util.ui_tools.get_color(conn_entry.CATEGORY_COLOR[self._entry.get_type()])
 
     # The required widths are the sum of the following:
     # initial space (1 character)

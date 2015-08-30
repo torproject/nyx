@@ -4,6 +4,8 @@ entry itself (ie, Tor connection, client circuit, etc) and the lines it
 consists of in the listing.
 """
 
+import nyx.util.tracker
+
 from nyx.util import tor_controller
 
 from stem.control import Listener
@@ -83,7 +85,6 @@ class Entry(object):
     """
 
     import nyx.connections.conn_entry
-    import nyx.util.tracker
 
     if not CONFIG['features.connection.showIps']:
       return True
@@ -216,7 +217,6 @@ class ConnectionPanelLine:
 
 
 def get_type(connection):
-  import nyx.util.tracker
   from nyx.connections.conn_entry import Category
   controller = tor_controller()
 
