@@ -9,6 +9,7 @@ followed by an entry for each hop in the circuit. For instance:
 """
 
 import curses
+import datetime
 
 import nyx.util.tracker
 import nyx.util.ui_tools
@@ -16,6 +17,10 @@ import nyx.util.ui_tools
 from nyx.connections import entries, conn_entry
 
 from stem.util import str_tools
+
+
+def to_unix_time(dt):
+  return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
 
 
 class CircHeaderLine(conn_entry.ConnectionLine):
@@ -34,7 +39,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
       self.is_built = False
       self._remote_fingerprint = None
 
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(entries.to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
     self.circuit = circ
 
   def get_fingerprint(self, default = None):
@@ -77,16 +82,18 @@ class CircLine(conn_entry.ConnectionLine):
   caching, etc).
   """
 
-  def __init__(self, entry, circ, fingerprint, timestamp):
+  def __init__(self, entry, circ, fingerprint):
     relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(timestamp, False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), False)
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), False)
     self._fingerprint = fingerprint
+    self._is_last = False
 
     circ_path = [path_entry[0] for path_entry in circ.path]
     circ_index = circ_path.index(fingerprint)
 
     if circ_index == len(circ_path) - 1:
       placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
+      self._is_last = True
     elif circ_index == 0:
       placement_type = 'Guard'
     else:
@@ -94,15 +101,11 @@ class CircLine(conn_entry.ConnectionLine):
 
     self.placement_label = '%i / %s' % (circ_index + 1, placement_type)
 
-    # determines the sort of left hand bracketing we use
-
-    self.is_last = circ_index == len(circ_path) - 1
-
   def get_fingerprint(self, default = None):
     self._fingerprint
 
   def get_listing_prefix(self):
-    if self.is_last:
+    if self._is_last:
       return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
     else:
       return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))

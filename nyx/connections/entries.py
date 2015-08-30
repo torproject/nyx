@@ -4,8 +4,6 @@ entry itself (ie, Tor connection, client circuit, etc) and the lines it
 consists of in the listing.
 """
 
-import datetime
-
 from nyx.util import tor_controller
 
 from stem.control import Listener
@@ -39,22 +37,17 @@ CONFIG = conf.config_dict('nyx', {
 })
 
 
-def to_unix_time(dt):
-  return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
-
-
 class Entry(object):
-  def __init__(self, connection_type, start_time):
-    self.lines = []
+  def __init__(self, connection_type):
+    self._lines = []
     self._connection_type = connection_type
-    self._start_time = start_time
 
   @staticmethod
   def from_connection(conn):
     import nyx.connections.conn_entry
 
-    entry = Entry(get_type(conn), conn.start_time)
-    entry.lines = [nyx.connections.conn_entry.ConnectionLine(entry, conn)]
+    entry = Entry(get_type(conn))
+    entry._lines = [nyx.connections.conn_entry.ConnectionLine(entry, conn)]
     return entry
 
   @staticmethod
@@ -62,11 +55,11 @@ class Entry(object):
     import nyx.connections.circ_entry
     import nyx.connections.conn_entry
 
-    entry = Entry(nyx.connections.conn_entry.Category.CIRCUIT, to_unix_time(circ.created))
-    entry.lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
+    entry = Entry(nyx.connections.conn_entry.Category.CIRCUIT)
+    entry._lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
 
     for fingerprint, _ in circ.path:
-      entry.lines.append(nyx.connections.circ_entry.CircLine(entry, circ, fingerprint, to_unix_time(circ.created)))
+      entry._lines.append(nyx.connections.circ_entry.CircLine(entry, circ, fingerprint))
 
     return entry
 
@@ -95,16 +88,18 @@ class Entry(object):
     if not CONFIG['features.connection.showIps']:
       return True
 
+    connection = self._lines[0].connection
+
     if self.get_type() == nyx.connections.conn_entry.Category.INBOUND:
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)) == 0
+        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(connection.remote_address)) == 0
     elif self.get_type() == nyx.connections.conn_entry.Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
 
-      return self.connection.remote_port != 53 or self.connection.protocol != 'udp'
+      return connection.remote_port != 53 or connection.protocol != 'udp'
 
     return False  # for everything else this isn't a concern
 
@@ -115,7 +110,7 @@ class Entry(object):
     :returns: **list** of **ConnectionLine** concerning this entry
     """
 
-    return self.lines
+    return self._lines
 
   @lru_cache()
   def get_sort_value(self, attr):
@@ -127,7 +122,7 @@ class Entry(object):
     :returns: comparable object by the given attribute
     """
 
-    connection_line = self.lines[0]
+    connection_line = self._lines[0]
 
     if attr == SortAttr.IP_ADDRESS:
       if self.is_private():
@@ -149,7 +144,7 @@ class Entry(object):
       import nyx.connections.conn_entry
       return nyx.connections.conn_entry.Category.index_of(self.get_type())
     elif attr == SortAttr.UPTIME:
-      return self._start_time
+      return connection_line.connection.start_time
     elif attr == SortAttr.COUNTRY:
       return '' if self.is_private() else connection_line.get_locale('')
     else:
