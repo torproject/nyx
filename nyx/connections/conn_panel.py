@@ -477,14 +477,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif current_resolution_count == self._last_resource_fetch:
       return  # no new connections to process
 
-    new_entries = [entries.ConnectionPanelEntry.from_connection(conn) for conn in conn_resolver.get_value()]
+    new_entries = [entries.Entry.from_connection(conn) for conn in conn_resolver.get_value()]
 
     for circ in tor_controller().get_circuits([]):
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
       if not (circ.status == 'BUILT' and len(circ.path) == 1):
-        new_entries.append(entries.ConnectionPanelEntry.from_circuit(circ))
+        new_entries.append(entries.Entry.from_circuit(circ))
 
     with self._vals_lock:
       # update stats for client and exit connections

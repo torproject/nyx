@@ -43,7 +43,7 @@ def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
 
 
-class ConnectionPanelEntry(object):
+class Entry(object):
   def __init__(self, connection_type, start_time):
     self.lines = []
     self._connection_type = connection_type
@@ -53,7 +53,7 @@ class ConnectionPanelEntry(object):
   def from_connection(conn):
     import nyx.connections.conn_entry
 
-    entry = ConnectionPanelEntry(get_type(conn), conn.start_time)
+    entry = Entry(get_type(conn), conn.start_time)
     entry.lines = [nyx.connections.conn_entry.ConnectionLine(entry, conn)]
     return entry
 
@@ -62,7 +62,7 @@ class ConnectionPanelEntry(object):
     import nyx.connections.circ_entry
     import nyx.connections.conn_entry
 
-    entry = ConnectionPanelEntry(nyx.connections.conn_entry.Category.CIRCUIT, to_unix_time(circ.created))
+    entry = Entry(nyx.connections.conn_entry.Category.CIRCUIT, to_unix_time(circ.created))
     entry.lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
 
     for fingerprint, _ in circ.path:
