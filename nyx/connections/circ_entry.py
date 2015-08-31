@@ -15,7 +15,7 @@ import nyx.util.tracker
 import nyx.util.ui_tools
 import nyx.connection_panel
 
-from nyx.connections import conn_entry, entries
+from nyx.connections import conn_entry
 
 from stem.util import str_tools
 
@@ -125,7 +125,7 @@ class CircLine(conn_entry.ConnectionLine):
       listing_type - primary attribute we're listing connections by
     """
 
-    return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
+    return conn_entry.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
     line_format = nyx.util.ui_tools.get_color(nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
