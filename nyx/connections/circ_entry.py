@@ -14,7 +14,7 @@ import datetime
 import nyx.util.tracker
 import nyx.util.ui_tools
 
-from nyx.connections import entries, conn_entry
+from nyx.connections import conn_entry, conn_panel, entries
 
 from stem.util import str_tools
 
@@ -139,7 +139,7 @@ class CircLine(conn_entry.ConnectionLine):
 
     dst, etc = '', ''
 
-    if listing_type == entries.ListingType.IP_ADDRESS:
+    if listing_type == conn_panel.Listing.IP_ADDRESS:
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
@@ -150,7 +150,7 @@ class CircLine(conn_entry.ConnectionLine):
       dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.get_nickname('UNKNOWN'), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
-    elif listing_type == entries.ListingType.FINGERPRINT:
+    elif listing_type == conn_panel.Listing.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
 

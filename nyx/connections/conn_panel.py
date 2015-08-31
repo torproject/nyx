@@ -160,11 +160,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       def sort_value(entry, attr):
         if attr == entries.SortAttr.LISTING:
-          if self.get_listing_type() == entries.ListingType.IP_ADDRESS:
+          if self.get_listing_type() == Listing.IP_ADDRESS:
             attr = entries.SortAttr.IP_ADDRESS
-          elif self.get_listing_type() == entries.ListingType.FINGERPRINT:
+          elif self.get_listing_type() == Listing.FINGERPRINT:
             attr = entries.SortAttr.FINGERPRINT
-          elif self.get_listing_type() == entries.ListingType.NICKNAME:
+          elif self.get_listing_type() == Listing.NICKNAME:
             attr = entries.SortAttr.NICKNAME
 
         connection_line = entry.get_lines()[0]
@@ -284,7 +284,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         # provides a menu to pick the primary information we list connections by
 
         title = 'List By:'
-        options = list(entries.ListingType)
+        options = list(Listing)
 
         old_selection = options.index(self.get_listing_type())
         selection = nyx.popups.show_menu(title, options, old_selection)
@@ -303,7 +303,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if not selection:
             break
 
-          color = nyx.connections.conn_entry.CATEGORY_COLOR[selection.get_type()]
+          color = conn_entry.CATEGORY_COLOR[selection.get_type()]
           fingerprint = selection.get_fingerprint()
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
           key = descriptor_popup.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)

@@ -17,10 +17,6 @@ try:
 except ImportError:
   from stem.util.lru_cache import lru_cache
 
-# attributes we can list entries by
-
-ListingType = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
-
 SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
 SORT_COLORS = {

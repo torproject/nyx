@@ -102,17 +102,17 @@ class ConnectionLine(entries.ConnectionPanelLine):
     of the following components:
       <src>  -->  <dst>     <etc>     <uptime> (<type>)
 
-    ListingType.IP_ADDRESS:
+    Listing.IP_ADDRESS:
       src - <internal addr:port> --> <external addr:port>
       dst - <destination addr:port>
       etc - <fingerprint> <nickname>
 
-    ListingType.FINGERPRINT:
+    Listing.FINGERPRINT:
       src - localhost
       dst - <destination fingerprint>
       etc - <nickname> <destination addr:port>
 
-    ListingType.NICKNAME:
+    Listing.NICKNAME:
       src - <source nickname>
       dst - <destination nickname>
       etc - <fingerprint> <destination addr:port>
@@ -184,6 +184,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       listing_type - primary attribute we're listing connections by
     """
 
+    from nyx.connections import conn_panel
+
     # for applications show the command/pid
 
     if self._entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
@@ -207,7 +209,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     destination_address = self.get_destination_label(26, include_locale = True)
     etc, used_space = '', 0
 
-    if listing_type == entries.ListingType.IP_ADDRESS:
+    if listing_type == conn_panel.Listing.IP_ADDRESS:
       if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
 
@@ -221,7 +223,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
         etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += nickname_space + 2
-    elif listing_type == entries.ListingType.FINGERPRINT:
+    elif listing_type == conn_panel.Listing.FINGERPRINT:
       if width > used_space + 17:
         # show nickname (column width: min 17 characters, consumes any remaining space)
 
@@ -266,6 +268,8 @@ class ConnectionLine(entries.ConnectionPanelLine):
       listing_type - primary attribute we're listing connections by
     """
 
+    from nyx.connections import conn_panel
+
     controller = tor_controller()
     my_type = self._entry.get_type()
     destination_address = self.get_destination_label(26, include_locale = True)
@@ -280,7 +284,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     src, dst, etc = '', '', ''
 
-    if listing_type == entries.ListingType.IP_ADDRESS:
+    if listing_type == conn_panel.Listing.IP_ADDRESS:
       my_external_address = controller.get_info('address', self.connection.local_address)
       address_differ = my_external_address != self.connection.local_address
 
@@ -340,7 +344,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       etc = self.get_etc_content(width - used_space, listing_type)
       used_space += len(etc)
-    elif listing_type == entries.ListingType.FINGERPRINT:
+    elif listing_type == conn_panel.Listing.FINGERPRINT:
       src = 'localhost'
 
       if my_type == Category.CONTROL:
