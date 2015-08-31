@@ -23,30 +23,24 @@ CONFIG = conf.config_dict('nyx', {
 
 
 class Entry(object):
-  def __init__(self, connection_type):
-    self._lines = []
-    self._connection_type = connection_type
+  @staticmethod
+  @lru_cache()
+  def from_connection(connection):
+    return ConnectionEntry(connection)
 
   @staticmethod
-  def from_connection(conn):
-    import nyx.connections.conn_entry
+  @lru_cache()
+  def from_circuit(circuit):
+    return CircuitEntry(circuit)
 
-    entry = Entry(get_type(conn))
-    entry._lines = [nyx.connections.conn_entry.ConnectionLine(entry, conn)]
-    return entry
+  def get_lines(self):
+    """
+    Provides individual lines of connection information.
 
-  @staticmethod
-  def from_circuit(circ):
-    import nyx.connections.circ_entry
-    from nyx.connections.conn_panel import Category
+    :returns: **list** of **ConnectionLine** concerning this entry
+    """
 
-    entry = Entry(Category.CIRCUIT)
-    entry._lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
-
-    for fingerprint, _ in circ.path:
-      entry._lines.append(nyx.connections.circ_entry.CircLine(entry, circ, fingerprint))
-
-    return entry
+    raise NotImplementedError('should be implemented by subclasses')
 
   def get_type(self):
     """
@@ -55,9 +49,8 @@ class Entry(object):
     :returns: **Category** for the connection's type
     """
 
-    return self._connection_type
+    raise NotImplementedError('should be implemented by subclasses')
 
-  @lru_cache()
   def is_private(self):
     """
     Checks if information about this endpoint should be scrubbed. Relaying
@@ -67,34 +60,91 @@ class Entry(object):
     :returns: **bool** indicating if connection information is sensive or not
     """
 
+    raise NotImplementedError('should be implemented by subclasses')
+
+
+class ConnectionEntry(Entry):
+  def __init__(self, connection):
+    self._connection = connection
+
+  @lru_cache()
+  def get_lines(self):
+    import nyx.connections.conn_entry
+    return [nyx.connections.conn_entry.ConnectionLine(self, self._connection)]
+
+  @lru_cache()
+  def get_type(self):
+    from nyx.connections.conn_panel import Category
+    controller = tor_controller()
+
+    if self._connection.local_port in controller.get_ports(Listener.OR, []):
+      return Category.INBOUND
+    elif self._connection.local_port in controller.get_ports(Listener.DIR, []):
+      return Category.INBOUND
+    elif self._connection.local_port in controller.get_ports(Listener.SOCKS, []):
+      return Category.SOCKS
+    elif self._connection.local_port in controller.get_ports(Listener.CONTROL, []):
+      return Category.CONTROL
+
+    for hs_config in controller.get_hidden_service_conf({}).values():
+      if self._connection.remote_port == hs_config['HiddenServicePort']:
+        return Category.HIDDEN
+
+    fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self._connection.remote_address, self._connection.remote_port)
+
+    if fingerprint:
+      for circ in controller.get_circuits([]):
+        if circ.path[0][0] == fingerprint and circ.status == 'BUILT':
+          # Tor builds one-hop circuits to retrieve directory information.
+          # If longer this is likely a connection to a guard.
+
+          return Category.DIRECTORY if len(circ.path) == 1 else Category.CIRCUIT
+    else:
+      # not a known relay, might be an exit connection
+
+      exit_policy = controller.get_exit_policy(None)
+
+      if exit_policy and exit_policy.can_exit_to(self._connection.remote_address, self._connection.remote_port):
+        return Category.EXIT
+
+    return Category.OUTBOUND
+
+  @lru_cache()
+  def is_private(self):
     from nyx.connections.conn_panel import Category
 
     if not CONFIG['features.connection.showIps']:
       return True
 
-    connection = self._lines[0].connection
-
     if self.get_type() == Category.INBOUND:
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(connection.remote_address)) == 0
+        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self._connection.remote_address)) == 0
     elif self.get_type() == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
 
-      return connection.remote_port != 53 or connection.protocol != 'udp'
+      return not (self._connection.remote_port == 53 and self._connection.protocol == 'udp')
 
     return False  # for everything else this isn't a concern
 
+
+class CircuitEntry(Entry):
+  def __init__(self, circuit):
+    self._circuit = circuit
+
+  @lru_cache()
   def get_lines(self):
-    """
-    Provides individual lines of connection information.
+    from nyx.connections.circ_entry import CircHeaderLine, CircLine
+    return [CircHeaderLine(self, self._circuit)] + [CircLine(self, self._circuit, fp) for fp, _ in self._circuit.path]
 
-    :returns: **list** of **ConnectionLine** concerning this entry
-    """
+  def get_type(self):
+    from nyx.connections.conn_panel import Category
+    return Category.CIRCUIT
 
-    return self._lines
+  def is_private(self):
+    return False
 
 
 class ConnectionPanelLine:
@@ -159,40 +209,3 @@ class ConnectionPanelLine:
   def _get_details(self, width):
     # implementation of get_details
     return []
-
-
-def get_type(connection):
-  from nyx.connections.conn_panel import Category
-  controller = tor_controller()
-
-  if connection.local_port in controller.get_ports(Listener.OR, []):
-    return Category.INBOUND
-  elif connection.local_port in controller.get_ports(Listener.DIR, []):
-    return Category.INBOUND
-  elif connection.local_port in controller.get_ports(Listener.SOCKS, []):
-    return Category.SOCKS
-  elif connection.local_port in controller.get_ports(Listener.CONTROL, []):
-    return Category.CONTROL
-
-  for hs_config in controller.get_hidden_service_conf({}).values():
-    if connection.remote_port == hs_config['HiddenServicePort']:
-      return Category.HIDDEN
-
-  fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(connection.remote_address, connection.remote_port)
-
-  if fingerprint:
-    for circ in controller.get_circuits([]):
-      if circ.path[0][0] == fingerprint and circ.status == 'BUILT':
-        # Tor builds one-hop circuits to retrieve directory information.
-        # If longer this is likely a connection to a guard.
-
-        return Category.DIRECTORY if len(circ.path) == 1 else Category.CIRCUIT
-  else:
-    # not a known relay, might be an exit connection
-
-    exit_policy = controller.get_exit_policy(None)
-
-    if exit_policy and exit_policy.can_exit_to(connection.remote_address, connection.remote_port):
-      return Category.EXIT
-
-  return Category.OUTBOUND
