@@ -38,9 +38,9 @@ class Entry(object):
   @staticmethod
   def from_circuit(circ):
     import nyx.connections.circ_entry
-    import nyx.connections.conn_entry
+    from nyx.connections.conn_panel import Category
 
-    entry = Entry(nyx.connections.conn_entry.Category.CIRCUIT)
+    entry = Entry(Category.CIRCUIT)
     entry._lines = [nyx.connections.circ_entry.CircHeaderLine(entry, circ)]
 
     for fingerprint, _ in circ.path:
@@ -67,19 +67,19 @@ class Entry(object):
     :returns: **bool** indicating if connection information is sensive or not
     """
 
-    import nyx.connections.conn_entry
+    from nyx.connections.conn_panel import Category
 
     if not CONFIG['features.connection.showIps']:
       return True
 
     connection = self._lines[0].connection
 
-    if self.get_type() == nyx.connections.conn_entry.Category.INBOUND:
+    if self.get_type() == Category.INBOUND:
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
         return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(connection.remote_address)) == 0
-    elif self.get_type() == nyx.connections.conn_entry.Category.EXIT:
+    elif self.get_type() == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
 
@@ -162,7 +162,7 @@ class ConnectionPanelLine:
 
 
 def get_type(connection):
-  from nyx.connections.conn_entry import Category
+  from nyx.connections.conn_panel import Category
   controller = tor_controller()
 
   if connection.local_port in controller.get_ports(Listener.OR, []):

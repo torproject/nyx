@@ -9,32 +9,10 @@ import nyx.util.tracker
 import nyx.util.ui_tools
 
 from nyx.util import tor_controller
-from nyx.connections import entries
+from nyx.connections import conn_panel, entries
+from nyx.connections.conn_panel import Category
 
-from stem.util import conf, connection, enum, str_tools
-
-# Connection Categories:
-#   Inbound      Relay connection, coming to us.
-#   Outbound     Relay connection, leaving us.
-#   Exit         Outbound relay connection leaving the Tor network.
-#   Hidden       Connections to a hidden service we're providing.
-#   Socks        Socks connections for applications using Tor.
-#   Circuit      Circuits our tor client has created.
-#   Directory    Fetching tor consensus information.
-#   Control      Tor controller (nyx, vidalia, etc).
-
-Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
-
-CATEGORY_COLOR = {
-  Category.INBOUND: 'green',
-  Category.OUTBOUND: 'blue',
-  Category.EXIT: 'red',
-  Category.HIDDEN: 'magenta',
-  Category.SOCKS: 'yellow',
-  Category.CIRCUIT: 'cyan',
-  Category.DIRECTORY: 'magenta',
-  Category.CONTROL: 'red',
-}
+from stem.util import conf, connection, str_tools
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
@@ -151,7 +129,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = nyx.util.ui_tools.get_color(CATEGORY_COLOR[entry_type])
+    line_format = nyx.util.ui_tools.get_color(conn_panel.CATEGORY_COLOR[entry_type])
     time_width = 6 if CONFIG['features.connection.markInitialConnections'] else 5
 
     draw_entry = [(' ', line_format),
@@ -172,7 +150,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self._entry.get_type()])
+    detail_format = (curses.A_BOLD, conn_panel.CATEGORY_COLOR[self._entry.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def get_etc_content(self, width, listing_type):
@@ -183,8 +161,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width       - maximum length of the line
       listing_type - primary attribute we're listing connections by
     """
-
-    from nyx.connections import conn_panel
 
     # for applications show the command/pid
 
@@ -267,8 +243,6 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width       - maximum length of the line
       listing_type - primary attribute we're listing connections by
     """
-
-    from nyx.connections import conn_panel
 
     controller = tor_controller()
     my_type = self._entry.get_type()

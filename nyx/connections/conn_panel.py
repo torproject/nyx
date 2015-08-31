@@ -12,7 +12,7 @@ import threading
 import nyx.popups
 import nyx.util.tracker
 
-from nyx.connections import descriptor_popup, entries, conn_entry
+from nyx.connections import descriptor_popup, entries
 from nyx.util import panel, tor_controller, ui_tools
 
 from stem.control import State
@@ -28,6 +28,29 @@ Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
 
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
+
+# Connection Categories:
+#   Inbound      Relay connection, coming to us.
+#   Outbound     Relay connection, leaving us.
+#   Exit         Outbound relay connection leaving the Tor network.
+#   Hidden       Connections to a hidden service we're providing.
+#   Socks        Socks connections for applications using Tor.
+#   Circuit      Circuits our tor client has created.
+#   Directory    Fetching tor consensus information.
+#   Control      Tor controller (nyx, vidalia, etc).
+
+Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
+
+CATEGORY_COLOR = {
+  Category.INBOUND: 'green',
+  Category.OUTBOUND: 'blue',
+  Category.EXIT: 'red',
+  Category.HIDDEN: 'magenta',
+  Category.SOCKS: 'yellow',
+  Category.CIRCUIT: 'cyan',
+  Category.DIRECTORY: 'magenta',
+  Category.CONTROL: 'red',
+}
 
 SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
@@ -130,6 +153,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     # mark the initially exitsing connection uptimes as being estimates
 
+    from nyx.connections import conn_entry
+
     for entry in self._entries:
       if isinstance(entry, conn_entry.ConnectionEntry):
         entry.get_lines()[0].is_initial_connection = True
@@ -199,7 +224,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         elif attr == SortAttr.NICKNAME:
           return connection_line.get_nickname('z' * 20)
         elif attr == SortAttr.CATEGORY:
-          return conn_entry.Category.index_of(entry.get_type())
+          return Category.index_of(entry.get_type())
         elif attr == SortAttr.UPTIME:
           return connection_line.connection.start_time
         elif attr == SortAttr.COUNTRY:
@@ -316,7 +341,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if not selection:
             break
 
-          color = conn_entry.CATEGORY_COLOR[selection.get_type()]
+          color = CATEGORY_COLOR[selection.get_type()]
           fingerprint = selection.get_fingerprint()
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
           key = descriptor_popup.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
@@ -488,7 +513,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       title = 'Connections:'
     else:
       counts = collections.Counter([entry.get_type() for entry in entries])
-      count_labels = ['%i %s' % (counts[category], category.lower()) for category in conn_entry.Category if counts[category]]
+      count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
       title = 'Connections (%s):' % ', '.join(count_labels)
 
     self.addstr(0, 0, title, curses.A_STANDOUT)
@@ -530,12 +555,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for entry in new_entries:
         entry_line = entry.get_lines()[0]
 
-        if entry.is_private() and entry.get_type() == conn_entry.Category.INBOUND:
+        if entry.is_private() and entry.get_type() == Category.INBOUND:
           client_locale = entry_line.get_locale(None)
 
           if client_locale:
             self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
-        elif entry.get_type() == conn_entry.Category.EXIT:
+        elif entry.get_type() == Category.EXIT:
           exit_port = entry_line.connection.remote_port
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
@@ -550,9 +575,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for entry in new_entries:
         line = entry.get_lines()[0]
 
-        if entry.get_type() in (conn_entry.Category.SOCKS, conn_entry.Category.CONTROL):
+        if entry.get_type() in (Category.SOCKS, Category.CONTROL):
           local_ports.append(line.connection.remote_port)
-        elif entry.get_type() == conn_entry.Category.HIDDEN:
+        elif entry.get_type() == Category.HIDDEN:
           remote_ports.append(line.connection.local_port)
 
       nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
