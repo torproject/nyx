@@ -9,26 +9,13 @@ import nyx.util.tracker
 from nyx.util import tor_controller
 
 from stem.control import Listener
-from stem.util import conf, enum
+from stem.util import conf
 
 try:
   # added in python 3.2
   from functools import lru_cache
 except ImportError:
   from stem.util.lru_cache import lru_cache
-
-SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
-
-SORT_COLORS = {
-  SortAttr.CATEGORY: 'red',
-  SortAttr.UPTIME: 'yellow',
-  SortAttr.LISTING: 'green',
-  SortAttr.IP_ADDRESS: 'blue',
-  SortAttr.PORT: 'blue',
-  SortAttr.FINGERPRINT: 'cyan',
-  SortAttr.NICKNAME: 'cyan',
-  SortAttr.COUNTRY: 'blue',
-}
 
 CONFIG = conf.config_dict('nyx', {
   'features.connection.showIps': True,

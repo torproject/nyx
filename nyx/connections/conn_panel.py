@@ -29,21 +29,34 @@ Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
 
+SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
+
+SORT_COLORS = {
+  SortAttr.CATEGORY: 'red',
+  SortAttr.UPTIME: 'yellow',
+  SortAttr.LISTING: 'green',
+  SortAttr.IP_ADDRESS: 'blue',
+  SortAttr.PORT: 'blue',
+  SortAttr.FINGERPRINT: 'cyan',
+  SortAttr.NICKNAME: 'cyan',
+  SortAttr.COUNTRY: 'blue',
+}
+
 
 def conf_handler(key, value):
   if key == 'features.connection.listing_type':
     return conf.parse_enum(key, value, Listing)
   elif key == 'features.connection.order':
-    return conf.parse_enum_csv(key, value[0], entries.SortAttr, 3)
+    return conf.parse_enum_csv(key, value[0], SortAttr, 3)
 
 
 CONFIG = conf.config_dict('nyx', {
   'features.connection.resolveApps': True,
   'features.connection.listing_type': Listing.IP_ADDRESS,
   'features.connection.order': [
-    entries.SortAttr.CATEGORY,
-    entries.SortAttr.LISTING,
-    entries.SortAttr.UPTIME],
+    SortAttr.CATEGORY,
+    SortAttr.LISTING,
+    SortAttr.UPTIME],
   'features.connection.showIps': True,
 }, conf_handler)
 
@@ -155,21 +168,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if ordering:
         nyx_config = conf.get_config('nyx')
 
-        ordering_keys = [entries.SortAttr.keys()[entries.SortAttr.index_of(v)] for v in ordering]
+        ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in ordering]
         nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
       def sort_value(entry, attr):
-        if attr == entries.SortAttr.LISTING:
+        if attr == SortAttr.LISTING:
           if self.get_listing_type() == Listing.IP_ADDRESS:
-            attr = entries.SortAttr.IP_ADDRESS
+            attr = SortAttr.IP_ADDRESS
           elif self.get_listing_type() == Listing.FINGERPRINT:
-            attr = entries.SortAttr.FINGERPRINT
+            attr = SortAttr.FINGERPRINT
           elif self.get_listing_type() == Listing.NICKNAME:
-            attr = entries.SortAttr.NICKNAME
+            attr = SortAttr.NICKNAME
 
         connection_line = entry.get_lines()[0]
 
-        if attr == entries.SortAttr.IP_ADDRESS:
+        if attr == SortAttr.IP_ADDRESS:
           if entry.is_private():
             return 255 ** 4  # orders at the end
 
@@ -179,17 +192,17 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             ip_value = ip_value * 255 + int(octet)
 
           return ip_value * 65536 + connection_line.connection.remote_port
-        elif attr == entries.SortAttr.PORT:
+        elif attr == SortAttr.PORT:
           return connection_line.connection.remote_port
-        elif attr == entries.SortAttr.FINGERPRINT:
+        elif attr == SortAttr.FINGERPRINT:
           return connection_line.get_fingerprint('UNKNOWN')
-        elif attr == entries.SortAttr.NICKNAME:
+        elif attr == SortAttr.NICKNAME:
           return connection_line.get_nickname('z' * 20)
-        elif attr == entries.SortAttr.CATEGORY:
+        elif attr == SortAttr.CATEGORY:
           return conn_entry.Category.index_of(entry.get_type())
-        elif attr == entries.SortAttr.UPTIME:
+        elif attr == SortAttr.UPTIME:
           return connection_line.connection.start_time
-        elif attr == entries.SortAttr.COUNTRY:
+        elif attr == SortAttr.COUNTRY:
           return '' if entry.is_private() else connection_line.get_locale('')
         else:
           return ''
@@ -221,7 +234,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       # if we're sorting by the listing then we need to resort
 
-      if entries.SortAttr.LISTING in CONFIG['features.connection.order']:
+      if SortAttr.LISTING in CONFIG['features.connection.order']:
         self.set_sort_order()
 
   def show_sort_dialog(self):
@@ -232,9 +245,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # set ordering for connection options
 
     title_label = 'Connection Ordering:'
-    options = list(entries.SortAttr)
+    options = list(SortAttr)
     old_selection = CONFIG['features.connection.order']
-    option_colors = dict([(attr, entries.SORT_COLORS[attr]) for attr in options])
+    option_colors = dict([(attr, SORT_COLORS[attr]) for attr in options])
     results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
     if results:
