@@ -74,7 +74,7 @@ class ConnectionEntry(Entry):
 
   @lru_cache()
   def get_type(self):
-    from nyx.connections.conn_panel import Category
+    from nyx.connection_panel import Category
     controller = tor_controller()
 
     if self._connection.local_port in controller.get_ports(Listener.OR, []):
@@ -111,7 +111,7 @@ class ConnectionEntry(Entry):
 
   @lru_cache()
   def is_private(self):
-    from nyx.connections.conn_panel import Category
+    from nyx.connection_panel import Category
 
     if not CONFIG['features.connection.showIps']:
       return True
@@ -140,7 +140,7 @@ class CircuitEntry(Entry):
     return [CircHeaderLine(self, self._circuit)] + [CircLine(self, self._circuit, fp) for fp, _ in self._circuit.path]
 
   def get_type(self):
-    from nyx.connections.conn_panel import Category
+    from nyx.connection_panel import Category
     return Category.CIRCUIT
 
   def is_private(self):

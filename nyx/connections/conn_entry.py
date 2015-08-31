@@ -5,12 +5,13 @@ Connection panel entries related to actual connections to or from the system
 
 import curses
 
+import nyx.connection_panel
 import nyx.util.tracker
 import nyx.util.ui_tools
 
 from nyx.util import tor_controller
-from nyx.connections import conn_panel, entries
-from nyx.connections.conn_panel import Category
+from nyx.connections import entries
+from nyx.connection_panel import Category
 
 from stem.util import conf, connection, str_tools
 
@@ -129,7 +130,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = nyx.util.ui_tools.get_color(conn_panel.CATEGORY_COLOR[entry_type])
+    line_format = nyx.util.ui_tools.get_color(nyx.connection_panel.CATEGORY_COLOR[entry_type])
     time_width = 6 if CONFIG['features.connection.markInitialConnections'] else 5
 
     draw_entry = [(' ', line_format),
@@ -150,7 +151,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
       width - available space to display in
     """
 
-    detail_format = (curses.A_BOLD, conn_panel.CATEGORY_COLOR[self._entry.get_type()])
+    detail_format = (curses.A_BOLD, nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def get_etc_content(self, width, listing_type):
@@ -185,7 +186,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
     destination_address = self.get_destination_label(26, include_locale = True)
     etc, used_space = '', 0
 
-    if listing_type == conn_panel.Listing.IP_ADDRESS:
+    if listing_type == nyx.connection_panel.Listing.IP_ADDRESS:
       if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
         # show fingerprint (column width: 42 characters)
 
@@ -199,7 +200,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
         nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
         etc += ('%%-%is  ' % nickname_space) % nickname_label
         used_space += nickname_space + 2
-    elif listing_type == conn_panel.Listing.FINGERPRINT:
+    elif listing_type == nyx.connection_panel.Listing.FINGERPRINT:
       if width > used_space + 17:
         # show nickname (column width: min 17 characters, consumes any remaining space)
 
@@ -258,7 +259,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
     src, dst, etc = '', '', ''
 
-    if listing_type == conn_panel.Listing.IP_ADDRESS:
+    if listing_type == nyx.connection_panel.Listing.IP_ADDRESS:
       my_external_address = controller.get_info('address', self.connection.local_address)
       address_differ = my_external_address != self.connection.local_address
 
@@ -318,7 +319,7 @@ class ConnectionLine(entries.ConnectionPanelLine):
 
       etc = self.get_etc_content(width - used_space, listing_type)
       used_space += len(etc)
-    elif listing_type == conn_panel.Listing.FINGERPRINT:
+    elif listing_type == nyx.connection_panel.Listing.FINGERPRINT:
       src = 'localhost'
 
       if my_type == Category.CONTROL:

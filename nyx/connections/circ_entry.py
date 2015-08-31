@@ -13,8 +13,9 @@ import datetime
 
 import nyx.util.tracker
 import nyx.util.ui_tools
+import nyx.connection_panel
 
-from nyx.connections import conn_entry, conn_panel, entries
+from nyx.connections import conn_entry, entries
 
 from stem.util import str_tools
 
@@ -69,7 +70,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
 
   def get_details(self, width):
     if not self.is_built:
-      detail_format = (curses.A_BOLD, conn_panel.CATEGORY_COLOR[self._entry.get_type()])
+      detail_format = (curses.A_BOLD, nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
       return [('Building Circuit...', detail_format)]
     else:
       return conn_entry.ConnectionLine.get_details(self, width)
@@ -127,7 +128,7 @@ class CircLine(conn_entry.ConnectionLine):
     return entries.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
 
   def _get_listing_entry(self, width, current_time, listing_type):
-    line_format = nyx.util.ui_tools.get_color(conn_panel.CATEGORY_COLOR[self._entry.get_type()])
+    line_format = nyx.util.ui_tools.get_color(nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
 
     # The required widths are the sum of the following:
     # initial space (1 character)
@@ -139,7 +140,7 @@ class CircLine(conn_entry.ConnectionLine):
 
     dst, etc = '', ''
 
-    if listing_type == conn_panel.Listing.IP_ADDRESS:
+    if listing_type == nyx.connection_panel.Listing.IP_ADDRESS:
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
@@ -150,7 +151,7 @@ class CircLine(conn_entry.ConnectionLine):
       dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.get_nickname('UNKNOWN'), 25, 0))
 
       etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
-    elif listing_type == conn_panel.Listing.FINGERPRINT:
+    elif listing_type == nyx.connection_panel.Listing.FINGERPRINT:
       # dst width is derived as:
       # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
 
