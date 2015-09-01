@@ -19,6 +19,12 @@ from nyx.connections import conn_entry
 
 from stem.util import str_tools
 
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
+
 
 def to_unix_time(dt):
   return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
@@ -68,6 +74,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
 
     return ''
 
+  @lru_cache()
   def get_details(self, width):
     if not self.is_built:
       detail_format = (curses.A_BOLD, nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
@@ -125,9 +132,10 @@ class CircLine(conn_entry.ConnectionLine):
       listing_type - primary attribute we're listing connections by
     """
 
-    return conn_entry.ConnectionPanelLine.get_listing_entry(self, width, current_time, listing_type)
+    return self._get_listing_entry(width, listing_type)
 
-  def _get_listing_entry(self, width, current_time, listing_type):
+  @lru_cache()
+  def _get_listing_entry(self, width, listing_type):
     line_format = nyx.util.ui_tools.get_color(nyx.connection_panel.CATEGORY_COLOR[self._entry.get_type()])
 
     # The required widths are the sum of the following:
