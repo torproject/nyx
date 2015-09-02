@@ -678,18 +678,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     with self._vals_lock:
       # update stats for client and exit connections
+      # TODO: this is counting connections each time they're resolved - totally broken :(
 
       for entry in new_entries:
         entry_line = entry.get_lines()[0]
 
-        if entry.is_private() and entry.get_type() == Category.INBOUND:
-          client_locale = entry_line.get_locale(None)
+        if entry.is_private():
+          if entry.get_type() == Category.INBOUND:
+            client_locale = entry_line.get_locale(None)
 
-          if client_locale:
-            self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
-        elif entry.get_type() == Category.EXIT:
-          exit_port = entry_line.connection.remote_port
-          self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
+            if client_locale:
+              self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
+          elif entry.get_type() == Category.EXIT:
+            exit_port = entry_line.connection.remote_port
+            self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
       self._entries, self._entry_lines = new_entries, list(itertools.chain.from_iterable([entry.get_lines() for entry in new_entries]))
 

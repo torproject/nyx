@@ -200,10 +200,6 @@ features.graph.bw.accounting.show true
 # resolveApps
 #   issues lsof queries to determining the applications involved in local
 #   SOCKS and CONTROL connections
-# markInitialConnections
-#   if true, the uptime of the initial connections when we start are marked
-#   with a '+' (these uptimes are estimates since nyx can only track a
-#   connection's duration while it runs)
 # showIps
 #   shows ip addresses for other tor relays, dropping this information if
 #   false
@@ -215,7 +211,6 @@ features.graph.bw.accounting.show true
 features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
 features.connection.resolveApps true
-features.connection.markInitialConnections true
 features.connection.showIps true
 features.connection.showExitPort true
 features.connection.showColumn.fingerprint true

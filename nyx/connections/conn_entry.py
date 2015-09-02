@@ -27,7 +27,6 @@ LABEL_FORMAT = '%s  -->  %s  %s%s'
 LABEL_MIN_PADDING = 2  # min space between listing label and following data
 
 CONFIG = conf.config_dict('nyx', {
-  'features.connection.markInitialConnections': True,
   'features.connection.showIps': True,
   'features.connection.showExitPort': True,
   'features.connection.showColumn.fingerprint': True,
@@ -119,10 +118,7 @@ class ConnectionLine(object):
 
     # fill in the current uptime and return the results
 
-    if CONFIG['features.connection.markInitialConnections']:
-      time_prefix = '+' if self.connection.is_legacy else ' '
-    else:
-      time_prefix = ''
+    time_prefix = '+' if self.connection.is_legacy else ' '
 
     time_label = time_prefix + '%5s' % str_tools.time_label(current_time - self.connection.start_time, 1)
     my_listing[2] = (time_label, my_listing[2][1])
@@ -142,11 +138,10 @@ class ConnectionLine(object):
     # postType - ")   "
 
     line_format = nyx.util.ui_tools.get_color(nyx.connection_panel.CATEGORY_COLOR[entry_type])
-    time_width = 6 if CONFIG['features.connection.markInitialConnections'] else 5
 
     draw_entry = [(' ', line_format),
-                  (self._get_listing_content(width - (12 + time_width) - 1, listing_type), line_format),
-                  (' ' * time_width, line_format),
+                  (self._get_listing_content(width - 19, listing_type), line_format),
+                  ('      ', line_format),
                   (' (', line_format),
                   (entry_type.upper(), line_format | curses.A_BOLD),
                   (')' + ' ' * (9 - len(entry_type)), line_format)]
@@ -333,13 +328,7 @@ class ConnectionLine(object):
       used_space += len(etc)
     elif listing_type == nyx.connection_panel.Listing.FINGERPRINT:
       src = 'localhost'
-
-      if my_type == Category.CONTROL:
-        dst = 'localhost'
-      else:
-        dst = self.get_fingerprint('UNKNOWN')
-
-      dst = '%-40s' % dst
+      dst = '%-40s' % ('localhost' if my_type == Category.CONTROL else self.get_fingerprint('UNKNOWN'))
 
       used_space += len(src) + len(dst)  # base data requires 49 characters
 
@@ -348,11 +337,7 @@ class ConnectionLine(object):
     else:
       # base data requires 50 min characters
       src = controller.get_conf('nickname', 'UNKNOWN')
-
-      if my_type == Category.CONTROL:
-        dst = controller.get_conf('nickname', 'UNKNOWN')
-      else:
-        dst = self.get_nickname('UNKNOWN')
+      dst = controller.get_conf('nickname', 'UNKNOWN') if my_type == Category.CONTROL else self.get_nickname('UNKNOWN')
 
       min_base_space = 50
 
@@ -430,16 +415,9 @@ class ConnectionLine(object):
         if len(ns_lines) >= 2 and ns_lines[1].startswith('s '):
           flags = ns_lines[1][2:]
 
-        exit_policy = None
         descriptor = controller.get_server_descriptor(fingerprint, None)
-
-        if descriptor:
-          exit_policy = descriptor.exit_policy
-
-        if exit_policy:
-          policy_label = exit_policy.summary()
-        else:
-          policy_label = 'unknown'
+        exit_policy = descriptor.exit_policy if descriptor else None
+        policy_label = exit_policy.summary() if exit_policy else 'unknown'
 
         dir_port_label = '' if dir_port == '0' else 'dirport: %s' % dir_port
         lines[2] = 'nickname: %-25s orport: %-10s %s' % (nickname, or_port, dir_port_label)
@@ -560,9 +538,8 @@ class ConnectionLine(object):
           destination_address += ' (%s)' % purpose
       elif not connection.is_private_address(self.connection.remote_address):
         extra_info = []
-        controller = tor_controller()
 
-        if include_locale and not controller.is_geoip_unavailable():
+        if include_locale and not tor_controller().is_geoip_unavailable():
           foreign_locale = self.get_locale('??')
           extra_info.append(foreign_locale)
           space_available -= len(foreign_locale) + 2
