@@ -29,10 +29,6 @@ LABEL_MIN_PADDING = 2  # min space between listing label and following data
 CONFIG = conf.config_dict('nyx', {
   'features.connection.showIps': True,
   'features.connection.showExitPort': True,
-  'features.connection.showColumn.fingerprint': True,
-  'features.connection.showColumn.nickname': True,
-  'features.connection.showColumn.destination': True,
-  'features.connection.showColumn.expandedIp': True,
 })
 
 
@@ -194,13 +190,13 @@ class ConnectionLine(object):
     etc, used_space = '', 0
 
     if listing_type == nyx.connection_panel.Listing.IP_ADDRESS:
-      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
+      if width > used_space + 42:
         # show fingerprint (column width: 42 characters)
 
         etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
         used_space += 42
 
-      if width > used_space + 10 and CONFIG['features.connection.showColumn.nickname']:
+      if width > used_space + 10:
         # show nickname (column width: remainder)
 
         nickname_space = width - used_space
@@ -217,26 +213,24 @@ class ConnectionLine(object):
         # ip/port/locale (column width: 28 characters)
 
         is_locale_included = width > used_space + 45
-        is_locale_included &= CONFIG['features.connection.showColumn.destination']
 
         if is_locale_included:
           nickname_space -= 28
 
-        if CONFIG['features.connection.showColumn.nickname']:
-          nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
-          etc += ('%%-%is  ' % nickname_space) % nickname_label
-          used_space += nickname_space + 2
+        nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
+        etc += ('%%-%is  ' % nickname_space) % nickname_label
+        used_space += nickname_space + 2
 
         if is_locale_included:
           etc += '%-26s  ' % destination_address
           used_space += 28
     else:
-      if width > used_space + 42 and CONFIG['features.connection.showColumn.fingerprint']:
+      if width > used_space + 42:
         # show fingerprint (column width: 42 characters)
         etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
         used_space += 42
 
-      if width > used_space + 28 and CONFIG['features.connection.showColumn.destination']:
+      if width > used_space + 28:
         # show destination ip/port/locale (column width: 28 characters)
         etc += '%-26s  ' % destination_address
         used_space += 28
@@ -305,10 +299,10 @@ class ConnectionLine(object):
 
       is_expanded_address_visible = width > used_space + 28
 
-      if is_expanded_address_visible and CONFIG['features.connection.showColumn.fingerprint']:
+      if is_expanded_address_visible:
         is_expanded_address_visible = width < used_space + 42 or width > used_space + 70
 
-      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses and CONFIG['features.connection.showColumn.expandedIp']:
+      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses:
         # include the internal address in the src (extra 28 characters)
 
         internal_address = self.connection.local_address + local_port

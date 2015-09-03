@@ -205,18 +205,12 @@ features.graph.bw.accounting.show true
 #   false
 # showExitPort
 #   shows port related information of exit connections we relay if true
-# showColumn.*
-#   toggles the visability of the connection table columns
 
 features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
 features.connection.resolveApps true
 features.connection.showIps true
 features.connection.showExitPort true
-features.connection.showColumn.fingerprint true
-features.connection.showColumn.nickname true
-features.connection.showColumn.destination true
-features.connection.showColumn.expandedIp true
 
 # Caching parameters
 cache.logPanel.size 1000
