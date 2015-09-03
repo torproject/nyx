@@ -385,75 +385,24 @@ class ConnectionLine(object):
     controller = tor_controller()
 
     if fingerprint:
-      # single match - display information available about it
+      lines[1] = '%-13sfingerprint: %s' % (lines[1], fingerprint)  # append fingerprint to second line
 
-      ns_entry = controller.get_info('ns/id/%s' % fingerprint, None)
-      desc_entry = controller.get_info('desc/id/%s' % fingerprint, None)
+      router_status_entry = controller.get_network_status(fingerprint, None)
+      server_descriptor = controller.get_server_descriptor(fingerprint, None)
 
-      # append the fingerprint to the second line
+      if router_status_entry:
+        dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
+        lines[2] = 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label)
+        lines[3] = 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y")
+        lines[4] = 'flags: %s' % ', '.join(router_status_entry.flags)
 
-      lines[1] = '%-13sfingerprint: %s' % (lines[1], fingerprint)
-
-      if ns_entry:
-        # example consensus entry:
-        # r murble R8sCM1ar1sS2GulQYFVmvN95xsk RJr6q+wkTFG+ng5v2bdCbVVFfA4 2011-02-21 00:25:32 195.43.157.85 443 0
-        # s Exit Fast Guard Named Running Stable Valid
-        # w Bandwidth=2540
-        # p accept 20-23,43,53,79-81,88,110,143,194,443
-
-        ns_lines = ns_entry.split('\n')
-
-        first_line_comp = ns_lines[0].split(' ')
-
-        if len(first_line_comp) >= 9:
-          _, nickname, _, _, published_date, published_time, _, or_port, dir_port = first_line_comp[:9]
-        else:
-          nickname, published_date, published_time, or_port, dir_port = '', '', '', '', ''
-
-        flags = 'unknown'
-
-        if len(ns_lines) >= 2 and ns_lines[1].startswith('s '):
-          flags = ns_lines[1][2:]
-
-        descriptor = controller.get_server_descriptor(fingerprint, None)
-        exit_policy = descriptor.exit_policy if descriptor else None
-        policy_label = exit_policy.summary() if exit_policy else 'unknown'
-
-        dir_port_label = '' if dir_port == '0' else 'dirport: %s' % dir_port
-        lines[2] = 'nickname: %-25s orport: %-10s %s' % (nickname, or_port, dir_port_label)
-        lines[3] = 'published: %s %s' % (published_time, published_date)
-        lines[4] = 'flags: %s' % flags.replace(' ', ', ')
+      if server_descriptor:
+        policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
         lines[5] = 'exit policy: %s' % policy_label
+        lines[3] = '%-35s os: %-14s version: %s' % (lines[3], server_descriptor.operating_system, server_descriptor.tor_version)
 
-      if desc_entry:
-        tor_version, platform, contact = '', '', ''
-
-        for desc_line in desc_entry.split('\n'):
-          if desc_line.startswith('platform'):
-            # has the tor version and platform, ex:
-            # platform Tor 0.2.1.29 (r318f470bc5f2ad43) on Linux x86_64
-
-            tor_version = desc_line[13:desc_line.find(' ', 13)]
-            platform = desc_line[desc_line.rfind(' on ') + 4:]
-          elif desc_line.startswith('contact'):
-            contact = desc_line[8:]
-
-            # clears up some highly common obscuring
-
-            for alias in (' at ', ' AT '):
-              contact = contact.replace(alias, '@')
-
-            for alias in (' dot ', ' DOT '):
-              contact = contact.replace(alias, '.')
-
-            break  # contact lines come after the platform
-
-        lines[3] = '%-35s os: %-14s version: %s' % (lines[3], platform, tor_version)
-
-        # contact information is an optional field
-
-        if contact:
-          lines[6] = 'contact: %s' % contact
+        if server_descriptor.contact:
+          lines[6] = 'contact: %s' % server_descriptor.contact
     else:
       all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)
 
@@ -465,7 +414,7 @@ class ConnectionLine(object):
           is_last_line = i == 3
 
           relay_port, relay_fingerprint = all_matches[i]
-          line_text = '%i. or port: %-5s fingerprint: %s' % (i, relay_port, relay_fingerprint)
+          line_text = '%i. or port: %-5s fingerprint: %s' % (i + 1, relay_port, relay_fingerprint)
 
           # if there's multiple lines remaining at the end then give a count
 
