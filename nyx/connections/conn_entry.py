@@ -28,7 +28,6 @@ LABEL_MIN_PADDING = 2  # min space between listing label and following data
 
 CONFIG = conf.config_dict('nyx', {
   'features.connection.showIps': True,
-  'features.connection.showExitPort': True,
 })
 
 
@@ -413,14 +412,10 @@ class ConnectionLine(object):
       include_locale   - possibly includes the locale
     """
 
-    # the port and port derived data can be hidden by config or without include_port
-
-    include_port = self.include_port and (CONFIG['features.connection.showExitPort'] or self._entry.get_type() != Category.EXIT)
-
     # destination of the connection
 
     address_label = '<scrubbed>' if self._entry.is_private() else self.connection.remote_address
-    port_label = ':%s' % self.connection.remote_port if include_port else ''
+    port_label = ':%s' % self.connection.remote_port
     destination_address = address_label + port_label
 
     # Only append the extra info if there's at least a couple characters of
@@ -429,7 +424,7 @@ class ConnectionLine(object):
     if len(destination_address) + 5 <= max_length:
       space_available = max_length - len(destination_address) - 3
 
-      if self._entry.get_type() == Category.EXIT and include_port:
+      if self._entry.get_type() == Category.EXIT:
         purpose = connection.port_usage(self.connection.remote_port)
 
         if purpose:

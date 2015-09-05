@@ -203,14 +203,11 @@ features.graph.bw.accounting.show true
 # showIps
 #   shows ip addresses for other tor relays, dropping this information if
 #   false
-# showExitPort
-#   shows port related information of exit connections we relay if true
 
 features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
 features.connection.resolveApps true
 features.connection.showIps true
-features.connection.showExitPort true
 
 # Caching parameters
 cache.logPanel.size 1000
