@@ -37,7 +37,7 @@ class ConnectionLine(object):
   Display component of the ConnectionEntry.
   """
 
-  def __init__(self, entry, conn, include_port=True, include_expanded_addresses=True):
+  def __init__(self, entry, conn, include_port = True):
     self._entry = entry
     self.connection = conn
 
@@ -45,7 +45,6 @@ class ConnectionLine(object):
     # information if true
 
     self.include_port = include_port
-    self.include_expanded_addresses = include_expanded_addresses
 
   def get_listing_prefix(self):
     """
@@ -262,19 +261,10 @@ class ConnectionLine(object):
 
     if listing_type == nyx.connection_panel.Listing.IP_ADDRESS:
       my_external_address = controller.get_info('address', self.connection.local_address)
-      address_differ = my_external_address != self.connection.local_address
 
-      # Expanding doesn't make sense, if the connection isn't actually
-      # going through Tor's external IP address. As there isn't a known
-      # method for checking if it is, we're checking the type instead.
-      #
-      # This isn't entirely correct. It might be a better idea to check if
-      # the source and destination addresses are both private, but that might
-      # not be perfectly reliable either.
+      # Show our external address if it's going through tor.
 
-      is_expansion_type = my_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL)
-
-      if is_expansion_type:
+      if my_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
         src_address = my_external_address + local_port
       else:
         src_address = self.connection.local_address + local_port
@@ -292,31 +282,6 @@ class ConnectionLine(object):
         dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
 
       used_space += len(src) + len(dst)  # base data requires 47 characters
-
-      # Showing the fingerprint (which has the width of 42) has priority over
-      # an expanded address field. Hence check if we either have space for
-      # both or wouldn't be showing the fingerprint regardless.
-
-      is_expanded_address_visible = width > used_space + 28
-
-      if is_expanded_address_visible:
-        is_expanded_address_visible = width < used_space + 42 or width > used_space + 70
-
-      if address_differ and is_expansion_type and is_expanded_address_visible and self.include_expanded_addresses:
-        # include the internal address in the src (extra 28 characters)
-
-        internal_address = self.connection.local_address + local_port
-
-        # If this is an inbound connection then reverse ordering so it's:
-        # <foreign> --> <external> --> <internal>
-        # when the src and dst are swapped later
-
-        if my_type == Category.INBOUND:
-          src = '%-21s  -->  %s' % (src, internal_address)
-        else:
-          src = '%-21s  -->  %s' % (internal_address, src)
-
-        used_space += 28
 
       etc = self.get_etc_content(width - used_space, listing_type)
       used_space += len(etc)

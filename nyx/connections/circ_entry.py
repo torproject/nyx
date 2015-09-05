@@ -46,7 +46,7 @@ class CircHeaderLine(conn_entry.ConnectionLine):
       self.is_built = False
       self._remote_fingerprint = None
 
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), False, False)
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), include_port = False)
     self.circuit = circ
 
   def get_fingerprint(self, default = None):
@@ -92,7 +92,7 @@ class CircLine(conn_entry.ConnectionLine):
 
   def __init__(self, entry, circ, fingerprint):
     relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
-    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), False)
+    conn_entry.ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), include_port = False)
     self._fingerprint = fingerprint
     self._is_last = False
 
