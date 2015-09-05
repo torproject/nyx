@@ -47,30 +47,7 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 #   Control      Tor controller (nyx, vidalia, etc).
 
 Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
-
-CATEGORY_COLOR = {
-  Category.INBOUND: 'green',
-  Category.OUTBOUND: 'blue',
-  Category.EXIT: 'red',
-  Category.HIDDEN: 'magenta',
-  Category.SOCKS: 'yellow',
-  Category.CIRCUIT: 'cyan',
-  Category.DIRECTORY: 'magenta',
-  Category.CONTROL: 'red',
-}
-
 SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
-
-SORT_COLORS = {
-  SortAttr.CATEGORY: 'red',
-  SortAttr.UPTIME: 'yellow',
-  SortAttr.LISTING: 'green',
-  SortAttr.IP_ADDRESS: 'blue',
-  SortAttr.PORT: 'blue',
-  SortAttr.FINGERPRINT: 'cyan',
-  SortAttr.NICKNAME: 'cyan',
-  SortAttr.COUNTRY: 'blue',
-}
 
 # static data for listing format
 # <src>  -->  <dst>  <etc><padding>
@@ -87,6 +64,8 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
+  'attr.connection.category_color': {},
+  'attr.connection.sort_color': {},
   'features.connection.resolveApps': True,
   'features.connection.listing_type': Listing.IP_ADDRESS,
   'features.connection.order': [
@@ -320,7 +299,7 @@ class ConnectionLine(object):
     # category - "<type>"
     # postType - ")   "
 
-    line_format = nyx.util.ui_tools.get_color(CATEGORY_COLOR[entry_type])
+    line_format = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
 
     draw_entry = [(' ', line_format),
                   (self._get_listing_content(width - 19, listing_type), line_format),
@@ -341,7 +320,7 @@ class ConnectionLine(object):
       width - available space to display in
     """
 
-    detail_format = (curses.A_BOLD, CATEGORY_COLOR[self._entry.get_type()])
+    detail_format = (curses.A_BOLD, CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
     return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def get_etc_content(self, width, listing_type):
@@ -689,7 +668,7 @@ class CircHeaderLine(ConnectionLine):
   @lru_cache()
   def get_details(self, width):
     if not self.is_built:
-      detail_format = (curses.A_BOLD, CATEGORY_COLOR[self._entry.get_type()])
+      detail_format = (curses.A_BOLD, CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
       return [('Building Circuit...', detail_format)]
     else:
       return ConnectionLine.get_details(self, width)
@@ -748,7 +727,7 @@ class CircLine(ConnectionLine):
 
   @lru_cache()
   def _get_listing_entry(self, width, listing_type):
-    line_format = nyx.util.ui_tools.get_color(CATEGORY_COLOR[self._entry.get_type()])
+    line_format = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
 
     # The required widths are the sum of the following:
     # initial space (1 character)
@@ -975,7 +954,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     title_label = 'Connection Ordering:'
     options = list(SortAttr)
     old_selection = CONFIG['features.connection.order']
-    option_colors = dict([(attr, SORT_COLORS[attr]) for attr in options])
+    option_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, 'white')) for attr in options])
     results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
     if results:
@@ -1044,7 +1023,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if not selection:
             break
 
-          color = CATEGORY_COLOR[selection.get_type()]
+          color = CONFIG['attr.connection.category_color'].get(selection.get_type(), 'white')
           fingerprint = selection.get_fingerprint()
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
           key = nyx.popups.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
