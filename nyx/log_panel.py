@@ -281,12 +281,12 @@ class LogPanel(panel.Panel, threading.Thread):
     last_content_height = int(self._last_content_height)
     show_duplicates = self._show_duplicates
 
-    is_scroll_bar_visible = last_content_height > height - 1
+    is_scrollbar_visible = last_content_height > height - 1
 
-    if is_scroll_bar_visible:
+    if is_scrollbar_visible:
       self.add_scroll_bar(scroll, scroll + height - 1, last_content_height, 1)
 
-    x, y = 3 if is_scroll_bar_visible else 1, 1 - scroll
+    x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
 
     # group entries by date, filtering out those that aren't visible
 
@@ -333,9 +333,9 @@ class LogPanel(panel.Panel, threading.Thread):
       force_redraw_reason = 'estimate was off by %i' % content_height_delta
     elif new_content_height > height and self._scroll + height - 1 > new_content_height:
       force_redraw_reason = 'scrolled off the bottom of the page'
-    elif not is_scroll_bar_visible and new_content_height > height - 1:
+    elif not is_scrollbar_visible and new_content_height > height - 1:
       force_redraw_reason = "scroll bar wasn't previously visible"
-    elif is_scroll_bar_visible and new_content_height <= height - 1:
+    elif is_scrollbar_visible and new_content_height <= height - 1:
       force_redraw_reason = "scroll bar shouldn't be visible"
     else:
       force_redraw = False

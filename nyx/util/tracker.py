@@ -31,8 +31,7 @@ Background tasks for gathering information about the tor process.
   ConsensusTracker - performant lookups for consensus related information
     |- update - updates the consensus information we're based on
     |- get_relay_nickname - provides the nickname for a given relay
-    |- get_relay_fingerprint - provides the relay running at a location
-    |- get_all_relay_fingerprints - provides all relays running at a location
+    |- get_relay_fingerprints - provides relays running at a location
     +- get_relay_address - provides the address a relay is running at
 
 .. data:: Resources
@@ -821,47 +820,25 @@ class ConsensusTracker(object):
 
     return self._nickname_cache.get(fingerprint)
 
-  def get_relay_fingerprint(self, address, port = None):
+  def get_relay_fingerprints(self, address):
     """
-    Provides the relay running at a given location. If there's multiple relays
-    and no port is provided to disambiguate then this returns **None**.
+    Provides the relays running at a given location.
 
     :param str address: address to be checked
-    :param int port: optional ORPort to match against
 
-    :returns: **str** with the fingerprint of the relay running there
+    :returns: **dict** of ORPorts to their fingerprint
     """
 
     controller = tor_controller()
 
     if address == controller.get_info('address', None):
-      if not port or port in controller.get_ports(stem.control.Listener.OR, []):
-        return controller.get_info('fingerprint', None)
+      fingerprint = controller.get_info('fingerprint', None)
+      ports = controller.get_ports(stem.control.Listener.OR, None)
 
-    matches = self._fingerprint_cache.get(address, [])
+      if fingerprint and ports:
+        return dict([(port, fingerprint) for port in ports])
 
-    if len(matches) == 1:
-      match_port, match_fingerprint = matches[0]
-      return match_fingerprint if (not port or port == match_port) else None
-    elif len(matches) > 1 and port:
-      # there's multiple matches and we have a port to disambiguate with
-
-      for match_port, match_fingerprint in matches:
-        if port == match_port:
-          return match_fingerprint
-
-    return None
-
-  def get_all_relay_fingerprints(self, address):
-    """
-    Provides a [(port, fingerprint)...] tuple of all relays on a given address.
-
-    :param str address: address to be checked
-
-    :returns: **list** of port/fingerprint tuples running on it
-    """
-
-    return self._fingerprint_cache.get(address, [])
+    return dict([(port, fp) for (port, fp) in self._fingerprint_cache.get(address, [])])
 
   def get_relay_address(self, fingerprint, default):
     """

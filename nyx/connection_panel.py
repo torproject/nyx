@@ -146,7 +146,7 @@ class ConnectionEntry(Entry):
       if self._connection.remote_port == hs_config['HiddenServicePort']:
         return Category.HIDDEN
 
-    fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self._connection.remote_address, self._connection.remote_port)
+    fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
 
     if fingerprint:
       for circ in controller.get_circuits([]):
@@ -174,7 +174,7 @@ class ConnectionEntry(Entry):
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        return len(nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self._connection.remote_address)) == 0
+        return len(nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address)) == 0
     elif self.get_type() == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
@@ -233,7 +233,7 @@ class ConnectionLine(object):
     """
 
     if self._entry.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
-      my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprint(self.connection.remote_address, self.connection.remote_port)
+      my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self.connection.remote_address).get(self.connection.remote_port)
       return my_fingerprint if my_fingerprint else default
     else:
       return default  # inbound connections don't have an ORPort we can resolve
@@ -309,19 +309,6 @@ class ConnectionLine(object):
                   (')' + ' ' * (9 - len(entry_type)), line_format)]
 
     return draw_entry
-
-  @lru_cache()
-  def get_details(self, width):
-    """
-    Provides details on the connection, correlated against available consensus
-    data.
-
-    Arguments:
-      width - available space to display in
-    """
-
-    detail_format = (curses.A_BOLD, CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
-    return [(line, detail_format) for line in self._get_detail_content(width)]
 
   def get_etc_content(self, width, listing_type):
     """
@@ -488,82 +475,6 @@ class ConnectionLine(object):
 
     return LABEL_FORMAT % (src, dst, etc, padding)
 
-  def _get_detail_content(self, width):
-    """
-    Provides a list with detailed information for this connection.
-
-    Arguments:
-      width - max length of lines
-    """
-
-    lines = [''] * 7
-    lines[0] = 'address: %s' % self.get_destination_label(width - 11)
-    lines[1] = 'locale: %s' % ('??' if self._entry.is_private() else self.get_locale('??'))
-
-    # Remaining data concerns the consensus results, with three possible cases:
-    # - if there's a single match then display its details
-    # - if there's multiple potential relays then list all of the combinations
-    #   of ORPorts / Fingerprints
-    # - if no consensus data is available then say so (probably a client or
-    #   exit connection)
-
-    fingerprint = self.get_fingerprint()
-    controller = tor_controller()
-
-    if fingerprint:
-      lines[1] = '%-13sfingerprint: %s' % (lines[1], fingerprint)  # append fingerprint to second line
-
-      router_status_entry = controller.get_network_status(fingerprint, None)
-      server_descriptor = controller.get_server_descriptor(fingerprint, None)
-
-      if router_status_entry:
-        dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
-        lines[2] = 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label)
-        lines[3] = 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y")
-        lines[4] = 'flags: %s' % ', '.join(router_status_entry.flags)
-
-      if server_descriptor:
-        policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
-        lines[5] = 'exit policy: %s' % policy_label
-        lines[3] = '%-35s os: %-14s version: %s' % (lines[3], server_descriptor.operating_system, server_descriptor.tor_version)
-
-        if server_descriptor.contact:
-          lines[6] = 'contact: %s' % server_descriptor.contact
-    else:
-      all_matches = nyx.util.tracker.get_consensus_tracker().get_all_relay_fingerprints(self.connection.remote_address)
-
-      if all_matches:
-        # multiple matches
-        lines[2] = 'Multiple matches, possible fingerprints are:'
-
-        for i in range(len(all_matches)):
-          is_last_line = i == 3
-
-          relay_port, relay_fingerprint = all_matches[i]
-          line_text = '%i. or port: %-5s fingerprint: %s' % (i + 1, relay_port, relay_fingerprint)
-
-          # if there's multiple lines remaining at the end then give a count
-
-          remaining_relays = len(all_matches) - i
-
-          if is_last_line and remaining_relays > 1:
-            line_text = '... %i more' % remaining_relays
-
-          lines[3 + i] = line_text
-
-          if is_last_line:
-            break
-      else:
-        # no consensus entry for this ip address
-        lines[2] = 'No consensus data found'
-
-    # crops any lines that are too long
-
-    for i in range(len(lines)):
-      lines[i] = str_tools.crop(lines[i], width - 2)
-
-    return lines
-
   def get_destination_label(self, max_length, include_locale = False):
     """
     Provides a short description of the destination. This is made up of two
@@ -664,14 +575,6 @@ class CircHeaderLine(ConnectionLine):
         return ('%%-%is' % width) % etc_label
 
     return ''
-
-  @lru_cache()
-  def get_details(self, width):
-    if not self.is_built:
-      detail_format = (curses.A_BOLD, CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
-      return [('Building Circuit...', detail_format)]
-    else:
-      return ConnectionLine.get_details(self, width)
 
 
 class CircLine(ConnectionLine):
@@ -791,7 +694,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self._scroller = ui_tools.Scroller(True)
     self._entries = []            # last fetched display entries
-    self._entry_lines = []        # individual lines rendered from the entries listing
     self._show_details = False    # presents the details panel if true
 
     self._last_update = -1        # time the content was last revised
@@ -915,7 +817,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           return ''
 
       self._entries.sort(key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
-      self._entry_lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
 
   def get_listing_type(self):
     """
@@ -970,7 +871,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if self._show_details:
           page_height -= (DETAILS_HEIGHT + 1)
 
-        is_changed = self._scroller.handle_key(key, self._entry_lines, page_height)
+        lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
+        is_changed = self._scroller.handle_key(key, lines, page_height)
 
         if is_changed:
           self.redraw(True)
@@ -1018,7 +920,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         self.redraw(True)
 
         while True:
-          selection = self.get_selection()
+          lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
+          selection = self._scroller.get_cursor_selection(lines)
 
           if not selection:
             break
@@ -1109,68 +1012,40 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     return options
 
-  def get_selection(self):
-    """
-    Provides the currently selected connection entry.
-    """
-
-    return self._scroller.get_cursor_selection(self._entry_lines)
-
   def draw(self, width, height):
     with self._vals_lock:
-      # if we don't have any contents then refuse to show details
+      lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
+      selected = self._scroller.get_cursor_selection(lines)
 
-      if not self._entries:
-        self._show_details = False
-
-      # extra line when showing the detail panel is for the bottom border
-
-      detail_panel_offset = DETAILS_HEIGHT + 1 if self._show_details else 0
-      is_scrollbar_visible = len(self._entry_lines) > height - detail_panel_offset - 1
-
-      scroll_location = self._scroller.get_scroll_location(self._entry_lines, height - detail_panel_offset - 1)
-      cursor_selection = self.get_selection()
-
-      # draws the detail panel if currently displaying it
-
-      if self._show_details and cursor_selection:
-        # This is a solid border unless the scrollbar is visible, in which case a
-        # 'T' pipe connects the border to the bar.
-
-        ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT + 2)
-
-        if is_scrollbar_visible:
-          self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
-
-        draw_entries = cursor_selection.get_details(width)
-
-        for i in range(min(len(draw_entries), DETAILS_HEIGHT)):
-          self.addstr(1 + i, 2, draw_entries[i][0], *draw_entries[i][1])
-
-      # title label with connection counts
+      details_offset = DETAILS_HEIGHT + 1 if self._show_details else 0
+      is_scrollbar_visible = len(lines) > height - details_offset - 1
+      scroll_location = self._scroller.get_scroll_location(lines, height - details_offset - 1)
 
       if self.is_title_visible():
-        self._draw_title(self._entries)
+        self._draw_title(self._entries, self._show_details)
+
+      if self._show_details and selected:
+        self._draw_details(selected, width, is_scrollbar_visible)
 
       scroll_offset = 0
 
       if is_scrollbar_visible:
         scroll_offset = 2
-        self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_offset - 1, len(self._entry_lines), 1 + detail_panel_offset)
+        self.add_scroll_bar(scroll_location, scroll_location + height - details_offset - 1, len(lines), 1 + details_offset)
 
       if self.is_paused() or not self._is_tor_running:
         current_time = self.get_pause_time()
       else:
         current_time = time.time()
 
-      for line_number in range(scroll_location, len(self._entry_lines)):
-        entry_line = self._entry_lines[line_number]
+      for line_number in range(scroll_location, len(lines)):
+        entry_line = lines[line_number]
 
         # hilighting if this is the selected line
 
-        extra_format = curses.A_STANDOUT if entry_line == cursor_selection else curses.A_NORMAL
+        extra_format = curses.A_STANDOUT if entry_line == selected else curses.A_NORMAL
 
-        draw_line = line_number + detail_panel_offset + 1 - scroll_location
+        draw_line = line_number + details_offset + 1 - scroll_location
 
         prefix = entry_line.get_listing_prefix()
 
@@ -1188,17 +1063,79 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if draw_line >= height:
           break
 
-  def _draw_title(self, entries):
-    if self._show_details:
-      title = 'Connection Details:'
+  def _draw_title(self, entries, showing_details):
+    """
+    Panel title with the number of connections we presently have.
+    """
+
+    if showing_details:
+      self.addstr(0, 0, 'Connection Details:', curses.A_STANDOUT)
     elif not entries:
-      title = 'Connections:'
+      self.addstr(0, 0, 'Connections:', curses.A_STANDOUT)
     else:
       counts = collections.Counter([entry.get_type() for entry in entries])
       count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
-      title = 'Connections (%s):' % ', '.join(count_labels)
+      self.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), curses.A_STANDOUT)
 
-    self.addstr(0, 0, title, curses.A_STANDOUT)
+  def _draw_details(self, selected, width, is_scrollbar_visible):
+    """
+    Shows detailed information about the selected connection.
+    """
+
+    attr = (CONFIG['attr.connection.category_color'].get(selected._entry.get_type(), 'white'), curses.A_BOLD)
+
+    if isinstance(selected, CircHeaderLine) and not selected.is_built:
+      self.addstr(1, 2, 'Building Circuit...', *attr)
+    else:
+      self.addstr(1, 2, 'address: %s' % selected.get_destination_label(width - 11), *attr)
+      self.addstr(2, 2, 'locale: %s' % ('??' if selected._entry.is_private() else selected.get_locale('??')), *attr)
+
+      matches = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
+
+      if not matches:
+        self.addstr(3, 2, 'No consensus data found', *attr)
+      elif len(matches) == 1 or selected.connection.remote_port in matches:
+        controller = tor_controller()
+        fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
+        router_status_entry = controller.get_network_status(fingerprint, None)
+
+        self.addstr(2, 15, 'fingerprint: %s' % fingerprint, *attr)
+
+        if router_status_entry:
+          dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
+          self.addstr(3, 2, 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label), *attr)
+          self.addstr(4, 2, 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y"), *attr)
+          self.addstr(5, 2, 'flags: %s' % ', '.join(router_status_entry.flags), *attr)
+
+          server_descriptor = controller.get_server_descriptor(fingerprint, None)
+
+          if server_descriptor:
+            policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
+            self.addstr(6, 2, 'exit policy: %s' % policy_label, *attr)
+            self.addstr(4, 38, 'os: %-14s version: %s' % (server_descriptor.operating_system, server_descriptor.tor_version), *attr)
+
+            if server_descriptor.contact:
+              self.addstr(7, 2, 'contact: %s' % server_descriptor.contact, *attr)
+      else:
+        self.addstr(3, 2, 'Multiple matches, possible fingerprints are:', *attr)
+
+        for i, port in enumerate(sorted(matches.keys())):
+          is_last_line, remaining_relays = i == 3, len(matches) - i
+
+          if not is_last_line or remaining_relays == 1:
+            self.addstr(4 + i, 2, '%i. or port: %-5s fingerprint: %s' % (i + 1, port, matches[port]), *attr)
+          else:
+            self.addstr(4 + i, 2, '... %i more' % remaining_relays, *attr)
+
+          if is_last_line:
+            break
+
+    # draw the border, with a 'T' pipe if connecting with the scrollbar
+
+    ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT + 2)
+
+    if is_scrollbar_visible:
+      self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def stop(self):
     """
@@ -1248,7 +1185,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
             exit_port = entry_line.connection.remote_port
             self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-      self._entries, self._entry_lines = new_entries, list(itertools.chain.from_iterable([entry.get_lines() for entry in new_entries]))
+      self._entries = new_entries
 
       self.set_sort_order()
       self._last_resource_fetch = current_resolution_count
