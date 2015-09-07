@@ -246,54 +246,6 @@ class ConnectionLine(object):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
-  @lru_cache()
-  def get_listing_entry(self, width, listing_type):
-    """
-    Provides the tuple list for this connection's listing. Lines are composed
-    of the following components:
-      <src>  -->  <dst>     <etc>     <uptime> (<type>)
-
-    Listing.IP_ADDRESS:
-      src - <internal addr:port> --> <external addr:port>
-      dst - <destination addr:port>
-      etc - <fingerprint> <nickname>
-
-    Listing.FINGERPRINT:
-      src - localhost
-      dst - <destination fingerprint>
-      etc - <nickname> <destination addr:port>
-
-    Listing.NICKNAME:
-      src - <source nickname>
-      dst - <destination nickname>
-      etc - <fingerprint> <destination addr:port>
-
-    Arguments:
-      width       - maximum length of the line
-      listing_type - primary attribute we're listing connections by
-    """
-
-    entry_type = self._entry.get_type()
-
-    # Lines are split into the following components in reverse:
-    # init gap - " "
-    # content  - "<src>  -->  <dst>     <etc>     "
-    # time     - "<uptime>"
-    # preType  - " ("
-    # category - "<type>"
-    # postType - ")   "
-
-    line_format = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
-
-    draw_entry = [(' ', line_format),
-                  (self._get_listing_content(width - 19, listing_type), line_format),
-                  ('      ', line_format),
-                  (' (', line_format),
-                  (entry_type.upper(), line_format | curses.A_BOLD),
-                  (')' + ' ' * (9 - len(entry_type)), line_format)]
-
-    return draw_entry
-
   def get_etc_content(self, width, listing_type):
     """
     Provides the optional content for the connection.
@@ -595,61 +547,6 @@ class CircLine(ConnectionLine):
       return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
     else:
       return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
-
-  @lru_cache()
-  def get_listing_entry(self, width, listing_type):
-    """
-    Provides the [(msg, attr)...] listing for this relay in the circuilt
-    listing. Lines are composed of the following components:
-      <bracket> <dst> <etc> <placement label>
-
-    The dst and etc entries largely match their ConnectionEntry counterparts.
-
-    Arguments:
-      width       - maximum length of the line
-      current_time - the current unix time (ignored)
-      listing_type - primary attribute we're listing connections by
-    """
-
-    line_format = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
-
-    # The required widths are the sum of the following:
-    # initial space (1 character)
-    # bracketing (3 characters)
-    # placement_label (14 characters)
-    # gap between etc and placement label (5 characters)
-
-    baseline_space = 14 + 5
-
-    dst, etc = '', ''
-
-    if listing_type == Listing.IP_ADDRESS:
-      # dst width is derived as:
-      # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
-
-      dst = '%-53s' % self.get_destination_label(53, include_locale = True)
-
-      # fills the nickname into the empty space here
-
-      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(self.get_nickname('UNKNOWN'), 25, 0))
-
-      etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
-    elif listing_type == Listing.FINGERPRINT:
-      # dst width is derived as:
-      # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
-
-      dst = '%-55s' % self.get_fingerprint('UNKNOWN')
-      etc = self.get_etc_content(width - baseline_space - len(dst), listing_type)
-    else:
-      # min space for the nickname is 56 characters
-
-      etc = self.get_etc_content(width - baseline_space - 56, listing_type)
-      dst_layout = '%%-%is' % (width - baseline_space - len(etc))
-      dst = dst_layout % self.get_nickname('UNKNOWN')
-
-    return ((dst + etc, line_format),
-            (' ' * (width - baseline_space - len(dst) - len(etc) + 5), line_format),
-            ('%-14s' % self.placement_label, line_format))
 
 
 class ConnectionPanel(panel.Panel, threading.Thread):
@@ -1104,16 +1001,57 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time, listing_type):
-    draw_entry = line.get_listing_entry(width, listing_type)
+    entry_type = line._entry.get_type()
+    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
+    attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
 
     if not isinstance(line, CircLine):
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
-      draw_entry[2] = (time_label, draw_entry[2][1])
 
-    for msg, attr in draw_entry:
-      attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
-      x = self.addstr(y, x, msg, attr)
+      x = self.addstr(y, x, ' ' + line._get_listing_content(width - 19, listing_type), attr)
+      x = self.addstr(y, x, time_label, attr)
+      x = self.addstr(y, x, ' (', attr)
+      x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
+      x = self.addstr(y, x, ')' + ' ' * (9 - len(entry_type)), attr)
+    else:
+      # The required widths are the sum of the following:
+      # initial space (1 character)
+      # bracketing (3 characters)
+      # placement_label (14 characters)
+      # gap between etc and placement label (5 characters)
+
+      baseline_space = 14 + 5
+
+      dst, etc = '', ''
+
+      if listing_type == Listing.IP_ADDRESS:
+        # dst width is derived as:
+        # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
+
+        dst = '%-53s' % line.get_destination_label(53, include_locale = True)
+
+        # fills the nickname into the empty space here
+
+        dst = '%s%-25s   ' % (dst[:25], str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0))
+
+        etc = line.get_etc_content(width - baseline_space - len(dst), listing_type)
+      elif listing_type == Listing.FINGERPRINT:
+        # dst width is derived as:
+        # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
+
+        dst = '%-55s' % line.get_fingerprint('UNKNOWN')
+        etc = line.get_etc_content(width - baseline_space - len(dst), listing_type)
+      else:
+        # min space for the nickname is 56 characters
+
+        etc = line.get_etc_content(width - baseline_space - 56, listing_type)
+        dst_layout = '%%-%is' % (width - baseline_space - len(etc))
+        dst = dst_layout % line.get_nickname('UNKNOWN')
+
+      x = self.addstr(y, x, dst + etc, attr)
+      x = self.addstr(y, x, ' ' * (width - baseline_space - len(dst) - len(etc) + 5), attr)
+      x = self.addstr(y, x, '%-14s' % line.placement_label, attr)
 
   def stop(self):
     """
