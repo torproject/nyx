@@ -246,7 +246,8 @@ class ConnectionLine(object):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
-  def get_listing_entry(self, width, current_time, listing_type):
+  @lru_cache()
+  def get_listing_entry(self, width, listing_type):
     """
     Provides the tuple list for this connection's listing. Lines are composed
     of the following components:
@@ -269,26 +270,9 @@ class ConnectionLine(object):
 
     Arguments:
       width       - maximum length of the line
-      current_time - unix timestamp for what the results should consider to be
-                    the current time
       listing_type - primary attribute we're listing connections by
     """
 
-    # fetch our (most likely cached) display entry for the listing
-
-    my_listing = self._get_listing_entry(width, listing_type)
-
-    # fill in the current uptime and return the results
-
-    time_prefix = '+' if self.connection.is_legacy else ' '
-
-    time_label = time_prefix + '%5s' % str_tools.time_label(current_time - self.connection.start_time, 1)
-    my_listing[2] = (time_label, my_listing[2][1])
-
-    return my_listing
-
-  @lru_cache()
-  def _get_listing_entry(self, width, listing_type):
     entry_type = self._entry.get_type()
 
     # Lines are split into the following components in reverse:
@@ -612,7 +596,8 @@ class CircLine(ConnectionLine):
     else:
       return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
 
-  def get_listing_entry(self, width, current_time, listing_type):
+  @lru_cache()
+  def get_listing_entry(self, width, listing_type):
     """
     Provides the [(msg, attr)...] listing for this relay in the circuilt
     listing. Lines are composed of the following components:
@@ -626,10 +611,6 @@ class CircLine(ConnectionLine):
       listing_type - primary attribute we're listing connections by
     """
 
-    return self._get_listing_entry(width, listing_type)
-
-  @lru_cache()
-  def _get_listing_entry(self, width, listing_type):
     line_format = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(self._entry.get_type(), 'white'))
 
     # The required widths are the sum of the following:
@@ -1016,51 +997,36 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     with self._vals_lock:
       lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
       selected = self._scroller.get_cursor_selection(lines)
+      current_time = self.get_pause_time() if (self.is_paused() or not self._is_tor_running) else time.time()
 
-      details_offset = DETAILS_HEIGHT + 1 if self._show_details else 0
+      is_showing_details = self._show_details and selected
+      details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
+
       is_scrollbar_visible = len(lines) > height - details_offset - 1
+      scroll_offset = 2 if is_scrollbar_visible else 0
       scroll_location = self._scroller.get_scroll_location(lines, height - details_offset - 1)
 
       if self.is_title_visible():
         self._draw_title(self._entries, self._show_details)
 
-      if self._show_details and selected:
+      if is_showing_details:
         self._draw_details(selected, width, is_scrollbar_visible)
 
-      scroll_offset = 0
-
       if is_scrollbar_visible:
-        scroll_offset = 2
         self.add_scroll_bar(scroll_location, scroll_location + height - details_offset - 1, len(lines), 1 + details_offset)
 
-      if self.is_paused() or not self._is_tor_running:
-        current_time = self.get_pause_time()
-      else:
-        current_time = time.time()
-
       for line_number in range(scroll_location, len(lines)):
+        y = line_number + details_offset + 1 - scroll_location
         entry_line = lines[line_number]
-
-        # hilighting if this is the selected line
-
-        extra_format = curses.A_STANDOUT if entry_line == selected else curses.A_NORMAL
-
-        draw_line = line_number + details_offset + 1 - scroll_location
-
         prefix = entry_line.get_listing_prefix()
 
         for i in range(len(prefix)):
-          self.addch(draw_line, scroll_offset + i, prefix[i])
+          self.addch(y, scroll_offset + i, prefix[i])
 
-        x_offset = scroll_offset + len(prefix)
-        draw_entry = entry_line.get_listing_entry(width - scroll_offset - len(prefix), current_time, self.get_listing_type())
+        x = scroll_offset + len(prefix)
+        self._draw_line(x, y, entry_line, entry_line == selected, width - scroll_offset - len(prefix), current_time, self.get_listing_type())
 
-        for msg, attr in draw_entry:
-          attr |= extra_format
-          self.addstr(draw_line, x_offset, msg, attr)
-          x_offset += len(msg)
-
-        if draw_line >= height:
+        if y >= height:
           break
 
   def _draw_title(self, entries, showing_details):
@@ -1136,6 +1102,18 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     if is_scrollbar_visible:
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
+
+  def _draw_line(self, x, y, line, is_selected, width, current_time, listing_type):
+    draw_entry = line.get_listing_entry(width, listing_type)
+
+    if not isinstance(line, CircLine):
+      time_prefix = '+' if line.connection.is_legacy else ' '
+      time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
+      draw_entry[2] = (time_label, draw_entry[2][1])
+
+    for msg, attr in draw_entry:
+      attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
+      x = self.addstr(y, x, msg, attr)
 
   def stop(self):
     """
