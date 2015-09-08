@@ -326,91 +326,6 @@ class ConnectionLine(object):
 
     return ('%%-%is' % width) % etc
 
-  def _get_listing_content(self, width, listing_type):
-    """
-    Provides the source, destination, and extra info for our listing.
-
-    Arguments:
-      width       - maximum length of the line
-      listing_type - primary attribute we're listing connections by
-    """
-
-    controller = tor_controller()
-    my_type = self._entry.get_type()
-    destination_address = self.get_destination_label(26, include_locale = True)
-
-    # The required widths are the sum of the following:
-    # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
-    # - base data for the listing
-    # - that extra field plus any previous
-
-    used_space = len(LABEL_FORMAT % tuple([''] * 4)) + LABEL_MIN_PADDING
-    local_port = ':%s' % self.connection.local_port if self.include_port else ''
-
-    src, dst, etc = '', '', ''
-
-    if listing_type == Listing.IP_ADDRESS:
-      my_external_address = controller.get_info('address', self.connection.local_address)
-
-      # Show our external address if it's going through tor.
-
-      if my_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-        src_address = my_external_address + local_port
-      else:
-        src_address = self.connection.local_address + local_port
-
-      if my_type in (Category.SOCKS, Category.CONTROL):
-        # Like inbound connections these need their source and destination to
-        # be swapped. However, this only applies when listing by IP (their
-        # fingerprint and nickname are both for us). Reversing the fields here
-        # to keep the same column alignments.
-
-        src = '%-21s' % destination_address
-        dst = '%-26s' % src_address
-      else:
-        src = '%-21s' % src_address  # ip:port = max of 21 characters
-        dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
-
-      used_space += len(src) + len(dst)  # base data requires 47 characters
-
-      etc = self.get_etc_content(width - used_space, listing_type)
-      used_space += len(etc)
-    elif listing_type == Listing.FINGERPRINT:
-      src = 'localhost'
-      dst = '%-40s' % ('localhost' if my_type == Category.CONTROL else self.get_fingerprint('UNKNOWN'))
-
-      used_space += len(src) + len(dst)  # base data requires 49 characters
-
-      etc = self.get_etc_content(width - used_space, listing_type)
-      used_space += len(etc)
-    else:
-      # base data requires 50 min characters
-      src = controller.get_conf('nickname', 'UNKNOWN')
-      dst = controller.get_conf('nickname', 'UNKNOWN') if my_type == Category.CONTROL else self.get_nickname('UNKNOWN')
-
-      min_base_space = 50
-
-      etc = self.get_etc_content(width - used_space - min_base_space, listing_type)
-      used_space += len(etc)
-
-      base_space = width - used_space
-      used_space = width  # prevents padding at the end
-
-      if len(src) + len(dst) > base_space:
-        src = str_tools.crop(src, base_space / 3)
-        dst = str_tools.crop(dst, base_space - len(src))
-
-      # pads dst entry to its max space
-
-      dst = ('%%-%is' % (base_space - len(src))) % dst
-
-    if my_type == Category.INBOUND:
-      src, dst = dst, src
-
-    padding = ' ' * (width - used_space + LABEL_MIN_PADDING)
-
-    return LABEL_FORMAT % (src, dst, etc, padding)
-
   def get_destination_label(self, max_length, include_locale = False):
     """
     Provides a short description of the destination. This is made up of two
@@ -985,7 +900,81 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x + 1, line._get_listing_content(width - 19, listing_type), attr)
+      controller = tor_controller()
+      destination_address = line.get_destination_label(26, include_locale = True)
+      subsection_width = width - 19
+
+      # The required widths are the sum of the following:
+      # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
+      # - base data for the listing
+      # - that extra field plus any previous
+
+      used_space = len(LABEL_FORMAT % tuple([''] * 4)) + LABEL_MIN_PADDING
+      local_port = ':%s' % line.connection.local_port if line.include_port else ''
+
+      src, dst, etc = '', '', ''
+
+      if listing_type == Listing.IP_ADDRESS:
+        my_external_address = controller.get_info('address', line.connection.local_address)
+
+        # Show our external address if it's going through tor.
+
+        if entry_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+          src_address = my_external_address + local_port
+        else:
+          src_address = line.connection.local_address + local_port
+
+        if entry_type in (Category.SOCKS, Category.CONTROL):
+          # Like inbound connections these need their source and destination to
+          # be swapped. However, this only applies when listing by IP (their
+          # fingerprint and nickname are both for us). Reversing the fields here
+          # to keep the same column alignments.
+
+          src = '%-21s' % destination_address
+          dst = '%-26s' % src_address
+        else:
+          src = '%-21s' % src_address  # ip:port = max of 21 characters
+          dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
+
+        used_space += len(src) + len(dst)  # base data requires 47 characters
+
+        etc = line.get_etc_content(subsection_width - used_space, listing_type)
+        used_space += len(etc)
+      elif listing_type == Listing.FINGERPRINT:
+        src = 'localhost'
+        dst = '%-40s' % ('localhost' if entry_type == Category.CONTROL else line.get_fingerprint('UNKNOWN'))
+
+        used_space += len(src) + len(dst)  # base data requires 49 characters
+
+        etc = line.get_etc_content(subsection_width - used_space, listing_type)
+        used_space += len(etc)
+      else:
+        # base data requires 50 min characters
+        src = controller.get_conf('nickname', 'UNKNOWN')
+        dst = controller.get_conf('nickname', 'UNKNOWN') if entry_type == Category.CONTROL else line.get_nickname('UNKNOWN')
+
+        min_base_space = 50
+
+        etc = line.get_etc_content(subsection_width - used_space - min_base_space, listing_type)
+        used_space += len(etc)
+
+        base_space = subsection_width - used_space
+        used_space = subsection_width  # prevents padding at the end
+
+        if len(src) + len(dst) > base_space:
+          src = str_tools.crop(src, base_space / 3)
+          dst = str_tools.crop(dst, base_space - len(src))
+
+        # pads dst entry to its max space
+
+        dst = ('%%-%is' % (base_space - len(src))) % dst
+
+      if entry_type == Category.INBOUND:
+        src, dst = dst, src
+
+      padding = ' ' * (subsection_width - used_space + LABEL_MIN_PADDING)
+
+      x = self.addstr(y, x + 1, LABEL_FORMAT % (src, dst, etc, padding), attr)
       x = self.addstr(y, x, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
