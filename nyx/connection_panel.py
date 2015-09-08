@@ -427,45 +427,19 @@ class ConnectionLine(object):
       include_locale   - possibly includes the locale
     """
 
-    # destination of the connection
+    output = '<scrubbed>' if self._entry.is_private() else self.connection.remote_address
+    output += ':%s' % self.connection.remote_port
+    space_available = max_length - len(output) - 3
 
-    address_label = '<scrubbed>' if self._entry.is_private() else self.connection.remote_address
-    port_label = ':%s' % self.connection.remote_port
-    destination_address = address_label + port_label
+    if include_locale and space_available >= 2 and not tor_controller().is_geoip_unavailable() and not self._entry.is_private():
+      output += ' (%s)' % self.get_locale('??')
+    elif self._entry.get_type() == Category.EXIT and space_available >= 5:
+      purpose = connection.port_usage(self.connection.remote_port)
 
-    # Only append the extra info if there's at least a couple characters of
-    # space (this is what's needed for the country codes).
+      if purpose:
+        output += ' (%s)' % str_tools.crop(purpose, space_available)
 
-    if len(destination_address) + 5 <= max_length:
-      space_available = max_length - len(destination_address) - 3
-
-      if self._entry.get_type() == Category.EXIT:
-        purpose = connection.port_usage(self.connection.remote_port)
-
-        if purpose:
-          # BitTorrent is a common protocol to truncate, so just use "Torrent"
-          # if there's not enough room.
-
-          if len(purpose) > space_available and purpose == 'BitTorrent':
-            purpose = 'Torrent'
-
-          # crops with a hyphen if too long
-
-          purpose = str_tools.crop(purpose, space_available, ending = str_tools.Ending.HYPHEN)
-
-          destination_address += ' (%s)' % purpose
-      elif not connection.is_private_address(self.connection.remote_address):
-        extra_info = []
-
-        if include_locale and not tor_controller().is_geoip_unavailable():
-          foreign_locale = self.get_locale('??')
-          extra_info.append(foreign_locale)
-          space_available -= len(foreign_locale) + 2
-
-        if extra_info:
-          destination_address += ' (%s)' % ', '.join(extra_info)
-
-    return destination_address[:max_length]
+    return output[:max_length]
 
 
 class CircHeaderLine(ConnectionLine):
@@ -1005,15 +979,17 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
 
+    self.addstr(y, x, ' ' * (width - x), attr)
+
     if not isinstance(line, CircLine):
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x, ' ' + line._get_listing_content(width - 19, listing_type), attr)
+      x = self.addstr(y, x + 1, line._get_listing_content(width - 19, listing_type), attr)
       x = self.addstr(y, x, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
-      x = self.addstr(y, x, ')' + ' ' * (9 - len(entry_type)), attr)
+      x = self.addstr(y, x, ')', attr)
     else:
       # The required widths are the sum of the following:
       # initial space (1 character)
@@ -1049,9 +1025,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         dst_layout = '%%-%is' % (width - baseline_space - len(etc))
         dst = dst_layout % line.get_nickname('UNKNOWN')
 
-      x = self.addstr(y, x, dst + etc, attr)
-      x = self.addstr(y, x, ' ' * (width - baseline_space - len(dst) - len(etc) + 5), attr)
-      x = self.addstr(y, x, '%-14s' % line.placement_label, attr)
+      self.addstr(y, x, dst + etc, attr)
+      self.addstr(y, x + width - baseline_space + 5, '%-14s' % line.placement_label, attr)
 
   def stop(self):
     """
