@@ -232,9 +232,6 @@ def make_log_menu(log_panel):
 def make_connections_menu(conn_panel):
   """
   Submenu for the connections panel, consisting of...
-    [X] IP Address
-    [ ] Fingerprint
-    [ ] Nickname
         Sorting...
         Resolver (Submenu)
 
@@ -243,15 +240,6 @@ def make_connections_menu(conn_panel):
   """
 
   connections_menu = nyx.menu.item.Submenu('Connections')
-
-  # listing options
-
-  listing_group = nyx.menu.item.SelectionGroup(conn_panel.set_listing_type, conn_panel.get_listing_type())
-
-  listing_options = list(nyx.connections.entries.ListingType)
-
-  for option in listing_options:
-    connections_menu.add(nyx.menu.item.SelectionMenuItem(option, listing_group, option))
 
   # sorting option
 

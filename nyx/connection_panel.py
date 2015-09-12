@@ -29,10 +29,6 @@ except ImportError:
 
 DETAILS_HEIGHT = 7
 
-# listing types
-
-Listing = enum.Enum(('IP_ADDRESS', 'IP Address'), 'FINGERPRINT', 'NICKNAME')
-
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
 
@@ -47,13 +43,11 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 #   Control      Tor controller (nyx, vidalia, etc).
 
 Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
-SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
+SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
 
 def conf_handler(key, value):
-  if key == 'features.connection.listing_type':
-    return conf.parse_enum(key, value, Listing)
-  elif key == 'features.connection.order':
+  if key == 'features.connection.order':
     return conf.parse_enum_csv(key, value[0], SortAttr, 3)
 
 
@@ -61,10 +55,9 @@ CONFIG = conf.config_dict('nyx', {
   'attr.connection.category_color': {},
   'attr.connection.sort_color': {},
   'features.connection.resolveApps': True,
-  'features.connection.listing_type': Listing.IP_ADDRESS,
   'features.connection.order': [
     SortAttr.CATEGORY,
-    SortAttr.LISTING,
+    SortAttr.IP_ADDRESS,
     SortAttr.UPTIME],
   'features.connection.showIps': True,
 }, conf_handler)
@@ -240,13 +233,12 @@ class ConnectionLine(object):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
-  def get_etc_content(self, width, listing_type):
+  def get_etc_content(self, width):
     """
     Provides the optional content for the connection.
 
     Arguments:
       width       - maximum length of the line
-      listing_type - primary attribute we're listing connections by
     """
 
     # for applications show the command/pid
@@ -269,54 +261,21 @@ class ConnectionLine(object):
 
     # for everything else display connection/consensus information
 
-    destination_address = self.get_destination_label(26, include_locale = True)
     etc, used_space = '', 0
 
-    if listing_type == Listing.IP_ADDRESS:
-      if width > used_space + 42:
-        # show fingerprint (column width: 42 characters)
+    if width > used_space + 42:
+      # show fingerprint (column width: 42 characters)
 
-        etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
-        used_space += 42
+      etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
+      used_space += 42
 
-      if width > used_space + 10:
-        # show nickname (column width: remainder)
+    if width > used_space + 10:
+      # show nickname (column width: remainder)
 
-        nickname_space = width - used_space
-        nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
-        etc += ('%%-%is  ' % nickname_space) % nickname_label
-        used_space += nickname_space + 2
-    elif listing_type == Listing.FINGERPRINT:
-      if width > used_space + 17:
-        # show nickname (column width: min 17 characters, consumes any remaining space)
-
-        nickname_space = width - used_space - 2
-
-        # if there's room then also show a column with the destination
-        # ip/port/locale (column width: 28 characters)
-
-        is_locale_included = width > used_space + 45
-
-        if is_locale_included:
-          nickname_space -= 28
-
-        nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
-        etc += ('%%-%is  ' % nickname_space) % nickname_label
-        used_space += nickname_space + 2
-
-        if is_locale_included:
-          etc += '%-26s  ' % destination_address
-          used_space += 28
-    else:
-      if width > used_space + 42:
-        # show fingerprint (column width: 42 characters)
-        etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
-        used_space += 42
-
-      if width > used_space + 28:
-        # show destination ip/port/locale (column width: 28 characters)
-        etc += '%-26s  ' % destination_address
-        used_space += 28
+      nickname_space = width - used_space
+      nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
+      etc += ('%%-%is  ' % nickname_space) % nickname_label
+      used_space += nickname_space + 2
 
     return ('%%-%is' % width) % etc
 
@@ -379,7 +338,7 @@ class CircHeaderLine(ConnectionLine):
 
     return ConnectionLine.get_destination_label(self, max_length, include_locale)
 
-  def get_etc_content(self, width, listing_type):
+  def get_etc_content(self, width):
     """
     Attempts to provide all circuit related stats. Anything that can't be
     shown completely (not enough room) is dropped.
@@ -442,16 +401,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     panel.Panel.__init__(self, stdscr, 'connections', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
-
-    # defaults our listing selection to fingerprints if ip address
-    # displaying is disabled
-    #
-    # TODO: This is a little sucky in that it won't work if showIps changes
-    # while we're running (... but nyx doesn't allow for that atm)
-
-    if not CONFIG['features.connection.showIps'] and CONFIG['features.connection.listing_type'] == 0:
-      nyx_config = conf.get_config('nyx')
-      nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(Listing.FINGERPRINT)])
 
     self._scroller = ui_tools.Scroller(True)
     self._entries = []            # last fetched display entries
@@ -542,14 +491,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
       def sort_value(entry, attr):
-        if attr == SortAttr.LISTING:
-          if self.get_listing_type() == Listing.IP_ADDRESS:
-            attr = SortAttr.IP_ADDRESS
-          elif self.get_listing_type() == Listing.FINGERPRINT:
-            attr = SortAttr.FINGERPRINT
-          elif self.get_listing_type() == Listing.NICKNAME:
-            attr = SortAttr.NICKNAME
-
         connection_line = entry.get_lines()[0]
 
         if attr == SortAttr.IP_ADDRESS:
@@ -578,33 +519,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           return ''
 
       self._entries.sort(key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
-
-  def get_listing_type(self):
-    """
-    Provides the priority content we list connections by.
-    """
-
-    return CONFIG['features.connection.listing_type']
-
-  def set_listing_type(self, listing_type):
-    """
-    Sets the priority information presented by the panel.
-
-    Arguments:
-      listing_type - Listing instance for the primary information to be shown
-    """
-
-    if self.get_listing_type() == listing_type:
-      return
-
-    with self._vals_lock:
-      nyx_config = conf.get_config('nyx')
-      nyx_config.set('features.connection.listing_type', Listing.keys()[Listing.index_of(listing_type)])
-
-      # if we're sorting by the listing then we need to resort
-
-      if SortAttr.LISTING in CONFIG['features.connection.order']:
-        self.set_sort_order()
 
   def show_sort_dialog(self):
     """
@@ -663,19 +577,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if selection != -1:
           selected_option = options[selection] if selection != 0 else None
           conn_resolver.set_custom_resolver(selected_option)
-      elif key.match('l'):
-        # provides a menu to pick the primary information we list connections by
-
-        title = 'List By:'
-        options = list(Listing)
-
-        old_selection = options.index(self.get_listing_type())
-        selection = nyx.popups.show_menu(title, options, old_selection)
-
-        # applies new setting
-
-        if selection != -1:
-          self.set_listing_type(options[selection])
       elif key.match('d'):
         self.set_title_visible(False)
         self.redraw(True)
@@ -760,7 +661,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       ('page down', 'scroll down a page', None),
       ('enter', 'show connection details', None),
       ('d', 'raw consensus descriptor', None),
-      ('l', 'listed identity', self.get_listing_type().lower()),
       ('s', 'sort ordering', None),
       ('u', 'resolving utility', 'auto' if resolver_util is None else resolver_util),
     ]
@@ -804,7 +704,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           self.addch(y, scroll_offset + i, prefix[i])
 
         x = scroll_offset + len(prefix)
-        self._draw_line(x, y, entry_line, entry_line == selected, width - scroll_offset - len(prefix), current_time, self.get_listing_type())
+        self._draw_line(x, y, entry_line, entry_line == selected, width - scroll_offset - len(prefix), current_time)
 
         if y >= height:
           break
@@ -883,7 +783,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if is_scrollbar_visible:
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
-  def _draw_line(self, x, y, line, is_selected, width, current_time, listing_type):
+  def _draw_line(self, x, y, line, is_selected, width, current_time):
     entry_type = line._entry.get_type()
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
@@ -905,50 +805,28 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       src, dst, etc = '', '', ''
 
-      if listing_type == Listing.IP_ADDRESS:
-        my_external_address = controller.get_info('address', line.connection.local_address)
+      my_external_address = controller.get_info('address', line.connection.local_address)
 
-        # Show our external address if it's going through tor.
+      # Show our external address if it's going through tor.
 
-        if entry_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-          src_address = my_external_address + local_port
-        else:
-          src_address = line.connection.local_address + local_port
-
-        if entry_type in (Category.SOCKS, Category.CONTROL):
-          # Like inbound connections these need their source and destination to
-          # be swapped. However, this only applies when listing by IP (their
-          # fingerprint and nickname are both for us). Reversing the fields here
-          # to keep the same column alignments.
-
-          src = '%-21s' % destination_address
-          dst = '%-26s' % src_address
-        else:
-          src = '%-21s' % src_address  # ip:port = max of 21 characters
-          dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
-
-        etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst), listing_type)
-      elif listing_type == Listing.FINGERPRINT:
-        src = 'localhost'
-        dst = '%-40s' % ('localhost' if entry_type == Category.CONTROL else line.get_fingerprint('UNKNOWN'))
-
-        etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst), listing_type)
+      if entry_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+        src_address = my_external_address + local_port
       else:
-        # base data requires 50 min characters
-        src = controller.get_conf('nickname', 'UNKNOWN')
-        dst = controller.get_conf('nickname', 'UNKNOWN') if entry_type == Category.CONTROL else line.get_nickname('UNKNOWN')
+        src_address = line.connection.local_address + local_port
 
-        min_base_space = 50
-        etc = line.get_etc_content(subsection_width - used_space - min_base_space, listing_type)
-        base_space = subsection_width - used_space - len(etc)
+      if entry_type in (Category.SOCKS, Category.CONTROL):
+        # Like inbound connections these need their source and destination to
+        # be swapped. However, this only applies when listing by IP (their
+        # fingerprint and nickname are both for us). Reversing the fields here
+        # to keep the same column alignments.
 
-        if len(src) + len(dst) > base_space:
-          src = str_tools.crop(src, base_space / 3)
-          dst = str_tools.crop(dst, base_space - len(src))
+        src = '%-21s' % destination_address
+        dst = '%-26s' % src_address
+      else:
+        src = '%-21s' % src_address  # ip:port = max of 21 characters
+        dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
 
-        # pads dst entry to its max space
-
-        dst = ('%%-%is' % (base_space - len(src))) % dst
+      etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst))
 
       if entry_type == Category.INBOUND:
         src, dst = dst, src
@@ -972,29 +850,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       dst, etc = '', ''
 
-      if listing_type == Listing.IP_ADDRESS:
-        # dst width is derived as:
-        # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
+      # dst width is derived as:
+      # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
-        dst = '%-53s' % line.get_destination_label(53, include_locale = True)
+      dst = '%-53s' % line.get_destination_label(53, include_locale = True)
 
-        # fills the nickname into the empty space here
+      # fills the nickname into the empty space here
 
-        dst = '%s%-25s   ' % (dst[:25], str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0))
+      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0))
 
-        etc = line.get_etc_content(width - baseline_space - len(dst), listing_type)
-      elif listing_type == Listing.FINGERPRINT:
-        # dst width is derived as:
-        # src (9) + dst (40) + divider (7) + right gap (2) - bracket (3) = 55 char
-
-        dst = '%-55s' % line.get_fingerprint('UNKNOWN')
-        etc = line.get_etc_content(width - baseline_space - len(dst), listing_type)
-      else:
-        # min space for the nickname is 56 characters
-
-        etc = line.get_etc_content(width - baseline_space - 56, listing_type)
-        dst_layout = '%%-%is' % (width - baseline_space - len(etc))
-        dst = dst_layout % line.get_nickname('UNKNOWN')
+      etc = line.get_etc_content(width - baseline_space - len(dst))
 
       self.addstr(y, x, dst + etc, attr)
       self.addstr(y, x + width - baseline_space + 5, '%-14s' % line.placement_label, attr)

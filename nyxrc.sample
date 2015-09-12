@@ -176,14 +176,6 @@ features.graph.bw.accounting.show true
 
 # Parameters for connection display
 # ---------------------------------
-# listingType
-#   the primary category of information shown by default, options including:
-#
-#   * IP_ADDRESS
-#   * HOSTNAME
-#   * FINGERPRINT
-#   * NICKNAME
-#
 # order
 #   three comma separated configuration attributes, options including:
 #
@@ -204,7 +196,6 @@ features.graph.bw.accounting.show true
 #   shows ip addresses for other tor relays, dropping this information if
 #   false
 
-features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
 features.connection.resolveApps true
 features.connection.showIps true
