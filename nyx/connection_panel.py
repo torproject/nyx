@@ -49,12 +49,6 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
 SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'LISTING', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
 
-# static data for listing format
-# <src>  -->  <dst>  <etc><padding>
-
-LABEL_FORMAT = '%s  -->  %s  %s%s'
-LABEL_MIN_PADDING = 2  # min space between listing label and following data
-
 
 def conf_handler(key, value):
   if key == 'features.connection.listing_type':
@@ -897,19 +891,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if not isinstance(line, CircLine):
-      time_prefix = '+' if line.connection.is_legacy else ' '
-      time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
-
       controller = tor_controller()
       destination_address = line.get_destination_label(26, include_locale = True)
       subsection_width = width - 19
 
       # The required widths are the sum of the following:
-      # - room for LABEL_FORMAT and LABEL_MIN_PADDING (11 characters)
+      # - room for '%s  -->  %s  %s' and couple extra spaces for padding (11 characters)
       # - base data for the listing
       # - that extra field plus any previous
 
-      used_space = len(LABEL_FORMAT % tuple([''] * 4)) + LABEL_MIN_PADDING
+      used_space = 11
       local_port = ':%s' % line.connection.local_port if line.include_port else ''
 
       src, dst, etc = '', '', ''
@@ -936,30 +927,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           src = '%-21s' % src_address  # ip:port = max of 21 characters
           dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
 
-        used_space += len(src) + len(dst)  # base data requires 47 characters
-
-        etc = line.get_etc_content(subsection_width - used_space, listing_type)
-        used_space += len(etc)
+        etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst), listing_type)
       elif listing_type == Listing.FINGERPRINT:
         src = 'localhost'
         dst = '%-40s' % ('localhost' if entry_type == Category.CONTROL else line.get_fingerprint('UNKNOWN'))
 
-        used_space += len(src) + len(dst)  # base data requires 49 characters
-
-        etc = line.get_etc_content(subsection_width - used_space, listing_type)
-        used_space += len(etc)
+        etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst), listing_type)
       else:
         # base data requires 50 min characters
         src = controller.get_conf('nickname', 'UNKNOWN')
         dst = controller.get_conf('nickname', 'UNKNOWN') if entry_type == Category.CONTROL else line.get_nickname('UNKNOWN')
 
         min_base_space = 50
-
         etc = line.get_etc_content(subsection_width - used_space - min_base_space, listing_type)
-        used_space += len(etc)
-
-        base_space = subsection_width - used_space
-        used_space = subsection_width  # prevents padding at the end
+        base_space = subsection_width - used_space - len(etc)
 
         if len(src) + len(dst) > base_space:
           src = str_tools.crop(src, base_space / 3)
@@ -972,10 +953,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if entry_type == Category.INBOUND:
         src, dst = dst, src
 
-      padding = ' ' * (subsection_width - used_space + LABEL_MIN_PADDING)
+      time_prefix = '+' if line.connection.is_legacy else ' '
+      time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x + 1, LABEL_FORMAT % (src, dst, etc, padding), attr)
-      x = self.addstr(y, x, time_label, attr)
+      x = self.addstr(y, x + 1, '%s  -->  %s  %s' % (src, dst, etc), attr)
+      x = self.addstr(y, subsection_width + 1, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
       x = self.addstr(y, x, ')', attr)
