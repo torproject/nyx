@@ -791,50 +791,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if not isinstance(line, CircLine):
-      controller = tor_controller()
-      destination_address = line.get_destination_label(26, include_locale = True)
       subsection_width = width - 19
 
-      # The required widths are the sum of the following:
-      # - room for '%s  -->  %s  %s' and couple extra spaces for padding (11 characters)
-      # - base data for the listing
-      # - that extra field plus any previous
+      src = tor_controller().get_info('address', line.connection.local_address)
+      src += ':%s' % line.connection.local_port if line.include_port else ''
+      dst = line.get_destination_label(26, include_locale = True)
 
-      used_space = 11
-      local_port = ':%s' % line.connection.local_port if line.include_port else ''
+      if entry_type in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
+        dst, src = src, dst
 
-      src, dst, etc = '', '', ''
-
-      my_external_address = controller.get_info('address', line.connection.local_address)
-
-      # Show our external address if it's going through tor.
-
-      if entry_type not in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-        src_address = my_external_address + local_port
-      else:
-        src_address = line.connection.local_address + local_port
-
-      if entry_type in (Category.SOCKS, Category.CONTROL):
-        # Like inbound connections these need their source and destination to
-        # be swapped. However, this only applies when listing by IP (their
-        # fingerprint and nickname are both for us). Reversing the fields here
-        # to keep the same column alignments.
-
-        src = '%-21s' % destination_address
-        dst = '%-26s' % src_address
-      else:
-        src = '%-21s' % src_address  # ip:port = max of 21 characters
-        dst = '%-26s' % destination_address  # ip:port (xx) = max of 26 characters
-
-      etc = line.get_etc_content(subsection_width - used_space - len(src) - len(dst))
-
-      if entry_type == Category.INBOUND:
-        src, dst = dst, src
+      etc = line.get_etc_content(subsection_width - 11 - max(21, len(src)) - max(26, len(dst)))
 
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x + 1, '%s  -->  %s  %s' % (src, dst, etc), attr)
+      x = self.addstr(y, x + 1, '%-21s  -->  %-26s  %s' % (src, dst, etc), attr)
       x = self.addstr(y, subsection_width + 1, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
