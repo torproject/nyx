@@ -791,29 +791,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
       x = self.addstr(y, x, ')', attr)
     else:
-      # The required widths are the sum of the following:
-      # initial space (1 character)
-      # bracketing (3 characters)
-      # placement_label (14 characters)
-      # gap between etc and placement label (5 characters)
-
-      baseline_space = 14 + 5
-
-      dst, etc = '', ''
-
-      # dst width is derived as:
-      # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
-
-      dst = '%-53s' % get_destination_label(line, 53)
-
-      # fills the nickname into the empty space here
-
-      dst = '%s%-25s   ' % (dst[:25], str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0))
-
-      etc = line.get_etc_content(width - x - baseline_space - len(dst))
-
-      self.addstr(y, x, dst + etc, attr)
-      self.addstr(y, x + width - x - baseline_space + 5, '%-14s' % line.placement_label, attr)
+      self.addstr(y, x, get_destination_label(line, 25), attr)
+      self.addstr(y, x + 25, str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0), attr)
+      self.addstr(y, x + 53, line.get_etc_content(width - x - 19 - 53), attr)
+      self.addstr(y, width - 14, line.placement_label, attr)
 
   def stop(self):
     """
