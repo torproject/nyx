@@ -279,36 +279,6 @@ class ConnectionLine(object):
 
     return ('%%-%is' % width) % etc
 
-  def get_destination_label(self, max_length, include_locale = False):
-    """
-    Provides a short description of the destination. This is made up of two
-    components, the base <ip addr>:<port> and an extra piece of information in
-    parentheses. The IP address is scrubbed from private connections.
-
-    Extra information is...
-    - the port's purpose for exit connections
-    - the locale, the address isn't private and isn't on the local network
-    - nothing otherwise
-
-    Arguments:
-      max_length       - maximum length of the string returned
-      include_locale   - possibly includes the locale
-    """
-
-    output = '<scrubbed>' if self._entry.is_private() else self.connection.remote_address
-    output += ':%s' % self.connection.remote_port
-    space_available = max_length - len(output) - 3
-
-    if include_locale and space_available >= 2 and not tor_controller().is_geoip_unavailable() and not self._entry.is_private():
-      output += ' (%s)' % self.get_locale('??')
-    elif self._entry.get_type() == Category.EXIT and space_available >= 5:
-      purpose = connection.port_usage(self.connection.remote_port)
-
-      if purpose:
-        output += ' (%s)' % str_tools.crop(purpose, space_available)
-
-    return output[:max_length]
-
 
 class CircHeaderLine(ConnectionLine):
   """
@@ -331,12 +301,6 @@ class CircHeaderLine(ConnectionLine):
 
   def get_fingerprint(self, default = None):
     return self._remote_fingerprint if self._remote_fingerprint else ConnectionLine.get_fingerprint(self, default)
-
-  def get_destination_label(self, max_length, include_locale = False):
-    if not self.is_built:
-      return 'Building...'
-
-    return ConnectionLine.get_destination_label(self, max_length, include_locale)
 
   def get_etc_content(self, width):
     """
@@ -588,7 +552,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if not selection:
             break
 
-          color = CONFIG['attr.connection.category_color'].get(selection.get_type(), 'white')
+          color = CONFIG['attr.connection.category_color'].get(selection._entry.get_type(), 'white')
           fingerprint = selection.get_fingerprint()
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
           key = nyx.popups.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
@@ -733,7 +697,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if isinstance(selected, CircHeaderLine) and not selected.is_built:
       self.addstr(1, 2, 'Building Circuit...', *attr)
     else:
-      self.addstr(1, 2, 'address: %s' % selected.get_destination_label(width - 11), *attr)
+      address = '<scrubbed>' if selected._entry.is_private() else selected.connection.remote_address
+      self.addstr(1, 2, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
       self.addstr(2, 2, 'locale: %s' % ('??' if selected._entry.is_private() else selected.get_locale('??')), *attr)
 
       matches = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
@@ -788,6 +753,21 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
 
+    def get_destination_label(line, width):
+      output = '<scrubbed>' if line._entry.is_private() else line.connection.remote_address
+      output += ':%s' % line.connection.remote_port
+      space_available = width - len(output) - 3
+
+      if line._entry.get_type() == Category.EXIT and space_available >= 5:
+        purpose = connection.port_usage(line.connection.remote_port)
+
+        if purpose:
+          output += ' (%s)' % str_tools.crop(purpose, space_available)
+      elif space_available >= 2 and not tor_controller().is_geoip_unavailable() and not line._entry.is_private():
+        output += ' (%s)' % line.get_locale('??')
+
+      return output[:width]
+
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if not isinstance(line, CircLine):
@@ -795,7 +775,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       src = tor_controller().get_info('address', line.connection.local_address)
       src += ':%s' % line.connection.local_port if line.include_port else ''
-      dst = line.get_destination_label(26, include_locale = True)
+      dst = get_destination_label(line, 26)
 
       if entry_type in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
         dst, src = src, dst
@@ -824,7 +804,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
-      dst = '%-53s' % line.get_destination_label(53, include_locale = True)
+      if not line.is_built:
+        dst = '%-53s' % 'Building...'
+      else:
+        dst = '%-53s' % get_destination_label(line, 53)
 
       # fills the nickname into the empty space here
 
