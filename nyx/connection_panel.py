@@ -661,14 +661,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for line_number in range(scroll_location, len(lines)):
         y = line_number + details_offset + 1 - scroll_location
-        entry_line = lines[line_number]
-        prefix = entry_line.get_listing_prefix()
-
-        for i in range(len(prefix)):
-          self.addch(y, scroll_offset + i, prefix[i])
-
-        x = scroll_offset + len(prefix)
-        self._draw_line(x, y, entry_line, entry_line == selected, width - scroll_offset - len(prefix), current_time)
+        self._draw_line(scroll_offset, y, lines[line_number], lines[line_number] == selected, width - scroll_offset, current_time)
 
         if y >= height:
           break
@@ -749,6 +742,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time):
+    for char in line.get_listing_prefix():
+      x = self.addch(y, x, char)
+
     entry_type = line._entry.get_type()
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
@@ -771,11 +767,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if not isinstance(line, CircLine):
-      subsection_width = width - 19
+      subsection_width = width - x - 19
 
       src = tor_controller().get_info('address', line.connection.local_address)
       src += ':%s' % line.connection.local_port if line.include_port else ''
-      dst = get_destination_label(line, 26)
+
+      if isinstance(line, CircHeaderLine) and not line.is_built:
+        dst = 'Building...'
+      else:
+        dst = get_destination_label(line, 26)
 
       if entry_type in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
         dst, src = src, dst
@@ -804,19 +804,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # dst width is derived as:
       # src (21) + dst (26) + divider (7) + right gap (2) - bracket (3) = 53 char
 
-      if not line.is_built:
-        dst = '%-53s' % 'Building...'
-      else:
-        dst = '%-53s' % get_destination_label(line, 53)
+      dst = '%-53s' % get_destination_label(line, 53)
 
       # fills the nickname into the empty space here
 
       dst = '%s%-25s   ' % (dst[:25], str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0))
 
-      etc = line.get_etc_content(width - baseline_space - len(dst))
+      etc = line.get_etc_content(width - x - baseline_space - len(dst))
 
       self.addstr(y, x, dst + etc, attr)
-      self.addstr(y, x + width - baseline_space + 5, '%-14s' % line.placement_label, attr)
+      self.addstr(y, x + width - x - baseline_space + 5, '%-14s' % line.placement_label, attr)
 
   def stop(self):
     """

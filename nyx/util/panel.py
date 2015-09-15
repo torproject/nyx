@@ -496,9 +496,12 @@ class Panel(object):
     if self.win and self.max_x > x and self.max_y > y:
       try:
         self.win.addch(y, x, char, format_attr)
+        return x + 1
       except:
         # in edge cases drawing could cause a _curses.error
         pass
+
+    return x
 
   def addstr(self, y, x, msg, *attributes):
     """
