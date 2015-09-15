@@ -233,52 +233,6 @@ class ConnectionLine(object):
     nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
     return nickname if nickname else default
 
-  def get_etc_content(self, width):
-    """
-    Provides the optional content for the connection.
-
-    Arguments:
-      width       - maximum length of the line
-    """
-
-    # for applications show the command/pid
-
-    if self._entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      port = self.connection.local_port if self._entry.get_type() == Category.HIDDEN else self.connection.remote_port
-
-      try:
-        process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
-        display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
-      except nyx.util.tracker.UnresolvedResult:
-        display_label = 'resolving...'
-      except nyx.util.tracker.UnknownApplication:
-        display_label = 'UNKNOWN'
-
-      if len(display_label) < width:
-        return ('%%-%is' % width) % display_label
-      else:
-        return ''
-
-    # for everything else display connection/consensus information
-
-    etc, used_space = '', 0
-
-    if width > used_space + 42:
-      # show fingerprint (column width: 42 characters)
-
-      etc += '%-40s  ' % self.get_fingerprint('UNKNOWN')
-      used_space += 42
-
-    if width > used_space + 10:
-      # show nickname (column width: remainder)
-
-      nickname_space = width - used_space
-      nickname_label = str_tools.crop(self.get_nickname('UNKNOWN'), nickname_space, 0)
-      etc += ('%%-%is  ' % nickname_space) % nickname_label
-      used_space += nickname_space + 2
-
-    return ('%%-%is' % width) % etc
-
 
 class CircHeaderLine(ConnectionLine):
   """
@@ -301,22 +255,6 @@ class CircHeaderLine(ConnectionLine):
 
   def get_fingerprint(self, default = None):
     return self._remote_fingerprint if self._remote_fingerprint else ConnectionLine.get_fingerprint(self, default)
-
-  def get_etc_content(self, width):
-    """
-    Attempts to provide all circuit related stats. Anything that can't be
-    shown completely (not enough room) is dropped.
-    """
-
-    etc_attr = ['Purpose: %s' % self.circuit.purpose.capitalize(), 'Circuit ID: %s' % self.circuit.id]
-
-    for i in range(len(etc_attr), -1, -1):
-      etc_label = ', '.join(etc_attr[:i])
-
-      if len(etc_label) <= width:
-        return ('%%-%is' % width) % etc_label
-
-    return ''
 
 
 class CircLine(ConnectionLine):
@@ -764,6 +702,56 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       return output[:width]
 
+    def get_etc_content(line, width):
+      if isinstance(line, CircHeaderLine):
+        etc_attr = ['Purpose: %s' % line.circuit.purpose.capitalize(), 'Circuit ID: %s' % line.circuit.id]
+
+        for i in range(len(etc_attr), -1, -1):
+          etc_label = ', '.join(etc_attr[:i])
+
+          if len(etc_label) <= width:
+            return etc_label
+
+        return ''
+      else:
+        # for applications show the command/pid
+
+        if line._entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+          port = line.connection.local_port if line._entry.get_type() == Category.HIDDEN else line.connection.remote_port
+
+          try:
+            process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
+            display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
+          except nyx.util.tracker.UnresolvedResult:
+            display_label = 'resolving...'
+          except nyx.util.tracker.UnknownApplication:
+            display_label = 'UNKNOWN'
+
+          if len(display_label) < width:
+            return display_label
+          else:
+            return ''
+
+        # for everything else display connection/consensus information
+
+        etc, used_space = '', 0
+
+        if width > used_space + 42:
+          # show fingerprint (column width: 42 characters)
+
+          etc += '%-40s  ' % line.get_fingerprint('UNKNOWN')
+          used_space += 42
+
+        if width > used_space + 10:
+          # show nickname (column width: remainder)
+
+          nickname_space = width - used_space
+          nickname_label = str_tools.crop(line.get_nickname('UNKNOWN'), nickname_space, 0)
+          etc += ('%%-%is  ' % nickname_space) % nickname_label
+          used_space += nickname_space + 2
+
+        return etc
+
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if not isinstance(line, CircLine):
@@ -780,12 +768,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if entry_type in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
         dst, src = src, dst
 
-      etc = line.get_etc_content(subsection_width - 11 - max(21, len(src)) - max(26, len(dst)))
-
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x + 1, '%-21s  -->  %-26s  %s' % (src, dst, etc), attr)
+      x = self.addstr(y, x + 1, '%-21s  -->  %-26s' % (src, dst), attr)
+      x = self.addstr(y, x + 2, get_etc_content(line, subsection_width - 11 - max(21, len(src)) - max(26, len(dst))), attr)
       x = self.addstr(y, subsection_width + 1, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
@@ -793,7 +780,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     else:
       self.addstr(y, x, get_destination_label(line, 25), attr)
       self.addstr(y, x + 25, str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0), attr)
-      self.addstr(y, x + 53, line.get_etc_content(width - x - 19 - 53), attr)
+      self.addstr(y, x + 53, get_etc_content(line, width - x - 19 - 53), attr)
       self.addstr(y, width - 14, line.placement_label, attr)
 
   def stop(self):
