@@ -191,14 +191,9 @@ class ConnectionLine(object):
   Display component of the ConnectionEntry.
   """
 
-  def __init__(self, entry, conn, include_port = True):
+  def __init__(self, entry, conn):
     self._entry = entry
     self.connection = conn
-
-    # includes the port or expanded ip address field when displaying listing
-    # information if true
-
-    self.include_port = include_port
 
   def get_listing_prefix(self):
     """
@@ -250,7 +245,7 @@ class CircHeaderLine(ConnectionLine):
       self.is_built = False
       self._remote_fingerprint = None
 
-    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'), include_port = False)
+    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'))
     self.circuit = circ
 
   def get_fingerprint(self, default = None):
@@ -266,7 +261,7 @@ class CircLine(ConnectionLine):
 
   def __init__(self, entry, circ, fingerprint):
     relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
-    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'), include_port = False)
+    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'))
     self._fingerprint = fingerprint
     self._is_last = False
 
@@ -757,8 +752,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     if not isinstance(line, CircLine):
       subsection_width = width - x - 19
 
+      include_port = not isinstance(line, CircHeaderLine)
       src = tor_controller().get_info('address', line.connection.local_address)
-      src += ':%s' % line.connection.local_port if line.include_port else ''
+      src += ':%s' % line.connection.local_port if include_port else ''
 
       if isinstance(line, CircHeaderLine) and not line.is_built:
         dst = 'Building...'
