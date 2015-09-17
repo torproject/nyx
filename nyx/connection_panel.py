@@ -258,18 +258,6 @@ class CircLine(ConnectionLine):
     self.circuit = circ
     self._fingerprint = fingerprint
 
-    circ_path = [path_entry[0] for path_entry in circ.path]
-    circ_index = circ_path.index(fingerprint)
-
-    if circ_index == len(circ_path) - 1:
-      placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
-    elif circ_index == 0:
-      placement_type = 'Guard'
-    else:
-      placement_type = 'Middle'
-
-    self.placement_label = '%i / %s' % (circ_index + 1, placement_type)
-
   def get_fingerprint(self, default = None):
     return self._fingerprint
 
@@ -769,7 +757,18 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addstr(y, x, get_destination_label(line, 25), attr)
       self.addstr(y, x + 25, str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0), attr)
       self.addstr(y, x + 53, get_etc_content(line, width - x - 19 - 53), attr)
-      self.addstr(y, width - 14, line.placement_label, attr)
+
+      circ_path = [path_entry[0] for path_entry in line.circuit.path]
+      circ_index = circ_path.index(line.get_fingerprint())
+
+      if circ_index == len(circ_path) - 1:
+        placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
+      elif circ_index == 0:
+        placement_type = 'Guard'
+      else:
+        placement_type = 'Middle'
+
+      self.addstr(y, width - 14, '%i / %s' % (circ_index + 1, placement_type), attr)
 
   def stop(self):
     """
