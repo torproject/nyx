@@ -195,13 +195,6 @@ class ConnectionLine(object):
     self._entry = entry
     self.connection = conn
 
-  def get_listing_prefix(self):
-    """
-    Provides a list of characters to be appended before the listing entry.
-    """
-
-    return ()
-
   def get_locale(self, default = None):
     """
     Provides the two letter country code for the remote endpoint.
@@ -262,15 +255,14 @@ class CircLine(ConnectionLine):
   def __init__(self, entry, circ, fingerprint):
     relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
     ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'))
+    self.circuit = circ
     self._fingerprint = fingerprint
-    self._is_last = False
 
     circ_path = [path_entry[0] for path_entry in circ.path]
     circ_index = circ_path.index(fingerprint)
 
     if circ_index == len(circ_path) - 1:
       placement_type = 'Exit' if circ.status == 'BUILT' else 'Extending'
-      self._is_last = True
     elif circ_index == 0:
       placement_type = 'Guard'
     else:
@@ -279,13 +271,7 @@ class CircLine(ConnectionLine):
     self.placement_label = '%i / %s' % (circ_index + 1, placement_type)
 
   def get_fingerprint(self, default = None):
-    self._fingerprint
-
-  def get_listing_prefix(self):
-    if self._is_last:
-      return (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
-    else:
-      return (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+    return self._fingerprint
 
 
 class ConnectionPanel(panel.Panel, threading.Thread):
@@ -675,8 +661,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time):
-    for char in line.get_listing_prefix():
-      x = self.addch(y, x, char)
+    if isinstance(line, CircLine):
+      if line.circuit.path[-1][0] == line.get_fingerprint():
+        prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
+      else:
+        prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+
+      for char in prefix:
+        x = self.addch(y, x, char)
 
     entry_type = line._entry.get_type()
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
