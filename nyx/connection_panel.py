@@ -44,6 +44,17 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 
 Category = enum.Enum('INBOUND', 'OUTBOUND', 'EXIT', 'HIDDEN', 'SOCKS', 'CIRCUIT', 'DIRECTORY', 'CONTROL')
 SortAttr = enum.Enum('CATEGORY', 'UPTIME', 'IP_ADDRESS', 'PORT', 'FINGERPRINT', 'NICKNAME', 'COUNTRY')
+LineType = enum.Enum('CONNECTION', 'CIRCUIT_HEADER', 'CIRCUIT')
+
+Line = collections.namedtuple('Line', [
+  'entry',
+  'line_type',
+  'connection',
+  'circuit',
+  'fingerprint',
+  'nickname',
+  'locale',
+])
 
 
 def conf_handler(key, value):
@@ -114,7 +125,16 @@ class ConnectionEntry(Entry):
 
   @lru_cache()
   def get_lines(self):
-    return [ConnectionLine(self, self._connection)]
+    fingerprint, nickname, locale = None, None, None
+
+    if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
+      fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
+
+      if fingerprint:
+        nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
+        locale = tor_controller().get_info('ip-to-country/%s' % connection.remote_address, None)
+
+    return [Line(self, LineType.CONNECTION, self._connection, None, fingerprint, nickname, locale)]
 
   @lru_cache()
   def get_type(self):
@@ -177,89 +197,26 @@ class CircuitEntry(Entry):
 
   @lru_cache()
   def get_lines(self):
-    return [CircHeaderLine(self, self._circuit)] + [CircLine(self, self._circuit, fp) for fp, _ in self._circuit.path]
+    def line(fingerprint, line_type):
+      address, port, nickname, locale = '0.0.0.0', 0, None, None
+      consensus_tracker = nyx.util.tracker.get_consensus_tracker()
+
+      if fingerprint is not None:
+        address, port = consensus_tracker.get_relay_address(fingerprint, ('192.168.0.1', 0))
+        nickname = consensus_tracker.get_relay_nickname(fingerprint)
+        locale = tor_controller().get_info('ip-to-country/%s' % address, None)
+
+      connection = nyx.util.tracker.Connection(to_unix_time(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp')
+      return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
+
+    header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
+    return [header_line] + [line(fp, LineType.CIRCUIT) for fp, _ in self._circuit.path]
 
   def get_type(self):
     return Category.CIRCUIT
 
   def is_private(self):
     return False
-
-
-class ConnectionLine(object):
-  """
-  Display component of the ConnectionEntry.
-  """
-
-  def __init__(self, entry, conn):
-    self._entry = entry
-    self.connection = conn
-
-  def get_locale(self, default = None):
-    """
-    Provides the two letter country code for the remote endpoint.
-    """
-
-    return tor_controller().get_info('ip-to-country/%s' % self.connection.remote_address, default)
-
-  def get_fingerprint(self, default = None):
-    """
-    Provides the fingerprint of this relay.
-    """
-
-    if self._entry.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
-      my_fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self.connection.remote_address).get(self.connection.remote_port)
-      return my_fingerprint if my_fingerprint else default
-    else:
-      return default  # inbound connections don't have an ORPort we can resolve
-
-  def get_nickname(self, default = None):
-    """
-    Provides the nickname of this relay.
-    """
-
-    nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(self.get_fingerprint())
-    return nickname if nickname else default
-
-
-class CircHeaderLine(ConnectionLine):
-  """
-  Initial line of a client entry. This has the same basic format as connection
-  lines except that its etc field has circuit attributes.
-  """
-
-  def __init__(self, entry, circ):
-    if circ.status == 'BUILT':
-      self._remote_fingerprint = circ.path[-1][0]
-      exit_address, exit_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(self._remote_fingerprint, ('192.168.0.1', 0))
-      self.is_built = True
-    else:
-      exit_address, exit_port = '0.0.0.0', 0
-      self.is_built = False
-      self._remote_fingerprint = None
-
-    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, exit_address, exit_port, 'tcp'))
-    self.circuit = circ
-
-  def get_fingerprint(self, default = None):
-    return self._remote_fingerprint if self._remote_fingerprint else ConnectionLine.get_fingerprint(self, default)
-
-
-class CircLine(ConnectionLine):
-  """
-  An individual hop in a circuit. This overwrites the displayed listing, but
-  otherwise makes use of the ConnectionLine attributes (for the detail display,
-  caching, etc).
-  """
-
-  def __init__(self, entry, circ, fingerprint):
-    relay_ip, relay_port = nyx.util.tracker.get_consensus_tracker().get_relay_address(fingerprint, ('192.168.0.1', 0))
-    ConnectionLine.__init__(self, entry, nyx.util.tracker.Connection(to_unix_time(circ.created), False, '127.0.0.1', 0, relay_ip, relay_port, 'tcp'))
-    self.circuit = circ
-    self._fingerprint = fingerprint
-
-  def get_fingerprint(self, default = None):
-    return self._fingerprint
 
 
 class ConnectionPanel(panel.Panel, threading.Thread):
@@ -377,15 +334,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         elif attr == SortAttr.PORT:
           return connection_line.connection.remote_port
         elif attr == SortAttr.FINGERPRINT:
-          return connection_line.get_fingerprint('UNKNOWN')
+          return connection_line.fingerprint if connection_line.fingerprint else 'UNKNOWN'
         elif attr == SortAttr.NICKNAME:
-          return connection_line.get_nickname('z' * 20)
+          return connection_line.nickname if connection_line.nickname else 'z' * 20
         elif attr == SortAttr.CATEGORY:
           return Category.index_of(entry.get_type())
         elif attr == SortAttr.UPTIME:
           return connection_line.connection.start_time
         elif attr == SortAttr.COUNTRY:
-          return '' if entry.is_private() else connection_line.get_locale('')
+          return '' if entry.is_private() else (connection_line.locale if connection_line.locale else '')
         else:
           return ''
 
@@ -459,10 +416,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if not selection:
             break
 
-          color = CONFIG['attr.connection.category_color'].get(selection._entry.get_type(), 'white')
-          fingerprint = selection.get_fingerprint()
+          color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
           is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
-          key = nyx.popups.show_descriptor_popup(fingerprint, color, self.max_x, is_close_key)
+          key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
 
           if not key or key.is_selection() or key.match('d'):
             break  # closes popup
@@ -592,14 +548,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Shows detailed information about the selected connection.
     """
 
-    attr = (CONFIG['attr.connection.category_color'].get(selected._entry.get_type(), 'white'), curses.A_BOLD)
+    attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), 'white'), curses.A_BOLD)
 
-    if isinstance(selected, CircHeaderLine) and not selected.is_built:
+    if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
       self.addstr(1, 2, 'Building Circuit...', *attr)
     else:
-      address = '<scrubbed>' if selected._entry.is_private() else selected.connection.remote_address
+      address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
       self.addstr(1, 2, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
-      self.addstr(2, 2, 'locale: %s' % ('??' if selected._entry.is_private() else selected.get_locale('??')), *attr)
+      self.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
 
       matches = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
 
@@ -649,8 +605,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time):
-    if isinstance(line, CircLine):
-      if line.circuit.path[-1][0] == line.get_fingerprint():
+    if line.line_type == LineType.CIRCUIT:
+      if line.circuit.path[-1][0] == line.fingerprint:
         prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
       else:
         prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
@@ -658,27 +614,27 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for char in prefix:
         x = self.addch(y, x, char)
 
-    entry_type = line._entry.get_type()
+    entry_type = line.entry.get_type()
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
 
     def get_destination_label(line, width):
-      output = '<scrubbed>' if line._entry.is_private() else line.connection.remote_address
+      output = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
       output += ':%s' % line.connection.remote_port
       space_available = width - len(output) - 3
 
-      if line._entry.get_type() == Category.EXIT and space_available >= 5:
+      if line.entry.get_type() == Category.EXIT and space_available >= 5:
         purpose = connection.port_usage(line.connection.remote_port)
 
         if purpose:
           output += ' (%s)' % str_tools.crop(purpose, space_available)
-      elif space_available >= 2 and not tor_controller().is_geoip_unavailable() and not line._entry.is_private():
-        output += ' (%s)' % line.get_locale('??')
+      elif space_available >= 2 and not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
+        output += ' (%s)' % (line.locale if line.locale else '??')
 
       return output[:width]
 
     def get_etc_content(line, width):
-      if isinstance(line, CircHeaderLine):
+      if line.line_type == LineType.CIRCUIT_HEADER:
         etc_attr = ['Purpose: %s' % line.circuit.purpose.capitalize(), 'Circuit ID: %s' % line.circuit.id]
 
         for i in range(len(etc_attr), -1, -1):
@@ -691,8 +647,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       else:
         # for applications show the command/pid
 
-        if line._entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-          port = line.connection.local_port if line._entry.get_type() == Category.HIDDEN else line.connection.remote_port
+        if line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+          port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
 
           try:
             process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
@@ -714,14 +670,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if width > used_space + 42:
           # show fingerprint (column width: 42 characters)
 
-          etc += '%-40s  ' % line.get_fingerprint('UNKNOWN')
+          etc += '%-40s  ' % (line.fingerprint if line.fingerprint else 'UNKNOWN')
           used_space += 42
 
         if width > used_space + 10:
           # show nickname (column width: remainder)
 
           nickname_space = width - used_space
-          nickname_label = str_tools.crop(line.get_nickname('UNKNOWN'), nickname_space, 0)
+          nickname_label = str_tools.crop(line.nickname if line.nickname else 'UNKNOWN', nickname_space, 0)
           etc += ('%%-%is  ' % nickname_space) % nickname_label
           used_space += nickname_space + 2
 
@@ -729,14 +685,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self.addstr(y, x, ' ' * (width - x), attr)
 
-    if not isinstance(line, CircLine):
+    if line.line_type != LineType.CIRCUIT:
       subsection_width = width - x - 19
 
-      include_port = not isinstance(line, CircHeaderLine)
+      include_port = line.line_type != LineType.CIRCUIT_HEADER
       src = tor_controller().get_info('address', line.connection.local_address)
       src += ':%s' % line.connection.local_port if include_port else ''
 
-      if isinstance(line, CircHeaderLine) and not line.is_built:
+      if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
         dst = 'Building...'
       else:
         dst = get_destination_label(line, 26)
@@ -755,11 +711,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       x = self.addstr(y, x, ')', attr)
     else:
       self.addstr(y, x, get_destination_label(line, 25), attr)
-      self.addstr(y, x + 25, str_tools.crop(line.get_nickname('UNKNOWN'), 25, 0), attr)
+      self.addstr(y, x + 25, str_tools.crop(line.nickname if line.nickname else 'UNKNOWN', 25, 0), attr)
       self.addstr(y, x + 53, get_etc_content(line, width - x - 19 - 53), attr)
 
       circ_path = [path_entry[0] for path_entry in line.circuit.path]
-      circ_index = circ_path.index(line.get_fingerprint())
+      circ_index = circ_path.index(line.fingerprint)
 
       if circ_index == len(circ_path) - 1:
         placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
@@ -810,10 +766,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
         if entry.is_private():
           if entry.get_type() == Category.INBOUND:
-            client_locale = entry_line.get_locale(None)
-
-            if client_locale:
-              self._client_locale_usage[client_locale] = self._client_locale_usage.get(client_locale, 0) + 1
+            if entry_line.locale:
+              self._client_locale_usage[entry_line.locale] = self._client_locale_usage.get(entry_line.locale, 0) + 1
           elif entry.get_type() == Category.EXIT:
             exit_port = entry_line.connection.remote_port
             self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
