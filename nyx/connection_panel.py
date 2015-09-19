@@ -270,6 +270,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._scroller = ui_tools.Scroller(True)
     self._entries = []            # last fetched display entries
     self._show_details = False    # presents the details panel if true
+    self._sort_order = CONFIG['features.connection.order']
 
     self._last_update = -1        # time the content was last revised
 
@@ -311,23 +312,15 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
   def show_sort_dialog(self):
     """
-    Provides the sort dialog for our connections.
+    Provides a dialog for sorting our connections.
     """
 
-    # set ordering for connection options
-
-    title_label = 'Connection Ordering:'
-    options = list(SortAttr)
-    old_selection = CONFIG['features.connection.order']
-    option_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, 'white')) for attr in options])
-    results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
+    sort_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, 'white')) for attr in SortAttr])
+    results = nyx.popups.show_sort_dialog('Connection Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
-      nyx_config = conf.get_config('nyx')
-      ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in results]
-      nyx_config.set('features.connection.order', ', '.join(ordering_keys))
-
-      self._entries = sorted(self._entries, key = lambda i: [i.sort_value(attr) for attr in CONFIG['features.connection.order']])
+      self._sort_order = results
+      self._entries = sorted(self._entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
 
   def handle_key(self, key):
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
@@ -744,7 +737,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           exit_port = entry_line.connection.remote_port
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-    self._entries = sorted(new_entries, key = lambda i: [i.sort_value(attr) for attr in CONFIG['features.connection.order']])
+    self._entries = sorted(new_entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
     self._last_resource_fetch = current_resolution_count
 
     if CONFIG['features.connection.resolveApps']:
