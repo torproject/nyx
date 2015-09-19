@@ -235,7 +235,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._show_details = False    # presents the details panel if true
 
     self._last_update = -1        # time the content was last revised
-    self._vals_lock = threading.RLock()
 
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
@@ -282,42 +281,41 @@ class ConnectionPanel(panel.Panel, threading.Thread):
                  set ordering
     """
 
-    with self._vals_lock:
-      if ordering:
-        nyx_config = conf.get_config('nyx')
+    if ordering:
+      nyx_config = conf.get_config('nyx')
 
-        ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in ordering]
-        nyx_config.set('features.connection.order', ', '.join(ordering_keys))
+      ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in ordering]
+      nyx_config.set('features.connection.order', ', '.join(ordering_keys))
 
-      def sort_value(entry, attr):
-        connection_line = entry.get_lines()[0]
+    def sort_value(entry, attr):
+      connection_line = entry.get_lines()[0]
 
-        if attr == SortAttr.IP_ADDRESS:
-          if entry.is_private():
-            return 255 ** 4  # orders at the end
+      if attr == SortAttr.IP_ADDRESS:
+        if entry.is_private():
+          return 255 ** 4  # orders at the end
 
-          ip_value = 0
+        ip_value = 0
 
-          for octet in connection_line.connection.remote_address.split('.'):
-            ip_value = ip_value * 255 + int(octet)
+        for octet in connection_line.connection.remote_address.split('.'):
+          ip_value = ip_value * 255 + int(octet)
 
-          return ip_value * 65536 + connection_line.connection.remote_port
-        elif attr == SortAttr.PORT:
-          return connection_line.connection.remote_port
-        elif attr == SortAttr.FINGERPRINT:
-          return connection_line.fingerprint if connection_line.fingerprint else 'UNKNOWN'
-        elif attr == SortAttr.NICKNAME:
-          return connection_line.nickname if connection_line.nickname else 'z' * 20
-        elif attr == SortAttr.CATEGORY:
-          return Category.index_of(entry.get_type())
-        elif attr == SortAttr.UPTIME:
-          return connection_line.connection.start_time
-        elif attr == SortAttr.COUNTRY:
-          return '' if entry.is_private() else (connection_line.locale if connection_line.locale else '')
-        else:
-          return ''
+        return ip_value * 65536 + connection_line.connection.remote_port
+      elif attr == SortAttr.PORT:
+        return connection_line.connection.remote_port
+      elif attr == SortAttr.FINGERPRINT:
+        return connection_line.fingerprint if connection_line.fingerprint else 'UNKNOWN'
+      elif attr == SortAttr.NICKNAME:
+        return connection_line.nickname if connection_line.nickname else 'z' * 20
+      elif attr == SortAttr.CATEGORY:
+        return Category.index_of(entry.get_type())
+      elif attr == SortAttr.UPTIME:
+        return connection_line.connection.start_time
+      elif attr == SortAttr.COUNTRY:
+        return '' if entry.is_private() else (connection_line.locale if connection_line.locale else '')
+      else:
+        return ''
 
-      self._entries.sort(key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
+    self._entries = sorted(self._entries, key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
 
   def show_sort_dialog(self):
     """
@@ -336,89 +334,89 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.set_sort_order(results)
 
   def handle_key(self, key):
-    with self._vals_lock:
-      user_traffic_allowed = tor_controller().is_user_traffic_allowed()
+    user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
-      if key.is_scroll():
-        page_height = self.get_preferred_size()[0] - 1
+    if key.is_scroll():
+      page_height = self.get_preferred_size()[0] - 1
 
-        if self._show_details:
-          page_height -= (DETAILS_HEIGHT + 1)
+      if self._show_details:
+        page_height -= (DETAILS_HEIGHT + 1)
 
-        lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
-        is_changed = self._scroller.handle_key(key, lines, page_height)
+      lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
+      is_changed = self._scroller.handle_key(key, lines, page_height)
 
-        if is_changed:
-          self.redraw(True)
-      elif key.is_selection():
-        self._show_details = not self._show_details
+      if is_changed:
         self.redraw(True)
-      elif key.match('s'):
-        self.show_sort_dialog()
-      elif key.match('u'):
-        # provides a menu to pick the connection resolver
+    elif key.is_selection():
+      self._show_details = not self._show_details
+      self.redraw(True)
+    elif key.match('s'):
+      self.show_sort_dialog()
+    elif key.match('u'):
+      # provides a menu to pick the connection resolver
 
-        title = 'Resolver Util:'
-        options = ['auto'] + list(connection.Resolver)
-        conn_resolver = nyx.util.tracker.get_connection_tracker()
+      title = 'Resolver Util:'
+      options = ['auto'] + list(connection.Resolver)
+      conn_resolver = nyx.util.tracker.get_connection_tracker()
 
-        current_overwrite = conn_resolver.get_custom_resolver()
+      current_overwrite = conn_resolver.get_custom_resolver()
 
-        if current_overwrite is None:
-          old_selection = 0
-        else:
-          old_selection = options.index(current_overwrite)
-
-        selection = nyx.popups.show_menu(title, options, old_selection)
-
-        # applies new setting
-
-        if selection != -1:
-          selected_option = options[selection] if selection != 0 else None
-          conn_resolver.set_custom_resolver(selected_option)
-      elif key.match('d'):
-        self.set_title_visible(False)
-        self.redraw(True)
-
-        while True:
-          lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
-          selection = self._scroller.get_cursor_selection(lines)
-
-          if not selection:
-            break
-
-          color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
-          is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
-          key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
-
-          if not key or key.is_selection() or key.match('d'):
-            break  # closes popup
-          elif key.match('left'):
-            self.handle_key(panel.KeyInput(curses.KEY_UP))
-          elif key.match('right'):
-            self.handle_key(panel.KeyInput(curses.KEY_DOWN))
-
-        self.set_title_visible(True)
-        self.redraw(True)
-      elif key.match('c') and user_traffic_allowed.inbound:
-        nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
-      elif key.match('e') and user_traffic_allowed.outbound:
-        counts = {}
-        key_width = max(map(len, self._exit_port_usage.keys()))
-
-        for k, v in self._exit_port_usage.items():
-          usage = connection.port_usage(k)
-
-          if usage:
-            k = k.ljust(key_width + 3) + usage.ljust(EXIT_USAGE_WIDTH)
-
-          counts[k] = v
-
-        nyx.popups.show_count_dialog('Exiting Port Usage', counts)
+      if current_overwrite is None:
+        old_selection = 0
       else:
-        return False
+        old_selection = options.index(current_overwrite)
 
-      return True
+      selection = nyx.popups.show_menu(title, options, old_selection)
+
+      # applies new setting
+
+      if selection != -1:
+        selected_option = options[selection] if selection != 0 else None
+        conn_resolver.set_custom_resolver(selected_option)
+    elif key.match('d'):
+      self.set_title_visible(False)
+      self.redraw(True)
+      entries = self._entries
+
+      while True:
+        lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
+        selection = self._scroller.get_cursor_selection(lines)
+
+        if not selection:
+          break
+
+        color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
+        is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+        key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
+
+        if not key or key.is_selection() or key.match('d'):
+          break  # closes popup
+        elif key.match('left'):
+          self.handle_key(panel.KeyInput(curses.KEY_UP))
+        elif key.match('right'):
+          self.handle_key(panel.KeyInput(curses.KEY_DOWN))
+
+      self.set_title_visible(True)
+      self.redraw(True)
+    elif key.match('c') and user_traffic_allowed.inbound:
+      nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
+    elif key.match('e') and user_traffic_allowed.outbound:
+      counts = {}
+      key_width = max(map(len, self._exit_port_usage.keys()))
+
+      for k, v in self._exit_port_usage.items():
+        usage = connection.port_usage(k)
+
+        if usage:
+          k = k.ljust(key_width + 3) + usage.ljust(EXIT_USAGE_WIDTH)
+
+        counts[k] = v
+
+      nyx.popups.show_count_dialog('Exiting Port Usage', counts)
+    else:
+      return False
+
+    return True
 
   def run(self):
     """
@@ -472,41 +470,41 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     return options
 
   def draw(self, width, height):
-    with self._vals_lock:
-      controller = tor_controller()
+    controller = tor_controller()
+    entries = self._entries
 
-      lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
-      selected = self._scroller.get_cursor_selection(lines)
+    lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
+    selected = self._scroller.get_cursor_selection(lines)
 
-      if self.is_paused():
-        current_time = self.get_pause_time()
-      elif not controller.is_alive():
-        current_time = controller.connection_time()
-      else:
-        current_time = time.time()
+    if self.is_paused():
+      current_time = self.get_pause_time()
+    elif not controller.is_alive():
+      current_time = controller.connection_time()
+    else:
+      current_time = time.time()
 
-      is_showing_details = self._show_details and selected
-      details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
+    is_showing_details = self._show_details and selected
+    details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
 
-      is_scrollbar_visible = len(lines) > height - details_offset - 1
-      scroll_offset = 2 if is_scrollbar_visible else 0
-      scroll_location = self._scroller.get_scroll_location(lines, height - details_offset - 1)
+    is_scrollbar_visible = len(lines) > height - details_offset - 1
+    scroll_offset = 2 if is_scrollbar_visible else 0
+    scroll_location = self._scroller.get_scroll_location(lines, height - details_offset - 1)
 
-      if self.is_title_visible():
-        self._draw_title(self._entries, self._show_details)
+    if self.is_title_visible():
+      self._draw_title(entries, self._show_details)
 
-      if is_showing_details:
-        self._draw_details(selected, width, is_scrollbar_visible)
+    if is_showing_details:
+      self._draw_details(selected, width, is_scrollbar_visible)
 
-      if is_scrollbar_visible:
-        self.add_scroll_bar(scroll_location, scroll_location + height - details_offset - 1, len(lines), 1 + details_offset)
+    if is_scrollbar_visible:
+      self.add_scroll_bar(scroll_location, scroll_location + height - details_offset - 1, len(lines), 1 + details_offset)
 
-      for line_number in range(scroll_location, len(lines)):
-        y = line_number + details_offset + 1 - scroll_location
-        self._draw_line(scroll_offset, y, lines[line_number], lines[line_number] == selected, width - scroll_offset, current_time)
+    for line_number in range(scroll_location, len(lines)):
+      y = line_number + details_offset + 1 - scroll_location
+      self._draw_line(scroll_offset, y, lines[line_number], lines[line_number] == selected, width - scroll_offset, current_time)
 
-        if y >= height:
-          break
+      if y >= height:
+        break
 
   def _draw_title(self, entries, showing_details):
     """
@@ -736,25 +734,23 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       if not (circ.status == 'BUILT' and len(circ.path) == 1):
         new_entries.append(Entry.from_circuit(circ))
 
-    with self._vals_lock:
-      # update stats for client and exit connections
-      # TODO: this is counting connections each time they're resolved - totally broken :(
+    # update stats for client and exit connections
+    # TODO: this is counting connections each time they're resolved - totally broken :(
 
-      for entry in new_entries:
-        entry_line = entry.get_lines()[0]
+    for entry in new_entries:
+      entry_line = entry.get_lines()[0]
 
-        if entry.is_private():
-          if entry.get_type() == Category.INBOUND:
-            if entry_line.locale:
-              self._client_locale_usage[entry_line.locale] = self._client_locale_usage.get(entry_line.locale, 0) + 1
-          elif entry.get_type() == Category.EXIT:
-            exit_port = entry_line.connection.remote_port
-            self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
+      if entry.is_private():
+        if entry.get_type() == Category.INBOUND:
+          if entry_line.locale:
+            self._client_locale_usage[entry_line.locale] = self._client_locale_usage.get(entry_line.locale, 0) + 1
+        elif entry.get_type() == Category.EXIT:
+          exit_port = entry_line.connection.remote_port
+          self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-      self._entries = new_entries
-
-      self.set_sort_order()
-      self._last_resource_fetch = current_resolution_count
+    self._entries = new_entries
+    self.set_sort_order()
+    self._last_resource_fetch = current_resolution_count
 
     if CONFIG['features.connection.resolveApps']:
       local_ports, remote_ports = [], []
