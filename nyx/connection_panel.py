@@ -273,12 +273,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self._last_resource_fetch = -1
 
-    # mark the initially exitsing connection uptimes as being estimates
-
-    for entry in self._entries:
-      if isinstance(entry, ConnectionEntry):
-        entry.get_lines()[0].is_initial_connection = True
-
   def set_sort_order(self, ordering = None):
     """
     Sets the connection attributes we're sorting by and resorts the contents.
