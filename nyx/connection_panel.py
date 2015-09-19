@@ -118,6 +118,43 @@ class Entry(object):
 
     raise NotImplementedError('should be implemented by subclasses')
 
+  def sort_value(self, attr):
+    """
+    Provides a heuristic for sorting by a given value.
+
+    :param SortAttr attr: sort attribute to provide a heuristic for
+
+    :returns: comparable value for sorting
+    """
+
+    line = self.get_lines()[0]
+    at_end = 'z' * 20
+
+    if attr == SortAttr.IP_ADDRESS:
+      if self.is_private():
+        return 255 ** 4  # orders at the end
+
+      ip_value = 0
+
+      for octet in line.connection.remote_address.split('.'):
+        ip_value = ip_value * 255 + int(octet)
+
+      return ip_value * 65536 + line.connection.remote_port
+    elif attr == SortAttr.PORT:
+      return line.connection.remote_port
+    elif attr == SortAttr.FINGERPRINT:
+      return line.fingerprint if line.fingerprint else at_end
+    elif attr == SortAttr.NICKNAME:
+      return line.nickname if line.nickname else at_end
+    elif attr == SortAttr.CATEGORY:
+      return Category.index_of(self.get_type())
+    elif attr == SortAttr.UPTIME:
+      return line.connection.start_time
+    elif attr == SortAttr.COUNTRY:
+      return line.locale if (line.locale and not self.is_private()) else at_end
+    else:
+      return ''
+
 
 class ConnectionEntry(Entry):
   def __init__(self, connection):
@@ -272,51 +309,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self._last_resource_fetch = -1
 
-  def set_sort_order(self, ordering = None):
-    """
-    Sets the connection attributes we're sorting by and resorts the contents.
-
-    Arguments:
-      ordering - new ordering, if undefined then this resorts with the last
-                 set ordering
-    """
-
-    if ordering:
-      nyx_config = conf.get_config('nyx')
-
-      ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in ordering]
-      nyx_config.set('features.connection.order', ', '.join(ordering_keys))
-
-    def sort_value(entry, attr):
-      connection_line = entry.get_lines()[0]
-
-      if attr == SortAttr.IP_ADDRESS:
-        if entry.is_private():
-          return 255 ** 4  # orders at the end
-
-        ip_value = 0
-
-        for octet in connection_line.connection.remote_address.split('.'):
-          ip_value = ip_value * 255 + int(octet)
-
-        return ip_value * 65536 + connection_line.connection.remote_port
-      elif attr == SortAttr.PORT:
-        return connection_line.connection.remote_port
-      elif attr == SortAttr.FINGERPRINT:
-        return connection_line.fingerprint if connection_line.fingerprint else 'UNKNOWN'
-      elif attr == SortAttr.NICKNAME:
-        return connection_line.nickname if connection_line.nickname else 'z' * 20
-      elif attr == SortAttr.CATEGORY:
-        return Category.index_of(entry.get_type())
-      elif attr == SortAttr.UPTIME:
-        return connection_line.connection.start_time
-      elif attr == SortAttr.COUNTRY:
-        return '' if entry.is_private() else (connection_line.locale if connection_line.locale else '')
-      else:
-        return ''
-
-    self._entries = sorted(self._entries, key = lambda i: [sort_value(i, attr) for attr in CONFIG['features.connection.order']])
-
   def show_sort_dialog(self):
     """
     Provides the sort dialog for our connections.
@@ -331,7 +323,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
 
     if results:
-      self.set_sort_order(results)
+      nyx_config = conf.get_config('nyx')
+      ordering_keys = [SortAttr.keys()[SortAttr.index_of(v)] for v in results]
+      nyx_config.set('features.connection.order', ', '.join(ordering_keys))
+
+      self._entries = sorted(self._entries, key = lambda i: [i.sort_value(attr) for attr in CONFIG['features.connection.order']])
 
   def handle_key(self, key):
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
@@ -748,8 +744,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           exit_port = entry_line.connection.remote_port
           self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
 
-    self._entries = new_entries
-    self.set_sort_order()
+    self._entries = sorted(new_entries, key = lambda i: [i.sort_value(attr) for attr in CONFIG['features.connection.order']])
     self._last_resource_fetch = current_resolution_count
 
     if CONFIG['features.connection.resolveApps']:
