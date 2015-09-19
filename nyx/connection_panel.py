@@ -16,7 +16,7 @@ import nyx.util.ui_tools
 
 from nyx.util import panel, tor_controller, ui_tools
 
-from stem.control import Listener, State
+from stem.control import Listener
 from stem.util import conf, connection, enum, str_tools
 
 try:
@@ -235,8 +235,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._show_details = False    # presents the details panel if true
 
     self._last_update = -1        # time the content was last revised
-    self._is_tor_running = True   # indicates if tor is currently running or not
-    self._halt_time = None        # time when tor was stopped
     self._vals_lock = threading.RLock()
 
     self._pause_condition = threading.Condition()
@@ -280,27 +278,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     for entry in self._entries:
       if isinstance(entry, ConnectionEntry):
         entry.get_lines()[0].is_initial_connection = True
-
-    # listens for when tor stops so we know to stop reflecting changes
-
-    controller.add_status_listener(self.tor_state_listener)
-
-  def tor_state_listener(self, controller, event_type, _):
-    """
-    Freezes the connection contents when Tor stops.
-    """
-
-    self._is_tor_running = event_type in (State.INIT, State.RESET)
-    self._halt_time = None if self._is_tor_running else time.time()
-    self.redraw(True)
-
-  def get_pause_time(self):
-    """
-    Provides the time Tor stopped if it isn't running. Otherwise this is the
-    time we were last paused.
-    """
-
-    return self._halt_time if self._halt_time else panel.Panel.get_pause_time(self)
 
   def set_sort_order(self, ordering = None):
     """
@@ -457,7 +434,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     last_ran = -1
 
     while not self._halt:
-      if self.is_paused() or not self._is_tor_running or (time.time() - last_ran) < UPDATE_RATE:
+      if self.is_paused() or not tor_controller().is_alive() or (time.time() - last_ran) < UPDATE_RATE:
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(0.2)
@@ -502,9 +479,17 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
   def draw(self, width, height):
     with self._vals_lock:
+      controller = tor_controller()
+
       lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
       selected = self._scroller.get_cursor_selection(lines)
-      current_time = self.get_pause_time() if (self.is_paused() or not self._is_tor_running) else time.time()
+
+      if self.is_paused():
+        current_time = self.get_pause_time()
+      elif not controller.is_alive():
+        current_time = controller.connection_time()
+      else:
+        current_time = time.time()
 
       is_showing_details = self._show_details and selected
       details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
