@@ -341,27 +341,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.redraw(True)
     elif key.match('s'):
       self.show_sort_dialog()
-    elif key.match('u'):
-      # provides a menu to pick the connection resolver
-
-      title = 'Resolver Util:'
+    elif key.match('r'):
+      connection_tracker = nyx.util.tracker.get_connection_tracker()
       options = ['auto'] + list(connection.Resolver)
-      conn_resolver = nyx.util.tracker.get_connection_tracker()
 
-      current_overwrite = conn_resolver.get_custom_resolver()
-
-      if current_overwrite is None:
-        old_selection = 0
-      else:
-        old_selection = options.index(current_overwrite)
-
-      selection = nyx.popups.show_menu(title, options, old_selection)
-
-      # applies new setting
+      resolver = connection_tracker.get_custom_resolver()
+      selected_index = 0 if resolver is None else options.index(resolver)
+      selection = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
 
       if selection != -1:
-        selected_option = options[selection] if selection != 0 else None
-        conn_resolver.set_custom_resolver(selected_option)
+        connection_tracker.set_custom_resolver(None if selection == 0 else options[selection])
     elif key.match('d'):
       self.set_title_visible(False)
       self.redraw(True)
@@ -436,7 +425,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       last_ran = time.time()
 
   def get_help(self):
-    resolver_util = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
+    resolver = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
     options = [
@@ -447,7 +436,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       ('enter', 'show connection details', None),
       ('d', 'raw consensus descriptor', None),
       ('s', 'sort ordering', None),
-      ('u', 'resolving utility', 'auto' if resolver_util is None else resolver_util),
+      ('r', 'connection resolver', 'auto' if resolver is None else resolver),
     ]
 
     if user_traffic_allowed.inbound:
