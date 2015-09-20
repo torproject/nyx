@@ -554,6 +554,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time):
+    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(line.entry.get_type(), 'white'))
+    attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
+
+    self.addstr(y, x, ' ' * (width - x), attr)
+
     if line.line_type == LineType.CIRCUIT:
       if line.circuit.path[-1][0] == line.fingerprint:
         prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
@@ -562,39 +567,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       for char in prefix:
         x = self.addch(y, x, char)
-
-    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(line.entry.get_type(), 'white'))
-    attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
-
-    self.addstr(y, x, ' ' * (width - x), attr)
-
-    if line.line_type != LineType.CIRCUIT:
-      subsection_width = width - x - 19
-
-      time_prefix = '+' if line.connection.is_legacy else ' '
-      time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
-
-      x = self._draw_address_column(x + 1, y, line, attr)
-      self._draw_line_details(x + 2, y, line, subsection_width - x, attr)
-      x = self.addstr(y, subsection_width + 1, time_label, attr)
-      x = self.addstr(y, x, ' (', attr)
-      x = self.addstr(y, x, line.entry.get_type().upper(), attr | curses.A_BOLD)
-      x = self.addstr(y, x, ')', attr)
     else:
-      self._draw_address_column(x, y, line, attr)
-      self._draw_line_details(x + 53, y, line, width - x - 19 - 53, attr)
+      x += 1  # offset from edge
 
-      circ_path = [fp for fp, _ in line.circuit.path]
-      circ_index = circ_path.index(line.fingerprint)
-
-      if circ_index == len(circ_path) - 1:
-        placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
-      elif circ_index == 0:
-        placement_type = 'Guard'
-      else:
-        placement_type = 'Middle'
-
-      self.addstr(y, width - 14, '%i / %s' % (circ_index + 1, placement_type), attr)
+    self._draw_address_column(x, y, line, attr)
+    self._draw_line_details(57, y, line, width - 57 - 20, attr)
+    self._draw_right_column(width - 18, y, line, current_time, attr)
 
   def _draw_address_column(self, x, y, line, attr):
     src = tor_controller().get_info('address', line.connection.local_address)
@@ -618,9 +596,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       dst, src = src, dst
 
     if line.line_type == LineType.CIRCUIT:
-      return self.addstr(y, x, dst, attr)
+      self.addstr(y, x, dst, attr)
     else:
-      return self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), attr)
+      self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), attr)
 
   def _draw_line_details(self, x, y, line, width, attr):
     if line.line_type == LineType.CIRCUIT_HEADER:
@@ -642,6 +620,26 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         x = self.addstr(y, x, entry, attr)
       else:
         return
+
+  def _draw_right_column(self, x, y, line, current_time, attr):
+    if line.line_type == LineType.CIRCUIT:
+      circ_path = [fp for fp, _ in line.circuit.path]
+      circ_index = circ_path.index(line.fingerprint)
+
+      if circ_index == len(circ_path) - 1:
+        placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
+      elif circ_index == 0:
+        placement_type = 'Guard'
+      else:
+        placement_type = 'Middle'
+
+      self.addstr(y, x + 4, '%i / %s' % (circ_index + 1, placement_type), attr)
+    else:
+      x = self.addstr(y, x, '+' if line.connection.is_legacy else ' ', attr)
+      x = self.addstr(y, x, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), attr)
+      x = self.addstr(y, x, ' (', attr)
+      x = self.addstr(y, x, line.entry.get_type().upper(), attr | curses.A_BOLD)
+      x = self.addstr(y, x, ')', attr)
 
   def stop(self):
     """
