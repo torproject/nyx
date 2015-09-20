@@ -169,7 +169,7 @@ class ConnectionEntry(Entry):
 
       if fingerprint:
         nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
-        locale = tor_controller().get_info('ip-to-country/%s' % connection.remote_address, None)
+        locale = tor_controller().get_info('ip-to-country/%s' % self._connection.remote_address, None)
 
     return [Line(self, LineType.CONNECTION, self._connection, None, fingerprint, nickname, locale)]
 
@@ -566,41 +566,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(line.entry.get_type(), 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
 
-    def get_etc_content(line, width):
-      if line.line_type == LineType.CIRCUIT_HEADER:
-        etc_attr = ['Purpose: %s' % line.circuit.purpose.capitalize(), 'Circuit ID: %s' % line.circuit.id]
-
-        for i in range(len(etc_attr), -1, -1):
-          etc_label = ', '.join(etc_attr[:i])
-
-          if width >= len(etc_label):
-            return etc_label
-
-        return ''
-      elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-        # for applications show the command/pid
-
-        try:
-          port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
-          process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
-          display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
-        except nyx.util.tracker.UnresolvedResult:
-          display_label = 'resolving...'
-        except nyx.util.tracker.UnknownApplication:
-          display_label = 'UNKNOWN'
-
-        return display_label if len(display_label) < width else ''
-      else:
-        fingerprint = line.fingerprint if line.fingerprint else 'UNKNOWN'
-        nickname = line.nickname if line.nickname else 'UNKNOWN'
-
-        if width > 52:
-          return '%-40s  %s' % (fingerprint, str_tools.crop(nickname, width - 42, 0))
-        elif width > 42:
-          return fingerprint
-        else:
-          return ''
-
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if line.line_type != LineType.CIRCUIT:
@@ -610,14 +575,14 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
       x = self._draw_address_column(x + 1, y, line, attr)
-      x = self.addstr(y, x + 2, get_etc_content(line, subsection_width - x), attr)
+      self._draw_line_details(x + 2, y, line, subsection_width - x, attr)
       x = self.addstr(y, subsection_width + 1, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
       x = self.addstr(y, x, line.entry.get_type().upper(), attr | curses.A_BOLD)
       x = self.addstr(y, x, ')', attr)
     else:
       self._draw_address_column(x, y, line, attr)
-      self.addstr(y, x + 53, get_etc_content(line, width - x - 19 - 53), attr)
+      self._draw_line_details(x + 53, y, line, width - x - 19 - 53, attr)
 
       circ_path = [fp for fp, _ in line.circuit.path]
       circ_index = circ_path.index(line.fingerprint)
@@ -656,6 +621,27 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       return self.addstr(y, x, dst, attr)
     else:
       return self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), attr)
+
+  def _draw_line_details(self, x, y, line, width, attr):
+    if line.line_type == LineType.CIRCUIT_HEADER:
+      comp = ['Purpose: %s' % line.circuit.purpose.capitalize(), ', Circuit ID: %s' % line.circuit.id]
+    elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+      try:
+        port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
+        process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
+        comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
+      except nyx.util.tracker.UnresolvedResult:
+        comp = ['resolving...']
+      except nyx.util.tracker.UnknownApplication:
+        comp = ['UNKNOWN']
+    else:
+      comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
+
+    for entry in comp:
+      if width >= x + len(entry):
+        x = self.addstr(y, x, entry, attr)
+      else:
+        return
 
   def stop(self):
     """
