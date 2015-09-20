@@ -272,7 +272,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     self._show_details = False    # presents the details panel if true
     self._sort_order = CONFIG['features.connection.order']
 
-    self._last_update = -1        # time the content was last revised
+    self._last_resource_fetch = -1  # timestamp of the last ConnectionResolver results used
 
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
@@ -285,8 +285,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     # If we're a bridge and been running over a day then prepopulates with the
     # last day's clients.
 
-    controller = tor_controller()
-    bridge_clients = controller.get_info('status/clients-seen', None)
+    bridge_clients = tor_controller().get_info('status/clients-seen', None)
 
     if bridge_clients:
       # Response has a couple arguments...
@@ -304,11 +303,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
           if re.match('^..=[0-9]+$', entry):
             locale, count = entry.split('=', 1)
             self._client_locale_usage[locale] = int(count)
-
-    # Last sampling received from the ConnectionResolver, used to detect when
-    # it changes.
-
-    self._last_resource_fetch = -1
 
   def show_sort_dialog(self):
     """
@@ -569,24 +563,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       for char in prefix:
         x = self.addch(y, x, char)
 
-    entry_type = line.entry.get_type()
-    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(entry_type, 'white'))
+    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(line.entry.get_type(), 'white'))
     attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
-
-    def get_destination_label(line, width):
-      output = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
-      output += ':%s' % line.connection.remote_port
-      space_available = width - len(output) - 3
-
-      if line.entry.get_type() == Category.EXIT and space_available >= 5:
-        purpose = connection.port_usage(line.connection.remote_port)
-
-        if purpose:
-          output += ' (%s)' % str_tools.crop(purpose, space_available)
-      elif space_available >= 2 and not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
-        output += ' (%s)' % (line.locale if line.locale else '??')
-
-      return output[:width]
 
     def get_etc_content(line, width):
       if line.line_type == LineType.CIRCUIT_HEADER:
@@ -595,81 +573,53 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         for i in range(len(etc_attr), -1, -1):
           etc_label = ', '.join(etc_attr[:i])
 
-          if len(etc_label) <= width:
+          if width >= len(etc_label):
             return etc_label
 
         return ''
-      else:
+      elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
         # for applications show the command/pid
 
-        if line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+        try:
           port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
+          process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
+          display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
+        except nyx.util.tracker.UnresolvedResult:
+          display_label = 'resolving...'
+        except nyx.util.tracker.UnknownApplication:
+          display_label = 'UNKNOWN'
 
-          try:
-            process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
-            display_label = '%s (%s)' % (process.name, process.pid) if process.pid else process.name
-          except nyx.util.tracker.UnresolvedResult:
-            display_label = 'resolving...'
-          except nyx.util.tracker.UnknownApplication:
-            display_label = 'UNKNOWN'
+        return display_label if len(display_label) < width else ''
+      else:
+        fingerprint = line.fingerprint if line.fingerprint else 'UNKNOWN'
+        nickname = line.nickname if line.nickname else 'UNKNOWN'
 
-          if len(display_label) < width:
-            return display_label
-          else:
-            return ''
-
-        # for everything else display connection/consensus information
-
-        etc, used_space = '', 0
-
-        if width > used_space + 42:
-          # show fingerprint (column width: 42 characters)
-
-          etc += '%-40s  ' % (line.fingerprint if line.fingerprint else 'UNKNOWN')
-          used_space += 42
-
-        if width > used_space + 10:
-          # show nickname (column width: remainder)
-
-          nickname_space = width - used_space
-          nickname_label = str_tools.crop(line.nickname if line.nickname else 'UNKNOWN', nickname_space, 0)
-          etc += ('%%-%is  ' % nickname_space) % nickname_label
-          used_space += nickname_space + 2
-
-        return etc
+        if width > 52:
+          return '%-40s  %s' % (fingerprint, str_tools.crop(nickname, width - 42, 0))
+        elif width > 42:
+          return fingerprint
+        else:
+          return ''
 
     self.addstr(y, x, ' ' * (width - x), attr)
 
     if line.line_type != LineType.CIRCUIT:
       subsection_width = width - x - 19
 
-      include_port = line.line_type != LineType.CIRCUIT_HEADER
-      src = tor_controller().get_info('address', line.connection.local_address)
-      src += ':%s' % line.connection.local_port if include_port else ''
-
-      if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
-        dst = 'Building...'
-      else:
-        dst = get_destination_label(line, 26)
-
-      if entry_type in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
-        dst, src = src, dst
-
       time_prefix = '+' if line.connection.is_legacy else ' '
       time_label = time_prefix + '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1)
 
-      x = self.addstr(y, x + 1, '%-21s  -->  %-26s' % (src, dst), attr)
-      x = self.addstr(y, x + 2, get_etc_content(line, subsection_width - 11 - max(21, len(src)) - max(26, len(dst))), attr)
+      x = self._draw_address_column(x + 1, y, line, attr)
+      x = self.addstr(y, x + 2, get_etc_content(line, subsection_width - x), attr)
       x = self.addstr(y, subsection_width + 1, time_label, attr)
       x = self.addstr(y, x, ' (', attr)
-      x = self.addstr(y, x, entry_type.upper(), attr | curses.A_BOLD)
+      x = self.addstr(y, x, line.entry.get_type().upper(), attr | curses.A_BOLD)
       x = self.addstr(y, x, ')', attr)
     else:
-      self.addstr(y, x, get_destination_label(line, 25), attr)
-      self.addstr(y, x + 25, str_tools.crop(line.nickname if line.nickname else 'UNKNOWN', 25, 0), attr)
+      self._draw_address_column(x, y, line, attr)
       self.addstr(y, x + 53, get_etc_content(line, width - x - 19 - 53), attr)
 
-      circ_path = [path_entry[0] for path_entry in line.circuit.path]
+      circ_path = [fp for fp, _ in line.circuit.path]
       circ_index = circ_path.index(line.fingerprint)
 
       if circ_index == len(circ_path) - 1:
@@ -680,6 +630,32 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         placement_type = 'Middle'
 
       self.addstr(y, width - 14, '%i / %s' % (circ_index + 1, placement_type), attr)
+
+  def _draw_address_column(self, x, y, line, attr):
+    src = tor_controller().get_info('address', line.connection.local_address)
+    src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
+
+    if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
+      dst = 'Building...'
+    else:
+      dst = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
+      dst += ':%s' % line.connection.remote_port
+
+      if line.entry.get_type() == Category.EXIT:
+        purpose = connection.port_usage(line.connection.remote_port)
+
+        if purpose:
+          dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
+      elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
+        dst += ' (%s)' % (line.locale if line.locale else '??')
+
+    if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
+      dst, src = src, dst
+
+    if line.line_type == LineType.CIRCUIT:
+      return self.addstr(y, x, dst, attr)
+    else:
+      return self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), attr)
 
   def stop(self):
     """
