@@ -6,6 +6,7 @@ Background tasks for gathering information about the tor process.
   get_connection_tracker - provides a ConnectionTracker for our tor process
   get_resource_tracker - provides a ResourceTracker for our tor process
   get_port_usage_tracker - provides a PortUsageTracker for our system
+  get_consensus_tracker - provides a ConsensusTracker for our tor process
 
   stop_trackers - halts any active trackers
 
@@ -27,6 +28,12 @@ Background tasks for gathering information about the tor process.
     |- set_paused - pauses or continues work
     +- stop - stops further work by the daemon
 
+  ConsensusTracker - performant lookups for consensus related information
+    |- update - updates the consensus information we're based on
+    |- get_relay_nickname - provides the nickname for a given relay
+    |- get_relay_fingerprints - provides relays running at a location
+    +- get_relay_address - provides the address a relay is running at
+
 .. data:: Resources
 
   Resource usage information retrieved about the tor process.
@@ -43,7 +50,8 @@ import collections
 import time
 import threading
 
-from stem.control import State
+import stem.control
+
 from stem.util import conf, connection, proc, str_tools, system
 
 from nyx.util import log, tor_controller
@@ -57,6 +65,15 @@ CONFIG = conf.config_dict('nyx', {
 CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
 PORT_USAGE_TRACKER = None
+CONSENSUS_TRACKER = None
+
+# Extending stem's Connection tuple with attributes for the uptime of the
+# connection.
+
+Connection = collections.namedtuple('Connection', [
+  'start_time',
+  'is_legacy',  # boolean to indicate if the connection predated us
+] + list(stem.util.connection.Connection._fields))
 
 Resources = collections.namedtuple('Resources', [
   'cpu_sample',
@@ -66,6 +83,19 @@ Resources = collections.namedtuple('Resources', [
   'memory_percent',
   'timestamp',
 ])
+
+Process = collections.namedtuple('Process', [
+  'pid',
+  'name',
+])
+
+
+class UnresolvedResult(Exception):
+  'Indicates the application being used by a port is still being determined.'
+
+
+class UnknownApplication(Exception):
+  'No application could be determined for this port.'
 
 
 def get_connection_tracker():
@@ -77,6 +107,7 @@ def get_connection_tracker():
 
   if CONNECTION_TRACKER is None:
     CONNECTION_TRACKER = ConnectionTracker(CONFIG['queries.connections.rate'])
+    CONNECTION_TRACKER.start()
 
   return CONNECTION_TRACKER
 
@@ -90,6 +121,7 @@ def get_resource_tracker():
 
   if RESOURCE_TRACKER is None:
     RESOURCE_TRACKER = ResourceTracker(CONFIG['queries.resources.rate'])
+    RESOURCE_TRACKER.start()
 
   return RESOURCE_TRACKER
 
@@ -103,8 +135,22 @@ def get_port_usage_tracker():
 
   if PORT_USAGE_TRACKER is None:
     PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['queries.port_usage.rate'])
+    PORT_USAGE_TRACKER.start()
 
   return PORT_USAGE_TRACKER
+
+
+def get_consensus_tracker():
+  """
+  Singleton for tracking the connections established by tor.
+  """
+
+  global CONSENSUS_TRACKER
+
+  if CONSENSUS_TRACKER is None:
+    CONSENSUS_TRACKER = ConsensusTracker()
+
+  return CONSENSUS_TRACKER
 
 
 def stop_trackers():
@@ -115,9 +161,10 @@ def stop_trackers():
   """
 
   def halt_trackers():
-    trackers = filter(lambda t: t.is_alive(), [
-      get_resource_tracker(),
-      get_connection_tracker(),
+    trackers = filter(lambda t: t and t.is_alive(), [
+      CONNECTION_TRACKER,
+      RESOURCE_TRACKER,
+      PORT_USAGE_TRACKER,
     ])
 
     for tracker in trackers:
@@ -213,7 +260,8 @@ def _process_for_ports(local_ports, remote_ports):
   :param list local_ports: local port numbers to look up
   :param list remote_ports: remote port numbers to look up
 
-  :returns: **dict** mapping the ports to the associated process names
+  :returns: **dict** mapping the ports to the associated **Process**, or
+    **None** if it can't be determined
 
   :raises: **IOError** if unsuccessful
   """
@@ -222,12 +270,15 @@ def _process_for_ports(local_ports, remote_ports):
     line_comp = line.split()
 
     if not line:
-      return None, None, None  # blank line
+      return None, None, None, None  # blank line
     elif len(line_comp) != 10:
-      raise ValueError('lines are expected to have ten fields')
+      raise ValueError('lines are expected to have ten fields: %s' % line)
     elif line_comp[9] != '(ESTABLISHED)':
-      return None, None, None  # connection isn't established
+      return None, None, None, None  # connection isn't established
+    elif not line_comp[1].isdigit():
+      raise ValueError('expected the pid (which is the second value) to be an integer: %s' % line)
 
+    pid = int(line_comp[1])
     cmd = line_comp[0]
     port_map = line_comp[8]
 
@@ -247,7 +298,7 @@ def _process_for_ports(local_ports, remote_ports):
     elif not connection.is_valid_port(remote_port):
       raise ValueError("'%s' isn't a valid port" % remote_port)
 
-    return int(local_port), int(remote_port), cmd
+    return int(local_port), int(remote_port), pid, cmd
 
   # atagar@fenrir:~/Desktop/nyx$ lsof -i tcp:51849 -i tcp:37277
   # COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
@@ -256,8 +307,11 @@ def _process_for_ports(local_ports, remote_ports):
   # python  2462 atagar    3u  IPv4  14047      0t0  TCP localhost:37277->localhost:9051 (ESTABLISHED)
   # python  3444 atagar    3u  IPv4  22023      0t0  TCP localhost:51849->localhost:9051 (ESTABLISHED)
 
-  lsof_cmd = 'lsof -nP ' + ' '.join(['-i tcp:%s' % port for port in (local_ports + remote_ports)])
-  lsof_call = system.call(lsof_cmd)
+  try:
+    lsof_cmd = 'lsof -nP ' + ' '.join(['-i tcp:%s' % port for port in (local_ports + remote_ports)])
+    lsof_call = system.call(lsof_cmd)
+  except OSError as exc:
+    raise IOError(exc)
 
   if lsof_call:
     results = {}
@@ -267,14 +321,17 @@ def _process_for_ports(local_ports, remote_ports):
 
     for line in lsof_call:
       try:
-        local_port, remote_port, cmd = _parse_lsof_line(line)
+        local_port, remote_port, pid, cmd = _parse_lsof_line(line)
 
         if local_port in local_ports:
-          results[local_port] = cmd
+          results[local_port] = Process(pid, cmd)
         elif remote_port in remote_ports:
-          results[remote_port] = cmd
+          results[remote_port] = Process(pid, cmd)
       except ValueError as exc:
         raise IOError('unrecognized output from lsof (%s): %s' % (exc, line))
+
+    for unknown_port in set(local_ports).union(remote_ports).difference(results.keys()):
+      results[unknown_port] = None
 
     return results
 
@@ -305,7 +362,7 @@ class Daemon(threading.Thread):
 
     controller = tor_controller()
     controller.add_status_listener(self._tor_status_listener)
-    self._tor_status_listener(controller, State.INIT, None)
+    self._tor_status_listener(controller, stem.control.State.INIT, None)
 
   def run(self):
     while not self._halt:
@@ -393,7 +450,7 @@ class Daemon(threading.Thread):
 
   def _tor_status_listener(self, controller, event_type, _):
     with self._process_lock:
-      if not self._halt and event_type in (State.INIT, State.RESET):
+      if not self._halt and event_type in (stem.control.State.INIT, stem.control.State.RESET):
         tor_pid = controller.get_pid(None)
         tor_cmd = system.name_by_pid(tor_pid) if tor_pid else None
 
@@ -418,8 +475,10 @@ class ConnectionTracker(Daemon):
     super(ConnectionTracker, self).__init__(rate)
 
     self._connections = []
+    self._start_times = {}  # connection => (unix_timestamp, is_legacy)
     self._resolvers = connection.system_resolvers()
     self._custom_resolver = None
+    self._is_first_run = True
 
     # Number of times in a row we've either failed with our current resolver or
     # concluded that our rate is too low.
@@ -439,12 +498,16 @@ class ConnectionTracker(Daemon):
 
     try:
       start_time = time.time()
+      new_connections, new_start_times = [], {}
 
-      self._connections = connection.get_connections(
-        resolver,
-        process_pid = process_pid,
-        process_name = process_name,
-      )
+      for conn in connection.get_connections(resolver, process_pid = process_pid, process_name = process_name):
+        conn_start_time, is_legacy = self._start_times.get(conn, (start_time, self._is_first_run))
+        new_start_times[conn] = (conn_start_time, is_legacy)
+        new_connections.append(Connection(conn_start_time, is_legacy, *conn))
+
+      self._connections = new_connections
+      self._start_times = new_start_times
+      self._is_first_run = False
 
       runtime = time.time() - start_time
 
@@ -516,7 +579,7 @@ class ConnectionTracker(Daemon):
     """
     Provides a listing of tor's latest connections.
 
-    :returns: **list** of :class:`~stem.util.connection.Connection` we last
+    :returns: **list** of :class:`~nyx.util.tracker.Connection` we last
       retrieved, an empty list if our tracker's been stopped
     """
 
@@ -614,29 +677,60 @@ class PortUsageTracker(Daemon):
   def __init__(self, rate):
     super(PortUsageTracker, self).__init__(rate)
 
-    self._last_requested_ports = []
+    self._last_requested_local_ports = []
+    self._last_requested_remote_ports = []
     self._processes_for_ports = {}
     self._failure_count = 0  # number of times in a row we've failed to get results
 
-  def get_processes_using_ports(self, ports):
+  def fetch(self, port):
+    """
+    Provides the process running on the given port. This retrieves the results
+    from our cache, so it only works if we've already issued a query() request
+    for it and gotten results.
+
+    :param int port: port number to look up
+
+    :returns: **Process** using the given port
+
+    :raises:
+      * :class:`nyx.util.tracker.UnresolvedResult` if the application is still
+        being determined
+      * :class:`nyx.util.tracker.UnknownApplication` if the we tried to resolve
+        the application but it couldn't be determined
+    """
+
+    try:
+      result = self._processes_for_ports[port]
+
+      if result is None:
+        raise UnknownApplication()
+      else:
+        return result
+    except KeyError:
+      raise UnresolvedResult()
+
+  def query(self, local_ports, remote_ports):
     """
     Registers a given set of ports for further lookups, and returns the last
     set of 'port => process' mappings we retrieved. Note that this means that
     we will not return the requested ports unless they're requested again after
     a successful lookup has been performed.
 
-    :param list ports: port numbers to look up
+    :param list local_ports: local port numbers to look up
+    :param list remote_ports: remote port numbers to look up
 
-    :returns: **dict** mapping port numbers to the process using it
+    :returns: **dict** mapping port numbers to the **Process** using it
     """
 
-    self._last_requested_ports = ports
+    self._last_requested_local_ports = local_ports
+    self._last_requested_remote_ports = remote_ports
     return self._processes_for_ports
 
   def _task(self, process_pid, process_name):
-    ports = self._last_requested_ports
+    local_ports = self._last_requested_local_ports
+    remote_ports = self._last_requested_remote_ports
 
-    if not ports:
+    if not local_ports and not remote_ports:
       return True
 
     result = {}
@@ -644,12 +738,16 @@ class PortUsageTracker(Daemon):
     # Use cached results from our last lookup if available.
 
     for port, process in self._processes_for_ports.items():
-      if port in ports:
+      if port in local_ports:
         result[port] = process
-        ports.remove(port)
+        local_ports.remove(port)
+      elif port in remote_ports:
+        result[port] = process
+        remote_ports.remove(port)
 
     try:
-      result.update(_process_for_ports(ports, ports))
+      if local_ports or remote_ports:
+        result.update(_process_for_ports(local_ports, remote_ports))
 
       self._processes_for_ports = result
       self._failure_count = 0
@@ -664,3 +762,100 @@ class PortUsageTracker(Daemon):
         log.debug('tracker.unable_to_get_port_usages', exc = exc)
 
       return False
+
+
+class ConsensusTracker(object):
+  """
+  Provides performant lookups of consensus information.
+  """
+
+  def __init__(self):
+    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
+    self._nickname_cache = {}  # fingerprint => nickname lookup cache
+    self._address_cache = {}
+
+    tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+
+  def _new_consensus_event(self, event):
+    self._nickname_cache = {}
+    self.update(event.desc)
+
+  def update(self, router_status_entries):
+    """
+    Updates our cache with the given router status entries.
+
+    :param list router_status_entries: router status entries to populate our cache with
+    """
+
+    new_fingerprint_cache = {}
+    new_address_cache = {}
+
+    for desc in router_status_entries:
+      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+      new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
+
+    self._fingerprint_cache = new_fingerprint_cache
+    self._address_cache = new_address_cache
+
+  def get_relay_nickname(self, fingerprint):
+    """
+    Provides the nickname associated with the given relay.
+
+    :param str fingerprint: relay to look up
+
+    :returns: **str** with the nickname ("Unnamed" if unset), and **None** if
+      no such relay exists
+    """
+
+    controller = tor_controller()
+
+    if fingerprint and fingerprint not in self._nickname_cache:
+      if fingerprint == controller.get_info('fingerprint', None):
+        self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
+      else:
+        ns_entry = controller.get_network_status(fingerprint, None)
+
+        if ns_entry:
+          self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
+
+    return self._nickname_cache.get(fingerprint)
+
+  def get_relay_fingerprints(self, address):
+    """
+    Provides the relays running at a given location.
+
+    :param str address: address to be checked
+
+    :returns: **dict** of ORPorts to their fingerprint
+    """
+
+    controller = tor_controller()
+
+    if address == controller.get_info('address', None):
+      fingerprint = controller.get_info('fingerprint', None)
+      ports = controller.get_ports(stem.control.Listener.OR, None)
+
+      if fingerprint and ports:
+        return dict([(port, fingerprint) for port in ports])
+
+    return dict([(port, fp) for (port, fp) in self._fingerprint_cache.get(address, [])])
+
+  def get_relay_address(self, fingerprint, default):
+    """
+    Provides the (address, port) tuple where a relay is running.
+
+    :param str fingerprint: fingerprint to be checked
+
+    :returns: **tuple** with a **str** address and **int** port
+    """
+
+    controller = tor_controller()
+
+    if fingerprint == controller.get_info('fingerprint', None):
+      my_address = controller.get_info('address', None)
+      my_or_ports = controller.get_ports(stem.control.Listener.OR, [])
+
+      if my_address and len(my_or_ports) == 1:
+        return (my_address, my_or_ports[0])
+
+    return self._address_cache.get(fingerprint, default)

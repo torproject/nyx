@@ -54,9 +54,7 @@ def main():
   if stem.util.test_tools.is_pep8_available():
     pep8_issues = stem.util.test_tools.stylistic_issues(
       SRC_PATHS,
-      check_two_space_indents = True,
       check_newlines = True,
-      check_trailing_whitespace = True,
       check_exception_keyword = True,
       prefer_single_quotes = True,
     )

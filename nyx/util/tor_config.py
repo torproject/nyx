@@ -149,170 +149,168 @@ def load_option_descriptions(load_path = None, check_version = True):
                    match the cached descriptors, otherwise accepts anyway
   """
 
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-  CONFIG_DESCRIPTIONS.clear()
+  with CONFIG_DESCRIPTIONS_LOCK:
+    CONFIG_DESCRIPTIONS.clear()
 
-  raised_exc = None
-  loaded_version = ''
+    raised_exc = None
+    loaded_version = ''
 
-  try:
-    if load_path:
-      # Input file is expected to be of the form:
-      # <option>
-      # <arg description>
-      # <description, possibly multiple lines>
-      # <PERSIST_ENTRY_DIVIDER>
-      input_file = open(load_path, 'r')
-      input_file_contents = input_file.readlines()
-      input_file.close()
+    try:
+      if load_path:
+        # Input file is expected to be of the form:
+        # <option>
+        # <arg description>
+        # <description, possibly multiple lines>
+        # <PERSIST_ENTRY_DIVIDER>
+        input_file = open(load_path, 'r')
+        input_file_contents = input_file.readlines()
+        input_file.close()
 
-      try:
-        version_line = input_file_contents.pop(0).rstrip()
+        try:
+          version_line = input_file_contents.pop(0).rstrip()
 
-        if version_line.startswith('Tor Version '):
-          file_version = version_line[12:]
-          loaded_version = file_version
-          tor_version = tor_controller().get_info('version', '')
+          if version_line.startswith('Tor Version '):
+            file_version = version_line[12:]
+            loaded_version = file_version
+            tor_version = tor_controller().get_info('version', '')
 
-          if check_version and file_version != tor_version:
-            msg = "wrong version, tor is %s but the file's from %s" % (tor_version, file_version)
-            raise IOError(msg)
-        else:
-          raise IOError('unable to parse version')
-
-        while input_file_contents:
-          # gets category enum, failing if it doesn't exist
-          category = input_file_contents.pop(0).rstrip()
-
-          if category not in Category:
-            base_msg = "invalid category in input file: '%s'"
-            raise IOError(base_msg % category)
-
-          # gets the position in the man page
-          index_arg, index_str = -1, input_file_contents.pop(0).rstrip()
-
-          if index_str.startswith('index: '):
-            index_str = index_str[7:]
-
-            if index_str.isdigit():
-              index_arg = int(index_str)
-            else:
-              raise IOError('non-numeric index value: %s' % index_str)
+            if check_version and file_version != tor_version:
+              msg = "wrong version, tor is %s but the file's from %s" % (tor_version, file_version)
+              raise IOError(msg)
           else:
-            raise IOError('malformed index argument: %s' % index_str)
+            raise IOError('unable to parse version')
 
-          option = input_file_contents.pop(0).rstrip()
-          argument = input_file_contents.pop(0).rstrip()
+          while input_file_contents:
+            # gets category enum, failing if it doesn't exist
+            category = input_file_contents.pop(0).rstrip()
 
-          description, loaded_line = '', input_file_contents.pop(0)
+            if category not in Category:
+              base_msg = "invalid category in input file: '%s'"
+              raise IOError(base_msg % category)
 
-          while loaded_line != PERSIST_ENTRY_DIVIDER:
-            description += loaded_line
+            # gets the position in the man page
+            index_arg, index_str = -1, input_file_contents.pop(0).rstrip()
 
-            if input_file_contents:
-              loaded_line = input_file_contents.pop(0)
+            if index_str.startswith('index: '):
+              index_str = index_str[7:]
+
+              if index_str.isdigit():
+                index_arg = int(index_str)
+              else:
+                raise IOError('non-numeric index value: %s' % index_str)
             else:
-              break
+              raise IOError('malformed index argument: %s' % index_str)
 
-          CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(option, index_arg, category, argument, description.rstrip())
-      except IndexError:
-        CONFIG_DESCRIPTIONS.clear()
-        raise IOError('input file format is invalid')
-    else:
-      man_call_results = system.call('man tor', None)
+            option = input_file_contents.pop(0).rstrip()
+            argument = input_file_contents.pop(0).rstrip()
 
-      if not man_call_results:
-        raise IOError('man page not found')
+            description, loaded_line = '', input_file_contents.pop(0)
 
-      # Fetches all options available with this tor instance. This isn't
-      # vital, and the valid_options are left empty if the call fails.
+            while loaded_line != PERSIST_ENTRY_DIVIDER:
+              description += loaded_line
 
-      controller, valid_options = tor_controller(), []
-      config_option_query = controller.get_info('config/names', None)
+              if input_file_contents:
+                loaded_line = input_file_contents.pop(0)
+              else:
+                break
 
-      if config_option_query:
-        for line in config_option_query.strip().split('\n'):
-          valid_options.append(line[:line.find(' ')].lower())
+            CONFIG_DESCRIPTIONS[option.lower()] = ManPageEntry(option, index_arg, category, argument, description.rstrip())
+        except IndexError:
+          CONFIG_DESCRIPTIONS.clear()
+          raise IOError('input file format is invalid')
+      else:
+        man_call_results = system.call('man tor', None)
 
-      option_count, last_option, last_arg = 0, None, None
-      last_category, last_description = Category.GENERAL, ''
+        if not man_call_results:
+          raise IOError('man page not found')
 
-      for line in man_call_results:
-        line = codecs.latin_1_encode(line, 'replace')[0]
-        line = ui_tools.get_printable(line)
-        stripped_line = line.strip()
+        # Fetches all options available with this tor instance. This isn't
+        # vital, and the valid_options are left empty if the call fails.
 
-        # we have content, but an indent less than an option (ignore line)
-        # if stripped_line and not line.startswith(' ' * MAN_OPT_INDENT): continue
+        controller, valid_options = tor_controller(), []
+        config_option_query = controller.get_info('config/names', None)
 
-        # line starts with an indent equivilant to a new config option
+        if config_option_query:
+          for line in config_option_query.strip().split('\n'):
+            valid_options.append(line[:line.find(' ')].lower())
 
-        is_opt_indent = line.startswith(' ' * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != ' '
+        option_count, last_option, last_arg = 0, None, None
+        last_category, last_description = Category.GENERAL, ''
 
-        is_category_line = not line.startswith(' ') and 'OPTIONS' in line
+        for line in man_call_results:
+          line = codecs.latin_1_encode(line, 'replace')[0]
+          line = ui_tools.get_printable(line)
+          stripped_line = line.strip()
 
-        # if this is a category header or a new option, add an entry using the
-        # buffered results
+          # we have content, but an indent less than an option (ignore line)
+          # if stripped_line and not line.startswith(' ' * MAN_OPT_INDENT): continue
 
-        if is_opt_indent or is_category_line:
-          # Filters the line based on if the option is recognized by tor or
-          # not. This isn't necessary for nyx, so if unable to make the check
-          # then we skip filtering (no loss, the map will just have some extra
-          # noise).
+          # line starts with an indent equivilant to a new config option
 
-          stripped_description = last_description.strip()
+          is_opt_indent = line.startswith(' ' * MAN_OPT_INDENT) and line[MAN_OPT_INDENT] != ' '
 
-          if last_option and (not valid_options or last_option.lower() in valid_options):
-            CONFIG_DESCRIPTIONS[last_option.lower()] = ManPageEntry(last_option, option_count, last_category, last_arg, stripped_description)
-            option_count += 1
+          is_category_line = not line.startswith(' ') and 'OPTIONS' in line
 
-          last_description = ''
+          # if this is a category header or a new option, add an entry using the
+          # buffered results
 
-          # parses the option and argument
+          if is_opt_indent or is_category_line:
+            # Filters the line based on if the option is recognized by tor or
+            # not. This isn't necessary for nyx, so if unable to make the check
+            # then we skip filtering (no loss, the map will just have some extra
+            # noise).
 
-          line = line.strip()
-          div_index = line.find(' ')
+            stripped_description = last_description.strip()
 
-          if div_index != -1:
-            last_option, last_arg = line[:div_index], line[div_index + 1:]
+            if last_option and (not valid_options or last_option.lower() in valid_options):
+              CONFIG_DESCRIPTIONS[last_option.lower()] = ManPageEntry(last_option, option_count, last_category, last_arg, stripped_description)
+              option_count += 1
 
-          # if this is a category header then switch it
+            last_description = ''
 
-          if is_category_line:
-            if line.startswith('OPTIONS'):
-              last_category = Category.GENERAL
-            elif line.startswith('CLIENT'):
-              last_category = Category.CLIENT
-            elif line.startswith('SERVER'):
-              last_category = Category.RELAY
-            elif line.startswith('DIRECTORY SERVER'):
-              last_category = Category.DIRECTORY
-            elif line.startswith('DIRECTORY AUTHORITY SERVER'):
-              last_category = Category.AUTHORITY
-            elif line.startswith('HIDDEN SERVICE'):
-              last_category = Category.HIDDEN_SERVICE
-            elif line.startswith('TESTING NETWORK'):
-              last_category = Category.TESTING
-            else:
-              log.notice('Unrecognized category in the man page: %s' % line.strip())
-        else:
-          # Appends the text to the running description. Empty lines and lines
-          # starting with a specific indentation are used for formatting, for
-          # instance the ExitPolicy and TestingTorNetwork entries.
+            # parses the option and argument
 
-          if last_description and last_description[-1] != '\n':
-            last_description += ' '
+            line = line.strip()
+            div_index = line.find(' ')
 
-          if not stripped_line:
-            last_description += '\n\n'
-          elif line.startswith(' ' * MAN_EX_INDENT):
-            last_description += '    %s\n' % stripped_line
+            if div_index != -1:
+              last_option, last_arg = line[:div_index], line[div_index + 1:]
+
+            # if this is a category header then switch it
+
+            if is_category_line:
+              if line.startswith('OPTIONS'):
+                last_category = Category.GENERAL
+              elif line.startswith('CLIENT'):
+                last_category = Category.CLIENT
+              elif line.startswith('SERVER'):
+                last_category = Category.RELAY
+              elif line.startswith('DIRECTORY SERVER'):
+                last_category = Category.DIRECTORY
+              elif line.startswith('DIRECTORY AUTHORITY SERVER'):
+                last_category = Category.AUTHORITY
+              elif line.startswith('HIDDEN SERVICE'):
+                last_category = Category.HIDDEN_SERVICE
+              elif line.startswith('TESTING NETWORK'):
+                last_category = Category.TESTING
+              else:
+                log.notice('Unrecognized category in the man page: %s' % line.strip())
           else:
-            last_description += stripped_line
-  except IOError as exc:
-    raised_exc = exc
+            # Appends the text to the running description. Empty lines and lines
+            # starting with a specific indentation are used for formatting, for
+            # instance the ExitPolicy and TestingTorNetwork entries.
 
-  CONFIG_DESCRIPTIONS_LOCK.release()
+            if last_description and last_description[-1] != '\n':
+              last_description += ' '
+
+            if not stripped_line:
+              last_description += '\n\n'
+            elif line.startswith(' ' * MAN_EX_INDENT):
+              last_description += '    %s\n' % stripped_line
+            else:
+              last_description += stripped_line
+    except IOError as exc:
+      raised_exc = exc
 
   if raised_exc:
     raise raised_exc
@@ -338,22 +336,21 @@ def save_option_descriptions(path):
 
   output_file = open(path, 'w')
 
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-  sorted_options = CONFIG_DESCRIPTIONS.keys()
-  sorted_options.sort()
+  with CONFIG_DESCRIPTIONS_LOCK:
+    sorted_options = CONFIG_DESCRIPTIONS.keys()
+    sorted_options.sort()
 
-  tor_version = tor_controller().get_info('version', '')
-  output_file.write('Tor Version %s\n' % tor_version)
+    tor_version = tor_controller().get_info('version', '')
+    output_file.write('Tor Version %s\n' % tor_version)
 
-  for i in range(len(sorted_options)):
-    man_entry = get_config_description(sorted_options[i])
-    output_file.write('%s\nindex: %i\n%s\n%s\n%s\n' % (man_entry.category, man_entry.index, man_entry.option, man_entry.arg_usage, man_entry.description))
+    for i in range(len(sorted_options)):
+      man_entry = get_config_description(sorted_options[i])
+      output_file.write('%s\nindex: %i\n%s\n%s\n%s\n' % (man_entry.category, man_entry.index, man_entry.option, man_entry.arg_usage, man_entry.description))
 
-    if i != len(sorted_options) - 1:
-      output_file.write(PERSIST_ENTRY_DIVIDER)
+      if i != len(sorted_options) - 1:
+        output_file.write(PERSIST_ENTRY_DIVIDER)
 
-  output_file.close()
-  CONFIG_DESCRIPTIONS_LOCK.release()
+    output_file.close()
 
 
 def get_config_summary(option):
@@ -391,15 +388,11 @@ def get_config_description(option):
     option - tor config option
   """
 
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-
-  if option.lower() in CONFIG_DESCRIPTIONS:
-    return_val = CONFIG_DESCRIPTIONS[option.lower()]
-  else:
-    return_val = None
-
-  CONFIG_DESCRIPTIONS_LOCK.release()
-  return return_val
+  with CONFIG_DESCRIPTIONS_LOCK:
+    if option.lower() in CONFIG_DESCRIPTIONS:
+      return CONFIG_DESCRIPTIONS[option.lower()]
+    else:
+      return None
 
 
 def get_config_options():
@@ -408,12 +401,8 @@ def get_config_options():
   list if no man page has been loaded.
   """
 
-  CONFIG_DESCRIPTIONS_LOCK.acquire()
-
-  return_val = [CONFIG_DESCRIPTIONS[opt].option for opt in CONFIG_DESCRIPTIONS]
-
-  CONFIG_DESCRIPTIONS_LOCK.release()
-  return return_val
+  with CONFIG_DESCRIPTIONS_LOCK:
+    return [CONFIG_DESCRIPTIONS[opt].option for opt in CONFIG_DESCRIPTIONS]
 
 
 def get_config_location():
@@ -833,7 +822,7 @@ class Torrc():
   def __init__(self):
     self.contents = None
     self.config_location = None
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
 
     # cached results for the current contents
     self.displayable_contents = None
@@ -853,28 +842,24 @@ class Torrc():
                    warning for this before then logs a warning
     """
 
-    self.vals_lock.acquire()
+    with self._vals_lock:
+      # clears contents and caches
+      self.contents, self.config_location = None, None
+      self.displayable_contents = None
+      self.stripped_contents = None
+      self.corrections = None
 
-    # clears contents and caches
-    self.contents, self.config_location = None, None
-    self.displayable_contents = None
-    self.stripped_contents = None
-    self.corrections = None
+      try:
+        self.config_location = get_config_location()
+        config_file = open(self.config_location, 'r')
+        self.contents = config_file.readlines()
+        config_file.close()
+      except IOError as exc:
+        if log_failure and not self.is_foad_fail_warned:
+          log.warn('Unable to load torrc (%s)' % exc.strerror)
+          self.is_foad_fail_warned = True
 
-    try:
-      self.config_location = get_config_location()
-      config_file = open(self.config_location, 'r')
-      self.contents = config_file.readlines()
-      config_file.close()
-    except IOError as exc:
-      if log_failure and not self.is_foad_fail_warned:
-        log.warn('Unable to load torrc (%s)' % exc.strerror)
-        self.is_foad_fail_warned = True
-
-      self.vals_lock.release()
-      raise exc
-
-    self.vals_lock.release()
+        raise exc
 
   def is_loaded(self):
     """
@@ -896,10 +881,8 @@ class Torrc():
     Provides the contents of the configuration file.
     """
 
-    self.vals_lock.acquire()
-    return_val = list(self.contents) if self.contents else None
-    self.vals_lock.release()
-    return return_val
+    with self._vals_lock:
+      return list(self.contents) if self.contents else None
 
   def get_display_contents(self, strip = False):
     """
@@ -914,31 +897,27 @@ class Torrc():
       strip - removes comments and extra whitespace if true
     """
 
-    self.vals_lock.acquire()
-
-    if not self.is_loaded():
-      return_val = None
-    else:
-      if self.displayable_contents is None:
-        # restricts contents to displayable characters
-        self.displayable_contents = []
-
-        for line_number in range(len(self.contents)):
-          line_text = self.contents[line_number]
-          line_text = line_text.replace('\t', '   ')
-          line_text = ui_tools.get_printable(line_text)
-          self.displayable_contents.append(line_text)
-
-      if strip:
-        if self.stripped_contents is None:
-          self.stripped_contents = _strip_comments(self.displayable_contents)
-
-        return_val = list(self.stripped_contents)
+    with self._vals_lock:
+      if not self.is_loaded():
+        return None
       else:
-        return_val = list(self.displayable_contents)
+        if self.displayable_contents is None:
+          # restricts contents to displayable characters
+          self.displayable_contents = []
 
-    self.vals_lock.release()
-    return return_val
+          for line_number in range(len(self.contents)):
+            line_text = self.contents[line_number]
+            line_text = line_text.replace('\t', '   ')
+            line_text = ui_tools.get_printable(line_text)
+            self.displayable_contents.append(line_text)
+
+        if strip:
+          if self.stripped_contents is None:
+            self.stripped_contents = _strip_comments(self.displayable_contents)
+
+          return list(self.stripped_contents)
+        else:
+          return list(self.displayable_contents)
 
   def get_corrections(self):
     """
@@ -947,33 +926,29 @@ class Torrc():
     results.
     """
 
-    self.vals_lock.acquire()
-
-    if not self.is_loaded():
-      return_val = None
-    else:
-      tor_version = tor_controller().get_version(None)
-      skip_validation = not CONFIG['features.torrc.validate']
-      skip_validation |= (tor_version is None or not tor_version >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
-
-      if skip_validation:
-        log.info('Skipping torrc validation (requires tor 0.2.2.7-alpha)')
-        return_val = {}
+    with self._vals_lock:
+      if not self.is_loaded():
+        return None
       else:
-        if self.corrections is None:
-          self.corrections = validate(self.contents)
+        tor_version = tor_controller().get_version(None)
+        skip_validation = not CONFIG['features.torrc.validate']
+        skip_validation |= (tor_version is None or not tor_version >= stem.version.Requirement.GETINFO_CONFIG_TEXT)
 
-        return_val = list(self.corrections)
+        if skip_validation:
+          log.info('Skipping torrc validation (requires tor 0.2.2.7-alpha)')
+          return {}
+        else:
+          if self.corrections is None:
+            self.corrections = validate(self.contents)
 
-    self.vals_lock.release()
-    return return_val
+          return list(self.corrections)
 
   def get_lock(self):
     """
     Provides the lock governing concurrent access to the contents.
     """
 
-    return self.vals_lock
+    return self._vals_lock
 
   def log_validation_issues(self):
     """

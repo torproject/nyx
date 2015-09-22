@@ -225,7 +225,7 @@ class ConfigPanel(panel.Panel):
     self.conf_contents = []
     self.conf_important_contents = []
     self.scroller = ui_tools.Scroller(True)
-    self.vals_lock = threading.RLock()
+    self._vals_lock = threading.RLock()
 
     # shows all configuration options if true, otherwise only the ones with
     # the 'important' flag are shown
@@ -332,14 +332,12 @@ class ConfigPanel(panel.Panel):
                  set ordering
     """
 
-    self.vals_lock.acquire()
+    with self._vals_lock:
+      if ordering:
+        CONFIG['features.config.order'] = ordering
 
-    if ordering:
-      CONFIG['features.config.order'] = ordering
-
-    self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
-    self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
-    self.vals_lock.release()
+      self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
+      self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
 
   def show_sort_dialog(self):
     """
@@ -360,7 +358,7 @@ class ConfigPanel(panel.Panel):
       self.set_sort_order(result_enums)
 
   def handle_key(self, key):
-    with self.vals_lock:
+    with self._vals_lock:
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - 1
         detail_panel_height = CONFIG['features.config.selectionDetails.height']
@@ -573,78 +571,75 @@ class ConfigPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    self.vals_lock.acquire()
+    with self._vals_lock:
+      # panel with details for the current selection
 
-    # panel with details for the current selection
+      detail_panel_height = CONFIG['features.config.selectionDetails.height']
+      is_scrollbar_visible = False
 
-    detail_panel_height = CONFIG['features.config.selectionDetails.height']
-    is_scrollbar_visible = False
+      if detail_panel_height == 0 or detail_panel_height + 2 >= height:
+        # no detail panel
 
-    if detail_panel_height == 0 or detail_panel_height + 2 >= height:
-      # no detail panel
+        detail_panel_height = 0
+        scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1)
+        cursor_selection = self.get_selection()
+        is_scrollbar_visible = len(self._get_config_options()) > height - 1
+      else:
+        # Shrink detail panel if there isn't sufficient room for the whole
+        # thing. The extra line is for the bottom border.
 
-      detail_panel_height = 0
-      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1)
-      cursor_selection = self.get_selection()
-      is_scrollbar_visible = len(self._get_config_options()) > height - 1
-    else:
-      # Shrink detail panel if there isn't sufficient room for the whole
-      # thing. The extra line is for the bottom border.
+        detail_panel_height = min(height - 1, detail_panel_height + 1)
+        scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1 - detail_panel_height)
+        cursor_selection = self.get_selection()
+        is_scrollbar_visible = len(self._get_config_options()) > height - detail_panel_height - 1
 
-      detail_panel_height = min(height - 1, detail_panel_height + 1)
-      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1 - detail_panel_height)
-      cursor_selection = self.get_selection()
-      is_scrollbar_visible = len(self._get_config_options()) > height - detail_panel_height - 1
+        if cursor_selection is not None:
+          self._draw_selection_panel(cursor_selection, width, detail_panel_height, is_scrollbar_visible)
 
-      if cursor_selection is not None:
-        self._draw_selection_panel(cursor_selection, width, detail_panel_height, is_scrollbar_visible)
+      # draws the top label
 
-    # draws the top label
+      if self.is_title_visible():
+        config_type = 'Tor' if self.config_type == State.TOR else 'Arm'
+        hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
+        title_label = '%s Configuration (%s):' % (config_type, hidden_msg)
+        self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
-    if self.is_title_visible():
-      config_type = 'Tor' if self.config_type == State.TOR else 'Arm'
-      hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
-      title_label = '%s Configuration (%s):' % (config_type, hidden_msg)
-      self.addstr(0, 0, title_label, curses.A_STANDOUT)
+      # draws left-hand scroll bar if content's longer than the height
 
-    # draws left-hand scroll bar if content's longer than the height
+      scroll_offset = 1
 
-    scroll_offset = 1
+      if is_scrollbar_visible:
+        scroll_offset = 3
+        self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_height - 1, len(self._get_config_options()), 1 + detail_panel_height)
 
-    if is_scrollbar_visible:
-      scroll_offset = 3
-      self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_height - 1, len(self._get_config_options()), 1 + detail_panel_height)
+      option_width = CONFIG['features.config.state.colWidth.option']
+      value_width = CONFIG['features.config.state.colWidth.value']
+      description_width = max(0, width - scroll_offset - option_width - value_width - 2)
 
-    option_width = CONFIG['features.config.state.colWidth.option']
-    value_width = CONFIG['features.config.state.colWidth.value']
-    description_width = max(0, width - scroll_offset - option_width - value_width - 2)
+      # if the description column is overly long then use its space for the
+      # value instead
 
-    # if the description column is overly long then use its space for the
-    # value instead
+      if description_width > 80:
+        value_width += description_width - 80
+        description_width = 80
 
-    if description_width > 80:
-      value_width += description_width - 80
-      description_width = 80
+      for line_number in range(scroll_location, len(self._get_config_options())):
+        entry = self._get_config_options()[line_number]
+        draw_line = line_number + detail_panel_height + 1 - scroll_location
 
-    for line_number in range(scroll_location, len(self._get_config_options())):
-      entry = self._get_config_options()[line_number]
-      draw_line = line_number + detail_panel_height + 1 - scroll_location
+        line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
 
-      line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
+        if entry.get(Field.CATEGORY):
+          line_format += [CATEGORY_COLOR[entry.get(Field.CATEGORY)]]
 
-      if entry.get(Field.CATEGORY):
-        line_format += [CATEGORY_COLOR[entry.get(Field.CATEGORY)]]
+        if entry == cursor_selection:
+          line_format += [curses.A_STANDOUT]
 
-      if entry == cursor_selection:
-        line_format += [curses.A_STANDOUT]
+        line_text = entry.get_label(option_width, value_width, description_width)
+        self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
-      line_text = entry.get_label(option_width, value_width, description_width)
-      self.addstr(draw_line, scroll_offset, line_text, *line_format)
-
-      if draw_line >= height:
-        break
-
-    self.vals_lock.release()
+        if draw_line >= height:
+          break
 
   def _get_config_options(self):
     return self.conf_contents if self.show_all else self.conf_important_contents

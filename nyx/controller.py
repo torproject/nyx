@@ -16,7 +16,7 @@ import nyx.log_panel
 import nyx.config_panel
 import nyx.torrc_panel
 import nyx.graph_panel
-import nyx.connections.conn_panel
+import nyx.connection_panel
 import nyx.util.tracker
 
 import stem
@@ -113,7 +113,7 @@ def init_controller(stdscr, start_time):
 
   # second page: connections
   if CONFIG['features.panels.show.connection']:
-    page_panels.append([nyx.connections.conn_panel.ConnectionPanel(stdscr)])
+    page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
 
     # The DisableDebuggerAttachment will prevent our connection panel from really
     # functioning. It'll have circuits, but little else. If this is the case then
@@ -141,7 +141,6 @@ def init_controller(stdscr, start_time):
 
         resolver = nyx.util.tracker.get_connection_tracker()
         log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
-        resolver.start()
       else:
         # constructs singleton resolver and, if tor isn't connected, initizes
         # it to be paused

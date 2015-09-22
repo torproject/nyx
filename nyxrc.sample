@@ -176,14 +176,6 @@ features.graph.bw.accounting.show true
 
 # Parameters for connection display
 # ---------------------------------
-# listingType
-#   the primary category of information shown by default, options including:
-#
-#   * IP_ADDRESS
-#   * HOSTNAME
-#   * FINGERPRINT
-#   * NICKNAME
-#
 # order
 #   three comma separated configuration attributes, options including:
 #
@@ -197,37 +189,16 @@ features.graph.bw.accounting.show true
 #   * NICKNAME
 #   * COUNTRY
 #
-# refreshRate
-#   rate at which the connection panel contents is redrawn (if higher than the
-#   connection resolution rate then reducing this won't casue new data to
-#   appear more frequently - just increase the rate at which the uptime field
-#   is updated)
 # resolveApps
 #   issues lsof queries to determining the applications involved in local
 #   SOCKS and CONTROL connections
-# markInitialConnections
-#   if true, the uptime of the initial connections when we start are marked
-#   with a '+' (these uptimes are estimates since nyx can only track a
-#   connection's duration while it runs)
 # showIps
 #   shows ip addresses for other tor relays, dropping this information if
 #   false
-# showExitPort
-#   shows port related information of exit connections we relay if true
-# showColumn.*
-#   toggles the visability of the connection table columns
 
-features.connection.listingType IP_ADDRESS
 features.connection.order CATEGORY, LISTING, UPTIME
-features.connection.refreshRate 5
 features.connection.resolveApps true
-features.connection.markInitialConnections true
 features.connection.showIps true
-features.connection.showExitPort true
-features.connection.showColumn.fingerprint true
-features.connection.showColumn.nickname true
-features.connection.showColumn.destination true
-features.connection.showColumn.expandedIp true
 
 # Caching parameters
 cache.logPanel.size 1000

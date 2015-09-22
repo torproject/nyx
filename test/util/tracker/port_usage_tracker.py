@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from nyx.util.tracker import PortUsageTracker, _process_for_ports
+from nyx.util.tracker import Process, PortUsageTracker, _process_for_ports
 
 from mock import Mock, patch
 
@@ -47,10 +47,10 @@ class TestPortUsageTracker(unittest.TestCase):
   @patch('nyx.util.tracker.system.call', Mock(return_value = LSOF_OUTPUT.split('\n')))
   def test_process_for_ports(self):
     self.assertEqual({}, _process_for_ports([], []))
-    self.assertEqual({}, _process_for_ports([80, 443], []))
-    self.assertEqual({}, _process_for_ports([], [80, 443]))
+    self.assertEqual({80: None, 443: None}, _process_for_ports([80, 443], []))
+    self.assertEqual({80: None, 443: None}, _process_for_ports([], [80, 443]))
 
-    self.assertEqual({37277: 'python', 51849: 'tor'}, _process_for_ports([37277], [51849]))
+    self.assertEqual({37277: Process(2462, 'python'), 51849: Process(2001, 'tor')}, _process_for_ports([37277], [51849]))
 
   @patch('nyx.util.tracker.system.call')
   def test_process_for_ports_malformed(self, call_mock):
@@ -63,7 +63,7 @@ class TestPortUsageTracker(unittest.TestCase):
 
     for test_input in test_inputs:
       call_mock.return_value = test_input.split('\n')
-      self.assertEqual({}, _process_for_ports([80], [443]))
+      self.assertEqual({80: None, 443: None}, _process_for_ports([80], [443]))
 
     # Isuses that are reported as errors.
 
@@ -91,10 +91,10 @@ class TestPortUsageTracker(unittest.TestCase):
     with PortUsageTracker(0.02) as daemon:
       time.sleep(0.01)
 
-      self.assertEqual({}, daemon.get_processes_using_ports([37277, 51849]))
+      self.assertEqual({}, daemon.query([37277, 51849], []))
       time.sleep(0.04)
 
-      self.assertEqual({37277: 'python', 51849: 'tor'}, daemon.get_processes_using_ports([37277, 51849]))
+      self.assertEqual({37277: 'python', 51849: 'tor'}, daemon.query([37277, 51849], []))
 
   @patch('nyx.util.tracker.tor_controller')
   @patch('nyx.util.tracker._process_for_ports')
@@ -110,7 +110,7 @@ class TestPortUsageTracker(unittest.TestCase):
       time.sleep(0.05)
       self.assertEqual(0, daemon._failure_count)
 
-      daemon.get_processes_using_ports([37277, 51849])
+      daemon.query([37277, 51849], [])
       time.sleep(0.03)
       self.assertTrue(daemon.is_alive())
       time.sleep(0.1)
