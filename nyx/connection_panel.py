@@ -74,10 +74,6 @@ CONFIG = conf.config_dict('nyx', {
 }, conf_handler)
 
 
-def to_unix_time(dt):
-  return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
-
-
 class Entry(object):
   @staticmethod
   @lru_cache()
@@ -243,7 +239,8 @@ class CircuitEntry(Entry):
         nickname = consensus_tracker.get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % address, None)
 
-      connection = nyx.util.tracker.Connection(to_unix_time(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp')
+      created_timestamp = (self._circuit.created - datetime.datetime(1970, 1, 1)).total_seconds()
+      connection = nyx.util.tracker.Connection(created_timestamp, False, '127.0.0.1', 0, address, port, 'tcp')
       return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
 
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
@@ -281,6 +278,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     self._client_locale_usage = {}
     self._exit_port_usage = {}
+    self._counted_connections = set()
 
     # If we're a bridge and been running over a day then prepopulates with the
     # last day's clients.
@@ -673,18 +671,17 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         new_entries.append(Entry.from_circuit(circ))
 
     # update stats for client and exit connections
-    # TODO: this is counting connections each time they're resolved - totally broken :(
 
     for entry in new_entries:
-      entry_line = entry.get_lines()[0]
+      line = entry.get_lines()[0]
 
-      if entry.is_private():
-        if entry.get_type() == Category.INBOUND:
-          if entry_line.locale:
-            self._client_locale_usage[entry_line.locale] = self._client_locale_usage.get(entry_line.locale, 0) + 1
+      if entry.is_private() and line.connection not in self._counted_connections:
+        if entry.get_type() == Category.INBOUND and line.locale:
+          self._client_locale_usage[line.locale] = self._client_locale_usage.get(line.locale, 0) + 1
         elif entry.get_type() == Category.EXIT:
-          exit_port = entry_line.connection.remote_port
-          self._exit_port_usage[exit_port] = self._exit_port_usage.get(exit_port, 0) + 1
+          self._exit_port_usage[line.connection.remote_port] = self._exit_port_usage.get(line.connection.remote_port, 0) + 1
+
+        self._counted_connections.add(line.connection)
 
     self._entries = sorted(new_entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
     self._last_resource_fetch = current_resolution_count
