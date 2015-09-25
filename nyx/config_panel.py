@@ -15,12 +15,6 @@ import stem.control
 
 from stem.util import conf, enum, str_tools
 
-# TODO: The nyx use cases are incomplete since they currently can't be
-# modified, have their descriptions fetched, or even get a complete listing
-# of what's available.
-
-State = enum.Enum('TOR', 'NYX')  # state to be presented
-
 # mappings of option categories to the color for their entries
 
 CATEGORY_COLOR = {
@@ -218,10 +212,9 @@ class ConfigPanel(panel.Panel):
   be selected and edited.
   """
 
-  def __init__(self, stdscr, config_type):
+  def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
-    self.config_type = config_type
     self.conf_contents = []
     self.conf_important_contents = []
     self.scroller = ui_tools.Scroller(True)
@@ -255,39 +248,30 @@ class ConfigPanel(panel.Panel):
     self.conf_contents = []
     self.conf_important_contents = []
 
-    if self.config_type == State.TOR:
-      controller, config_option_lines = tor_controller(), []
-      custom_options = tor_config.get_custom_options()
-      config_option_query = controller.get_info('config/names', None)
+    controller, config_option_lines = tor_controller(), []
+    custom_options = tor_config.get_custom_options()
+    config_option_query = controller.get_info('config/names', None)
 
-      if config_option_query:
-        config_option_lines = config_option_query.strip().split('\n')
+    if config_option_query:
+      config_option_lines = config_option_query.strip().split('\n')
 
-      for line in config_option_lines:
-        # lines are of the form "<option> <type>[ <documentation>]", like:
-        # UseEntryGuards Boolean
-        # documentation is aparently only in older versions (for instance,
-        # 0.2.1.25)
+    for line in config_option_lines:
+      # lines are of the form "<option> <type>[ <documentation>]", like:
+      # UseEntryGuards Boolean
+      # documentation is aparently only in older versions (for instance,
+      # 0.2.1.25)
 
-        line_comp = line.strip().split(' ')
-        conf_option, conf_type = line_comp[0], line_comp[1]
+      line_comp = line.strip().split(' ')
+      conf_option, conf_type = line_comp[0], line_comp[1]
 
-        # skips private and virtual entries if not configured to show them
+      # skips private and virtual entries if not configured to show them
 
-        if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
-          continue
-        elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
-          continue
+      if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
+        continue
+      elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
+        continue
 
-        self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
-
-    elif self.config_type == State.NYX:
-      # loaded via the conf utility
-
-      nyx_config = conf.get_config('nyx')
-
-      for key in nyx_config.keys():
-        pass  # TODO: implement
+      self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
 
     # mirror listing with only the important configuration options
 
@@ -599,9 +583,8 @@ class ConfigPanel(panel.Panel):
       # draws the top label
 
       if self.is_title_visible():
-        config_type = 'Tor' if self.config_type == State.TOR else 'Arm'
         hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
-        title_label = '%s Configuration (%s):' % (config_type, hidden_msg)
+        title_label = 'Tor Configuration (%s):' % hidden_msg
         self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
       # draws left-hand scroll bar if content's longer than the height
