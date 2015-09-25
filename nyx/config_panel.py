@@ -11,8 +11,7 @@ import nyx.popups
 
 from nyx.util import panel, tor_config, tor_controller, ui_tools
 
-import stem.control
-
+from stem.control import State
 from stem.util import conf, enum, str_tools
 
 # attributes of a ConfigEntry
@@ -60,31 +59,24 @@ class ConfigEntry():
   """
 
   def __init__(self, option, type, is_default):
-    self.fields = {}
-    self.fields[Field.OPTION] = option
-    self.fields[Field.TYPE] = type
-    self.fields[Field.IS_DEFAULT] = is_default
-
-    # Fetches extra infromation from external sources (the nyx config and tor
-    # man page). These are None if unavailable for this config option.
-
-    summary = tor_config.get_config_summary(option)
     man_entry = tor_config.get_config_description(option)
 
-    if man_entry:
-      self.fields[Field.MAN_ENTRY] = man_entry.index
-      self.fields[Field.CATEGORY] = man_entry.category
-      self.fields[Field.ARG_USAGE] = man_entry.arg_usage
-      self.fields[Field.DESCRIPTION] = man_entry.description
-    else:
-      self.fields[Field.MAN_ENTRY] = 99999  # sorts non-man entries last
-      self.fields[Field.CATEGORY] = tor_config.Category.UNKNOWN
-      self.fields[Field.ARG_USAGE] = ''
-      self.fields[Field.DESCRIPTION] = ''
+    self.fields = {
+      Field.OPTION: option,
+      Field.TYPE: type,
+      Field.IS_DEFAULT: is_default,
+      Field.SUMMARY: tor_config.get_config_summary(option),
+
+      Field.MAN_ENTRY: man_entry.index if man_entry else 99999,  # sorts non-man entries last
+      Field.CATEGORY: man_entry.category if man_entry else tor_config.Category.UNKNOWN,
+      Field.ARG_USAGE: man_entry.arg_usage if man_entry else '',
+      Field.DESCRIPTION: man_entry.description if man_entry else '',
+    }
 
     # uses the full man page description if a summary is unavailable
 
-    self.fields[Field.SUMMARY] = summary if summary is not None else self.fields[Field.DESCRIPTION]
+    if self.fields[Field.SUMMARY] is None:
+      self.fields[Field.SUMMARY] = self.fields[Field.DESCRIPTION]
 
     # cache of what's displayed for this configuration option
 
@@ -99,10 +91,7 @@ class ConfigEntry():
       field - enum for the field to be provided back
     """
 
-    if field == Field.VALUE:
-      return self._get_value()
-    else:
-      return self.fields[field]
+    return self._get_value() if field == Field.VALUE else self.fields[field]
 
   def get_all(self, fields):
     """
@@ -191,19 +180,14 @@ class ConfigPanel(panel.Panel):
 
     self.show_all = False
 
-    # initializes config contents if we're connected
-
-    controller = tor_controller()
-    controller.add_status_listener(self.reset_listener)
-
-    if controller.is_alive():
-      self.reset_listener(None, stem.control.State.INIT, None)
+    tor_controller().add_status_listener(self.reset_listener)
+    self._load_config_options()
 
   def reset_listener(self, controller, event_type, _):
     # fetches configuration options if a new instance, otherewise keeps our
     # current contents
 
-    if event_type == stem.control.State.INIT:
+    if event_type == State.INIT:
       self._load_config_options()
 
   def _load_config_options(self):
@@ -214,30 +198,29 @@ class ConfigPanel(panel.Panel):
     self.conf_contents = []
     self.conf_important_contents = []
 
-    controller, config_option_lines = tor_controller(), []
     custom_options = tor_config.get_custom_options()
-    config_option_query = controller.get_info('config/names', None)
+    config_names = tor_controller().get_info('config/names', None)
 
-    if config_option_query:
-      config_option_lines = config_option_query.strip().split('\n')
+    if config_names:
+      config_option_lines = config_names.strip().split('\n')
 
-    for line in config_option_lines:
-      # lines are of the form "<option> <type>[ <documentation>]", like:
-      # UseEntryGuards Boolean
-      # documentation is aparently only in older versions (for instance,
-      # 0.2.1.25)
+      for line in config_option_lines:
+        # lines are of the form "<option> <type>[ <documentation>]", like:
+        # UseEntryGuards Boolean
+        # documentation is aparently only in older versions (for instance,
+        # 0.2.1.25)
 
-      line_comp = line.strip().split(' ')
-      conf_option, conf_type = line_comp[0], line_comp[1]
+        line_comp = line.strip().split(' ')
+        conf_option, conf_type = line_comp[0], line_comp[1]
 
-      # skips private and virtual entries if not configured to show them
+        # skips private and virtual entries if not configured to show them
 
-      if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
-        continue
-      elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
-        continue
+        if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
+          continue
+        elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
+          continue
 
-      self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
+        self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
 
     # mirror listing with only the important configuration options
 
@@ -326,11 +309,7 @@ class ConfigPanel(panel.Panel):
           selection = self.get_selection()
           config_option = selection.get(Field.OPTION)
 
-          if selection.is_unset():
-            initial_value = ''
-          else:
-            initial_value = selection.get(Field.VALUE)
-
+          initial_value = '' if selection.is_unset() else selection.get(Field.VALUE)
           prompt_msg = '%s Value (esc to cancel): ' % config_option
           is_prepopulated = CONFIG['features.config.prepopulateEditValues']
           new_value = nyx.popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
@@ -462,9 +441,9 @@ class ConfigPanel(panel.Panel):
             break
 
           selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-          popup.addstr(height - 2, draw_x, '[')
-          popup.addstr(height - 2, draw_x + 1, option_label, selection_format, curses.A_BOLD)
-          popup.addstr(height - 2, draw_x + len(option_label) + 1, ']')
+          x = popup.addstr(height - 2, draw_x, '[')
+          x = popup.addstr(height - 2, x, option_label, selection_format, curses.A_BOLD)
+          popup.addstr(height - 2, x, ']')
 
           draw_x -= 1  # space gap between the options
 
@@ -615,11 +594,11 @@ class ConfigPanel(panel.Panel):
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
 
     if detail_panel_height >= 3:
-      value_attr = []
-      value_attr.append('default' if selection.get(Field.IS_DEFAULT) else 'custom')
-      value_attr.append(selection.get(Field.TYPE))
-      value_attr.append('usage: %s' % (selection.get(Field.ARG_USAGE)))
-      value_attr_label = ', '.join(value_attr)
+      value_attr_label = ', '.join([
+        'default' if selection.get(Field.IS_DEFAULT) else 'custom',
+        selection.get(Field.TYPE),
+        'usage: %s' % (selection.get(Field.ARG_USAGE))
+      ])
 
       value_label_width = width - 12 - len(value_attr_label)
       value_label = str_tools.crop(selection.get(Field.VALUE), value_label_width)
