@@ -88,15 +88,15 @@ features.log.maxRefreshRate 300
 # order
 #   three comma separated configuration attributes, options including:
 #
-#     * CATEGORY
-#     * OPTION
-#     * VALUE
-#     * TYPE
-#     * ARG_USAGE
-#     * SUMMARY
-#     * DESCRIPTION
-#     * MAN_ENTRY
-#     * IS_DEFAULT
+#     * Category
+#     * Option Name
+#     * Value
+#     * Arg Type
+#     * Arg Usage
+#     * Summary
+#     * Description
+#     * Man Page Entry
+#     * Is Default
 #
 # selectionDetails.height
 #   rows of data for the panel showing details on the current selection, this
@@ -117,7 +117,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.order MAN_ENTRY, OPTION, IS_DEFAULT
+features.config.order Man Page Entry, Option Name, Is Default
 features.config.selectionDetails.height 6
 features.config.prepopulateEditValues true
 features.config.state.colWidth.option 25

@@ -15,44 +15,19 @@ import stem.control
 
 from stem.util import conf, enum, str_tools
 
-# mappings of option categories to the color for their entries
-
-CATEGORY_COLOR = {
-  tor_config.Category.GENERAL: 'green',
-  tor_config.Category.CLIENT: 'blue',
-  tor_config.Category.RELAY: 'yellow',
-  tor_config.Category.DIRECTORY: 'magenta',
-  tor_config.Category.AUTHORITY: 'red',
-  tor_config.Category.HIDDEN_SERVICE: 'cyan',
-  tor_config.Category.TESTING: 'white',
-  tor_config.Category.UNKNOWN: 'white',
-}
-
 # attributes of a ConfigEntry
 
 Field = enum.Enum(
-  'CATEGORY',
-  'OPTION',
-  'VALUE',
-  'TYPE',
-  'ARG_USAGE',
-  'SUMMARY',
-  'DESCRIPTION',
-  'MAN_ENTRY',
-  'IS_DEFAULT',
+  ('CATEGORY', 'Category'),
+  ('OPTION', 'Option Name'),
+  ('VALUE', 'Value'),
+  ('TYPE', 'Arg Type'),
+  ('ARG_USAGE', 'Arg Usage'),
+  ('SUMMARY', 'Summary'),
+  ('DESCRIPTION', 'Description'),
+  ('MAN_ENTRY', 'Man Page Entry'),
+  ('IS_DEFAULT', 'Is Default'),
 )
-
-FIELD_ATTR = {
-  Field.CATEGORY: ('Category', 'red'),
-  Field.OPTION: ('Option Name', 'blue'),
-  Field.VALUE: ('Value', 'cyan'),
-  Field.TYPE: ('Arg Type', 'green'),
-  Field.ARG_USAGE: ('Arg Usage', 'yellow'),
-  Field.SUMMARY: ('Summary', 'green'),
-  Field.DESCRIPTION: ('Description', 'white'),
-  Field.MAN_ENTRY: ('Man Page Entry', 'blue'),
-  Field.IS_DEFAULT: ('Is Default', 'magenta'),
-}
 
 
 def conf_handler(key, value):
@@ -67,6 +42,8 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
+  'attr.config.category_color': {},
+  'attr.config.field_color': {},
   'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
   'features.config.selectionDetails.height': 6,
   'features.config.prepopulateEditValues': True,
@@ -75,17 +52,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.config.state.colWidth.option': 25,
   'features.config.state.colWidth.value': 15,
 }, conf_handler)
-
-
-def get_field_from_label(field_label):
-  """
-  Converts field labels back to their enumeration, raising a ValueError if it
-  doesn't exist.
-  """
-
-  for entry_enum in FIELD_ATTR:
-    if field_label == FIELD_ATTR[entry_enum][0]:
-      return entry_enum
 
 
 class ConfigEntry():
@@ -331,15 +297,12 @@ class ConfigPanel(panel.Panel):
     # set ordering for config options
 
     title_label = 'Config Option Ordering:'
-    options = [FIELD_ATTR[field][0] for field in Field]
-    old_selection = [FIELD_ATTR[field][0] for field in CONFIG['features.config.order']]
-    option_colors = dict([FIELD_ATTR[field] for field in Field])
-    results = nyx.popups.show_sort_dialog(title_label, options, old_selection, option_colors)
+    old_selection = CONFIG['features.config.order']
+    option_colors = dict([(field, CONFIG['attr.config.field_color'].get(field, 'white')) for field in Field])
+    results = nyx.popups.show_sort_dialog(title_label, Field, old_selection, option_colors)
 
     if results:
-      # converts labels back to enums
-      result_enums = [get_field_from_label(label) for label in results]
-      self.set_sort_order(result_enums)
+      self.set_sort_order(results)
 
   def handle_key(self, key):
     with self._vals_lock:
@@ -613,7 +576,7 @@ class ConfigPanel(panel.Panel):
         line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
 
         if entry.get(Field.CATEGORY):
-          line_format += [CATEGORY_COLOR[entry.get(Field.CATEGORY)]]
+          line_format += [CONFIG['attr.config.category_color'].get(entry.get(Field.CATEGORY), 'white')]
 
         if entry == cursor_selection:
           line_format += [curses.A_STANDOUT]
@@ -640,7 +603,7 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = (curses.A_BOLD, CATEGORY_COLOR[selection.get(Field.CATEGORY)])
+    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.get(Field.CATEGORY), 'white'))
 
     # first entry:
     # <option> (<category> Option)
