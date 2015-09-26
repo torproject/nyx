@@ -119,14 +119,12 @@ class ConfigEntry():
 
     return self.label_cache
 
-  def is_unset(self):
+  def is_set(self):
     """
-    True if we have no value, false otherwise.
+    True if we have a custom value, false otherwise.
     """
 
-    conf_value = tor_controller().get_conf(self.get(Field.OPTION), [], True)
-
-    return not bool(conf_value)
+    return bool(tor_controller().get_conf(self.get(Field.OPTION), [], True))
 
   def _get_value(self):
     """
@@ -299,7 +297,7 @@ class ConfigPanel(panel.Panel):
           selection = self.get_selection()
           config_option = selection.get(Field.OPTION)
 
-          initial_value = '' if selection.is_unset() else selection.get(Field.VALUE)
+          initial_value = '' if not selection.is_set() else selection.get(Field.VALUE)
           prompt_msg = '%s Value (esc to cancel): ' % config_option
           is_prepopulated = CONFIG['features.config.prepopulateEditValues']
           new_value = nyx.popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
