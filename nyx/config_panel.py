@@ -93,16 +93,6 @@ class ConfigEntry():
 
     return self._get_value() if field == Field.VALUE else self.fields[field]
 
-  def get_all(self, fields):
-    """
-    Provides back a list with the given field values.
-
-    Arguments:
-      field - enums for the fields to be provided back
-    """
-
-    return [self.get(field) for field in fields]
-
   def get_label(self, option_width, value_width, summary_width):
     """
     Provides display string of the configuration entry with the given
@@ -269,8 +259,8 @@ class ConfigPanel(panel.Panel):
       if ordering:
         CONFIG['features.config.order'] = ordering
 
-      self.conf_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
-      self.conf_important_contents.sort(key=lambda i: (i.get_all(CONFIG['features.config.order'])))
+      self.conf_contents.sort(key=lambda i: ([i.get(field) for field in CONFIG['features.config.order']]))
+      self.conf_important_contents.sort(key=lambda i: ([i.get(field) for field in CONFIG['features.config.order']]))
 
   def show_sort_dialog(self):
     """
