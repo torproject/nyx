@@ -162,6 +162,7 @@ class ConfigPanel(panel.Panel):
     self.conf_important_contents = []
     self.scroller = ui_tools.Scroller(True)
     self._vals_lock = threading.RLock()
+    self._sort_order = CONFIG['features.config.order']
 
     # shows all configuration options if true, otherwise only the ones with
     # the 'important' flag are shown
@@ -212,18 +213,15 @@ class ConfigPanel(panel.Panel):
 
     # mirror listing with only the important configuration options
 
-    self.conf_important_contents = []
-
-    for entry in self.conf_contents:
-      if tor_config.is_important(entry.get(Field.OPTION)):
-        self.conf_important_contents.append(entry)
+    self.conf_important_contents = filter(lambda entry: tor_config.is_important(entry.get(Field.OPTION)), self.conf_contents)
 
     # if there aren't any important options then show everything
 
     if not self.conf_important_contents:
       self.conf_important_contents = self.conf_contents
 
-    self.set_sort_order()  # initial sorting of the contents
+    self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
+    self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
 
   def get_selection(self):
     """
@@ -243,37 +241,18 @@ class ConfigPanel(panel.Panel):
 
     self.show_all = not is_filtered
 
-  def set_sort_order(self, ordering = None):
-    """
-    Sets the configuration attributes we're sorting by and resorts the
-    contents.
-
-    Arguments:
-      ordering - new ordering, if undefined then this resorts with the last
-                 set ordering
-    """
-
-    with self._vals_lock:
-      if ordering:
-        CONFIG['features.config.order'] = ordering
-
-      self.conf_contents.sort(key=lambda i: ([i.get(field) for field in CONFIG['features.config.order']]))
-      self.conf_important_contents.sort(key=lambda i: ([i.get(field) for field in CONFIG['features.config.order']]))
-
   def show_sort_dialog(self):
     """
-    Provides the sort dialog for our configuration options.
+    Provides the dialog for sorting our configuration options.
     """
 
-    # set ordering for config options
-
-    title_label = 'Config Option Ordering:'
-    old_selection = CONFIG['features.config.order']
-    option_colors = dict([(field, CONFIG['attr.config.field_color'].get(field, 'white')) for field in Field])
-    results = nyx.popups.show_sort_dialog(title_label, Field, old_selection, option_colors)
+    sort_colors = dict([(field, CONFIG['attr.config.field_color'].get(field, 'white')) for field in Field])
+    results = nyx.popups.show_sort_dialog('Config Option Ordering:', Field, self._sort_order, sort_colors)
 
     if results:
-      self.set_sort_order(results)
+      self._sort_order = results
+      self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
+      self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
 
   def handle_key(self, key):
     with self._vals_lock:
