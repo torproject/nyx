@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from nyx.util.log import LogEntry, read_tor_log
+from nyx.util.log import read_tor_log
 
 
 def data_path(filename):
@@ -13,16 +13,16 @@ class TestReadTorLog(unittest.TestCase):
     entries = list(read_tor_log(data_path('tor_log')))
     self.assertEqual(21, len(entries))
 
-    self.assertEqual(LogEntry(1333738426, 'NOTICE', 'Interrupt: exiting cleanly.'), entries[0])
-    self.assertEqual(LogEntry(1333735419, 'NOTICE', 'Tor 0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) opening new log file.'), entries[-1])
+    self.assertEqual('Interrupt: exiting cleanly.', entries[0].message)
+    self.assertEqual('Tor 0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) opening new log file.', entries[-1].message)
 
   def test_with_multiple_tor_instances(self):
     entries = list(read_tor_log(data_path('multiple_tor_instances')))
     self.assertEqual(12, len(entries))
 
-    self.assertEqual(LogEntry(1333738434, 'DEBUG', 'parse_dir_authority_line(): Trusted 100 dirserver at 128.31.0.39:9131 (9695)'), entries[0])
-    self.assertEqual(LogEntry(1333738434, 'INFO', 'tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"'), entries[1])
-    self.assertEqual(LogEntry(1333738434, 'NOTICE', 'Tor 0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) opening log file.'), entries[-1])
+    self.assertEqual('parse_dir_authority_line(): Trusted 100 dirserver at 128.31.0.39:9131 (9695)', entries[0].message)
+    self.assertEqual('tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"', entries[1].message)
+    self.assertEqual('Tor 0.2.7.0-alpha-dev (git-4247ce99e5d9b7b2) opening log file.', entries[-1].message)
 
   def test_with_read_limit(self):
     entries = list(read_tor_log(data_path('tor_log'), 5))
