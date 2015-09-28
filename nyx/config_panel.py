@@ -191,9 +191,7 @@ class ConfigPanel(panel.Panel):
     config_names = tor_controller().get_info('config/names', None)
 
     if config_names:
-      config_option_lines = config_names.strip().split('\n')
-
-      for line in config_option_lines:
+      for line in config_names.strip().split('\n'):
         # lines are of the form "<option> <type>[ <documentation>]", like:
         # UseEntryGuards Boolean
         # documentation is aparently only in older versions (for instance,
@@ -229,17 +227,6 @@ class ConfigPanel(panel.Panel):
     """
 
     return self.scroller.get_cursor_selection(self._get_config_options())
-
-  def set_filtering(self, is_filtered):
-    """
-    Sets if configuration options are filtered or not.
-
-    Arguments:
-      is_filtered - if true then only relatively important options will be
-                   shown, otherwise everything is shown
-    """
-
-    self.show_all = not is_filtered
 
   def show_sort_dialog(self):
     """
