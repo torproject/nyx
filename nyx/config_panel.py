@@ -58,13 +58,12 @@ class ConfigEntry():
   Configuration option in the panel.
   """
 
-  def __init__(self, option, type, is_default):
+  def __init__(self, option, entry_type):
     man_entry = tor_config.get_config_description(option)
 
     self.fields = {
       Field.OPTION: option,
-      Field.TYPE: type,
-      Field.IS_DEFAULT: is_default,
+      Field.TYPE: entry_type,
       Field.SUMMARY: tor_config.get_config_summary(option),
 
       Field.MAN_ENTRY: man_entry.index if man_entry else 99999,  # sorts non-man entries last
@@ -90,6 +89,9 @@ class ConfigEntry():
     Arguments:
       field - enum for the field to be provided back
     """
+
+    if field == Field.IS_DEFAULT:
+      return not self.is_set()
 
     return self._get_value() if field == Field.VALUE else self.fields[field]
 
@@ -187,7 +189,6 @@ class ConfigPanel(panel.Panel):
     self.conf_contents = []
     self.conf_important_contents = []
 
-    custom_options = tor_config.get_custom_options()
     config_names = tor_controller().get_info('config/names', None)
 
     if config_names:
@@ -207,7 +208,7 @@ class ConfigPanel(panel.Panel):
         elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
           continue
 
-        self.conf_contents.append(ConfigEntry(conf_option, conf_type, conf_option not in custom_options))
+        self.conf_contents.append(ConfigEntry(conf_option, conf_type))
 
     # mirror listing with only the important configuration options
 
@@ -286,11 +287,6 @@ class ConfigPanel(panel.Panel):
               # forces the label to be remade with the new value
 
               selection.label_cache = None
-
-              # resets the is_default flag
-
-              custom_options = tor_config.get_custom_options()
-              selection.fields[Field.IS_DEFAULT] = config_option not in custom_options
 
               self.redraw(True)
             except Exception as exc:
@@ -506,7 +502,7 @@ class ConfigPanel(panel.Panel):
         entry = self._get_config_options()[line_number]
         draw_line = line_number + detail_panel_height + 1 - scroll_location
 
-        line_format = [curses.A_NORMAL if entry.get(Field.IS_DEFAULT) else curses.A_BOLD]
+        line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
 
         if entry.get(Field.CATEGORY):
           line_format += [CONFIG['attr.config.category_color'].get(entry.get(Field.CATEGORY), 'white')]
@@ -549,7 +545,7 @@ class ConfigPanel(panel.Panel):
 
     if detail_panel_height >= 3:
       value_attr_label = ', '.join([
-        'default' if selection.get(Field.IS_DEFAULT) else 'custom',
+        'custom' if selection.is_set() else 'default',
         selection.get(Field.TYPE),
         'usage: %s' % (selection.get(Field.ARG_USAGE))
       ])
