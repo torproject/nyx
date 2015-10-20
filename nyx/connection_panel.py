@@ -6,7 +6,6 @@ import re
 import time
 import collections
 import curses
-import datetime
 import itertools
 import threading
 
@@ -17,7 +16,7 @@ import nyx.util.ui_tools
 from nyx.util import panel, tor_controller, ui_tools
 
 from stem.control import Listener
-from stem.util import conf, connection, enum, str_tools
+from stem.util import datetime_to_unix, conf, connection, enum, str_tools
 
 try:
   # added in python 3.2
@@ -239,8 +238,7 @@ class CircuitEntry(Entry):
         nickname = consensus_tracker.get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % address, None)
 
-      created_timestamp = (self._circuit.created - datetime.datetime(1970, 1, 1)).total_seconds()
-      connection = nyx.util.tracker.Connection(created_timestamp, False, '127.0.0.1', 0, address, port, 'tcp')
+      connection = nyx.util.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp')
       return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
 
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
