@@ -28,15 +28,13 @@ Field = enum.Enum(
   ('IS_DEFAULT', 'Is Default'),
 )
 
+DETAILS_HEIGHT = 6
+OPTION_WIDTH = 25
+VALUE_WIDTH = 15
+
 
 def conf_handler(key, value):
-  if key == 'features.config.selectionDetails.height':
-    return max(0, value)
-  elif key == 'features.config.state.colWidth.option':
-    return max(5, value)
-  elif key == 'features.config.state.colWidth.value':
-    return max(5, value)
-  elif key == 'features.config.order':
+  if key == 'features.config.order':
     return conf.parse_enum_csv(key, value[0], Field, 3)
 
 
@@ -44,12 +42,8 @@ CONFIG = conf.config_dict('nyx', {
   'attr.config.category_color': {},
   'attr.config.field_color': {},
   'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
-  'features.config.selectionDetails.height': 6,
-  'features.config.prepopulateEditValues': True,
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
-  'features.config.state.colWidth.option': 25,
-  'features.config.state.colWidth.value': 15,
 }, conf_handler)
 
 
@@ -245,12 +239,7 @@ class ConfigPanel(panel.Panel):
   def handle_key(self, key):
     with self._vals_lock:
       if key.is_scroll():
-        page_height = self.get_preferred_size()[0] - 1
-        detail_panel_height = CONFIG['features.config.selectionDetails.height']
-
-        if detail_panel_height > 0 and detail_panel_height + 2 <= page_height:
-          page_height -= (detail_panel_height + 1)
-
+        page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
         is_changed = self.scroller.handle_key(key, self._get_config_options(), page_height)
 
         if is_changed:
@@ -266,8 +255,7 @@ class ConfigPanel(panel.Panel):
 
           initial_value = '' if not selection.is_set() else selection.get(Field.VALUE)
           prompt_msg = '%s Value (esc to cancel): ' % config_option
-          is_prepopulated = CONFIG['features.config.prepopulateEditValues']
-          new_value = nyx.popups.input_prompt(prompt_msg, initial_value if is_prepopulated else '')
+          new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
 
           if new_value is not None and new_value != initial_value:
             try:
@@ -450,27 +438,17 @@ class ConfigPanel(panel.Panel):
     with self._vals_lock:
       # panel with details for the current selection
 
-      detail_panel_height = CONFIG['features.config.selectionDetails.height']
       is_scrollbar_visible = False
 
-      if detail_panel_height == 0 or detail_panel_height + 2 >= height:
-        # no detail panel
+      # Shrink detail panel if there isn't sufficient room for the whole
+      # thing. The extra line is for the bottom border.
 
-        detail_panel_height = 0
-        scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1)
-        cursor_selection = self.get_selection()
-        is_scrollbar_visible = len(self._get_config_options()) > height - 1
-      else:
-        # Shrink detail panel if there isn't sufficient room for the whole
-        # thing. The extra line is for the bottom border.
+      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
+      cursor_selection = self.get_selection()
+      is_scrollbar_visible = len(self._get_config_options()) > height - DETAILS_HEIGHT - 2
 
-        detail_panel_height = min(height - 1, detail_panel_height + 1)
-        scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - 1 - detail_panel_height)
-        cursor_selection = self.get_selection()
-        is_scrollbar_visible = len(self._get_config_options()) > height - detail_panel_height - 1
-
-        if cursor_selection is not None:
-          self._draw_selection_panel(cursor_selection, width, detail_panel_height, is_scrollbar_visible)
+      if cursor_selection is not None:
+        self._draw_selection_panel(cursor_selection, width, DETAILS_HEIGHT + 1, is_scrollbar_visible)
 
       # draws the top label
 
@@ -485,11 +463,10 @@ class ConfigPanel(panel.Panel):
 
       if is_scrollbar_visible:
         scroll_offset = 3
-        self.add_scroll_bar(scroll_location, scroll_location + height - detail_panel_height - 1, len(self._get_config_options()), 1 + detail_panel_height)
+        self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(self._get_config_options()), DETAILS_HEIGHT + 2)
 
-      option_width = CONFIG['features.config.state.colWidth.option']
-      value_width = CONFIG['features.config.state.colWidth.value']
-      description_width = max(0, width - scroll_offset - option_width - value_width - 2)
+      value_width = VALUE_WIDTH
+      description_width = max(0, width - scroll_offset - OPTION_WIDTH - value_width - 2)
 
       # if the description column is overly long then use its space for the
       # value instead
@@ -500,7 +477,7 @@ class ConfigPanel(panel.Panel):
 
       for line_number in range(scroll_location, len(self._get_config_options())):
         entry = self._get_config_options()[line_number]
-        draw_line = line_number + detail_panel_height + 1 - scroll_location
+        draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
         line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
 
@@ -510,7 +487,7 @@ class ConfigPanel(panel.Panel):
         if entry == cursor_selection:
           line_format += [curses.A_STANDOUT]
 
-        line_text = entry.get_label(option_width, value_width, description_width)
+        line_text = entry.get_label(OPTION_WIDTH, value_width, description_width)
         self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
         if draw_line >= height:
