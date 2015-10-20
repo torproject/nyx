@@ -55,7 +55,7 @@ class ConfigEntry():
   def __init__(self, option, entry_type):
     man_entry = tor_config.get_config_description(option)
 
-    self.fields = {
+    self._fields = {
       Field.OPTION: option,
       Field.TYPE: entry_type,
       Field.SUMMARY: tor_config.get_config_summary(option),
@@ -68,13 +68,8 @@ class ConfigEntry():
 
     # uses the full man page description if a summary is unavailable
 
-    if self.fields[Field.SUMMARY] is None:
-      self.fields[Field.SUMMARY] = self.fields[Field.DESCRIPTION]
-
-    # cache of what's displayed for this configuration option
-
-    self.label_cache = None
-    self.label_cache_args = None
+    if self._fields[Field.SUMMARY] is None:
+      self._fields[Field.SUMMARY] = self._fields[Field.DESCRIPTION]
 
   def get(self, field):
     """
@@ -87,33 +82,7 @@ class ConfigEntry():
     if field == Field.IS_DEFAULT:
       return not self.is_set()
 
-    return self._get_value() if field == Field.VALUE else self.fields[field]
-
-  def get_label(self, option_width, value_width, summary_width):
-    """
-    Provides display string of the configuration entry with the given
-    constraints on the width of the contents.
-
-    Arguments:
-      option_width  - width of the option column
-      value_width   - width of the value column
-      summary_width - width of the summary column
-    """
-
-    # Fetching the display entries is very common so this caches the values.
-    # Doing this substantially drops cpu usage when scrolling (by around 40%).
-
-    arg_set = (option_width, value_width, summary_width)
-
-    if not self.label_cache or self.label_cache_args != arg_set:
-      option_label = str_tools.crop(self.get(Field.OPTION), option_width)
-      value_label = str_tools.crop(self.get(Field.VALUE), value_width)
-      summary_label = str_tools.crop(self.get(Field.SUMMARY), summary_width, None)
-      line_text_layout = '%%-%is %%-%is %%-%is' % (option_width, value_width, summary_width)
-      self.label_cache = line_text_layout % (option_label, value_label, summary_label)
-      self.label_cache_args = arg_set
-
-    return self.label_cache
+    return self._get_value() if field == Field.VALUE else self._fields[field]
 
   def is_set(self):
     """
@@ -487,7 +456,12 @@ class ConfigPanel(panel.Panel):
         if entry == cursor_selection:
           line_format += [curses.A_STANDOUT]
 
-        line_text = entry.get_label(OPTION_WIDTH, value_width, description_width)
+        option_label = str_tools.crop(entry.get(Field.OPTION), OPTION_WIDTH)
+        value_label = str_tools.crop(entry.get(Field.VALUE), value_width)
+        summary_label = str_tools.crop(entry.get(Field.SUMMARY), description_width, None)
+        line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
+        line_text = line_text_layout % (option_label, value_label, summary_label)
+
         self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
         if draw_line >= height:
