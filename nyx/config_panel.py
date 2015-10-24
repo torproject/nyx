@@ -25,7 +25,7 @@ Field = enum.Enum(
   ('SUMMARY', 'Summary'),
   ('DESCRIPTION', 'Description'),
   ('MAN_ENTRY', 'Man Page Entry'),
-  ('IS_DEFAULT', 'Is Default'),
+  ('IS_SET', 'Is Set'),
 )
 
 DETAILS_HEIGHT = 6
@@ -41,7 +41,7 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('nyx', {
   'attr.config.category_color': {},
   'attr.config.field_color': {},
-  'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_DEFAULT],
+  'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_SET],
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
 }, conf_handler)
@@ -79,17 +79,21 @@ class ConfigEntry():
       field - enum for the field to be provided back
     """
 
-    if field == Field.IS_DEFAULT:
-      return not self.is_set()
+    if field == Field.IS_SET:
+      return bool(tor_controller().get_conf(self.get(Field.OPTION), [], False))
 
     return self._get_value() if field == Field.VALUE else self._fields[field]
 
-  def is_set(self):
+  def sort_value(self, attr):
     """
-    True if we have a custom value, false otherwise.
+    Provides a heuristic for sorting by a given value.
+
+    :param Field attr: sort attribute to provide a heuristic for
+
+    :returns: comparable value for sorting
     """
 
-    return bool(tor_controller().get_conf(self.get(Field.OPTION), [], True))
+    return self.get(attr) if attr != Field.IS_SET else not self.get(attr)
 
   def _get_value(self):
     """
@@ -182,8 +186,8 @@ class ConfigPanel(panel.Panel):
     if not self.conf_important_contents:
       self.conf_important_contents = self.conf_contents
 
-    self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
-    self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
+    self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def get_selection(self):
     """
@@ -202,8 +206,8 @@ class ConfigPanel(panel.Panel):
 
     if results:
       self._sort_order = results
-      self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
-      self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.get(field) for field in self._sort_order])
+      self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def handle_key(self, key):
     with self._vals_lock:
@@ -222,7 +226,7 @@ class ConfigPanel(panel.Panel):
           selection = self.get_selection()
           config_option = selection.get(Field.OPTION)
 
-          initial_value = '' if not selection.is_set() else selection.get(Field.VALUE)
+          initial_value = '' if not selection.get(Field.IS_SET) else selection.get(Field.VALUE)
           prompt_msg = '%s Value (esc to cancel): ' % config_option
           new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
 
@@ -448,7 +452,7 @@ class ConfigPanel(panel.Panel):
         entry = self._get_config_options()[line_number]
         draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
-        line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
+        line_format = [curses.A_BOLD if entry.get(Field.IS_SET) else curses.A_NORMAL]
 
         if entry.get(Field.CATEGORY):
           line_format += [CONFIG['attr.config.category_color'].get(entry.get(Field.CATEGORY), 'white')]
@@ -496,7 +500,7 @@ class ConfigPanel(panel.Panel):
 
     if detail_panel_height >= 3:
       value_attr_label = ', '.join([
-        'custom' if selection.is_set() else 'default',
+        'custom' if selection.get(Field.IS_SET) else 'default',
         selection.get(Field.TYPE),
         'usage: %s' % (selection.get(Field.ARG_USAGE))
       ])
