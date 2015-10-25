@@ -65,10 +65,7 @@ CONFIG = conf.config_dict('nyx', {
   'attr.connection.category_color': {},
   'attr.connection.sort_color': {},
   'features.connection.resolveApps': True,
-  'features.connection.order': [
-    SortAttr.CATEGORY,
-    SortAttr.IP_ADDRESS,
-    SortAttr.UPTIME],
+  'features.connection.order': [SortAttr.CATEGORY, SortAttr.IP_ADDRESS, SortAttr.UPTIME],
   'features.connection.showIps': True,
 }, conf_handler)
 

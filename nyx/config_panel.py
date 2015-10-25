@@ -14,19 +14,7 @@ from nyx.util import panel, tor_config, tor_controller, ui_tools
 from stem.control import State
 from stem.util import conf, enum, str_tools
 
-# attributes of a ConfigEntry
-
-Field = enum.Enum(
-  ('CATEGORY', 'Category'),
-  ('OPTION', 'Option Name'),
-  ('VALUE', 'Value'),
-  ('TYPE', 'Arg Type'),
-  ('ARG_USAGE', 'Arg Usage'),
-  ('SUMMARY', 'Summary'),
-  ('DESCRIPTION', 'Description'),
-  ('MAN_ENTRY', 'Man Page Entry'),
-  ('IS_SET', 'Is Set'),
-)
+SortAttr = enum.Enum('OPTION', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
 
 DETAILS_HEIGHT = 6
 OPTION_WIDTH = 25
@@ -35,13 +23,13 @@ VALUE_WIDTH = 15
 
 def conf_handler(key, value):
   if key == 'features.config.order':
-    return conf.parse_enum_csv(key, value[0], Field, 3)
+    return conf.parse_enum_csv(key, value[0], SortAttr, 3)
 
 
 CONFIG = conf.config_dict('nyx', {
   'attr.config.category_color': {},
-  'attr.config.field_color': {},
-  'features.config.order': [Field.MAN_ENTRY, Field.OPTION, Field.IS_SET],
+  'attr.config.sort_color': {},
+  'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.OPTION, SortAttr.IS_SET],
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
 }, conf_handler)
@@ -53,69 +41,119 @@ class ConfigEntry():
   """
 
   def __init__(self, option, entry_type):
-    man_entry = tor_config.get_config_description(option)
+    self._option = option
+    self._value_type = entry_type
+    self._man_entry = tor_config.get_config_description(option)
 
-    self._fields = {
-      Field.OPTION: option,
-      Field.TYPE: entry_type,
-      Field.SUMMARY: tor_config.get_config_summary(option),
-
-      Field.MAN_ENTRY: man_entry.index if man_entry else 99999,  # sorts non-man entries last
-      Field.CATEGORY: man_entry.category if man_entry else tor_config.Category.UNKNOWN,
-      Field.ARG_USAGE: man_entry.arg_usage if man_entry else '',
-      Field.DESCRIPTION: man_entry.description if man_entry else '',
-    }
-
-    # uses the full man page description if a summary is unavailable
-
-    if self._fields[Field.SUMMARY] is None:
-      self._fields[Field.SUMMARY] = self._fields[Field.DESCRIPTION]
-
-  def get(self, field):
+  def category(self):
     """
-    Provides back the value in the given field.
+    Provides the category of this configuration option.
 
-    Arguments:
-      field - enum for the field to be provided back
+    :returns: **Category** this option belongs to
     """
 
-    if field == Field.IS_SET:
-      return bool(tor_controller().get_conf(self.get(Field.OPTION), [], False))
+    return self._man_entry.category if self._man_entry else tor_config.Category.UNKNOWN
 
-    return self._get_value() if field == Field.VALUE else self._fields[field]
-
-  def sort_value(self, attr):
+  def option(self):
     """
-    Provides a heuristic for sorting by a given value.
+    Provides the name of the configuration option.
 
-    :param Field attr: sort attribute to provide a heuristic for
-
-    :returns: comparable value for sorting
+    :returns: **str** of the configuration option
     """
 
-    return self.get(attr) if attr != Field.IS_SET else not self.get(attr)
+    return self._option
 
-  def _get_value(self):
+  def value(self):
     """
-    Provides the current value of the configuration entry, taking advantage of
-    the tor_tools caching to effectively query the accurate value. This uses the
-    value's type to provide a user friendly representation if able.
+    Provides the value of this configuration option.
+
+    :returns: **str** representation of the current config value
     """
 
-    conf_value = ', '.join(tor_controller().get_conf(self.get(Field.OPTION), [], True))
+    conf_value = ', '.join(tor_controller().get_conf(self.option(), [], True))
 
     # provides nicer values for recognized types
 
     if not conf_value:
       conf_value = '<none>'
-    elif self.get(Field.TYPE) == 'Boolean' and conf_value in ('0', '1'):
+    elif self.value_type() == 'Boolean' and conf_value in ('0', '1'):
       conf_value = 'False' if conf_value == '0' else 'True'
-    elif self.get(Field.TYPE) == 'DataSize' and conf_value.isdigit():
+    elif self.value_type() == 'DataSize' and conf_value.isdigit():
       conf_value = str_tools.size_label(int(conf_value))
-    elif self.get(Field.TYPE) == 'TimeInterval' and conf_value.isdigit():
+    elif self.value_type() == 'TimeInterval' and conf_value.isdigit():
       conf_value = str_tools.time_label(int(conf_value), is_long = True)
 
     return conf_value
+
+  def value_type(self):
+    """
+    Provides this configuration value's type.
+
+    :returns: **str** representation of this configuration value's type
+    """
+
+    return self._value_type  # TODO: should this be an enum instead?
+
+  def summary(self):
+    """
+    Provides a summery of this configuration option.
+
+    :returns: short **str** description of the option
+    """
+
+    summary = tor_config.get_config_summary(self.option())
+
+    if summary:
+      return summary
+    else:
+      # uses the full man page description if a summary is unavailable
+      return self._man_entry.description if self._man_entry else ''
+
+  def manual_entry(self):
+    """
+    Provides the entry's man page entry.
+
+    :returns: **ManPageEntry** if it was loaded, and **None** otherwise
+    """
+
+    return self._man_entry
+
+  def is_set(self):
+    """
+    Checks if the configuration option has a custom value.
+
+    :returns: **True** if the option has a custom value, **False** otherwise
+    """
+
+    return bool(tor_controller().get_conf(self.option(), [], False))
+
+  def sort_value(self, attr):
+    """
+    Provides a heuristic for sorting by a given value.
+
+    :param SortAttr attr: sort attribute to provide a heuristic for
+
+    :returns: comparable value for sorting
+    """
+
+    if attr == SortAttr.CATEGORY:
+      return self.category()
+    elif attr == SortAttr.OPTION:
+      return self.option()
+    elif attr == SortAttr.VALUE:
+      return self.value()
+    elif attr == SortAttr.VALUE_TYPE:
+      return self.value_type()
+    elif attr == SortAttr.USAGE:
+      return self._man_entry.arg_usage if self._man_entry else ''
+    elif attr == SortAttr.SUMMARY:
+      return self.summary()
+    elif attr == SortAttr.DESCRIPTION:
+      return self._man_entry.description if self._man_entry else ''
+    elif attr == SortAttr.MAN_PAGE_ENTRY:
+      return self._man_entry.index if self._man_entry else 99999  # sorts non-man entries last
+    elif attr == SortAttr.IS_SET:
+      return not self.is_set()
 
 
 class ConfigPanel(panel.Panel):
@@ -179,7 +217,7 @@ class ConfigPanel(panel.Panel):
 
     # mirror listing with only the important configuration options
 
-    self.conf_important_contents = filter(lambda entry: tor_config.is_important(entry.get(Field.OPTION)), self.conf_contents)
+    self.conf_important_contents = filter(lambda entry: tor_config.is_important(entry.option()), self.conf_contents)
 
     # if there aren't any important options then show everything
 
@@ -201,8 +239,8 @@ class ConfigPanel(panel.Panel):
     Provides the dialog for sorting our configuration options.
     """
 
-    sort_colors = dict([(field, CONFIG['attr.config.field_color'].get(field, 'white')) for field in Field])
-    results = nyx.popups.show_sort_dialog('Config Option Ordering:', Field, self._sort_order, sort_colors)
+    sort_colors = dict([(attr, CONFIG['attr.config.sort_color'].get(attr, 'white')) for attr in SortAttr])
+    results = nyx.popups.show_sort_dialog('Config Option Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
       self._sort_order = results
@@ -224,22 +262,22 @@ class ConfigPanel(panel.Panel):
 
         with panel.CURSES_LOCK:
           selection = self.get_selection()
-          config_option = selection.get(Field.OPTION)
+          config_option = selection.option()
 
-          initial_value = '' if not selection.get(Field.IS_SET) else selection.get(Field.VALUE)
+          initial_value = '' if not selection.is_set() else selection.value()
           prompt_msg = '%s Value (esc to cancel): ' % config_option
           new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
 
           if new_value is not None and new_value != initial_value:
             try:
-              if selection.get(Field.TYPE) == 'Boolean':
+              if selection.value_type() == 'Boolean':
                 # if the value's a boolean then allow for 'true' and 'false' inputs
 
                 if new_value.lower() == 'true':
                   new_value = '1'
                 elif new_value.lower() == 'false':
                   new_value = '0'
-              elif selection.get(Field.TYPE) == 'LineList':
+              elif selection.value_type() == 'LineList':
                 # set_option accepts list inputs when there's multiple values
                 new_value = new_value.split(',')
 
@@ -452,17 +490,15 @@ class ConfigPanel(panel.Panel):
         entry = self._get_config_options()[line_number]
         draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
-        line_format = [curses.A_BOLD if entry.get(Field.IS_SET) else curses.A_NORMAL]
-
-        if entry.get(Field.CATEGORY):
-          line_format += [CONFIG['attr.config.category_color'].get(entry.get(Field.CATEGORY), 'white')]
+        line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
+        line_format += [CONFIG['attr.config.category_color'].get(entry.category(), 'white')]
 
         if entry == cursor_selection:
           line_format += [curses.A_STANDOUT]
 
-        option_label = str_tools.crop(entry.get(Field.OPTION), OPTION_WIDTH)
-        value_label = str_tools.crop(entry.get(Field.VALUE), value_width)
-        summary_label = str_tools.crop(entry.get(Field.SUMMARY), description_width, None)
+        option_label = str_tools.crop(entry.option(), OPTION_WIDTH)
+        value_label = str_tools.crop(entry.value(), value_width)
+        summary_label = str_tools.crop(entry.summary(), description_width, None)
         line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
         line_text = line_text_layout % (option_label, value_label, summary_label)
 
@@ -487,33 +523,33 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.get(Field.CATEGORY), 'white'))
+    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.category(), 'white'))
 
     # first entry:
     # <option> (<category> Option)
 
-    option_label = ' (%s Option)' % selection.get(Field.CATEGORY)
-    self.addstr(1, 2, selection.get(Field.OPTION) + option_label, *selection_format)
+    option_label = ' (%s Option)' % selection.category()
+    self.addstr(1, 2, selection.option() + option_label, *selection_format)
 
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
 
     if detail_panel_height >= 3:
       value_attr_label = ', '.join([
-        'custom' if selection.get(Field.IS_SET) else 'default',
-        selection.get(Field.TYPE),
-        'usage: %s' % (selection.get(Field.ARG_USAGE))
+        'custom' if selection.is_set() else 'default',
+        selection.value_type(),
+        'usage: %s' % (selection.manual_entry().arg_usage if selection.manual_entry() else '')
       ])
 
       value_label_width = width - 12 - len(value_attr_label)
-      value_label = str_tools.crop(selection.get(Field.VALUE), value_label_width)
+      value_label = str_tools.crop(selection.value(), value_label_width)
 
       self.addstr(2, 2, 'Value: %s (%s)' % (value_label, value_attr_label), *selection_format)
 
     # remainder is filled with the man page description
 
     description_height = max(0, detail_panel_height - 3)
-    description_content = 'Description: ' + selection.get(Field.DESCRIPTION)
+    description_content = 'Description: %s' % (selection.manual_entry().description if selection.manual_entry() else '')
 
     for i in range(description_height):
       # checks if we're done writing the description
