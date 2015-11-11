@@ -4,7 +4,6 @@ and the resulting configuration files saved.
 """
 
 import curses
-import threading
 
 import nyx.controller
 import nyx.popups
@@ -168,7 +167,6 @@ class ConfigPanel(panel.Panel):
     self._conf_contents = []
     self._conf_important_contents = []
     self._scroller = ui_tools.Scroller(True)
-    self._vals_lock = threading.RLock()
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the 'important' ones
 
@@ -244,59 +242,58 @@ class ConfigPanel(panel.Panel):
       self._conf_important_contents = sorted(self._conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def handle_key(self, key):
-    with self._vals_lock:
-      if key.is_scroll():
-        page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
-        is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
+    if key.is_scroll():
+      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
+      is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
-        if is_changed:
-          self.redraw(True)
-      elif key.is_selection() and self._get_config_options():
-        # Prompts the user to edit the selected configuration value. The
-        # interface is locked to prevent updates between setting the value
-        # and showing any errors.
-
-        with panel.CURSES_LOCK:
-          selection = self.get_selection()
-          config_option = selection.option()
-
-          initial_value = '' if not selection.is_set() else selection.value()
-          prompt_msg = '%s Value (esc to cancel): ' % config_option
-          new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
-
-          if new_value is not None and new_value != initial_value:
-            try:
-              if selection.value_type() == 'Boolean':
-                # if the value's a boolean then allow for 'true' and 'false' inputs
-
-                if new_value.lower() == 'true':
-                  new_value = '1'
-                elif new_value.lower() == 'false':
-                  new_value = '0'
-              elif selection.value_type() == 'LineList':
-                # set_option accepts list inputs when there's multiple values
-                new_value = new_value.split(',')
-
-              tor_controller().set_conf(config_option, new_value)
-
-              # forces the label to be remade with the new value
-
-              selection.label_cache = None
-
-              self.redraw(True)
-            except Exception as exc:
-              nyx.popups.show_msg('%s (press any key)' % exc)
-      elif key.match('a'):
-        self._show_all = not self._show_all
+      if is_changed:
         self.redraw(True)
-      elif key.match('s'):
-        self.show_sort_dialog()
-      elif key.match('v'):
-        self.show_write_dialog()
-      else:
-        return False
+    elif key.is_selection() and self._get_config_options():
+      # Prompts the user to edit the selected configuration value. The
+      # interface is locked to prevent updates between setting the value
+      # and showing any errors.
 
-      return True
+      with panel.CURSES_LOCK:
+        selection = self.get_selection()
+        config_option = selection.option()
+
+        initial_value = '' if not selection.is_set() else selection.value()
+        prompt_msg = '%s Value (esc to cancel): ' % config_option
+        new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
+
+        if new_value is not None and new_value != initial_value:
+          try:
+            if selection.value_type() == 'Boolean':
+              # if the value's a boolean then allow for 'true' and 'false' inputs
+
+              if new_value.lower() == 'true':
+                new_value = '1'
+              elif new_value.lower() == 'false':
+                new_value = '0'
+            elif selection.value_type() == 'LineList':
+              # set_option accepts list inputs when there's multiple values
+              new_value = new_value.split(',')
+
+            tor_controller().set_conf(config_option, new_value)
+
+            # forces the label to be remade with the new value
+
+            selection.label_cache = None
+
+            self.redraw(True)
+          except Exception as exc:
+            nyx.popups.show_msg('%s (press any key)' % exc)
+    elif key.match('a'):
+      self._show_all = not self._show_all
+      self.redraw(True)
+    elif key.match('s'):
+      self.show_sort_dialog()
+    elif key.match('v'):
+      self.show_write_dialog()
+    else:
+      return False
+
+    return True
 
   def show_write_dialog(self):
     """
@@ -442,66 +439,61 @@ class ConfigPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    with self._vals_lock:
-      # panel with details for the current selection
+    # Shrink detail panel if there isn't sufficient room for the whole
+    # thing. The extra line is for the bottom border.
 
-      is_scrollbar_visible = False
+    scroll_location = self._scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
+    cursor_selection = self.get_selection()
+    is_scrollbar_visible = len(self._get_config_options()) > height - DETAILS_HEIGHT - 2
 
-      # Shrink detail panel if there isn't sufficient room for the whole
-      # thing. The extra line is for the bottom border.
+    if cursor_selection is not None:
+      self._draw_selection_panel(cursor_selection, width, DETAILS_HEIGHT + 1, is_scrollbar_visible)
 
-      scroll_location = self._scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
-      cursor_selection = self.get_selection()
-      is_scrollbar_visible = len(self._get_config_options()) > height - DETAILS_HEIGHT - 2
+    # draws the top label
 
-      if cursor_selection is not None:
-        self._draw_selection_panel(cursor_selection, width, DETAILS_HEIGHT + 1, is_scrollbar_visible)
+    if self.is_title_visible():
+      hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
+      title_label = 'Tor Configuration (%s):' % hidden_msg
+      self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
-      # draws the top label
+    # draws left-hand scroll bar if content's longer than the height
 
-      if self.is_title_visible():
-        hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
-        title_label = 'Tor Configuration (%s):' % hidden_msg
-        self.addstr(0, 0, title_label, curses.A_STANDOUT)
+    scroll_offset = 1
 
-      # draws left-hand scroll bar if content's longer than the height
+    if is_scrollbar_visible:
+      scroll_offset = 3
+      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(self._get_config_options()), DETAILS_HEIGHT + 2)
 
-      scroll_offset = 1
+    value_width = VALUE_WIDTH
+    description_width = max(0, width - scroll_offset - OPTION_WIDTH - value_width - 2)
 
-      if is_scrollbar_visible:
-        scroll_offset = 3
-        self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(self._get_config_options()), DETAILS_HEIGHT + 2)
+    # if the description column is overly long then use its space for the
+    # value instead
 
-      value_width = VALUE_WIDTH
-      description_width = max(0, width - scroll_offset - OPTION_WIDTH - value_width - 2)
+    if description_width > 80:
+      value_width += description_width - 80
+      description_width = 80
 
-      # if the description column is overly long then use its space for the
-      # value instead
+    for line_number in range(scroll_location, len(self._get_config_options())):
+      entry = self._get_config_options()[line_number]
+      draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
-      if description_width > 80:
-        value_width += description_width - 80
-        description_width = 80
+      line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
+      line_format += [CONFIG['attr.config.category_color'].get(entry.category(), 'white')]
 
-      for line_number in range(scroll_location, len(self._get_config_options())):
-        entry = self._get_config_options()[line_number]
-        draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
+      if entry == cursor_selection:
+        line_format += [curses.A_STANDOUT]
 
-        line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
-        line_format += [CONFIG['attr.config.category_color'].get(entry.category(), 'white')]
+      option_label = str_tools.crop(entry.option(), OPTION_WIDTH)
+      value_label = str_tools.crop(entry.value(), value_width)
+      summary_label = str_tools.crop(entry.summary(), description_width, None)
+      line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
+      line_text = line_text_layout % (option_label, value_label, summary_label)
 
-        if entry == cursor_selection:
-          line_format += [curses.A_STANDOUT]
+      self.addstr(draw_line, scroll_offset, line_text, *line_format)
 
-        option_label = str_tools.crop(entry.option(), OPTION_WIDTH)
-        value_label = str_tools.crop(entry.value(), value_width)
-        summary_label = str_tools.crop(entry.summary(), description_width, None)
-        line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
-        line_text = line_text_layout % (option_label, value_label, summary_label)
-
-        self.addstr(draw_line, scroll_offset, line_text, *line_format)
-
-        if draw_line >= height:
-          break
+      if draw_line >= height:
+        break
 
   def _get_config_options(self):
     return self._conf_contents if self._show_all else self._conf_important_contents
@@ -548,10 +540,8 @@ class ConfigPanel(panel.Panel):
     description_content = 'Description: %s' % (selection.manual_entry().description if selection.manual_entry() else '')
 
     for i in range(description_height):
-      # checks if we're done writing the description
-
       if not description_content:
-        break
+        break  # done writing the description
 
       # there's a leading indent after the first line
 
