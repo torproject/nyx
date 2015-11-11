@@ -165,16 +165,12 @@ class ConfigPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
-    self.conf_contents = []
-    self.conf_important_contents = []
-    self.scroller = ui_tools.Scroller(True)
+    self._conf_contents = []
+    self._conf_important_contents = []
+    self._scroller = ui_tools.Scroller(True)
     self._vals_lock = threading.RLock()
     self._sort_order = CONFIG['features.config.order']
-
-    # shows all configuration options if true, otherwise only the ones with
-    # the 'important' flag are shown
-
-    self.show_all = False
+    self._show_all = False  # show all options, or just the 'important' ones
 
     tor_controller().add_status_listener(self.reset_listener)
     self._load_config_options()
@@ -191,8 +187,8 @@ class ConfigPanel(panel.Panel):
     Fetches the configuration options available from tor or nyx.
     """
 
-    self.conf_contents = []
-    self.conf_important_contents = []
+    self._conf_contents = []
+    self._conf_important_contents = []
 
     config_names = tor_controller().get_info('config/names', None)
 
@@ -213,26 +209,26 @@ class ConfigPanel(panel.Panel):
         elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
           continue
 
-        self.conf_contents.append(ConfigEntry(conf_option, conf_type))
+        self._conf_contents.append(ConfigEntry(conf_option, conf_type))
 
     # mirror listing with only the important configuration options
 
-    self.conf_important_contents = filter(lambda entry: tor_config.is_important(entry.option()), self.conf_contents)
+    self._conf_important_contents = filter(lambda entry: tor_config.is_important(entry.option()), self._conf_contents)
 
     # if there aren't any important options then show everything
 
-    if not self.conf_important_contents:
-      self.conf_important_contents = self.conf_contents
+    if not self._conf_important_contents:
+      self._conf_important_contents = self._conf_contents
 
-    self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-    self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    self._conf_contents = sorted(self._conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    self._conf_important_contents = sorted(self._conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def get_selection(self):
     """
     Provides the currently selected entry.
     """
 
-    return self.scroller.get_cursor_selection(self._get_config_options())
+    return self._scroller.get_cursor_selection(self._get_config_options())
 
   def show_sort_dialog(self):
     """
@@ -244,14 +240,14 @@ class ConfigPanel(panel.Panel):
 
     if results:
       self._sort_order = results
-      self.conf_contents = sorted(self.conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-      self.conf_important_contents = sorted(self.conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._conf_contents = sorted(self._conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._conf_important_contents = sorted(self._conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def handle_key(self, key):
     with self._vals_lock:
       if key.is_scroll():
         page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
-        is_changed = self.scroller.handle_key(key, self._get_config_options(), page_height)
+        is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
         if is_changed:
           self.redraw(True)
@@ -291,7 +287,7 @@ class ConfigPanel(panel.Panel):
             except Exception as exc:
               nyx.popups.show_msg('%s (press any key)' % exc)
       elif key.match('a'):
-        self.show_all = not self.show_all
+        self._show_all = not self._show_all
         self.redraw(True)
       elif key.match('s'):
         self.show_sort_dialog()
@@ -454,7 +450,7 @@ class ConfigPanel(panel.Panel):
       # Shrink detail panel if there isn't sufficient room for the whole
       # thing. The extra line is for the bottom border.
 
-      scroll_location = self.scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
+      scroll_location = self._scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
       cursor_selection = self.get_selection()
       is_scrollbar_visible = len(self._get_config_options()) > height - DETAILS_HEIGHT - 2
 
@@ -464,7 +460,7 @@ class ConfigPanel(panel.Panel):
       # draws the top label
 
       if self.is_title_visible():
-        hidden_msg = "press 'a' to hide most options" if self.show_all else "press 'a' to show all options"
+        hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
         title_label = 'Tor Configuration (%s):' % hidden_msg
         self.addstr(0, 0, title_label, curses.A_STANDOUT)
 
@@ -508,7 +504,7 @@ class ConfigPanel(panel.Panel):
           break
 
   def _get_config_options(self):
-    return self.conf_contents if self.show_all else self.conf_important_contents
+    return self._conf_contents if self._show_all else self._conf_important_contents
 
   def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
     """
