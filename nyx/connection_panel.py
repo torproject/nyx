@@ -186,7 +186,7 @@ class ConnectionEntry(Entry):
 
     if fingerprint:
       for circ in controller.get_circuits([]):
-        if circ.path[0][0] == fingerprint and circ.status == 'BUILT':
+        if circ.path and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
           # Tor builds one-hop circuits to retrieve directory information.
           # If longer this is likely a connection to a guard.
 
