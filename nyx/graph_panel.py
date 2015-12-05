@@ -571,11 +571,17 @@ class GraphPanel(panel.Panel):
         self._draw_accounting_stats(attr)
 
   def _draw_subgraph(self, attr, data, x, color):
-    subgraph_columns = attr.subgraph_width - 5
+    # Concering our subgraph colums, the y-axis label can be at most six
+    # characters, with two spaces of padding on either side of the graph.
+    # Starting with the smallest size, then possibly raise it after determing
+    # the y_axis_labels.
+
+    subgraph_columns = attr.subgraph_width - 8
     min_bound, max_bound = self._get_graph_bounds(attr, data, subgraph_columns)
 
     x_axis_labels = self._get_x_axis_labels(attr, subgraph_columns)
     y_axis_labels = self._get_y_axis_labels(attr, data, min_bound, max_bound)
+    subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
     axis_offset = max([len(label) for label in y_axis_labels.values()])
 
     self.addstr(1, x, data.header(attr.subgraph_width), curses.A_BOLD, color)
