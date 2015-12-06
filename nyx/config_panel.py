@@ -8,10 +8,18 @@ import curses
 import nyx.controller
 import nyx.popups
 
+import stem.control
+import stem.manual
+
 from nyx.util import panel, tor_config, tor_controller, ui_tools
 
-from stem.control import State
-from stem.util import conf, enum, str_tools
+from stem.util import conf, enum, log, str_tools
+
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
 
 SortAttr = enum.Enum('OPTION', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
 
@@ -34,6 +42,15 @@ CONFIG = conf.config_dict('nyx', {
 }, conf_handler)
 
 
+@lru_cache()
+def tor_manual():
+  try:
+    return stem.manual.Manual.from_man()
+  except IOError as exc:
+    log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
+    return stem.manual.Manual.from_cache()
+
+
 class ConfigEntry():
   """
   Configuration option in the panel.
@@ -42,7 +59,7 @@ class ConfigEntry():
   def __init__(self, option, entry_type):
     self._option = option
     self._value_type = entry_type
-    self._man_entry = tor_config.get_config_description(option)
+    self._man_entry = tor_manual().config_options.get(option)
 
   def category(self):
     """
@@ -51,7 +68,7 @@ class ConfigEntry():
     :returns: **Category** this option belongs to
     """
 
-    return self._man_entry.category if self._man_entry else tor_config.Category.UNKNOWN
+    return self._man_entry.category if self._man_entry else stem.manual.Category.UNKNOWN
 
   def option(self):
     """
@@ -100,19 +117,13 @@ class ConfigEntry():
     :returns: short **str** description of the option
     """
 
-    summary = tor_config.get_config_summary(self.option())
-
-    if summary:
-      return summary
-    else:
-      # uses the full man page description if a summary is unavailable
-      return self._man_entry.description if self._man_entry else ''
+    return self._man_entry.summary if self._man_entry else ''
 
   def manual_entry(self):
     """
     Provides the entry's man page entry.
 
-    :returns: **ManPageEntry** if it was loaded, and **None** otherwise
+    :returns: :class:`~stem.manual.ConfigOption` if it was loaded, and **None** otherwise
     """
 
     return self._man_entry
@@ -144,13 +155,13 @@ class ConfigEntry():
     elif attr == SortAttr.VALUE_TYPE:
       return self.value_type()
     elif attr == SortAttr.USAGE:
-      return self._man_entry.arg_usage if self._man_entry else ''
+      return self._man_entry.usage if self._man_entry else ''
     elif attr == SortAttr.SUMMARY:
       return self.summary()
     elif attr == SortAttr.DESCRIPTION:
       return self._man_entry.description if self._man_entry else ''
     elif attr == SortAttr.MAN_PAGE_ENTRY:
-      return self._man_entry.index if self._man_entry else 99999  # sorts non-man entries last
+      return tor_manual().config_options.keys().index(self.option()) if self.option() in tor_manual().config_options else 99999  # sorts non-man entries last
     elif attr == SortAttr.IS_SET:
       return not self.is_set()
 
@@ -177,7 +188,7 @@ class ConfigPanel(panel.Panel):
     # fetches configuration options if a new instance, otherewise keeps our
     # current contents
 
-    if event_type == State.INIT:
+    if event_type == stem.control.State.INIT:
       self._load_config_options()
 
   def _load_config_options(self):
@@ -211,7 +222,7 @@ class ConfigPanel(panel.Panel):
 
     # mirror listing with only the important configuration options
 
-    self._conf_important_contents = filter(lambda entry: tor_config.is_important(entry.option()), self._conf_contents)
+    self._conf_important_contents = filter(lambda entry: stem.manual.is_important(entry.option()), self._conf_contents)
 
     # if there aren't any important options then show everything
 
@@ -526,7 +537,7 @@ class ConfigPanel(panel.Panel):
       value_attr_label = ', '.join([
         'custom' if selection.is_set() else 'default',
         selection.value_type(),
-        'usage: %s' % (selection.manual_entry().arg_usage if selection.manual_entry() else '')
+        'usage: %s' % (selection.manual_entry().usage if selection.manual_entry() else '')
       ])
 
       value_label_width = width - 12 - len(value_attr_label)
