@@ -315,12 +315,11 @@ class ConfigPanel(panel.Panel):
     # display a popup for saving the current configuration
 
     config_lines = tor_config.get_custom_options(True)
-    popup, width, height = nyx.popups.init(len(config_lines) + 2)
 
-    if not popup:
-      return
+    with nyx.popups.popup_window(len(config_lines) + 2) as (popup, width, height):
+      if not popup:
+        return
 
-    try:
       # displayed options (truncating the labels if there's limited room)
 
       if width >= 30:
@@ -434,8 +433,6 @@ class ConfigPanel(panel.Panel):
             msg = 'Unable to save configuration (%s)' % exc.strerror
 
           nyx.popups.show_msg(msg, 2)
-    finally:
-      nyx.popups.finalize()
 
   def get_help(self):
     return [
