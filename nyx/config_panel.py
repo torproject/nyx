@@ -308,97 +308,56 @@ class ConfigPanel(panel.Panel):
 
   def show_write_dialog(self):
     """
-    Provies an interface to confirm if the configuration is saved and, if so,
-    where.
+    Confirmation dialog for saving tor's configuration.
     """
-
-    # display a popup for saving the current configuration
 
     config_lines = tor_config.get_custom_options(True)
 
     with nyx.popups.popup_window(len(config_lines) + 2) as (popup, width, height):
-      if not popup:
+      if not popup or height <= 2:
         return
 
-      # displayed options (truncating the labels if there's limited room)
+      # Try showing options beside the last config line. If there isn't room
+      # and we can grow vertically then do that so it's on their own line.
 
-      if width >= 30:
-        selection_options = ('Save', 'Save As...', 'Cancel')
-      else:
-        selection_options = ('Save', 'Save As', 'X')
-
-      # checks if we can show options beside the last line of visible content
-
-      is_option_line_separate = False
-      last_index = min(height - 2, len(config_lines) - 1)
-
-      # if we don't have room to display the selection options and room to
-      # grow then display the selection options on its own line
-
-      if width < (30 + len(config_lines[last_index])):
+      if width < (len(config_lines[height - 3]) + 30):
         popup.set_height(height + 1)
         popup.redraw(True)  # recreates the window instance
-        new_height, _ = popup.get_preferred_size()
-
-        if new_height > height:
-          height = new_height
-          is_option_line_separate = True
+        height = popup.get_preferred_size()[0]
 
       selection = 2
 
       while True:
-        # if the popup has been resized then recreate it (needed for the
-        # proper border height)
-
-        new_height, new_width = popup.get_preferred_size()
-
-        if (height, width) != (new_height, new_width):
-          height, width = new_height, new_width
-          popup.redraw(True)
-
-        # if there isn't room to display the popup then cancel it
-
-        if height <= 2:
-          selection = 2
-          break
-
+        height, width = popup.get_preferred_size()  # allow us to be resized
         popup.win.erase()
-        popup.win.box()
         popup.addstr(0, 0, 'Configuration being saved:', curses.A_STANDOUT)
 
-        visible_config_lines = height - 3 if is_option_line_separate else height - 2
+        for i, full_line in enumerate(config_lines):
+          line = str_tools.crop(full_line, width - 2)
+          option, arg = line.split(' ', 1) if ' ' in line else (line, '')
 
-        for i in range(visible_config_lines):
-          line = str_tools.crop(config_lines[i], width - 2)
-
-          if ' ' in line:
-            option, arg = line.split(' ', 1)
-            popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
-            popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
-          else:
-            popup.addstr(i + 1, 1, line, curses.A_BOLD, 'green')
+          popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
+          popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
 
         # draws selection options (drawn right to left)
 
+        selection_options = ('Save', 'Save As...', 'Cancel')
         draw_x = width - 1
 
-        for i in range(len(selection_options) - 1, -1, -1):
-          option_label = selection_options[i]
-          draw_x -= (len(option_label) + 2)
-
-          # if we've run out of room then drop the option (this will only
-          # occure on tiny displays)
+        for option in reversed(selection_options):
+          draw_x -= len(option) + 2
 
           if draw_x < 1:
-            break
+            break  # not enough room to show all options
 
-          selection_format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+          option_format = curses.A_STANDOUT if option == selection_options[selection] else curses.A_NORMAL
           x = popup.addstr(height - 2, draw_x, '[')
-          x = popup.addstr(height - 2, x, option_label, selection_format, curses.A_BOLD)
+          x = popup.addstr(height - 2, x, option, option_format, curses.A_BOLD)
           popup.addstr(height - 2, x, ']')
 
-          draw_x -= 1  # space gap between the options
+          draw_x -= 1  # gap between options
 
+        popup.win.box()
         popup.win.refresh()
 
         key = nyx.controller.get_controller().key_input()
@@ -537,7 +496,7 @@ class ConfigPanel(panel.Panel):
         'usage: %s' % (selection.manual_entry().usage if selection.manual_entry() else '')
       ])
 
-      value_label_width = width - 12 - len(value_attr_label)
+      value_label_width = max(0, width - 12 - len(value_attr_label))
       value_label = str_tools.crop(selection.value(), value_label_width)
 
       self.addstr(2, 2, 'Value: %s (%s)' % (value_label, value_attr_label), *selection_format)
