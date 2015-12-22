@@ -126,52 +126,6 @@ def get_multiline_parameters():
   return tuple(MULTILINE_PARAM)
 
 
-def get_custom_options(include_value = False):
-  """
-  Provides the torrc parameters that differ from their defaults.
-
-  Arguments:
-    include_value - provides the current value with results if true, otherwise
-                   this just contains the options
-  """
-
-  config_text = tor_controller().get_info('config-text', '').strip()
-  config_lines = config_text.split('\n')
-
-  # removes any duplicates
-
-  config_lines = list(set(config_lines))
-
-  # The "GETINFO config-text" query only provides options that differ
-  # from Tor's defaults with the exception of its Log and Nickname entries
-  # which, even if undefined, returns "Log notice stdout" as per:
-  # https://trac.torproject.org/projects/tor/ticket/2362
-  #
-  # If this is from the deb then it will be "Log notice file /var/log/tor/log"
-  # due to special patching applied to it, as per:
-  # https://trac.torproject.org/projects/tor/ticket/4602
-
-  try:
-    config_lines.remove('Log notice stdout')
-  except ValueError:
-    pass
-
-  try:
-    config_lines.remove('Log notice file /var/log/tor/log')
-  except ValueError:
-    pass
-
-  try:
-    config_lines.remove('Nickname %s' % socket.gethostname())
-  except ValueError:
-    pass
-
-  if include_value:
-    return config_lines
-  else:
-    return [line[:line.find(' ')] for line in config_lines]
-
-
 def save_conf(destination = None, contents = None):
   """
   Saves the configuration to the given path. If this is equivilant to
@@ -192,7 +146,7 @@ def save_conf(destination = None, contents = None):
 
   is_saveconf, start_time = True, time.time()
 
-  current_config = get_custom_options(True)
+  current_config = tor_controller().get_custom_conf([], include_values = True)
 
   if not contents:
     contents = current_config
@@ -285,7 +239,7 @@ def validate(contents = None):
   """
 
   controller = tor_controller()
-  custom_options = get_custom_options()
+  custom_options = controller.get_custom_conf([])
   issues_found, seen_options = [], []
 
   # Strips comments and collapses multiline multi-line entries, for more

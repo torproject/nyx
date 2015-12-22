@@ -311,7 +311,7 @@ class ConfigPanel(panel.Panel):
     Confirmation dialog for saving tor's configuration.
     """
 
-    config_lines = tor_config.get_custom_options(True)
+    config_lines = tor_controller().get_custom_conf([], include_values = True)
 
     with nyx.popups.popup_window(len(config_lines) + 2) as (popup, width, height):
       if not popup or height <= 2:
@@ -339,7 +339,7 @@ class ConfigPanel(panel.Panel):
           popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
           popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
 
-        # draws selection options (drawn right to left)
+        # selection options (drawn right to left)
 
         selection_options = ('Save', 'Save As...', 'Cancel')
         draw_x = width - 1
