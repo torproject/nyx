@@ -146,7 +146,8 @@ def save_conf(destination = None, contents = None):
 
   is_saveconf, start_time = True, time.time()
 
-  current_config = tor_controller().get_custom_conf([], include_values = True)
+  config_text = tor_controller().get_info('config-text', None)
+  current_config = config_text.splitlines() if config_text else []
 
   if not contents:
     contents = current_config
@@ -239,7 +240,11 @@ def validate(contents = None):
   """
 
   controller = tor_controller()
-  custom_options = controller.get_custom_conf([])
+
+  config_text = tor_controller().get_info('config-text', None)
+  config_lines = config_text.splitlines() if config_text else []
+  custom_options = list(set([line.split(' ')[0] for line in config_lines]))
+
   issues_found, seen_options = [], []
 
   # Strips comments and collapses multiline multi-line entries, for more
