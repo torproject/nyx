@@ -15,12 +15,6 @@ from nyx.util import panel, tor_config, tor_controller, ui_tools
 
 from stem.util import conf, enum, log, str_tools
 
-try:
-  # added in python 3.2
-  from functools import lru_cache
-except ImportError:
-  from stem.util.lru_cache import lru_cache
-
 SortAttr = enum.Enum('NAME', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
 
 DETAILS_HEIGHT = 6
@@ -42,24 +36,20 @@ CONFIG = conf.config_dict('nyx', {
 }, conf_handler)
 
 
-@lru_cache()
-def tor_manual():
-  try:
-    return stem.manual.Manual.from_man().config_options
-  except IOError as exc:
-    log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
-    return stem.manual.Manual.from_cache().config_options
-
-
 class ConfigEntry(object):
   """
-  Configuration option in the panel.
+  Configuration option presented in the panel.
+
+  :var str name: name of the configuration option
+  :var str value_type: type of value
+  :var stem.manual.ConfigOption manual: manual information about the option
   """
 
-  def __init__(self, name, value_type):
+  def __init__(self, name, value_type, manual):
     self.name = name
     self.value_type = value_type
-    self.manual = tor_manual().get(name, stem.manual.ConfigOption(name))
+    self.manual = manual.config_options.get(name, stem.manual.ConfigOption(name))
+    self._index = manual.config_options.keys().index(name) if name in manual.config_options else 99999
 
   def value(self):
     """
@@ -68,20 +58,18 @@ class ConfigEntry(object):
     :returns: **str** representation of the current config value
     """
 
-    conf_value = ', '.join(tor_controller().get_conf(self.name, [], True))
+    values = tor_controller().get_conf(self.name, [], True)
 
-    # provides nicer values for recognized types
-
-    if not conf_value:
-      conf_value = '<none>'
-    elif self.value_type == 'Boolean' and conf_value in ('0', '1'):
-      conf_value = 'False' if conf_value == '0' else 'True'
-    elif self.value_type == 'DataSize' and conf_value.isdigit():
-      conf_value = str_tools.size_label(int(conf_value))
-    elif self.value_type == 'TimeInterval' and conf_value.isdigit():
-      conf_value = str_tools.time_label(int(conf_value), is_long = True)
-
-    return conf_value
+    if not values:
+      return '<none>'
+    elif self.value_type == 'Boolean' and values[0] in ('0', '1'):
+      return 'False' if values[0] == '0' else 'True'
+    elif self.value_type == 'DataSize' and values[0].isdigit():
+      return str_tools.size_label(int(values[0]))
+    elif self.value_type == 'TimeInterval' and values[0].isdigit():
+      return str_tools.time_label(int(values[0]), is_long = True)
+    else:
+      return ', '.join(values)
 
   def is_set(self):
     """
@@ -116,7 +104,7 @@ class ConfigEntry(object):
     elif attr == SortAttr.DESCRIPTION:
       return self.manual.description
     elif attr == SortAttr.MAN_PAGE_ENTRY:
-      return tor_manual().keys().index(self.name) if self.name in tor_manual() else 99999  # sorts non-man entries last
+      return self._index
     elif attr == SortAttr.IS_SET:
       return not self.is_set()
 
@@ -151,6 +139,12 @@ class ConfigPanel(panel.Panel):
     Fetches the configuration options available from tor or nyx.
     """
 
+    try:
+      manual = stem.manual.Manual.from_man()
+    except IOError as exc:
+      log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
+      manual = stem.manual.Manual.from_cache()
+
     self._conf_contents = []
     self._conf_important_contents = []
 
@@ -173,7 +167,7 @@ class ConfigPanel(panel.Panel):
         elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
           continue
 
-        self._conf_contents.append(ConfigEntry(conf_option, conf_type))
+        self._conf_contents.append(ConfigEntry(conf_option, conf_type, manual))
 
     # mirror listing with only the important configuration options
 
