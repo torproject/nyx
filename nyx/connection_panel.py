@@ -350,8 +350,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if not selection:
           break
 
+        def is_close_key(key):
+          return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+
         color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
-        is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
         key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
 
         if not key or key.is_selection() or key.match('d'):

@@ -2,6 +2,9 @@
 Tor curses monitoring application.
 """
 
+import distutils.spawn
+import sys
+
 __version__ = '1.4.6-dev'
 __release_date__ = 'April 28, 2011'
 __author__ = 'Damian Johnson'
@@ -20,9 +23,6 @@ __all__ = [
   'starter',
   'torrc_panel',
 ]
-
-import distutils.spawn
-import sys
 
 
 def main():

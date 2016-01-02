@@ -59,16 +59,7 @@ class ConfigEntry():
   def __init__(self, option, entry_type):
     self._option = option
     self._value_type = entry_type
-    self._man_entry = tor_manual().config_options.get(option)
-
-  def category(self):
-    """
-    Provides the category of this configuration option.
-
-    :returns: **Category** this option belongs to
-    """
-
-    return self._man_entry.category if self._man_entry else stem.manual.Category.UNKNOWN
+    self._man_entry = tor_manual().config_options.get(option, stem.manual.ConfigOption(option))
 
   def option(self):
     """
@@ -110,15 +101,6 @@ class ConfigEntry():
 
     return self._value_type  # TODO: should this be an enum instead?
 
-  def summary(self):
-    """
-    Provides a summery of this configuration option.
-
-    :returns: short **str** description of the option
-    """
-
-    return self._man_entry.summary if self._man_entry else ''
-
   def manual_entry(self):
     """
     Provides the entry's man page entry.
@@ -147,7 +129,7 @@ class ConfigEntry():
     """
 
     if attr == SortAttr.CATEGORY:
-      return self.category()
+      return self.manual_entry().category
     elif attr == SortAttr.OPTION:
       return self.option()
     elif attr == SortAttr.VALUE:
@@ -155,11 +137,11 @@ class ConfigEntry():
     elif attr == SortAttr.VALUE_TYPE:
       return self.value_type()
     elif attr == SortAttr.USAGE:
-      return self._man_entry.usage if self._man_entry else ''
+      return self._man_entry.usage
     elif attr == SortAttr.SUMMARY:
-      return self.summary()
+      return self.manual_entry().summary
     elif attr == SortAttr.DESCRIPTION:
-      return self._man_entry.description if self._man_entry else ''
+      return self._man_entry.description
     elif attr == SortAttr.MAN_PAGE_ENTRY:
       return tor_manual().config_options.keys().index(self.option()) if self.option() in tor_manual().config_options else 99999  # sorts non-man entries last
     elif attr == SortAttr.IS_SET:
@@ -447,14 +429,14 @@ class ConfigPanel(panel.Panel):
       draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
       line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
-      line_format += [CONFIG['attr.config.category_color'].get(entry.category(), 'white')]
+      line_format += [CONFIG['attr.config.category_color'].get(entry.manual_entry().category, 'white')]
 
       if entry == cursor_selection:
         line_format += [curses.A_STANDOUT]
 
       option_label = str_tools.crop(entry.option(), OPTION_WIDTH)
       value_label = str_tools.crop(entry.value(), value_width)
-      summary_label = str_tools.crop(entry.summary(), description_width, None)
+      summary_label = str_tools.crop(entry.manual_entry().summary, description_width, None)
       line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
       line_text = line_text_layout % (option_label, value_label, summary_label)
 
@@ -479,12 +461,12 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.category(), 'white'))
+    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.manual_entry().category, 'white'))
 
     # first entry:
     # <option> (<category> Option)
 
-    option_label = ' (%s Option)' % selection.category()
+    option_label = ' (%s Option)' % selection.manual_entry().category
     self.addstr(1, 2, selection.option() + option_label, *selection_format)
 
     # second entry:
@@ -494,7 +476,7 @@ class ConfigPanel(panel.Panel):
       value_attr_label = ', '.join([
         'custom' if selection.is_set() else 'default',
         selection.value_type(),
-        'usage: %s' % (selection.manual_entry().usage if selection.manual_entry() else '')
+        'usage: %s' % (selection.manual_entry().usage)
       ])
 
       value_label_width = max(0, width - 12 - len(value_attr_label))
@@ -505,7 +487,7 @@ class ConfigPanel(panel.Panel):
     # remainder is filled with the man page description
 
     description_height = max(0, detail_panel_height - 3)
-    description_content = 'Description: %s' % (selection.manual_entry().description if selection.manual_entry() else '')
+    description_content = 'Description: %s' % (selection.manual_entry().description)
 
     for i in range(description_height):
       if not description_content:

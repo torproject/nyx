@@ -4,7 +4,6 @@ Helper functions for working with tor's configuration file.
 
 import os
 import time
-import socket
 import threading
 
 import stem.version
