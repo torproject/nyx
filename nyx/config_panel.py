@@ -21,10 +21,10 @@ try:
 except ImportError:
   from stem.util.lru_cache import lru_cache
 
-SortAttr = enum.Enum('OPTION', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
+SortAttr = enum.Enum('NAME', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
 
 DETAILS_HEIGHT = 6
-OPTION_WIDTH = 25
+NAME_WIDTH = 25
 VALUE_WIDTH = 15
 
 
@@ -36,7 +36,7 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('nyx', {
   'attr.config.category_color': {},
   'attr.config.sort_color': {},
-  'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.OPTION, SortAttr.IS_SET],
+  'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.NAME, SortAttr.IS_SET],
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
 }, conf_handler)
@@ -45,30 +45,21 @@ CONFIG = conf.config_dict('nyx', {
 @lru_cache()
 def tor_manual():
   try:
-    return stem.manual.Manual.from_man()
+    return stem.manual.Manual.from_man().config_options
   except IOError as exc:
     log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
-    return stem.manual.Manual.from_cache()
+    return stem.manual.Manual.from_cache().config_options
 
 
-class ConfigEntry():
+class ConfigEntry(object):
   """
   Configuration option in the panel.
   """
 
-  def __init__(self, option, entry_type):
-    self._option = option
-    self._value_type = entry_type
-    self._man_entry = tor_manual().config_options.get(option, stem.manual.ConfigOption(option))
-
-  def option(self):
-    """
-    Provides the name of the configuration option.
-
-    :returns: **str** of the configuration option
-    """
-
-    return self._option
+  def __init__(self, name, value_type):
+    self.name = name
+    self.value_type = value_type
+    self.manual = tor_manual().get(name, stem.manual.ConfigOption(name))
 
   def value(self):
     """
@@ -77,38 +68,20 @@ class ConfigEntry():
     :returns: **str** representation of the current config value
     """
 
-    conf_value = ', '.join(tor_controller().get_conf(self.option(), [], True))
+    conf_value = ', '.join(tor_controller().get_conf(self.name, [], True))
 
     # provides nicer values for recognized types
 
     if not conf_value:
       conf_value = '<none>'
-    elif self.value_type() == 'Boolean' and conf_value in ('0', '1'):
+    elif self.value_type == 'Boolean' and conf_value in ('0', '1'):
       conf_value = 'False' if conf_value == '0' else 'True'
-    elif self.value_type() == 'DataSize' and conf_value.isdigit():
+    elif self.value_type == 'DataSize' and conf_value.isdigit():
       conf_value = str_tools.size_label(int(conf_value))
-    elif self.value_type() == 'TimeInterval' and conf_value.isdigit():
+    elif self.value_type == 'TimeInterval' and conf_value.isdigit():
       conf_value = str_tools.time_label(int(conf_value), is_long = True)
 
     return conf_value
-
-  def value_type(self):
-    """
-    Provides this configuration value's type.
-
-    :returns: **str** representation of this configuration value's type
-    """
-
-    return self._value_type  # TODO: should this be an enum instead?
-
-  def manual_entry(self):
-    """
-    Provides the entry's man page entry.
-
-    :returns: :class:`~stem.manual.ConfigOption` if it was loaded, and **None** otherwise
-    """
-
-    return self._man_entry
 
   def is_set(self):
     """
@@ -117,7 +90,7 @@ class ConfigEntry():
     :returns: **True** if the option has a custom value, **False** otherwise
     """
 
-    return bool(tor_controller().get_conf(self.option(), [], False))
+    return bool(tor_controller().get_conf(self.name, [], False))
 
   def sort_value(self, attr):
     """
@@ -129,21 +102,21 @@ class ConfigEntry():
     """
 
     if attr == SortAttr.CATEGORY:
-      return self.manual_entry().category
-    elif attr == SortAttr.OPTION:
-      return self.option()
+      return self.manual.category
+    elif attr == SortAttr.NAME:
+      return self.name
     elif attr == SortAttr.VALUE:
       return self.value()
     elif attr == SortAttr.VALUE_TYPE:
-      return self.value_type()
+      return self.value_type
     elif attr == SortAttr.USAGE:
-      return self._man_entry.usage
+      return self.manual.usage
     elif attr == SortAttr.SUMMARY:
-      return self.manual_entry().summary
+      return self.manual.summary
     elif attr == SortAttr.DESCRIPTION:
-      return self._man_entry.description
+      return self.manual.description
     elif attr == SortAttr.MAN_PAGE_ENTRY:
-      return tor_manual().config_options.keys().index(self.option()) if self.option() in tor_manual().config_options else 99999  # sorts non-man entries last
+      return tor_manual().keys().index(self.name) if self.name in tor_manual() else 99999  # sorts non-man entries last
     elif attr == SortAttr.IS_SET:
       return not self.is_set()
 
@@ -204,7 +177,7 @@ class ConfigPanel(panel.Panel):
 
     # mirror listing with only the important configuration options
 
-    self._conf_important_contents = filter(lambda entry: stem.manual.is_important(entry.option()), self._conf_contents)
+    self._conf_important_contents = filter(lambda entry: stem.manual.is_important(entry.name), self._conf_contents)
 
     # if there aren't any important options then show everything
 
@@ -248,7 +221,7 @@ class ConfigPanel(panel.Panel):
 
       with panel.CURSES_LOCK:
         selection = self.get_selection()
-        config_option = selection.option()
+        config_option = selection.name
 
         initial_value = '' if not selection.is_set() else selection.value()
         prompt_msg = '%s Value (esc to cancel): ' % config_option
@@ -256,14 +229,14 @@ class ConfigPanel(panel.Panel):
 
         if new_value is not None and new_value != initial_value:
           try:
-            if selection.value_type() == 'Boolean':
+            if selection.value_type == 'Boolean':
               # if the value's a boolean then allow for 'true' and 'false' inputs
 
               if new_value.lower() == 'true':
                 new_value = '1'
               elif new_value.lower() == 'false':
                 new_value = '0'
-            elif selection.value_type() == 'LineList':
+            elif selection.value_type == 'LineList':
               # set_option accepts list inputs when there's multiple values
               new_value = new_value.split(',')
 
@@ -415,7 +388,7 @@ class ConfigPanel(panel.Panel):
       self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(self._get_config_options()), DETAILS_HEIGHT + 2)
 
     value_width = VALUE_WIDTH
-    description_width = max(0, width - scroll_offset - OPTION_WIDTH - value_width - 2)
+    description_width = max(0, width - scroll_offset - NAME_WIDTH - value_width - 2)
 
     # if the description column is overly long then use its space for the
     # value instead
@@ -429,15 +402,15 @@ class ConfigPanel(panel.Panel):
       draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
       line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
-      line_format += [CONFIG['attr.config.category_color'].get(entry.manual_entry().category, 'white')]
+      line_format += [CONFIG['attr.config.category_color'].get(entry.manual.category, 'white')]
 
       if entry == cursor_selection:
         line_format += [curses.A_STANDOUT]
 
-      option_label = str_tools.crop(entry.option(), OPTION_WIDTH)
+      option_label = str_tools.crop(entry.name, NAME_WIDTH)
       value_label = str_tools.crop(entry.value(), value_width)
-      summary_label = str_tools.crop(entry.manual_entry().summary, description_width, None)
-      line_text_layout = '%%-%is %%-%is %%-%is' % (OPTION_WIDTH, value_width, description_width)
+      summary_label = str_tools.crop(entry.manual.summary, description_width, None)
+      line_text_layout = '%%-%is %%-%is %%-%is' % (NAME_WIDTH, value_width, description_width)
       line_text = line_text_layout % (option_label, value_label, summary_label)
 
       self.addstr(draw_line, scroll_offset, line_text, *line_format)
@@ -461,13 +434,13 @@ class ConfigPanel(panel.Panel):
     if is_scrollbar_visible:
       self.addch(detail_panel_height, 1, curses.ACS_TTEE)
 
-    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.manual_entry().category, 'white'))
+    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.manual.category, 'white'))
 
     # first entry:
     # <option> (<category> Option)
 
-    option_label = ' (%s Option)' % selection.manual_entry().category
-    self.addstr(1, 2, selection.option() + option_label, *selection_format)
+    option_label = ' (%s Option)' % selection.manual.category
+    self.addstr(1, 2, selection.name + option_label, *selection_format)
 
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
@@ -475,8 +448,8 @@ class ConfigPanel(panel.Panel):
     if detail_panel_height >= 3:
       value_attr_label = ', '.join([
         'custom' if selection.is_set() else 'default',
-        selection.value_type(),
-        'usage: %s' % (selection.manual_entry().usage)
+        selection.value_type,
+        'usage: %s' % (selection.manual.usage)
       ])
 
       value_label_width = max(0, width - 12 - len(value_attr_label))
@@ -487,7 +460,7 @@ class ConfigPanel(panel.Panel):
     # remainder is filled with the man page description
 
     description_height = max(0, detail_panel_height - 3)
-    description_content = 'Description: %s' % (selection.manual_entry().description)
+    description_content = 'Description: %s' % (selection.manual.description)
 
     for i in range(description_height):
       if not description_content:
