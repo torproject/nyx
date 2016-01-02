@@ -78,7 +78,7 @@ class ConfigEntry(object):
     :returns: **True** if the option has a custom value, **False** otherwise
     """
 
-    return bool(tor_controller().get_conf(self.name, [], False))
+    return bool(tor_controller().get_conf(self.name, None))
 
   def sort_value(self, attr):
     """
@@ -111,33 +111,16 @@ class ConfigEntry(object):
 
 class ConfigPanel(panel.Panel):
   """
-  Renders a listing of the tor or nyx configuration state, allowing options to
-  be selected and edited.
+  Editor for tor's configuration.
   """
 
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
-    self._conf_contents = []
-    self._conf_important_contents = []
+    self._contents = []
     self._scroller = ui_tools.Scroller(True)
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the 'important' ones
-
-    tor_controller().add_status_listener(self.reset_listener)
-    self._load_config_options()
-
-  def reset_listener(self, controller, event_type, _):
-    # fetches configuration options if a new instance, otherewise keeps our
-    # current contents
-
-    if event_type == stem.control.State.INIT:
-      self._load_config_options()
-
-  def _load_config_options(self):
-    """
-    Fetches the configuration options available from tor or nyx.
-    """
 
     try:
       manual = stem.manual.Manual.from_man()
@@ -145,41 +128,32 @@ class ConfigPanel(panel.Panel):
       log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
       manual = stem.manual.Manual.from_cache()
 
-    self._conf_contents = []
-    self._conf_important_contents = []
+    try:
+      for line in tor_controller().get_info('config/names').splitlines():
+        # Lines of the form "<option> <type>[ <documentation>]". Documentation
+        # was apparently only in old tor versions like 0.2.1.25.
 
-    config_names = tor_controller().get_info('config/names', None)
+        if ' ' not in line:
+          continue
 
-    if config_names:
-      for line in config_names.strip().split('\n'):
-        # lines are of the form "<option> <type>[ <documentation>]", like:
-        # UseEntryGuards Boolean
-        # documentation is aparently only in older versions (for instance,
-        # 0.2.1.25)
-
-        line_comp = line.strip().split(' ')
-        conf_option, conf_type = line_comp[0], line_comp[1]
+        line_comp = line.split()
+        name, value_type = line_comp[0], line_comp[1]
 
         # skips private and virtual entries if not configured to show them
 
-        if not CONFIG['features.config.state.showPrivateOptions'] and conf_option.startswith('__'):
+        if name.startswith('__') and not CONFIG['features.config.state.showPrivateOptions']:
           continue
-        elif not CONFIG['features.config.state.showVirtualOptions'] and conf_type == 'Virtual':
+        elif value_type == 'Virtual' and not CONFIG['features.config.state.showVirtualOptions']:
           continue
 
-        self._conf_contents.append(ConfigEntry(conf_option, conf_type, manual))
+        self._contents.append(ConfigEntry(name, value_type, manual))
+    except stem.ControllerError as exc:
+      log.warn("Unable to determine the configuration options tor supports: %s" % exc)
 
-    # mirror listing with only the important configuration options
+    self._important_contents = filter(lambda entry: stem.manual.is_important(entry.name), self._contents)
 
-    self._conf_important_contents = filter(lambda entry: stem.manual.is_important(entry.name), self._conf_contents)
-
-    # if there aren't any important options then show everything
-
-    if not self._conf_important_contents:
-      self._conf_important_contents = self._conf_contents
-
-    self._conf_contents = sorted(self._conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-    self._conf_important_contents = sorted(self._conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    self._important_contents = sorted(self._important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def get_selection(self):
     """
@@ -198,8 +172,8 @@ class ConfigPanel(panel.Panel):
 
     if results:
       self._sort_order = results
-      self._conf_contents = sorted(self._conf_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-      self._conf_important_contents = sorted(self._conf_important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._important_contents = sorted(self._important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def handle_key(self, key):
     if key.is_scroll():
@@ -413,7 +387,7 @@ class ConfigPanel(panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._conf_contents if self._show_all else self._conf_important_contents
+    return self._contents if self._show_all else self._important_contents
 
   def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
     """
