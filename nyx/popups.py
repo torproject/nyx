@@ -333,7 +333,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
             new_selections.append(selection)
             selection_options.remove(selection)
             cursor_location = min(cursor_location, len(selection_options) - 1)
-        elif key == 27:
+        elif key.match('esc'):
           break  # esc - cancel
 
   if len(new_selections) == len(old_selection):

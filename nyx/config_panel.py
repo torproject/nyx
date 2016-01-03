@@ -169,22 +169,13 @@ class ConfigPanel(panel.Panel):
     Confirmation dialog for saving tor's configuration.
     """
 
-    config_text = tor_controller().get_info('config-text', None)
+    selection, controller = 1, tor_controller()
+    config_text = controller.get_info('config-text', None)
     config_lines = config_text.splitlines() if config_text else []
 
     with nyx.popups.popup_window(len(config_lines) + 2) as (popup, width, height):
       if not popup or height <= 2:
         return
-
-      # Try showing options beside the last config line. If there isn't room
-      # and we can grow vertically then do that so it's on their own line.
-
-      if width < (len(config_lines[height - 3]) + 30):
-        popup.set_height(height + 1)
-        popup.redraw(True)  # recreates the window instance
-        height = popup.get_preferred_size()[0]
-
-      selection = 1
 
       while True:
         height, width = popup.get_preferred_size()  # allow us to be resized
@@ -197,26 +188,15 @@ class ConfigPanel(panel.Panel):
           popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
           popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
 
-        # selection options (drawn right to left)
+        x = width - 16
 
-        selection_options = ('Save', 'Cancel')
-        draw_x = width - 1
-
-        for option in reversed(selection_options):
-          draw_x -= len(option) + 2
-
-          if draw_x < 1:
-            break  # not enough room to show all options
-
-          option_format = curses.A_STANDOUT if option == selection_options[selection] else curses.A_NORMAL
-          x = popup.addstr(height - 2, draw_x, '[')
-          x = popup.addstr(height - 2, x, option, option_format, curses.A_BOLD)
-          popup.addstr(height - 2, x, ']')
-
-          draw_x -= 1  # gap between options
+        for i, option in enumerate(['Save', 'Cancel']):
+          x = popup.addstr(height - 2, x, '[')
+          x = popup.addstr(height - 2, x, option, curses.A_BOLD, curses.A_STANDOUT if i == selection else curses.A_NORMAL)
+          x = popup.addstr(height - 2, x, '] ')
 
         popup.win.box()
-        popup.addstr(0, 0, 'Torrc configuration to save:', curses.A_STANDOUT)
+        popup.addstr(0, 0, 'Torrc to save:', curses.A_STANDOUT)
         popup.win.refresh()
 
         key = nyx.controller.get_controller().key_input()
@@ -224,16 +204,18 @@ class ConfigPanel(panel.Panel):
         if key.match('left'):
           selection = max(0, selection - 1)
         elif key.match('right'):
-          selection = min(len(selection_options) - 1, selection + 1)
+          selection = min(1, selection + 1)
         elif key.is_selection():
-          break
+          if selection == 0:
+            try:
+              controller.save_conf()
+              nyx.popups.show_msg('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), 2)
+            except IOError as exc:
+              nyx.popups.show_msg('Unable to save configuration (%s)' % exc.strerror, 2)
 
-      if selection == 0:
-        try:
-          tor_controller().save_conf()
-          nyx.popups.show_msg('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), 2)
-        except IOError as exc:
-          nyx.popups.show_msg('Unable to save configuration (%s)' % exc.strerror, 2)
+          break
+        elif key.match('esc'):
+          break  # esc - cancel
 
   def handle_key(self, key):
     if key.is_scroll():
