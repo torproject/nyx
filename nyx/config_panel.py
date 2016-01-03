@@ -11,7 +11,7 @@ import nyx.popups
 import stem.control
 import stem.manual
 
-from nyx.util import panel, tor_config, tor_controller, ui_tools
+from nyx.util import panel, tor_controller, ui_tools
 
 from stem.util import conf, enum, log, str_tools
 
@@ -197,7 +197,7 @@ class ConfigPanel(panel.Panel):
       self.redraw(True)
     elif key.match('s'):
       self.show_sort_dialog()
-    elif key.match('v'):
+    elif key.match('w'):
       self.show_write_dialog()
     else:
       return False
@@ -224,12 +224,11 @@ class ConfigPanel(panel.Panel):
         popup.redraw(True)  # recreates the window instance
         height = popup.get_preferred_size()[0]
 
-      selection = 2
+      selection = 1
 
       while True:
         height, width = popup.get_preferred_size()  # allow us to be resized
         popup.win.erase()
-        popup.addstr(0, 0, 'Configuration being saved:', curses.A_STANDOUT)
 
         for i, full_line in enumerate(config_lines):
           line = str_tools.crop(full_line, width - 2)
@@ -240,7 +239,7 @@ class ConfigPanel(panel.Panel):
 
         # selection options (drawn right to left)
 
-        selection_options = ('Save', 'Save As...', 'Cancel')
+        selection_options = ('Save', 'Cancel')
         draw_x = width - 1
 
         for option in reversed(selection_options):
@@ -257,6 +256,7 @@ class ConfigPanel(panel.Panel):
           draw_x -= 1  # gap between options
 
         popup.win.box()
+        popup.addstr(0, 0, 'Torrc configuration to save:', curses.A_STANDOUT)
         popup.win.refresh()
 
         key = nyx.controller.get_controller().key_input()
@@ -268,29 +268,13 @@ class ConfigPanel(panel.Panel):
         elif key.is_selection():
           break
 
-      if selection in (0, 1):
-        loaded_torrc, prompt_canceled = tor_config.get_torrc(), False
-
+      if selection == 0:
         try:
-          config_location = loaded_torrc.get_config_location()
-        except IOError:
-          config_location = ''
+          tor_controller().save_conf()
+          nyx.popups.show_msg('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), 2)
+        except IOError as exc:
+          nyx.popups.show_msg('Unable to save configuration (%s)' % exc.strerror, 2)
 
-        if selection == 1:
-          # prompts user for a configuration location
-          config_location = nyx.popups.input_prompt('Save to (esc to cancel): ', config_location)
-
-          if not config_location:
-            prompt_canceled = True
-
-        if not prompt_canceled:
-          try:
-            tor_config.save_conf(config_location, config_lines)
-            msg = 'Saved configuration to %s' % config_location
-          except IOError as exc:
-            msg = 'Unable to save configuration (%s)' % exc.strerror
-
-          nyx.popups.show_msg(msg, 2)
 
   def get_help(self):
     return [
@@ -299,7 +283,7 @@ class ConfigPanel(panel.Panel):
       ('page up', 'scroll up a page', None),
       ('page down', 'scroll down a page', None),
       ('enter', 'edit configuration option', None),
-      ('v', 'save configuration', None),
+      ('w', 'write torrc', None),
       ('a', 'toggle option filtering', None),
       ('s', 'sort ordering', None),
     ]
