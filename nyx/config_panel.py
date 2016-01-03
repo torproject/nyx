@@ -120,7 +120,7 @@ class ConfigPanel(panel.Panel):
     self._contents = []
     self._scroller = ui_tools.Scroller(True)
     self._sort_order = CONFIG['features.config.order']
-    self._show_all = False  # show all options, or just the 'important' ones
+    self._show_all = False  # show all options, or just the important ones
 
     try:
       manual = stem.manual.Manual.from_man()
@@ -148,12 +148,9 @@ class ConfigPanel(panel.Panel):
 
         self._contents.append(ConfigEntry(name, value_type, manual))
     except stem.ControllerError as exc:
-      log.warn("Unable to determine the configuration options tor supports: %s" % exc)
-
-    self._important_contents = filter(lambda entry: stem.manual.is_important(entry.name), self._contents)
+      log.warn('Unable to determine the configuration options tor supports: %s' % exc)
 
     self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-    self._important_contents = sorted(self._important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def get_selection(self):
     """
@@ -173,7 +170,6 @@ class ConfigPanel(panel.Panel):
     if results:
       self._sort_order = results
       self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-      self._important_contents = sorted(self._important_contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
   def handle_key(self, key):
     if key.is_scroll():
@@ -182,7 +178,7 @@ class ConfigPanel(panel.Panel):
 
       if is_changed:
         self.redraw(True)
-    elif key.is_selection() and self._get_config_options():
+    elif key.is_selection():
       # Prompts the user to edit the selected configuration value. The
       # interface is locked to prevent updates between setting the value
       # and showing any errors.
@@ -333,9 +329,10 @@ class ConfigPanel(panel.Panel):
     # Shrink detail panel if there isn't sufficient room for the whole
     # thing. The extra line is for the bottom border.
 
-    scroll_location = self._scroller.get_scroll_location(self._get_config_options(), height - DETAILS_HEIGHT - 2)
+    contents = self._get_config_options()
+    scroll_location = self._scroller.get_scroll_location(contents, height - DETAILS_HEIGHT - 2)
     cursor_selection = self.get_selection()
-    is_scrollbar_visible = len(self._get_config_options()) > height - DETAILS_HEIGHT - 2
+    is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT - 2
 
     if cursor_selection is not None:
       self._draw_selection_panel(cursor_selection, width, DETAILS_HEIGHT + 1, is_scrollbar_visible)
@@ -353,7 +350,7 @@ class ConfigPanel(panel.Panel):
 
     if is_scrollbar_visible:
       scroll_offset = 3
-      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(self._get_config_options()), DETAILS_HEIGHT + 2)
+      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(contents), DETAILS_HEIGHT + 2)
 
     value_width = VALUE_WIDTH
     description_width = max(0, width - scroll_offset - NAME_WIDTH - value_width - 2)
@@ -365,8 +362,8 @@ class ConfigPanel(panel.Panel):
       value_width += description_width - 80
       description_width = 80
 
-    for line_number in range(scroll_location, len(self._get_config_options())):
-      entry = self._get_config_options()[line_number]
+    for line_number in range(scroll_location, len(contents)):
+      entry = contents[line_number]
       draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
 
       line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
@@ -387,7 +384,7 @@ class ConfigPanel(panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else self._important_contents
+    return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name), self._contents)
 
   def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
     """
