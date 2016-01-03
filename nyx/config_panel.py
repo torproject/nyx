@@ -147,17 +147,10 @@ class ConfigPanel(panel.Panel):
           continue
 
         self._contents.append(ConfigEntry(name, value_type, manual))
+
+      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
     except stem.ControllerError as exc:
       log.warn('Unable to determine the configuration options tor supports: %s' % exc)
-
-    self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
-
-  def get_selection(self):
-    """
-    Provides the currently selected entry.
-    """
-
-    return self._scroller.get_cursor_selection(self._get_config_options())
 
   def show_sort_dialog(self):
     """
@@ -179,40 +172,26 @@ class ConfigPanel(panel.Panel):
       if is_changed:
         self.redraw(True)
     elif key.is_selection():
-      # Prompts the user to edit the selected configuration value. The
-      # interface is locked to prevent updates between setting the value
-      # and showing any errors.
+      selection = self._scroller.get_cursor_selection(self._get_config_options())
+      initial_value = selection.value() if selection.is_set() else ''
+      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selection.name, initial_value)
 
-      with panel.CURSES_LOCK:
-        selection = self.get_selection()
-        config_option = selection.name
+      if new_value != initial_value:
+        try:
+          if selection.value_type == 'Boolean':
+            # if the value's a boolean then allow for 'true' and 'false' inputs
 
-        initial_value = '' if not selection.is_set() else selection.value()
-        prompt_msg = '%s Value (esc to cancel): ' % config_option
-        new_value = nyx.popups.input_prompt(prompt_msg, initial_value)
+            if new_value.lower() == 'true':
+              new_value = '1'
+            elif new_value.lower() == 'false':
+              new_value = '0'
+          elif selection.value_type == 'LineList':
+            new_value = new_value.split(',')  # set_conf accepts list inputs
 
-        if new_value is not None and new_value != initial_value:
-          try:
-            if selection.value_type == 'Boolean':
-              # if the value's a boolean then allow for 'true' and 'false' inputs
-
-              if new_value.lower() == 'true':
-                new_value = '1'
-              elif new_value.lower() == 'false':
-                new_value = '0'
-            elif selection.value_type == 'LineList':
-              # set_option accepts list inputs when there's multiple values
-              new_value = new_value.split(',')
-
-            tor_controller().set_conf(config_option, new_value)
-
-            # forces the label to be remade with the new value
-
-            selection.label_cache = None
-
-            self.redraw(True)
-          except Exception as exc:
-            nyx.popups.show_msg('%s (press any key)' % exc)
+          tor_controller().set_conf(selection.name, new_value)
+          self.redraw(True)
+        except Exception as exc:
+          nyx.popups.show_msg('%s (press any key)' % exc)
     elif key.match('a'):
       self._show_all = not self._show_all
       self.redraw(True)
@@ -331,7 +310,7 @@ class ConfigPanel(panel.Panel):
 
     contents = self._get_config_options()
     scroll_location = self._scroller.get_scroll_location(contents, height - DETAILS_HEIGHT - 2)
-    cursor_selection = self.get_selection()
+    cursor_selection = self._scroller.get_cursor_selection(contents)
     is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT - 2
 
     if cursor_selection is not None:
