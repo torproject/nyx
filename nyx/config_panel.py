@@ -78,7 +78,7 @@ class ConfigEntry(object):
     :returns: **True** if the option has a custom value, **False** otherwise
     """
 
-    return bool(tor_controller().get_conf(self.name, None))
+    return tor_controller().is_set(self.name, False)
 
   def sort_value(self, attr):
     """
@@ -265,7 +265,7 @@ class ConfigPanel(panel.Panel):
       ('page down', 'scroll down a page', None),
       ('enter', 'edit configuration option', None),
       ('w', 'write torrc', None),
-      ('a', 'toggle option filtering', None),
+      ('a', 'toggle filtering', None),
       ('s', 'sort ordering', None),
     ]
 
@@ -328,7 +328,7 @@ class ConfigPanel(panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name), self._contents)
+    return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
   def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
     """
