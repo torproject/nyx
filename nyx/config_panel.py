@@ -164,46 +164,6 @@ class ConfigPanel(panel.Panel):
       self._sort_order = results
       self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
-  def handle_key(self, key):
-    if key.is_scroll():
-      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
-      is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
-
-      if is_changed:
-        self.redraw(True)
-    elif key.is_selection():
-      selection = self._scroller.get_cursor_selection(self._get_config_options())
-      initial_value = selection.value() if selection.is_set() else ''
-      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selection.name, initial_value)
-
-      if new_value != initial_value:
-        try:
-          if selection.value_type == 'Boolean':
-            # if the value's a boolean then allow for 'true' and 'false' inputs
-
-            if new_value.lower() == 'true':
-              new_value = '1'
-            elif new_value.lower() == 'false':
-              new_value = '0'
-          elif selection.value_type == 'LineList':
-            new_value = new_value.split(',')  # set_conf accepts list inputs
-
-          tor_controller().set_conf(selection.name, new_value)
-          self.redraw(True)
-        except Exception as exc:
-          nyx.popups.show_msg('%s (press any key)' % exc)
-    elif key.match('a'):
-      self._show_all = not self._show_all
-      self.redraw(True)
-    elif key.match('s'):
-      self.show_sort_dialog()
-    elif key.match('w'):
-      self.show_write_dialog()
-    else:
-      return False
-
-    return True
-
   def show_write_dialog(self):
     """
     Confirmation dialog for saving tor's configuration.
@@ -275,6 +235,45 @@ class ConfigPanel(panel.Panel):
         except IOError as exc:
           nyx.popups.show_msg('Unable to save configuration (%s)' % exc.strerror, 2)
 
+  def handle_key(self, key):
+    if key.is_scroll():
+      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
+      is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
+
+      if is_changed:
+        self.redraw(True)
+    elif key.is_selection():
+      selection = self._scroller.get_cursor_selection(self._get_config_options())
+      initial_value = selection.value() if selection.is_set() else ''
+      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selection.name, initial_value)
+
+      if new_value != initial_value:
+        try:
+          if selection.value_type == 'Boolean':
+            # if the value's a boolean then allow for 'true' and 'false' inputs
+
+            if new_value.lower() == 'true':
+              new_value = '1'
+            elif new_value.lower() == 'false':
+              new_value = '0'
+          elif selection.value_type == 'LineList':
+            new_value = new_value.split(',')  # set_conf accepts list inputs
+
+          tor_controller().set_conf(selection.name, new_value)
+          self.redraw(True)
+        except Exception as exc:
+          nyx.popups.show_msg('%s (press any key)' % exc)
+    elif key.match('a'):
+      self._show_all = not self._show_all
+      self.redraw(True)
+    elif key.match('s'):
+      self.show_sort_dialog()
+    elif key.match('w'):
+      self.show_write_dialog()
+    else:
+      return False
+
+    return True
 
   def get_help(self):
     return [
