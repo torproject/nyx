@@ -278,15 +278,9 @@ class ConfigPanel(panel.Panel):
     if selection is not None:
       self._draw_selection_details(selection, width)
 
-      if is_scrollbar_visible:
-        self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
-
     if self.is_title_visible():
       hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
-      title_label = 'Tor Configuration (%s):' % hidden_msg
-      self.addstr(0, 0, title_label, curses.A_STANDOUT)
-
-    # draws left-hand scroll bar if content's longer than the height
+      self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, curses.A_STANDOUT)
 
     scroll_offset = 1
 
@@ -294,35 +288,32 @@ class ConfigPanel(panel.Panel):
       scroll_offset = 3
       self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT, len(contents), DETAILS_HEIGHT)
 
-    value_width = VALUE_WIDTH
-    description_width = max(0, width - scroll_offset - NAME_WIDTH - value_width - 2)
+      if selection is not None:
+        self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
 
-    # if the description column is overly long then use its space for the
-    # value instead
+    # Description column can grow up to eighty characters. After that any extra
+    # space goes to the value.
+
+    description_width = max(0, width - scroll_offset - NAME_WIDTH - VALUE_WIDTH - 2)
 
     if description_width > 80:
-      value_width += description_width - 80
+      value_width = VALUE_WIDTH + (description_width - 80)
       description_width = 80
+    else:
+      value_width = VALUE_WIDTH
 
-    for line_number in range(scroll_location, len(contents)):
-      entry = contents[line_number]
-      draw_line = line_number + DETAILS_HEIGHT - scroll_location
+    for i, entry in enumerate(contents[scroll_location:]):
+      attr = nyx.util.ui_tools.get_color(CONFIG['attr.config.category_color'].get(entry.manual.category, 'white'))
+      attr |= curses.A_BOLD if entry.is_set() else curses.A_NORMAL
+      attr |= curses.A_STANDOUT if entry == selection else curses.A_NORMAL
 
-      line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
-      line_format += [CONFIG['attr.config.category_color'].get(entry.manual.category, 'white')]
+      option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
+      value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
+      summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
 
-      if entry == selection:
-        line_format += [curses.A_STANDOUT]
+      self.addstr(DETAILS_HEIGHT + i, scroll_offset, option_label + value_label + summary_label, attr)
 
-      option_label = str_tools.crop(entry.name, NAME_WIDTH)
-      value_label = str_tools.crop(entry.value(), value_width)
-      summary_label = str_tools.crop(entry.manual.summary, description_width, None)
-      line_text_layout = '%%-%is %%-%is %%-%is' % (NAME_WIDTH, value_width, description_width)
-      line_text = line_text_layout % (option_label, value_label, summary_label)
-
-      self.addstr(draw_line, scroll_offset, line_text, *line_format)
-
-      if draw_line >= height:
+      if DETAILS_HEIGHT + i >= height:
         break
 
   def _get_config_options(self):
