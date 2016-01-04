@@ -276,7 +276,10 @@ class ConfigPanel(panel.Panel):
     is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT
 
     if selection is not None:
-      self._draw_selection_panel(selection, width, is_scrollbar_visible)
+      self._draw_selection_details(selection, width)
+
+      if is_scrollbar_visible:
+        self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
 
     if self.is_title_visible():
       hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
@@ -325,71 +328,28 @@ class ConfigPanel(panel.Panel):
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
-  def _draw_selection_panel(self, selection, width, is_scrollbar_visible):
+  def _draw_selection_details(self, selection, width):
     """
-    Renders a panel for the selected configuration option.
+    Shows details of the currently selected option.
     """
 
-    # This is a solid border unless the scrollbar is visible, in which case a
-    # 'T' pipe connects the border to the bar.
-
+    description = 'Description: %s' % (selection.manual.description)
+    attr = ', '.join(('custom' if selection.is_set() else 'default', selection.value_type, 'usage: %s' % selection.manual.usage))
+    selected_color = CONFIG['attr.config.category_color'].get(selection.manual.category, 'white')
     ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT)
 
-    if is_scrollbar_visible:
-      self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
+    self.addstr(1, 2, '%s (%s Option)' % (selection.name, selection.manual.category), curses.A_BOLD, selected_color)
+    self.addstr(2, 2, 'Value: %s (%s)' % (selection.value(), str_tools.crop(attr, width - len(selection.value()) - 13)), curses.A_BOLD, selected_color)
 
-    selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.manual.category, 'white'))
+    for i in range(DETAILS_HEIGHT - 4):
+      if not description:
+        break  # done writing description
 
-    # first entry:
-    # <option> (<category> Option)
+      line, description = description.split('\n', 1) if '\n' in description else (description, '')
 
-    option_label = ' (%s Option)' % selection.manual.category
-    self.addstr(1, 2, selection.name + option_label, *selection_format)
-
-    # second entry:
-    # Value: <value> ([default|custom], <type>, usage: <argument usage>)
-
-    if DETAILS_HEIGHT >= 4:
-      value_attr_label = ', '.join([
-        'custom' if selection.is_set() else 'default',
-        selection.value_type,
-        'usage: %s' % (selection.manual.usage)
-      ])
-
-      value_label_width = max(0, width - 12 - len(value_attr_label))
-      value_label = str_tools.crop(selection.value(), value_label_width)
-
-      self.addstr(2, 2, 'Value: %s (%s)' % (value_label, value_attr_label), *selection_format)
-
-    # remainder is filled with the man page description
-
-    description_height = max(0, DETAILS_HEIGHT - 4)
-    description_content = 'Description: %s' % (selection.manual.description)
-
-    for i in range(description_height):
-      if not description_content:
-        break  # done writing the description
-
-      # there's a leading indent after the first line
-
-      if i > 0:
-        description_content = '  ' + description_content
-
-      # we only want to work with content up until the next newline
-
-      if '\n' in description_content:
-        line_content, description_content = description_content.split('\n', 1)
+      if i < DETAILS_HEIGHT - 5:
+        line, remainder = str_tools.crop(line, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
+        description = '  ' + remainder.strip() + description
+        self.addstr(3 + i, 2, line, curses.A_BOLD, selected_color)
       else:
-        line_content, description_content = description_content, ''
-
-      if i != description_height - 1:
-        # there's more lines to display
-
-        msg, remainder = str_tools.crop(line_content, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
-        description_content = remainder.strip() + description_content
-      else:
-        # this is the last line, end it with an ellipse
-
-        msg = str_tools.crop(line_content, width - 3, 4, 4)
-
-      self.addstr(3 + i, 2, msg, *selection_format)
+        self.addstr(3 + i, 2, str_tools.crop(line, width - 3, 4, 4), curses.A_BOLD, selected_color)
