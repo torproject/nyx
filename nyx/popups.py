@@ -333,7 +333,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
             new_selections.append(selection)
             selection_options.remove(selection)
             cursor_location = min(cursor_location, len(selection_options) - 1)
-        elif key == 27:
+        elif key.match('esc'):
           break  # esc - cancel
 
   if len(new_selections) == len(old_selection):
@@ -390,43 +390,45 @@ def show_menu(title, options, old_selection):
   max_width = max(map(len, options)) + 9
 
   with popup_window(len(options) + 2, max_width) as (popup, _, _):
-    if popup:
-      selection = old_selection if old_selection != -1 else 0
+    if not popup:
+      return -1
 
-      # hides the title of the first panel on the page
+    selection = old_selection if old_selection != -1 else 0
 
-      control = nyx.controller.get_controller()
-      top_panel = control.get_display_panels(include_sticky = False)[0]
-      top_panel.set_title_visible(False)
-      top_panel.redraw(True)
+    # hides the title of the first panel on the page
 
-      curses.cbreak()   # wait indefinitely for key presses (no timeout)
+    control = nyx.controller.get_controller()
+    top_panel = control.get_display_panels(include_sticky = False)[0]
+    top_panel.set_title_visible(False)
+    top_panel.redraw(True)
 
-      while True:
-        popup.win.erase()
-        popup.win.box()
-        popup.addstr(0, 0, title, curses.A_STANDOUT)
+    curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
-        for i in range(len(options)):
-          label = options[i]
-          format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
-          tab = '> ' if i == old_selection else '  '
-          popup.addstr(i + 1, 2, tab)
-          popup.addstr(i + 1, 4, ' %s ' % label, format)
+    while True:
+      popup.win.erase()
+      popup.win.box()
+      popup.addstr(0, 0, title, curses.A_STANDOUT)
 
-        popup.win.refresh()
+      for i in range(len(options)):
+        label = options[i]
+        format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+        tab = '> ' if i == old_selection else '  '
+        popup.addstr(i + 1, 2, tab)
+        popup.addstr(i + 1, 4, ' %s ' % label, format)
 
-        key = control.key_input()
+      popup.win.refresh()
 
-        if key.match('up'):
-          selection = max(0, selection - 1)
-        elif key.match('down'):
-          selection = min(len(options) - 1, selection + 1)
-        elif key.is_selection():
-          break
-        elif key.match('esc'):
-          selection = -1
-          break
+      key = control.key_input()
+
+      if key.match('up'):
+        selection = max(0, selection - 1)
+      elif key.match('down'):
+        selection = min(len(options) - 1, selection + 1)
+      elif key.is_selection():
+        break
+      elif key.match('esc'):
+        selection = -1
+        break
 
   top_panel.set_title_visible(True)
   return selection

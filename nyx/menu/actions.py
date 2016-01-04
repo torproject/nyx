@@ -275,14 +275,6 @@ def make_configuration_menu(config_panel):
   config_menu = nyx.menu.item.Submenu('Configuration')
   config_menu.add(nyx.menu.item.MenuItem('Save Config...', config_panel.show_write_dialog))
   config_menu.add(nyx.menu.item.MenuItem('Sorting...', config_panel.show_sort_dialog))
-
-  if config_panel.show_all:
-    label, arg = 'Filter', True
-  else:
-    label, arg = 'Unfilter', False
-
-  config_menu.add(nyx.menu.item.MenuItem('%s Options' % label, functools.partial(config_panel.set_filtering, arg)))
-
   return config_menu
 
 

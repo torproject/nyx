@@ -6,7 +6,6 @@ import re
 import time
 import collections
 import curses
-import datetime
 import itertools
 import threading
 
@@ -17,7 +16,7 @@ import nyx.util.ui_tools
 from nyx.util import panel, tor_controller, ui_tools
 
 from stem.control import Listener
-from stem.util import conf, connection, enum, str_tools
+from stem.util import datetime_to_unix, conf, connection, enum, str_tools
 
 try:
   # added in python 3.2
@@ -66,10 +65,7 @@ CONFIG = conf.config_dict('nyx', {
   'attr.connection.category_color': {},
   'attr.connection.sort_color': {},
   'features.connection.resolveApps': True,
-  'features.connection.order': [
-    SortAttr.CATEGORY,
-    SortAttr.IP_ADDRESS,
-    SortAttr.UPTIME],
+  'features.connection.order': [SortAttr.CATEGORY, SortAttr.IP_ADDRESS, SortAttr.UPTIME],
   'features.connection.showIps': True,
 }, conf_handler)
 
@@ -190,7 +186,7 @@ class ConnectionEntry(Entry):
 
     if fingerprint:
       for circ in controller.get_circuits([]):
-        if circ.path[0][0] == fingerprint and circ.status == 'BUILT':
+        if circ.path and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
           # Tor builds one-hop circuits to retrieve directory information.
           # If longer this is likely a connection to a guard.
 
@@ -239,8 +235,7 @@ class CircuitEntry(Entry):
         nickname = consensus_tracker.get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % address, None)
 
-      created_timestamp = (self._circuit.created - datetime.datetime(1970, 1, 1)).total_seconds()
-      connection = nyx.util.tracker.Connection(created_timestamp, False, '127.0.0.1', 0, address, port, 'tcp')
+      connection = nyx.util.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp')
       return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
 
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
@@ -355,8 +350,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if not selection:
           break
 
+        def is_close_key(key):
+          return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+
         color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
-        is_close_key = lambda key: key.is_selection() or key.match('d') or key.match('left') or key.match('right')
         key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
 
         if not key or key.is_selection() or key.match('d'):

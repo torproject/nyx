@@ -88,24 +88,16 @@ features.log.maxRefreshRate 300
 # order
 #   three comma separated configuration attributes, options including:
 #
-#     * CATEGORY
-#     * OPTION
-#     * VALUE
-#     * TYPE
-#     * ARG_USAGE
-#     * SUMMARY
-#     * DESCRIPTION
-#     * MAN_ENTRY
-#     * IS_DEFAULT
+#     * Category
+#     * Option Name
+#     * Value
+#     * Arg Type
+#     * Arg Usage
+#     * Summary
+#     * Description
+#     * Man Page Entry
+#     * Is Default
 #
-# selectionDetails.height
-#   rows of data for the panel showing details on the current selection, this
-#   is disabled entirely if zero
-# features.config.prepopulateEditValues
-#   when editing config values the current value is prepopulated if true, and
-#   left blank otherwise
-# state.colWidth.*
-#   column content width
 # state.showPrivateOptions
 #   tor provides config options of the form "__<option>" that can be dangerous
 #   to set, if true nyx provides these on the config panel
@@ -117,11 +109,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.order MAN_ENTRY, OPTION, IS_DEFAULT
-features.config.selectionDetails.height 6
-features.config.prepopulateEditValues true
-features.config.state.colWidth.option 25
-features.config.state.colWidth.value 15
+features.config.order Man Page Entry, Option Name, Is Default
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
 features.config.file.showScrollbars true

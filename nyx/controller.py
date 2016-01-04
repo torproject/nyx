@@ -150,7 +150,7 @@ def init_controller(stdscr, start_time):
   # third page: config
 
   if CONFIG['features.panels.show.config']:
-    page_panels.append([nyx.config_panel.ConfigPanel(stdscr, nyx.config_panel.State.TOR)])
+    page_panels.append([nyx.config_panel.ConfigPanel(stdscr)])
 
   # fourth page: torrc
 

@@ -3,15 +3,6 @@ General purpose utilities for a variety of tasks supporting nyx features and
 safely working with curses (hiding some of the gory details).
 """
 
-__all__ = [
-  'log',
-  'panel',
-  'text_input',
-  'tor_config',
-  'tracker',
-  'ui_tools',
-]
-
 import os
 import sys
 
@@ -20,6 +11,15 @@ import stem.util.conf
 import stem.util.log
 
 from nyx.util import log
+
+__all__ = [
+  'log',
+  'panel',
+  'text_input',
+  'tor_config',
+  'tracker',
+  'ui_tools',
+]
 
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])

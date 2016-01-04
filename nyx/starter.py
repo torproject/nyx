@@ -16,7 +16,6 @@ import nyx
 import nyx.arguments
 import nyx.controller
 import nyx.util.panel
-import nyx.util.tor_config
 import nyx.util.tracker
 import nyx.util.ui_tools
 
@@ -24,7 +23,7 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from nyx.util import log, BASE_DIR, init_controller, msg, uses_settings
+from nyx.util import log, init_controller, msg, uses_settings
 
 
 @uses_settings
@@ -82,7 +81,6 @@ def main(config):
   _setup_freebsd_chroot(controller)
   _notify_of_unknown_events()
   _clear_password()
-  _load_tor_config_descriptions()
   _use_english_subcommands()
   _use_unicode()
   _set_process_name()
@@ -225,14 +223,6 @@ def _clear_password(config):
   """
 
   config.set('tor.password', '')
-
-
-def _load_tor_config_descriptions():
-  """
-  Attempt to determine descriptions for tor's configuration options.
-  """
-
-  nyx.util.tor_config.load_configuration_descriptions(BASE_DIR)
 
 
 def _use_english_subcommands():
