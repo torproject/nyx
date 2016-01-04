@@ -17,7 +17,7 @@ from stem.util import conf, enum, log, str_tools
 
 SortAttr = enum.Enum('NAME', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
 
-DETAILS_HEIGHT = 6
+DETAILS_HEIGHT = 8
 NAME_WIDTH = 25
 VALUE_WIDTH = 15
 
@@ -219,7 +219,7 @@ class ConfigPanel(panel.Panel):
 
   def handle_key(self, key):
     if key.is_scroll():
-      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT - 2
+      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT
       is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
       if is_changed:
@@ -270,18 +270,13 @@ class ConfigPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    # Shrink detail panel if there isn't sufficient room for the whole
-    # thing. The extra line is for the bottom border.
-
     contents = self._get_config_options()
-    scroll_location = self._scroller.get_scroll_location(contents, height - DETAILS_HEIGHT - 2)
-    cursor_selection = self._scroller.get_cursor_selection(contents)
-    is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT - 2
+    selection = self._scroller.get_cursor_selection(contents)
+    scroll_location = self._scroller.get_scroll_location(contents, height - DETAILS_HEIGHT)
+    is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT
 
-    if cursor_selection is not None:
-      self._draw_selection_panel(cursor_selection, width, DETAILS_HEIGHT + 1, is_scrollbar_visible)
-
-    # draws the top label
+    if selection is not None:
+      self._draw_selection_panel(selection, width, is_scrollbar_visible)
 
     if self.is_title_visible():
       hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
@@ -294,7 +289,7 @@ class ConfigPanel(panel.Panel):
 
     if is_scrollbar_visible:
       scroll_offset = 3
-      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT - 2, len(contents), DETAILS_HEIGHT + 2)
+      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT, len(contents), DETAILS_HEIGHT)
 
     value_width = VALUE_WIDTH
     description_width = max(0, width - scroll_offset - NAME_WIDTH - value_width - 2)
@@ -308,12 +303,12 @@ class ConfigPanel(panel.Panel):
 
     for line_number in range(scroll_location, len(contents)):
       entry = contents[line_number]
-      draw_line = line_number + DETAILS_HEIGHT + 2 - scroll_location
+      draw_line = line_number + DETAILS_HEIGHT - scroll_location
 
       line_format = [curses.A_BOLD if entry.is_set() else curses.A_NORMAL]
       line_format += [CONFIG['attr.config.category_color'].get(entry.manual.category, 'white')]
 
-      if entry == cursor_selection:
+      if entry == selection:
         line_format += [curses.A_STANDOUT]
 
       option_label = str_tools.crop(entry.name, NAME_WIDTH)
@@ -330,7 +325,7 @@ class ConfigPanel(panel.Panel):
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
-  def _draw_selection_panel(self, selection, width, detail_panel_height, is_scrollbar_visible):
+  def _draw_selection_panel(self, selection, width, is_scrollbar_visible):
     """
     Renders a panel for the selected configuration option.
     """
@@ -338,10 +333,10 @@ class ConfigPanel(panel.Panel):
     # This is a solid border unless the scrollbar is visible, in which case a
     # 'T' pipe connects the border to the bar.
 
-    ui_tools.draw_box(self, 0, 0, width, detail_panel_height + 1)
+    ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT)
 
     if is_scrollbar_visible:
-      self.addch(detail_panel_height, 1, curses.ACS_TTEE)
+      self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
 
     selection_format = (curses.A_BOLD, CONFIG['attr.config.category_color'].get(selection.manual.category, 'white'))
 
@@ -354,7 +349,7 @@ class ConfigPanel(panel.Panel):
     # second entry:
     # Value: <value> ([default|custom], <type>, usage: <argument usage>)
 
-    if detail_panel_height >= 3:
+    if DETAILS_HEIGHT >= 4:
       value_attr_label = ', '.join([
         'custom' if selection.is_set() else 'default',
         selection.value_type,
@@ -368,7 +363,7 @@ class ConfigPanel(panel.Panel):
 
     # remainder is filled with the man page description
 
-    description_height = max(0, detail_panel_height - 3)
+    description_height = max(0, DETAILS_HEIGHT - 4)
     description_content = 'Description: %s' % (selection.manual.description)
 
     for i in range(description_height):
