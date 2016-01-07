@@ -128,7 +128,7 @@ def init_controller(stdscr, start_time):
   # fourth page: torrc
 
   if CONFIG['features.panels.show.torrc']:
-    page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr, nyx.torrc_panel.Config.TORRC)])
+    page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr)])
 
   # initializes the controller
 

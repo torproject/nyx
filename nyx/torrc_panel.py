@@ -11,7 +11,7 @@ import nyx.popups
 from nyx.util import panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
-from stem.util import conf, enum, str_tools
+from stem.util import conf, str_tools
 
 
 def conf_handler(key, value):
@@ -24,10 +24,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.config.file.max_lines_per_entry': 8,
 }, conf_handler)
 
-# TODO: The nyxrc use case is incomplete. There should be equivilant reloading
-# and validation capabilities to the torrc.
-Config = enum.Enum('TORRC', 'NYXRC')  # configuration file types that can be displayed
-
 
 class TorrcPanel(panel.Panel):
   """
@@ -35,11 +31,10 @@ class TorrcPanel(panel.Panel):
   area.
   """
 
-  def __init__(self, stdscr, config_type):
+  def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
     self._vals_lock = threading.RLock()
-    self.config_type = config_type
     self.scroll = 0
     self.show_line_num = True     # shows left aligned line numbers
     self.strip_comments = False   # drops comments and extra whitespace
@@ -175,24 +170,19 @@ class TorrcPanel(panel.Panel):
 
       rendered_contents, corrections, conf_location = None, {}, None
 
-      if self.config_type == Config.TORRC:
-        loaded_torrc = tor_config.get_torrc()
+      loaded_torrc = tor_config.get_torrc()
 
-        with loaded_torrc.get_lock():
-          conf_location = loaded_torrc.get_config_location()
+      with loaded_torrc.get_lock():
+        conf_location = loaded_torrc.get_config_location()
 
-          if not loaded_torrc.is_loaded():
-            rendered_contents = ['### Unable to load the torrc ###']
-          else:
-            rendered_contents = loaded_torrc.get_display_contents(self.strip_comments)
+        if not loaded_torrc.is_loaded():
+          rendered_contents = ['### Unable to load the torrc ###']
+        else:
+          rendered_contents = loaded_torrc.get_display_contents(self.strip_comments)
 
-            # constructs a mapping of line numbers to the issue on it
+          # constructs a mapping of line numbers to the issue on it
 
-            corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in loaded_torrc.get_corrections())
-      else:
-        loaded_nyxrc = conf.get_config('nyx')
-        conf_location = loaded_nyxrc._path
-        rendered_contents = list(loaded_nyxrc._raw_contents)
+          corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in loaded_torrc.get_corrections())
 
       # offset to make room for the line numbers
 
@@ -217,9 +207,8 @@ class TorrcPanel(panel.Panel):
       # draws the top label
 
       if self.is_title_visible():
-        source_label = 'Tor' if self.config_type == Config.TORRC else 'Nyx'
         location_label = ' (%s)' % conf_location if conf_location else ''
-        self.addstr(0, 0, '%s Configuration File%s:' % (source_label, location_label), curses.A_STANDOUT)
+        self.addstr(0, 0, 'Tor Configuration File%s:' % (location_label), curses.A_STANDOUT)
 
       is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
