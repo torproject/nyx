@@ -8,7 +8,7 @@ import threading
 
 import nyx.popups
 
-from nyx.util import panel, tor_config, tor_controller, ui_tools
+from nyx.util import expand_path, panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
 from stem.util import conf, str_tools
@@ -170,10 +170,11 @@ class TorrcPanel(panel.Panel):
       rendered_contents, corrections, conf_location = None, {}, None
 
       loaded_torrc = tor_config.get_torrc()
+      controller = tor_controller()
+
+      conf_location = expand_path(controller.get_info('config-file', None))
 
       with loaded_torrc.get_lock():
-        conf_location = loaded_torrc.get_config_location()
-
         if not loaded_torrc.is_loaded():
           rendered_contents = ['### Unable to load the torrc ###']
         else:

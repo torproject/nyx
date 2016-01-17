@@ -81,7 +81,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.panels.show.connection': True,
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
-  'tor.chroot': '',
 }, conf_handler)
 
 
