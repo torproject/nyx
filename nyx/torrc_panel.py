@@ -64,7 +64,6 @@ class TorrcPanel(panel.Panel):
       try:
         loaded_torrc = tor_config.get_torrc()
         loaded_torrc.load(True)
-        loaded_torrc.log_validation_issues()
         self.redraw(True)
       except:
         pass
