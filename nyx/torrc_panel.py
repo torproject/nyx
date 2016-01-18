@@ -6,23 +6,12 @@ import math
 import curses
 import threading
 
-import nyx.popups
-
 from nyx.util import expand_path, panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
-from stem.util import conf, log, str_tools
+from stem.util import log, str_tools
 
-
-def conf_handler(key, value):
-  if key == 'features.config.file.max_lines_per_entry':
-    return max(1, value)
-
-
-CONFIG = conf.config_dict('nyx', {
-  'features.config.file.showScrollbars': True,
-  'features.config.file.max_lines_per_entry': 8,
-}, conf_handler)
+MAX_WRAP_PER_LINE = 8
 
 
 class TorrcPanel(panel.Panel):
@@ -173,7 +162,7 @@ class TorrcPanel(panel.Panel):
 
       scroll_offset = 0
 
-      if CONFIG['features.config.file.showScrollbars'] and self._last_content_height > height - 1:
+      if self._last_content_height > height - 1:
         scroll_offset = 3
         self.add_scroll_bar(self.scroll, self.scroll + height - 1, self._last_content_height, 1)
 
@@ -264,7 +253,6 @@ class TorrcPanel(panel.Panel):
         # draws the rest of the components with line wrap
 
         cursor_location, line_offset = line_number_offset + scroll_offset, 0
-        max_lines_per_entry = CONFIG['features.config.file.max_lines_per_entry']
         display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
 
         while display_queue:
@@ -275,7 +263,7 @@ class TorrcPanel(panel.Panel):
           if len(msg) >= max_msg_size:
             # message is too long - break it up
 
-            if line_offset == max_lines_per_entry - 1:
+            if line_offset == MAX_WRAP_PER_LINE - 1:
               msg = str_tools.crop(msg, max_msg_size)
             else:
               include_break = True

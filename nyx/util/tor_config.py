@@ -2,13 +2,9 @@
 Helper functions for working with tor's configuration file.
 """
 
-import threading
+from nyx.util import tor_controller
 
-import stem.version
-
-from nyx.util import tor_controller, ui_tools
-
-from stem.util import conf, enum, log, str_tools, system
+from stem.util import conf, enum, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
   'features.torrc.validate': True,
