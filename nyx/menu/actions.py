@@ -290,7 +290,6 @@ def make_torrc_menu(torrc_panel):
   """
 
   torrc_menu = nyx.menu.item.Submenu('Torrc')
-  torrc_menu.add(nyx.menu.item.MenuItem('Reload', torrc_panel.reload_torrc))
 
   if torrc_panel.strip_comments:
     label, arg = 'Show', True

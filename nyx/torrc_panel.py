@@ -4,7 +4,6 @@ Panel displaying the torrc or nyxrc with the validation done against it.
 
 import math
 import curses
-import threading
 
 from nyx.util import expand_path, panel, tor_config, tor_controller, ui_tools
 
@@ -23,7 +22,6 @@ class TorrcPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
-    self._vals_lock = threading.RLock()
     self.scroll = 0
     self.show_line_num = True     # shows left aligned line numbers
     self.strip_comments = False   # drops comments and extra whitespace
@@ -85,22 +83,21 @@ class TorrcPanel(panel.Panel):
     self.redraw(True)
 
   def handle_key(self, key):
-    with self._vals_lock:
-      if key.is_scroll():
-        page_height = self.get_preferred_size()[0] - 1
-        new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
+    if key.is_scroll():
+      page_height = self.get_preferred_size()[0] - 1
+      new_scroll = ui_tools.get_scroll_position(key, self.scroll, page_height, self._last_content_height)
 
-        if self.scroll != new_scroll:
-          self.scroll = new_scroll
-          self.redraw(True)
-      elif key.match('n'):
-        self.set_line_number_visible(not self.show_line_num)
-      elif key.match('s'):
-        self.set_comments_visible(self.strip_comments)
-      else:
-        return False
+      if self.scroll != new_scroll:
+        self.scroll = new_scroll
+        self.redraw(True)
+    elif key.match('n'):
+      self.set_line_number_visible(not self.show_line_num)
+    elif key.match('s'):
+      self.set_comments_visible(self.strip_comments)
+    else:
+      return False
 
-      return True
+    return True
 
   def set_visible(self, is_visible):
     if not is_visible:
@@ -120,180 +117,179 @@ class TorrcPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
-    with self._vals_lock:
-      # If true, we assume that the cached value in self._last_content_height is
-      # still accurate, and stop drawing when there's nothing more to display.
-      # Otherwise the self._last_content_height is suspect, and we'll process all
-      # the content to check if it's right (and redraw again with the corrected
-      # height if not).
+    # If true, we assume that the cached value in self._last_content_height is
+    # still accurate, and stop drawing when there's nothing more to display.
+    # Otherwise the self._last_content_height is suspect, and we'll process all
+    # the content to check if it's right (and redraw again with the corrected
+    # height if not).
 
-      trust_last_content_height = self._last_content_height_args == (width, height)
+    trust_last_content_height = self._last_content_height_args == (width, height)
 
-      # restricts scroll location to valid bounds
+    # restricts scroll location to valid bounds
 
-      self.scroll = max(0, min(self.scroll, self._last_content_height - height + 1))
+    self.scroll = max(0, min(self.scroll, self._last_content_height - height + 1))
 
-      if self.torrc_content is None:
-        rendered_contents = ['### Unable to load the torrc ###']
-        corrections = {}
+    if self.torrc_content is None:
+      rendered_contents = ['### Unable to load the torrc ###']
+      corrections = {}
+    else:
+      rendered_contents = [ui_tools.get_printable(line.replace('\t', '   ')) for line in self.torrc_content]
+
+      if self.strip_comments:
+        for i in range(len(rendered_contents)):
+          line = rendered_contents[i]
+
+          if line and '#' in line:
+            rendered_contents[i] = line[:line.find('#')].strip()
+
+      corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in tor_config.validate(self.torrc_content))
+
+    # offset to make room for the line numbers
+
+    line_number_offset = 0
+
+    if self.show_line_num:
+      if len(rendered_contents) == 0:
+        line_number_offset = 2
       else:
-        rendered_contents = [ui_tools.get_printable(line.replace('\t', '   ')) for line in self.torrc_content]
+        line_number_offset = int(math.log10(len(rendered_contents))) + 2
 
-        if self.strip_comments:
-          for i in range(len(rendered_contents)):
-            line = rendered_contents[i]
+    # draws left-hand scroll bar if content's longer than the height
 
-            if line and '#' in line:
-              rendered_contents[i] = line[:line.find('#')].strip()
+    scroll_offset = 0
 
-        corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in tor_config.validate(self.torrc_content))
+    if self._last_content_height > height - 1:
+      scroll_offset = 3
+      self.add_scroll_bar(self.scroll, self.scroll + height - 1, self._last_content_height, 1)
 
-      # offset to make room for the line numbers
+    display_line = -self.scroll + 1  # line we're drawing on
 
-      line_number_offset = 0
+    # draws the top label
 
-      if self.show_line_num:
-        if len(rendered_contents) == 0:
-          line_number_offset = 2
+    if self.is_title_visible():
+      location_label = ' (%s)' % self.torrc_location
+      self.addstr(0, 0, 'Tor Configuration File%s:' % (location_label), curses.A_STANDOUT)
+
+    is_multiline = False  # true if we're in the middle of a multiline torrc entry
+
+    for line_number in range(0, len(rendered_contents)):
+      line_text = rendered_contents[line_number]
+      line_text = line_text.rstrip()  # remove ending whitespace
+
+      # blank lines are hidden when stripping comments
+
+      if self.strip_comments and not line_text:
+        continue
+
+      # splits the line into its component (msg, format) tuples
+
+      line_comp = {
+        'option': ['', (curses.A_BOLD, 'green')],
+        'argument': ['', (curses.A_BOLD, 'cyan')],
+        'correction': ['', (curses.A_BOLD, 'cyan')],
+        'comment': ['', ('white',)],
+      }
+
+      # parses the comment
+
+      comment_index = line_text.find('#')
+
+      if comment_index != -1:
+        line_comp['comment'][0] = line_text[comment_index:]
+        line_text = line_text[:comment_index]
+
+      # splits the option and argument, preserving any whitespace around them
+
+      stripped_line = line_text.strip()
+      option_index = stripped_line.find(' ')
+
+      if is_multiline:
+        # part of a multiline entry started on a previous line so everything
+        # is part of the argument
+        line_comp['argument'][0] = line_text
+      elif option_index == -1:
+        # no argument provided
+        line_comp['option'][0] = line_text
+      else:
+        option_text = stripped_line[:option_index]
+        option_end = line_text.find(option_text) + len(option_text)
+        line_comp['option'][0] = line_text[:option_end]
+        line_comp['argument'][0] = line_text[option_end:]
+
+      # flags following lines as belonging to this multiline entry if it ends
+      # with a slash
+
+      if stripped_line:
+        is_multiline = stripped_line.endswith('\\')
+
+      # gets the correction
+
+      if line_number in corrections:
+        line_issue, line_issue_msg = corrections[line_number]
+
+        if line_issue in (tor_config.ValidationError.DUPLICATE, tor_config.ValidationError.IS_DEFAULT):
+          line_comp['option'][1] = (curses.A_BOLD, 'blue')
+          line_comp['argument'][1] = (curses.A_BOLD, 'blue')
+        elif line_issue == tor_config.ValidationError.MISMATCH:
+          line_comp['argument'][1] = (curses.A_BOLD, 'red')
+          line_comp['correction'][0] = ' (%s)' % line_issue_msg
         else:
-          line_number_offset = int(math.log10(len(rendered_contents))) + 2
+          # For some types of configs the correction field is simply used to
+          # provide extra data (for instance, the type for tor state fields).
 
-      # draws left-hand scroll bar if content's longer than the height
+          line_comp['correction'][0] = ' (%s)' % line_issue_msg
+          line_comp['correction'][1] = (curses.A_BOLD, 'magenta')
 
-      scroll_offset = 0
+      # draws the line number
 
-      if self._last_content_height > height - 1:
-        scroll_offset = 3
-        self.add_scroll_bar(self.scroll, self.scroll + height - 1, self._last_content_height, 1)
+      if self.show_line_num and display_line < height and display_line >= 1:
+        line_number_str = ('%%%ii' % (line_number_offset - 1)) % (line_number + 1)
+        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD, 'yellow')
 
-      display_line = -self.scroll + 1  # line we're drawing on
+      # draws the rest of the components with line wrap
 
-      # draws the top label
+      cursor_location, line_offset = line_number_offset + scroll_offset, 0
+      display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
 
-      if self.is_title_visible():
-        location_label = ' (%s)' % self.torrc_location
-        self.addstr(0, 0, 'Tor Configuration File%s:' % (location_label), curses.A_STANDOUT)
+      while display_queue:
+        msg, format = display_queue.pop(0)
 
-      is_multiline = False  # true if we're in the middle of a multiline torrc entry
+        max_msg_size, include_break = width - cursor_location, False
 
-      for line_number in range(0, len(rendered_contents)):
-        line_text = rendered_contents[line_number]
-        line_text = line_text.rstrip()  # remove ending whitespace
+        if len(msg) >= max_msg_size:
+          # message is too long - break it up
 
-        # blank lines are hidden when stripping comments
-
-        if self.strip_comments and not line_text:
-          continue
-
-        # splits the line into its component (msg, format) tuples
-
-        line_comp = {
-          'option': ['', (curses.A_BOLD, 'green')],
-          'argument': ['', (curses.A_BOLD, 'cyan')],
-          'correction': ['', (curses.A_BOLD, 'cyan')],
-          'comment': ['', ('white',)],
-        }
-
-        # parses the comment
-
-        comment_index = line_text.find('#')
-
-        if comment_index != -1:
-          line_comp['comment'][0] = line_text[comment_index:]
-          line_text = line_text[:comment_index]
-
-        # splits the option and argument, preserving any whitespace around them
-
-        stripped_line = line_text.strip()
-        option_index = stripped_line.find(' ')
-
-        if is_multiline:
-          # part of a multiline entry started on a previous line so everything
-          # is part of the argument
-          line_comp['argument'][0] = line_text
-        elif option_index == -1:
-          # no argument provided
-          line_comp['option'][0] = line_text
-        else:
-          option_text = stripped_line[:option_index]
-          option_end = line_text.find(option_text) + len(option_text)
-          line_comp['option'][0] = line_text[:option_end]
-          line_comp['argument'][0] = line_text[option_end:]
-
-        # flags following lines as belonging to this multiline entry if it ends
-        # with a slash
-
-        if stripped_line:
-          is_multiline = stripped_line.endswith('\\')
-
-        # gets the correction
-
-        if line_number in corrections:
-          line_issue, line_issue_msg = corrections[line_number]
-
-          if line_issue in (tor_config.ValidationError.DUPLICATE, tor_config.ValidationError.IS_DEFAULT):
-            line_comp['option'][1] = (curses.A_BOLD, 'blue')
-            line_comp['argument'][1] = (curses.A_BOLD, 'blue')
-          elif line_issue == tor_config.ValidationError.MISMATCH:
-            line_comp['argument'][1] = (curses.A_BOLD, 'red')
-            line_comp['correction'][0] = ' (%s)' % line_issue_msg
+          if line_offset == MAX_WRAP_PER_LINE - 1:
+            msg = str_tools.crop(msg, max_msg_size)
           else:
-            # For some types of configs the correction field is simply used to
-            # provide extra data (for instance, the type for tor state fields).
+            include_break = True
+            msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
+            display_queue.insert(0, (remainder.strip(), format))
 
-            line_comp['correction'][0] = ' (%s)' % line_issue_msg
-            line_comp['correction'][1] = (curses.A_BOLD, 'magenta')
+        draw_line = display_line + line_offset
 
-        # draws the line number
+        if msg and draw_line < height and draw_line >= 1:
+          self.addstr(draw_line, cursor_location, msg, *format)
 
-        if self.show_line_num and display_line < height and display_line >= 1:
-          line_number_str = ('%%%ii' % (line_number_offset - 1)) % (line_number + 1)
-          self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD, 'yellow')
+        # If we're done, and have added content to this line, then start
+        # further content on the next line.
 
-        # draws the rest of the components with line wrap
+        cursor_location += len(msg)
+        include_break |= not display_queue and cursor_location != line_number_offset + scroll_offset
 
-        cursor_location, line_offset = line_number_offset + scroll_offset, 0
-        display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
+        if include_break:
+          line_offset += 1
+          cursor_location = line_number_offset + scroll_offset
 
-        while display_queue:
-          msg, format = display_queue.pop(0)
+      display_line += max(line_offset, 1)
 
-          max_msg_size, include_break = width - cursor_location, False
+      if trust_last_content_height and display_line >= height:
+        break
 
-          if len(msg) >= max_msg_size:
-            # message is too long - break it up
+    if not trust_last_content_height:
+      self._last_content_height_args = (width, height)
+      new_content_height = display_line + self.scroll - 1
 
-            if line_offset == MAX_WRAP_PER_LINE - 1:
-              msg = str_tools.crop(msg, max_msg_size)
-            else:
-              include_break = True
-              msg, remainder = str_tools.crop(msg, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
-              display_queue.insert(0, (remainder.strip(), format))
-
-          draw_line = display_line + line_offset
-
-          if msg and draw_line < height and draw_line >= 1:
-            self.addstr(draw_line, cursor_location, msg, *format)
-
-          # If we're done, and have added content to this line, then start
-          # further content on the next line.
-
-          cursor_location += len(msg)
-          include_break |= not display_queue and cursor_location != line_number_offset + scroll_offset
-
-          if include_break:
-            line_offset += 1
-            cursor_location = line_number_offset + scroll_offset
-
-        display_line += max(line_offset, 1)
-
-        if trust_last_content_height and display_line >= height:
-          break
-
-      if not trust_last_content_height:
-        self._last_content_height_args = (width, height)
-        new_content_height = display_line + self.scroll - 1
-
-        if self._last_content_height != new_content_height:
-          self._last_content_height = new_content_height
-          self.redraw(True)
+      if self._last_content_height != new_content_height:
+        self._last_content_height = new_content_height
+        self.redraw(True)
