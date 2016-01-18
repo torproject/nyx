@@ -11,7 +11,7 @@ import nyx.popups
 from nyx.util import expand_path, panel, tor_config, tor_controller, ui_tools
 
 from stem.control import State
-from stem.util import conf, str_tools
+from stem.util import conf, log, str_tools
 
 
 def conf_handler(key, value):
@@ -45,34 +45,31 @@ class TorrcPanel(panel.Panel):
     self._last_content_height = 1
     self._last_content_height_args = None
 
+    self.torrc_location = ''
+    self.torrc_content = None
+
     # listens for tor reload (sighup) events
 
     controller = tor_controller()
     controller.add_status_listener(self.reset_listener)
 
     if controller.is_alive():
-      self.reset_listener(None, State.INIT, None)
+      self.reset_listener(controller, State.RESET, None)
 
   def reset_listener(self, controller, event_type, _):
     """
     Reloads and displays the torrc on tor reload (sighup) events.
     """
 
-    if event_type == State.INIT:
-      # loads the torrc and provides warnings in case of validation errors
+    if event_type == State.RESET:
+      self.torrc_location = expand_path(controller.get_info('config-file', None))
 
       try:
-        loaded_torrc = tor_config.get_torrc()
-        loaded_torrc.load(True)
-        self.redraw(True)
-      except:
-        pass
-    elif event_type == State.RESET:
-      try:
-        tor_config.get_torrc().load(True)
-        self.redraw(True)
-      except:
-        pass
+        with open(self.torrc_location) as torrc_file:
+          self.torrc_content = torrc_file.readlines()
+      except IOError as exc:
+        log.log_once('torrc_load_failed', log.WARN, 'Unable to load torrc (%s)' % exc.strerror)
+        self.torrc_content = None
 
   def set_comments_visible(self, is_visible):
     """
@@ -98,23 +95,6 @@ class TorrcPanel(panel.Panel):
     self._last_content_height_args = None
     self.redraw(True)
 
-  def reload_torrc(self):
-    """
-    Reloads the torrc, displaying an indicator of success or failure.
-    """
-
-    try:
-      tor_config.get_torrc().load()
-      self._last_content_height_args = None
-      self.redraw(True)
-      result_msg = 'torrc reloaded'
-    except IOError:
-      result_msg = 'failed to reload torrc'
-
-    self._last_content_height_args = None
-    self.redraw(True)
-    nyx.popups.show_msg(result_msg, 1)
-
   def handle_key(self, key):
     with self._vals_lock:
       if key.is_scroll():
@@ -128,8 +108,6 @@ class TorrcPanel(panel.Panel):
         self.set_line_number_visible(not self.show_line_num)
       elif key.match('s'):
         self.set_comments_visible(self.strip_comments)
-      elif key.match('r'):
-        self.reload_torrc()
       else:
         return False
 
@@ -149,7 +127,6 @@ class TorrcPanel(panel.Panel):
       ('page down', 'scroll down a page', None),
       ('s', 'comment stripping', 'on' if self.strip_comments else 'off'),
       ('n', 'line numbering', 'on' if self.show_line_num else 'off'),
-      ('r', 'reload torrc', None),
       ('x', 'reset tor (issue sighup)', None),
     ]
 
@@ -167,22 +144,20 @@ class TorrcPanel(panel.Panel):
 
       self.scroll = max(0, min(self.scroll, self._last_content_height - height + 1))
 
-      rendered_contents, corrections, conf_location = None, {}, None
+      if self.torrc_content is None:
+        rendered_contents = ['### Unable to load the torrc ###']
+        corrections = {}
+      else:
+        rendered_contents = [ui_tools.get_printable(line.replace('\t', '   ')) for line in self.torrc_content]
 
-      loaded_torrc = tor_config.get_torrc()
-      controller = tor_controller()
+        if self.strip_comments:
+          for i in range(len(rendered_contents)):
+            line = rendered_contents[i]
 
-      conf_location = expand_path(controller.get_info('config-file', None))
+            if line and '#' in line:
+              rendered_contents[i] = line[:line.find('#')].strip()
 
-      with loaded_torrc.get_lock():
-        if not loaded_torrc.is_loaded():
-          rendered_contents = ['### Unable to load the torrc ###']
-        else:
-          rendered_contents = loaded_torrc.get_display_contents(self.strip_comments)
-
-          # constructs a mapping of line numbers to the issue on it
-
-          corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in loaded_torrc.get_corrections())
+        corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in tor_config.validate(self.torrc_content))
 
       # offset to make room for the line numbers
 
@@ -207,7 +182,7 @@ class TorrcPanel(panel.Panel):
       # draws the top label
 
       if self.is_title_visible():
-        location_label = ' (%s)' % conf_location if conf_location else ''
+        location_label = ' (%s)' % self.torrc_location
         self.addstr(0, 0, 'Tor Configuration File%s:' % (location_label), curses.A_STANDOUT)
 
       is_multiline = False  # true if we're in the middle of a multiline torrc entry

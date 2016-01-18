@@ -23,7 +23,7 @@ import stem
 
 from stem.control import State
 
-from nyx.util import panel, tor_config, tor_controller, ui_tools
+from nyx.util import panel, tor_controller, ui_tools
 
 from stem.util import conf, log, system
 
@@ -478,13 +478,6 @@ def conn_reset_listener(controller, event_type, _):
 
     if event_type == State.CLOSED:
       log.notice('Tor control port closed')
-    elif event_type in (State.INIT, State.RESET):
-      # Reload the torrc contents. If the torrc panel is present then it will
-      # do this instead since it wants to do validation and redraw _after_ the
-      # new contents are loaded.
-
-      if get_controller().get_panel('torrc') is None:
-        tor_config.get_torrc().load(True)
 
 
 def start_nyx(stdscr):
