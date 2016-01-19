@@ -88,15 +88,15 @@ features.log.maxRefreshRate 300
 # order
 #   three comma separated configuration attributes, options including:
 #
-#     * Category
-#     * Option Name
-#     * Value
-#     * Arg Type
-#     * Arg Usage
-#     * Summary
-#     * Description
-#     * Man Page Entry
-#     * Is Default
+#     * NAME
+#     * VALUE
+#     * VALUE_TYPE
+#     * CATEGORY
+#     * USAGE
+#     * SUMMARY
+#     * DESCRIPTION
+#     * MAN_PAGE_ENTRY
+#     * IS_SET
 #
 # state.showPrivateOptions
 #   tor provides config options of the form "__<option>" that can be dangerous
@@ -109,7 +109,7 @@ features.log.maxRefreshRate 300
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
-features.config.order Man Page Entry, Option Name, Is Default
+features.config.order MAN_PAGE_ENTRY, NAME, IS_SET
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
 features.config.file.showScrollbars true
@@ -169,10 +169,8 @@ features.graph.bw.accounting.show true
 #
 #   * CATEGORY
 #   * UPTIME
-#   * LISTING
 #   * IP_ADDRESS
 #   * PORT
-#   * HOSTNAME
 #   * FINGERPRINT
 #   * NICKNAME
 #   * COUNTRY
@@ -184,7 +182,7 @@ features.graph.bw.accounting.show true
 #   shows ip addresses for other tor relays, dropping this information if
 #   false
 
-features.connection.order CATEGORY, LISTING, UPTIME
+features.connection.order CATEGORY, IP_ADDRESS, UPTIME
 features.connection.resolveApps true
 features.connection.showIps true
 
