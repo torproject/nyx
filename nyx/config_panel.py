@@ -4,6 +4,7 @@ and the resulting configuration files saved.
 """
 
 import curses
+import os
 
 import nyx.controller
 import nyx.popups
@@ -11,7 +12,7 @@ import nyx.popups
 import stem.control
 import stem.manual
 
-from nyx.util import panel, tor_controller, ui_tools
+from nyx.util import DATA_DIR, panel, tor_controller, ui_tools
 
 from stem.util import conf, enum, log, str_tools
 
@@ -122,11 +123,21 @@ class ConfigPanel(panel.Panel):
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the important ones
 
-    try:
-      manual = stem.manual.Manual.from_man()
-    except IOError as exc:
-      log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
-      manual = stem.manual.Manual.from_cache()
+    cached_manual_path = os.path.join(DATA_DIR, 'manual')
+
+    if os.path.exists(cached_manual_path):
+      manual = stem.manual.Manual.from_cache(cached_manual_path)
+    else:
+      try:
+        manual = stem.manual.Manual.from_man()
+
+        try:
+          manual.save(cached_manual_path)
+        except IOError as exc:
+          log.debug("Unable to cache manual information to '%s'. This is fine, but means starting Nyx takes a little longer than usual: " % (cached_manual_path, exc))
+      except IOError as exc:
+        log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
+        manual = stem.manual.Manual.from_cache()
 
     try:
       for line in tor_controller().get_info('config/names').splitlines():

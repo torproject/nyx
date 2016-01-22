@@ -23,6 +23,7 @@ __all__ = [
 
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
+DATA_DIR = os.path.expanduser('~/.nyx')
 TESTING = False
 
 try:

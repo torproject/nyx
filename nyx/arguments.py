@@ -10,7 +10,7 @@ import nyx
 
 import stem.util.connection
 
-from nyx.util import tor_controller, msg
+from nyx.util import DATA_DIR, tor_controller, msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -18,7 +18,7 @@ DEFAULT_ARGS = {
   'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
-  'config': os.path.expanduser('~/.nyx/nyxrc'),
+  'config': os.path.join(DATA_DIR, 'nyxrc'),
   'debug_path': None,
   'logged_events': 'N3',
   'print_version': False,
