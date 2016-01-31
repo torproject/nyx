@@ -7,6 +7,7 @@ import os
 import sys
 
 import stem.connection
+import stem.control
 import stem.util.conf
 import stem.util.log
 
@@ -25,6 +26,10 @@ TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-2])
 DATA_DIR = os.path.expanduser('~/.nyx')
 TESTING = False
+
+# technically can change but we use this query a *lot* so needs to be cached
+
+stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARAMS) + ['address']
 
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'config'), lazy_load = False)
