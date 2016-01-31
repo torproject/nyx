@@ -281,6 +281,12 @@ class LogEntry(object):
     elif self.message == entry.message:
       return True
 
+    if self.type == 'NYX_DEBUG' and 'runtime:' in self.message and 'runtime:' in entry.message:
+      # most nyx debug messages show runtimes so try matching without that
+
+      if self.message[:self.message.find('runtime:')] == entry.message[:self.message.find('runtime:')]:
+        return True
+
     for common_msg in _common_log_messages().get(self.type, []):
       # if it starts with an asterisk then check the whole message rather
       # than just the start
