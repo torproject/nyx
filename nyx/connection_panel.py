@@ -30,6 +30,7 @@ DETAILS_HEIGHT = 7
 
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
+LAST_RETRIEVED_CIRCUITS = None  # cached circuit information from the last _update() call
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -184,13 +185,10 @@ class ConnectionEntry(Entry):
 
     fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
 
-    if fingerprint:
-      for circ in controller.get_circuits([]):
-        if circ.path and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
-          # Tor builds one-hop circuits to retrieve directory information.
-          # If longer this is likely a connection to a guard.
-
-          return Category.DIRECTORY if len(circ.path) == 1 else Category.CIRCUIT
+    if fingerprint and LAST_RETRIEVED_CIRCUITS:
+      for circ in LAST_RETRIEVED_CIRCUITS:
+        if circ.path and len(circ.path) == 1 and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
+          return Category.DIRECTORY  # one-hop circuit to retrieve directory information
     else:
       # not a known relay, might be an exit connection
 
@@ -235,7 +233,7 @@ class CircuitEntry(Entry):
         nickname = consensus_tracker.get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % address, None)
 
-      connection = nyx.util.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp')
+      connection = nyx.util.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp', False)
       return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
 
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
@@ -650,6 +648,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Fetches the newest resolved connections.
     """
 
+    global LAST_RETRIEVED_CIRCUITS
+
     conn_resolver = nyx.util.tracker.get_connection_tracker()
     current_resolution_count = conn_resolver.run_counter()
 
@@ -659,8 +659,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       return  # no new connections to process
 
     new_entries = [Entry.from_connection(conn) for conn in conn_resolver.get_value()]
+    LAST_RETRIEVED_CIRCUITS = tor_controller().get_circuits([])
 
-    for circ in tor_controller().get_circuits([]):
+    for circ in LAST_RETRIEVED_CIRCUITS:
       # Skips established single-hop circuits (these are for directory
       # fetches, not client circuits)
 
