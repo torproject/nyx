@@ -38,29 +38,47 @@ OPT_EXPANDED = [
 ]
 
 TOR_EVENT_TYPES = {
+  # runlevels
+
   'd': 'DEBUG',
   'i': 'INFO',
   'n': 'NOTICE',
   'w': 'WARN',
   'e': 'ERR',
 
-  'a': 'ADDRMAP',
-  'f': 'AUTHDIR_NEWDESCS',
-  'h': 'BUILDTIMEOUT_SET',
+  # important events
+
   'b': 'BW',
   'c': 'CIRC',
-  'j': 'CLIENTS_SEEN',
-  'k': 'DESCCHANGED',
-  'g': 'GUARD',
-  'l': 'NEWCONSENSUS',
-  'm': 'NEWDESC',
-  'p': 'NS',
-  'q': 'ORCONN',
   's': 'STREAM',
-  'r': 'STREAM_BW',
-  't': 'STATUS_CLIENT',
-  'u': 'STATUS_GENERAL',
-  'v': 'STATUS_SERVER',
+
+  # everything else
+
+  'a': 'ADDRMAP',
+  'f': 'AUTHDIR_NEWDESCS',
+  'j': 'BUILDTIMEOUT_SET',
+  'k': 'CELL_STATS',
+  'l': 'CIRC_BW',
+  'm': 'CIRC_MINOR',
+  'p': 'CONF_CHANGED',
+  'q': 'CONN_BW',
+  'r': 'CLIENTS_SEEN',
+  'u': 'DESCCHANGED',
+  'g': 'GUARD',
+  'h': 'HS_DESC',
+  'v': 'HS_DESC_CONTENT',
+  'x': 'NETWORK_LIVENESS',
+  'y': 'NEWCONSENSUS',
+  'z': 'NEWDESC',
+  'B': 'NS',
+  'o': 'ORCONN',
+  'C': 'SIGNAL',
+  'F': 'STREAM_BW',
+  'G': 'STATUS_CLIENT',
+  'H': 'STATUS_GENERAL',
+  'I': 'STATUS_SERVER',
+  'J': 'TB_EMPTY',
+  't': 'TRANSPORT_LAUNCHED',
 }
 
 

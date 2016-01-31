@@ -140,7 +140,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # allow user to enter new types of events to log - unchanged if left blank
 
-    with nyx.popups.popup_window(11, 80) as (popup, width, height):
+    with nyx.popups.popup_window(16, 80) as (popup, width, height):
       if popup:
         # displays the available flags
 
