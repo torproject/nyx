@@ -30,7 +30,11 @@ DETAILS_HEIGHT = 7
 
 EXIT_USAGE_WIDTH = 15
 UPDATE_RATE = 5  # rate in seconds at which we refresh
-LAST_RETRIEVED_CIRCUITS = None  # cached circuit information from the last _update() call
+
+# cached information from our last _update() call
+
+LAST_RETRIEVED_HS_CONF = None
+LAST_RETRIEVED_CIRCUITS = None
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -179,9 +183,10 @@ class ConnectionEntry(Entry):
     elif self._connection.local_port in controller.get_ports(Listener.CONTROL, []):
       return Category.CONTROL
 
-    for hs_config in controller.get_hidden_service_conf({}).values():
-      if self._connection.remote_port == hs_config['HiddenServicePort']:
-        return Category.HIDDEN
+    if LAST_RETRIEVED_HS_CONF:
+      for hs_config in LAST_RETRIEVED_HS_CONF.values():
+        if self._connection.remote_port == hs_config['HiddenServicePort']:
+          return Category.HIDDEN
 
     fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
 
@@ -328,7 +333,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.show_sort_dialog()
     elif key.match('r'):
       connection_tracker = nyx.util.tracker.get_connection_tracker()
-      options = ['auto'] + list(connection.Resolver)
+      options = ['auto'] + list(connection.Resolver) + list(nyx.util.tracker.CustomResolver)
 
       resolver = connection_tracker.get_custom_resolver()
       selected_index = 0 if resolver is None else options.index(resolver)
@@ -648,7 +653,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Fetches the newest resolved connections.
     """
 
-    global LAST_RETRIEVED_CIRCUITS
+    global LAST_RETRIEVED_CIRCUITS, LAST_RETRIEVED_HS_CONF
+
+    controller = tor_controller()
+    LAST_RETRIEVED_CIRCUITS = controller.get_circuits([])
+    LAST_RETRIEVED_HS_CONF = controller.get_hidden_service_conf({})
 
     conn_resolver = nyx.util.tracker.get_connection_tracker()
     current_resolution_count = conn_resolver.run_counter()
@@ -659,7 +668,6 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       return  # no new connections to process
 
     new_entries = [Entry.from_connection(conn) for conn in conn_resolver.get_value()]
-    LAST_RETRIEVED_CIRCUITS = tor_controller().get_circuits([])
 
     for circ in LAST_RETRIEVED_CIRCUITS:
       # Skips established single-hop circuits (these are for directory
