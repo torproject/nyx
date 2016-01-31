@@ -777,7 +777,6 @@ class ConsensusTracker(object):
     tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
 
   def _new_consensus_event(self, event):
-    self._nickname_cache = {}
     self.update(event.desc)
 
   def update(self, router_status_entries):
@@ -789,13 +788,16 @@ class ConsensusTracker(object):
 
     new_fingerprint_cache = {}
     new_address_cache = {}
+    new_nickname_cache = {}
 
     for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
       new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
+      new_nickname_cache[desc.fingerprint] = desc.nickname if desc.nickname else 'Unnamed'
 
     self._fingerprint_cache = new_fingerprint_cache
     self._address_cache = new_address_cache
+    self._nickname_cache = new_nickname_cache
 
   def get_relay_nickname(self, fingerprint):
     """
@@ -809,16 +811,12 @@ class ConsensusTracker(object):
 
     controller = tor_controller()
 
-    if fingerprint and fingerprint not in self._nickname_cache:
-      if fingerprint == controller.get_info('fingerprint', None):
-        self._nickname_cache[fingerprint] = controller.get_conf('Nickname', 'Unnamed')
-      else:
-        ns_entry = controller.get_network_status(fingerprint, None)
-
-        if ns_entry:
-          self._nickname_cache[fingerprint] = ns_entry.nickname if ns_entry.nickname else 'Unnamed'
-
-    return self._nickname_cache.get(fingerprint)
+    if not fingerprint:
+      return None
+    elif fingerprint == controller.get_info('fingerprint', None):
+      return controller.get_conf('Nickname', 'Unnamed')
+    else:
+      return self._nickname_cache.get(fingerprint)
 
   def get_relay_fingerprints(self, address):
     """
