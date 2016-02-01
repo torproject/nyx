@@ -31,6 +31,10 @@ TESTING = False
 
 stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARAMS) + ['address']
 
+# disable trace level messages about cache hits
+
+stem.control.LOG_CACHE_FETCHES = False
+
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'config'), lazy_load = False)
 except IOError as exc:

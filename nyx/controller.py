@@ -115,37 +115,10 @@ def init_controller(stdscr, start_time):
   if CONFIG['features.panels.show.connection']:
     page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
 
-    # The DisableDebuggerAttachment will prevent our connection panel from really
-    # functioning. It'll have circuits, but little else. If this is the case then
-    # notify the user and tell them what they can do to fix it.
-
     controller = tor_controller()
-
-    if controller.get_conf('DisableDebuggerAttachment', None) == '1':
-      log.notice("Tor is preventing system utilities like netstat and lsof from working. This means that nyx can't provide you with connection information. You can change this by adding 'DisableDebuggerAttachment 0' to your torrc and restarting tor. For more information see...\nhttps://trac.torproject.org/3313")
-      nyx.util.tracker.get_connection_tracker().set_paused(True)
-    else:
-      # Configures connection resoultions. This is paused/unpaused according to
-      # if Tor's connected or not.
-
-      controller.add_status_listener(conn_reset_listener)
-
-      tor_pid = controller.get_pid(None)
-
-      if tor_pid:
-        # use the tor pid to help narrow connection results
-        tor_cmd = system.name_by_pid(tor_pid)
-
-        if tor_cmd is None:
-          tor_cmd = 'tor'
-
-        resolver = nyx.util.tracker.get_connection_tracker()
-        log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
-      else:
-        # constructs singleton resolver and, if tor isn't connected, initizes
-        # it to be paused
-
-        nyx.util.tracker.get_connection_tracker().set_paused(not controller.is_alive())
+    controller.add_status_listener(conn_reset_listener)
+    resolver = nyx.util.tracker.get_connection_tracker()
+    log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
 
   # third page: config
 

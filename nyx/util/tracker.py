@@ -52,7 +52,7 @@ import threading
 
 import stem.control
 
-from stem.util import conf, connection, proc, str_tools, system
+from stem.util import conf, connection, enum, proc, str_tools, system
 
 from nyx.util import log, tor_controller
 
@@ -66,6 +66,10 @@ CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
 PORT_USAGE_TRACKER = None
 CONSENSUS_TRACKER = None
+
+CustomResolver = enum.Enum(
+  ('INFERENCE', 'by inference'),
+)
 
 # Extending stem's Connection tuple with attributes for the uptime of the
 # connection.
@@ -476,7 +480,6 @@ class ConnectionTracker(Daemon):
 
     self._connections = []
     self._start_times = {}  # connection => (unix_timestamp, is_legacy)
-    self._resolvers = connection.system_resolvers()
     self._custom_resolver = None
     self._is_first_run = True
 
@@ -485,6 +488,15 @@ class ConnectionTracker(Daemon):
 
     self._failure_count = 0
     self._rate_too_low_count = 0
+
+    # If 'DisableDebuggerAttachment 0' is set we can do normal connection
+    # resolution. Otherwise connection resolution by inference is the only game
+    # in town.
+
+    if tor_controller().get_conf('DisableDebuggerAttachment', None) == '0':
+      self._resolvers = connection.system_resolvers()
+    else:
+      self._resolvers = [CustomResolver.INFERENCE]
 
   def _task(self, process_pid, process_name):
     if self._custom_resolver:
@@ -500,7 +512,26 @@ class ConnectionTracker(Daemon):
       start_time = time.time()
       new_connections, new_start_times = [], {}
 
-      for conn in connection.get_connections(resolver, process_pid = process_pid, process_name = process_name):
+      if resolver == CustomResolver.INFERENCE:
+        # provide connections going to a relay or one of our tor ports
+
+        connections = []
+        controller = tor_controller()
+        consensus_tracker = get_consensus_tracker()
+
+        for conn in proc.connections(user = controller.get_user(None)):
+          if conn.remote_port in consensus_tracker.get_relay_fingerprints(conn.remote_address):
+            connections.append(conn)  # outbound to another relay
+          elif conn.local_port in controller.get_ports(stem.control.Listener.OR, []):
+            connections.append(conn)  # inbound to our ORPort
+          elif conn.local_port in controller.get_ports(stem.control.Listener.DIR, []):
+            connections.append(conn)  # inbound to our DirPort
+          elif conn.local_port in controller.get_ports(stem.control.Listener.CONTROL, []):
+            connections.append(conn)  # controller connection
+      else:
+        connections = connection.get_connections(resolver, process_pid = process_pid, process_name = process_name)
+
+      for conn in connections:
         conn_start_time, is_legacy = self._start_times.get(conn, (start_time, self._is_first_run))
         new_start_times[conn] = (conn_start_time, is_legacy)
         new_connections.append(Connection(conn_start_time, is_legacy, *conn))
