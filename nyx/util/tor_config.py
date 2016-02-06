@@ -103,7 +103,12 @@ def validate(contents):
 
   stripped_contents, multiline_buffer = [], ''
 
-  for line in _strip_comments(contents):
+  for line in contents:
+    if '#' in line:
+      line = line[:line.find('#')]
+
+    line = line.strip()
+
     if not line:
       stripped_contents.append('')
     else:
@@ -238,22 +243,3 @@ def _parse_conf_value(conf_arg):
           return str(int(val) * TIME_MULT[label]), ValueType.TIME
 
   return conf_arg, ValueType.UNRECOGNIZED
-
-
-def _strip_comments(contents):
-  """
-  Removes comments and extra whitespace from the given torrc contents.
-
-  Arguments:
-    contents - torrc contents
-  """
-
-  stripped_contents = []
-
-  for line in contents:
-    if line and '#' in line:
-      line = line[:line.find('#')]
-
-    stripped_contents.append(line.strip())
-
-  return stripped_contents
