@@ -95,7 +95,7 @@ def validate(contents):
   config_lines = config_text.splitlines() if config_text else []
   custom_options = list(set([line.split(' ')[0] for line in config_lines]))
 
-  issues_found, seen_options = [], []
+  issues_found, seen_options = {}, []
 
   # Strips comments and collapses multiline multi-line entries, for more
   # information see:
@@ -152,7 +152,7 @@ def validate(contents):
     # most parameters are overwritten if defined multiple times
 
     if option in seen_options and option not in get_multiline_parameters():
-      issues_found.append((line_number, ValidationError.DUPLICATE, option))
+      issues_found[line_number] = (ValidationError.DUPLICATE, option)
       continue
     else:
       seen_options.append(option)
@@ -160,7 +160,7 @@ def validate(contents):
     # checks if the value isn't necessary due to matching the defaults
 
     if option not in custom_options:
-      issues_found.append((line_number, ValidationError.IS_DEFAULT, option))
+      issues_found[line_number] = (ValidationError.IS_DEFAULT, option)
 
     # replace aliases with their recognized representation
 
@@ -210,7 +210,7 @@ def validate(contents):
         elif value_type == ValueType.TIME:
           display_values = [str_tools.time_label(int(val)) for val in tor_values]
 
-        issues_found.append((line_number, ValidationError.MISMATCH, ', '.join(display_values)))
+        issues_found[line_number] = (ValidationError.MISMATCH, ', '.join(display_values))
 
   return issues_found
 

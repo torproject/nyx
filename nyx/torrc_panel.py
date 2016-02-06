@@ -142,7 +142,7 @@ class TorrcPanel(panel.Panel):
           if line and '#' in line:
             rendered_contents[i] = line[:line.find('#')].strip()
 
-      corrections = dict((line_number, (issue, msg)) for line_number, issue, msg in tor_config.validate(self.torrc_content))
+      corrections = tor_config.validate(self.torrc_content)
 
     # offset to make room for the line numbers
 
