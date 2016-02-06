@@ -79,7 +79,7 @@ def get_multiline_parameters():
   return tuple(MULTILINE_PARAM)
 
 
-def validate(contents = None):
+def validate(contents):
   """
   Performs validation on the given torrc contents, providing back a listing of
   (line number, issue, msg) tuples for issues found. If the issue occures on a
@@ -91,7 +91,7 @@ def validate(contents = None):
 
   controller = tor_controller()
 
-  config_text = tor_controller().get_info('config-text', None)
+  config_text = controller.get_info('config-text', None)
   config_lines = config_text.splitlines() if config_text else []
   custom_options = list(set([line.split(' ')[0] for line in config_lines]))
 
@@ -228,35 +228,16 @@ def _parse_conf_value(conf_arg):
   if conf_arg.count(' ') == 1:
     val, unit = conf_arg.lower().split(' ', 1)
 
-    if not val.isdigit():
-      return conf_arg, ValueType.UNRECOGNIZED
+    if val.isdigit():
+      for label in SIZE_MULT:
+        if unit in CONFIG['torrc.units.size.' + label]:
+          return str(int(val) * SIZE_MULT[label]), ValueType.SIZE
 
-    mult, mult_type = _get_unit_type(unit)
-
-    if mult is not None:
-      return str(int(val) * mult), mult_type
+      for label in TIME_MULT:
+        if unit in CONFIG['torrc.units.time.' + label]:
+          return str(int(val) * TIME_MULT[label]), ValueType.TIME
 
   return conf_arg, ValueType.UNRECOGNIZED
-
-
-def _get_unit_type(unit):
-  """
-  Provides the type and multiplier for an argument's unit. The multiplier is
-  None if the unit isn't recognized.
-
-  Arguments:
-    unit - string representation of a unit
-  """
-
-  for label in SIZE_MULT:
-    if unit in CONFIG['torrc.units.size.' + label]:
-      return SIZE_MULT[label], ValueType.SIZE
-
-  for label in TIME_MULT:
-    if unit in CONFIG['torrc.units.time.' + label]:
-      return TIME_MULT[label], ValueType.TIME
-
-  return None, ValueType.UNRECOGNIZED
 
 
 def _strip_comments(contents):
