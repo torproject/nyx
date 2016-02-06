@@ -50,22 +50,7 @@ TIME_MULT = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'week': 604800}
 
 ValidationError = enum.Enum('DUPLICATE', 'MISMATCH', 'MISSING', 'IS_DEFAULT')
 
-TORRC = None  # singleton torrc instance
 MULTILINE_PARAM = None  # cached multiline parameters (lazily loaded)
-
-
-def get_torrc():
-  """
-  Singleton constructor for a Controller. Be aware that this starts as being
-  unloaded, needing the torrc contents to be loaded before being functional.
-  """
-
-  global TORRC
-
-  if TORRC is None:
-    TORRC = Torrc()
-
-  return TORRC
 
 
 def get_config_location():

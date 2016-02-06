@@ -7,9 +7,9 @@ from stem.util import connection
 
 from mock import Mock, patch
 
-STEM_CONNECTION_1 = connection.Connection('127.0.0.1', 3531, '75.119.206.243', 22, 'tcp')
-STEM_CONNECTION_2 = connection.Connection('127.0.0.1', 1766, '86.59.30.40', 443, 'tcp')
-STEM_CONNECTION_3 = connection.Connection('127.0.0.1', 1059, '74.125.28.106', 80, 'tcp')
+STEM_CONNECTION_1 = connection.Connection('127.0.0.1', 3531, '75.119.206.243', 22, 'tcp', False)
+STEM_CONNECTION_2 = connection.Connection('127.0.0.1', 1766, '86.59.30.40', 443, 'tcp', False)
+STEM_CONNECTION_3 = connection.Connection('127.0.0.1', 1059, '74.125.28.106', 80, 'tcp', False)
 
 
 class TestConnectionTracker(unittest.TestCase):
@@ -19,6 +19,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_fetching_connections(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
+    tor_controller_mock().get_conf.return_value = '0'
     get_value_mock.return_value = [STEM_CONNECTION_1, STEM_CONNECTION_2, STEM_CONNECTION_3]
 
     with ConnectionTracker(0.04) as daemon:
@@ -42,6 +43,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
   def test_resolver_failover(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
+    tor_controller_mock().get_conf.return_value = '0'
     get_value_mock.side_effect = IOError()
 
     with ConnectionTracker(0.01) as daemon:
@@ -81,6 +83,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_tracking_uptime(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
+    tor_controller_mock().get_conf.return_value = '0'
     get_value_mock.return_value = [STEM_CONNECTION_1]
     first_start_time = time.time()
 

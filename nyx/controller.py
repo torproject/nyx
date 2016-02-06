@@ -25,7 +25,7 @@ from stem.control import State
 
 from nyx.util import panel, tor_controller, ui_tools
 
-from stem.util import conf, log, system
+from stem.util import conf, log
 
 NYX_CONTROLLER = None
 
