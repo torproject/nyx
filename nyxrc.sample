@@ -33,9 +33,6 @@ features.colorOverride none
 # Includes unicode characters in the interface.
 features.printUnicode true
 
-# Checks the torrc for issues, warning and hilighting problems if true
-features.torrc.validate true
-
 # Set this if you're running in a chroot jail or other environment where tor's
 # resources (log, state, etc) should have a prefix in their paths.
 
@@ -111,18 +108,6 @@ features.config.order MAN_PAGE_ENTRY, NAME, IS_SET
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
 features.config.file.maxLinesPerEntry 8
-
-# Descriptions for tor's configuration options can be loaded from its man page
-# to give usage information on the settings page. They can also be persisted to
-# a file to speed future lookups.
-# ---------------------------
-# enabled
-#   allows the descriptions to be fetched from the man page if true
-# persist
-#   caches the descriptions (substantially saving on future startup times)
-
-features.config.descriptions.enabled true
-features.config.descriptions.persist true
 
 # General graph parameters
 # ------------------------

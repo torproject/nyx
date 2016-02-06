@@ -7,7 +7,6 @@ from nyx.util import tor_controller
 from stem.util import conf, enum, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
-  'features.torrc.validate': True,
   'torrc.alias': {},
   'torrc.units.size.b': [],
   'torrc.units.size.kb': [],
@@ -19,9 +18,6 @@ CONFIG = conf.config_dict('nyx', {
   'torrc.units.time.hour': [],
   'torrc.units.time.day': [],
   'torrc.units.time.week': [],
-  'startup.data_directory': '~/.nyx',
-  'features.config.descriptions.enabled': True,
-  'features.config.descriptions.persist': True,
   'tor.chroot': '',
 })
 
@@ -45,10 +41,9 @@ TIME_MULT = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'week': 604800}
 # enums for issues found during torrc validation:
 # DUPLICATE  - entry is ignored due to being a duplicate
 # MISMATCH   - the value doesn't match tor's current state
-# MISSING    - value differs from its default but is missing from the torrc
 # IS_DEFAULT - the configuration option matches tor's default
 
-ValidationError = enum.Enum('DUPLICATE', 'MISMATCH', 'MISSING', 'IS_DEFAULT')
+ValidationError = enum.Enum('DUPLICATE', 'MISMATCH', 'IS_DEFAULT')
 
 MULTILINE_PARAM = None  # cached multiline parameters (lazily loaded)
 
@@ -236,21 +231,6 @@ def validate(contents = None):
           display_values = [str_tools.time_label(int(val)) for val in tor_values]
 
         issues_found.append((line_number, ValidationError.MISMATCH, ', '.join(display_values)))
-
-  # checks if any custom options are missing from the torrc
-
-  for option in custom_options:
-    # In new versions the 'DirReqStatistics' option is true by default and
-    # disabled on startup if geoip lookups are unavailable. If this option is
-    # missing then that's most likely the reason.
-    #
-    # https://trac.torproject.org/projects/tor/ticket/4237
-
-    if option == 'DirReqStatistics':
-      continue
-
-    if option not in seen_options:
-      issues_found.append((None, ValidationError.MISSING, option))
 
   return issues_found
 
