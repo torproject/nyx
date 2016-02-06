@@ -4,7 +4,7 @@ Helper functions for working with tor's configuration file.
 
 from nyx.util import tor_controller
 
-from stem.util import conf, enum, str_tools, system
+from stem.util import conf, enum, str_tools
 
 CONFIG = conf.config_dict('nyx', {
   'torrc.alias': {},
@@ -46,26 +46,6 @@ TIME_MULT = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'week': 604800}
 ValidationError = enum.Enum('DUPLICATE', 'MISMATCH', 'IS_DEFAULT')
 
 MULTILINE_PARAM = None  # cached multiline parameters (lazily loaded)
-
-
-def get_config_location():
-  """
-  Provides the location of the torrc, raising an IOError with the reason if the
-  path can't be determined.
-  """
-
-  controller = tor_controller()
-  config_location = controller.get_info('config-file', None)
-  tor_pid, tor_prefix = controller.controller.get_pid(None), CONFIG['tor.chroot']
-
-  if not config_location:
-    raise IOError('unable to query the torrc location')
-
-  try:
-    tor_cwd = system.cwd(tor_pid)
-    return tor_prefix + system.expand_path(config_location, tor_cwd)
-  except IOError as exc:
-    raise IOError("querying tor's pwd failed because %s" % exc)
 
 
 def get_multiline_parameters():
