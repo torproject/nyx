@@ -496,8 +496,9 @@ def start_nyx(stdscr):
 
   # provides notice about any unused config keys
 
-  for key in conf.get_config('nyx').unused_keys():
-    log.notice('Unused configuration entry: %s' % key)
+  for key in sorted(conf.get_config('nyx').unused_keys()):
+    if not key.startswith('msg.') and not key.startswith('dedup.'):
+      log.notice('Unused configuration entry: %s' % key)
 
   # tells daemon panels to start
 

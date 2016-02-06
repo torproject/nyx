@@ -222,7 +222,7 @@ def _clear_password(config):
   Without direct memory access this is about the best we can do to clear it.
   """
 
-  config.set('tor.password', '')
+  config.set('tor.password', None)
 
 
 def _use_english_subcommands():
