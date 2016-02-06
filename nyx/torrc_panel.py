@@ -5,7 +5,7 @@ Panel displaying the torrc or nyxrc with the validation done against it.
 import math
 import curses
 
-from nyx.util import expand_path, panel, tor_config, tor_controller, ui_tools
+from nyx.util import expand_path, panel, tor_controller, ui_tools
 
 from stem.control import State
 from stem.util import log, str_tools
@@ -131,7 +131,6 @@ class TorrcPanel(panel.Panel):
 
     if self.torrc_content is None:
       rendered_contents = ['### Unable to load the torrc ###']
-      corrections = {}
     else:
       rendered_contents = [ui_tools.get_printable(line.replace('\t', '   ')) for line in self.torrc_content]
 
@@ -141,8 +140,6 @@ class TorrcPanel(panel.Panel):
 
           if line and '#' in line:
             rendered_contents[i] = line[:line.find('#')].strip()
-
-      corrections = tor_config.validate(self.torrc_content)
 
     # offset to make room for the line numbers
 
@@ -221,24 +218,6 @@ class TorrcPanel(panel.Panel):
 
       if stripped_line:
         is_multiline = stripped_line.endswith('\\')
-
-      # gets the correction
-
-      if line_number in corrections:
-        line_issue, line_issue_msg = corrections[line_number]
-
-        if line_issue in (tor_config.ValidationError.DUPLICATE, tor_config.ValidationError.IS_DEFAULT):
-          line_comp['option'][1] = (curses.A_BOLD, 'blue')
-          line_comp['argument'][1] = (curses.A_BOLD, 'blue')
-        elif line_issue == tor_config.ValidationError.MISMATCH:
-          line_comp['argument'][1] = (curses.A_BOLD, 'red')
-          line_comp['correction'][0] = ' (%s)' % line_issue_msg
-        else:
-          # For some types of configs the correction field is simply used to
-          # provide extra data (for instance, the type for tor state fields).
-
-          line_comp['correction'][0] = ' (%s)' % line_issue_msg
-          line_comp['correction'][1] = (curses.A_BOLD, 'magenta')
 
       # draws the line number
 
