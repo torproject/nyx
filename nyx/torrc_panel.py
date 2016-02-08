@@ -9,7 +9,7 @@ from nyx.util import expand_path, msg, panel, tor_controller, ui_tools
 
 from stem import ControllerError
 from stem.control import State
-from stem.util import log, str_tools
+from stem.util import str_tools
 
 MAX_WRAP_PER_LINE = 8
 
@@ -24,8 +24,8 @@ class TorrcPanel(panel.Panel):
     panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
     self._scroll = 0
-    self._show_line_numbers = True     # shows left aligned line numbers
-    self._strip_comments = False   # drops comments and extra whitespace
+    self._show_line_numbers = True  # shows left aligned line numbers
+    self._strip_comments = False  # drops comments and extra whitespace
 
     # height of the content when last rendered (the cached value is invalid if
     # _last_content_height_args is None or differs from the current dimensions)
@@ -33,8 +33,9 @@ class TorrcPanel(panel.Panel):
     self._last_content_height = 1
     self._last_content_height_args = None
 
-    self._torrc_location = ''
+    self._torrc_location = None
     self._torrc_content = None
+    self._torrc_load_error = None
 
     # listens for tor reload (sighup) events
 
@@ -56,12 +57,11 @@ class TorrcPanel(panel.Panel):
         with open(self._torrc_location) as torrc_file:
           self._torrc_content = torrc_file.readlines()
       except ControllerError as exc:
-        log_msg = msg('panel.torrc.unable_to_find_torrc', error = exc.strerror)
-        log.log_once('torrc_load_failed', log.WARN, log_msg)
+        self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
+        self._torrc_location = None
         self._torrc_content = None
-      except IOError as exc:
-        log_msg = msg('panel.torrc.unable_to_load_torrc', error = exc.strerror)
-        log.log_once('torrc_load_failed', log.WARN, log_msg)
+      except Exception as exc:
+        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc.strerror)
         self._torrc_content = None
 
   def set_comments_visible(self, is_visible):
@@ -123,6 +123,14 @@ class TorrcPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
+    if self.is_title_visible():
+      location = ' (%s)' % self._torrc_location if self._torrc_location else ''
+      self.addstr(0, 0, 'Tor Configuration File%s:' % location, curses.A_STANDOUT)
+
+    if self._torrc_content is None:
+      self.addstr(1, 0, self._torrc_load_error, 'red', curses.A_BOLD)
+      return
+
     # If true, we assume that the cached value in self._last_content_height is
     # still accurate, and stop drawing when there's nothing more to display.
     # Otherwise the self._last_content_height is suspect, and we'll process all
@@ -135,16 +143,13 @@ class TorrcPanel(panel.Panel):
 
     self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
-    if self._torrc_content is None:
-      rendered_contents = [msg('panel.torrc.no_torrc')]
-    else:
-      rendered_contents = []
+    rendered_contents = []
 
-      for line in self._torrc_content:
-        line = ui_tools.get_printable(line.replace('\t', '   '))
+    for line in self._torrc_content:
+      line = ui_tools.get_printable(line.replace('\t', '   '))
 
-        if self._strip_comments and '#' in line:
-          line = line[:line.find('#')].strip()
+      if self._strip_comments and '#' in line:
+        line = line[:line.find('#')].strip()
 
       rendered_contents.append(line)
 
@@ -167,12 +172,6 @@ class TorrcPanel(panel.Panel):
       self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
     display_line = -self._scroll + 1  # line we're drawing on
-
-    # draws the top label
-
-    if self.is_title_visible():
-      location_label = ' (%s)' % self._torrc_location
-      self.addstr(0, 0, 'Tor Configuration File%s:' % (location_label), curses.A_STANDOUT)
 
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
