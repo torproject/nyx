@@ -30,8 +30,7 @@ class TorrcPanel(panel.Panel):
     # height of the content when last rendered (the cached value is invalid if
     # _last_content_height_args is None or differs from the current dimensions)
 
-    self._last_content_height = 1
-    self._last_content_height_args = None
+    self._last_content_height = 0
 
     self._torrc_location = None
     self._torrc_content = None
@@ -73,7 +72,6 @@ class TorrcPanel(panel.Panel):
     """
 
     self._strip_comments = not is_visible
-    self._last_content_height_args = None
     self.redraw(True)
 
   def set_line_number_visible(self, is_visible):
@@ -85,7 +83,6 @@ class TorrcPanel(panel.Panel):
     """
 
     self._show_line_numbers = is_visible
-    self._last_content_height_args = None
     self.redraw(True)
 
   def handle_key(self, key):
@@ -104,12 +101,6 @@ class TorrcPanel(panel.Panel):
       return False
 
     return True
-
-  def set_visible(self, is_visible):
-    if not is_visible:
-      self._last_content_height_args = None  # redraws when next displayed
-
-    panel.Panel.set_visible(self, is_visible)
 
   def get_help(self):
     return [
@@ -130,14 +121,6 @@ class TorrcPanel(panel.Panel):
     if self._torrc_content is None:
       self.addstr(1, 0, self._torrc_load_error, 'red', curses.A_BOLD)
       return
-
-    # If true, we assume that the cached value in self._last_content_height is
-    # still accurate, and stop drawing when there's nothing more to display.
-    # Otherwise the self._last_content_height is suspect, and we'll process all
-    # the content to check if it's right (and redraw again with the corrected
-    # height if not).
-
-    trust_last_content_height = self._last_content_height_args == (width, height)
 
     # restricts scroll location to valid bounds
 
@@ -268,13 +251,8 @@ class TorrcPanel(panel.Panel):
 
       display_line += max(line_offset, 1)
 
-      if trust_last_content_height and display_line >= height:
-        break
+    new_content_height = display_line + self._scroll - 1
 
-    if not trust_last_content_height:
-      self._last_content_height_args = (width, height)
-      new_content_height = display_line + self._scroll - 1
-
-      if self._last_content_height != new_content_height:
-        self._last_content_height = new_content_height
-        self.redraw(True)
+    if self._last_content_height != new_content_height:
+      self._last_content_height = new_content_height
+      self.redraw(True)

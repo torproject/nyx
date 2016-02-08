@@ -278,7 +278,7 @@ class LogPanel(panel.Panel, threading.Thread):
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     scroll = int(self._scroll)
-    last_content_height = int(self._last_content_height)
+    last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
     is_scrollbar_visible = last_content_height > height - 1
