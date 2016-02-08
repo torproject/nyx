@@ -54,7 +54,7 @@ class TorrcPanel(panel.Panel):
         self._torrc_location = expand_path(controller.get_info('config-file'))
 
         with open(self._torrc_location) as torrc_file:
-          self._torrc_content = torrc_file.readlines()
+          self._torrc_content = [ui_tools.get_printable(line.replace('\t', '   ')) for line in torrc_file.readlines()]
       except ControllerError as exc:
         self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
         self._torrc_location = None
@@ -126,25 +126,15 @@ class TorrcPanel(panel.Panel):
 
     self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
-    rendered_contents = []
-
-    for line in self._torrc_content:
-      line = ui_tools.get_printable(line.replace('\t', '   '))
-
-      if self._strip_comments and '#' in line:
-        line = line[:line.find('#')].strip()
-
-      rendered_contents.append(line)
-
     # offset to make room for the line numbers
 
     line_number_offset = 0
 
     if self._show_line_numbers:
-      if len(rendered_contents) == 0:
+      if len(self._torrc_content) == 0:
         line_number_offset = 2
       else:
-        line_number_offset = int(math.log10(len(rendered_contents))) + 2
+        line_number_offset = int(math.log10(len(self._torrc_content))) + 2
 
     # draws left-hand scroll bar if content's longer than the height
 
@@ -155,17 +145,16 @@ class TorrcPanel(panel.Panel):
       self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
     display_line = -self._scroll + 1  # line we're drawing on
-
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
-    for line_number in range(0, len(rendered_contents)):
-      line_text = rendered_contents[line_number]
-      line_text = line_text.rstrip()  # remove ending whitespace
+    for line_number in range(0, len(self._torrc_content)):
+      line = self._torrc_content[line_number]
 
-      # blank lines are hidden when stripping comments
+      if self._strip_comments:
+        line = line[:line.find('#')].rstrip() if '#' in line else line.rstrip()
 
-      if self._strip_comments and not line_text:
-        continue
+        if not line:
+          continue  # skip blank lines
 
       # splits the line into its component (label, attr) tuples
 
@@ -178,29 +167,29 @@ class TorrcPanel(panel.Panel):
 
       # parses the comment
 
-      comment_index = line_text.find('#')
+      comment_index = line.find('#')
 
       if comment_index != -1:
-        line_comp['comment'][0] = line_text[comment_index:]
-        line_text = line_text[:comment_index]
+        line_comp['comment'][0] = line[comment_index:]
+        line = line[:comment_index]
 
       # splits the option and argument, preserving any whitespace around them
 
-      stripped_line = line_text.strip()
+      stripped_line = line.strip()
       option_index = stripped_line.find(' ')
 
       if is_multiline:
         # part of a multiline entry started on a previous line so everything
         # is part of the argument
-        line_comp['argument'][0] = line_text
+        line_comp['argument'][0] = line
       elif option_index == -1:
         # no argument provided
-        line_comp['option'][0] = line_text
+        line_comp['option'][0] = line
       else:
         option_text = stripped_line[:option_index]
-        option_end = line_text.find(option_text) + len(option_text)
-        line_comp['option'][0] = line_text[:option_end]
-        line_comp['argument'][0] = line_text[option_end:]
+        option_end = line.find(option_text) + len(option_text)
+        line_comp['option'][0] = line[:option_end]
+        line_comp['argument'][0] = line[option_end:]
 
       # flags following lines as belonging to this multiline entry if it ends
       # with a slash
@@ -211,8 +200,7 @@ class TorrcPanel(panel.Panel):
       # draws the line number
 
       if self._show_line_numbers and display_line < height and display_line >= 1:
-        line_number_str = ('%%%ii' % (line_number_offset - 1)) % (line_number + 1)
-        self.addstr(display_line, scroll_offset, line_number_str, curses.A_BOLD, 'yellow')
+        self.addstr(display_line, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), curses.A_BOLD, 'yellow')
 
       # draws the rest of the components with line wrap
 
