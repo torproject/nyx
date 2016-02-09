@@ -9,9 +9,17 @@ from nyx.util import expand_path, msg, panel, tor_controller, ui_tools
 
 from stem import ControllerError
 from stem.control import State
-from stem.util import str_tools
+from stem.util import conf, str_tools
 
-MAX_WRAP_PER_LINE = 8
+
+def conf_handler(key, value):
+  if key == 'features.log.maxLineWrap':
+    return max(1, value)
+
+
+CONFIG = conf.config_dict('nyx', {
+  'features.torrc.maxLineWrap': 8,
+}, conf_handler)
 
 
 class TorrcPanel(panel.Panel):
@@ -122,21 +130,14 @@ class TorrcPanel(panel.Panel):
       self.addstr(1, 0, self._torrc_load_error, 'red', curses.A_BOLD)
       return
 
-    # restricts scroll location to valid bounds
-
     self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
 
-    # offset to make room for the line numbers
-
-    line_number_offset = 0
-
-    if self._show_line_numbers:
-      if len(self._torrc_content) == 0:
-        line_number_offset = 2
-      else:
-        line_number_offset = int(math.log10(len(self._torrc_content))) + 2
-
-    # draws left-hand scroll bar if content's longer than the height
+    if not self._show_line_numbers:
+      line_number_offset = 0
+    elif len(self._torrc_content) == 0:
+      line_number_offset = 2
+    else:
+      line_number_offset = int(math.log10(len(self._torrc_content))) + 2
 
     scroll_offset = 0
 
@@ -147,9 +148,7 @@ class TorrcPanel(panel.Panel):
     display_line = -self._scroll + 1  # line we're drawing on
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
-    for line_number in range(0, len(self._torrc_content)):
-      line = self._torrc_content[line_number]
-
+    for line_number, line in enumerate(self._torrc_content):
       if self._strip_comments:
         line = line[:line.find('#')].rstrip() if '#' in line else line.rstrip()
 
@@ -215,7 +214,7 @@ class TorrcPanel(panel.Panel):
         if len(label) >= max_msg_size:
           # message is too long - break it up
 
-          if line_offset == MAX_WRAP_PER_LINE - 1:
+          if line_offset == CONFIG['features.log.maxLineWrap'] - 1:
             label = str_tools.crop(label, max_msg_size)
           else:
             include_break = True

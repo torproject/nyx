@@ -20,7 +20,7 @@ from nyx.util import join, panel, tor_controller, ui_tools
 
 
 def conf_handler(key, value):
-  if key == 'features.log.maxLinesPerEntry':
+  if key == 'features.log.maxLineWrap':
     return max(1, value)
   elif key == 'features.log.prepopulateReadLimit':
     return max(0, value)
@@ -33,7 +33,7 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('nyx', {
   'features.logFile': '',
   'features.log.showDuplicateEntries': False,
-  'features.log.maxLinesPerEntry': 6,
+  'features.log.maxLineWrap': 6,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,
@@ -380,7 +380,7 @@ class LogPanel(panel.Panel, threading.Thread):
       while msg:
         x, msg = draw_line(x, y, width, msg, *attr)
 
-        if (y - orig_y + 1) >= CONFIG['features.log.maxLinesPerEntry']:
+        if (y - orig_y + 1) >= CONFIG['features.log.maxLineWrap']:
           break  # filled up the maximum number of lines we're allowing for
 
         if msg:
