@@ -13,7 +13,7 @@ from stem.util import conf, str_tools
 
 
 def conf_handler(key, value):
-  if key == 'features.log.maxLineWrap':
+  if key == 'features.torrc.maxLineWrap':
     return max(1, value)
 
 
@@ -145,7 +145,26 @@ class TorrcPanel(panel.Panel):
       scroll_offset = 3
       self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
-    display_line = -self._scroll + 1  # line we're drawing on
+    def draw_msg(min_x, x, y, width, msg, *attr):
+      orig_y = y
+
+      while msg:
+        draw_msg, msg = str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
+
+        if not draw_msg:
+          draw_msg, msg = str_tools.crop(msg, width - x), ''  # first word is longer than the line
+
+        x = self.addstr(y, x, draw_msg, *attr)
+
+        if (y - orig_y + 1) >= CONFIG['features.torrc.maxLineWrap']:
+          break  # filled up the maximum number of lines we're allowing for
+
+        if msg:
+          x, y = min_x, y + 1
+
+      return x, y
+
+    y = 1 - self._scroll
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
     for line_number, line in enumerate(self._torrc_content):
@@ -155,22 +174,10 @@ class TorrcPanel(panel.Panel):
         if not line:
           continue  # skip blank lines
 
-      # splits the line into its component (label, attr) tuples
+      option, argument, comment = '', '', ''
 
-      line_comp = {
-        'option': ['', (curses.A_BOLD, 'green')],
-        'argument': ['', (curses.A_BOLD, 'cyan')],
-        'correction': ['', (curses.A_BOLD, 'cyan')],
-        'comment': ['', ('white',)],
-      }
-
-      # parses the comment
-
-      comment_index = line.find('#')
-
-      if comment_index != -1:
-        line_comp['comment'][0] = line[comment_index:]
-        line = line[:comment_index]
+      if '#' in line:
+        line, comment = line.split('#', 1)
 
       # splits the option and argument, preserving any whitespace around them
 
@@ -178,67 +185,36 @@ class TorrcPanel(panel.Panel):
       option_index = stripped_line.find(' ')
 
       if is_multiline:
-        # part of a multiline entry started on a previous line so everything
-        # is part of the argument
-        line_comp['argument'][0] = line
+        argument = line  # previous line ended with a '\'
       elif option_index == -1:
-        # no argument provided
-        line_comp['option'][0] = line
+        option = line  # no argument provided
       else:
         option_text = stripped_line[:option_index]
         option_end = line.find(option_text) + len(option_text)
-        line_comp['option'][0] = line[:option_end]
-        line_comp['argument'][0] = line[option_end:]
+
+        option = line[:option_end]
+        argument = line[option_end:]
 
       # flags following lines as belonging to this multiline entry if it ends
       # with a slash
 
-      if stripped_line:
-        is_multiline = stripped_line.endswith('\\')
+      is_multiline = stripped_line.endswith('\\')
 
       # draws the line number
 
-      if self._show_line_numbers and display_line < height and display_line >= 1:
-        self.addstr(display_line, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), curses.A_BOLD, 'yellow')
+      if self._show_line_numbers and y < height and y >= 1:
+        self.addstr(y, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), curses.A_BOLD, 'yellow')
 
-      # draws the rest of the components with line wrap
+      x = line_number_offset + scroll_offset
+      min_x = line_number_offset + scroll_offset
 
-      cursor_location, line_offset = line_number_offset + scroll_offset, 0
-      display_queue = [line_comp[entry] for entry in ('option', 'argument', 'correction', 'comment')]
+      x, y = draw_msg(min_x, x, y, width, option, curses.A_BOLD, 'green')
+      x, y = draw_msg(min_x, x, y, width, argument, curses.A_BOLD, 'cyan')
+      x, y = draw_msg(min_x, x, y, width, comment, 'white')
 
-      while display_queue:
-        label, attr = display_queue.pop(0)
+      y += 1
 
-        max_msg_size, include_break = width - cursor_location, False
-
-        if len(label) >= max_msg_size:
-          # message is too long - break it up
-
-          if line_offset == CONFIG['features.log.maxLineWrap'] - 1:
-            label = str_tools.crop(label, max_msg_size)
-          else:
-            include_break = True
-            label, remainder = str_tools.crop(label, max_msg_size, 4, 4, str_tools.Ending.HYPHEN, True)
-            display_queue.insert(0, (remainder.strip(), attr))
-
-        draw_line = display_line + line_offset
-
-        if label and draw_line < height and draw_line >= 1:
-          self.addstr(draw_line, cursor_location, label, *attr)
-
-        # If we're done, and have added content to this line, then start
-        # further content on the next line.
-
-        cursor_location += len(label)
-        include_break |= not display_queue and cursor_location != line_number_offset + scroll_offset
-
-        if include_break:
-          line_offset += 1
-          cursor_location = line_number_offset + scroll_offset
-
-      display_line += max(line_offset, 1)
-
-    new_content_height = display_line + self._scroll - 1
+    new_content_height = y + self._scroll - 1
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height
