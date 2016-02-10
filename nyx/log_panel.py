@@ -29,15 +29,16 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
+  'attr.log_color': {},
+  'cache.log_panel.size': 1000,
   'features.logFile': '',
   'features.log.showDuplicateEntries': False,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,
   'features.log.regex': [],
-  'cache.log_panel.size': 1000,
   'msg.misc.event_types': '',
-  'attr.log_color': {},
+  'startup.events': 'N3',
 }, conf_handler)
 
 # The height of the drawn content is estimated based on the last time we redrew
@@ -61,11 +62,12 @@ class LogPanel(panel.Panel, threading.Thread):
   from tor's log file if it exists.
   """
 
-  def __init__(self, stdscr, logged_events):
+  def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'log', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
+    logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
     self._event_log = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
     self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.logFile'])

@@ -8,7 +8,6 @@ import time
 import curses
 import threading
 
-import nyx.arguments
 import nyx.menu.menu
 import nyx.popups
 import nyx.header_panel
@@ -38,7 +37,6 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
-  'startup.events': 'N3',
   'features.acsSupport': True,
   'features.panels.show.graph': True,
   'features.panels.show.log': True,
@@ -104,8 +102,7 @@ def init_controller(stdscr, start_time):
     first_page_panels.append(nyx.graph_panel.GraphPanel(stdscr))
 
   if CONFIG['features.panels.show.log']:
-    expanded_events = nyx.arguments.expand_events(CONFIG['startup.events'])
-    first_page_panels.append(nyx.log_panel.LogPanel(stdscr, expanded_events))
+    first_page_panels.append(nyx.log_panel.LogPanel(stdscr))
 
   if first_page_panels:
     page_panels.append(first_page_panels)
@@ -434,18 +431,8 @@ def heartbeat_check(is_unresponsive):
 
 
 def conn_reset_listener(controller, event_type, _):
-  """
-  Pauses connection resolution when tor's shut down, and resumes with the new
-  pid if started again.
-  """
-
-  resolver = nyx.util.tracker.get_connection_tracker()
-
-  if resolver.is_alive():
-    resolver.set_paused(event_type == State.CLOSED)
-
-    if event_type == State.CLOSED:
-      log.notice('Tor control port closed')
+  if event_type == State.CLOSED:
+    log.notice('Tor control port closed')
 
 
 def start_nyx(stdscr):
