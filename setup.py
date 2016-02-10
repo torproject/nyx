@@ -102,6 +102,6 @@ setup(
   packages = ['nyx', 'nyx.menu', 'nyx.util'],
   keywords = 'tor onion controller',
   install_requires = ['stem>=1.4.1'],
-  package_data = {'nyx': ['config/*', 'resources/*']},
+  package_data = {'nyx': ['settings/*', 'resources/*']},
   cmdclass = {'install': NyxInstaller},
 )

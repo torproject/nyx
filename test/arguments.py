@@ -67,7 +67,7 @@ class TestArgumentParsing(unittest.TestCase):
 
 class TestExpandEvents(unittest.TestCase):
   def test_examples(self):
-    self.assertEqual(set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT']), expand_events('inUt'))
+    self.assertEqual(set(['INFO', 'NOTICE', 'UNKNOWN', 'TRANSPORT_LAUNCHED']), expand_events('inUt'))
     self.assertEqual(set(['NOTICE', 'WARN', 'ERR', 'NYX_WARN', 'NYX_ERR']), expand_events('N4'))
     self.assertEqual(set(), expand_events('cfX'))
 
@@ -89,13 +89,13 @@ class TestExpandEvents(unittest.TestCase):
     # providing results even if there's other invalid options.
 
     self.assertEqual(set(), expand_events('z*X*z'))
-    self.assertEqual(28, len(expand_events('z*A*z')))
+    self.assertEqual(39, len(expand_events('z*A*z')))
 
   def test_invalid_flags(self):
     self._expect_invalid_flags('D1*', '*')
     self._expect_invalid_flags('*D1', '*')
-    self._expect_invalid_flags('zzD1zz', 'z')
-    self._expect_invalid_flags('z*D1*z', 'z*')
+    self._expect_invalid_flags('zzD1Zz', 'Z')
+    self._expect_invalid_flags('Z*D1*z', 'Z*')
 
   def _expect_invalid_flags(self, argument, expected):
     try:

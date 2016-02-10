@@ -33,9 +33,6 @@ features.colorOverride none
 # Includes unicode characters in the interface.
 features.printUnicode true
 
-# Checks the torrc for issues, warning and hilighting problems if true
-features.torrc.validate true
-
 # Set this if you're running in a chroot jail or other environment where tor's
 # resources (log, state, etc) should have a prefix in their paths.
 
@@ -62,8 +59,6 @@ features.confirmQuit true
 # showDuplicateEntries
 #   shows all log entries if true, otherwise collapses similar entries with an
 #   indicator for how much is being hidden
-# maxLinesPerEntry
-#   max number of lines to display for a single log entry
 # prepopulate
 #   attempts to read past events from the log file if true
 # prepopulateReadLimit
@@ -76,12 +71,13 @@ features.confirmQuit true
 #   preconfigured regular expression pattern, up to five will be loaded
 
 features.log.showDuplicateEntries false
-features.log.maxLinesPerEntry 6
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
 #features.log.regex My First Regex Pattern
 #features.log.regex ^My Second Regex Pattern$
+
+features.maxLineWrap 8
 
 # Paremters for the config panel
 # ---------------------------
@@ -104,28 +100,13 @@ features.log.maxRefreshRate 300
 # state.showVirtualOptions
 #   virtual options are placeholders for other option groups, never having
 #   values or being setable themselves
-# file.showScrollbars
-#   displays scrollbars when the torrc content is longer than the display
 # file.maxLinesPerEntry
 #   max number of lines to display for a single entry in the torrc
 
 features.config.order MAN_PAGE_ENTRY, NAME, IS_SET
 features.config.state.showPrivateOptions false
 features.config.state.showVirtualOptions false
-features.config.file.showScrollbars true
 features.config.file.maxLinesPerEntry 8
-
-# Descriptions for tor's configuration options can be loaded from its man page
-# to give usage information on the settings page. They can also be persisted to
-# a file to speed future lookups.
-# ---------------------------
-# enabled
-#   allows the descriptions to be fetched from the man page if true
-# persist
-#   caches the descriptions (substantially saving on future startup times)
-
-features.config.descriptions.enabled true
-features.config.descriptions.persist true
 
 # General graph parameters
 # ------------------------

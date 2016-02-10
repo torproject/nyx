@@ -23,9 +23,9 @@ import stem
 
 from stem.control import State
 
-from nyx.util import panel, tor_config, tor_controller, ui_tools
+from nyx.util import panel, tor_controller, ui_tools
 
-from stem.util import conf, log, system
+from stem.util import conf, log
 
 NYX_CONTROLLER = None
 
@@ -128,7 +128,7 @@ def init_controller(stdscr, start_time):
   # fourth page: torrc
 
   if CONFIG['features.panels.show.torrc']:
-    page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr, nyx.torrc_panel.Config.TORRC)])
+    page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr)])
 
   # initializes the controller
 
@@ -478,13 +478,6 @@ def conn_reset_listener(controller, event_type, _):
 
     if event_type == State.CLOSED:
       log.notice('Tor control port closed')
-    elif event_type in (State.INIT, State.RESET):
-      # Reload the torrc contents. If the torrc panel is present then it will
-      # do this instead since it wants to do validation and redraw _after_ the
-      # new contents are loaded.
-
-      if get_controller().get_panel('torrc') is None:
-        tor_config.get_torrc().load(True)
 
 
 def start_nyx(stdscr):
@@ -503,8 +496,9 @@ def start_nyx(stdscr):
 
   # provides notice about any unused config keys
 
-  for key in conf.get_config('nyx').unused_keys():
-    log.notice('Unused configuration entry: %s' % key)
+  for key in sorted(conf.get_config('nyx').unused_keys()):
+    if not key.startswith('msg.') and not key.startswith('dedup.'):
+      log.notice('Unused configuration entry: %s' % key)
 
   # tells daemon panels to start
 

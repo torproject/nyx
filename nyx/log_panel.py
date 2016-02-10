@@ -15,12 +15,12 @@ import nyx.arguments
 import nyx.popups
 import nyx.util.log
 
-from stem.util import conf, log, str_tools
 from nyx.util import join, panel, tor_controller, ui_tools
+from stem.util import conf, log
 
 
 def conf_handler(key, value):
-  if key == 'features.log.maxLinesPerEntry':
+  if key == 'features.log.maxLineWrap':
     return max(1, value)
   elif key == 'features.log.prepopulateReadLimit':
     return max(0, value)
@@ -33,7 +33,7 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('nyx', {
   'features.logFile': '',
   'features.log.showDuplicateEntries': False,
-  'features.log.maxLinesPerEntry': 6,
+  'features.log.maxLineWrap': 6,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,
@@ -278,7 +278,7 @@ class LogPanel(panel.Panel, threading.Thread):
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     scroll = int(self._scroll)
-    last_content_height = int(self._last_content_height)
+    last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
     is_scrollbar_visible = last_content_height > height - 1
@@ -368,38 +368,18 @@ class LogPanel(panel.Panel, threading.Thread):
     Presents a log entry with line wrapping.
     """
 
-    def draw_line(x, y, width, msg, *attr):
-      msg, remaining_lines = msg.split('\n', 1) if ('\n' in msg) else (msg, '')
-      msg, cropped = str_tools.crop(msg, width - x - 1, min_crop = 4, ending = str_tools.Ending.HYPHEN, get_remainder = True)
-      x = self.addstr(y, x, msg, *attr)
-      return x, (cropped + '\n' + remaining_lines).strip()
-
-    def draw_msg(min_x, x, y, width, msg, *attr):
-      orig_y = y
-
-      while msg:
-        x, msg = draw_line(x, y, width, msg, *attr)
-
-        if (y - orig_y + 1) >= CONFIG['features.log.maxLinesPerEntry']:
-          break  # filled up the maximum number of lines we're allowing for
-
-        if msg:
-          msg = '  ' + msg  # indent the next line
-          x, y = min_x, y + 1
-
-      return x, y
-
-    min_x, msg = x, entry.display_message
+    min_x, msg = x + 2, entry.display_message
     boldness = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasize ERR messages
     color = CONFIG['attr.log_color'].get(entry.type, 'white')
 
-    x, y = draw_msg(min_x, x, y, width, msg, boldness, color)
+    for line in msg.splitlines():
+      x, y = self.addstr_wrap(y, x, line, width, min_x, boldness, color)
 
     if entry.duplicates and not show_duplicates:
       duplicate_count = len(entry.duplicates) - 1
       plural = 's' if duplicate_count > 1 else ''
       duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
-      x, y = draw_msg(min_x, x, y, width, duplicate_msg, curses.A_BOLD, 'green')
+      x, y = self.addstr_wrap(y, x, duplicate_msg, width, min_x, curses.A_BOLD, 'green')
 
     return y + 1
 

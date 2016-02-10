@@ -10,6 +10,7 @@ import stem.connection
 import stem.control
 import stem.util.conf
 import stem.util.log
+import stem.util.system
 
 from nyx.util import log
 
@@ -36,7 +37,7 @@ stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARA
 stem.control.LOG_CACHE_FETCHES = False
 
 try:
-  uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'config'), lazy_load = False)
+  uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'settings'), lazy_load = False)
 except IOError as exc:
   print("Unable to load nyx's internal configurations: %s" % exc)
   sys.exit(1)
@@ -63,6 +64,28 @@ def init_controller(*args, **kwargs):
   global TOR_CONTROLLER
   TOR_CONTROLLER = stem.connection.connect(*args, **kwargs)
   return TOR_CONTROLLER
+
+
+@uses_settings
+def expand_path(path, config):
+  """
+  Expands relative paths and include our chroot if one was set.
+
+  :param str path: path to be expanded
+
+  :returns: **str** with the expanded path
+  """
+
+  if path is None:
+    return None
+
+  try:
+    chroot = config.get('tor.chroot', '')
+    tor_cwd = stem.util.system.cwd(tor_controller().get_pid(None))
+    return chroot + stem.util.system.expand_path(path, tor_cwd)
+  except IOError as exc:
+    stem.util.log.info('Unable to expand a relative path (%s): %s' % (path, exc))
+    return path
 
 
 def join(entries, joiner = ' ', size = None):
