@@ -59,8 +59,6 @@ features.confirmQuit true
 # showDuplicateEntries
 #   shows all log entries if true, otherwise collapses similar entries with an
 #   indicator for how much is being hidden
-# maxLinesPerEntry
-#   max number of lines to display for a single log entry
 # prepopulate
 #   attempts to read past events from the log file if true
 # prepopulateReadLimit
@@ -73,14 +71,13 @@ features.confirmQuit true
 #   preconfigured regular expression pattern, up to five will be loaded
 
 features.log.showDuplicateEntries false
-features.log.maxLineWrap 6
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
 features.log.maxRefreshRate 300
 #features.log.regex My First Regex Pattern
 #features.log.regex ^My Second Regex Pattern$
 
-features.torrc.maxLineWrap 8
+features.maxLineWrap 8
 
 # Paremters for the config panel
 # ---------------------------

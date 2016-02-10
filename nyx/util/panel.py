@@ -11,7 +11,7 @@ from threading import RLock
 
 from nyx.util import text_input, ui_tools
 
-from stem.util import log
+from stem.util import conf, log, str_tools
 
 # global ui lock governing all panel instances (curses isn't thread save and
 # concurrency bugs produce especially sinister glitches)
@@ -31,6 +31,16 @@ SPECIAL_KEYS = {
   'page_down': curses.KEY_NPAGE,
   'esc': 27,
 }
+
+
+def conf_handler(key, value):
+  if key == 'features.torrc.maxLineWrap':
+    return max(1, value)
+
+
+CONFIG = conf.config_dict('nyx', {
+  'features.maxLineWrap': 8,
+}, conf_handler)
 
 
 # tags used by addfstr - this maps to functor/argument combinations since the
@@ -533,6 +543,25 @@ class Panel(object):
         pass
 
     return x
+
+  def addstr_wrap(self, y, x, msg, width, min_x = 0, *attr):
+    orig_y = y
+
+    while msg:
+      draw_msg, msg = str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
+
+      if not draw_msg:
+        draw_msg, msg = str_tools.crop(msg, width - x), ''  # first word is longer than the line
+
+      x = self.addstr(y, x, draw_msg, *attr)
+
+      if (y - orig_y + 1) >= CONFIG['features.maxLineWrap']:
+        break  # maximum number we'll wrap
+
+      if msg:
+        x, y = min_x, y + 1
+
+    return x, y
 
   def getstr(self, y, x, initial_text = '', text_format = None, max_width = None, validator = None):
     """

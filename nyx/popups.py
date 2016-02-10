@@ -11,8 +11,6 @@ import nyx.controller
 from nyx import __version__, __release_date__
 from nyx.util import tor_controller, panel, ui_tools
 
-from stem.util import str_tools
-
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
 HEADERS = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
@@ -529,20 +527,6 @@ def _preferred_size(text, max_width, show_line_numbers):
 
 
 def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
-  def draw_msg(popup, min_x, x, y, width, msg, *attr):
-    while msg:
-      draw_msg, msg = str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
-
-      if not draw_msg:
-        draw_msg, msg = str_tools.crop(msg, width - x), ''  # first word is longer than the line
-
-      x = popup.addstr(y, x, draw_msg, *attr)
-
-      if msg:
-        x, y = min_x, y + 1
-
-    return x, y
-
   popup.win.erase()
 
   line_number_width = int(math.log10(len(lines))) + 1
@@ -574,8 +558,8 @@ def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
     if show_line_numbers:
       popup.addstr(y, 2, str(i + 1).rjust(line_number_width), curses.A_BOLD, LINE_NUMBER_COLOR)
 
-    x, y = draw_msg(popup, offset, offset, y, width, keyword, color, curses.A_BOLD)
-    x, y = draw_msg(popup, offset, x + 1, y, width, value, color)
+    x, y = popup.addstr_wrap(y, width, keyword, width, offset, color, curses.A_BOLD)
+    x, y = popup.addstr_wrap(y, x + 1, value, width, offset, color)
 
     y += 1
 

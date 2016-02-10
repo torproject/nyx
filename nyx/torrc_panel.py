@@ -9,17 +9,6 @@ from nyx.util import expand_path, msg, panel, tor_controller, ui_tools
 
 from stem import ControllerError
 from stem.control import State
-from stem.util import conf, str_tools
-
-
-def conf_handler(key, value):
-  if key == 'features.torrc.maxLineWrap':
-    return max(1, value)
-
-
-CONFIG = conf.config_dict('nyx', {
-  'features.torrc.maxLineWrap': 8,
-}, conf_handler)
 
 
 class TorrcPanel(panel.Panel):
@@ -145,25 +134,6 @@ class TorrcPanel(panel.Panel):
       scroll_offset = 3
       self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
 
-    def draw_msg(min_x, x, y, width, msg, *attr):
-      orig_y = y
-
-      while msg:
-        draw_msg, msg = str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
-
-        if not draw_msg:
-          draw_msg, msg = str_tools.crop(msg, width - x), ''  # first word is longer than the line
-
-        x = self.addstr(y, x, draw_msg, *attr)
-
-        if (y - orig_y + 1) >= CONFIG['features.torrc.maxLineWrap']:
-          break  # filled up the maximum number of lines we're allowing for
-
-        if msg:
-          x, y = min_x, y + 1
-
-      return x, y
-
     y = 1 - self._scroll
     is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
@@ -178,6 +148,7 @@ class TorrcPanel(panel.Panel):
 
       if '#' in line:
         line, comment = line.split('#', 1)
+        comment = '#' + comment
 
       # splits the option and argument, preserving any whitespace around them
 
@@ -208,9 +179,9 @@ class TorrcPanel(panel.Panel):
       x = line_number_offset + scroll_offset
       min_x = line_number_offset + scroll_offset
 
-      x, y = draw_msg(min_x, x, y, width, option, curses.A_BOLD, 'green')
-      x, y = draw_msg(min_x, x, y, width, argument, curses.A_BOLD, 'cyan')
-      x, y = draw_msg(min_x, x, y, width, comment, 'white')
+      x, y = self.addstr_wrap(y, x, option, width, min_x, curses.A_BOLD, 'green')
+      x, y = self.addstr_wrap(y, x, argument, width, min_x, curses.A_BOLD, 'cyan')
+      x, y = self.addstr_wrap(y, x, comment, width, min_x, 'white')
 
       y += 1
 
