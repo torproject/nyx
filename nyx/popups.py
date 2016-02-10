@@ -68,8 +68,8 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
         return (None, 0, 0)
 
     def __exit__(self, exit_type, value, traceback):
-      nyx.controller.get_controller().request_redraw()
       panel.CURSES_LOCK.release()
+      nyx.controller.get_controller().redraw(True)
 
   return _Popup()
 

@@ -375,13 +375,6 @@ class Controller:
     if force:
       self._last_drawn = current_time
 
-  def request_redraw(self):
-    """
-    Requests that all content is redrawn when the interface is next rendered.
-    """
-
-    self._force_redraw = True
-
   def set_msg(self, msg = None, attr = None, redraw = False):
     """
     Sets the message displayed in the interfaces control panel. This uses our
