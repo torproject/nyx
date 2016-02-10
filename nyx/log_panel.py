@@ -20,9 +20,7 @@ from stem.util import conf, log
 
 
 def conf_handler(key, value):
-  if key == 'features.log.maxLineWrap':
-    return max(1, value)
-  elif key == 'features.log.prepopulateReadLimit':
+  if key == 'features.log.prepopulateReadLimit':
     return max(0, value)
   elif key == 'features.log.maxRefreshRate':
     return max(10, value)
@@ -33,7 +31,6 @@ def conf_handler(key, value):
 CONFIG = conf.config_dict('nyx', {
   'features.logFile': '',
   'features.log.showDuplicateEntries': False,
-  'features.log.maxLineWrap': 6,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,

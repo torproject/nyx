@@ -22,10 +22,10 @@ import nyx.util.tracker
 import stem
 
 from stem.control import State
+from stem.util import conf, log
 
 from nyx.util import panel, tor_controller, ui_tools
 
-from stem.util import conf, log
 
 NYX_CONTROLLER = None
 
@@ -39,7 +39,6 @@ def conf_handler(key, value):
 
 CONFIG = conf.config_dict('nyx', {
   'startup.events': 'N3',
-  'startup.data_directory': '~/.nyx',
   'features.acsSupport': True,
   'features.panels.show.graph': True,
   'features.panels.show.log': True,
@@ -421,22 +420,6 @@ class Controller:
       control_panel.redraw(True)
     else:
       self._force_redraw = True
-
-  def get_data_directory(self):
-    """
-    Provides the path where nyx's resources are being placed. The path ends
-    with a slash and is created if it doesn't already exist.
-    """
-
-    data_dir = os.path.expanduser(CONFIG['startup.data_directory'])
-
-    if not data_dir.endswith('/'):
-      data_dir += '/'
-
-    if not os.path.exists(data_dir):
-      os.makedirs(data_dir)
-
-    return data_dir
 
   def quit(self):
     self.quit_signal = True
