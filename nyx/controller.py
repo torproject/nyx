@@ -382,14 +382,6 @@ class Controller:
 
     self._force_redraw = True
 
-  def get_last_redraw_time(self):
-    """
-    Provides the time when the content was last redrawn, zero if the content
-    has never been drawn.
-    """
-
-    return self._last_drawn
-
   def set_msg(self, msg = None, attr = None, redraw = False):
     """
     Sets the message displayed in the interfaces control panel. This uses our
