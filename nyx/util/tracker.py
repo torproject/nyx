@@ -47,6 +47,7 @@ Background tasks for gathering information about the tor process.
 """
 
 import collections
+import os
 import time
 import threading
 
@@ -500,6 +501,8 @@ class ConnectionTracker(Daemon):
       self._resolvers = connection.system_resolvers()
     else:
       self._resolvers = [CustomResolver.INFERENCE]
+
+    log.info('tracker.available_resolvers', os = os.uname()[0], resolvers = ', '.join(self._resolvers))
 
   def _task(self, process_pid, process_name):
     if self._custom_resolver:

@@ -15,7 +15,7 @@ import stem
 import nyx.controller
 import nyx.popups
 
-from stem.control import Listener
+from stem.control import Listener, State
 from stem.util import conf, log, proc, str_tools, system
 from nyx.util import msg, tor_controller, panel, tracker
 
@@ -369,6 +369,9 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
   def reset_listener(self, controller, event_type, _):
     self._update()
+
+    if event_type == State.CLOSED:
+      log.notice('Tor control port closed')
 
   def _update(self):
     previous_height = self.get_height()

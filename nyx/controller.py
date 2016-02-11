@@ -3,7 +3,6 @@ Main interface loop for nyx, periodically redrawing the screen and issuing
 user input to the proper panels.
 """
 
-import os
 import time
 import curses
 import threading
@@ -20,7 +19,6 @@ import nyx.util.tracker
 
 import stem
 
-from stem.control import State
 from stem.util import conf, log
 
 from nyx.util import panel, tor_controller, ui_tools
@@ -110,11 +108,6 @@ def init_controller(stdscr, start_time):
   # second page: connections
   if CONFIG['features.panels.show.connection']:
     page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
-
-    controller = tor_controller()
-    controller.add_status_listener(conn_reset_listener)
-    resolver = nyx.util.tracker.get_connection_tracker()
-    log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(resolver._resolvers)))
 
   # third page: config
 
@@ -428,11 +421,6 @@ def heartbeat_check(is_unresponsive):
       log.notice('Relay resumed')
 
   return is_unresponsive
-
-
-def conn_reset_listener(controller, event_type, _):
-  if event_type == State.CLOSED:
-    log.notice('Tor control port closed')
 
 
 def start_nyx(stdscr):
