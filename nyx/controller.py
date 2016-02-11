@@ -400,29 +400,6 @@ class Controller:
     self.quit_signal = True
 
 
-def heartbeat_check(is_unresponsive):
-  """
-  Logs if its been ten seconds since the last BW event.
-
-  Arguments:
-    is_unresponsive - flag for if we've indicated to be responsive or not
-  """
-
-  controller = tor_controller()
-  last_heartbeat = controller.get_latest_heartbeat()
-
-  if controller.is_alive():
-    if not is_unresponsive and (time.time() - last_heartbeat) >= 10:
-      is_unresponsive = True
-      log.notice('Relay unresponsive (last heartbeat: %s)' % time.ctime(last_heartbeat))
-    elif is_unresponsive and (time.time() - last_heartbeat) < 10:
-      # really shouldn't happen (meant Tor froze for a bit)
-      is_unresponsive = False
-      log.notice('Relay resumed')
-
-  return is_unresponsive
-
-
 def start_nyx(stdscr):
   """
   Main draw loop context.
@@ -469,11 +446,9 @@ def start_nyx(stdscr):
   # main draw loop
 
   override_key = None      # uses this rather than waiting on user input
-  is_unresponsive = False  # flag for heartbeat responsiveness check
 
   while not control.quit_signal:
     display_panels = control.get_display_panels()
-    is_unresponsive = heartbeat_check(is_unresponsive)
 
     # sets panel visability
 

@@ -43,6 +43,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
+    self._reported_inactive = False
 
     tor_controller().add_status_listener(self.reset_listener)
 
@@ -217,7 +218,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD, 'red')
-    self.addstr(y, x, vals.format(' ({last_heartbeat}, press r to reconnect)'))
+    last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(vals.last_heartbeat))
+    self.addstr(y, x, ' (%s, press r to reconnect)' % last_heartbeat)
 
   def _draw_resource_usage(self, x, y, width, vals):
     """
@@ -388,6 +390,14 @@ class HeaderPanel(panel.Panel, threading.Thread):
         log_msg = msg('panel.header.fd_used_at_sixty_percent', percentage = fd_percent)
         log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
+    if self._vals.is_connected:
+      if not self._reported_inactive and (time.time() - self._vals.last_heartbeat) >= 10:
+        self._reported_inactive = True
+        log.notice('Relay unresponsive (last heartbeat: %s)' % time.ctime(self._vals.last_heartbeat))
+      elif self._reported_inactive and (time.time() - self._vals.last_heartbeat) < 10:
+        self._reported_inactive = False
+        log.notice('Relay resumed')
+
     if previous_height != self.get_height():
       # We're toggling between being a relay and client, causing the height
       # of this panel to change. Redraw all content so we don't get
@@ -436,7 +446,7 @@ def get_sampling(last_sampling = None):
     'retrieved': retrieved,
     'is_connected': controller.is_alive(),
     'connection_time': controller.connection_time(),
-    'last_heartbeat': time.strftime('%H:%M %m/%d/%Y', time.localtime(controller.get_latest_heartbeat())),
+    'last_heartbeat': controller.get_latest_heartbeat(),
 
     'fingerprint': controller.get_info('fingerprint', 'Unknown'),
     'nickname': controller.get_conf('Nickname', ''),
