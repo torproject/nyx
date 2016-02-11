@@ -76,7 +76,7 @@ def stop_controller():
   return halt_thread
 
 
-def init_controller(stdscr, start_time):
+def init_controller(stdscr):
   """
   Spawns the controller, and related panels for it.
 
@@ -89,7 +89,7 @@ def init_controller(stdscr, start_time):
   # initializes the panels
 
   sticky_panels = [
-    nyx.header_panel.HeaderPanel(stdscr, start_time),
+    nyx.header_panel.HeaderPanel(stdscr),
     LabelPanel(stdscr),
   ]
 
@@ -408,7 +408,7 @@ def start_nyx(stdscr):
     stdscr    - curses window
   """
 
-  init_controller(stdscr, CONFIG['start_time'])
+  init_controller(stdscr)
   control = get_controller()
 
   if not CONFIG['features.acsSupport']:

@@ -34,7 +34,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
   Top area containing tor settings and system information.
   """
 
-  def __init__(self, stdscr, start_time):
+  def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'header', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
