@@ -76,54 +76,6 @@ def stop_controller():
   return halt_thread
 
 
-def init_controller(stdscr):
-  """
-  Spawns the controller, and related panels for it.
-
-  Arguments:
-    stdscr - curses window
-  """
-
-  global NYX_CONTROLLER
-
-  # initializes the panels
-
-  sticky_panels = [
-    nyx.header_panel.HeaderPanel(stdscr),
-    LabelPanel(stdscr),
-  ]
-
-  page_panels, first_page_panels = [], []
-
-  # first page: graph and log
-  if CONFIG['features.panels.show.graph']:
-    first_page_panels.append(nyx.graph_panel.GraphPanel(stdscr))
-
-  if CONFIG['features.panels.show.log']:
-    first_page_panels.append(nyx.log_panel.LogPanel(stdscr))
-
-  if first_page_panels:
-    page_panels.append(first_page_panels)
-
-  # second page: connections
-  if CONFIG['features.panels.show.connection']:
-    page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
-
-  # third page: config
-
-  if CONFIG['features.panels.show.config']:
-    page_panels.append([nyx.config_panel.ConfigPanel(stdscr)])
-
-  # fourth page: torrc
-
-  if CONFIG['features.panels.show.torrc']:
-    page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr)])
-
-  # initializes the controller
-
-  NYX_CONTROLLER = Controller(stdscr, sticky_panels, page_panels)
-
-
 class LabelPanel(panel.Panel):
   """
   Panel that just displays a single line of text.
@@ -158,21 +110,43 @@ class Controller:
   Tracks the global state of the interface
   """
 
-  def __init__(self, stdscr, sticky_panels, page_panels):
+  def __init__(self, stdscr):
     """
     Creates a new controller instance. Panel lists are ordered as they appear,
     top to bottom on the page.
 
     Arguments:
       stdscr       - curses window
-      sticky_panels - panels shown at the top of each page
-      page_panels   - list of pages, each being a list of the panels on it
     """
 
-    self.quit_signal = False
     self._screen = stdscr
-    self._sticky_panels = sticky_panels
-    self._page_panels = page_panels
+
+    self._sticky_panels = [
+      nyx.header_panel.HeaderPanel(stdscr),
+      LabelPanel(stdscr),
+    ]
+
+    self._page_panels, first_page_panels = [], []
+
+    if CONFIG['features.panels.show.graph']:
+      first_page_panels.append(nyx.graph_panel.GraphPanel(stdscr))
+
+    if CONFIG['features.panels.show.log']:
+      first_page_panels.append(nyx.log_panel.LogPanel(stdscr))
+
+    if first_page_panels:
+      self._page_panels.append(first_page_panels)
+
+    if CONFIG['features.panels.show.connection']:
+      self._page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
+
+    if CONFIG['features.panels.show.config']:
+      self._page_panels.append([nyx.config_panel.ConfigPanel(stdscr)])
+
+    if CONFIG['features.panels.show.torrc']:
+      self._page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr)])
+
+    self.quit_signal = False
     self._page = 0
     self._is_paused = False
     self._force_redraw = False
@@ -408,7 +382,9 @@ def start_nyx(stdscr):
     stdscr    - curses window
   """
 
-  init_controller(stdscr)
+  global NYX_CONTROLLER
+
+  NYX_CONTROLLER = Controller(stdscr)
   control = get_controller()
 
   if not CONFIG['features.acsSupport']:
