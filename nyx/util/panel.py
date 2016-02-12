@@ -42,14 +42,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.maxLineWrap': 8,
 }, conf_handler)
 
-
-# tags used by addfstr - this maps to functor/argument combinations since the
-# actual values (in the case of color attributes) might not yet be initialized
-
-def _no_op(arg):
-  return arg
-
-
 # prevents curses redraws if set
 HALT_ACTIVITY = False
 
