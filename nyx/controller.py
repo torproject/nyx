@@ -56,26 +56,6 @@ def get_controller():
   return NYX_CONTROLLER
 
 
-def stop_controller():
-  """
-  Halts our Controller, providing back the thread doing so.
-  """
-
-  def halt_controller():
-    control = get_controller()
-
-    if control:
-      for panel_impl in control.get_daemon_panels():
-        panel_impl.stop()
-
-      for panel_impl in control.get_daemon_panels():
-        panel_impl.join()
-
-  halt_thread = threading.Thread(target = halt_controller)
-  halt_thread.start()
-  return halt_thread
-
-
 class LabelPanel(panel.Panel):
   """
   Panel that just displays a single line of text.
@@ -372,6 +352,22 @@ class Controller:
 
   def quit(self):
     self.quit_signal = True
+
+  def halt(self):
+    """
+    Halts curses panels, providing back the thread doing so.
+    """
+
+    def halt_panels():
+      for panel_impl in self.get_daemon_panels():
+        panel_impl.stop()
+
+      for panel_impl in self.get_daemon_panels():
+        panel_impl.join()
+
+    halt_thread = threading.Thread(target = halt_panels)
+    halt_thread.start()
+    return halt_thread
 
 
 def start_nyx(stdscr):

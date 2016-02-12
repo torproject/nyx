@@ -265,10 +265,11 @@ def _shutdown_daemons(controller):
   Stops and joins on worker threads.
   """
 
-  halt_threads = [
-    nyx.controller.stop_controller(),
-    nyx.util.tracker.stop_trackers(),
-  ]
+  halt_threads = [nyx.util.tracker.stop_trackers()]
+  controller = nyx.controller.get_controller()
+
+  if controller:
+    halt_threads.append(controller.halt())
 
   for thread in halt_threads:
     thread.join()
