@@ -456,16 +456,13 @@ class Panel(object):
 
     pass
 
-  def redraw(self, force_redraw=False, block=False):
+  def redraw(self, force_redraw=False):
     """
     Clears display and redraws its content. This can skip redrawing content if
     able (ie, the subwindow's unchanged), instead just refreshing the display.
 
     Arguments:
       force_redraw - forces the content to be cleared and redrawn if true
-      block       - if drawing concurrently with other panels this determines
-                    if the request is willing to wait its turn or should be
-                    abandoned
     """
 
     # skipped if not currently visible or activity has been halted
@@ -498,7 +495,7 @@ class Panel(object):
 
     self.max_y, self.max_x = subwin_max_y, subwin_max_x
 
-    if not CURSES_LOCK.acquire(block):
+    if not CURSES_LOCK.acquire(False):
       return
 
     try:
