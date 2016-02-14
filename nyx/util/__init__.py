@@ -17,8 +17,6 @@ from nyx.util import log
 __all__ = [
   'log',
   'panel',
-  'text_input',
-  'tor_config',
   'tracker',
   'ui_tools',
 ]
