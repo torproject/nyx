@@ -209,13 +209,6 @@ class Panel(object):
 
     return self.parent
 
-  def is_visible(self):
-    """
-    Provides if the panel's configured to be visible or not.
-    """
-
-    return self.visible
-
   def set_visible(self, is_visible):
     """
     Toggles if the panel is visible or not.
@@ -325,13 +318,6 @@ class Panel(object):
 
     return self.pause_time
 
-  def get_top(self):
-    """
-    Provides the position subwindows are placed at within its parent.
-    """
-
-    return self.top
-
   def set_top(self, top):
     """
     Changes the position where subwindows are placed within its parent.
@@ -342,26 +328,6 @@ class Panel(object):
 
     if self.top != top:
       self.top = top
-      self.win = None
-
-  def get_left(self):
-    """
-    Provides the left position where this subwindow is placed within its
-    parent.
-    """
-
-    return self.left
-
-  def set_left(self, left):
-    """
-    Changes the left position where this subwindow is placed within its parent.
-
-    Arguments:
-      left - positioning of top within parent
-    """
-
-    if self.left != left:
-      self.left = left
       self.win = None
 
   def get_height(self):
@@ -467,7 +433,7 @@ class Panel(object):
 
     # skipped if not currently visible or activity has been halted
 
-    if not self.is_visible() or HALT_ACTIVITY:
+    if not self.visible or HALT_ACTIVITY:
       return
 
     # if the panel's completely outside its parent then this is a no-op
