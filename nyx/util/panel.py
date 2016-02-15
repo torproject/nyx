@@ -624,7 +624,7 @@ class Panel(object):
 
     return x, y
 
-  def getstr(self, y, x, initial_text = '', text_format = None, max_width = None):
+  def getstr(self, y, x, initial_text = ''):
     """
     Provides a text field where the user can input a string, blocking until
     they've done so and returning the result. If the user presses escape then
@@ -639,12 +639,7 @@ class Panel(object):
       y            - vertical location
       x            - horizontal location
       initial_text - starting text in this field
-      text_format  - format used for the text
-      max_width    - maximum width for the text field
     """
-
-    if not text_format:
-      text_format = curses.A_NORMAL
 
     # makes cursor visible
 
@@ -657,20 +652,17 @@ class Panel(object):
 
     display_width = self.get_preferred_size()[1]
 
-    if max_width:
-      display_width = min(display_width, max_width + x)
-
     input_subwindow = self.parent.subwin(1, display_width - x, self.top + y, self.left + x)
 
     # blanks the field's area, filling it with the font in case it's hilighting
 
     input_subwindow.clear()
-    input_subwindow.bkgd(' ', text_format)
+    input_subwindow.bkgd(' ', curses.A_NORMAL)
 
     # prepopulates the initial text
 
     if initial_text:
-      input_subwindow.addstr(0, 0, initial_text[:display_width - x - 1], text_format)
+      input_subwindow.addstr(0, 0, initial_text[:display_width - x - 1], curses.A_NORMAL)
 
     # Displays the text field, blocking until the user's done. This closes the
     # text panel and returns user_input to the initial text if the user presses
@@ -680,9 +672,9 @@ class Panel(object):
 
     validator = BasicValidator()
 
-    textbox.win.attron(text_format)
+    textbox.win.attron(curses.A_NORMAL)
     user_input = textbox.edit(lambda key: validator.validate(key, textbox)).strip()
-    textbox.win.attroff(text_format)
+    textbox.win.attroff(curses.A_NORMAL)
 
     if textbox.lastcmd == curses.ascii.BEL:
       user_input = None
