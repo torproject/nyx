@@ -87,7 +87,7 @@ share and it should be fine.
 
 > Is there any chance that nyx will leak data?
 
-No. Arm is a completely passive listener, fetching all information from either
+No. Nyx is a completely passive listener, fetching all information from either
 Tor or the local system.
 
 > When nyx starts it gives "Unable to resolve tor pid, abandoning connection 
@@ -96,7 +96,7 @@ listing"... why?
 If you're running multiple instances of Tor then nyx needs to figure out which
 pid belongs to the open control port. If it's running as a different user (such
 as being in a chroot jail) then it's probably failing due to permission issues.
-Arm still runs, just no connection listing or ps stats.
+Nyx still runs, just no connection listing or ps stats.
 
 > The bandwidth graph isn't showing up
 
