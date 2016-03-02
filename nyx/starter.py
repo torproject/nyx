@@ -274,7 +274,7 @@ def _shutdown_daemons(controller):
   for thread in halt_threads:
     thread.join()
 
-  controller.close()
+  controller.quit()
 
 
 if __name__ == '__main__':
