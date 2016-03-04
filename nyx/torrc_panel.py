@@ -80,7 +80,7 @@ class TorrcPanel(panel.Panel):
       if self._scroll != new_scroll:
         self._scroll = new_scroll
         self.redraw(True)
-    elif key.match('n'):
+    elif key.match('l'):
       self.set_line_number_visible(not self._show_line_numbers)
     elif key.match('s'):
       self.set_comments_visible(not self._show_comments)
@@ -96,7 +96,7 @@ class TorrcPanel(panel.Panel):
       ('page up', 'scroll up a page', None),
       ('page down', 'scroll down a page', None),
       ('s', 'comment stripping', 'off' if self._show_comments else 'on'),
-      ('n', 'line numbering', 'on' if self._show_line_numbers else 'off'),
+      ('l', 'line numbering', 'on' if self._show_line_numbers else 'off'),
       ('x', 'reset tor (issue sighup)', None),
     ]
 
