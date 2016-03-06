@@ -298,7 +298,7 @@ def make_torrc_menu(torrc_panel):
 
   torrc_menu.add(nyx.menu.item.MenuItem('%s Comments' % label, functools.partial(torrc_panel.set_comments_visible, arg)))
 
-  if torrc_panel.show_line_num:
+  if torrc_panel._show_line_numbers:
     label, arg = 'Hide', False
   else:
     label, arg = 'Show', True
