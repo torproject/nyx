@@ -25,7 +25,6 @@ except ImportError:
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
-CONFIG = stem.util.conf.config_dict('nyx', {'tor.chroot': ''})
 
 
 def day_count(timestamp):
@@ -55,7 +54,7 @@ def log_file_path(controller):
     entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
 
     if entry_comp[1] == 'file':
-      return CONFIG['tor.chroot'] + entry_comp[2]
+      return nyx.util.expand_path(entry_comp[2])
 
 
 @lru_cache()
