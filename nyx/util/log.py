@@ -1,6 +1,39 @@
 """
 Logging utilities, primiarily short aliases for logging a message at various
 runlevels.
+
+::
+
+  trace - logs a message at the TRACE runlevel 
+  debug - logs a message at the DEBUG runlevel
+  info - logs a message at the INFO runlevel
+  notice - logs a message at the NOTICE runlevel
+  warn - logs a message at the WARN runlevel
+  error - logs a message at the ERROR runlevel
+
+  day_count - number of days since a given timestamp
+  log_file_path - path of tor's log file if one is present on disk
+  condense_runlevels - condensed displayable listing of log events
+  listen_for_events - notifies listener of tor events
+  read_tor_log - provides LogEntry from a tor log file
+
+  LogGroup - thread safe, deduplicated grouping of events
+    |- add - adds an event to the group
+    +- pop - removes and returns an event
+
+  LogEntry - individual log event
+    |- is_duplicate_of - checks if a duplicate message of another LogEntry
+    +- day_count - number of days since this even occured
+
+  LogFileOutput - writes log events to a file
+    +- write - persist a given message
+
+  LogFilters - regex filtering of log events
+    |- select - filters by this regex
+    |- selection - current regex filter
+    |- latest_selections - past regex selections
+    |- match - checks if a LogEntry matches this filter
+    +- clone - deep clone of this LogFilters
 """
 
 import collections
