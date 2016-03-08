@@ -1,5 +1,4 @@
 # Startup options
-tor.password
 startup.events N3
 startup.dataDirectory ~/.nyx
 

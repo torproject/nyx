@@ -68,7 +68,6 @@ def main(config):
   controller = init_controller(
     control_port = control_port,
     control_socket = control_socket,
-    password = config.get('tor.password', None),
     password_prompt = True,
     chroot_path = config.get('tor.chroot', ''),
   )
@@ -80,7 +79,6 @@ def main(config):
   _warn_if_unable_to_get_pid(controller)
   _setup_freebsd_chroot(controller)
   _notify_of_unknown_events()
-  _clear_password()
   _use_english_subcommands()
   _use_unicode()
   _set_process_name()
@@ -213,16 +211,6 @@ def _notify_of_unknown_events():
 
   if missing_events:
     log.info('setup.unknown_event_types', event_types = ', '.join(missing_events))
-
-
-@uses_settings
-def _clear_password(config):
-  """
-  Removing the reference to our controller password so the memory can be freed.
-  Without direct memory access this is about the best we can do to clear it.
-  """
-
-  config.set('tor.password', None)
 
 
 def _use_english_subcommands():
