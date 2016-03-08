@@ -56,8 +56,8 @@ def make_actions_menu():
   Submenu consisting of...
     Close Menu
     New Identity
-    Pause / Unpause
     Reset Tor
+    Pause / Unpause
     Exit
   """
 
@@ -67,10 +67,6 @@ def make_actions_menu():
   actions_menu = nyx.menu.item.Submenu('Actions')
   actions_menu.add(nyx.menu.item.MenuItem('Close Menu', None))
   actions_menu.add(nyx.menu.item.MenuItem('New Identity', header_panel.send_newnym))
-
-  if controller.is_alive():
-    actions_menu.add(nyx.menu.item.MenuItem('Stop Tor', controller.close))
-
   actions_menu.add(nyx.menu.item.MenuItem('Reset Tor', functools.partial(controller.signal, stem.Signal.RELOAD)))
 
   if control.is_paused():
