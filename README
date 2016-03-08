@@ -170,7 +170,6 @@ Layout:
     version.py        - version and last modified information
     test.py           - method for starting tests and demos
     settings.cfg      - attributes loaded for parsing tor related data
-    torConfigDesc.txt - fallback descriptions of Tor's configuration options
     uninstall         - removal script
     
     cli/
