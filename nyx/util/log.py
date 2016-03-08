@@ -4,7 +4,7 @@ runlevels.
 
 ::
 
-  trace - logs a message at the TRACE runlevel 
+  trace - logs a message at the TRACE runlevel
   debug - logs a message at the DEBUG runlevel
   info - logs a message at the INFO runlevel
   notice - logs a message at the NOTICE runlevel

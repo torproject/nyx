@@ -4,10 +4,10 @@ Generates the menu for nyx, binding options with their related actions.
 
 import functools
 
-import nyx.popups
 import nyx.controller
+import nyx.panel.graph
+import nyx.popups
 import nyx.menu.item
-import nyx.graph_panel
 import nyx.util.tracker
 
 from nyx.util import tor_controller, ui_tools
@@ -167,7 +167,7 @@ def make_graph_menu(graph_panel):
   interval_menu = nyx.menu.item.Submenu('Interval')
   interval_group = nyx.menu.item.SelectionGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
 
-  for interval in nyx.graph_panel.Interval:
+  for interval in nyx.panel.graph.Interval:
     interval_menu.add(nyx.menu.item.SelectionMenuItem(interval, interval_group, interval))
 
   graph_menu.add(interval_menu)
@@ -177,7 +177,7 @@ def make_graph_menu(graph_panel):
   bounds_menu = nyx.menu.item.Submenu('Bounds')
   bounds_group = nyx.menu.item.SelectionGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
 
-  for bounds_type in nyx.graph_panel.Bounds:
+  for bounds_type in nyx.panel.graph.Bounds:
     bounds_menu.add(nyx.menu.item.SelectionMenuItem(bounds_type, bounds_group, bounds_type))
 
   graph_menu.add(bounds_menu)

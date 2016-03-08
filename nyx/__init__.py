@@ -14,14 +14,9 @@ __license__ = 'GPLv3'
 
 __all__ = [
   'arguments',
-  'config_panel',
-  'connection_panel',
   'controller',
-  'header_panel',
-  'log_panel',
   'popups',
   'starter',
-  'torrc_panel',
 ]
 
 

@@ -9,13 +9,14 @@ import threading
 
 import nyx.menu.menu
 import nyx.popups
-import nyx.header_panel
-import nyx.log_panel
-import nyx.config_panel
-import nyx.torrc_panel
-import nyx.graph_panel
-import nyx.connection_panel
 import nyx.util.tracker
+
+import nyx.panel.config
+import nyx.panel.connection
+import nyx.panel.graph
+import nyx.panel.header
+import nyx.panel.log
+import nyx.panel.torrc
 
 import stem
 
@@ -102,29 +103,29 @@ class Controller:
     self._screen = stdscr
 
     self._sticky_panels = [
-      nyx.header_panel.HeaderPanel(stdscr),
+      nyx.panel.header.HeaderPanel(stdscr),
       LabelPanel(stdscr),
     ]
 
     self._page_panels, first_page_panels = [], []
 
     if CONFIG['features.panels.show.graph']:
-      first_page_panels.append(nyx.graph_panel.GraphPanel(stdscr))
+      first_page_panels.append(nyx.panel.graph.GraphPanel(stdscr))
 
     if CONFIG['features.panels.show.log']:
-      first_page_panels.append(nyx.log_panel.LogPanel(stdscr))
+      first_page_panels.append(nyx.panel.log.LogPanel(stdscr))
 
     if first_page_panels:
       self._page_panels.append(first_page_panels)
 
     if CONFIG['features.panels.show.connection']:
-      self._page_panels.append([nyx.connection_panel.ConnectionPanel(stdscr)])
+      self._page_panels.append([nyx.panel.connection.ConnectionPanel(stdscr)])
 
     if CONFIG['features.panels.show.config']:
-      self._page_panels.append([nyx.config_panel.ConfigPanel(stdscr)])
+      self._page_panels.append([nyx.panel.config.ConfigPanel(stdscr)])
 
     if CONFIG['features.panels.show.torrc']:
-      self._page_panels.append([nyx.torrc_panel.TorrcPanel(stdscr)])
+      self._page_panels.append([nyx.panel.torrc.TorrcPanel(stdscr)])
 
     self.quit_signal = False
     self._page = 0
