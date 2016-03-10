@@ -529,6 +529,8 @@ class GraphPanel(panel.Panel):
 
       if selection != -1:
         self.update_interval = list(Interval)[selection]
+      
+      self.redraw(True)
     else:
       return False
 

@@ -461,7 +461,7 @@ class Daemon(threading.Thread):
 
         self._process_pid = tor_pid
         self._process_name = tor_cmd if tor_cmd else 'tor'
-      elif event_type == stem.contorl.State.CLOSED:
+      elif event_type == stem.control.State.CLOSED:
         self._process_pid = None
         self._process_name = None
 
