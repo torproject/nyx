@@ -214,7 +214,7 @@ class GraphCategory(object):
 
     pass
 
-  def _header(self, is_primary, width):
+  def _header(self, width, is_primary):
     if is_primary:
       header = CONFIG['attr.graph.header.primary'].get(self.stat_type(), '')
       header_stats = self._primary_header_stats
