@@ -30,7 +30,8 @@ NYX_CONTROLLER = None
 
 def conf_handler(key, value):
   if key == 'features.redrawRate':
-    return max(1, value)
+    # https://docs.python.org/2/library/curses.html?#curses.halfdelay
+    return min(max(1, value), 25.5)
   elif key == 'features.refreshRate':
     return max(0, value)
 
