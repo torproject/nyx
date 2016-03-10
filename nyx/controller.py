@@ -286,8 +286,8 @@ class Controller:
     Redraws the displayed panel content.
 
     Arguments:
-      force - redraws reguardless of if it's needed if true, otherwise ignores
-              the request when there arne't changes to be displayed
+      force - redraws regardless of if it's needed if true, otherwise ignores
+              the request when there aren't changes to be displayed
     """
 
     force |= self._force_redraw
