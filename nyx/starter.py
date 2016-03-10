@@ -254,15 +254,15 @@ def _shutdown_daemons(controller):
   """
 
   halt_threads = [nyx.util.tracker.stop_trackers()]
-  controller = nyx.controller.get_controller()
+  curses_controller = nyx.controller.get_controller()
 
-  if controller:
-    halt_threads.append(controller.halt())
+  if curses_controller:
+    halt_threads.append(curses_controller.halt())
 
   for thread in halt_threads:
     thread.join()
 
-  controller.quit()
+  controller.close()
 
 
 if __name__ == '__main__':
