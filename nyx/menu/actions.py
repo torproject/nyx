@@ -5,12 +5,13 @@ Generates the menu for nyx, binding options with their related actions.
 import functools
 
 import nyx.controller
+import nyx.curses
 import nyx.panel.graph
 import nyx.popups
 import nyx.menu.item
 import nyx.util.tracker
 
-from nyx.util import tor_controller, ui_tools
+from nyx.util import tor_controller
 
 import stem
 import stem.util.connection
@@ -104,13 +105,13 @@ def make_view_menu():
 
       view_menu.add(nyx.menu.item.SelectionMenuItem(label, page_group, i))
 
-  if ui_tools.is_color_supported():
+  if nyx.curses.is_color_supported():
     color_menu = nyx.menu.item.Submenu('Color')
-    color_group = nyx.menu.item.SelectionGroup(ui_tools.set_color_override, ui_tools.get_color_override())
+    color_group = nyx.menu.item.SelectionGroup(nyx.curses.set_color_override, nyx.curses.get_color_override())
 
     color_menu.add(nyx.menu.item.SelectionMenuItem('All', color_group, None))
 
-    for color in ui_tools.COLOR_LIST:
+    for color in nyx.curses.Color:
       color_menu.add(nyx.menu.item.SelectionMenuItem(str_tools._to_camel_case(color), color_group, color))
 
     view_menu.add(color_menu)

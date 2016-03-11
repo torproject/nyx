@@ -12,6 +12,7 @@ import nyx.popups
 import stem.control
 import stem.manual
 
+from nyx.curses import GREEN, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.util import DATA_DIR, panel, tor_controller, ui_tools
 
 from stem.util import conf, enum, log, str_tools
@@ -168,7 +169,7 @@ class ConfigPanel(panel.Panel):
     Provides the dialog for sorting our configuration options.
     """
 
-    sort_colors = dict([(attr, CONFIG['attr.config.sort_color'].get(attr, 'white')) for attr in SortAttr])
+    sort_colors = dict([(attr, CONFIG['attr.config.sort_color'].get(attr, WHITE)) for attr in SortAttr])
     results = nyx.popups.show_sort_dialog('Config Option Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
@@ -196,18 +197,18 @@ class ConfigPanel(panel.Panel):
           line = str_tools.crop(full_line, width - 2)
           option, arg = line.split(' ', 1) if ' ' in line else (line, '')
 
-          popup.addstr(i + 1, 1, option, curses.A_BOLD, 'green')
-          popup.addstr(i + 1, len(option) + 2, arg, curses.A_BOLD, 'cyan')
+          popup.addstr(i + 1, 1, option, GREEN, BOLD)
+          popup.addstr(i + 1, len(option) + 2, arg, CYAN, BOLD)
 
         x = width - 16
 
         for i, option in enumerate(['Save', 'Cancel']):
           x = popup.addstr(height - 2, x, '[')
-          x = popup.addstr(height - 2, x, option, curses.A_BOLD, curses.A_STANDOUT if i == selection else curses.A_NORMAL)
+          x = popup.addstr(height - 2, x, option, BOLD, HIGHLIGHT if i == selection else NORMAL)
           x = popup.addstr(height - 2, x, '] ')
 
         popup.win.box()
-        popup.addstr(0, 0, 'Torrc to save:', curses.A_STANDOUT)
+        popup.addstr(0, 0, 'Torrc to save:', HIGHLIGHT)
         popup.win.refresh()
 
         key = nyx.controller.get_controller().key_input()
@@ -291,7 +292,7 @@ class ConfigPanel(panel.Panel):
 
     if self.is_title_visible():
       hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
-      self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, curses.A_STANDOUT)
+      self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
 
     scroll_offset = 1
 
@@ -314,15 +315,15 @@ class ConfigPanel(panel.Panel):
       value_width = VALUE_WIDTH
 
     for i, entry in enumerate(contents[scroll_location:]):
-      attr = nyx.util.ui_tools.get_color(CONFIG['attr.config.category_color'].get(entry.manual.category, 'white'))
-      attr |= curses.A_BOLD if entry.is_set() else curses.A_NORMAL
-      attr |= curses.A_STANDOUT if entry == selection else curses.A_NORMAL
+      attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
+      attr.append(BOLD if entry.is_set() else NORMAL)
+      attr.append(HIGHLIGHT if entry == selection else NORMAL)
 
       option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
       value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
       summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
 
-      self.addstr(DETAILS_HEIGHT + i, scroll_offset, option_label + value_label + summary_label, attr)
+      self.addstr(DETAILS_HEIGHT + i, scroll_offset, option_label + value_label + summary_label, *attr)
 
       if DETAILS_HEIGHT + i >= height:
         break
@@ -337,11 +338,11 @@ class ConfigPanel(panel.Panel):
 
     description = 'Description: %s' % (selection.manual.description)
     attr = ', '.join(('custom' if selection.is_set() else 'default', selection.value_type, 'usage: %s' % selection.manual.usage))
-    selected_color = CONFIG['attr.config.category_color'].get(selection.manual.category, 'white')
+    selected_color = CONFIG['attr.config.category_color'].get(selection.manual.category, WHITE)
     ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT)
 
-    self.addstr(1, 2, '%s (%s Option)' % (selection.name, selection.manual.category), curses.A_BOLD, selected_color)
-    self.addstr(2, 2, 'Value: %s (%s)' % (selection.value(), str_tools.crop(attr, width - len(selection.value()) - 13)), curses.A_BOLD, selected_color)
+    self.addstr(1, 2, '%s (%s Option)' % (selection.name, selection.manual.category), selected_color, BOLD)
+    self.addstr(2, 2, 'Value: %s (%s)' % (selection.value(), str_tools.crop(attr, width - len(selection.value()) - 13)), selected_color, BOLD)
 
     for i in range(DETAILS_HEIGHT - 4):
       if not description:
@@ -352,6 +353,6 @@ class ConfigPanel(panel.Panel):
       if i < DETAILS_HEIGHT - 5:
         line, remainder = str_tools.crop(line, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
         description = '  ' + remainder.strip() + description
-        self.addstr(3 + i, 2, line, curses.A_BOLD, selected_color)
+        self.addstr(3 + i, 2, line, selected_color, BOLD)
       else:
-        self.addstr(3 + i, 2, str_tools.crop(line, width - 3, 4, 4), curses.A_BOLD, selected_color)
+        self.addstr(3 + i, 2, str_tools.crop(line, width - 3, 4, 4), selected_color, BOLD)

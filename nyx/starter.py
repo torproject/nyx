@@ -4,6 +4,8 @@ information. This starts the application, parsing arguments and getting a Tor
 connection.
 """
 
+from __future__ import absolute_import
+
 import curses
 import locale
 import logging

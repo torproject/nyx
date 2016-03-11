@@ -6,7 +6,6 @@ regular expressions.
 
 import os
 import time
-import curses
 import threading
 
 import stem.response.events
@@ -15,6 +14,7 @@ import nyx.arguments
 import nyx.popups
 import nyx.util.log
 
+from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.util import join, panel, tor_controller, ui_tools
 from stem.util import conf, log
 
@@ -144,7 +144,7 @@ class LogPanel(panel.Panel, threading.Thread):
         # displays the available flags
 
         popup.win.box()
-        popup.addstr(0, 0, 'Event Types:', curses.A_STANDOUT)
+        popup.addstr(0, 0, 'Event Types:', HIGHLIGHT)
         event_lines = CONFIG['msg.misc.event_types'].split('\n')
 
         for i in range(len(event_lines)):
@@ -233,7 +233,7 @@ class LogPanel(panel.Panel, threading.Thread):
       self.redraw(True)
     elif key.match('c'):
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
-      key_press = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
+      key_press = nyx.popups.show_msg(msg, attr = BOLD)
 
       if key_press.match('c'):
         self.clear()
@@ -309,9 +309,9 @@ class LogPanel(panel.Panel, threading.Thread):
         for entry in day_to_entries[day]:
           y = self._draw_entry(x, y, width, entry, show_duplicates)
 
-        ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, curses.A_BOLD, 'yellow')
+        ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, YELLOW, BOLD)
         time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
-        self.addstr(original_y, x + 1, time_label, curses.A_BOLD, curses.A_BOLD, 'yellow')
+        self.addstr(original_y, x + 1, time_label, YELLOW, BOLD)
 
         y += 1
 
@@ -360,7 +360,7 @@ class LogPanel(panel.Panel, threading.Thread):
     title_comp_str = join(title_comp, ', ', width - 10)
     title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
 
-    self.addstr(0, 0, title, curses.A_STANDOUT)
+    self.addstr(0, 0, title, HIGHLIGHT)
 
   def _draw_entry(self, x, y, width, entry, show_duplicates):
     """
@@ -368,8 +368,8 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     min_x, msg = x + 2, entry.display_message
-    boldness = curses.A_BOLD if 'ERR' in entry.type else curses.A_NORMAL  # emphasize ERR messages
-    color = CONFIG['attr.log_color'].get(entry.type, 'white')
+    boldness = BOLD if 'ERR' in entry.type else NORMAL  # emphasize ERR messages
+    color = CONFIG['attr.log_color'].get(entry.type, WHITE)
 
     for line in msg.splitlines():
       x, y = self.addstr_wrap(y, x, line, width, min_x, boldness, color)
@@ -378,7 +378,7 @@ class LogPanel(panel.Panel, threading.Thread):
       duplicate_count = len(entry.duplicates) - 1
       plural = 's' if duplicate_count > 1 else ''
       duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
-      x, y = self.addstr_wrap(y, x, duplicate_msg, width, min_x, curses.A_BOLD, 'green')
+      x, y = self.addstr_wrap(y, x, duplicate_msg, width, min_x, GREEN, BOLD)
 
     return y + 1
 

@@ -7,7 +7,6 @@ available.
 import collections
 import os
 import time
-import curses
 import threading
 
 import stem
@@ -18,6 +17,8 @@ import nyx.popups
 from stem.control import Listener, State
 from stem.util import conf, log, proc, str_tools, system
 from nyx.util import msg, tor_controller, panel, tracker
+
+from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
@@ -177,7 +178,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
-        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, 'white')
+        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, WHITE)
 
         x = self.addstr(y, x, ' (')
         x = self.addstr(y, x, vals.version_status, version_color)
@@ -191,7 +192,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
     """
 
     if not vals.is_relay:
-      x = self.addstr(y, x, 'Relaying Disabled', 'cyan')
+      x = self.addstr(y, x, 'Relaying Disabled', CYAN)
     else:
       x = self.addstr(y, x, vals.format('{nickname} - {address}:{or_port}'))
 
@@ -200,7 +201,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if vals.control_port:
       if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
-        auth_color = 'red' if vals.auth_type == 'open' else 'green'
+        auth_color = RED if vals.auth_type == 'open' else GREEN
 
         x = self.addstr(y, x, ', Control Port (')
         x = self.addstr(y, x, vals.auth_type, auth_color)
@@ -217,7 +218,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       Tor Disconnected (15:21 07/13/2014, press r to reconnect)
     """
 
-    x = self.addstr(y, x, 'Tor Disconnected', curses.A_BOLD, 'red')
+    x = self.addstr(y, x, 'Tor Disconnected', RED, BOLD)
     last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(vals.last_heartbeat))
     self.addstr(y, x, ' (%s, press r to reconnect)' % last_heartbeat)
 
@@ -271,11 +272,11 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
       if fd_percent >= SHOW_FD_THRESHOLD:
         if fd_percent >= 95:
-          percentage_format = (curses.A_BOLD, 'red')
+          percentage_format = (RED, BOLD)
         elif fd_percent >= 90:
-          percentage_format = ('red',)
+          percentage_format = (RED,)
         elif fd_percent >= 60:
-          percentage_format = ('yellow',)
+          percentage_format = (YELLOW,)
         else:
           percentage_format = ()
 
@@ -295,13 +296,13 @@ class HeaderPanel(panel.Panel, threading.Thread):
 
     if vals.flags:
       for i, flag in enumerate(vals.flags):
-        flag_color = CONFIG['attr.flag_colors'].get(flag, 'white')
-        x = self.addstr(y, x, flag, curses.A_BOLD, flag_color)
+        flag_color = CONFIG['attr.flag_colors'].get(flag, WHITE)
+        x = self.addstr(y, x, flag, flag_color, BOLD)
 
         if i < len(vals.flags) - 1:
           x = self.addstr(y, x, ', ')
     else:
-      self.addstr(y, x, 'none', curses.A_BOLD, 'cyan')
+      self.addstr(y, x, 'none', CYAN, BOLD)
 
   def _draw_exit_policy(self, x, y, width, vals):
     """
@@ -318,8 +319,8 @@ class HeaderPanel(panel.Panel, threading.Thread):
     rules = list(vals.exit_policy.strip_private().strip_default())
 
     for i, rule in enumerate(rules):
-      policy_color = 'green' if rule.is_accept else 'red'
-      x = self.addstr(y, x, str(rule), curses.A_BOLD, policy_color)
+      policy_color = GREEN if rule.is_accept else RED
+      x = self.addstr(y, x, str(rule), policy_color, BOLD)
 
       if i < len(rules) - 1:
         x = self.addstr(y, x, ', ')
@@ -328,7 +329,7 @@ class HeaderPanel(panel.Panel, threading.Thread):
       if rules:
         x = self.addstr(y, x, ', ')
 
-      self.addstr(y, x, '<default>', curses.A_BOLD, 'cyan')
+      self.addstr(y, x, '<default>', CYAN, BOLD)
 
   def _draw_newnym_option(self, x, y, width, vals):
     """

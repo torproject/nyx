@@ -3,8 +3,8 @@ Panel displaying the torrc or nyxrc with the validation done against it.
 """
 
 import math
-import curses
 
+from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 from nyx.util import expand_path, msg, panel, tor_controller, ui_tools
 
 from stem import ControllerError
@@ -102,7 +102,7 @@ class TorrcPanel(panel.Panel):
 
   def draw(self, width, height):
     if self._torrc_content is None:
-      self.addstr(1, 0, self._torrc_load_error, 'red', curses.A_BOLD)
+      self.addstr(1, 0, self._torrc_load_error, RED, BOLD)
       new_content_height = 1
     else:
       self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
@@ -148,14 +148,14 @@ class TorrcPanel(panel.Panel):
         is_multiline = line.endswith('\\')  # next line's part of a multi-line entry
 
         if self._show_line_numbers:
-          self.addstr(y, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), curses.A_BOLD, 'yellow')
+          self.addstr(y, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), YELLOW, BOLD)
 
         x = line_number_offset + scroll_offset
         min_x = line_number_offset + scroll_offset
 
-        x, y = self.addstr_wrap(y, x, option, width, min_x, curses.A_BOLD, 'green')
-        x, y = self.addstr_wrap(y, x, argument, width, min_x, curses.A_BOLD, 'cyan')
-        x, y = self.addstr_wrap(y, x, comment, width, min_x, 'white')
+        x, y = self.addstr_wrap(y, x, option, width, min_x, GREEN, BOLD)
+        x, y = self.addstr_wrap(y, x, argument, width, min_x, CYAN, BOLD)
+        x, y = self.addstr_wrap(y, x, comment, width, min_x, WHITE)
 
         y += 1
 
@@ -164,7 +164,7 @@ class TorrcPanel(panel.Panel):
     if self.is_title_visible():
       self.addstr(0, 0, ' ' * width)  # clear line
       location = ' (%s)' % self._torrc_location if self._torrc_location else ''
-      self.addstr(0, 0, 'Tor Configuration File%s:' % location, curses.A_STANDOUT)
+      self.addstr(0, 0, 'Tor Configuration File%s:' % location, HIGHLIGHT)
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height

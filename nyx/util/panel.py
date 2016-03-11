@@ -9,8 +9,9 @@ import curses.ascii
 import curses.textpad
 from threading import RLock
 
-from nyx.util import ui_tools
+import nyx.curses
 
+from nyx.curses import HIGHLIGHT
 from stem.util import conf, log, str_tools
 
 # global ui lock governing all panel instances (curses isn't thread save and
@@ -484,7 +485,7 @@ class Panel(object):
       attr   - text attributes
     """
 
-    format_attr = ui_tools.curses_format(*attributes)
+    format_attr = nyx.curses.curses_attr(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -506,7 +507,7 @@ class Panel(object):
       attr   - text attributes
     """
 
-    format_attr = ui_tools.curses_format(*attributes)
+    format_attr = nyx.curses.curses_attr(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -528,7 +529,7 @@ class Panel(object):
       attr - text attributes
     """
 
-    format_attr = ui_tools.curses_format(*attributes)
+    format_attr = nyx.curses.curses_attr(*attributes)
 
     if self.win and self.max_x > x and self.max_y > y:
       try:
@@ -553,7 +554,7 @@ class Panel(object):
       attr - text attributes
     """
 
-    format_attr = ui_tools.curses_format(*attributes)
+    format_attr = nyx.curses.curses_attr(*attributes)
 
     # subwindows need a single character buffer (either in the x or y
     # direction) from actual content to prevent crash when shrank
@@ -712,7 +713,7 @@ class Panel(object):
 
     for i in range(scrollbar_height):
       if i >= slider_top and i <= slider_top + slider_size:
-        self.addstr(i + draw_top, draw_left, ' ', curses.A_STANDOUT)
+        self.addstr(i + draw_top, draw_left, ' ', HIGHLIGHT)
       else:
         self.addstr(i + draw_top, draw_left, ' ')
 

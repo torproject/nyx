@@ -2,6 +2,8 @@
 Functions for displaying popups in the interface.
 """
 
+from __future__ import absolute_import
+
 import math
 import curses
 import operator
@@ -9,13 +11,14 @@ import operator
 import nyx.controller
 
 from nyx import __version__, __release_date__
+from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.util import tor_controller, panel, ui_tools
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
 HEADERS = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
-HEADER_COLOR = 'cyan'
-LINE_NUMBER_COLOR = 'yellow'
+HEADER_COLOR = CYAN
+LINE_NUMBER_COLOR = YELLOW
 
 BLOCK_START, BLOCK_END = '-----BEGIN ', '-----END '
 
@@ -95,7 +98,7 @@ def input_prompt(msg, initial_value = ''):
     return user_input
 
 
-def show_msg(msg, max_wait = -1, attr = curses.A_STANDOUT):
+def show_msg(msg, max_wait = -1, attr = HIGHLIGHT):
   """
   Displays a single line message on the control line for a set time. Pressing
   any key will end the message. This returns the key pressed.
@@ -146,7 +149,7 @@ def show_help_popup():
       # test doing afterward in case of overwriting
 
       popup.win.box()
-      popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), curses.A_STANDOUT)
+      popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
       for i in range(len(help_options)):
         if i / 2 >= height - 2:
@@ -164,14 +167,14 @@ def show_help_popup():
         row = (i / 2) + 1
         col = 2 if i % 2 == 0 else 41
 
-        popup.addstr(row, col, key, curses.A_BOLD)
+        popup.addstr(row, col, key, BOLD)
         col += len(key)
         popup.addstr(row, col, description)
         col += len(description)
 
         if selection:
           popup.addstr(row, col, ' (')
-          popup.addstr(row, col + 2, selection, curses.A_BOLD)
+          popup.addstr(row, col + 2, selection, BOLD)
           popup.addstr(row, col + 2 + len(selection), ')')
 
       # tells user to press a key if the lower left is unoccupied
@@ -200,8 +203,8 @@ def show_about_popup():
       control = nyx.controller.get_controller()
 
       popup.win.box()
-      popup.addstr(0, 0, 'About:', curses.A_STANDOUT)
-      popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), curses.A_BOLD)
+      popup.addstr(0, 0, 'About:', HIGHLIGHT)
+      popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), BOLD)
       popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
       popup.addstr(3, 4, 'Project page: www.atagar.com/nyx')
       popup.addstr(5, 2, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
@@ -231,7 +234,7 @@ def show_count_dialog(title, counts):
       return
 
     if not counts:
-      popup.addstr(1, 2, NO_STATS_MSG, curses.A_BOLD, 'cyan')
+      popup.addstr(1, 2, NO_STATS_MSG, CYAN, BOLD)
     else:
       key_width, val_width, value_total = 3, 1, 0
 
@@ -245,15 +248,15 @@ def show_count_dialog(title, counts):
 
       for y, (k, v) in enumerate(sorted_counts):
         label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
-        x = popup.addstr(y + 1, 2, label, curses.A_BOLD, 'green')
+        x = popup.addstr(y + 1, 2, label, GREEN, BOLD)
 
         for j in range(graph_width * v / value_total):
-          popup.addstr(y + 1, x + j + 1, ' ', curses.A_STANDOUT, 'red')
+          popup.addstr(y + 1, x + j + 1, ' ', RED, HIGHLIGHT)
 
       popup.addstr(height - 2, 2, 'Press any key...')
 
     popup.win.box()
-    popup.addstr(0, 0, title, curses.A_STANDOUT)
+    popup.addstr(0, 0, title, HIGHLIGHT)
     popup.win.refresh()
 
     curses.cbreak()
@@ -292,7 +295,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
       while len(new_selections) < len(old_selection):
         popup.win.erase()
         popup.win.box()
-        popup.addstr(0, 0, title, curses.A_STANDOUT)
+        popup.addstr(0, 0, title, HIGHLIGHT)
 
         _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
         _draw_sort_selection(popup, 2, 2, 'New Order: ', new_selections, option_colors)
@@ -303,7 +306,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
         row, col = 4, 0
 
         for i in range(len(selection_options)):
-          option_format = curses.A_STANDOUT if cursor_location == i else curses.A_NORMAL
+          option_format = HIGHLIGHT if cursor_location == i else NORMAL
           popup.addstr(row, col * 19 + 2, selection_options[i], option_format)
           col += 1
 
@@ -356,19 +359,18 @@ def _draw_sort_selection(popup, y, x, prefix, options, option_colors):
     option_colors - mappings of options to their color
   """
 
-  popup.addstr(y, x, prefix, curses.A_BOLD)
+  popup.addstr(y, x, prefix, BOLD)
   x += len(prefix)
 
   for i in range(len(options)):
     sort_type = options[i]
-    sort_color = ui_tools.get_color(option_colors.get(sort_type, 'white'))
-    popup.addstr(y, x, sort_type, sort_color | curses.A_BOLD)
+    popup.addstr(y, x, sort_type, option_colors.get(sort_type, WHITE), BOLD)
     x += len(sort_type)
 
     # comma divider between options, if this isn't the last
 
     if i < len(options) - 1:
-      popup.addstr(y, x, ', ', curses.A_BOLD)
+      popup.addstr(y, x, ', ', BOLD)
       x += 2
 
 
@@ -405,11 +407,11 @@ def show_menu(title, options, old_selection):
     while True:
       popup.win.erase()
       popup.win.box()
-      popup.addstr(0, 0, title, curses.A_STANDOUT)
+      popup.addstr(0, 0, title, HIGHLIGHT)
 
       for i in range(len(options)):
         label = options[i]
-        format = curses.A_STANDOUT if i == selection else curses.A_NORMAL
+        format = HIGHLIGHT if i == selection else NORMAL
         tab = '> ' if i == old_selection else '  '
         popup.addstr(i + 1, 2, tab)
         popup.addstr(i + 1, 4, ' %s ' % label, format)
@@ -556,9 +558,9 @@ def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
       continue
 
     if show_line_numbers:
-      popup.addstr(y, 2, str(i + 1).rjust(line_number_width), curses.A_BOLD, LINE_NUMBER_COLOR)
+      popup.addstr(y, 2, str(i + 1).rjust(line_number_width), LINE_NUMBER_COLOR, BOLD)
 
-    x, y = popup.addstr_wrap(y, width, keyword, width, offset, color, curses.A_BOLD)
+    x, y = popup.addstr_wrap(y, width, keyword, width, offset, color, BOLD)
     x, y = popup.addstr_wrap(y, x + 1, value, width, offset, color)
 
     y += 1
@@ -567,5 +569,5 @@ def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
       break
 
   popup.win.box()
-  popup.addstr(0, 0, title, curses.A_STANDOUT)
+  popup.addstr(0, 0, title, HIGHLIGHT)
   popup.win.refresh()

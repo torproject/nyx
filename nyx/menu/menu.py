@@ -2,14 +2,17 @@
 Display logic for presenting the menu.
 """
 
+from __future__ import absolute_import
+
 import curses
 
+import nyx.curses
 import nyx.popups
 import nyx.controller
 import nyx.menu.item
 import nyx.menu.actions
 
-from nyx.util import ui_tools
+from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE, HIGHLIGHT
 
 
 class MenuCursor:
@@ -90,26 +93,26 @@ def show_menu():
         # sets the background color
 
         popup.win.clear()
-        popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color("red"))
+        popup.win.bkgd(' ', nyx.curses.curses_attr(RED, HIGHLIGHT))
         selection_hierarchy = cursor.get_selection().get_hierarchy()
 
         # provide a message saying how to close the menu
 
-        control.set_msg('Press m or esc to close the menu.', curses.A_BOLD, True)
+        control.set_msg('Press m or esc to close the menu.', BOLD, True)
 
         # renders the menu bar, noting where the open submenu is positioned
 
         draw_left, selection_left = 0, 0
 
         for top_level_item in menu.get_children():
-          draw_format = curses.A_BOLD
-
           if top_level_item == selection_hierarchy[1]:
-            draw_format |= curses.A_UNDERLINE
+            attr = UNDERLINE
             selection_left = draw_left
+          else:
+            attr = NORMAL
 
           draw_label = ' %s ' % top_level_item.get_label()[1]
-          popup.addstr(0, draw_left, draw_label, draw_format)
+          popup.addstr(0, draw_left, draw_label, BOLD, attr)
           popup.addch(0, draw_left + len(draw_label), curses.ACS_VLINE)
 
           draw_left += len(draw_label) + 1
@@ -162,16 +165,16 @@ def _draw_submenu(cursor, level, top, left):
 
     # sets the background color
 
-    popup.win.bkgd(' ', curses.A_STANDOUT | ui_tools.get_color('red'))
+    popup.win.bkgd(' ', nyx.curses.curses_attr(RED, HIGHLIGHT))
 
     draw_top, selection_top = 0, 0
 
     for menu_item in submenu.get_children():
       if menu_item == selection:
-        draw_format = (curses.A_BOLD, 'white')
+        draw_format = (WHITE, BOLD)
         selection_top = draw_top
       else:
-        draw_format = (curses.A_NORMAL,)
+        draw_format = (NORMAL,)
 
       popup.addstr(draw_top, 0, label_format % menu_item.get_label(), *draw_format)
       draw_top += 1

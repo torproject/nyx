@@ -6,140 +6,7 @@ import curses
 
 from curses.ascii import isprint
 
-from nyx.util import log, msg
-
-from stem.util import conf, system
-
-COLOR_LIST = {
-  'red': curses.COLOR_RED,
-  'green': curses.COLOR_GREEN,
-  'yellow': curses.COLOR_YELLOW,
-  'blue': curses.COLOR_BLUE,
-  'cyan': curses.COLOR_CYAN,
-  'magenta': curses.COLOR_MAGENTA,
-  'black': curses.COLOR_BLACK,
-  'white': curses.COLOR_WHITE,
-}
-
-DEFAULT_COLOR_ATTR = dict([(color, 0) for color in COLOR_LIST])
-COLOR_ATTR = None
-
-
-def conf_handler(key, value):
-  if key == 'features.color_override':
-    if value not in COLOR_LIST.keys() and value != 'none':
-      raise ValueError(msg('usage.unable_to_set_color_override', color = value))
-
-
-CONFIG = conf.config_dict('nyx', {
-  'features.color_override': 'none',
-  'features.colorInterface': True,
-}, conf_handler)
-
-
-def is_color_supported():
-  """
-  Checks if curses currently supports rendering colors.
-
-  :returns: **True** if colors can be rendered, **False** otherwise
-  """
-
-  return _color_attr() != DEFAULT_COLOR_ATTR
-
-
-def get_color(color):
-  """
-  Provides attribute corresponding to a given text color. Supported colors
-  include:
-
-    * red
-    * green
-    * yellow
-    * blue
-    * cyan
-    * magenta
-    * black
-    * white
-
-  If color support isn't available or colors can't be initialized then this uses the
-  terminal's default coloring scheme.
-
-  :param str color: color attributes to be provided
-
-  :returns: **tuple** color pair used by curses to render the color
-  """
-
-  color_override = get_color_override()
-
-  if color_override:
-    color = color_override
-
-  return _color_attr()[color]
-
-
-def set_color_override(color = None):
-  """
-  Overwrites all requests for color with the given color instead.
-
-  :param str color: color to override all requests with, **None** if color
-    requests shouldn't be overwritten
-
-  :raises: **ValueError** if the color name is invalid
-  """
-
-  nyx_config = conf.get_config('nyx')
-
-  if color is None:
-    nyx_config.set('features.color_override', 'none')
-  elif color in COLOR_LIST.keys():
-    nyx_config.set('features.color_override', color)
-  else:
-    raise ValueError(msg('usage.unable_to_set_color_override', color = color))
-
-
-def get_color_override():
-  """
-  Provides the override color used by the interface.
-
-  :returns: **str** for the color requrests will be overwritten with, **None**
-    if no override is set
-  """
-
-  color_override = CONFIG.get('features.color_override', 'none')
-
-  if color_override == 'none':
-    return None
-  else:
-    return color_override
-
-
-def _color_attr():
-  """
-  Initializes color mappings usable by curses. This can only be done after
-  calling curses.initscr().
-  """
-
-  global COLOR_ATTR
-
-  if COLOR_ATTR is None:
-    if not CONFIG['features.colorInterface']:
-      COLOR_ATTR = DEFAULT_COLOR_ATTR
-    elif curses.has_colors():
-      color_attr = dict(DEFAULT_COLOR_ATTR)
-
-      for color_pair, color_name in enumerate(COLOR_LIST):
-        foreground_color = COLOR_LIST[color_name]
-        background_color = -1  # allows for default (possibly transparent) background
-        curses.init_pair(color_pair + 1, foreground_color, background_color)
-        color_attr[color_name] = curses.color_pair(color_pair + 1)
-
-      log.info('setup.color_support_available')
-      COLOR_ATTR = color_attr
-    else:
-      log.info('setup.color_support_unavailable')
-      COLOR_ATTR = DEFAULT_COLOR_ATTR
-
-  return COLOR_ATTR
+from stem.util import system
 
 
 def disable_acs():
@@ -179,26 +46,6 @@ def get_printable(line, keep_newlines = True):
   return line
 
 
-def curses_format(*attributes):
-  """
-  Provides the curses integer code for a series of attributes.
-
-  :param list attributes: curses attributes or color names
-
-  :returns: **int** that can be used with curses
-  """
-
-  format_attr = curses.A_NORMAL
-
-  for attr in attributes:
-    if isinstance(attr, str):
-      format_attr |= get_color(attr)
-    else:
-      format_attr |= attr
-
-  return format_attr
-
-
 def draw_box(panel, top, left, width, height, *attributes):
   """
   Draws a box in the panel with the given bounds.
@@ -212,24 +59,22 @@ def draw_box(panel, top, left, width, height, *attributes):
     attr   - text attributes
   """
 
-  format_attr = curses_format(*attributes)
-
   # draws the top and bottom
 
-  panel.hline(top, left + 1, width - 2, format_attr)
-  panel.hline(top + height - 1, left + 1, width - 2, format_attr)
+  panel.hline(top, left + 1, width - 2, *attributes)
+  panel.hline(top + height - 1, left + 1, width - 2, *attributes)
 
   # draws the left and right sides
 
-  panel.vline(top + 1, left, height - 2, format_attr)
-  panel.vline(top + 1, left + width - 1, height - 2, format_attr)
+  panel.vline(top + 1, left, height - 2, *attributes)
+  panel.vline(top + 1, left + width - 1, height - 2, *attributes)
 
   # draws the corners
 
-  panel.addch(top, left, curses.ACS_ULCORNER, format_attr)
-  panel.addch(top, left + width - 1, curses.ACS_URCORNER, format_attr)
-  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, format_attr)
-  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, format_attr)
+  panel.addch(top, left, curses.ACS_ULCORNER, *attributes)
+  panel.addch(top, left + width - 1, curses.ACS_URCORNER, *attributes)
+  panel.addch(top + height - 1, left, curses.ACS_LLCORNER, *attributes)
+  panel.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, *attributes)
 
 
 def get_scroll_position(key, position, page_height, content_height, is_cursor = False):

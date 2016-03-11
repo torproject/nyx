@@ -13,6 +13,7 @@ import nyx.popups
 import nyx.util.tracker
 import nyx.util.ui_tools
 
+from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.util import panel, tor_controller, ui_tools
 
 from stem.control import Listener
@@ -305,7 +306,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     Provides a dialog for sorting our connections.
     """
 
-    sort_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, 'white')) for attr in SortAttr])
+    sort_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, WHITE)) for attr in SortAttr])
     results = nyx.popups.show_sort_dialog('Connection Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
@@ -356,7 +357,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         def is_close_key(key):
           return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
 
-        color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), 'white')
+        color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), WHITE)
         key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
 
         if not key or key.is_selection() or key.match('d'):
@@ -482,20 +483,20 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     """
 
     if showing_details:
-      self.addstr(0, 0, 'Connection Details:', curses.A_STANDOUT)
+      self.addstr(0, 0, 'Connection Details:', HIGHLIGHT)
     elif not entries:
-      self.addstr(0, 0, 'Connections:', curses.A_STANDOUT)
+      self.addstr(0, 0, 'Connections:', HIGHLIGHT)
     else:
       counts = collections.Counter([entry.get_type() for entry in entries])
       count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
-      self.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), curses.A_STANDOUT)
+      self.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
 
   def _draw_details(self, selected, width, is_scrollbar_visible):
     """
     Shows detailed information about the selected connection.
     """
 
-    attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), 'white'), curses.A_BOLD)
+    attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE), BOLD)
 
     if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
       self.addstr(1, 2, 'Building Circuit...', *attr)
@@ -552,10 +553,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
 
   def _draw_line(self, x, y, line, is_selected, width, current_time):
-    attr = nyx.util.ui_tools.get_color(CONFIG['attr.connection.category_color'].get(line.entry.get_type(), 'white'))
-    attr |= curses.A_STANDOUT if is_selected else curses.A_NORMAL
+    attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
+    attr.append(HIGHLIGHT if is_selected else NORMAL)
 
-    self.addstr(y, x, ' ' * (width - x), attr)
+    self.addstr(y, x, ' ' * (width - x), *attr)
 
     if line.line_type == LineType.CIRCUIT:
       if line.circuit.path[-1][0] == line.fingerprint:
@@ -594,9 +595,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       dst, src = src, dst
 
     if line.line_type == LineType.CIRCUIT:
-      self.addstr(y, x, dst, attr)
+      self.addstr(y, x, dst, *attr)
     else:
-      self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), attr)
+      self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), *attr)
 
   def _draw_line_details(self, x, y, line, width, attr):
     if line.line_type == LineType.CIRCUIT_HEADER:
@@ -615,7 +616,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     for entry in comp:
       if width >= x + len(entry):
-        x = self.addstr(y, x, entry, attr)
+        x = self.addstr(y, x, entry, *attr)
       else:
         return
 
@@ -631,13 +632,13 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       else:
         placement_type = 'Middle'
 
-      self.addstr(y, x + 4, '%i / %s' % (circ_index + 1, placement_type), attr)
+      self.addstr(y, x + 4, '%i / %s' % (circ_index + 1, placement_type), *attr)
     else:
-      x = self.addstr(y, x, '+' if line.connection.is_legacy else ' ', attr)
-      x = self.addstr(y, x, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), attr)
-      x = self.addstr(y, x, ' (', attr)
-      x = self.addstr(y, x, line.entry.get_type().upper(), attr | curses.A_BOLD)
-      x = self.addstr(y, x, ')', attr)
+      x = self.addstr(y, x, '+' if line.connection.is_legacy else ' ', *attr)
+      x = self.addstr(y, x, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), *attr)
+      x = self.addstr(y, x, ' (', *attr)
+      x = self.addstr(y, x, line.entry.get_type().upper(), BOLD, *attr)
+      x = self.addstr(y, x, ')', *attr)
 
   def stop(self):
     """

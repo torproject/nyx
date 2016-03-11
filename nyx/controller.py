@@ -3,6 +3,8 @@ Main interface loop for nyx, periodically redrawing the screen and issuing
 user input to the proper panels.
 """
 
+from __future__ import absolute_import
+
 import time
 import curses
 import threading
@@ -22,6 +24,7 @@ import stem
 
 from stem.util import conf, log
 
+from nyx.curses import NORMAL, BOLD, HIGHLIGHT
 from nyx.util import panel, tor_controller, ui_tools
 
 
@@ -65,7 +68,7 @@ class LabelPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'msg', 0, height=1)
     self.msg_text = ''
-    self.msg_attr = curses.A_NORMAL
+    self.msg_attr = NORMAL
 
   def set_message(self, msg, attr = None):
     """
@@ -77,7 +80,7 @@ class LabelPanel(panel.Panel):
     """
 
     if attr is None:
-      attr = curses.A_NORMAL
+      attr = NORMAL
 
     self.msg_text = msg
     self.msg_attr = attr
@@ -338,10 +341,10 @@ class Controller:
       if attr is None:
         if not self._is_paused:
           msg = 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (self._page + 1, len(self._page_panels))
-          attr = curses.A_NORMAL
+          attr = NORMAL
         else:
           msg = 'Paused'
-          attr = curses.A_STANDOUT
+          attr = HIGHLIGHT
 
     control_panel = self.get_panel('msg')
     control_panel.set_message(msg, attr)
@@ -454,7 +457,7 @@ def start_nyx(stdscr):
 
       if CONFIG['features.confirmQuit']:
         msg = 'Are you sure (q again to confirm)?'
-        confirmation_key = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
+        confirmation_key = nyx.popups.show_msg(msg, attr = BOLD)
         quit_confirmed = confirmation_key.match('q')
       else:
         quit_confirmed = True
@@ -465,7 +468,7 @@ def start_nyx(stdscr):
       # provides prompt to confirm that nyx should issue a sighup
 
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
-      confirmation_key = nyx.popups.show_msg(msg, attr = curses.A_BOLD)
+      confirmation_key = nyx.popups.show_msg(msg, attr = BOLD)
 
       if confirmation_key in (ord('x'), ord('X')):
         try:

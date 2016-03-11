@@ -23,6 +23,7 @@ import nyx.util.tracker
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
 from nyx.util import join, msg, panel, tor_controller
+from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
@@ -41,7 +42,7 @@ INTERVAL_SECONDS = {
   Interval.DAILY: 86400,
 }
 
-PRIMARY_COLOR, SECONDARY_COLOR = 'green', 'cyan'
+PRIMARY_COLOR, SECONDARY_COLOR = GREEN, CYAN
 
 ACCOUNTING_RATE = 5
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
@@ -477,8 +478,8 @@ class GraphPanel(panel.Panel):
       try:
         while True:
           msg = 'press the down/up to resize the graph, and enter when done'
-          control.set_msg(msg, curses.A_BOLD, True)
-          curses.cbreak()
+          control.set_msg(msg, BOLD, True)
+          curses.cbreak()  # TODO: can we drop this?
           key = control.key_input()
 
           if key.match('down'):
@@ -557,7 +558,7 @@ class GraphPanel(panel.Panel):
     )
 
     if self.is_title_visible():
-      self.addstr(0, 0, attr.stat.title(width), curses.A_STANDOUT)
+      self.addstr(0, 0, attr.stat.title(width), HIGHLIGHT)
 
     self._draw_subgraph(attr, attr.stat.primary, 0, PRIMARY_COLOR)
     self._draw_subgraph(attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
@@ -583,7 +584,7 @@ class GraphPanel(panel.Panel):
     subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
     axis_offset = max([len(label) for label in y_axis_labels.values()])
 
-    self.addstr(1, x, data.header(attr.subgraph_width), curses.A_BOLD, color)
+    self.addstr(1, x, data.header(attr.subgraph_width), color, BOLD)
 
     for x_offset, label in x_axis_labels.items():
       self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
@@ -596,7 +597,7 @@ class GraphPanel(panel.Panel):
       column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
 
       for row in range(column_height):
-        self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', curses.A_STANDOUT, color)
+        self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', color, HIGHLIGHT)
 
   def _get_graph_bounds(self, attr, data, subgraph_columns):
     """
@@ -699,18 +700,18 @@ class GraphPanel(panel.Panel):
     y = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2
 
     if tor_controller().is_alive():
-      hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, 'red')
+      hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, RED)
 
-      x = self.addstr(y, 0, 'Accounting (', curses.A_BOLD)
-      x = self.addstr(y, x, attr.accounting.status, curses.A_BOLD, hibernate_color)
-      x = self.addstr(y, x, ')', curses.A_BOLD)
+      x = self.addstr(y, 0, 'Accounting (', BOLD)
+      x = self.addstr(y, x, attr.accounting.status, BOLD, hibernate_color)
+      x = self.addstr(y, x, ')', BOLD)
 
       self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
 
       self.addstr(y + 1, 2, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
       self.addstr(y + 1, 37, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
     else:
-      self.addstr(y, 0, 'Accounting:', curses.A_BOLD)
+      self.addstr(y, 0, 'Accounting:', BOLD)
       self.addstr(y, 12, 'Connection Closed...')
 
   def copy_attr(self, attr):
