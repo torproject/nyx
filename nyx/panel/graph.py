@@ -29,7 +29,7 @@ GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections')
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
 
-DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'accounting'))
+DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'accounting', 'right_to_left'))
 
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
@@ -79,6 +79,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.graph.interval': Interval.EACH_SECOND,
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 300,  # we need some sort of max size so we know how much graph data to retain
+  'features.graph.right_to_left': False,
   'features.panels.show.connection': True,
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
@@ -215,7 +216,7 @@ class GraphCategory(object):
 
     pass
 
-  def _header(self, is_primary, width):
+  def _header(self, width, is_primary):
     if is_primary:
       header = CONFIG['attr.graph.header.primary'].get(self.stat_type(), '')
       header_stats = self._primary_header_stats
@@ -529,6 +530,8 @@ class GraphPanel(panel.Panel):
 
       if selection != -1:
         self.update_interval = list(Interval)[selection]
+
+      self.redraw(True)
     else:
       return False
 
@@ -555,6 +558,7 @@ class GraphPanel(panel.Panel):
       interval = self.update_interval,
       bounds_type = self.bounds_type,
       accounting = self.get_attr('_accounting_stats'),
+      right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
     if self.is_title_visible():
@@ -587,7 +591,10 @@ class GraphPanel(panel.Panel):
     self.addstr(1, x, data.header(attr.subgraph_width), color, BOLD)
 
     for x_offset, label in x_axis_labels.items():
-      self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
+      if attr.right_to_left:
+        self.addstr(attr.subgraph_height, x + attr.subgraph_width - x_offset, label, color)
+      else:
+        self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
 
     for y, label in y_axis_labels.items():
       self.addstr(y, x, label, color)
@@ -597,7 +604,10 @@ class GraphPanel(panel.Panel):
       column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
 
       for row in range(column_height):
-        self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', color, HIGHLIGHT)
+        if attr.right_to_left:
+          self.addstr(attr.subgraph_height - 1 - row, x + attr.subgraph_width - col - 1, ' ', color, HIGHLIGHT)
+        else:
+          self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', color, HIGHLIGHT)
 
   def _get_graph_bounds(self, attr, data, subgraph_columns):
     """

@@ -33,7 +33,8 @@ NYX_CONTROLLER = None
 
 def conf_handler(key, value):
   if key == 'features.redrawRate':
-    return max(1, value)
+    # https://docs.python.org/2/library/curses.html?#curses.halfdelay
+    return min(max(1, value), 25.5)
   elif key == 'features.refreshRate':
     return max(0, value)
 
@@ -289,8 +290,8 @@ class Controller:
     Redraws the displayed panel content.
 
     Arguments:
-      force - redraws reguardless of if it's needed if true, otherwise ignores
-              the request when there arne't changes to be displayed
+      force - redraws regardless of if it's needed if true, otherwise ignores
+              the request when there aren't changes to be displayed
     """
 
     force |= self._force_redraw
