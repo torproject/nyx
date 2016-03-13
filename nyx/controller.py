@@ -9,6 +9,7 @@ import time
 import curses
 import threading
 
+import nyx.curses
 import nyx.menu.menu
 import nyx.popups
 import nyx.util.tracker
@@ -25,7 +26,7 @@ import stem
 from stem.util import conf, log
 
 from nyx.curses import NORMAL, BOLD, HIGHLIGHT
-from nyx.util import panel, tor_controller, ui_tools
+from nyx.util import panel, tor_controller
 
 
 NYX_CONTROLLER = None
@@ -389,7 +390,7 @@ def start_nyx(stdscr):
   control = get_controller()
 
   if not CONFIG['features.acsSupport']:
-    ui_tools.disable_acs()
+    nyx.curses.disable_acs()
 
   # provides notice about any unused config keys
 

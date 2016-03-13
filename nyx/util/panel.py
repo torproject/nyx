@@ -769,6 +769,35 @@ class Panel(object):
 
     return recreate
 
+  def draw_box(self, top, left, width, height, *attributes):
+    """
+    Draws a box in the panel with the given bounds.
+
+    Arguments:
+      top    - vertical position of the box's top
+      left   - horizontal position of the box's left side
+      width  - width of the drawn box
+      height - height of the drawn box
+      attr   - text attributes
+    """
+
+    # draws the top and bottom
+
+    self.hline(top, left + 1, width - 2, *attributes)
+    self.hline(top + height - 1, left + 1, width - 2, *attributes)
+
+    # draws the left and right sides
+
+    self.vline(top + 1, left, height - 2, *attributes)
+    self.vline(top + 1, left + width - 1, height - 2, *attributes)
+
+    # draws the corners
+
+    self.addch(top, left, curses.ACS_ULCORNER, *attributes)
+    self.addch(top, left + width - 1, curses.ACS_URCORNER, *attributes)
+    self.addch(top + height - 1, left, curses.ACS_LLCORNER, *attributes)
+    self.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, *attributes)
+
 
 class KeyInput(object):
   """

@@ -7,13 +7,14 @@ import curses
 import os
 
 import nyx.controller
+import nyx.curses
 import nyx.popups
 
 import stem.control
 import stem.manual
 
 from nyx.curses import GREEN, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import DATA_DIR, panel, tor_controller, ui_tools
+from nyx.util import DATA_DIR, panel, tor_controller
 
 from stem.util import conf, enum, log, str_tools
 
@@ -120,7 +121,7 @@ class ConfigPanel(panel.Panel):
     panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
     self._contents = []
-    self._scroller = ui_tools.Scroller(True)
+    self._scroller = nyx.curses.CursorScroller()
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the important ones
 
@@ -237,23 +238,23 @@ class ConfigPanel(panel.Panel):
       if is_changed:
         self.redraw(True)
     elif key.is_selection():
-      selection = self._scroller.get_cursor_selection(self._get_config_options())
-      initial_value = selection.value() if selection.is_set() else ''
-      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selection.name, initial_value)
+      selected = self._scroller.selection(self._get_config_options())
+      initial_value = selected.value() if selected.is_set() else ''
+      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
 
       if new_value != initial_value:
         try:
-          if selection.value_type == 'Boolean':
+          if selected.value_type == 'Boolean':
             # if the value's a boolean then allow for 'true' and 'false' inputs
 
             if new_value.lower() == 'true':
               new_value = '1'
             elif new_value.lower() == 'false':
               new_value = '0'
-          elif selection.value_type == 'LineList':
+          elif selected.value_type == 'LineList':
             new_value = new_value.split(',')  # set_conf accepts list inputs
 
-          tor_controller().set_conf(selection.name, new_value)
+          tor_controller().set_conf(selected.name, new_value)
           self.redraw(True)
         except Exception as exc:
           nyx.popups.show_msg('%s (press any key)' % exc)
@@ -283,12 +284,11 @@ class ConfigPanel(panel.Panel):
 
   def draw(self, width, height):
     contents = self._get_config_options()
-    selection = self._scroller.get_cursor_selection(contents)
-    scroll_location = self._scroller.get_scroll_location(contents, height - DETAILS_HEIGHT)
+    selected, scroll = self._scroller.selection(contents, height - DETAILS_HEIGHT)
     is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT
 
-    if selection is not None:
-      self._draw_selection_details(selection, width)
+    if selected is not None:
+      self._draw_selection_details(selected, width)
 
     if self.is_title_visible():
       hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
@@ -298,9 +298,9 @@ class ConfigPanel(panel.Panel):
 
     if is_scrollbar_visible:
       scroll_offset = 3
-      self.add_scroll_bar(scroll_location, scroll_location + height - DETAILS_HEIGHT, len(contents), DETAILS_HEIGHT)
+      self.add_scroll_bar(scroll, scroll + height - DETAILS_HEIGHT, len(contents), DETAILS_HEIGHT)
 
-      if selection is not None:
+      if selected is not None:
         self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
 
     # Description column can grow up to eighty characters. After that any extra
@@ -314,10 +314,10 @@ class ConfigPanel(panel.Panel):
     else:
       value_width = VALUE_WIDTH
 
-    for i, entry in enumerate(contents[scroll_location:]):
+    for i, entry in enumerate(contents[scroll:]):
       attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
       attr.append(BOLD if entry.is_set() else NORMAL)
-      attr.append(HIGHLIGHT if entry == selection else NORMAL)
+      attr.append(HIGHLIGHT if entry == selected else NORMAL)
 
       option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
       value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
@@ -331,18 +331,18 @@ class ConfigPanel(panel.Panel):
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
-  def _draw_selection_details(self, selection, width):
+  def _draw_selection_details(self, selected, width):
     """
     Shows details of the currently selected option.
     """
 
-    description = 'Description: %s' % (selection.manual.description)
-    attr = ', '.join(('custom' if selection.is_set() else 'default', selection.value_type, 'usage: %s' % selection.manual.usage))
-    selected_color = CONFIG['attr.config.category_color'].get(selection.manual.category, WHITE)
-    ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT)
+    description = 'Description: %s' % (selected.manual.description)
+    attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
+    selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
+    self.draw_box(0, 0, width, DETAILS_HEIGHT)
 
-    self.addstr(1, 2, '%s (%s Option)' % (selection.name, selection.manual.category), selected_color, BOLD)
-    self.addstr(2, 2, 'Value: %s (%s)' % (selection.value(), str_tools.crop(attr, width - len(selection.value()) - 13)), selected_color, BOLD)
+    self.addstr(1, 2, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
+    self.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, width - len(selected.value()) - 13)), selected_color, BOLD)
 
     for i in range(DETAILS_HEIGHT - 4):
       if not description:

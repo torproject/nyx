@@ -3,9 +3,12 @@ Panel displaying the torrc or nyxrc with the validation done against it.
 """
 
 import math
+import string
+
+import nyx.curses
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
-from nyx.util import expand_path, msg, panel, tor_controller, ui_tools
+from nyx.util import expand_path, msg, panel, tor_controller
 
 from stem import ControllerError
 from stem.control import State
@@ -20,7 +23,7 @@ class TorrcPanel(panel.Panel):
   def __init__(self, stdscr):
     panel.Panel.__init__(self, stdscr, 'torrc', 0)
 
-    self._scroll = 0
+    self._scroller = nyx.curses.Scroller()
     self._show_line_numbers = True  # shows left aligned line numbers
     self._show_comments = True  # shows comments and extra whitespace
     self._last_content_height = 0
@@ -41,9 +44,14 @@ class TorrcPanel(panel.Panel):
     if event_type == State.RESET:
       try:
         self._torrc_location = expand_path(controller.get_info('config-file'))
+        contents = []
 
         with open(self._torrc_location) as torrc_file:
-          self._torrc_content = [ui_tools.get_printable(line.replace('\t', '   ')).rstrip() for line in torrc_file.readlines()]
+          for line in torrc_file.readlines():
+            line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
+            contents.append(filter(lambda char: char in string.printable, line))
+
+        self._torrc_content = contents
       except ControllerError as exc:
         self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
         self._torrc_location = None
@@ -75,10 +83,9 @@ class TorrcPanel(panel.Panel):
   def handle_key(self, key):
     if key.is_scroll():
       page_height = self.get_preferred_size()[0] - 1
-      new_scroll = ui_tools.get_scroll_position(key, self._scroll, page_height, self._last_content_height)
+      is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
-      if self._scroll != new_scroll:
-        self._scroll = new_scroll
+      if is_changed:
         self.redraw(True)
     elif key.match('l'):
       self.set_line_number_visible(not self._show_line_numbers)
@@ -101,12 +108,12 @@ class TorrcPanel(panel.Panel):
     ]
 
   def draw(self, width, height):
+    scroll = self._scroller.location(self._last_content_height, height)
+
     if self._torrc_content is None:
       self.addstr(1, 0, self._torrc_load_error, RED, BOLD)
       new_content_height = 1
     else:
-      self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
-
       if not self._show_line_numbers:
         line_number_offset = 0
       elif len(self._torrc_content) == 0:
@@ -118,9 +125,9 @@ class TorrcPanel(panel.Panel):
 
       if self._last_content_height > height - 1:
         scroll_offset = 3
-        self.add_scroll_bar(self._scroll, self._scroll + height - 1, self._last_content_height, 1)
+        self.add_scroll_bar(scroll, scroll + height - 1, self._last_content_height, 1)
 
-      y = 1 - self._scroll
+      y = 1 - scroll
       is_multiline = False  # true if we're in the middle of a multiline torrc entry
 
       for line_number, line in enumerate(self._torrc_content):
@@ -159,7 +166,7 @@ class TorrcPanel(panel.Panel):
 
         y += 1
 
-      new_content_height = y + self._scroll - 1
+      new_content_height = y + scroll - 1
 
     if self.is_title_visible():
       self.addstr(0, 0, ' ' * width)  # clear line

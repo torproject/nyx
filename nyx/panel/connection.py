@@ -9,12 +9,12 @@ import curses
 import itertools
 import threading
 
+import nyx.curses
 import nyx.popups
 import nyx.util.tracker
-import nyx.util.ui_tools
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import panel, tor_controller, ui_tools
+from nyx.util import panel, tor_controller
 
 from stem.control import Listener
 from stem.util import datetime_to_unix, conf, connection, enum, str_tools
@@ -263,7 +263,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._scroller = ui_tools.Scroller(True)
+    self._scroller = nyx.curses.CursorScroller()
     self._entries = []            # last fetched display entries
     self._show_details = False    # presents the details panel if true
     self._sort_order = CONFIG['features.connection.order']
@@ -338,10 +338,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       resolver = connection_tracker.get_custom_resolver()
       selected_index = 0 if resolver is None else options.index(resolver)
-      selection = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
+      selected = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
 
-      if selection != -1:
-        connection_tracker.set_custom_resolver(None if selection == 0 else options[selection])
+      if selected != -1:
+        connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
     elif key.match('d'):
       self.set_title_visible(False)
       self.redraw(True)
@@ -349,16 +349,16 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
       while True:
         lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
-        selection = self._scroller.get_cursor_selection(lines)
+        selected = self._scroller.selection(lines)
 
-        if not selection:
+        if not selected:
           break
 
         def is_close_key(key):
           return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
 
-        color = CONFIG['attr.connection.category_color'].get(selection.entry.get_type(), WHITE)
-        key = nyx.popups.show_descriptor_popup(selection.fingerprint, color, self.max_x, is_close_key)
+        color = CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE)
+        key = nyx.popups.show_descriptor_popup(selected.fingerprint, color, self.max_x, is_close_key)
 
         if not key or key.is_selection() or key.match('d'):
           break  # closes popup
@@ -445,7 +445,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     entries = self._entries
 
     lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
-    selected = self._scroller.get_cursor_selection(lines)
+    is_showing_details = self._show_details and lines
+    details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
+    selected, scroll = self._scroller.selection(lines, height - details_offset - 1)
 
     if self.is_paused():
       current_time = self.get_pause_time()
@@ -454,12 +456,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     else:
       current_time = time.time()
 
-    is_showing_details = self._show_details and selected
-    details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
-
     is_scrollbar_visible = len(lines) > height - details_offset - 1
     scroll_offset = 2 if is_scrollbar_visible else 0
-    scroll_location = self._scroller.get_scroll_location(lines, height - details_offset - 1)
 
     if self.is_title_visible():
       self._draw_title(entries, self._show_details)
@@ -468,10 +466,10 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self._draw_details(selected, width, is_scrollbar_visible)
 
     if is_scrollbar_visible:
-      self.add_scroll_bar(scroll_location, scroll_location + height - details_offset - 1, len(lines), 1 + details_offset)
+      self.add_scroll_bar(scroll, scroll + height - details_offset - 1, len(lines), 1 + details_offset)
 
-    for line_number in range(scroll_location, len(lines)):
-      y = line_number + details_offset + 1 - scroll_location
+    for line_number in range(scroll, len(lines)):
+      y = line_number + details_offset + 1 - scroll
       self._draw_line(scroll_offset, y, lines[line_number], lines[line_number] == selected, width - scroll_offset, current_time)
 
       if y >= height:
@@ -547,7 +545,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
 
     # draw the border, with a 'T' pipe if connecting with the scrollbar
 
-    ui_tools.draw_box(self, 0, 0, width, DETAILS_HEIGHT + 2)
+    self.draw_box(0, 0, width, DETAILS_HEIGHT + 2)
 
     if is_scrollbar_visible:
       self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)

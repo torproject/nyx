@@ -18,7 +18,6 @@ __all__ = [
   'log',
   'panel',
   'tracker',
-  'ui_tools',
 ]
 
 TOR_CONTROLLER = None

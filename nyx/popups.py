@@ -9,10 +9,11 @@ import curses
 import operator
 
 import nyx.controller
+import nyx.curses
 
 from nyx import __version__, __release_date__
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import tor_controller, panel, ui_tools
+from nyx.util import tor_controller, panel
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
@@ -463,20 +464,17 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
     if not popup:
       return None
 
-    scroll, redraw = 0, True
+    scroller, redraw = nyx.curses.Scroller(), True
 
     while True:
       if redraw:
-        _draw(popup, title, lines, color, scroll, show_line_numbers)
+        _draw(popup, title, lines, color, scroller.location(), show_line_numbers)
         redraw = False
 
       key = nyx.controller.get_controller().key_input()
 
       if key.is_scroll():
-        new_scroll = ui_tools.get_scroll_position(key, scroll, height - 2, len(lines))
-
-        if scroll != new_scroll:
-          scroll, redraw = new_scroll, True
+        redraw = scroller.handle_key(key, len(lines), height - 2)
       elif is_close_key(key):
         return key
 
@@ -560,7 +558,7 @@ def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
     if show_line_numbers:
       popup.addstr(y, 2, str(i + 1).rjust(line_number_width), LINE_NUMBER_COLOR, BOLD)
 
-    x, y = popup.addstr_wrap(y, width, keyword, width, offset, color, BOLD)
+    x, y = popup.addstr_wrap(y, 3 + line_number_width, keyword, width, offset, color, BOLD)
     x, y = popup.addstr_wrap(y, x + 1, value, width, offset, color)
 
     y += 1

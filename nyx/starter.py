@@ -17,9 +17,9 @@ import time
 import nyx
 import nyx.arguments
 import nyx.controller
+import nyx.curses
 import nyx.util.panel
 import nyx.util.tracker
-import nyx.util.ui_tools
 
 import stem
 import stem.util.log
@@ -237,7 +237,7 @@ def _use_unicode(config):
 
   is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()
 
-  if is_lang_unicode and nyx.util.ui_tools.is_wide_characters_supported():
+  if is_lang_unicode and nyx.curses.is_wide_characters_supported():
     locale.setlocale(locale.LC_ALL, '')
 
 

@@ -11,11 +11,12 @@ import threading
 import stem.response.events
 
 import nyx.arguments
+import nyx.curses
 import nyx.popups
 import nyx.util.log
 
 from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import join, panel, tor_controller, ui_tools
+from nyx.util import join, panel, tor_controller
 from stem.util import conf, log
 
 
@@ -76,6 +77,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     self.set_pause_attr('_event_log')
 
+    self._scroller = nyx.curses.Scroller()
     self._halt = False  # terminates thread if true
     self._pause_condition = threading.Condition()
     self._has_new_event = False
@@ -96,7 +98,6 @@ class LogPanel(panel.Panel, threading.Thread):
           log.info(str(exc))
 
     self._last_content_height = len(self._event_log)  # height of the rendered content when last drawn
-    self._scroll = 0
 
     # merge NYX_LOGGER into us, and listen for its future events
 
@@ -223,10 +224,9 @@ class LogPanel(panel.Panel, threading.Thread):
   def handle_key(self, key):
     if key.is_scroll():
       page_height = self.get_preferred_size()[0] - 1
-      new_scroll = ui_tools.get_scroll_position(key, self._scroll, page_height, self._last_content_height)
+      is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
-      if self._scroll != new_scroll:
-        self._scroll = new_scroll
+      if is_changed:
         self.redraw(True)
     elif key.match('u'):
       self.set_duplicate_visability(not self._show_duplicates)
@@ -271,12 +271,11 @@ class LogPanel(panel.Panel, threading.Thread):
     ]
 
   def draw(self, width, height):
-    self._scroll = max(0, min(self._scroll, self._last_content_height - height + 1))
+    scroll = self._scroller.location(self._last_content_height, height)
 
     event_log = list(self.get_attr('_event_log'))
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
-    scroll = int(self._scroll)
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
@@ -309,7 +308,7 @@ class LogPanel(panel.Panel, threading.Thread):
         for entry in day_to_entries[day]:
           y = self._draw_entry(x, y, width, entry, show_duplicates)
 
-        ui_tools.draw_box(self, original_y, x - 1, width - x + 1, y - original_y + 1, YELLOW, BOLD)
+        self.draw_box(original_y, x - 1, width - x + 1, y - original_y + 1, YELLOW, BOLD)
         time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
         self.addstr(original_y, x + 1, time_label, YELLOW, BOLD)
 
@@ -330,7 +329,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
       force_redraw_reason = 'estimate was off by %i' % content_height_delta
-    elif new_content_height > height and self._scroll + height - 1 > new_content_height:
+    elif new_content_height > height and scroll + height - 1 > new_content_height:
       force_redraw_reason = 'scrolled off the bottom of the page'
     elif not is_scrollbar_visible and new_content_height > height - 1:
       force_redraw_reason = "scroll bar wasn't previously visible"
