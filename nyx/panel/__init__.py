@@ -20,20 +20,6 @@ from stem.util import conf, str_tools
 
 CURSES_LOCK = RLock()
 
-SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
-
-SPECIAL_KEYS = {
-  'up': curses.KEY_UP,
-  'down': curses.KEY_DOWN,
-  'left': curses.KEY_LEFT,
-  'right': curses.KEY_RIGHT,
-  'home': curses.KEY_HOME,
-  'end': curses.KEY_END,
-  'page_up': curses.KEY_PPAGE,
-  'page_down': curses.KEY_NPAGE,
-  'esc': 27,
-}
-
 PASS = -1
 
 __all__ = [
@@ -806,45 +792,3 @@ class Panel(object):
     self.addch(top, left + width - 1, curses.ACS_URCORNER, *attributes)
     self.addch(top + height - 1, left, curses.ACS_LLCORNER, *attributes)
     self.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, *attributes)
-
-
-class KeyInput(object):
-  """
-  Keyboard input by the user.
-  """
-
-  def __init__(self, key):
-    self._key = key  # pressed key as an integer
-
-  def match(self, *keys):
-    """
-    Checks if we have a case insensitive match with the given key. Beside
-    characters, this also recognizes: up, down, left, right, home, end,
-    page_up, page_down, and esc.
-    """
-
-    for key in keys:
-      if key in SPECIAL_KEYS:
-        if self._key == SPECIAL_KEYS[key]:
-          return True
-      elif len(key) == 1:
-        if self._key in (ord(key.lower()), ord(key.upper())):
-          return True
-      else:
-        raise ValueError("%s wasn't among our recognized key codes" % key)
-
-    return False
-
-  def is_scroll(self):
-    """
-    True if the key is used for scrolling, false otherwise.
-    """
-
-    return self._key in SCROLL_KEYS
-
-  def is_selection(self):
-    """
-    True if the key matches the enter or space keys.
-    """
-
-    return self._key in (curses.KEY_ENTER, 10, ord(' '))

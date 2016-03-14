@@ -364,9 +364,9 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
         if not key or key.is_selection() or key.match('d'):
           break  # closes popup
         elif key.match('left'):
-          self.handle_key(nyx.panel.KeyInput(curses.KEY_UP))
+          self.handle_key(nyx.curses.KeyInput(curses.KEY_UP))
         elif key.match('right'):
-          self.handle_key(nyx.panel.KeyInput(curses.KEY_DOWN))
+          self.handle_key(nyx.curses.KeyInput(curses.KEY_DOWN))
 
       self.set_title_visible(True)
       self.redraw(True)

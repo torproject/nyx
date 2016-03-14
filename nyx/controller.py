@@ -151,7 +151,7 @@ class Controller:
     Gets keystroke from the user.
     """
 
-    return nyx.panel.KeyInput(self.get_screen().getch())
+    return nyx.curses.KeyInput(self.get_screen().getch())
 
   def get_page_count(self):
     """
@@ -444,7 +444,7 @@ def start_nyx(stdscr):
       key, override_key = override_key, None
     else:
       curses.halfdelay(CONFIG['features.redrawRate'] * 10)
-      key = nyx.panel.KeyInput(stdscr.getch())
+      key = nyx.curses.KeyInput(stdscr.getch())
 
     if key.match('right'):
       control.next_page()

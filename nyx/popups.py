@@ -445,7 +445,7 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
   :param function is_close_key: method to indicate if a key should close the
     dialog or not
 
-  :returns: :class:`~nyx.panel.KeyInput` for the keyboard input that
+  :returns: :class:`~nyx.curses.KeyInput` for the keyboard input that
     closed the dialog
   """
 

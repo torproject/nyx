@@ -17,6 +17,11 @@ if we want Windows support in the future too.
   disable_acs - renders replacements for ACS characters
   is_wide_characters_supported - checks if curses supports wide character
 
+  KeyInput - user keyboard input
+    |- match - checks if this matches the given inputs
+    |- is_scroll - true if key is used for scrolling
+    +- is_selection - true if key should trigger selection
+
   Scroller - scrolls content with keyboard navigation
     |- location - present scroll location
     +- handle_key - moves scroll based on user input
@@ -95,6 +100,20 @@ CURSES_ATTRIBUTES = {
 
 DEFAULT_COLOR_ATTR = dict([(color, 0) for color in Color])
 COLOR_ATTR = None
+
+SCROLL_KEYS = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE, curses.KEY_HOME, curses.KEY_END)
+
+SPECIAL_KEYS = {
+  'up': curses.KEY_UP,
+  'down': curses.KEY_DOWN,
+  'left': curses.KEY_LEFT,
+  'right': curses.KEY_RIGHT,
+  'home': curses.KEY_HOME,
+  'end': curses.KEY_END,
+  'page_up': curses.KEY_PPAGE,
+  'page_down': curses.KEY_NPAGE,
+  'esc': 27,
+}
 
 
 def conf_handler(key, value):
@@ -261,6 +280,48 @@ def is_wide_characters_supported():
   return False
 
 
+class KeyInput(object):
+  """
+  Keyboard input by the user.
+  """
+
+  def __init__(self, key):
+    self._key = key  # pressed key as an integer
+
+  def match(self, *keys):
+    """
+    Checks if we have a case insensitive match with the given key. Beside
+    characters, this also recognizes: up, down, left, right, home, end,
+    page_up, page_down, and esc.
+    """
+
+    for key in keys:
+      if key in SPECIAL_KEYS:
+        if self._key == SPECIAL_KEYS[key]:
+          return True
+      elif len(key) == 1:
+        if self._key in (ord(key.lower()), ord(key.upper())):
+          return True
+      else:
+        raise ValueError("%s wasn't among our recognized key codes" % key)
+
+    return False
+
+  def is_scroll(self):
+    """
+    True if the key is used for scrolling, false otherwise.
+    """
+
+    return self._key in SCROLL_KEYS
+
+  def is_selection(self):
+    """
+    True if the key matches the enter or space keys.
+    """
+
+    return self._key in (curses.KEY_ENTER, 10, ord(' '))
+
+
 class Scroller(object):
   """
   Simple scroller that provides keyboard navigation of content.
@@ -296,7 +357,7 @@ class Scroller(object):
       * page up / page down - scrolls by the page_height
       * home / end - moves to the top or bottom
 
-    :param nyx.util.panel.KeyInput key: pressed key
+    :param nyx.curses.KeyInput key: pressed key
     :param int content_height: height of the content being renered
     :param int page_height: height visible on the page
 
