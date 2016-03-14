@@ -10,11 +10,12 @@ import itertools
 import threading
 
 import nyx.curses
+import nyx.panel
 import nyx.popups
-import nyx.util.tracker
+import nyx.tracker
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import panel, tor_controller
+from nyx import tor_controller
 
 from stem.control import Listener
 from stem.util import datetime_to_unix, conf, connection, enum, str_tools
@@ -163,10 +164,10 @@ class ConnectionEntry(Entry):
     fingerprint, nickname, locale = None, None, None
 
     if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
-      fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
+      fingerprint = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
 
       if fingerprint:
-        nickname = nyx.util.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
+        nickname = nyx.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % self._connection.remote_address, None)
 
     return [Line(self, LineType.CONNECTION, self._connection, None, fingerprint, nickname, locale)]
@@ -189,7 +190,7 @@ class ConnectionEntry(Entry):
         if self._connection.remote_port == hs_config['HiddenServicePort']:
           return Category.HIDDEN
 
-    fingerprint = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
+    fingerprint = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
 
     if fingerprint and LAST_RETRIEVED_CIRCUITS:
       for circ in LAST_RETRIEVED_CIRCUITS:
@@ -214,7 +215,7 @@ class ConnectionEntry(Entry):
       controller = tor_controller()
 
       if controller.is_user_traffic_allowed().inbound:
-        return len(nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address)) == 0
+        return len(nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address)) == 0
     elif self.get_type() == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
@@ -232,14 +233,14 @@ class CircuitEntry(Entry):
   def get_lines(self):
     def line(fingerprint, line_type):
       address, port, nickname, locale = '0.0.0.0', 0, None, None
-      consensus_tracker = nyx.util.tracker.get_consensus_tracker()
+      consensus_tracker = nyx.tracker.get_consensus_tracker()
 
       if fingerprint is not None:
         address, port = consensus_tracker.get_relay_address(fingerprint, ('192.168.0.1', 0))
         nickname = consensus_tracker.get_relay_nickname(fingerprint)
         locale = tor_controller().get_info('ip-to-country/%s' % address, None)
 
-      connection = nyx.util.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp', False)
+      connection = nyx.tracker.Connection(datetime_to_unix(self._circuit.created), False, '127.0.0.1', 0, address, port, 'tcp', False)
       return Line(self, line_type, connection, self._circuit, fingerprint, nickname, locale)
 
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
@@ -252,14 +253,14 @@ class CircuitEntry(Entry):
     return False
 
 
-class ConnectionPanel(panel.Panel, threading.Thread):
+class ConnectionPanel(nyx.panel.Panel, threading.Thread):
   """
   Listing of connections tor is making, with information correlated against
   the current consensus and other data sources.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'connections', 0)
+    nyx.panel.Panel.__init__(self, stdscr, 'connections', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
@@ -333,8 +334,8 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif key.match('s'):
       self.show_sort_dialog()
     elif key.match('r'):
-      connection_tracker = nyx.util.tracker.get_connection_tracker()
-      options = ['auto'] + list(connection.Resolver) + list(nyx.util.tracker.CustomResolver)
+      connection_tracker = nyx.tracker.get_connection_tracker()
+      options = ['auto'] + list(connection.Resolver) + list(nyx.tracker.CustomResolver)
 
       resolver = connection_tracker.get_custom_resolver()
       selected_index = 0 if resolver is None else options.index(resolver)
@@ -363,9 +364,9 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         if not key or key.is_selection() or key.match('d'):
           break  # closes popup
         elif key.match('left'):
-          self.handle_key(panel.KeyInput(curses.KEY_UP))
+          self.handle_key(nyx.panel.KeyInput(curses.KEY_UP))
         elif key.match('right'):
-          self.handle_key(panel.KeyInput(curses.KEY_DOWN))
+          self.handle_key(nyx.panel.KeyInput(curses.KEY_DOWN))
 
       self.set_title_visible(True)
       self.redraw(True)
@@ -413,12 +414,12 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       # iteration to hide the lag.
 
       if last_ran == -1:
-        nyx.util.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
+        nyx.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
 
       last_ran = time.time()
 
   def get_help(self):
-    resolver = nyx.util.tracker.get_connection_tracker().get_custom_resolver()
+    resolver = nyx.tracker.get_connection_tracker().get_custom_resolver()
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
     options = [
@@ -503,7 +504,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
       self.addstr(1, 2, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
       self.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
 
-      matches = nyx.util.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
+      matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
 
       if not matches:
         self.addstr(3, 2, 'No consensus data found', *attr)
@@ -603,11 +604,11 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
       try:
         port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
-        process = nyx.util.tracker.get_port_usage_tracker().fetch(port)
+        process = nyx.tracker.get_port_usage_tracker().fetch(port)
         comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
-      except nyx.util.tracker.UnresolvedResult:
+      except nyx.tracker.UnresolvedResult:
         comp = ['resolving...']
-      except nyx.util.tracker.UnknownApplication:
+      except nyx.tracker.UnknownApplication:
         comp = ['UNKNOWN']
     else:
       comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
@@ -658,7 +659,7 @@ class ConnectionPanel(panel.Panel, threading.Thread):
     LAST_RETRIEVED_CIRCUITS = controller.get_circuits([])
     LAST_RETRIEVED_HS_CONF = controller.get_hidden_service_conf({})
 
-    conn_resolver = nyx.util.tracker.get_connection_tracker()
+    conn_resolver = nyx.tracker.get_connection_tracker()
     current_resolution_count = conn_resolver.run_counter()
 
     if not conn_resolver.is_alive():
@@ -702,4 +703,4 @@ class ConnectionPanel(panel.Panel, threading.Thread):
         elif entry.get_type() == Category.HIDDEN:
           remote_ports.append(line.connection.local_port)
 
-      nyx.util.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+      nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)

@@ -12,11 +12,13 @@ import threading
 import stem
 
 import nyx.controller
+import nyx.panel
 import nyx.popups
+import nyx.tracker
 
 from stem.control import Listener, State
 from stem.util import conf, log, proc, str_tools, system
-from nyx.util import msg, tor_controller, panel, tracker
+from nyx import msg, tor_controller
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD
 
@@ -30,13 +32,13 @@ CONFIG = conf.config_dict('nyx', {
 })
 
 
-class HeaderPanel(panel.Panel, threading.Thread):
+class HeaderPanel(nyx.panel.Panel, threading.Thread):
   """
   Top area containing tor settings and system information.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'header', 0)
+    nyx.panel.Panel.__init__(self, stdscr, 'header', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
@@ -414,7 +416,7 @@ def get_sampling(last_sampling = None):
   retrieved = time.time()
 
   pid = controller.get_pid('')
-  tor_resources = tracker.get_resource_tracker().get_value()
+  tor_resources = nyx.tracker.get_resource_tracker().get_value()
   nyx_total_cpu_time = sum(os.times()[:3])
 
   or_listeners = controller.get_listeners(Listener.OR, [])

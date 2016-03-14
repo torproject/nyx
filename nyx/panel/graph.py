@@ -17,13 +17,14 @@ import curses
 import time
 
 import nyx.controller
+import nyx.panel
 import nyx.popups
-import nyx.util.tracker
+import nyx.tracker
 
+from nyx import join, msg, tor_controller
+from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
-from nyx.util import join, msg, panel, tor_controller
-from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
@@ -341,7 +342,7 @@ class ConnectionStats(GraphCategory):
     dir_ports = controller.get_ports(Listener.DIR, [])
     control_ports = controller.get_ports(Listener.CONTROL, [])
 
-    for entry in nyx.util.tracker.get_connection_tracker().get_value():
+    for entry in nyx.tracker.get_connection_tracker().get_value():
       if entry.local_port in or_ports or entry.local_port in dir_ports:
         inbound_count += 1
       elif entry.local_port in control_ports:
@@ -368,7 +369,7 @@ class ResourceStats(GraphCategory):
     return '%i%%' % value if is_primary else str_tools.size_label(value)
 
   def bandwidth_event(self, event):
-    resources = nyx.util.tracker.get_resource_tracker().get_value()
+    resources = nyx.tracker.get_resource_tracker().get_value()
     self.primary.update(resources.cpu_sample * 100)  # decimal percentage to whole numbers
     self.secondary.update(resources.memory_bytes)
 
@@ -376,13 +377,13 @@ class ResourceStats(GraphCategory):
     self._secondary_header_stats = [str_tools.size_label(self.secondary.latest_value, 1), ', avg: %s' % str_tools.size_label(self.secondary.average(), 1)]
 
 
-class GraphPanel(panel.Panel):
+class GraphPanel(nyx.panel.Panel):
   """
   Panel displaying graphical information of GraphCategory instances.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'graph', 0)
+    nyx.panel.Panel.__init__(self, stdscr, 'graph', 0)
 
     self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
     self._update_interval = CONFIG['features.graph.interval']
@@ -475,7 +476,7 @@ class GraphPanel(panel.Panel):
 
     control = nyx.controller.get_controller()
 
-    with panel.CURSES_LOCK:
+    with nyx.panel.CURSES_LOCK:
       try:
         while True:
           msg = 'press the down/up to resize the graph, and enter when done'
@@ -728,7 +729,7 @@ class GraphPanel(panel.Panel):
     if attr == '_stats':
       return dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
     else:
-      return panel.Panel.copy_attr(self, attr)
+      return nyx.panel.Panel.copy_attr(self, attr)
 
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:

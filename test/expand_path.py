@@ -1,12 +1,12 @@
 import unittest
 
-from nyx.util import expand_path, uses_settings
+from nyx import expand_path, uses_settings
 
 from mock import patch, Mock
 
 
 class TestExpandPath(unittest.TestCase):
-  @patch('nyx.util.tor_controller')
+  @patch('nyx.tor_controller')
   @patch('stem.util.system.cwd', Mock(return_value = '/your_cwd'))
   @uses_settings
   def test_expand_path(self, tor_controller_mock, config):

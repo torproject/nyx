@@ -8,13 +8,14 @@ import os
 
 import nyx.controller
 import nyx.curses
+import nyx.panel
 import nyx.popups
 
 import stem.control
 import stem.manual
 
 from nyx.curses import GREEN, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import DATA_DIR, panel, tor_controller
+from nyx import DATA_DIR, tor_controller
 
 from stem.util import conf, enum, log, str_tools
 
@@ -112,13 +113,13 @@ class ConfigEntry(object):
       return not self.is_set()
 
 
-class ConfigPanel(panel.Panel):
+class ConfigPanel(nyx.panel.Panel):
   """
   Editor for tor's configuration.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'configuration', 0)
+    nyx.panel.Panel.__init__(self, stdscr, 'configuration', 0)
 
     self._contents = []
     self._scroller = nyx.curses.CursorScroller()

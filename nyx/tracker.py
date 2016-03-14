@@ -53,9 +53,8 @@ import threading
 
 import stem.control
 
+from nyx import log, tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
-
-from nyx.util import log, tor_controller
 
 CONFIG = conf.config_dict('nyx', {
   'queries.connections.rate': 5,
@@ -616,7 +615,7 @@ class ConnectionTracker(Daemon):
     """
     Provides a listing of tor's latest connections.
 
-    :returns: **list** of :class:`~nyx.util.tracker.Connection` we last
+    :returns: **list** of :class:`~nyx.tracker.Connection` we last
       retrieved, an empty list if our tracker's been stopped
     """
 
@@ -642,7 +641,7 @@ class ResourceTracker(Daemon):
     """
     Provides tor's latest resource usage.
 
-    :returns: latest :data:`~nyx.util.tracker.Resources` we've polled
+    :returns: latest :data:`~nyx.tracker.Resources` we've polled
     """
 
     result = self._resources
@@ -730,9 +729,9 @@ class PortUsageTracker(Daemon):
     :returns: **Process** using the given port
 
     :raises:
-      * :class:`nyx.util.tracker.UnresolvedResult` if the application is still
+      * :class:`nyx.tracker.UnresolvedResult` if the application is still
         being determined
-      * :class:`nyx.util.tracker.UnknownApplication` if the we tried to resolve
+      * :class:`nyx.tracker.UnknownApplication` if the we tried to resolve
         the application but it couldn't be determined
     """
 

@@ -9,13 +9,12 @@ import nyx.curses
 import nyx.panel.graph
 import nyx.popups
 import nyx.menu.item
-import nyx.util.tracker
-
-from nyx.util import tor_controller
+import nyx.tracker
 
 import stem
 import stem.util.connection
 
+from nyx import tor_controller
 from stem.util import conf, str_tools
 
 CONFIG = conf.config_dict('nyx', {
@@ -244,7 +243,7 @@ def make_connections_menu(conn_panel):
 
   # resolver submenu
 
-  conn_resolver = nyx.util.tracker.get_connection_tracker()
+  conn_resolver = nyx.tracker.get_connection_tracker()
   resolver_menu = nyx.menu.item.Submenu('Resolver')
   resolver_group = nyx.menu.item.SelectionGroup(conn_resolver.set_custom_resolver, conn_resolver.get_custom_resolver())
 

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from nyx.util.log import LogGroup, LogEntry, read_tor_log
+from nyx.log import LogGroup, LogEntry, read_tor_log
 
 
 class TestLogGroup(unittest.TestCase):

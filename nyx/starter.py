@@ -18,14 +18,14 @@ import nyx
 import nyx.arguments
 import nyx.controller
 import nyx.curses
-import nyx.util.panel
-import nyx.util.tracker
+import nyx.panel
+import nyx.tracker
 
 import stem
 import stem.util.log
 import stem.util.system
 
-from nyx.util import log, init_controller, msg, uses_settings
+from nyx import log, init_controller, msg, uses_settings
 
 
 @uses_settings
@@ -95,7 +95,7 @@ def main(config):
   except KeyboardInterrupt:
     pass  # skip printing a stack trace
   finally:
-    nyx.util.panel.HALT_ACTIVITY = True
+    nyx.panel.HALT_ACTIVITY = True
     _shutdown_daemons(controller)
 
 
@@ -255,7 +255,7 @@ def _shutdown_daemons(controller):
   Stops and joins on worker threads.
   """
 
-  halt_threads = [nyx.util.tracker.stop_trackers()]
+  halt_threads = [nyx.tracker.stop_trackers()]
   curses_controller = nyx.controller.get_controller()
 
   if curses_controller:

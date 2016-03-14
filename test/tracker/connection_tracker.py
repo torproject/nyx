@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from nyx.util.tracker import ConnectionTracker
+from nyx.tracker import ConnectionTracker
 
 from stem.util import connection
 
@@ -15,10 +15,10 @@ STEM_CONNECTIONS = [
 
 
 class TestConnectionTracker(unittest.TestCase):
-  @patch('nyx.util.tracker.tor_controller')
-  @patch('nyx.util.tracker.connection.get_connections')
-  @patch('nyx.util.tracker.system', Mock(return_value = Mock()))
-  @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
+  @patch('nyx.tracker.tor_controller')
+  @patch('nyx.tracker.connection.get_connections')
+  @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_fetching_connections(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     tor_controller_mock().get_conf.return_value = '0'
@@ -39,10 +39,10 @@ class TestConnectionTracker(unittest.TestCase):
       self.assertEqual(2, daemon.run_counter())
       self.assertEqual([], connections)
 
-  @patch('nyx.util.tracker.tor_controller')
-  @patch('nyx.util.tracker.connection.get_connections')
-  @patch('nyx.util.tracker.system', Mock(return_value = Mock()))
-  @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
+  @patch('nyx.tracker.tor_controller')
+  @patch('nyx.tracker.connection.get_connections')
+  @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
   def test_resolver_failover(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     tor_controller_mock().get_conf.return_value = '0'
@@ -79,10 +79,10 @@ class TestConnectionTracker(unittest.TestCase):
       time.sleep(0.05)
       self.assertEqual([conn.remote_address for conn in STEM_CONNECTIONS[:2]], [conn.remote_address for conn in daemon.get_value()])
 
-  @patch('nyx.util.tracker.tor_controller')
-  @patch('nyx.util.tracker.connection.get_connections')
-  @patch('nyx.util.tracker.system', Mock(return_value = Mock()))
-  @patch('nyx.util.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
+  @patch('nyx.tracker.tor_controller')
+  @patch('nyx.tracker.connection.get_connections')
+  @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_tracking_uptime(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
     tor_controller_mock().get_conf.return_value = '0'

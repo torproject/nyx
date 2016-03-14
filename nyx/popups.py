@@ -10,10 +10,10 @@ import operator
 
 import nyx.controller
 import nyx.curses
+import nyx.panel
 
-from nyx import __version__, __release_date__
+from nyx import __version__, __release_date__, tor_controller
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import tor_controller, panel
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
@@ -57,7 +57,7 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
       else:
         sticky_height = 0
 
-      popup = panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
+      popup = nyx.panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
       popup.set_visible(True)
 
       # Redraws the popup to prepare a subwindow instance. If none is spawned then
@@ -66,13 +66,13 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
       popup.redraw(True)
 
       if popup.win is not None:
-        panel.CURSES_LOCK.acquire()
+        nyx.panel.CURSES_LOCK.acquire()
         return (popup, popup.max_x - 1, popup.max_y)
       else:
         return (None, 0, 0)
 
     def __exit__(self, exit_type, value, traceback):
-      panel.CURSES_LOCK.release()
+      nyx.panel.CURSES_LOCK.release()
       nyx.controller.get_controller().redraw(False)
 
   return _Popup()
@@ -88,7 +88,7 @@ def input_prompt(msg, initial_value = ''):
     initial_value - initial value of the field
   """
 
-  with panel.CURSES_LOCK:
+  with nyx.panel.CURSES_LOCK:
     control = nyx.controller.get_controller()
     msg_panel = control.get_panel('msg')
     msg_panel.set_message(msg)
@@ -110,7 +110,7 @@ def show_msg(msg, max_wait = -1, attr = HIGHLIGHT):
     attr    - attributes with which to draw the message
   """
 
-  with panel.CURSES_LOCK:
+  with nyx.panel.CURSES_LOCK:
     control = nyx.controller.get_controller()
     control.set_msg(msg, attr, True)
 
@@ -445,7 +445,7 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
   :param function is_close_key: method to indicate if a key should close the
     dialog or not
 
-  :returns: :class:`~nyx.util.panel.KeyInput` for the keyboard input that
+  :returns: :class:`~nyx.panel.KeyInput` for the keyboard input that
     closed the dialog
   """
 

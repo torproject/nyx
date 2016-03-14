@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from nyx.util.log import read_tor_log
+from nyx.log import read_tor_log
 
 
 def data_path(filename):

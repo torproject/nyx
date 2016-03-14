@@ -8,7 +8,7 @@ import string
 import nyx.curses
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
-from nyx.util import expand_path, msg, panel, tor_controller
+from nyx import expand_path, msg, panel, tor_controller
 
 from stem import ControllerError
 from stem.control import State

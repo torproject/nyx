@@ -12,11 +12,12 @@ import stem.response.events
 
 import nyx.arguments
 import nyx.curses
+import nyx.panel
 import nyx.popups
-import nyx.util.log
+import nyx.log
 
+from nyx import join, tor_controller
 from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
-from nyx.util import join, panel, tor_controller
 from stem.util import conf, log
 
 
@@ -57,22 +58,22 @@ NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
 stem_logger.addHandler(NYX_LOGGER)
 
 
-class LogPanel(panel.Panel, threading.Thread):
+class LogPanel(nyx.panel.Panel, threading.Thread):
   """
   Listens for and displays tor, nyx, and stem events. This prepopulates
   from tor's log file if it exists.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'log', 0)
+    nyx.panel.Panel.__init__(self, stdscr, 'log', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
     logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
-    self._event_log = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
-    self._event_types = nyx.util.log.listen_for_events(self._register_tor_event, logged_events)
-    self._log_file = nyx.util.log.LogFileOutput(CONFIG['features.logFile'])
-    self._filter = nyx.util.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
+    self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
+    self._log_file = nyx.log.LogFileOutput(CONFIG['features.logFile'])
+    self._filter = nyx.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
     self._show_duplicates = CONFIG['features.log.showDuplicateEntries']
 
     self.set_pause_attr('_event_log')
@@ -85,11 +86,11 @@ class LogPanel(panel.Panel, threading.Thread):
     # fetches past tor events from log file, if available
 
     if CONFIG['features.log.prepopulate']:
-      log_location = nyx.util.log.log_file_path(tor_controller())
+      log_location = nyx.log.log_file_path(tor_controller())
 
       if log_location:
         try:
-          for entry in reversed(list(nyx.util.log.read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
+          for entry in reversed(list(nyx.log.read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
             if entry.type in self._event_types:
               self._event_log.add(entry)
         except IOError as exc:
@@ -161,7 +162,7 @@ class LogPanel(panel.Panel, threading.Thread):
             event_types = nyx.arguments.expand_events(user_input)
 
             if event_types != self._event_types:
-              self._event_types = nyx.util.log.listen_for_events(self._register_tor_event, event_types)
+              self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
               self.redraw(True)
           except ValueError as exc:
             nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
@@ -185,7 +186,7 @@ class LogPanel(panel.Panel, threading.Thread):
     Clears the contents of the event log.
     """
 
-    self._event_log = nyx.util.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self.redraw(True)
 
   def save_snapshot(self, path):
@@ -238,7 +239,7 @@ class LogPanel(panel.Panel, threading.Thread):
       if key_press.match('c'):
         self.clear()
     elif key.match('f'):
-      with panel.CURSES_LOCK:
+      with nyx.panel.CURSES_LOCK:
         initial_selection = 1 if self._filter.selection() else 0
         options = ['None'] + self._filter.latest_selections() + ['New...']
         selection = nyx.popups.show_menu('Log Filter:', options, initial_selection)
@@ -288,7 +289,7 @@ class LogPanel(panel.Panel, threading.Thread):
 
     # group entries by date, filtering out those that aren't visible
 
-    day_to_entries, today = {}, nyx.util.log.day_count(time.time())
+    day_to_entries, today = {}, nyx.log.day_count(time.time())
 
     for entry in event_log:
       if entry.is_duplicate and not show_duplicates:
@@ -351,7 +352,7 @@ class LogPanel(panel.Panel, threading.Thread):
     """
 
     self.addstr(0, 0, ' ' * width)  # clear line
-    title_comp = list(nyx.util.log.condense_runlevels(*event_types))
+    title_comp = list(nyx.log.condense_runlevels(*event_types))
 
     if event_filter.selection():
       title_comp.append('filter: %s' % event_filter.selection())
@@ -388,10 +389,10 @@ class LogPanel(panel.Panel, threading.Thread):
     responsive if additions are less frequent.
     """
 
-    last_ran, last_day = -1, nyx.util.log.day_count(time.time())
+    last_ran, last_day = -1, nyx.log.day_count(time.time())
 
     while not self._halt:
-      current_day = nyx.util.log.day_count(time.time())
+      current_day = nyx.log.day_count(time.time())
       time_since_reset = time.time() - last_ran
       max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
 
@@ -429,13 +430,13 @@ class LogPanel(panel.Panel, threading.Thread):
     elif isinstance(event, stem.response.events.LogEvent):
       msg = event.message
 
-    self._register_event(nyx.util.log.LogEntry(event.arrived_at, event.type, msg))
+    self._register_event(nyx.log.LogEntry(event.arrived_at, event.type, msg))
 
   def _register_nyx_event(self, record):
     if record.levelname == 'WARNING':
       record.levelname = 'WARN'
 
-    self._register_event(nyx.util.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
+    self._register_event(nyx.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):
     if event.type not in self._event_types:

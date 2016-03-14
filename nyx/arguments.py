@@ -10,7 +10,7 @@ import nyx
 
 import stem.util.connection
 
-from nyx.util import DATA_DIR, tor_controller, msg
+from nyx import DATA_DIR, tor_controller, msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',

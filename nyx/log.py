@@ -48,7 +48,6 @@ import stem.util.log
 import stem.util.system
 
 import nyx
-import nyx.util
 
 try:
   # added in python 3.2
@@ -87,7 +86,7 @@ def log_file_path(controller):
     entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
 
     if entry_comp[1] == 'file':
-      return nyx.util.expand_path(entry_comp[2])
+      return nyx.expand_path(entry_comp[2])
 
 
 @lru_cache()
@@ -183,7 +182,7 @@ def listen_for_events(listener, events):
   if 'UNKNOWN' in events:
     tor_events.update(set(nyx.arguments.missing_event_types()))
 
-  controller = nyx.util.tor_controller()
+  controller = nyx.tor_controller()
   controller.remove_event_listener(listener)
 
   for event_type in list(tor_events):
@@ -471,7 +470,7 @@ def _log(runlevel, message, **attr):
   :param dict attr: attributes to format the message with
   """
 
-  stem.util.log.log(runlevel, nyx.util.msg(message, **attr))
+  stem.util.log.log(runlevel, nyx.msg(message, **attr))
 
 
 def read_tor_log(path, read_limit = None):

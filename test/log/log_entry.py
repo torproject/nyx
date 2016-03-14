@@ -1,6 +1,6 @@
 import unittest
 
-from nyx.util.log import LogEntry
+from nyx.log import LogEntry
 
 
 class TestLogEntry(unittest.TestCase):

@@ -12,8 +12,8 @@ import threading
 import nyx.curses
 import nyx.menu.menu
 import nyx.popups
-import nyx.util.tracker
 
+import nyx.panel
 import nyx.panel.config
 import nyx.panel.connection
 import nyx.panel.graph
@@ -26,7 +26,7 @@ import stem
 from stem.util import conf, log
 
 from nyx.curses import NORMAL, BOLD, HIGHLIGHT
-from nyx.util import panel, tor_controller
+from nyx import tor_controller
 
 
 NYX_CONTROLLER = None
@@ -62,13 +62,13 @@ def get_controller():
   return NYX_CONTROLLER
 
 
-class LabelPanel(panel.Panel):
+class LabelPanel(nyx.panel.Panel):
   """
   Panel that just displays a single line of text.
   """
 
   def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'msg', 0, height=1)
+    nyx.panel.Panel.__init__(self, stdscr, 'msg', 0, height=1)
     self.msg_text = ''
     self.msg_attr = NORMAL
 
@@ -151,7 +151,7 @@ class Controller:
     Gets keystroke from the user.
     """
 
-    return panel.KeyInput(self.get_screen().getch())
+    return nyx.panel.KeyInput(self.get_screen().getch())
 
   def get_page_count(self):
     """
@@ -444,7 +444,7 @@ def start_nyx(stdscr):
       key, override_key = override_key, None
     else:
       curses.halfdelay(CONFIG['features.redrawRate'] * 10)
-      key = panel.KeyInput(stdscr.getch())
+      key = nyx.panel.KeyInput(stdscr.getch())
 
     if key.match('right'):
       control.next_page()

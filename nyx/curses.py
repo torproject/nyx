@@ -64,7 +64,7 @@ import stem.util.conf
 import stem.util.enum
 import stem.util.system
 
-from nyx.util import msg, log
+from nyx import msg, log
 
 # Text colors and attributes. These are *very* commonly used so including
 # shorter aliases (so they can be referenced as just GREEN or BOLD).
