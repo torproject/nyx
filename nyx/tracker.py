@@ -29,7 +29,6 @@ Background tasks for gathering information about the tor process.
     +- stop - stops further work by the daemon
 
   ConsensusTracker - performant lookups for consensus related information
-    |- update - updates the consensus information we're based on
     |- get_relay_nickname - provides the nickname for a given relay
     |- get_relay_fingerprints - provides relays running at a location
     +- get_relay_address - provides the address a relay is running at
@@ -815,25 +814,24 @@ class ConsensusTracker(object):
   def _new_consensus_event(self, event):
     self.update(event.desc)
 
-  def update(self, router_status_entries):
+  def _task(self, process_pid, process_name):
     """
-    Updates our cache with the given router status entries.
-
-    :param list router_status_entries: router status entries to populate our cache with
+    If this is our first run then populate our cache.
     """
 
-    new_fingerprint_cache = {}
-    new_address_cache = {}
-    new_nickname_cache = {}
+    if not self._fingerprint_cache:
+      new_fingerprint_cache = {}
+      new_address_cache = {}
+      new_nickname_cache = {}
 
-    for desc in router_status_entries:
-      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
-      new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
-      new_nickname_cache[desc.fingerprint] = desc.nickname if desc.nickname else 'Unnamed'
+      for desc in tor_controller().get_network_statuses([]):
+        new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
+        new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
+        new_nickname_cache[desc.fingerprint] = desc.nickname if desc.nickname else 'Unnamed'
 
-    self._fingerprint_cache = new_fingerprint_cache
-    self._address_cache = new_address_cache
-    self._nickname_cache = new_nickname_cache
+      self._fingerprint_cache = new_fingerprint_cache
+      self._address_cache = new_address_cache
+      self._nickname_cache = new_nickname_cache
 
   def get_relay_nickname(self, fingerprint):
     """

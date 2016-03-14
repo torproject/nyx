@@ -407,15 +407,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
 
       self._update()
       self.redraw(True)
-
-      # If this is our first run then fill in our fingerprint tracker. This
-      # requires fetching all the router status entries which takes a few
-      # seconds, so best done when we're finished with the rest of the first
-      # iteration to hide the lag.
-
-      if last_ran == -1:
-        nyx.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
-
       last_ran = time.time()
 
   def get_help(self):
