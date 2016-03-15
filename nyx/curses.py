@@ -9,7 +9,7 @@ if we want Windows support in the future too.
 ::
 
   curses_attr - curses encoded text attribute
-  setup - configures curses settings
+  start - initializes curses with the given function
 
   is_color_supported - checks if terminal supports color output
   get_color_override - provides color we override requests with
@@ -71,6 +71,8 @@ import stem.util.enum
 import stem.util.system
 
 from nyx import msg, log
+
+CURSES_SCREEN = None
 
 # Text colors and attributes. These are *very* commonly used so including
 # shorter aliases (so they can be referenced as just GREEN or BOLD).
@@ -152,25 +154,36 @@ def curses_attr(*attributes):
   return encoded
 
 
-def setup(transparent_background = False, cursor = True):
+def start(function, transparent_background = False, cursor = True):
   """
-  One time setup operations for configuring curses.
+  Starts a curses interface, delegating to the given function. The function
+  should accept a single argument for the curses screen.
 
+  :param funtion: function to invoke when curses starts
   :param bool transparent_background: allows background transparency
   :param bool cursor: makes cursor visible
   """
 
-  if transparent_background:
-    try:
-      curses.use_default_colors()
-    except curses.error:
-      pass
+  def _wrapper(stdscr):
+    global CURSES_SCREEN
 
-  if not cursor:
-    try:
-      curses.curs_set(0)
-    except curses.error:
-      pass
+    CURSES_SCREEN = stdscr
+
+    if transparent_background:
+      try:
+        curses.use_default_colors()
+      except curses.error:
+        pass
+
+    if not cursor:
+      try:
+        curses.curs_set(0)
+      except curses.error:
+        pass
+
+    function(stdscr)
+
+  curses.wrapper(_wrapper)
 
 
 def is_color_supported():

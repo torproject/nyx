@@ -410,8 +410,6 @@ def start_nyx(stdscr):
   for panel_impl in control.get_daemon_panels():
     panel_impl.start()
 
-  nyx.curses.setup(transparent_background = True, cursor = False)
-
   # logs the initialization time
 
   log.info('nyx started (initialization took %0.3f seconds)' % (time.time() - CONFIG['start_time']))

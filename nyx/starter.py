@@ -4,9 +4,6 @@ information. This starts the application, parsing arguments and getting a Tor
 connection.
 """
 
-from __future__ import absolute_import
-
-import curses
 import locale
 import logging
 import os
@@ -86,7 +83,7 @@ def main(config):
   _set_process_name()
 
   try:
-    curses.wrapper(nyx.controller.start_nyx)
+    nyx.curses.start(nyx.controller.start_nyx, transparent_background = True, cursor = False)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       print(msg('setup.unknown_term', term = os.environ['TERM']))
