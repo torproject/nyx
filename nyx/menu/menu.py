@@ -113,7 +113,7 @@ def show_menu():
 
           draw_label = ' %s ' % top_level_item.get_label()[1]
           popup.addstr(0, draw_left, draw_label, BOLD, attr)
-          popup.addch(0, draw_left + len(draw_label), curses.ACS_VLINE)
+          popup.vline(0, draw_left + len(draw_label), 1)
 
           draw_left += len(draw_label) + 1
 

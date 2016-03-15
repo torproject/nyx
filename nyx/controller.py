@@ -102,7 +102,7 @@ class Controller:
     top to bottom on the page.
 
     Arguments:
-      stdscr       - curses window
+      stdscr - curses window
     """
 
     self._screen = stdscr
@@ -381,7 +381,7 @@ def start_nyx(stdscr):
   Main draw loop context.
 
   Arguments:
-    stdscr    - curses window
+    stdscr - curses window
   """
 
   global NYX_CONTROLLER
@@ -403,19 +403,7 @@ def start_nyx(stdscr):
   for panel_impl in control.get_daemon_panels():
     panel_impl.start()
 
-  # allows for background transparency
-
-  try:
-    curses.use_default_colors()
-  except curses.error:
-    pass
-
-  # makes the cursor invisible
-
-  try:
-    curses.curs_set(0)
-  except curses.error:
-    pass
+  nyx.curses.setup(transparent_background = True, cursor = False)
 
   # logs the initialization time
 

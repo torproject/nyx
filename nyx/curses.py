@@ -9,6 +9,7 @@ if we want Windows support in the future too.
 ::
 
   curses_attr - curses encoded text attribute
+  setup - configures curses settings
 
   is_color_supported - checks if terminal supports color output
   get_color_override - provides color we override requests with
@@ -149,6 +150,27 @@ def curses_attr(*attributes):
       raise ValueError("'%s' isn't a valid curses text attribute" % attr)
 
   return encoded
+
+
+def setup(transparent_background = False, cursor = True):
+  """
+  One time setup operations for configuring curses.
+
+  :param bool transparent_background: allows background transparency
+  :param bool cursor: makes cursor visible
+  """
+
+  if transparent_background:
+    try:
+      curses.use_default_colors()
+    except curses.error:
+      pass
+
+  if not cursor:
+    try:
+      curses.curs_set(0)
+    except curses.error:
+      pass
 
 
 def is_color_supported():
