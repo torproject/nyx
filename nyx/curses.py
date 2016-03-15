@@ -8,8 +8,9 @@ if we want Windows support in the future too.
 
 ::
 
-  curses_attr - curses encoded text attribute
   start - initializes curses with the given function
+  key_input - get keypress by user
+  curses_attr - curses encoded text attribute
 
   is_color_supported - checks if terminal supports color output
   get_color_override - provides color we override requests with
@@ -131,29 +132,6 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 }, conf_handler)
 
 
-def curses_attr(*attributes):
-  """
-  Provides encoding for the given curses text attributes.
-
-  :param list attributes: curses text attributes and colors
-
-  :returns: **int** that can be used with curses
-  """
-
-  encoded = curses.A_NORMAL
-
-  for attr in attributes:
-    if attr in Color:
-      override = get_color_override()
-      encoded |= _color_attr()[override if override else attr]
-    elif attr in Attr:
-      encoded |= CURSES_ATTRIBUTES[attr]
-    else:
-      raise ValueError("'%s' isn't a valid curses text attribute" % attr)
-
-  return encoded
-
-
 def start(function, transparent_background = False, cursor = True):
   """
   Starts a curses interface, delegating to the given function. The function
@@ -184,6 +162,49 @@ def start(function, transparent_background = False, cursor = True):
     function(stdscr)
 
   curses.wrapper(_wrapper)
+
+
+def key_input(input_timeout = None):
+  """
+  Gets a key press from the user.
+
+  :param int input_timeout: duration in seconds to wait for user input
+
+  :returns: :class:`~nyx.curses.KeyInput` that was pressed
+  """
+
+  if input_timeout:
+    # Timeout can't be longer than 25.5 seconds...
+    # https://docs.python.org/2/library/curses.html?#curses.halfdelay
+
+    curses.halfdelay(min(input_timeout, 25.5) * 10)
+  else:
+    curses.cbreak()  # wait indefinitely for key presses (no timeout)
+
+  return KeyInput(CURSES_SCREEN.getch())
+
+
+def curses_attr(*attributes):
+  """
+  Provides encoding for the given curses text attributes.
+
+  :param list attributes: curses text attributes and colors
+
+  :returns: **int** that can be used with curses
+  """
+
+  encoded = curses.A_NORMAL
+
+  for attr in attributes:
+    if attr in Color:
+      override = get_color_override()
+      encoded |= _color_attr()[override if override else attr]
+    elif attr in Attr:
+      encoded |= CURSES_ATTRIBUTES[attr]
+    else:
+      raise ValueError("'%s' isn't a valid curses text attribute" % attr)
+
+  return encoded
 
 
 def is_color_supported():

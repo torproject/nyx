@@ -111,7 +111,7 @@ def show_msg(msg, max_wait = None, attr = HIGHLIGHT):
     control = nyx.controller.get_controller()
     control.set_msg(msg, attr, True)
 
-    key_press = control.key_input(max_wait)
+    key_press = nyx.curses.key_input(max_wait)
     control.set_msg()
     return key_press
 
@@ -176,7 +176,7 @@ def show_help_popup():
         popup.addstr(7, 2, 'Press any key...')
 
       popup.win.refresh()
-      exit_key = control.key_input()
+      exit_key = nyx.curses.key_input()
 
   if not exit_key.is_selection() and not exit_key.is_scroll() and \
     not exit_key.match('left', 'right'):
@@ -192,8 +192,6 @@ def show_about_popup():
 
   with popup_window(9, 80) as (popup, _, height):
     if popup:
-      control = nyx.controller.get_controller()
-
       popup.win.box()
       popup.addstr(0, 0, 'About:', HIGHLIGHT)
       popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), BOLD)
@@ -203,7 +201,7 @@ def show_about_popup():
       popup.addstr(7, 2, 'Press any key...')
       popup.win.refresh()
 
-      control.key_input()
+      nyx.curses.key_input()
 
 
 def show_count_dialog(title, counts):
@@ -250,7 +248,7 @@ def show_count_dialog(title, counts):
     popup.addstr(0, 0, title, HIGHLIGHT)
     popup.win.refresh()
 
-    nyx.controller.get_controller().key_input()
+    nyx.curses.key_input()
 
 
 def show_sort_dialog(title, options, old_selection, option_colors):
@@ -304,7 +302,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
 
         popup.win.refresh()
 
-        key = nyx.controller.get_controller().key_input()
+        key = nyx.curses.key_input()
 
         if key.match('left'):
           cursor_location = max(0, cursor_location - 1)
@@ -405,7 +403,7 @@ def show_menu(title, options, old_selection):
 
       popup.win.refresh()
 
-      key = control.key_input()
+      key = nyx.curses.key_input()
 
       if key.match('up'):
         selection = max(0, selection - 1)
@@ -457,7 +455,7 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
         _draw(popup, title, lines, color, scroller.location(), show_line_numbers)
         redraw = False
 
-      key = nyx.controller.get_controller().key_input()
+      key = nyx.curses.key_input()
 
       if key.is_scroll():
         redraw = scroller.handle_key(key, len(lines), height - 2)

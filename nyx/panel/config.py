@@ -213,7 +213,7 @@ class ConfigPanel(nyx.panel.Panel):
         popup.addstr(0, 0, 'Torrc to save:', HIGHLIGHT)
         popup.win.refresh()
 
-        key = nyx.controller.get_controller().key_input()
+        key = nyx.curses.key_input()
 
         if key.match('left'):
           selection = max(0, selection - 1)

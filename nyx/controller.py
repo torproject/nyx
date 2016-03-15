@@ -3,10 +3,7 @@ Main interface loop for nyx, periodically redrawing the screen and issuing
 user input to the proper panels.
 """
 
-from __future__ import absolute_import
-
 import time
-import curses
 import threading
 
 import nyx.curses
@@ -34,8 +31,7 @@ NYX_CONTROLLER = None
 
 def conf_handler(key, value):
   if key == 'features.redrawRate':
-    # https://docs.python.org/2/library/curses.html?#curses.halfdelay
-    return min(max(1, value), 25.5)
+    return max(1, value)
   elif key == 'features.refreshRate':
     return max(0, value)
 
@@ -145,20 +141,6 @@ class Controller:
     """
 
     return self._screen
-
-  def key_input(self, input_timeout = None):
-    """
-    Gets keystroke from the user.
-
-    :param int input_timeout: duration in seconds to wait for user input
-    """
-
-    if input_timeout:
-      curses.halfdelay(input_timeout * 10)
-    else:
-      curses.cbreak()  # wait indefinitely for key presses (no timeout)
-
-    return nyx.curses.KeyInput(self.get_screen().getch())
 
   def get_page_count(self):
     """
@@ -436,7 +418,7 @@ def start_nyx(stdscr):
     if override_key:
       key, override_key = override_key, None
     else:
-      key = control.key_input(CONFIG['features.redrawRate'])
+      key = nyx.curses.key_input(CONFIG['features.redrawRate'])
 
     if key.match('right'):
       control.next_page()

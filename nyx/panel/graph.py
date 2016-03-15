@@ -480,7 +480,7 @@ class GraphPanel(nyx.panel.Panel):
         while True:
           msg = 'press the down/up to resize the graph, and enter when done'
           control.set_msg(msg, BOLD, True)
-          key = control.key_input()
+          key = nyx.curses.key_input()
 
           if key.match('down'):
             # don't grow the graph if it's already consuming the whole display

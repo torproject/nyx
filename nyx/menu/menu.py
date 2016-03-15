@@ -119,7 +119,7 @@ def show_menu():
 
         popup.win.refresh()
 
-        cursor.handle_key(control.key_input())
+        cursor.handle_key(nyx.curses.key_input())
 
         # redraws the rest of the interface if we're rendering on it again
 
