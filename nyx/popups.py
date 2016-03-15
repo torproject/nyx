@@ -2,10 +2,7 @@
 Functions for displaying popups in the interface.
 """
 
-from __future__ import absolute_import
-
 import math
-import curses
 import operator
 
 import nyx.controller
@@ -99,14 +96,14 @@ def input_prompt(msg, initial_value = ''):
     return user_input
 
 
-def show_msg(msg, max_wait = -1, attr = HIGHLIGHT):
+def show_msg(msg, max_wait = None, attr = HIGHLIGHT):
   """
   Displays a single line message on the control line for a set time. Pressing
   any key will end the message. This returns the key pressed.
 
   Arguments:
     msg     - message to be displayed to the user
-    max_wait - time to show the message, indefinite if -1
+    max_wait - time to show the message, indefinite if None
     attr    - attributes with which to draw the message
   """
 
@@ -114,12 +111,7 @@ def show_msg(msg, max_wait = -1, attr = HIGHLIGHT):
     control = nyx.controller.get_controller()
     control.set_msg(msg, attr, True)
 
-    if max_wait == -1:
-      curses.cbreak()
-    else:
-      curses.halfdelay(max_wait * 10)
-
-    key_press = control.key_input()
+    key_press = control.key_input(max_wait)
     control.set_msg()
     return key_press
 
@@ -184,7 +176,6 @@ def show_help_popup():
         popup.addstr(7, 2, 'Press any key...')
 
       popup.win.refresh()
-      curses.cbreak()
       exit_key = control.key_input()
 
   if not exit_key.is_selection() and not exit_key.is_scroll() and \
@@ -212,7 +203,6 @@ def show_about_popup():
       popup.addstr(7, 2, 'Press any key...')
       popup.win.refresh()
 
-      curses.cbreak()
       control.key_input()
 
 
@@ -260,7 +250,6 @@ def show_count_dialog(title, counts):
     popup.addstr(0, 0, title, HIGHLIGHT)
     popup.win.refresh()
 
-    curses.cbreak()
     nyx.controller.get_controller().key_input()
 
 
@@ -288,7 +277,6 @@ def show_sort_dialog(title, options, old_selection, option_colors):
     if popup:
       new_selections = []  # new ordering
       cursor_location = 0     # index of highlighted option
-      curses.cbreak()         # wait indefinitely for key presses (no timeout)
 
       selection_options = list(options)
       selection_options.append('Cancel')
@@ -402,8 +390,6 @@ def show_menu(title, options, old_selection):
     top_panel = control.get_display_panels(include_sticky = False)[0]
     top_panel.set_title_visible(False)
     top_panel.redraw(True)
-
-    curses.cbreak()   # wait indefinitely for key presses (no timeout)
 
     while True:
       popup.win.erase()

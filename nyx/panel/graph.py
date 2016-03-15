@@ -13,7 +13,6 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
 
 import collections
 import copy
-import curses
 import time
 
 import nyx.controller
@@ -481,7 +480,6 @@ class GraphPanel(nyx.panel.Panel):
         while True:
           msg = 'press the down/up to resize the graph, and enter when done'
           control.set_msg(msg, BOLD, True)
-          curses.cbreak()  # TODO: can we drop this?
           key = control.key_input()
 
           if key.match('down'):

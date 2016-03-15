@@ -146,10 +146,17 @@ class Controller:
 
     return self._screen
 
-  def key_input(self):
+  def key_input(self, input_timeout = None):
     """
     Gets keystroke from the user.
+
+    :param int input_timeout: duration in seconds to wait for user input
     """
+
+    if input_timeout:
+      curses.halfdelay(input_timeout * 10)
+    else:
+      curses.cbreak()  # wait indefinitely for key presses (no timeout)
 
     return nyx.curses.KeyInput(self.get_screen().getch())
 
@@ -431,8 +438,7 @@ def start_nyx(stdscr):
     if override_key:
       key, override_key = override_key, None
     else:
-      curses.halfdelay(CONFIG['features.redrawRate'] * 10)
-      key = nyx.curses.KeyInput(stdscr.getch())
+      key = control.key_input(CONFIG['features.redrawRate'])
 
     if key.match('right'):
       control.next_page()

@@ -2,10 +2,6 @@
 Display logic for presenting the menu.
 """
 
-from __future__ import absolute_import
-
-import curses
-
 import nyx.curses
 import nyx.popups
 import nyx.controller
@@ -123,7 +119,6 @@ def show_menu():
 
         popup.win.refresh()
 
-        curses.cbreak()
         cursor.handle_key(control.key_input())
 
         # redraws the rest of the interface if we're rendering on it again
