@@ -192,13 +192,6 @@ class Panel(object):
 
     self.title_visible = is_visible
 
-  def get_parent(self):
-    """
-    Provides the parent used to create subwindows.
-    """
-
-    return self.parent
-
   def set_visible(self, is_visible):
     """
     Toggles if the panel is visible or not.

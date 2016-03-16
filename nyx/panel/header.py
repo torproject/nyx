@@ -44,21 +44,19 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     self._vals = get_sampling()
 
+    self._last_width = 100
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
     self._reported_inactive = False
 
     tor_controller().add_status_listener(self.reset_listener)
 
-  def is_wide(self, width = None):
+  def is_wide(self):
     """
     True if we should show two columns of information, False otherwise.
     """
 
-    if width is None:
-      width = self.get_parent().getmaxyx()[1]
-
-    return width >= MIN_DUAL_COL_WIDTH
+    return self._last_width >= MIN_DUAL_COL_WIDTH
 
   def get_height(self):
     """
@@ -127,7 +125,8 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
   def draw(self, width, height):
     vals = self._vals  # local reference to avoid concurrency concerns
-    is_wide = self.is_wide(width)
+    self._last_width = width
+    is_wide = self.is_wide()
 
     # space available for content
 
