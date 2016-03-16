@@ -239,7 +239,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       if key_press.match('c'):
         self.clear()
     elif key.match('f'):
-      with nyx.panel.CURSES_LOCK:
+      with nyx.curses.CURSES_LOCK:
         initial_selection = 1 if self._filter.selection() else 0
         options = ['None'] + self._filter.latest_selections() + ['New...']
         selection = nyx.popups.show_menu('Log Filter:', options, initial_selection)

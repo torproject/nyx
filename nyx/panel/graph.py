@@ -475,7 +475,7 @@ class GraphPanel(nyx.panel.Panel):
 
     control = nyx.controller.get_controller()
 
-    with nyx.panel.CURSES_LOCK:
+    with nyx.curses.CURSES_LOCK:
       try:
         while True:
           msg = 'press the down/up to resize the graph, and enter when done'

@@ -66,6 +66,7 @@ if we want Windows support in the future too.
 from __future__ import absolute_import
 
 import curses
+import threading
 
 import stem.util.conf
 import stem.util.enum
@@ -73,7 +74,11 @@ import stem.util.system
 
 from nyx import msg, log
 
+# Curses screen we've initialized and lock for interacting with it. Curses
+# isn't thread safe and concurrency bugs produce especially sinister glitches.
+
 CURSES_SCREEN = None
+CURSES_LOCK = threading.RLock()
 
 # Text colors and attributes. These are *very* commonly used so including
 # shorter aliases (so they can be referenced as just GREEN or BOLD).

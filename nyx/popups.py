@@ -63,13 +63,13 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
       popup.redraw(True)
 
       if popup.win is not None:
-        nyx.panel.CURSES_LOCK.acquire()
+        nyx.curses.CURSES_LOCK.acquire()
         return (popup, popup.max_x - 1, popup.max_y)
       else:
         return (None, 0, 0)
 
     def __exit__(self, exit_type, value, traceback):
-      nyx.panel.CURSES_LOCK.release()
+      nyx.curses.CURSES_LOCK.release()
       nyx.controller.get_controller().redraw(False)
 
   return _Popup()
@@ -85,7 +85,7 @@ def input_prompt(msg, initial_value = ''):
     initial_value - initial value of the field
   """
 
-  with nyx.panel.CURSES_LOCK:
+  with nyx.curses.CURSES_LOCK:
     control = nyx.controller.get_controller()
     msg_panel = control.get_panel('msg')
     msg_panel.set_message(msg)
@@ -107,7 +107,7 @@ def show_msg(msg, max_wait = None, attr = HIGHLIGHT):
     attr    - attributes with which to draw the message
   """
 
-  with nyx.panel.CURSES_LOCK:
+  with nyx.curses.CURSES_LOCK:
     control = nyx.controller.get_controller()
     control.set_msg(msg, attr, True)
 

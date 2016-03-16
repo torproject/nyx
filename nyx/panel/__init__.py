@@ -7,18 +7,12 @@ import time
 import curses
 import curses.ascii
 import curses.textpad
-from threading import RLock
 
 import nyx.curses
 import stem.util.log
 
 from nyx.curses import HIGHLIGHT
 from stem.util import conf, str_tools
-
-# global ui lock governing all panel instances (curses isn't thread save and
-# concurrency bugs produce especially sinister glitches)
-
-CURSES_LOCK = RLock()
 
 PASS = -1
 
@@ -457,7 +451,7 @@ class Panel(object):
 
     self.max_y, self.max_x = subwin_max_y, subwin_max_x
 
-    if not CURSES_LOCK.acquire(False):
+    if not nyx.curses.CURSES_LOCK.acquire(False):
       return
 
     try:
@@ -466,7 +460,7 @@ class Panel(object):
         self.draw(self.max_x, self.max_y)
       self.win.refresh()
     finally:
-      CURSES_LOCK.release()
+      nyx.curses.CURSES_LOCK.release()
 
   def hline(self, y, x, length, *attributes):
     """
