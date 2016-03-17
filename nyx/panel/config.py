@@ -118,8 +118,8 @@ class ConfigPanel(nyx.panel.Panel):
   Editor for tor's configuration.
   """
 
-  def __init__(self, stdscr):
-    nyx.panel.Panel.__init__(self, stdscr, 'configuration', 0)
+  def __init__(self):
+    nyx.panel.Panel.__init__(self, 'configuration', 0)
 
     self._contents = []
     self._scroller = nyx.curses.CursorScroller()

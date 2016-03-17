@@ -381,8 +381,8 @@ class GraphPanel(nyx.panel.Panel):
   Panel displaying graphical information of GraphCategory instances.
   """
 
-  def __init__(self, stdscr):
-    nyx.panel.Panel.__init__(self, stdscr, 'graph', 0)
+  def __init__(self):
+    nyx.panel.Panel.__init__(self, 'graph', 0)
 
     self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
     self._update_interval = CONFIG['features.graph.interval']

@@ -37,8 +37,8 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
   Top area containing tor settings and system information.
   """
 
-  def __init__(self, stdscr):
-    nyx.panel.Panel.__init__(self, stdscr, 'header', 0)
+  def __init__(self):
+    nyx.panel.Panel.__init__(self, 'header', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

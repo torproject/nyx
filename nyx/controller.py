@@ -63,8 +63,8 @@ class LabelPanel(nyx.panel.Panel):
   Panel that just displays a single line of text.
   """
 
-  def __init__(self, stdscr):
-    nyx.panel.Panel.__init__(self, stdscr, 'msg', 0, height=1)
+  def __init__(self):
+    nyx.panel.Panel.__init__(self, 'msg', 0, height=1)
     self.msg_text = ''
     self.msg_attr = NORMAL
 
@@ -92,41 +92,36 @@ class Controller:
   Tracks the global state of the interface
   """
 
-  def __init__(self, stdscr):
+  def __init__(self):
     """
     Creates a new controller instance. Panel lists are ordered as they appear,
     top to bottom on the page.
-
-    Arguments:
-      stdscr - curses window
     """
 
-    self._screen = stdscr
-
     self._sticky_panels = [
-      nyx.panel.header.HeaderPanel(stdscr),
-      LabelPanel(stdscr),
+      nyx.panel.header.HeaderPanel(),
+      LabelPanel(),
     ]
 
     self._page_panels, first_page_panels = [], []
 
     if CONFIG['features.panels.show.graph']:
-      first_page_panels.append(nyx.panel.graph.GraphPanel(stdscr))
+      first_page_panels.append(nyx.panel.graph.GraphPanel())
 
     if CONFIG['features.panels.show.log']:
-      first_page_panels.append(nyx.panel.log.LogPanel(stdscr))
+      first_page_panels.append(nyx.panel.log.LogPanel())
 
     if first_page_panels:
       self._page_panels.append(first_page_panels)
 
     if CONFIG['features.panels.show.connection']:
-      self._page_panels.append([nyx.panel.connection.ConnectionPanel(stdscr)])
+      self._page_panels.append([nyx.panel.connection.ConnectionPanel()])
 
     if CONFIG['features.panels.show.config']:
-      self._page_panels.append([nyx.panel.config.ConfigPanel(stdscr)])
+      self._page_panels.append([nyx.panel.config.ConfigPanel()])
 
     if CONFIG['features.panels.show.torrc']:
-      self._page_panels.append([nyx.panel.torrc.TorrcPanel(stdscr)])
+      self._page_panels.append([nyx.panel.torrc.TorrcPanel()])
 
     self.quit_signal = False
     self._page = 0
@@ -134,13 +129,6 @@ class Controller:
     self._force_redraw = False
     self._last_drawn = 0
     self.set_msg()  # initializes our control message
-
-  def get_screen(self):
-    """
-    Provides our curses window.
-    """
-
-    return self._screen
 
   def get_page_count(self):
     """
@@ -306,7 +294,8 @@ class Controller:
     # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
 
     if force:
-      self._screen.clear()
+      with nyx.curses.raw_screen() as stdscr:
+        stdscr.clear()
 
     for panel_impl in display_panels:
       panel_impl.redraw(force)
@@ -365,17 +354,14 @@ class Controller:
     return halt_thread
 
 
-def start_nyx(stdscr):
+def start_nyx():
   """
   Main draw loop context.
-
-  Arguments:
-    stdscr - curses window
   """
 
   global NYX_CONTROLLER
 
-  NYX_CONTROLLER = Controller(stdscr)
+  NYX_CONTROLLER = Controller()
   control = get_controller()
 
   if not CONFIG['features.acsSupport']:
@@ -411,7 +397,9 @@ def start_nyx(stdscr):
     # redraws the interface if it's needed
 
     control.redraw(False)
-    stdscr.refresh()
+
+    with nyx.curses.raw_screen() as stdscr:
+      stdscr.refresh()
 
     # wait for user keyboard input until timeout, unless an override was set
 

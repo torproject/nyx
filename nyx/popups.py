@@ -54,7 +54,7 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
       else:
         sticky_height = 0
 
-      popup = nyx.panel.Panel(control.get_screen(), 'popup', top + sticky_height, left, height, width)
+      popup = nyx.panel.Panel('popup', top + sticky_height, left, height, width)
       popup.set_visible(True)
 
       # Redraws the popup to prepare a subwindow instance. If none is spawned then

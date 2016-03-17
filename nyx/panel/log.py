@@ -64,8 +64,8 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
   from tor's log file if it exists.
   """
 
-  def __init__(self, stdscr):
-    nyx.panel.Panel.__init__(self, stdscr, 'log', 0)
+  def __init__(self):
+    nyx.panel.Panel.__init__(self, 'log', 0)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

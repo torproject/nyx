@@ -122,12 +122,11 @@ class Panel(object):
   redraw().
   """
 
-  def __init__(self, parent, name, top, left = 0, height = -1, width = -1):
+  def __init__(self, name, top, left = 0, height = -1, width = -1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
 
     Arguments:
-      parent - parent curses window
       name   - identifier for the panel
       top    - positioning of top within parent
       left   - positioning of the left edge within the parent
@@ -140,7 +139,6 @@ class Panel(object):
     # might chose their height based on its parent's current width).
 
     self.panel_name = name
-    self.parent = parent
     self.visible = False
     self.title_visible = True
 
@@ -358,7 +356,9 @@ class Panel(object):
     returns a tuple of (height, width).
     """
 
-    new_height, new_width = self.parent.getmaxyx()
+    with nyx.curses.raw_screen() as stdscr:
+      new_height, new_width = stdscr.getmaxyx()
+
     set_height, set_width = self.get_height(), self.get_width()
     new_height = max(0, new_height - self.top)
     new_width = max(0, new_width - self.left)
@@ -601,7 +601,8 @@ class Panel(object):
 
     display_width = self.get_preferred_size()[1]
 
-    input_subwindow = self.parent.subwin(1, display_width - x, self.top + y, self.left + x)
+    with nyx.curses.raw_screen() as stdscr:
+      input_subwindow = stdscr.subwin(1, display_width - x, self.top + y, self.left + x)
 
     # blanks the field's area, filling it with the font in case it's hilighting
 
@@ -744,7 +745,8 @@ class Panel(object):
     # would mean far more complicated code and no more selective refreshing)
 
     if recreate:
-      self.win = self.parent.subwin(new_height, new_width, self.top, self.left)
+      with nyx.curses.raw_screen() as stdscr:
+        self.win = stdscr.subwin(new_height, new_width, self.top, self.left)
 
       # note: doing this log before setting win produces an infinite loop
       stem.util.log.debug("recreating panel '%s' with the dimensions of %i/%i" % (self.get_name(), new_height, new_width))

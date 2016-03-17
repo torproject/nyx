@@ -20,8 +20,8 @@ class TorrcPanel(panel.Panel):
   area.
   """
 
-  def __init__(self, stdscr):
-    panel.Panel.__init__(self, stdscr, 'torrc', 0)
+  def __init__(self):
+    panel.Panel.__init__(self, 'torrc', 0)
 
     self._scroller = nyx.curses.Scroller()
     self._show_line_numbers = True  # shows left aligned line numbers

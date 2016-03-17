@@ -9,6 +9,7 @@ if we want Windows support in the future too.
 ::
 
   start - initializes curses with the given function
+  raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
   curses_attr - curses encoded text attribute
 
@@ -139,8 +140,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 
 def start(function, transparent_background = False, cursor = True):
   """
-  Starts a curses interface, delegating to the given function. The function
-  should accept a single argument for the curses screen.
+  Starts a curses interface, delegating to the given function.
 
   :param funtion: function to invoke when curses starts
   :param bool transparent_background: allows background transparency
@@ -164,9 +164,38 @@ def start(function, transparent_background = False, cursor = True):
       except curses.error:
         pass
 
-    function(stdscr)
+    function()
 
   curses.wrapper(_wrapper)
+
+
+def raw_screen():
+  """
+  Provides the curses screen. This can only be called after
+  :func:`~nyx.curses.start`, and is used as follows...
+
+  ::
+
+    with nyx.curses.raw_screen() as stdscr:
+      ... work with curses...
+
+  In the future this will never be called directly. This is just an
+  intermediate function as we migrate.
+  """
+
+  class _Wrapper(object):
+    def __enter__(self):
+      # TODO: We should be wrapping this with CURSES_LOCK.acquire/release(),
+      # but doing so seems to be causing frequent terminal gliches when
+      # shutting down. Strange since this should be strictly safer. Oh well -
+      # something to dig into later.
+
+      return CURSES_SCREEN
+
+    def __exit__(self, exit_type, value, traceback):
+      pass
+
+  return _Wrapper()
 
 
 def key_input(input_timeout = None):
