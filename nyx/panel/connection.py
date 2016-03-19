@@ -260,7 +260,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'connections', 0)
+    nyx.panel.Panel.__init__(self, 'connections')
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

@@ -38,7 +38,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'header', 0)
+    nyx.panel.Panel.__init__(self, 'header')
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

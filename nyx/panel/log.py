@@ -65,18 +65,17 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'log', 0)
+    nyx.panel.Panel.__init__(self, 'log')
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
     logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
     self._log_file = nyx.log.LogFileOutput(CONFIG['features.logFile'])
     self._filter = nyx.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
     self._show_duplicates = CONFIG['features.log.showDuplicateEntries']
-
-    self.set_pause_attr('_event_log')
 
     self._scroller = nyx.curses.Scroller()
     self._halt = False  # terminates thread if true
@@ -271,10 +270,16 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       ('c', 'clear event log', None),
     ]
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._event_log_paused = self._event_log.clone()
+
+    nyx.panel.Panel.set_paused(self, is_pause)
+
   def draw(self, width, height):
     scroll = self._scroller.location(self._last_content_height, height)
 
-    event_log = list(self.get_attr('_event_log'))
+    event_log = list(self._event_log_paused if self.is_paused() else self._event_log)
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     last_content_height = self._last_content_height

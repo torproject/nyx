@@ -19,11 +19,13 @@ runlevels.
 
   LogGroup - thread safe, deduplicated grouping of events
     |- add - adds an event to the group
-    +- pop - removes and returns an event
+    |- pop - removes and returns an event
+    +- clone - deep copy of this LogGroup
 
   LogEntry - individual log event
     |- is_duplicate_of - checks if a duplicate message of another LogEntry
-    +- day_count - number of days since this even occured
+    |- day_count - number of days since this even occured
+    +- clone - deep copy of this LogEntry
 
   LogFileOutput - writes log events to a file
     +- write - persist a given message
@@ -33,7 +35,7 @@ runlevels.
     |- selection - current regex filter
     |- latest_selections - past regex selections
     |- match - checks if a LogEntry matches this filter
-    +- clone - deep clone of this LogFilters
+    +- clone - deep copy of this LogFilters
 """
 
 import collections
@@ -261,6 +263,12 @@ class LogGroup(object):
       if last_entry.is_duplicate:
         last_entry.duplicates.pop()
 
+  def clone(self):
+    with self._lock:
+      copy = LogGroup(self._max_size, self._group_by_day)
+      copy._entries = [entry.clone() for entry in self._entries]
+      return copy
+
   def __len__(self):
     with self._lock:
       return len(self._entries)
@@ -285,7 +293,7 @@ class LogEntry(object):
 
   :var bool is_duplicate: true if this matches other messages in the group and
     isn't the first
-  :var list duplicates: messages that are identical to thsi one
+  :var list duplicates: messages that are identical to this one
   """
 
   def __init__(self, timestamp, type, message):
@@ -339,6 +347,13 @@ class LogEntry(object):
     """
 
     return day_count(self.timestamp)
+
+  def clone(self):
+    copy = LogEntry(self.timestamp, self.type, self.message)
+    copy.is_duplicate = self.is_duplicate
+    copy.duplicates = None if self.duplicates is None else list(self.duplicates)
+
+    return copy
 
   def __eq__(self, other):
     if isinstance(other, LogEntry):
@@ -431,10 +446,11 @@ class LogFilters(object):
 
   def clone(self):
     with self._lock:
-      clone = LogFilters(max_filters = self._max_filters)
-      clone._selected = self._selected
-      clone._past_filters = self._past_filters
-      return clone
+      copy = LogFilters(max_filters = self._max_filters)
+      copy._selected = self._selected
+      copy._past_filters = self._past_filters
+
+      return copy
 
 
 def trace(msg, **attr):

@@ -122,7 +122,7 @@ class Panel(object):
   redraw().
   """
 
-  def __init__(self, name, top, left = 0, height = -1, width = -1):
+  def __init__(self, name, top = 0, left = 0, height = -1, width = -1):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
 
@@ -257,7 +257,7 @@ class Panel(object):
     current_value = self.__dict__.get(attr)
     return copy.copy(current_value)
 
-  def set_paused(self, is_pause, suppress_redraw = False):
+  def set_paused(self, is_pause):
     """
     Toggles if the panel is paused or not. This causes the panel to be redrawn
     when toggling is pause state unless told to do otherwise. This is
@@ -269,7 +269,6 @@ class Panel(object):
     Arguments:
       is_pause        - freezes the state of the pause attributes if true, makes
                         them editable otherwise
-      suppress_redraw - if true then this will never redraw the panel
     """
 
     if is_pause != self.paused:
@@ -284,9 +283,7 @@ class Panel(object):
         for attr in self.pause_attr:
           self.pause_buffer[attr] = self.copy_attr(attr)
 
-      if not suppress_redraw:
-        self.redraw(True)
-
+      self.redraw(True)
       return True
     else:
       return False

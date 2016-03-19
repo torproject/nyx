@@ -64,7 +64,7 @@ class LabelPanel(nyx.panel.Panel):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'msg', 0, height=1)
+    nyx.panel.Panel.__init__(self, 'msg', height = 1)
     self.msg_text = ''
     self.msg_attr = NORMAL
 

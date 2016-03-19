@@ -119,7 +119,7 @@ class ConfigPanel(nyx.panel.Panel):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'configuration', 0)
+    nyx.panel.Panel.__init__(self, 'configuration')
 
     self._contents = []
     self._scroller = nyx.curses.CursorScroller()
