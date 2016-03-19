@@ -390,20 +390,20 @@ class GraphPanel(nyx.panel.Panel):
     self._graph_height = CONFIG['features.graph.height']
 
     self._accounting_stats = None
+    self._accounting_stats_paused = None
 
     self._stats = {
       GraphStat.BANDWIDTH: BandwidthStats(),
       GraphStat.SYSTEM_RESOURCES: ResourceStats(),
     }
 
+    self._stats_paused = None
+
     if CONFIG['features.panels.show.connection']:
       self._stats[GraphStat.CONNECTIONS] = ConnectionStats()
     elif self._displayed_stat == GraphStat.CONNECTIONS:
       log.warn("The connection graph is unavailble when you set 'features.panels.show.connection false'.")
       self._displayed_stat = GraphStat.BANDWIDTH
-
-    self.set_pause_attr('_stats')
-    self.set_pause_attr('_accounting_stats')
 
     controller = tor_controller()
     controller.add_event_listener(self._update_accounting, EventType.BW)
@@ -455,8 +455,9 @@ class GraphPanel(nyx.panel.Panel):
       return 0
 
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
+    accounting_stats = self._accounting_stats if self.is_paused() else self._accounting_stats_paused
 
-    if self.displayed_stat == GraphStat.BANDWIDTH and self._accounting_stats:
+    if self.displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
 
     return height
@@ -544,11 +545,23 @@ class GraphPanel(nyx.panel.Panel):
       ('i', 'graph update interval', self.update_interval),
     ]
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._accounting_stats_paused = copy.copy(self._accounting_stats)
+      self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
+
+    nyx.panel.Panel.set_paused(self, is_pause)
+
   def draw(self, width, height):
     if not self.displayed_stat:
       return
 
-    stat = self.get_attr('_stats')[self.displayed_stat]
+    if not self.is_paused():
+      stat = self._stats[self.displayed_stat]
+      accounting_stats = self._accounting_stats
+    else:
+      stat = self._stats_paused[self.displayed_stat]
+      accounting_stats = self._accounting_stats_paused
 
     attr = DrawAttributes(
       stat = type(stat)(stat),  # clone the GraphCategory
@@ -556,7 +569,7 @@ class GraphPanel(nyx.panel.Panel):
       subgraph_width = min(width / 2, CONFIG['features.graph.max_width']),
       interval = self.update_interval,
       bounds_type = self.bounds_type,
-      accounting = self.get_attr('_accounting_stats'),
+      accounting = accounting_stats,
       right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
@@ -723,12 +736,6 @@ class GraphPanel(nyx.panel.Panel):
       self.addstr(y, 0, 'Accounting:', BOLD)
       self.addstr(y, 12, 'Connection Closed...')
 
-  def copy_attr(self, attr):
-    if attr == '_stats':
-      return dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
-    else:
-      return nyx.panel.Panel.copy_attr(self, attr)
-
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
@@ -736,18 +743,19 @@ class GraphPanel(nyx.panel.Panel):
       old_accounting_stats = self._accounting_stats
       self._accounting_stats = tor_controller().get_accounting_stats(None)
 
-      # if we either added or removed accounting info then redraw the whole
-      # screen to account for resizing
+      if not self.is_paused():
+        # if we either added or removed accounting info then redraw the whole
+        # screen to account for resizing
 
-      if bool(old_accounting_stats) != bool(self._accounting_stats):
-        nyx.controller.get_controller().redraw()
+        if bool(old_accounting_stats) != bool(self._accounting_stats):
+          nyx.controller.get_controller().redraw()
 
   def _update_stats(self, event):
     for stat in self._stats.values():
       stat.bandwidth_event(event)
 
     if self.displayed_stat:
-      param = self.get_attr('_stats')[self.displayed_stat]
+      param = self._stats[self.displayed_stat]
       update_rate = INTERVAL_SECONDS[self.update_interval]
 
       if param.primary.tick % update_rate == 0:

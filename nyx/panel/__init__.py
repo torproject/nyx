@@ -2,7 +2,6 @@
 Panels consisting the nyx interface.
 """
 
-import copy
 import time
 import curses
 import curses.ascii
@@ -142,13 +141,7 @@ class Panel(object):
     self.visible = False
     self.title_visible = True
 
-    # Attributes for pausing. The pause_attr contains variables our get_attr
-    # method is tracking, and the pause buffer has copies of the values from
-    # when we were last unpaused (unused unless we're paused).
-
     self.paused = False
-    self.pause_attr = []
-    self.pause_buffer = {}
     self.pause_time = -1
 
     self.top = top
@@ -207,64 +200,12 @@ class Panel(object):
 
     return self.paused
 
-  def set_pause_attr(self, attr):
-    """
-    Configures the panel to track the given attribute so that get_attr provides
-    the value when it was last unpaused (or its current value if we're
-    currently unpaused). For instance...
-
-    > self.set_pause_attr('myVar')
-    > self.myVar = 5
-    > self.myVar = 6  # self.get_attr('myVar') -> 6
-    > self.set_paused(True)
-    > self.myVar = 7  # self.get_attr('myVar') -> 6
-    > self.set_paused(False)
-    > self.myVar = 7  # self.get_attr('myVar') -> 7
-
-    Arguments:
-      attr - parameter to be tracked for get_attr
-    """
-
-    self.pause_attr.append(attr)
-    self.pause_buffer[attr] = self.copy_attr(attr)
-
-  def get_attr(self, attr):
-    """
-    Provides the value of the given attribute when we were last unpaused. If
-    we're currently unpaused then this is the current value. If untracked this
-    returns None.
-
-    Arguments:
-      attr - local variable to be returned
-    """
-
-    if attr not in self.pause_attr:
-      return None
-    elif self.paused:
-      return self.pause_buffer[attr]
-    else:
-      return self.__dict__.get(attr)
-
-  def copy_attr(self, attr):
-    """
-    Provides a duplicate of the given configuration value, suitable for the
-    pause buffer.
-
-    Arguments:
-      attr - parameter to be provided back
-    """
-
-    current_value = self.__dict__.get(attr)
-    return copy.copy(current_value)
-
   def set_paused(self, is_pause):
     """
     Toggles if the panel is paused or not. This causes the panel to be redrawn
     when toggling is pause state unless told to do otherwise. This is
     important when pausing since otherwise the panel's display could change
     when redrawn for other reasons.
-
-    This returns True if the panel's pause state was changed, False otherwise.
 
     Arguments:
       is_pause        - freezes the state of the pause attributes if true, makes
@@ -276,17 +217,7 @@ class Panel(object):
         self.pause_time = time.time()
 
       self.paused = is_pause
-
-      if is_pause:
-        # copies tracked attributes so we know what they were before pausing
-
-        for attr in self.pause_attr:
-          self.pause_buffer[attr] = self.copy_attr(attr)
-
       self.redraw(True)
-      return True
-    else:
-      return False
 
   def get_pause_time(self):
     """
