@@ -344,8 +344,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
       if selected != -1:
         connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
     elif key.match('d'):
-      self.set_title_visible(False)
-      self.redraw(True)
       entries = self._entries
 
       while True:
@@ -368,7 +366,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
         elif key.match('right'):
           self.handle_key(nyx.curses.KeyInput(curses.KEY_DOWN))
 
-      self.set_title_visible(True)
       self.redraw(True)
     elif key.match('c') and user_traffic_allowed.inbound:
       nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
@@ -451,8 +448,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
     is_scrollbar_visible = len(lines) > height - details_offset - 1
     scroll_offset = 2 if is_scrollbar_visible else 0
 
-    if self.is_title_visible():
-      self._draw_title(entries, self._show_details)
+    self._draw_title(entries, self._show_details)
 
     if is_showing_details:
       self._draw_details(selected, width, is_scrollbar_visible)

@@ -168,10 +168,9 @@ class TorrcPanel(panel.Panel):
 
       new_content_height = y + scroll - 1
 
-    if self.is_title_visible():
-      self.addstr(0, 0, ' ' * width)  # clear line
-      location = ' (%s)' % self._torrc_location if self._torrc_location else ''
-      self.addstr(0, 0, 'Tor Configuration File%s:' % location, HIGHLIGHT)
+    self.addstr(0, 0, ' ' * width)  # clear line
+    location = ' (%s)' % self._torrc_location if self._torrc_location else ''
+    self.addstr(0, 0, 'Tor Configuration File%s:' % location, HIGHLIGHT)
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height

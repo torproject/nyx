@@ -382,40 +382,35 @@ def show_menu(title, options, old_selection):
 
     selection = old_selection if old_selection != -1 else 0
 
-    # hides the title of the first panel on the page
+    with popup_window(1, -1) as (title_erase, _, _):
+      title_erase.addstr(0, 0, ' ' * 500)  # hide title of the panel below us
 
-    control = nyx.controller.get_controller()
-    top_panel = control.get_display_panels(include_sticky = False)[0]
-    top_panel.set_title_visible(False)
-    top_panel.redraw(True)
+      while True:
+        popup.win.erase()
+        popup.win.box()
+        popup.addstr(0, 0, title, HIGHLIGHT)
 
-    while True:
-      popup.win.erase()
-      popup.win.box()
-      popup.addstr(0, 0, title, HIGHLIGHT)
+        for i in range(len(options)):
+          label = options[i]
+          format = HIGHLIGHT if i == selection else NORMAL
+          tab = '> ' if i == old_selection else '  '
+          popup.addstr(i + 1, 2, tab)
+          popup.addstr(i + 1, 4, ' %s ' % label, format)
 
-      for i in range(len(options)):
-        label = options[i]
-        format = HIGHLIGHT if i == selection else NORMAL
-        tab = '> ' if i == old_selection else '  '
-        popup.addstr(i + 1, 2, tab)
-        popup.addstr(i + 1, 4, ' %s ' % label, format)
+        popup.win.refresh()
 
-      popup.win.refresh()
+        key = nyx.curses.key_input()
 
-      key = nyx.curses.key_input()
+        if key.match('up'):
+          selection = max(0, selection - 1)
+        elif key.match('down'):
+          selection = min(len(options) - 1, selection + 1)
+        elif key.is_selection():
+          break
+        elif key.match('esc'):
+          selection = -1
+          break
 
-      if key.match('up'):
-        selection = max(0, selection - 1)
-      elif key.match('down'):
-        selection = min(len(options) - 1, selection + 1)
-      elif key.is_selection():
-        break
-      elif key.match('esc'):
-        selection = -1
-        break
-
-  top_panel.set_title_visible(True)
   return selection
 
 
@@ -448,19 +443,22 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
     if not popup:
       return None
 
-    scroller, redraw = nyx.curses.Scroller(), True
+    with popup_window(1, -1) as (title_erase, _, _):
+      title_erase.addstr(0, 0, ' ' * 500)  # hide title of the panel below us
 
-    while True:
-      if redraw:
-        _draw(popup, title, lines, color, scroller.location(), show_line_numbers)
-        redraw = False
+      scroller, redraw = nyx.curses.Scroller(), True
 
-      key = nyx.curses.key_input()
+      while True:
+        if redraw:
+          _draw(popup, title, lines, color, scroller.location(), show_line_numbers)
+          redraw = False
 
-      if key.is_scroll():
-        redraw = scroller.handle_key(key, len(lines), height - 2)
-      elif is_close_key(key):
-        return key
+        key = nyx.curses.key_input()
+
+        if key.is_scroll():
+          redraw = scroller.handle_key(key, len(lines), height - 2)
+        elif is_close_key(key):
+          return key
 
 
 def _display_text(fingerprint):

@@ -573,8 +573,7 @@ class GraphPanel(nyx.panel.Panel):
       right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
-    if self.is_title_visible():
-      self.addstr(0, 0, attr.stat.title(width), HIGHLIGHT)
+    self.addstr(0, 0, attr.stat.title(width), HIGHLIGHT)
 
     self._draw_subgraph(attr, attr.stat.primary, 0, PRIMARY_COLOR)
     self._draw_subgraph(attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)

@@ -291,9 +291,8 @@ class ConfigPanel(nyx.panel.Panel):
     if selected is not None:
       self._draw_selection_details(selected, width)
 
-    if self.is_title_visible():
-      hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
-      self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
+    hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
+    self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
 
     scroll_offset = 1
 

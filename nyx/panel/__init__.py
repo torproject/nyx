@@ -139,7 +139,6 @@ class Panel(object):
 
     self.panel_name = name
     self.visible = False
-    self.title_visible = True
 
     self.paused = False
     self.pause_time = -1
@@ -167,21 +166,6 @@ class Panel(object):
     """
 
     return self.panel_name
-
-  def is_title_visible(self):
-    """
-    True if the title is configured to be visible, False otherwise.
-    """
-
-    return self.title_visible
-
-  def set_title_visible(self, is_visible):
-    """
-    Configures the panel's title to be visible or not when it's next redrawn.
-    This is not guarenteed to be respected (not all panels have a title).
-    """
-
-    self.title_visible = is_visible
 
   def set_visible(self, is_visible):
     """

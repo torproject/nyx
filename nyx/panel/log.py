@@ -322,8 +322,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     # drawing the title after the content, so we'll clear content from the top line
 
-    if self.is_title_visible():
-      self._draw_title(width, event_types, event_filter)
+    self._draw_title(width, event_types, event_filter)
 
     # redraw the display if...
     # - last_content_height was off by too much
