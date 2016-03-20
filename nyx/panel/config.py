@@ -209,7 +209,7 @@ class ConfigPanel(nyx.panel.Panel):
           x = popup.addstr(height - 2, x, option, BOLD, HIGHLIGHT if i == selection else NORMAL)
           x = popup.addstr(height - 2, x, '] ')
 
-        popup.win.box()
+        popup.draw_box()
         popup.addstr(0, 0, 'Torrc to save:', HIGHLIGHT)
         popup.win.refresh()
 
@@ -230,6 +230,8 @@ class ConfigPanel(nyx.panel.Panel):
           break
         elif key.match('esc'):
           break  # esc - cancel
+
+    self.redraw(True)
 
   def handle_key(self, key):
     if key.is_scroll():

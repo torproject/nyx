@@ -144,7 +144,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       if popup:
         # displays the available flags
 
-        popup.win.box()
+        popup.draw_box()
         popup.addstr(0, 0, 'Event Types:', HIGHLIGHT)
         event_lines = CONFIG['msg.misc.event_types'].split('\n')
 

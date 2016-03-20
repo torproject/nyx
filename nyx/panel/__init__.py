@@ -634,7 +634,7 @@ class Panel(object):
 
     return recreate
 
-  def draw_box(self, top, left, width, height, *attributes):
+  def draw_box(self, top = 0, left = 0, width = -1, height = -1, *attributes):
     """
     Draws a box in the panel with the given bounds.
 
@@ -645,6 +645,15 @@ class Panel(object):
       height - height of the drawn box
       attr   - text attributes
     """
+
+    if width == -1 or height == -1:
+      panel_height, panel_width = self.get_preferred_size()
+
+      if width == -1:
+        width = panel_width - left
+
+      if height == -1:
+        height = panel_height - top
 
     # draws the top and bottom
 

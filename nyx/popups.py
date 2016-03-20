@@ -141,7 +141,7 @@ def show_help_popup():
 
       # test doing afterward in case of overwriting
 
-      popup.win.box()
+      popup.draw_box()
       popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
       for i in range(len(help_options)):
@@ -192,7 +192,7 @@ def show_about_popup():
 
   with popup_window(9, 80) as (popup, _, height):
     if popup:
-      popup.win.box()
+      popup.draw_box()
       popup.addstr(0, 0, 'About:', HIGHLIGHT)
       popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), BOLD)
       popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
@@ -244,7 +244,7 @@ def show_count_dialog(title, counts):
 
       popup.addstr(height - 2, 2, 'Press any key...')
 
-    popup.win.box()
+    popup.draw_box()
     popup.addstr(0, 0, title, HIGHLIGHT)
     popup.win.refresh()
 
@@ -281,7 +281,7 @@ def show_sort_dialog(title, options, old_selection, option_colors):
 
       while len(new_selections) < len(old_selection):
         popup.win.erase()
-        popup.win.box()
+        popup.draw_box()
         popup.addstr(0, 0, title, HIGHLIGHT)
 
         _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
@@ -387,7 +387,7 @@ def show_menu(title, options, old_selection):
 
       while True:
         popup.win.erase()
-        popup.win.box()
+        popup.draw_box()
         popup.addstr(0, 0, title, HIGHLIGHT)
 
         for i in range(len(options)):
@@ -548,6 +548,6 @@ def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
     if y > height:
       break
 
-  popup.win.box()
+  popup.draw_box()
   popup.addstr(0, 0, title, HIGHLIGHT)
   popup.win.refresh()
