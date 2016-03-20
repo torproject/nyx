@@ -24,7 +24,7 @@ UNRESOLVED_MSG = 'No consensus data available'
 ERROR_MSG = 'Unable to retrieve data'
 
 
-def popup_window(height = -1, width = -1, below_static = True):
+def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True):
   """
   Provides a popup dialog you can use in a 'with' block...
 
@@ -38,6 +38,8 @@ def popup_window(height = -1, width = -1, below_static = True):
 
   :param int height: maximum height of the popup
   :param int width: maximum width of the popup
+  :param int top: top position, relative to the sticky content
+  :param int left: left position from the screen
   :param bool below_static: positions popup below static content if True
 
   :returns: tuple of the form (subwindow, width, height) when used in a with block
@@ -52,7 +54,7 @@ def popup_window(height = -1, width = -1, below_static = True):
       else:
         sticky_height = 0
 
-      popup = nyx.panel.Panel('popup', top = sticky_height, height = height, width = width)
+      popup = nyx.panel.Panel('popup', top + sticky_height, left, height, width)
       popup.set_visible(True)
 
       # Redraws the popup to prepare a subwindow instance. If none is spawned then
