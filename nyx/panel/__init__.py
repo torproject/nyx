@@ -319,6 +319,9 @@ class Panel(object):
 
     is_new_window = self._reset_subwindow()
 
+    if not self.win:
+      return
+
     # The reset argument is disregarded in a couple of situations:
     # - The subwindow's been recreated (obviously it then doesn't have the old
     #   content to refresh).
