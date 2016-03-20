@@ -246,36 +246,12 @@ class Panel(object):
 
     return self.height
 
-  def set_height(self, height):
-    """
-    Changes the height used for subwindows. This uses all available space if -1.
-
-    Arguments:
-      height - maximum height of panel (uses all available space if -1)
-    """
-
-    if self.height != height:
-      self.height = height
-      self.win = None
-
   def get_width(self):
     """
     Provides the width used for subwindows (-1 if it isn't limited).
     """
 
     return self.width
-
-  def set_width(self, width):
-    """
-    Changes the width used for subwindows. This uses all available space if -1.
-
-    Arguments:
-      width - maximum width of panel (uses all available space if -1)
-    """
-
-    if self.width != width:
-      self.width = width
-      self.win = None
 
   def get_preferred_size(self):
     """
@@ -566,7 +542,7 @@ class Panel(object):
 
     return user_input
 
-  def add_scroll_bar(self, top, bottom, size, draw_top = 0, draw_bottom = -1, draw_left = 0):
+  def add_scroll_bar(self, top, bottom, size, draw_top = 0):
     """
     Draws a left justified scroll bar reflecting position within a vertical
     listing. This is shorted if necessary, and left undrawn if no space is
@@ -585,24 +561,14 @@ class Panel(object):
       bottom     - list index for the bottom-most visible element
       size       - size of the list in which the listed elements are contained
       draw_top    - starting row where the scroll bar should be drawn
-      draw_bottom - ending row where the scroll bar should end, -1 if it should
-                   span to the bottom of the panel
-      draw_left   - left offset at which to draw the scroll bar
     """
 
     if (self.max_y - draw_top) < 2:
       return  # not enough room
 
-    # sets draw_bottom to be the actual row on which the scrollbar should end
-
-    if draw_bottom == -1:
-      draw_bottom = self.max_y - 1
-    else:
-      draw_bottom = min(draw_bottom, self.max_y - 1)
-
     # determines scrollbar dimensions
 
-    scrollbar_height = draw_bottom - draw_top
+    scrollbar_height = self.max_y - draw_top - 1
     slider_top = scrollbar_height * top / size
     slider_size = scrollbar_height * (bottom - top) / size
 
@@ -624,15 +590,15 @@ class Panel(object):
 
     for i in range(scrollbar_height):
       if i >= slider_top and i <= slider_top + slider_size:
-        self.addstr(i + draw_top, draw_left, ' ', HIGHLIGHT)
+        self.addstr(i + draw_top, 0, ' ', HIGHLIGHT)
       else:
-        self.addstr(i + draw_top, draw_left, ' ')
+        self.addstr(i + draw_top, 0, ' ')
 
     # draws box around the scroll bar
 
-    self.vline(draw_top, draw_left + 1, draw_bottom - 1)
-    self.addch(draw_bottom, draw_left + 1, curses.ACS_LRCORNER)
-    self.addch(draw_bottom, draw_left, curses.ACS_HLINE)
+    self.vline(draw_top, 1, self.max_y - 2)
+    self.addch(self.max_y - 1, 1, curses.ACS_LRCORNER)
+    self.addch(self.max_y - 1, 0, curses.ACS_HLINE)
 
   def _reset_subwindow(self):
     """
