@@ -75,47 +75,6 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
   return _Popup()
 
 
-def input_prompt(msg, initial_value = ''):
-  """
-  Prompts the user to enter a string on the control line (which usually
-  displays the page number and basic controls).
-
-  Arguments:
-    msg          - message to prompt the user for input with
-    initial_value - initial value of the field
-  """
-
-  with nyx.curses.CURSES_LOCK:
-    control = nyx.controller.get_controller()
-    msg_panel = control.get_panel('msg')
-    msg_panel.set_message(msg)
-    msg_panel.redraw(True)
-    user_input = msg_panel.getstr(0, len(msg), initial_value)
-    control.set_msg()
-
-    return user_input
-
-
-def show_msg(msg, max_wait = None, attr = HIGHLIGHT):
-  """
-  Displays a single line message on the control line for a set time. Pressing
-  any key will end the message. This returns the key pressed.
-
-  Arguments:
-    msg     - message to be displayed to the user
-    max_wait - time to show the message, indefinite if None
-    attr    - attributes with which to draw the message
-  """
-
-  with nyx.curses.CURSES_LOCK:
-    control = nyx.controller.get_controller()
-    control.set_msg(msg, attr, True)
-
-    key_press = nyx.curses.key_input(max_wait)
-    control.set_msg()
-    return key_press
-
-
 def show_help_popup():
   """
   Presents a popup with instructions for the current page's hotkeys. This

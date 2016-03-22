@@ -474,13 +474,10 @@ class GraphPanel(nyx.panel.Panel):
       * enter / space - set size
     """
 
-    control = nyx.controller.get_controller()
-
     with nyx.curses.CURSES_LOCK:
       try:
         while True:
-          msg = 'press the down/up to resize the graph, and enter when done'
-          control.set_msg(msg, BOLD, True)
+          nyx.controller.show_message('press the down/up to resize the graph, and enter when done', BOLD)
           key = nyx.curses.key_input()
 
           if key.match('down'):
@@ -497,9 +494,9 @@ class GraphPanel(nyx.panel.Panel):
           elif key.is_selection():
             break
 
-          control.redraw()
+          nyx.controller.get_controller().redraw()
       finally:
-        control.set_msg()
+        nyx.controller.show_message()
 
   def handle_key(self, key):
     if key.match('r'):

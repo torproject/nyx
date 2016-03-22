@@ -60,9 +60,9 @@ class MenuItem():
 
     if self._callback:
       control = nyx.controller.get_controller()
-      control.set_msg()
       control.redraw()
       self._callback()
+
     return True
 
   def next(self):

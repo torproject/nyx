@@ -22,7 +22,7 @@ import stem
 
 from stem.util import conf, log
 
-from nyx.curses import NORMAL, BOLD, HIGHLIGHT
+from nyx.curses import BOLD
 from nyx import tor_controller
 
 
@@ -58,36 +58,17 @@ def get_controller():
   return NYX_CONTROLLER
 
 
-class LabelPanel(nyx.panel.Panel):
-  """
-  Panel that just displays a single line of text.
-  """
-
-  def __init__(self):
-    nyx.panel.Panel.__init__(self, 'msg', height = 1)
-    self.msg_text = ''
-    self.msg_attr = NORMAL
-
-  def set_message(self, msg, attr = None):
-    """
-    Sets the message being displayed by the panel.
-
-    Arguments:
-      msg  - string to be displayed
-      attr - attribute for the label, normal text if undefined
-    """
-
-    if attr is None:
-      attr = NORMAL
-
-    self.msg_text = msg
-    self.msg_attr = attr
-
-  def draw(self, width, height):
-    self.addstr(0, 0, self.msg_text, self.msg_attr)
+def show_message(message = None, *attr, **kwargs):
+  header_panel = get_controller().get_panel('header')
+  return header_panel.show_message(message, *attr, **kwargs)
 
 
-class Controller:
+def input_prompt(msg, initial_value = ''):
+  header_panel = get_controller().get_panel('header')
+  return header_panel.input_prompt(msg, initial_value)
+
+
+class Controller(object):
   """
   Tracks the global state of the interface
   """
@@ -98,10 +79,7 @@ class Controller:
     top to bottom on the page.
     """
 
-    self._sticky_panels = [
-      nyx.panel.header.HeaderPanel(),
-      LabelPanel(),
-    ]
+    self._sticky_panels = [nyx.panel.header.HeaderPanel()]
 
     self._page_panels, first_page_panels = [], []
 
@@ -128,7 +106,6 @@ class Controller:
     self._is_paused = False
     self._force_redraw = False
     self._last_drawn = 0
-    self.set_msg()  # initializes our control message
 
   def get_page_count(self):
     """
@@ -159,7 +136,7 @@ class Controller:
     if page_number != self._page:
       self._page = page_number
       self._force_redraw = True
-      self.set_msg()
+      self.get_panel('header').redraw(True)
 
   def next_page(self):
     """
@@ -190,7 +167,7 @@ class Controller:
     if is_pause != self._is_paused:
       self._is_paused = is_pause
       self._force_redraw = True
-      self.set_msg()
+      self.get_panel('header').redraw(True)
 
       for panel_impl in self.get_all_panels():
         panel_impl.set_paused(is_pause)
@@ -303,37 +280,6 @@ class Controller:
     if force:
       self._last_drawn = current_time
 
-  def set_msg(self, msg = None, attr = None, redraw = False):
-    """
-    Sets the message displayed in the interfaces control panel. This uses our
-    default prompt if no arguments are provided.
-
-    Arguments:
-      msg    - string to be displayed
-      attr   - attribute for the label, normal text if undefined
-      redraw - redraws right away if true, otherwise redraws when display
-               content is next normally drawn
-    """
-
-    if msg is None:
-      msg = ''
-
-      if attr is None:
-        if not self._is_paused:
-          msg = 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (self._page + 1, len(self._page_panels))
-          attr = NORMAL
-        else:
-          msg = 'Paused'
-          attr = HIGHLIGHT
-
-    control_panel = self.get_panel('msg')
-    control_panel.set_message(msg, attr)
-
-    if redraw:
-      control_panel.redraw(True)
-    else:
-      self._force_redraw = True
-
   def quit(self):
     self.quit_signal = True
 
@@ -421,7 +367,7 @@ def start_nyx():
 
       if CONFIG['features.confirmQuit']:
         msg = 'Are you sure (q again to confirm)?'
-        confirmation_key = nyx.popups.show_msg(msg, attr = BOLD)
+        confirmation_key = show_message(msg, BOLD, max_wait = 30)
         quit_confirmed = confirmation_key.match('q')
       else:
         quit_confirmed = True
@@ -432,7 +378,7 @@ def start_nyx():
       # provides prompt to confirm that nyx should issue a sighup
 
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
-      confirmation_key = nyx.popups.show_msg(msg, attr = BOLD)
+      confirmation_key = show_message(msg, BOLD, max_wait = 30)
 
       if confirmation_key in (ord('x'), ord('X')):
         try:

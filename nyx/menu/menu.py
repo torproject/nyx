@@ -77,8 +77,6 @@ class MenuCursor:
 def show_menu():
   with nyx.popups.popup_window(1, below_static = False) as (popup, width, height):
     if popup:
-      control = nyx.controller.get_controller()
-
       # generates the menu and uses the initial selection of the first item in
       # the file menu
 
@@ -94,7 +92,7 @@ def show_menu():
 
         # provide a message saying how to close the menu
 
-        control.set_msg('Press m or esc to close the menu.', BOLD, True)
+        nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
 
         # renders the menu bar, noting where the open submenu is positioned
 
@@ -124,9 +122,9 @@ def show_menu():
         # redraws the rest of the interface if we're rendering on it again
 
         if not cursor.is_done():
-          control.redraw()
+          nyx.controller.get_controller().redraw()
 
-  control.set_msg()
+  nyx.controller.show_message()
 
 
 def _draw_submenu(cursor, level, top, left):

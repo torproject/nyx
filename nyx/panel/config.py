@@ -223,9 +223,9 @@ class ConfigPanel(nyx.panel.Panel):
           if selection == 0:
             try:
               controller.save_conf()
-              nyx.popups.show_msg('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), 2)
+              nyx.controller.show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
             except IOError as exc:
-              nyx.popups.show_msg('Unable to save configuration (%s)' % exc.strerror, 2)
+              nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
 
           break
         elif key.match('esc'):
@@ -243,7 +243,7 @@ class ConfigPanel(nyx.panel.Panel):
     elif key.is_selection():
       selected = self._scroller.selection(self._get_config_options())
       initial_value = selected.value() if selected.is_set() else ''
-      new_value = nyx.popups.input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
+      new_value = nyx.controller.input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
 
       if new_value != initial_value:
         try:
@@ -260,7 +260,7 @@ class ConfigPanel(nyx.panel.Panel):
           tor_controller().set_conf(selected.name, new_value)
           self.redraw(True)
         except Exception as exc:
-          nyx.popups.show_msg('%s (press any key)' % exc)
+          nyx.controller.show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
     elif key.match('a'):
       self._show_all = not self._show_all
       self.redraw(True)

@@ -11,6 +11,7 @@ import threading
 import stem.response.events
 
 import nyx.arguments
+import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
@@ -128,7 +129,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     Prompts the user to add a new regex filter.
     """
 
-    regex_input = nyx.popups.input_prompt('Regular expression: ')
+    regex_input = nyx.controller.input_prompt('Regular expression: ')
 
     if regex_input:
       self._filter.select(regex_input)
@@ -153,7 +154,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
         popup.win.refresh()
 
-        user_input = nyx.popups.input_prompt('Events to log: ')
+        user_input = nyx.controller.input_prompt('Events to log: ')
 
         if user_input:
           try:
@@ -164,21 +165,21 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
               self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
               self.redraw(True)
           except ValueError as exc:
-            nyx.popups.show_msg('Invalid flags: %s' % str(exc), 2)
+            nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
 
   def show_snapshot_prompt(self):
     """
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
 
-    path_input = nyx.popups.input_prompt('Path to save log snapshot: ')
+    path_input = nyx.controller.input_prompt('Path to save log snapshot: ')
 
     if path_input:
       try:
         self.save_snapshot(path_input)
-        nyx.popups.show_msg('Saved: %s' % path_input, 2)
+        nyx.controller.show_message('Saved: %s' % path_input, HIGHLIGHT, max_wait = 2)
       except IOError as exc:
-        nyx.popups.show_msg('Unable to save snapshot: %s' % exc, 2)
+        nyx.controller.show_message('Unable to save snapshot: %s' % exc, HIGHLIGHT, max_wait = 2)
 
   def clear(self):
     """
@@ -233,7 +234,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       self.redraw(True)
     elif key.match('c'):
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
-      key_press = nyx.popups.show_msg(msg, attr = BOLD)
+      key_press = nyx.controller.show_message(msg, BOLD, max_wait = 30)
 
       if key_press.match('c'):
         self.clear()

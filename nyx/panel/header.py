@@ -20,7 +20,7 @@ from stem.control import Listener, State
 from stem.util import conf, log, proc, str_tools, system
 from nyx import msg, tor_controller
 
-from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD
+from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
 MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
@@ -49,7 +49,50 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     self._halt = False  # terminates thread if true
     self._reported_inactive = False
 
+    self._message = None
+    self._message_attr = None
+
     tor_controller().add_status_listener(self.reset_listener)
+
+  def show_message(self, message = None, *attr, **kwargs):
+    """
+    Sets the message displayed at the bottom of the header. If not called with
+    anything it clears the override.
+
+    :param str message: message to be displayed
+    :param list attr: text attributes to apply
+    :param int max_wait: seconds to wait for user input, no limit if **None**
+
+    :returns: :class:`~nyx.curses.KeyInput` user pressed if provided a
+      **max_wait**, **None** otherwise or if prompt was canceled
+    """
+
+    self._message = message
+    self._message_attr = attr
+    self.redraw(True)
+
+    if 'max_wait' in kwargs:
+      user_input = nyx.curses.key_input(kwargs['max_wait'])
+      self.show_message()  # clear override
+      return user_input
+
+  def input_prompt(self, message, initial_value = ''):
+    """
+    Prompts the user for input.
+
+    :param str message: prompt for user input
+    :param str initial_value: initial value of the prompt
+
+    :returns: **str** with the user input, this is **None** if the prompt is
+      canceled
+    """
+
+    self.show_message(message)
+    self.redraw(True)
+    user_input = self.getstr(self.get_height() - 1, len(message), initial_value)
+    self.show_message()
+
+    return user_input
 
   def is_wide(self):
     """
@@ -65,9 +108,9 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     """
 
     if self._vals.is_relay:
-      return 4 if self.is_wide() else 6
+      return 5 if self.is_wide() else 7
     else:
-      return 3 if self.is_wide() else 4
+      return 4 if self.is_wide() else 5
 
   def send_newnym(self):
     """
@@ -85,7 +128,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     # indication that the signal was sent. Otherwise use a msg.
 
     if not self.is_wide():
-      nyx.popups.show_msg('Requesting a new identity', 1)
+      self.show_message('Requesting a new identity', HIGHLIGHT, max_wait = 1)
 
   def handle_key(self, key):
     if key.match('n'):
@@ -108,15 +151,15 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         try:
           controller.authenticate()  # TODO: should account for our chroot
         except stem.connection.MissingPassword:
-          password = nyx.popups.input_prompt('Controller Password: ')
+          password = self.input_prompt('Controller Password: ')
 
           if password:
             controller.authenticate(password)
 
         log.notice("Reconnected to Tor's control port")
-        nyx.popups.show_msg('Tor reconnected', 1)
+        self.show_message('Tor reconnected', HIGHLIGHT, max_wait = 1)
       except Exception as exc:
-        nyx.popups.show_msg('Unable to reconnect (%s)' % exc, 3)
+        self.show_message('Unable to reconnect (%s)' % exc, HIGHLIGHT, max_wait = 3)
         controller.close()
     else:
       return False
@@ -155,6 +198,14 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       if vals.is_relay:
         self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
         self._draw_flags(0, 4, left_width, vals)
+
+    if self._message:
+      self.addstr(height - 1, 0, self._message, *self._message_attr)
+    elif not self.is_paused():
+      controller = nyx.controller.get_controller()
+      self.addstr(height - 1, 0, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
+    else:
+      self.addstr(height - 1, 0, 'Paused', HIGHLIGHT)
 
   def _draw_platform_section(self, x, y, width, vals):
     """
