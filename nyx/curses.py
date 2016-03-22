@@ -211,7 +211,7 @@ def key_input(input_timeout = None):
     # Timeout can't be longer than 25.5 seconds...
     # https://docs.python.org/2/library/curses.html?#curses.halfdelay
 
-    curses.halfdelay(min(input_timeout, 25.5) * 10)
+    curses.halfdelay(min(input_timeout * 10, 255))
   else:
     curses.cbreak()  # wait indefinitely for key presses (no timeout)
 
