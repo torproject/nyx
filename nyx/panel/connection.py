@@ -404,6 +404,15 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
 
       self._update()
       self.redraw(True)
+
+      # TODO: The following is needed to show results *but* causes curses to
+      # flicker. For our plans on this see...
+      #
+      #   https://trac.torproject.org/projects/tor/ticket/18547#comment:1
+
+      # if last_ran == -1:
+      #   nyx.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
+
       last_ran = time.time()
 
   def get_help(self):
