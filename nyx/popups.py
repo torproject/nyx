@@ -77,71 +77,58 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
 
 def show_help_popup():
   """
-  Presents a popup with instructions for the current page's hotkeys. This
-  returns the user input used to close the popup. If the popup didn't close
-  properly, this is an arrow, enter, or scroll key then this returns None.
+  Presents a popup with instructions for the current page's hotkeys.
+
+  :returns: :class:`~nyx.curses.KeyInput` that was pressed to close the popup
+    if it's one panels should act upon, **None** otherwise
   """
 
-  with popup_window(9, 80) as (popup, _, height):
-    if popup:
-      exit_key = None
-      control = nyx.controller.get_controller()
-      page_panels = control.get_display_panels()
+  control = nyx.controller.get_controller()
+  sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
+  help_options = []
 
-      # the first page is the only one with multiple panels, and it looks better
-      # with the log entries first, so reversing the order
+  for panel in reversed(control.get_display_panels()):
+    help_options += panel.get_help()
 
-      page_panels.reverse()
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
-      help_options = []
+    for i in range(len(help_options)):
+      if i / 2 >= subwindow.height - 2:
+        break
 
-      for entry in page_panels:
-        help_options += entry.get_help()
+      # Entries are shown in the form '<key>: <description>[ (<selection>)]',
+      # such as...
+      #
+      #   u: duplicate log entries (hidden)
 
-      # test doing afterward in case of overwriting
+      key, description, selection = help_options[i]
 
-      popup.draw_box()
-      popup.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
+      x = 2 if i % 2 == 0 else 41
+      y = (i / 2) + 1
 
-      for i in range(len(help_options)):
-        if i / 2 >= height - 2:
-          break
+      x = subwindow.addstr(x, y, key, BOLD)
+      x = subwindow.addstr(x, y, ': ' + description)
 
-        # draws entries in the form '<key>: <description>[ (<selection>)]', for
-        # instance...
-        # u: duplicate log entries (hidden)
+      if selection:
+        x = subwindow.addstr(x, y, ' (')
+        x = subwindow.addstr(x, y, selection, BOLD)
+        x = subwindow.addstr(x, y, ')')
 
-        key, description, selection = help_options[i]
+    # tells user to press a key if the lower left is unoccupied
 
-        if key:
-          description = ': ' + description
+    if len(help_options) < 13 and subwindow.height == 9:
+      subwindow.addstr(2, 7, 'Press any key...')
 
-        row = (i / 2) + 1
-        col = 2 if i % 2 == 0 else 41
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(_render, top = sticky_height, width = 80, height = 9)
+    keypress = nyx.curses.key_input()
 
-        popup.addstr(row, col, key, BOLD)
-        col += len(key)
-        popup.addstr(row, col, description)
-        col += len(description)
-
-        if selection:
-          popup.addstr(row, col, ' (')
-          popup.addstr(row, col + 2, selection, BOLD)
-          popup.addstr(row, col + 2 + len(selection), ')')
-
-      # tells user to press a key if the lower left is unoccupied
-
-      if len(help_options) < 13 and height == 9:
-        popup.addstr(7, 2, 'Press any key...')
-
-      popup.win.refresh()
-      exit_key = nyx.curses.key_input()
-
-  if not exit_key.is_selection() and not exit_key.is_scroll() and \
-    not exit_key.match('left', 'right'):
-    return exit_key
-  else:
+  if keypress.is_selection() or keypress.is_scroll() or keypress.match('left', 'right'):
     return None
+  else:
+    return keypress
 
 
 def show_about_popup():

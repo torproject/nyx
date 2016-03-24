@@ -20,6 +20,12 @@ if we want Windows support in the future too.
   disable_acs - renders replacements for ACS characters
   is_wide_characters_supported - checks if curses supports wide character
 
+  draw - renders subwindow that can be drawn into
+
+  Subwindow - subwindow that can be drawn within
+    |- addstr - draws a string
+    +- box - draws box with the given dimensions
+
   KeyInput - user keyboard input
     |- match - checks if this matches the given inputs
     |- is_scroll - true if key is used for scrolling
@@ -368,6 +374,120 @@ def is_wide_characters_supported():
     pass
 
   return False
+
+
+def draw(func, left = 0, top = 0, width = None, height = None):
+  """
+  Renders subwindow using the given draw function.
+
+  :param function func: draw function for rendering the subwindow
+  :param int left: left position of the panel
+  :param int top: top position of the panel
+  :param int width: panel width, uses all available space if **None**
+  :param int height: panel height, uses all available space if **None**
+  """
+
+  with CURSES_LOCK:
+    max_height, max_width = CURSES_SCREEN.getmaxyx()
+
+    subwindow_width = max(0, max_width - left)
+    subwindow_height = max(0, max_height - top)
+
+    if width:
+      subwindow_width = min(width, subwindow_width)
+
+    if height:
+      subwindow_height = min(height, subwindow_height)
+
+    curses_subwindow = CURSES_SCREEN.subwin(subwindow_height, subwindow_width, top, left)
+    curses_subwindow.erase()
+    func(Subwindow(subwindow_width, subwindow_height, curses_subwindow))
+    curses_subwindow.refresh()
+
+
+class Subwindow(object):
+  """
+  Subwindow that can be drawn within.
+
+  :var int width: subwindow width
+  :var int height: subwindow height
+  """
+
+  def __init__(self, width, height, curses_subwindow):
+    self.width = width
+    self.height = height
+    self._curses_subwindow = curses_subwindow
+
+  def addstr(self, x, y, msg, *attr):
+    """
+    Draws a string in the subwindow.
+
+    :param int x: horizontal location
+    :param int y, vertical location
+    :param str msg: string to be written
+    :param list attr: text attributes to apply
+    """
+
+    if self.width > x and self.height > y:
+      try:
+        cropped_msg = msg[:self.width - x]
+        self._curses_subwindow.addstr(y, x, cropped_msg, curses_attr(*attr))
+        return x + len(cropped_msg)
+      except:
+        pass
+
+    return x
+
+  def box(self, left = 0, top = 0, width = None, height = None, *attr):
+    """
+    Draws a box with the given bounds.
+
+    :param int left: left position of the box
+    :param int top: top position of the box
+    :param int width: box width, uses all available space if **None**
+    :param int height: box height, uses all available space if **None**
+    :param list attr: text attributes to apply
+    """
+
+    max_width = self.width - left
+    max_height = self.height - top
+
+    width = max_width if width is None else min(width, max_width)
+    height = max_height if height is None else min(height, max_height)
+
+    self._hline(left + 1, top, width - 2, *attr)  # top
+    self._hline(left + 1, top + height - 1, width - 2, *attr)  # bottom
+    self._vline(left, top + 1, height - 2, *attr)  # left
+    self._vline(left + width - 1, top + 1, height - 2, *attr)  # right
+
+    self._addch(left, top, curses.ACS_ULCORNER, *attr)  # upper left corner
+    self._addch(left, top + height - 1, curses.ACS_LLCORNER, *attr)  # lower left corner
+    self._addch(left + width - 1, top, curses.ACS_URCORNER, *attr)  # upper right corner
+    self._addch(left + width - 1, top + height - 1, curses.ACS_LRCORNER, *attr)  # lower right corner
+
+  def _addch(self, x, y, char, *attr):
+    if self.width > x and self.height > y:
+      try:
+        self._curses_subwindow.addch(y, x, char, curses_attr(*attr))
+        return x + 1
+      except:
+        pass
+
+    return x
+
+  def _hline(self, x, y, length, *attr):
+    if self.width > x and self.height > y:
+      try:
+        self._curses_subwindow.hline(y, x, curses.ACS_HLINE | curses_attr(*attr), min(length, self.width - x))
+      except:
+        pass
+
+  def _vline(self, x, y, length, *attr):
+    if self.width > x and self.height > y:
+      try:
+        self._curses_subwindow.vline(y, x, curses.ACS_VLINE | curses_attr(*attr), min(length, self.height - y))
+      except:
+        pass
 
 
 class KeyInput(object):
