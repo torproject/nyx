@@ -378,7 +378,8 @@ def is_wide_characters_supported():
 
 def draw(func, left = 0, top = 0, width = None, height = None):
   """
-  Renders subwindow using the given draw function.
+  Renders a subwindow. This calls the given draw function with a
+  :class:`~nyx.curses._Subwindow`.
 
   :param function func: draw function for rendering the subwindow
   :param int left: left position of the panel
@@ -401,11 +402,11 @@ def draw(func, left = 0, top = 0, width = None, height = None):
 
     curses_subwindow = CURSES_SCREEN.subwin(subwindow_height, subwindow_width, top, left)
     curses_subwindow.erase()
-    func(Subwindow(subwindow_width, subwindow_height, curses_subwindow))
+    func(_Subwindow(subwindow_width, subwindow_height, curses_subwindow))
     curses_subwindow.refresh()
 
 
-class Subwindow(object):
+class _Subwindow(object):
   """
   Subwindow that can be drawn within.
 
