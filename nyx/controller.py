@@ -59,13 +59,11 @@ def get_controller():
 
 
 def show_message(message = None, *attr, **kwargs):
-  header_panel = get_controller().get_panel('header')
-  return header_panel.show_message(message, *attr, **kwargs)
+  return get_controller().header_panel().show_message(message, *attr, **kwargs)
 
 
 def input_prompt(msg, initial_value = ''):
-  header_panel = get_controller().get_panel('header')
-  return header_panel.input_prompt(msg, initial_value)
+  return get_controller().header_panel().input_prompt(msg, initial_value)
 
 
 class Controller(object):
@@ -79,7 +77,7 @@ class Controller(object):
     top to bottom on the page.
     """
 
-    self._sticky_panels = [nyx.panel.header.HeaderPanel()]
+    self._header_panel = nyx.panel.header.HeaderPanel()
 
     self._page_panels, first_page_panels = [], []
 
@@ -136,7 +134,7 @@ class Controller(object):
     if page_number != self._page:
       self._page = page_number
       self._force_redraw = True
-      self.get_panel('header').redraw(True)
+      self.header_panel().redraw(True)
 
   def next_page(self):
     """
@@ -167,34 +165,15 @@ class Controller(object):
     if is_pause != self._is_paused:
       self._is_paused = is_pause
       self._force_redraw = True
-      self.get_panel('header').redraw(True)
+      self.header_panel().redraw(True)
 
       for panel_impl in self.get_all_panels():
         panel_impl.set_paused(is_pause)
 
-  def get_panel(self, name):
-    """
-    Provides the panel with the given identifier. This returns None if no such
-    panel exists.
+  def header_panel(self):
+    return self._header_panel
 
-    Arguments:
-      name - name of the panel to be fetched
-    """
-
-    for panel_impl in self.get_all_panels():
-      if panel_impl.get_name() == name:
-        return panel_impl
-
-    return None
-
-  def get_sticky_panels(self):
-    """
-    Provides the panels visibile at the top of every page.
-    """
-
-    return list(self._sticky_panels)
-
-  def get_display_panels(self, page_number = None, include_sticky = True):
+  def get_display_panels(self, page_number = None):
     """
     Provides all panels belonging to a page and sticky content above it. This
     is ordered they way they are presented (top to bottom) on the page.
@@ -202,18 +181,10 @@ class Controller(object):
     Arguments:
       page_number    - page number of the panels to be returned, the current
                       page if None
-      include_sticky - includes sticky panels in the results if true
     """
 
     return_page = self._page if page_number is None else page_number
-
-    if self._page_panels:
-      if include_sticky:
-        return self._sticky_panels + self._page_panels[return_page]
-      else:
-        return list(self._page_panels[return_page])
-    else:
-      return self._sticky_panels if include_sticky else []
+    return list(self._page_panels[return_page]) if self._page_panels else []
 
   def get_daemon_panels(self):
     """
@@ -233,7 +204,7 @@ class Controller(object):
     Provides all panels in the interface.
     """
 
-    all_panels = list(self._sticky_panels)
+    all_panels = [self._header_panel]
 
     for page in self._page_panels:
       all_panels += list(page)
@@ -258,7 +229,7 @@ class Controller(object):
       if self._last_drawn + CONFIG['features.refreshRate'] <= current_time:
         force = True
 
-    display_panels = self.get_display_panels()
+    display_panels = [self.header_panel()] + self.get_display_panels()
 
     occupied_content = 0
 
@@ -333,7 +304,7 @@ def start_nyx():
   override_key = None      # uses this rather than waiting on user input
 
   while not control.quit_signal:
-    display_panels = control.get_display_panels()
+    display_panels = [control.header_panel()] + control.get_display_panels()
 
     # sets panel visability
 

@@ -50,7 +50,7 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
       control = nyx.controller.get_controller()
 
       if below_static:
-        sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
+        sticky_height = control.header_panel().get_height()
       else:
         sticky_height = 0
 
@@ -84,7 +84,6 @@ def show_help_popup():
   """
 
   control = nyx.controller.get_controller()
-  sticky_height = sum([sticky_panel.get_height() for sticky_panel in control.get_sticky_panels()])
   help_options = []
 
   for panel in reversed(control.get_display_panels()):
@@ -122,7 +121,7 @@ def show_help_popup():
       subwindow.addstr(2, 7, 'Press any key...')
 
   with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = sticky_height, width = 80, height = 9)
+    nyx.curses.draw(_render, top = control.header_panel().get_height(), width = 80, height = 9)
     keypress = nyx.curses.key_input()
 
   if keypress.is_selection() or keypress.is_scroll() or keypress.match('left', 'right'):

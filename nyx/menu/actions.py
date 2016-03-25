@@ -33,7 +33,7 @@ def make_menu():
 
   control = nyx.controller.get_controller()
 
-  for page_panel in control.get_display_panels(include_sticky = False):
+  for page_panel in control.get_display_panels():
     if page_panel.get_name() == 'graph':
       base_menu.add(make_graph_menu(page_panel))
     elif page_panel.get_name() == 'log':
@@ -62,7 +62,7 @@ def make_actions_menu():
 
   control = nyx.controller.get_controller()
   controller = tor_controller()
-  header_panel = control.get_panel('header')
+  header_panel = control.header_panel()
   actions_menu = nyx.menu.item.Submenu('Actions')
   actions_menu.add(nyx.menu.item.MenuItem('Close Menu', None))
   actions_menu.add(nyx.menu.item.MenuItem('New Identity', header_panel.send_newnym))
@@ -95,7 +95,7 @@ def make_view_menu():
     page_group = nyx.menu.item.SelectionGroup(control.set_page, control.get_page())
 
     for i in range(control.get_page_count()):
-      page_panels = control.get_display_panels(page_number = i, include_sticky = False)
+      page_panels = control.get_display_panels(page_number = i)
       label = ' / '.join([str_tools._to_camel_case(panel.get_name()) for panel in page_panels])
 
       view_menu.add(nyx.menu.item.SelectionMenuItem(label, page_group, i))
