@@ -97,15 +97,15 @@ class TorrcPanel(panel.Panel):
     return True
 
   def get_help(self):
-    return [
-      ('up arrow', 'scroll up a line', None),
-      ('down arrow', 'scroll down a line', None),
-      ('page up', 'scroll up a page', None),
-      ('page down', 'scroll down a page', None),
-      ('s', 'comment stripping', 'off' if self._show_comments else 'on'),
-      ('l', 'line numbering', 'on' if self._show_line_numbers else 'off'),
-      ('x', 'reset tor (issue sighup)', None),
-    ]
+    return (
+      nyx.panel.Help('up arrow', 'scroll up a line'),
+      nyx.panel.Help('down arrow', 'scroll down a line'),
+      nyx.panel.Help('page up', 'scroll up a page'),
+      nyx.panel.Help('page down', 'scroll down a page'),
+      nyx.panel.Help('s', 'comment stripping', 'off' if self._show_comments else 'on'),
+      nyx.panel.Help('l', 'line numbering', 'on' if self._show_line_numbers else 'off'),
+      nyx.panel.Help('x', 'reset tor (issue sighup)'),
+    )
 
   def draw(self, width, height):
     scroll = self._scroller.location(self._last_content_height, height)

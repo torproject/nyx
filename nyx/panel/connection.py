@@ -420,23 +420,23 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
     options = [
-      ('up arrow', 'scroll up a line', None),
-      ('down arrow', 'scroll down a line', None),
-      ('page up', 'scroll up a page', None),
-      ('page down', 'scroll down a page', None),
-      ('enter', 'show connection details', None),
-      ('d', 'raw consensus descriptor', None),
-      ('s', 'sort ordering', None),
-      ('r', 'connection resolver', 'auto' if resolver is None else resolver),
+      nyx.panel.Help('up arrow', 'scroll up a line'),
+      nyx.panel.Help('down arrow', 'scroll down a line'),
+      nyx.panel.Help('page up', 'scroll up a page'),
+      nyx.panel.Help('page down', 'scroll down a page'),
+      nyx.panel.Help('enter', 'show connection details'),
+      nyx.panel.Help('d', 'raw consensus descriptor'),
+      nyx.panel.Help('s', 'sort ordering'),
+      nyx.panel.Help('r', 'connection resolver', 'auto' if resolver is None else resolver),
     ]
 
     if user_traffic_allowed.inbound:
-      options.append(('c', 'client locale usage summary', None))
+      options.append(nyx.panel.Help('c', 'client locale usage summary'))
 
     if user_traffic_allowed.outbound:
-      options.append(('e', 'exit port usage summary', None))
+      options.append(nyx.panel.Help('e', 'exit port usage summary'))
 
-    return options
+    return tuple(options)
 
   def draw(self, width, height):
     controller = tor_controller()

@@ -538,12 +538,12 @@ class GraphPanel(nyx.panel.Panel):
     return True
 
   def get_help(self):
-    return [
-      ('r', 'resize graph', None),
-      ('s', 'graphed stats', self.displayed_stat if self.displayed_stat else 'none'),
-      ('b', 'graph bounds', self.bounds_type.replace('_', ' ')),
-      ('i', 'graph update interval', self.update_interval),
-    ]
+    return (
+      nyx.panel.Help('r', 'resize graph'),
+      nyx.panel.Help('s', 'graphed stats', self.displayed_stat if self.displayed_stat else 'none'),
+      nyx.panel.Help('b', 'graph bounds', self.bounds_type.replace('_', ' ')),
+      nyx.panel.Help('i', 'graph update interval', self.update_interval),
+    )
 
   def set_paused(self, is_pause):
     if is_pause:

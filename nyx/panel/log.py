@@ -261,15 +261,15 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     return True
 
   def get_help(self):
-    return [
-      ('up arrow', 'scroll log up a line', None),
-      ('down arrow', 'scroll log down a line', None),
-      ('a', 'save snapshot of the log', None),
-      ('e', 'change logged events', None),
-      ('f', 'log regex filter', 'enabled' if self._filter.selection() else 'disabled'),
-      ('u', 'duplicate log entries', 'visible' if self._show_duplicates else 'hidden'),
-      ('c', 'clear event log', None),
-    ]
+    return (
+      nyx.panel.Help('up arrow', 'scroll log up a line'),
+      nyx.panel.Help('down arrow', 'scroll log down a line'),
+      nyx.panel.Help('a', 'save snapshot of the log'),
+      nyx.panel.Help('e', 'change logged events'),
+      nyx.panel.Help('f', 'log regex filter', 'enabled' if self._filter.selection() else 'disabled'),
+      nyx.panel.Help('u', 'duplicate log entries', 'visible' if self._show_duplicates else 'hidden'),
+      nyx.panel.Help('c', 'clear event log'),
+    )
 
   def set_paused(self, is_pause):
     if is_pause:

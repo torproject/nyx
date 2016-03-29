@@ -93,7 +93,7 @@ def show_help_popup():
     subwindow.box()
     subwindow.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
-    for i in range(len(help_options)):
+    for i, option in enumerate(help_options):
       if i / 2 >= subwindow.height - 2:
         break
 
@@ -102,17 +102,15 @@ def show_help_popup():
       #
       #   u: duplicate log entries (hidden)
 
-      key, description, selection = help_options[i]
-
       x = 2 if i % 2 == 0 else 41
       y = (i / 2) + 1
 
-      x = subwindow.addstr(x, y, key, BOLD)
-      x = subwindow.addstr(x, y, ': ' + description)
+      x = subwindow.addstr(x, y, option.key, BOLD)
+      x = subwindow.addstr(x, y, ': ' + option.description)
 
-      if selection:
+      if option.current:
         x = subwindow.addstr(x, y, ' (')
-        x = subwindow.addstr(x, y, selection, BOLD)
+        x = subwindow.addstr(x, y, option.current, BOLD)
         x = subwindow.addstr(x, y, ')')
 
     # tells user to press a key if the lower left is unoccupied

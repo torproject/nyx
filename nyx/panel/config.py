@@ -274,16 +274,16 @@ class ConfigPanel(nyx.panel.Panel):
     return True
 
   def get_help(self):
-    return [
-      ('up arrow', 'scroll up a line', None),
-      ('down arrow', 'scroll down a line', None),
-      ('page up', 'scroll up a page', None),
-      ('page down', 'scroll down a page', None),
-      ('enter', 'edit configuration option', None),
-      ('w', 'write torrc', None),
-      ('a', 'toggle filtering', None),
-      ('s', 'sort ordering', None),
-    ]
+    return (
+      nyx.panel.Help('up arrow', 'scroll up a line'),
+      nyx.panel.Help('down arrow', 'scroll down a line'),
+      nyx.panel.Help('page up', 'scroll up a page'),
+      nyx.panel.Help('page down', 'scroll down a page'),
+      nyx.panel.Help('enter', 'edit configuration option'),
+      nyx.panel.Help('w', 'write torrc'),
+      nyx.panel.Help('a', 'toggle filtering'),
+      nyx.panel.Help('s', 'sort ordering'),
+    )
 
   def draw(self, width, height):
     contents = self._get_config_options()

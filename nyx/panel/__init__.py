@@ -2,6 +2,7 @@
 Panels consisting the nyx interface.
 """
 
+import collections
 import time
 import curses
 import curses.ascii
@@ -33,8 +34,20 @@ CONFIG = conf.config_dict('nyx', {
   'features.maxLineWrap': 8,
 }, conf_handler)
 
-# prevents curses redraws if set
-HALT_ACTIVITY = False
+HALT_ACTIVITY = False  # prevents curses redraws if set
+
+
+class Help(collections.namedtuple('Help', ['key', 'description', 'current'])):
+  """
+  Help information about keybindings the panel handles.
+
+  :var str key: key the user can press
+  :var str description: description of what it does
+  :var str current: optional current value
+  """
+
+  def __new__(self, key, description, current = None):
+    return super(Help, self).__new__(self, key, description, current)
 
 
 class BasicValidator(object):
@@ -273,11 +286,10 @@ class Panel(object):
   def get_help(self):
     """
     Provides help information for the controls this page provides. This is a
-    list of tuples of the form...
-    (control, description, status)
+    tuple of :class:`~nyx.panel.Help` instances.
     """
 
-    return []
+    return ()
 
   def draw(self, width, height):
     """
