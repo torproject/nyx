@@ -130,10 +130,11 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     if not self.is_wide():
       self.show_message('Requesting a new identity', HIGHLIGHT, max_wait = 1)
 
-  def handle_key(self, key):
-    if key.match('n'):
-      self.send_newnym()
-    elif key.match('r') and not self._vals.is_connected:
+  def key_handlers(self):
+    def _reconnect():
+      if self._vals.is_connected:
+        return
+
       # TODO: This is borked. Not quite sure why but our attempt to call
       # PROTOCOLINFO fails with a socket error, followed by completely freezing
       # nyx. This is exposing two bugs...
@@ -141,7 +142,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       # * This should be working. That's a stem issue.
       # * Our interface shouldn't be locking up. That's an nyx issue.
 
-      return True
+      return
 
       controller = tor_controller()
 
@@ -161,10 +162,11 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       except Exception as exc:
         self.show_message('Unable to reconnect (%s)' % exc, HIGHLIGHT, max_wait = 3)
         controller.close()
-    else:
-      return False
 
-    return True
+    return (
+      nyx.panel.KeyHandler('n', action = self.send_newnym),
+      nyx.panel.KeyHandler('r', action = _reconnect),
+    )
 
   def draw(self, width, height):
     vals = self._vals  # local reference to avoid concurrency concerns

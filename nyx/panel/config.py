@@ -233,14 +233,15 @@ class ConfigPanel(nyx.panel.Panel):
 
     self.redraw(True)
 
-  def handle_key(self, key):
-    if key.is_scroll():
+  def key_handlers(self):
+    def _scroll(key):
       page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT
       is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
       if is_changed:
         self.redraw(True)
-    elif key.is_selection():
+
+    def _edit_selected_value():
       selected = self._scroller.selection(self._get_config_options())
       initial_value = selected.value() if selected.is_set() else ''
       new_value = nyx.controller.input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
@@ -261,28 +262,17 @@ class ConfigPanel(nyx.panel.Panel):
           self.redraw(True)
         except Exception as exc:
           nyx.controller.show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
-    elif key.match('a'):
+
+    def _toggle_show_all():
       self._show_all = not self._show_all
       self.redraw(True)
-    elif key.match('s'):
-      self.show_sort_dialog()
-    elif key.match('w'):
-      self.show_write_dialog()
-    else:
-      return False
 
-    return True
-
-  def get_help(self):
     return (
-      nyx.panel.Help('up arrow', 'scroll up a line'),
-      nyx.panel.Help('down arrow', 'scroll down a line'),
-      nyx.panel.Help('page up', 'scroll up a page'),
-      nyx.panel.Help('page down', 'scroll down a page'),
-      nyx.panel.Help('enter', 'edit configuration option'),
-      nyx.panel.Help('w', 'write torrc'),
-      nyx.panel.Help('a', 'toggle filtering'),
-      nyx.panel.Help('s', 'sort ordering'),
+      nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
+      nyx.panel.KeyHandler('enter', 'edit configuration option', _edit_selected_value, key_func = lambda key: key.is_selection()),
+      nyx.panel.KeyHandler('w', 'write torrc', self.show_write_dialog),
+      nyx.panel.KeyHandler('a', 'toggle filtering', _toggle_show_all),
+      nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
     )
 
   def draw(self, width, height):

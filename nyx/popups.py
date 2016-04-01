@@ -87,7 +87,7 @@ def show_help_popup():
   help_options = []
 
   for panel in reversed(control.get_display_panels()):
-    help_options += panel.get_help()
+    help_options += [handler for handler in panel.key_handlers() if handler.description]
 
   def _render(subwindow):
     subwindow.box()

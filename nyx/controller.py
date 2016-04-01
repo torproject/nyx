@@ -363,7 +363,5 @@ def start_nyx():
       control.redraw(True)
     else:
       for panel_impl in display_panels:
-        is_keystroke_consumed = panel_impl.handle_key(key)
-
-        if is_keystroke_consumed:
-          break
+        for keybinding in panel_impl.key_handlers():
+          keybinding.handle(key)

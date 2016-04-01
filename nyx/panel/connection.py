@@ -314,79 +314,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
       self._sort_order = results
       self._entries = sorted(self._entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
 
-  def handle_key(self, key):
-    user_traffic_allowed = tor_controller().is_user_traffic_allowed()
-
-    if key.is_scroll():
-      page_height = self.get_preferred_size()[0] - 1
-
-      if self._show_details:
-        page_height -= (DETAILS_HEIGHT + 1)
-
-      lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
-      is_changed = self._scroller.handle_key(key, lines, page_height)
-
-      if is_changed:
-        self.redraw(True)
-    elif key.is_selection():
-      self._show_details = not self._show_details
-      self.redraw(True)
-    elif key.match('s'):
-      self.show_sort_dialog()
-    elif key.match('r'):
-      connection_tracker = nyx.tracker.get_connection_tracker()
-      options = ['auto'] + list(connection.Resolver) + list(nyx.tracker.CustomResolver)
-
-      resolver = connection_tracker.get_custom_resolver()
-      selected_index = 0 if resolver is None else options.index(resolver)
-      selected = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
-
-      if selected != -1:
-        connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
-    elif key.match('d'):
-      entries = self._entries
-
-      while True:
-        lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
-        selected = self._scroller.selection(lines)
-
-        if not selected:
-          break
-
-        def is_close_key(key):
-          return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
-
-        color = CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE)
-        key = nyx.popups.show_descriptor_popup(selected.fingerprint, color, self.max_x, is_close_key)
-
-        if not key or key.is_selection() or key.match('d'):
-          break  # closes popup
-        elif key.match('left'):
-          self.handle_key(nyx.curses.KeyInput(curses.KEY_UP))
-        elif key.match('right'):
-          self.handle_key(nyx.curses.KeyInput(curses.KEY_DOWN))
-
-      self.redraw(True)
-    elif key.match('c') and user_traffic_allowed.inbound:
-      nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
-    elif key.match('e') and user_traffic_allowed.outbound:
-      counts = {}
-      key_width = max(map(len, self._exit_port_usage.keys()))
-
-      for k, v in self._exit_port_usage.items():
-        usage = connection.port_usage(k)
-
-        if usage:
-          k = k.ljust(key_width + 3) + usage.ljust(EXIT_USAGE_WIDTH)
-
-        counts[k] = v
-
-      nyx.popups.show_count_dialog('Exiting Port Usage', counts)
-    else:
-      return False
-
-    return True
-
   def run(self):
     """
     Keeps connections listing updated, checking for new entries at a set rate.
@@ -415,26 +342,92 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
 
       last_ran = time.time()
 
-  def get_help(self):
+  def key_handlers(self):
+    def _scroll(key):
+      page_height = self.get_preferred_size()[0] - 1
+
+      if self._show_details:
+        page_height -= (DETAILS_HEIGHT + 1)
+
+      lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in self._entries]))
+      is_changed = self._scroller.handle_key(key, lines, page_height)
+
+      if is_changed:
+        self.redraw(True)
+
+    def _show_details():
+      self._show_details = not self._show_details
+      self.redraw(True)
+
+    def _show_descriptor():
+      entries = self._entries
+
+      while True:
+        lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
+        selected = self._scroller.selection(lines)
+
+        if not selected:
+          break
+
+        def is_close_key(key):
+          return key.is_selection() or key.match('d') or key.match('left') or key.match('right')
+
+        color = CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE)
+        key = nyx.popups.show_descriptor_popup(selected.fingerprint, color, self.max_x, is_close_key)
+
+        if not key or key.is_selection() or key.match('d'):
+          break  # closes popup
+        elif key.match('left'):
+          self.handle_key(nyx.curses.KeyInput(curses.KEY_UP))
+        elif key.match('right'):
+          self.handle_key(nyx.curses.KeyInput(curses.KEY_DOWN))
+
+      self.redraw(True)
+
+    def _pick_connection_resolver():
+      connection_tracker = nyx.tracker.get_connection_tracker()
+      options = ['auto'] + list(connection.Resolver) + list(nyx.tracker.CustomResolver)
+
+      resolver = connection_tracker.get_custom_resolver()
+      selected_index = 0 if resolver is None else options.index(resolver)
+      selected = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
+
+      if selected != -1:
+        connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
+
+    def _show_client_locales():
+      nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
+
+    def _show_exiting_port_usage():
+      counts = {}
+      key_width = max(map(len, self._exit_port_usage.keys()))
+
+      for k, v in self._exit_port_usage.items():
+        usage = connection.port_usage(k)
+
+        if usage:
+          k = k.ljust(key_width + 3) + usage.ljust(EXIT_USAGE_WIDTH)
+
+        counts[k] = v
+
+      nyx.popups.show_count_dialog('Exiting Port Usage', counts)
+
     resolver = nyx.tracker.get_connection_tracker().get_custom_resolver()
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()
 
     options = [
-      nyx.panel.Help('up arrow', 'scroll up a line'),
-      nyx.panel.Help('down arrow', 'scroll down a line'),
-      nyx.panel.Help('page up', 'scroll up a page'),
-      nyx.panel.Help('page down', 'scroll down a page'),
-      nyx.panel.Help('enter', 'show connection details'),
-      nyx.panel.Help('d', 'raw consensus descriptor'),
-      nyx.panel.Help('s', 'sort ordering'),
-      nyx.panel.Help('r', 'connection resolver', 'auto' if resolver is None else resolver),
+      nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
+      nyx.panel.KeyHandler('enter', 'show connection details', _show_details, key_func = lambda key: key.is_selection()),
+      nyx.panel.KeyHandler('d', 'raw consensus descriptor', _show_descriptor),
+      nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
+      nyx.panel.KeyHandler('r', 'connection resolver', _pick_connection_resolver, 'auto' if resolver is None else resolver),
     ]
 
     if user_traffic_allowed.inbound:
-      options.append(nyx.panel.Help('c', 'client locale usage summary'))
+      options.append(nyx.panel.KeyHandler('c', 'client locale usage summary', _show_client_locales))
 
     if user_traffic_allowed.outbound:
-      options.append(nyx.panel.Help('e', 'exit port usage summary'))
+      options.append(nyx.panel.KeyHandler('e', 'exit port usage summary', _show_exiting_port_usage))
 
     return tuple(options)
 

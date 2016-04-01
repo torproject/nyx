@@ -3,6 +3,7 @@ Panels consisting the nyx interface.
 """
 
 import collections
+import inspect
 import time
 import curses
 import curses.ascii
@@ -19,6 +20,7 @@ PASS = -1
 __all__ = [
   'config',
   'connection',
+  'graph',
   'header',
   'log',
   'torrc',
@@ -37,17 +39,43 @@ CONFIG = conf.config_dict('nyx', {
 HALT_ACTIVITY = False  # prevents curses redraws if set
 
 
-class Help(collections.namedtuple('Help', ['key', 'description', 'current'])):
+class KeyHandler(collections.namedtuple('Help', ['key', 'description', 'current'])):
   """
-  Help information about keybindings the panel handles.
+  Action that can be taken via a given keybinding.
 
   :var str key: key the user can press
   :var str description: description of what it does
   :var str current: optional current value
+
+  :param str key: key the user can press
+  :param str description: description of what it does
+  :param func action: action to be taken, this can optionally take a single
+    argument which is the keypress
+  :param str current: current value to be displayed
+  :param func key_func: custom function to determine if this key was pressed
   """
 
-  def __new__(self, key, description, current = None):
-    return super(Help, self).__new__(self, key, description, current)
+  def __new__(self, key, description = None, action = None, current = None, key_func = None):
+    instance = super(KeyHandler, self).__new__(self, key, description, current)
+    instance._action = action
+    instance._key_func = key_func
+    return instance
+
+  def handle(self, key):
+    """
+    Triggers action if our key was pressed.
+
+    :param nyx.curses.KeyInput key: keypress to be matched against
+    """
+
+    if self._action:
+      is_match = self._key_func(key) if self._key_func else key.match(self.key)
+
+      if is_match:
+        if inspect.getargspec(self._action).args == ['key']:
+          self._action(key)
+        else:
+          self._action()
 
 
 class BasicValidator(object):
@@ -272,21 +300,10 @@ class Panel(object):
 
     return (new_height, new_width)
 
-  def handle_key(self, key):
+  def key_handlers(self):
     """
-    Handler for user input. This returns true if the key press was consumed,
-    false otherwise.
-
-    Arguments:
-      key - keycode for the key pressed
-    """
-
-    return False
-
-  def get_help(self):
-    """
-    Provides help information for the controls this page provides. This is a
-    tuple of :class:`~nyx.panel.Help` instances.
+    Provides options this panel supports. This is a tuple of
+    :class:`~nyx.panel.KeyHandler` instances.
     """
 
     return ()

@@ -501,14 +501,8 @@ class GraphPanel(nyx.panel.Panel):
       finally:
         nyx.controller.show_message()
 
-  def handle_key(self, key):
-    if key.match('r'):
-      self.resize_graph()
-    elif key.match('b'):
-      # uses the next boundary type
-      self.bounds_type = Bounds.next(self.bounds_type)
-      self.redraw(True)
-    elif key.match('s'):
+  def key_handlers(self):
+    def _pick_stats():
       # provides a menu to pick the graphed stats
 
       available_stats = sorted(self.stat_options())
@@ -523,26 +517,24 @@ class GraphPanel(nyx.panel.Panel):
         self.displayed_stat = None
       elif selection != -1:
         self.displayed_stat = available_stats[selection - 1]
-    elif key.match('i'):
-      # provides menu to pick graph panel update interval
 
+    def _next_bounds():
+      self.bounds_type = Bounds.next(self.bounds_type)
+      self.redraw(True)
+
+    def _pick_interval():
       selection = nyx.popups.show_menu('Update Interval:', list(Interval), list(Interval).index(self.update_interval))
 
       if selection != -1:
         self.update_interval = list(Interval)[selection]
 
       self.redraw(True)
-    else:
-      return False
 
-    return True
-
-  def get_help(self):
     return (
-      nyx.panel.Help('r', 'resize graph'),
-      nyx.panel.Help('s', 'graphed stats', self.displayed_stat if self.displayed_stat else 'none'),
-      nyx.panel.Help('b', 'graph bounds', self.bounds_type.replace('_', ' ')),
-      nyx.panel.Help('i', 'graph update interval', self.update_interval),
+      nyx.panel.KeyHandler('r', 'resize graph', self.resize_graph),
+      nyx.panel.KeyHandler('s', 'graphed stats', _pick_stats, self.displayed_stat if self.displayed_stat else 'none'),
+      nyx.panel.KeyHandler('b', 'graph bounds', _next_bounds, self.bounds_type.replace('_', ' ')),
+      nyx.panel.KeyHandler('i', 'graph update interval', _pick_interval, self.update_interval),
     )
 
   def set_paused(self, is_pause):

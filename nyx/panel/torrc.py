@@ -80,31 +80,24 @@ class TorrcPanel(panel.Panel):
     self._show_line_numbers = is_visible
     self.redraw(True)
 
-  def handle_key(self, key):
-    if key.is_scroll():
+  def key_handlers(self):
+    def _scroll(key):
       page_height = self.get_preferred_size()[0] - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
         self.redraw(True)
-    elif key.match('l'):
-      self.set_line_number_visible(not self._show_line_numbers)
-    elif key.match('s'):
+
+    def _toggle_comment_stripping():
       self.set_comments_visible(not self._show_comments)
-    else:
-      return False
 
-    return True
+    def _toggle_line_numbers():
+      self.set_line_number_visible(not self._show_line_numbers)
 
-  def get_help(self):
     return (
-      nyx.panel.Help('up arrow', 'scroll up a line'),
-      nyx.panel.Help('down arrow', 'scroll down a line'),
-      nyx.panel.Help('page up', 'scroll up a page'),
-      nyx.panel.Help('page down', 'scroll down a page'),
-      nyx.panel.Help('s', 'comment stripping', 'off' if self._show_comments else 'on'),
-      nyx.panel.Help('l', 'line numbering', 'on' if self._show_line_numbers else 'off'),
-      nyx.panel.Help('x', 'reset tor (issue sighup)'),
+      nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
+      nyx.panel.KeyHandler('s', 'comment stripping', _toggle_comment_stripping, 'off' if self._show_comments else 'on'),
+      nyx.panel.KeyHandler('l', 'line numbering', _toggle_line_numbers, 'on' if self._show_line_numbers else 'off'),
     )
 
   def draw(self, width, height):

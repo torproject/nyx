@@ -222,23 +222,15 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       except Exception as exc:
         raise IOError("unable to write to '%s': %s" % (path, exc))
 
-  def handle_key(self, key):
-    if key.is_scroll():
+  def key_handlers(self):
+    def _scroll(key):
       page_height = self.get_preferred_size()[0] - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
         self.redraw(True)
-    elif key.match('u'):
-      self.set_duplicate_visability(not self._show_duplicates)
-      self.redraw(True)
-    elif key.match('c'):
-      msg = 'This will clear the log. Are you sure (c again to confirm)?'
-      key_press = nyx.controller.show_message(msg, BOLD, max_wait = 30)
 
-      if key_press.match('c'):
-        self.clear()
-    elif key.match('f'):
+    def _pick_filter():
       with nyx.curses.CURSES_LOCK:
         initial_selection = 1 if self._filter.selection() else 0
         options = ['None'] + self._filter.latest_selections() + ['New...']
@@ -251,24 +243,25 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
           self.show_filter_prompt()
         elif selection != -1:
           self._filter.select(self._filter.latest_selections()[selection - 1])
-    elif key.match('e'):
-      self.show_event_selection_prompt()
-    elif key.match('a'):
-      self.show_snapshot_prompt()
-    else:
-      return False
 
-    return True
+    def _toggle_deduplication():
+      self.set_duplicate_visability(not self._show_duplicates)
+      self.redraw(True)
 
-  def get_help(self):
+    def _clear_log():
+      msg = 'This will clear the log. Are you sure (c again to confirm)?'
+      key_press = nyx.controller.show_message(msg, BOLD, max_wait = 30)
+
+      if key_press.match('c'):
+        self.clear()
+
     return (
-      nyx.panel.Help('up arrow', 'scroll log up a line'),
-      nyx.panel.Help('down arrow', 'scroll log down a line'),
-      nyx.panel.Help('a', 'save snapshot of the log'),
-      nyx.panel.Help('e', 'change logged events'),
-      nyx.panel.Help('f', 'log regex filter', 'enabled' if self._filter.selection() else 'disabled'),
-      nyx.panel.Help('u', 'duplicate log entries', 'visible' if self._show_duplicates else 'hidden'),
-      nyx.panel.Help('c', 'clear event log'),
+      nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
+      nyx.panel.KeyHandler('a', 'save snapshot of the log', self.show_snapshot_prompt),
+      nyx.panel.KeyHandler('e', 'change logged events', self.show_event_selection_prompt),
+      nyx.panel.KeyHandler('f', 'log regex filter', _pick_filter, 'enabled' if self._filter.selection() else 'disabled'),
+      nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self._show_duplicates else 'hidden'),
+      nyx.panel.KeyHandler('c', 'clear event log', _clear_log),
     )
 
   def set_paused(self, is_pause):
