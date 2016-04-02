@@ -125,8 +125,8 @@ def make_help_menu():
   """
 
   help_menu = nyx.menu.item.Submenu('Help')
-  help_menu.add(nyx.menu.item.MenuItem('Hotkeys', nyx.popups.show_help_popup))
-  help_menu.add(nyx.menu.item.MenuItem('About', nyx.popups.show_about_popup))
+  help_menu.add(nyx.menu.item.MenuItem('Hotkeys', nyx.popups.show_help))
+  help_menu.add(nyx.menu.item.MenuItem('About', nyx.popups.show_about))
   return help_menu
 
 

@@ -8,11 +8,11 @@ Functions for displaying popups in the interface.
 import math
 import operator
 
+import nyx
 import nyx.controller
 import nyx.curses
 import nyx.panel
 
-from nyx import __version__, __release_date__, tor_controller
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
@@ -78,25 +78,25 @@ def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True
   return _Popup()
 
 
-def show_help_popup():
+def show_help():
   """
-  Presents a popup with instructions for the current page's hotkeys.
+  Presents a popup with the current page's hotkeys.
 
   :returns: :class:`~nyx.curses.KeyInput` that was pressed to close the popup
     if it's one panels should act upon, **None** otherwise
   """
 
   control = nyx.controller.get_controller()
-  help_options = []
+  handlers = []
 
   for panel in reversed(control.get_display_panels()):
-    help_options += [handler for handler in panel.key_handlers() if handler.description]
+    handlers += [handler for handler in panel.key_handlers() if handler.description]
 
   def _render(subwindow):
     subwindow.box()
     subwindow.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
-    for i, option in enumerate(help_options):
+    for i, option in enumerate(handlers):
       if i / 2 >= subwindow.height - 2:
         break
 
@@ -118,7 +118,7 @@ def show_help_popup():
 
     # tells user to press a key if the lower left is unoccupied
 
-    if len(help_options) < 13 and subwindow.height == 9:
+    if len(handlers) < 13 and subwindow.height == 9:
       subwindow.addstr(2, 7, 'Press any key...')
 
   with nyx.curses.CURSES_LOCK:
@@ -131,23 +131,23 @@ def show_help_popup():
     return keypress
 
 
-def show_about_popup():
+def show_about():
   """
   Presents a popup with author and version information.
   """
 
-  with popup_window(9, 80) as (popup, _, height):
-    if popup:
-      popup.draw_box()
-      popup.addstr(0, 0, 'About:', HIGHLIGHT)
-      popup.addstr(1, 2, 'nyx, version %s (released %s)' % (__version__, __release_date__), BOLD)
-      popup.addstr(2, 4, 'Written by Damian Johnson (atagar@torproject.org)')
-      popup.addstr(3, 4, 'Project page: www.atagar.com/nyx')
-      popup.addstr(5, 2, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
-      popup.addstr(7, 2, 'Press any key...')
-      popup.win.refresh()
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, 'About:', HIGHLIGHT)
+    subwindow.addstr(2, 1, 'Nyx, version %s (released %s)' % (nyx.__version__, nyx.__release_date__), BOLD)
+    subwindow.addstr(4, 2, 'Written by Damian Johnson (atagar@torproject.org)')
+    subwindow.addstr(4, 3, 'Project page: %s' % nyx.__url__)
+    subwindow.addstr(2, 5, 'Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)')
+    subwindow.addstr(2, 7, 'Press any key...')
 
-      nyx.curses.key_input()
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(_render, top = nyx.controller.get_controller().header_panel().get_height(), width = 80, height = 9)
+    keypress = nyx.curses.key_input()
 
 
 def show_count_dialog(title, counts):
@@ -416,7 +416,7 @@ def _display_text(fingerprint):
   :returns: **list** with the lines that should be displayed in the dialog
   """
 
-  controller = tor_controller()
+  controller = nyx.tor_controller()
   router_status_entry = controller.get_network_status(fingerprint, None)
   microdescriptor = controller.get_microdescriptor(fingerprint, None)
   server_descriptor = controller.get_server_descriptor(fingerprint, None)

@@ -360,7 +360,7 @@ def start_nyx():
         except IOError as exc:
           log.error('Error detected when reloading tor: %s' % exc.strerror)
     elif key.match('h'):
-      override_key = nyx.popups.show_help_popup()
+      override_key = nyx.popups.show_help()
     elif key == ord('l') - 96:
       # force redraw when ctrl+l is pressed
       control.redraw(True)
