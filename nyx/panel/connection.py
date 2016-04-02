@@ -399,7 +399,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
         connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
 
     def _show_client_locales():
-      nyx.popups.show_count_dialog('Client Locales', self._client_locale_usage)
+      nyx.popups.show_counts('Client Locales', self._client_locale_usage)
 
     def _show_exiting_port_usage():
       counts = {}
@@ -413,7 +413,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
 
         counts[k] = v
 
-      nyx.popups.show_count_dialog('Exiting Port Usage', counts)
+      nyx.popups.show_counts('Exiting Port Usage', counts)
 
     resolver = nyx.tracker.get_connection_tracker().get_custom_resolver()
     user_traffic_allowed = tor_controller().is_user_traffic_allowed()

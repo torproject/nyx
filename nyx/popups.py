@@ -150,7 +150,7 @@ def show_about():
     keypress = nyx.curses.key_input()
 
 
-def show_count_dialog(title, counts):
+def show_counts(title, counts):
   """
   Provides a dialog with bar graphs and percentages for the given set of
   counts. Pressing any key closes the dialog.
@@ -159,42 +159,43 @@ def show_count_dialog(title, counts):
   :param dict counts: mapping of labels to their value
   """
 
-  if not counts:
-    height, width = 3, len(NO_STATS_MSG) + 4
-  else:
-    height, width = 4 + max(1, len(counts)), 80
+  def _render_no_stats(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+    subwindow.addstr(2, 1, NO_STATS_MSG, CYAN, BOLD)
 
-  with nyx.popups.popup_window(height, width) as (popup, width, height):
-    if not popup:
-      return
+  def _render_stats(subwindow):
+    key_width, val_width, value_total = 3, 1, 0
 
+    for k, v in counts.items():
+      key_width = max(key_width, len(k))
+      val_width = max(val_width, len(str(v)))
+      value_total += v
+
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+
+    graph_width = subwindow.width - key_width - val_width - 11  # border, extra spaces, and percentage column
+    sorted_counts = sorted(counts.iteritems(), key = operator.itemgetter(1), reverse = True)
+
+    for y, (k, v) in enumerate(sorted_counts):
+      label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
+      x = subwindow.addstr(2, y + 1, label, GREEN, BOLD)
+
+      for j in range(graph_width * v / value_total):
+        subwindow.addstr(x + j + 1, y + 1, ' ', RED, HIGHLIGHT)
+
+    subwindow.addstr(2, subwindow.height - 2, 'Press any key...')
+
+  top = nyx.controller.get_controller().header_panel().get_height()
+
+  with nyx.curses.CURSES_LOCK:
     if not counts:
-      popup.addstr(1, 2, NO_STATS_MSG, CYAN, BOLD)
+      nyx.curses.draw(_render_no_stats, top = top, width = len(NO_STATS_MSG) + 4, height = 3)
     else:
-      key_width, val_width, value_total = 3, 1, 0
+      nyx.curses.draw(_render_stats, top = top, width = 80, height = 4 + max(1, len(counts)))
 
-      for k, v in counts.items():
-        key_width = max(key_width, len(k))
-        val_width = max(val_width, len(str(v)))
-        value_total += v
-
-      sorted_counts = sorted(counts.iteritems(), key = operator.itemgetter(1), reverse = True)
-      graph_width = width - key_width - val_width - 11  # border, extra spaces, and percentage column
-
-      for y, (k, v) in enumerate(sorted_counts):
-        label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
-        x = popup.addstr(y + 1, 2, label, GREEN, BOLD)
-
-        for j in range(graph_width * v / value_total):
-          popup.addstr(y + 1, x + j + 1, ' ', RED, HIGHLIGHT)
-
-      popup.addstr(height - 2, 2, 'Press any key...')
-
-    popup.draw_box()
-    popup.addstr(0, 0, title, HIGHLIGHT)
-    popup.win.refresh()
-
-    nyx.curses.key_input()
+    keypress = nyx.curses.key_input()
 
 
 def show_sort_dialog(title, options, old_selection, option_colors):
