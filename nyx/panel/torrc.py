@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Panel displaying the torrc or nyxrc with the validation done against it.
 """

@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Logging utilities, primiarily short aliases for logging a message at various
 runlevels.

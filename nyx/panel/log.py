@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Panel providing a chronological log of events its been configured to listen
 for. This provides prepopulation from the log file and supports filtering by

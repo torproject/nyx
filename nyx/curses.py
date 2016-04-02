@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Toolkit for working with curses. Curses earns its name, and this abstracts away
 its usage providing us more easy to use high level functions. This abstraction

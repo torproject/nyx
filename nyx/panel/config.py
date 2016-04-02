@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Panel presenting the configuration state for tor or nyx. Options can be edited
 and the resulting configuration files saved.

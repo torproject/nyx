@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Main interface loop for nyx, periodically redrawing the screen and issuing
 user input to the proper panels.

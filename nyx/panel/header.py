@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Top panel for every page, containing basic system and tor related information.
 This expands the information it presents to two columns if there's room

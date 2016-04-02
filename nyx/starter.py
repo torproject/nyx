@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Command line application for monitoring Tor relays, providing real time status
 information. This starts the application, parsing arguments and getting a Tor
