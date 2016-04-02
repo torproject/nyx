@@ -15,6 +15,7 @@ if we want Windows support in the future too.
   raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
   curses_attr - curses encoded text attribute
+  screenshot - dump of the present on-screen content
 
   is_color_supported - checks if terminal supports color output
   get_color_override - provides color we override requests with
@@ -248,6 +249,21 @@ def curses_attr(*attributes):
       raise ValueError("'%s' isn't a valid curses text attribute" % attr)
 
   return encoded
+
+
+def screenshot():
+  """
+  Provides a dump of the present content of the screen.
+
+  :returns: **str** with the present content shown on the screen
+  """
+
+  lines = []
+
+  for y in range(CURSES_SCREEN.getmaxyx()[0]):
+    lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
+
+  return '\n'.join(lines).rstrip()
 
 
 def is_color_supported():

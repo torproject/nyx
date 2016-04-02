@@ -147,7 +147,7 @@ def show_about():
 
   with nyx.curses.CURSES_LOCK:
     nyx.curses.draw(_render, top = nyx.controller.get_controller().header_panel().get_height(), width = 80, height = 9)
-    keypress = nyx.curses.key_input()
+    nyx.curses.key_input()
 
 
 def show_counts(title, counts):
@@ -195,7 +195,7 @@ def show_counts(title, counts):
     else:
       nyx.curses.draw(_render_stats, top = top, width = 80, height = 4 + max(1, len(counts)))
 
-    keypress = nyx.curses.key_input()
+    nyx.curses.key_input()
 
 
 def show_sort_dialog(title, options, old_selection, option_colors):

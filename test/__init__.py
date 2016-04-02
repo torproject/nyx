@@ -2,7 +2,11 @@
 Unit tests for nyx.
 """
 
+import collections
+import time
 import unittest
+
+import nyx.curses
 
 from nyx import expand_path, join, uses_settings
 
@@ -15,6 +19,40 @@ __all__ = [
   'log',
   'tracker',
 ]
+
+# If set we make test content we render for this many seconds.
+
+SHOW_RENDERED_CONTENT = None
+
+RenderResult = collections.namedtuple('RenderResult', ['content', 'return_value', 'runtime'])
+
+
+def render(func):
+  """
+  Runs the given curses function, providing content that's rendered on the
+  screen.
+
+  :param function func: draw function to be invoked
+
+  :returns: :data:`~test.RenderResult` with information about what was rendered
+  """
+
+  attr = {}
+
+  def draw_func():
+    nyx.curses.disable_acs()
+    start_time = time.time()
+    attr['return_value'] = func()
+    attr['runtime'] = time.time() - start_time
+    attr['content'] = nyx.curses.screenshot()
+
+    if SHOW_RENDERED_CONTENT:
+      time.sleep(SHOW_RENDERED_CONTENT)
+
+  with patch('nyx.curses.key_input', return_value = Mock()):
+    nyx.curses.start(draw_func, transparent_background = True, cursor = False)
+
+  return RenderResult(attr.get('content'), attr.get('return_value'), attr.get('runtime'))
 
 
 class TestBaseUtil(unittest.TestCase):
