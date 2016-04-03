@@ -150,13 +150,14 @@ def show_about():
     nyx.curses.key_input()
 
 
-def show_counts(title, counts):
+def show_counts(title, counts, fill_char = ' '):
   """
   Provides a dialog with bar graphs and percentages for the given set of
   counts. Pressing any key closes the dialog.
 
   :param str title: dialog title
   :param dict counts: mapping of labels to their value
+  :param str fill_char: character to use for rendering the bar graph
   """
 
   def _render_no_stats(subwindow):
@@ -183,7 +184,7 @@ def show_counts(title, counts):
       x = subwindow.addstr(2, y + 1, label, GREEN, BOLD)
 
       for j in range(graph_width * v / value_total):
-        subwindow.addstr(x + j + 1, y + 1, ' ', RED, HIGHLIGHT)
+        subwindow.addstr(x + j + 1, y + 1, fill_char, RED, HIGHLIGHT)
 
     subwindow.addstr(2, subwindow.height - 2, 'Press any key...')
 

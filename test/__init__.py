@@ -27,7 +27,7 @@ SHOW_RENDERED_CONTENT = None
 RenderResult = collections.namedtuple('RenderResult', ['content', 'return_value', 'runtime'])
 
 
-def render(func):
+def render(func, *args, **kwargs):
   """
   Runs the given curses function, providing content that's rendered on the
   screen.
@@ -41,8 +41,10 @@ def render(func):
 
   def draw_func():
     nyx.curses.disable_acs()
+    nyx.curses.CURSES_SCREEN.erase()
+
     start_time = time.time()
-    attr['return_value'] = func()
+    attr['return_value'] = func(*args, **kwargs)
     attr['runtime'] = time.time() - start_time
     attr['content'] = nyx.curses.screenshot()
 

@@ -34,6 +34,24 @@ About:-------------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_EMPTY_COUNTS = """
+Client Locales---------------------------------------+
+| Usage stats aren't available yet, press any key... |
++----------------------------------------------------+
+""".strip()
+
+EXPECTED_COUNTS = """
+Client Locales-----------------------------------------------------------------+
+| de  41 (43%) ***************************                                     |
+| ru  32 (33%) *********************                                           |
+| ca  11 (11%) *******                                                         |
+| us   6 (6 %) ****                                                            |
+| fr   5 (5 %) ***                                                             |
+|                                                                              |
+| Press any key...                                                             |
++------------------------------------------------------------------------------+
+""".strip()
+
 
 class TestPopups(unittest.TestCase):
   @patch('nyx.controller.get_controller')
@@ -77,3 +95,25 @@ class TestPopups(unittest.TestCase):
 
     rendered = test.render(nyx.popups.show_about)
     self.assertEqual(EXPECTED_ABOUT_POPUP, rendered.content)
+
+  @patch('nyx.controller.get_controller')
+  def test_counts_when_empty(self, get_controller_mock):
+    get_controller_mock().header_panel().get_height.return_value = 0
+
+    rendered = test.render(nyx.popups.show_counts, 'Client Locales', {})
+    self.assertEqual(EXPECTED_EMPTY_COUNTS, rendered.content)
+
+  @patch('nyx.controller.get_controller')
+  def test_counts(self, get_controller_mock):
+    get_controller_mock().header_panel().get_height.return_value = 0
+
+    clients = {
+      'fr': 5,
+      'us': 6,
+      'ca': 11,
+      'ru': 32,
+      'de': 41,
+    }
+
+    rendered = test.render(nyx.popups.show_counts, 'Client Locales', clients, fill_char = '*')
+    self.assertEqual(EXPECTED_COUNTS, rendered.content)
