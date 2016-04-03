@@ -389,14 +389,13 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
 
     def _pick_connection_resolver():
       connection_tracker = nyx.tracker.get_connection_tracker()
+      resolver = connection_tracker.get_custom_resolver()
       options = ['auto'] + list(connection.Resolver) + list(nyx.tracker.CustomResolver)
 
-      resolver = connection_tracker.get_custom_resolver()
-      selected_index = 0 if resolver is None else options.index(resolver)
-      selected = nyx.popups.show_menu('Connection Resolver:', options, selected_index)
+      selected = nyx.popups.show_selector('Connection Resolver:', options, resolver if resolver else 'auto')
+      connection_tracker.set_custom_resolver(None if selected == 'auto' else selected)
 
-      if selected != -1:
-        connection_tracker.set_custom_resolver(None if selected == 0 else options[selected])
+      self.redraw(True)
 
     def _show_client_locales():
       nyx.popups.show_counts('Client Locales', self._client_locale_usage)

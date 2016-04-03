@@ -199,6 +199,47 @@ def show_counts(title, counts, fill_char = ' '):
     nyx.curses.key_input()
 
 
+def show_selector(title, options, previous_selection):
+  """
+  Provides list of items the user can choose from.
+
+  :param str title: dialog title
+  :param list options: options that can be selected from
+  :param str previous_selection: previously selected option
+
+  :returns: **str** of selection or **previous_selection** if dialog is canceled
+  """
+
+  selected_index = options.index(previous_selection) if previous_selection in options else 0
+  top = nyx.controller.get_controller().header_panel().get_height()
+
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+
+    for i, option in enumerate(options):
+      if option == previous_selection:
+        subwindow.addstr(2, i + 1, '> ')
+
+      attr = HIGHLIGHT if i == selected_index else NORMAL
+      subwindow.addstr(4, i + 1, ' %s ' % option, attr)
+
+  with nyx.curses.CURSES_LOCK:
+    while True:
+      nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = top, height = 1)  # hides title below us
+      nyx.curses.draw(_render, top = top, width = max(map(len, options)) + 9, height = len(options) + 2)
+      key = nyx.curses.key_input()
+
+      if key.match('up'):
+        selected_index = max(0, selected_index - 1)
+      elif key.match('down'):
+        selected_index = min(len(options) - 1, selected_index + 1)
+      elif key.is_selection():
+        return options[selected_index]
+      elif key.match('esc'):
+        return previous_selection
+
+
 def show_sort_dialog(title, options, previous_order, option_colors):
   """
   Provides sorting dialog of the form...
@@ -211,7 +252,7 @@ def show_sort_dialog(title, options, previous_order, option_colors):
   :param str title: dialog title
   :param list options: sort options to be provided
   :param list previous_order: previous ordering
-  :param dict optoin_colors: mapping of options to their color
+  :param dict option_colors: mapping of options to their color
 
   :returns: **list** of the new sort order or **None** if dialog is canceled
   """
@@ -268,59 +309,6 @@ def show_sort_dialog(title, options, previous_order, option_colors):
         return None
 
   return new_order
-
-
-def show_menu(title, options, old_selection):
-  """
-  Provides menu with options laid out in a single column. User can cancel
-  selection with the escape key, in which case this proives -1. Otherwise this
-  returns the index of the selection.
-
-  Arguments:
-    title        - title displayed for the popup window
-    options      - ordered listing of options to display
-    old_selection - index of the initially selected option (uses the first
-                   selection without a carrot if -1)
-  """
-
-  max_width = max(map(len, options)) + 9
-
-  with popup_window(len(options) + 2, max_width) as (popup, _, _):
-    if not popup:
-      return -1
-
-    selection = old_selection if old_selection != -1 else 0
-
-    with popup_window(1, -1) as (title_erase, _, _):
-      title_erase.addstr(0, 0, ' ' * 500)  # hide title of the panel below us
-
-      while True:
-        popup.win.erase()
-        popup.draw_box()
-        popup.addstr(0, 0, title, HIGHLIGHT)
-
-        for i in range(len(options)):
-          label = options[i]
-          format = HIGHLIGHT if i == selection else NORMAL
-          tab = '> ' if i == old_selection else '  '
-          popup.addstr(i + 1, 2, tab)
-          popup.addstr(i + 1, 4, ' %s ' % label, format)
-
-        popup.win.refresh()
-
-        key = nyx.curses.key_input()
-
-        if key.match('up'):
-          selection = max(0, selection - 1)
-        elif key.match('down'):
-          selection = min(len(options) - 1, selection + 1)
-        elif key.is_selection():
-          break
-        elif key.match('esc'):
-          selection = -1
-          break
-
-  return selection
 
 
 def show_descriptor_popup(fingerprint, color, max_width, is_close_key):

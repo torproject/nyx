@@ -506,31 +506,19 @@ class GraphPanel(nyx.panel.Panel):
 
   def key_handlers(self):
     def _pick_stats():
-      # provides a menu to pick the graphed stats
-
       available_stats = sorted(self.stat_options())
       options = ['None'] + [stat.capitalize() for stat in available_stats]
-      initial_selection = available_stats.index(self.displayed_stat) + 1 if self.displayed_stat else 0
+      previous_selection = options[available_stats.index(self.displayed_stat) + 1] if self.displayed_stat else 'None'
 
-      selection = nyx.popups.show_menu('Graphed Stats:', options, initial_selection)
-
-      # applies new setting
-
-      if selection == 0:
-        self.displayed_stat = None
-      elif selection != -1:
-        self.displayed_stat = available_stats[selection - 1]
+      selection = nyx.popups.show_selector('Graphed Stats:', options, previous_selection)
+      self.displayed_stat = None if selection == 'None' else available_stats[options.index(selection) - 1]
 
     def _next_bounds():
       self.bounds_type = Bounds.next(self.bounds_type)
       self.redraw(True)
 
     def _pick_interval():
-      selection = nyx.popups.show_menu('Update Interval:', list(Interval), list(Interval).index(self.update_interval))
-
-      if selection != -1:
-        self.update_interval = list(Interval)[selection]
-
+      self.update_interval = nyx.popups.show_selector('Update Interval:', list(Interval), self.update_interval)
       self.redraw(True)
 
     return (

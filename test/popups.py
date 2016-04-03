@@ -53,6 +53,19 @@ Client Locales-----------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_SELECTOR = """
+Update Interval:---+
+| >  each second   |
+|    5 seconds     |
+|    30 seconds    |
+|    minutely      |
+|    15 minute     |
+|    30 minute     |
+|    hourly        |
+|    daily         |
++------------------+
+""".strip()
+
 EXPECTED_SORT_DIALOG_START = """
 Config Option Ordering:--------------------------------------------------------+
 | Current Order: Man Page Entry, Name, Is Set                                  |
@@ -142,6 +155,15 @@ class TestPopups(unittest.TestCase):
 
     rendered = test.render(nyx.popups.show_counts, 'Client Locales', clients, fill_char = '*')
     self.assertEqual(EXPECTED_COUNTS, rendered.content)
+
+  @patch('nyx.controller.get_controller')
+  def test_selector(self, get_controller_mock):
+    get_controller_mock().header_panel().get_height.return_value = 0
+
+    options = ['each second', '5 seconds', '30 seconds', 'minutely', '15 minute', '30 minute', 'hourly', 'daily']
+    rendered = test.render(nyx.popups.show_selector, 'Update Interval:', options, 'each second')
+    self.assertEqual(EXPECTED_SELECTOR, rendered.content)
+    self.assertEqual('each second', rendered.return_value)
 
   @patch('nyx.controller.get_controller')
   def test_sort_dialog(self, get_controller_mock):

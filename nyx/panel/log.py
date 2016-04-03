@@ -235,17 +235,16 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     def _pick_filter():
       with nyx.curses.CURSES_LOCK:
-        initial_selection = 1 if self._filter.selection() else 0
         options = ['None'] + self._filter.latest_selections() + ['New...']
-        selection = nyx.popups.show_menu('Log Filter:', options, initial_selection)
+        initial_selection = self._filter.selection() if self._filter.selection() else 'None'
+        selection = nyx.popups.show_selector('Log Filter:', options, initial_selection)
 
-        if selection == 0:
+        if selection == 'None':
           self._filter.select(None)
-        elif selection == len(options) - 1:
-          # selected 'New...' option - prompt user to input regular expression
-          self.show_filter_prompt()
-        elif selection != -1:
-          self._filter.select(self._filter.latest_selections()[selection - 1])
+        elif selection == 'New...':
+          self.show_filter_prompt()  # prompt user to input regular expression
+        else:
+          self._filter.select(selection)
 
     def _toggle_deduplication():
       self.set_duplicate_visability(not self._show_duplicates)
