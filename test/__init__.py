@@ -51,7 +51,7 @@ def render(func, *args, **kwargs):
     if SHOW_RENDERED_CONTENT:
       time.sleep(SHOW_RENDERED_CONTENT)
 
-  with patch('nyx.curses.key_input', return_value = Mock()):
+  with patch('nyx.curses.key_input', return_value = nyx.curses.KeyInput(27)):
     nyx.curses.start(draw_func, transparent_background = True, cursor = False)
 
   return RenderResult(attr.get('content'), attr.get('return_value'), attr.get('runtime'))

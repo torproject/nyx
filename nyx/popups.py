@@ -199,114 +199,75 @@ def show_counts(title, counts, fill_char = ' '):
     nyx.curses.key_input()
 
 
-def show_sort_dialog(title, options, old_selection, option_colors):
+def show_sort_dialog(title, options, previous_order, option_colors):
   """
-  Displays a sorting dialog of the form:
+  Provides sorting dialog of the form...
 
-    Current Order: <previous selection>
-    New Order: <selections made>
+    Current Order: <previous order>
+    New Order: <selected options>
 
     <option 1>    <option 2>    <option 3>   Cancel
 
-  Options are colored when among the "Current Order" or "New Order", but not
-  when an option below them. If cancel is selected or the user presses escape
-  then this returns None. Otherwise, the new ordering is provided.
+  :param str title: dialog title
+  :param list options: sort options to be provided
+  :param list previous_order: previous ordering
+  :param dict optoin_colors: mapping of options to their color
 
-  Arguments:
-    title   - title displayed for the popup window
-    options      - ordered listing of option labels
-    old_selection - current ordering
-    option_colors - mappings of options to their color
+  :returns: **list** of the new sort order or **None** if dialog is canceled
   """
 
-  with popup_window(9, 80) as (popup, _, _):
-    if popup:
-      new_selections = []  # new ordering
-      cursor_location = 0     # index of highlighted option
+  new_order = []
+  cursor_index = 0
+  shown_options = list(options) + ['Cancel']
 
-      selection_options = list(options)
-      selection_options.append('Cancel')
+  def _draw_selection(subwindow, y, label, selection):
+    x = subwindow.addstr(2, y, label, BOLD)
 
-      while len(new_selections) < len(old_selection):
-        popup.win.erase()
-        popup.draw_box()
-        popup.addstr(0, 0, title, HIGHLIGHT)
+    for i, option in enumerate(selection):
+      x = subwindow.addstr(x, y, option, option_colors.get(option, WHITE), BOLD)
 
-        _draw_sort_selection(popup, 1, 2, 'Current Order: ', old_selection, option_colors)
-        _draw_sort_selection(popup, 2, 2, 'New Order: ', new_selections, option_colors)
+      if i < len(selection) - 1:
+        x = subwindow.addstr(x, y, ', ', BOLD)
 
-        # presents remaining options, each row having up to four options with
-        # spacing of nineteen cells
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
 
-        row, col = 4, 0
+    _draw_selection(subwindow, 1, 'Current Order: ', previous_order)
+    _draw_selection(subwindow, 2, 'New Order: ', new_order)
 
-        for i in range(len(selection_options)):
-          option_format = HIGHLIGHT if cursor_location == i else NORMAL
-          popup.addstr(row, col * 19 + 2, selection_options[i], option_format)
-          col += 1
+    # presents remaining options, each row having up to four options
 
-          if col == 4:
-            row, col = row + 1, 0
+    for i, option in enumerate(shown_options):
+      attr = HIGHLIGHT if i == cursor_index else NORMAL
+      subwindow.addstr((i % 4) * 19 + 2, (i / 4) + 4, option, attr)
 
-        popup.win.refresh()
+  with nyx.curses.CURSES_LOCK:
+    while len(new_order) < len(previous_order):
+      nyx.curses.draw(_render, top = nyx.controller.get_controller().header_panel().get_height(), width = 80, height = 9)
+      key = nyx.curses.key_input()
 
-        key = nyx.curses.key_input()
+      if key.match('left'):
+        cursor_index = max(0, cursor_index - 1)
+      elif key.match('right'):
+        cursor_index = min(len(shown_options) - 1, cursor_index + 1)
+      elif key.match('up'):
+        cursor_index = max(0, cursor_index - 4)
+      elif key.match('down'):
+        cursor_index = min(len(shown_options) - 1, cursor_index + 4)
+      elif key.is_selection():
+        selection = shown_options[cursor_index]
 
-        if key.match('left'):
-          cursor_location = max(0, cursor_location - 1)
-        elif key.match('right'):
-          cursor_location = min(len(selection_options) - 1, cursor_location + 1)
-        elif key.match('up'):
-          cursor_location = max(0, cursor_location - 4)
-        elif key.match('down'):
-          cursor_location = min(len(selection_options) - 1, cursor_location + 4)
-        elif key.is_selection():
-          selection = selection_options[cursor_location]
+        if selection == 'Cancel':
+          return None
+        else:
+          new_order.append(selection)
+          shown_options.remove(selection)
+          cursor_index = min(cursor_index, len(shown_options) - 1)
+      elif key.match('esc'):
+        return None
 
-          if selection == 'Cancel':
-            break
-          else:
-            new_selections.append(selection)
-            selection_options.remove(selection)
-            cursor_location = min(cursor_location, len(selection_options) - 1)
-        elif key.match('esc'):
-          break  # esc - cancel
-
-  if len(new_selections) == len(old_selection):
-    return new_selections
-  else:
-    return None
-
-
-def _draw_sort_selection(popup, y, x, prefix, options, option_colors):
-  """
-  Draws a series of comma separated sort selections. The whole line is bold
-  and sort options also have their specified color. Example:
-
-    Current Order: Man Page Entry, Option Name, Is Default
-
-  Arguments:
-    popup        - panel in which to draw sort selection
-    y            - vertical location
-    x            - horizontal location
-    prefix       - initial string description
-    options      - sort options to be shown
-    option_colors - mappings of options to their color
-  """
-
-  popup.addstr(y, x, prefix, BOLD)
-  x += len(prefix)
-
-  for i in range(len(options)):
-    sort_type = options[i]
-    popup.addstr(y, x, sort_type, option_colors.get(sort_type, WHITE), BOLD)
-    x += len(sort_type)
-
-    # comma divider between options, if this isn't the last
-
-    if i < len(options) - 1:
-      popup.addstr(y, x, ', ', BOLD)
-      x += 2
+  return new_order
 
 
 def show_menu(title, options, old_selection):

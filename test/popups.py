@@ -2,6 +2,7 @@
 Unit tests for nyx.popups.
 """
 
+import curses
 import unittest
 
 import nyx.panel
@@ -49,6 +50,30 @@ Client Locales-----------------------------------------------------------------+
 | fr   5 (5 %) ***                                                             |
 |                                                                              |
 | Press any key...                                                             |
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_SORT_DIALOG_START = """
+Config Option Ordering:--------------------------------------------------------+
+| Current Order: Man Page Entry, Name, Is Set                                  |
+| New Order:                                                                   |
+|                                                                              |
+| Name               Value              Value Type         Category            |
+| Usage              Summary            Description        Man Page Entry      |
+| Is Set             Cancel                                                    |
+|                                                                              |
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_SORT_DIALOG_END = """
+Config Option Ordering:--------------------------------------------------------+
+| Current Order: Man Page Entry, Name, Is Set                                  |
+| New Order: Name, Summary                                                     |
+|                                                                              |
+| Value              Value Type         Category           Usage               |
+| Description        Man Page Entry     Is Set             Cancel              |
+|                                                                              |
+|                                                                              |
 +------------------------------------------------------------------------------+
 """.strip()
 
@@ -117,3 +142,40 @@ class TestPopups(unittest.TestCase):
 
     rendered = test.render(nyx.popups.show_counts, 'Client Locales', clients, fill_char = '*')
     self.assertEqual(EXPECTED_COUNTS, rendered.content)
+
+  @patch('nyx.controller.get_controller')
+  def test_sort_dialog(self, get_controller_mock):
+    get_controller_mock().header_panel().get_height.return_value = 0
+
+    previous_order = ['Man Page Entry', 'Name', 'Is Set']
+    options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
+
+    rendered = test.render(nyx.popups.show_sort_dialog, 'Config Option Ordering:', options, previous_order, {})
+    self.assertEqual(EXPECTED_SORT_DIALOG_START, rendered.content)
+    self.assertEqual(None, rendered.return_value)
+
+  @patch('nyx.controller.get_controller')
+  def test_sort_dialog_selecting(self, get_controller_mock):
+    # Use the dialog to make a selection. At the end we render two options as
+    # being selected (rather than three) because the act of selecing the third
+    # closed the popup.
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.show_sort_dialog('Config Option Ordering:', options, previous_order, {})
+
+    get_controller_mock().header_panel().get_height.return_value = 0
+
+    previous_order = ['Man Page Entry', 'Name', 'Is Set']
+    options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_SORT_DIALOG_END, rendered.content)
+    self.assertEqual(['Name', 'Summary', 'Description'], rendered.return_value)
