@@ -122,7 +122,7 @@ def show_help():
       subwindow.addstr(2, 7, 'Press any key...')
 
   with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = control.header_panel().get_height(), width = 80, height = 9)
+    nyx.curses.draw(_render, top = _top(), width = 80, height = 9)
     keypress = nyx.curses.key_input()
 
   if keypress.is_selection() or keypress.is_scroll() or keypress.match('left', 'right'):
@@ -146,7 +146,7 @@ def show_about():
     subwindow.addstr(2, 7, 'Press any key...')
 
   with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = nyx.controller.get_controller().header_panel().get_height(), width = 80, height = 9)
+    nyx.curses.draw(_render, top = _top(), width = 80, height = 9)
     nyx.curses.key_input()
 
 
@@ -188,18 +188,16 @@ def show_counts(title, counts, fill_char = ' '):
 
     subwindow.addstr(2, subwindow.height - 2, 'Press any key...')
 
-  top = nyx.controller.get_controller().header_panel().get_height()
-
   with nyx.curses.CURSES_LOCK:
     if not counts:
-      nyx.curses.draw(_render_no_stats, top = top, width = len(NO_STATS_MSG) + 4, height = 3)
+      nyx.curses.draw(_render_no_stats, top = _top(), width = len(NO_STATS_MSG) + 4, height = 3)
     else:
-      nyx.curses.draw(_render_stats, top = top, width = 80, height = 4 + max(1, len(counts)))
+      nyx.curses.draw(_render_stats, top = _top(), width = 80, height = 4 + max(1, len(counts)))
 
     nyx.curses.key_input()
 
 
-def show_selector(title, options, previous_selection):
+def show_list_selector(title, options, previous_selection):
   """
   Provides list of items the user can choose from.
 
@@ -211,7 +209,6 @@ def show_selector(title, options, previous_selection):
   """
 
   selected_index = options.index(previous_selection) if previous_selection in options else 0
-  top = nyx.controller.get_controller().header_panel().get_height()
 
   def _render(subwindow):
     subwindow.box()
@@ -226,8 +223,8 @@ def show_selector(title, options, previous_selection):
 
   with nyx.curses.CURSES_LOCK:
     while True:
-      nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = top, height = 1)  # hides title below us
-      nyx.curses.draw(_render, top = top, width = max(map(len, options)) + 9, height = len(options) + 2)
+      nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = _top(), height = 1)  # hides title below us
+      nyx.curses.draw(_render, top = _top(), width = max(map(len, options)) + 9, height = len(options) + 2)
       key = nyx.curses.key_input()
 
       if key.match('up'):
@@ -285,7 +282,7 @@ def show_sort_dialog(title, options, previous_order, option_colors):
 
   with nyx.curses.CURSES_LOCK:
     while len(new_order) < len(previous_order):
-      nyx.curses.draw(_render, top = nyx.controller.get_controller().header_panel().get_height(), width = 80, height = 9)
+      nyx.curses.draw(_render, top = _top(), width = 80, height = 9)
       key = nyx.curses.key_input()
 
       if key.match('left'):
@@ -311,13 +308,12 @@ def show_sort_dialog(title, options, previous_order, option_colors):
   return new_order
 
 
-def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
+def show_descriptor(fingerprint, color, is_close_key):
   """
-  Provides a dialog showing the descriptors for a given relay.
+  Provides a dialog showing descriptors for a relay.
 
   :param str fingerprint: fingerprint of the relay to be shown
   :param str color: text color of the dialog
-  :param int max_width: maximum width of the dialog
   :param function is_close_key: method to indicate if a key should close the
     dialog or not
 
@@ -326,39 +322,78 @@ def show_descriptor_popup(fingerprint, color, max_width, is_close_key):
   """
 
   if fingerprint:
-    title = 'Consensus Descriptor:'
-    lines = _display_text(fingerprint)
+    title = 'Consensus Descriptor (%s):' % fingerprint
+    lines = _descriptor_text(fingerprint)
     show_line_numbers = True
   else:
-    title = 'Consensus Descriptor (%s):' % fingerprint
+    title = 'Consensus Descriptor:'
     lines = [UNRESOLVED_MSG]
     show_line_numbers = False
 
-  popup_height, popup_width = _preferred_size(lines, max_width, show_line_numbers)
+  scroller = nyx.curses.Scroller()
+  line_number_width = int(math.log10(len(lines))) + 1 if show_line_numbers else 0
 
-  with popup_window(popup_height, popup_width) as (popup, _, height):
-    if not popup:
-      return None
+  def _render(subwindow):
+    in_block = False   # flag indicating if we're currently in crypto content
+    y, offset = 1, line_number_width + 3 if show_line_numbers else 2
 
-    with popup_window(1, -1) as (title_erase, _, _):
-      title_erase.addstr(0, 0, ' ' * 500)  # hide title of the panel below us
+    for i, line in enumerate(lines):
+      keyword, value = line, ''
+      line_color = color
 
-      scroller, redraw = nyx.curses.Scroller(), True
+      if line in HEADERS:
+        line_color = HEADER_COLOR
+      elif line.startswith(BLOCK_START):
+        in_block = True
+      elif line.startswith(BLOCK_END):
+        in_block = False
+      elif in_block:
+        keyword, value = '', line
+      elif ' ' in line and line != UNRESOLVED_MSG and line != ERROR_MSG:
+        keyword, value = line.split(' ', 1)
+        keyword = keyword + ' '
 
-      while True:
-        if redraw:
-          _draw(popup, title, lines, color, scroller.location(), show_line_numbers)
-          redraw = False
+      if i < scroller.location():
+        continue
 
-        key = nyx.curses.key_input()
+      if show_line_numbers:
+        subwindow.addstr(2, y, str(i + 1).rjust(line_number_width), LINE_NUMBER_COLOR, BOLD)
 
-        if key.is_scroll():
-          redraw = scroller.handle_key(key, len(lines), height - 2)
-        elif is_close_key(key):
-          return key
+      x, y = subwindow.addstr_wrap(3 + line_number_width, y, keyword, subwindow.width - 2, offset, line_color, BOLD)
+      x, y = subwindow.addstr_wrap(x, y, value, subwindow.width - 2, offset, line_color)
+      y += 1
+
+      if y > subwindow.height - 2:
+        break
+
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+
+  width, height = 0, len(lines) + 2
+  screen_size = nyx.curses.screen_size()
+
+  for line in lines:
+    width = min(screen_size.width, max(width, len(line) + line_number_width + 5))
+    height += len(line) / (screen_size.width - line_number_width - 5)  # extra lines due to text wrap
+
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = _top(), height = 1)  # hides title below us
+    nyx.curses.draw(_render, top = _top(), width = width, height = height)
+    popup_height = min(screen_size.height - _top(), height)
+
+    while True:
+      key = nyx.curses.key_input()
+
+      if key.is_scroll():
+        is_changed = scroller.handle_key(key, len(lines), popup_height - 2)
+
+        if is_changed:
+          nyx.curses.draw(_render, top = _top(), width = width, height = height)
+      elif is_close_key(key):
+        return key
 
 
-def _display_text(fingerprint):
+def _descriptor_text(fingerprint):
   """
   Provides the descriptors for a relay.
 
@@ -383,68 +418,5 @@ def _display_text(fingerprint):
   return description.split('\n')
 
 
-def _preferred_size(text, max_width, show_line_numbers):
-  """
-  Provides the preferred dimensions of our dialog.
-
-  :param list text: lines of text to be shown
-  :param int max_width: maximum width the dialog can be
-  :param bool show_line_numbers: if we should leave room for line numbers
-
-  :returns: **tuple** of the preferred (height, width)
-  """
-
-  width, height = 0, len(text) + 2
-  line_number_width = int(math.log10(len(text))) + 2 if show_line_numbers else 0
-  max_content_width = max_width - line_number_width - 4
-
-  for line in text:
-    width = min(max_width, max(width, len(line) + line_number_width + 4))
-    height += len(line) / max_content_width  # extra lines due to text wrap
-
-  return (height, width)
-
-
-def _draw(popup, title, lines, entry_color, scroll, show_line_numbers):
-  popup.win.erase()
-
-  line_number_width = int(math.log10(len(lines))) + 1
-  in_block = False   # flag indicating if we're currently in crypto content
-  width = popup.max_x - 2  # leave space on the right for the border and an empty line
-  height = popup.max_y - 2  # height of the dialog without the top and bottom border
-  offset = line_number_width + 3 if show_line_numbers else 2
-
-  y = 1
-
-  for i, line in enumerate(lines):
-    keyword, value = line, ''
-    color = entry_color
-
-    if line in HEADERS:
-      color = HEADER_COLOR
-    elif line.startswith(BLOCK_START):
-      in_block = True
-    elif line.startswith(BLOCK_END):
-      in_block = False
-    elif in_block:
-      keyword, value = '', line
-    elif ' ' in line and line != UNRESOLVED_MSG and line != ERROR_MSG:
-      keyword, value = line.split(' ', 1)
-
-    if i < scroll:
-      continue
-
-    if show_line_numbers:
-      popup.addstr(y, 2, str(i + 1).rjust(line_number_width), LINE_NUMBER_COLOR, BOLD)
-
-    x, y = popup.addstr_wrap(y, 3 + line_number_width, keyword, width, offset, color, BOLD)
-    x, y = popup.addstr_wrap(y, x + 1, value, width, offset, color)
-
-    y += 1
-
-    if y > height:
-      break
-
-  popup.draw_box()
-  popup.addstr(0, 0, title, HIGHLIGHT)
-  popup.win.refresh()
+def _top():
+  return nyx.controller.get_controller().header_panel().get_height()

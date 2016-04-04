@@ -15,6 +15,7 @@ if we want Windows support in the future too.
   raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
   curses_attr - curses encoded text attribute
+  screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
 
   is_color_supported - checks if terminal supports color output
@@ -76,11 +77,13 @@ if we want Windows support in the future too.
 
 from __future__ import absolute_import
 
+import collections
 import curses
 import threading
 
 import stem.util.conf
 import stem.util.enum
+import stem.util.str_tools
 import stem.util.system
 
 from nyx import msg, log
@@ -135,16 +138,21 @@ SPECIAL_KEYS = {
   'esc': 27,
 }
 
+Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
+
 
 def conf_handler(key, value):
   if key == 'features.colorOverride':
     if value not in Color and value != 'None':
       raise ValueError(msg('usage.unable_to_set_color_override', color = value))
+  elif key == 'features.torrc.maxLineWrap':
+    return max(1, value)
 
 
 CONFIG = stem.util.conf.config_dict('nyx', {
   'features.colorOverride': 'None',
   'features.colorInterface': True,
+  'features.maxLineWrap': 8,
 }, conf_handler)
 
 
@@ -251,6 +259,17 @@ def curses_attr(*attributes):
   return encoded
 
 
+def screen_size():
+  """
+  Provides the current dimensions of our screen.
+
+  :returns: :data:`~nyx.curses.Dimensions` with our screen size
+  """
+
+  height, width = CURSES_SCREEN.getmaxyx()
+  return Dimensions(width, height)
+
+
 def screenshot():
   """
   Provides a dump of the present content of the screen.
@@ -260,7 +279,7 @@ def screenshot():
 
   lines = []
 
-  for y in range(CURSES_SCREEN.getmaxyx()[0]):
+  for y in range(screen_size().height):
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
   return '\n'.join(lines).rstrip()
@@ -408,10 +427,9 @@ def draw(func, left = 0, top = 0, width = None, height = None):
   """
 
   with CURSES_LOCK:
-    max_height, max_width = CURSES_SCREEN.getmaxyx()
-
-    subwindow_width = max(0, max_width - left)
-    subwindow_height = max(0, max_height - top)
+    dimensions = screen_size()
+    subwindow_width = max(0, dimensions.width - left)
+    subwindow_height = max(0, dimensions.height - top)
 
     if width:
       subwindow_width = min(width, subwindow_width)
@@ -443,7 +461,7 @@ class _Subwindow(object):
     Draws a string in the subwindow.
 
     :param int x: horizontal location
-    :param int y, vertical location
+    :param int y: vertical location
     :param str msg: string to be written
     :param list attr: text attributes to apply
     """
@@ -457,6 +475,36 @@ class _Subwindow(object):
         pass
 
     return x
+
+  def addstr_wrap(self, x, y, msg, width, min_x = 0, *attr):
+    """
+    Draws a string in the subwindow, with text wrapped if it exceeds a width.
+
+    :param int x: horizontal location
+    :param int y: vertical location
+    :param str msg: string to be written
+    :param int width: width avaialble to render the string
+    :param int min_x: horizontal position to wrap to on new lines
+    :param list attr: text attributes to apply
+    """
+
+    orig_y = y
+
+    while msg:
+      draw_msg, msg = stem.util.str_tools.crop(msg, width - x, None, ending = None, get_remainder = True)
+
+      if not draw_msg:
+        draw_msg, msg = stem.util.str_tools.crop(msg, width - x), ''  # first word is longer than the line
+
+      x = self.addstr(x, y, draw_msg, *attr)
+
+      if (y - orig_y + 1) >= CONFIG['features.maxLineWrap']:
+        break  # maximum number we'll wrap
+
+      if msg:
+        x, y = min_x, y + 1
+
+    return x, y
 
   def box(self, left = 0, top = 0, width = None, height = None, *attr):
     """
@@ -550,6 +598,15 @@ class KeyInput(object):
     """
 
     return self._key in (curses.KEY_ENTER, 10, ord(' '))
+
+  def __eq__(self, other):
+    if isinstance(other, KeyInput):
+      return self._key == other._key
+    else:
+      return False
+
+  def __ne__(self, other):
+    return not self == other
 
 
 class Scroller(object):

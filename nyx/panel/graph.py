@@ -510,7 +510,7 @@ class GraphPanel(nyx.panel.Panel):
       options = ['None'] + [stat.capitalize() for stat in available_stats]
       previous_selection = options[available_stats.index(self.displayed_stat) + 1] if self.displayed_stat else 'None'
 
-      selection = nyx.popups.show_selector('Graphed Stats:', options, previous_selection)
+      selection = nyx.popups.show_list_selector('Graphed Stats:', options, previous_selection)
       self.displayed_stat = None if selection == 'None' else available_stats[options.index(selection) - 1]
 
     def _next_bounds():
@@ -518,7 +518,7 @@ class GraphPanel(nyx.panel.Panel):
       self.redraw(True)
 
     def _pick_interval():
-      self.update_interval = nyx.popups.show_selector('Update Interval:', list(Interval), self.update_interval)
+      self.update_interval = nyx.popups.show_list_selector('Update Interval:', list(Interval), self.update_interval)
       self.redraw(True)
 
     return (

@@ -53,7 +53,7 @@ Client Locales-----------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_SELECTOR = """
+EXPECTED_LIST_SELECTOR = """
 Update Interval:---+
 | >  each second   |
 |    5 seconds     |
@@ -90,9 +90,72 @@ Config Option Ordering:--------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
+Consensus Descriptor:----------+
+|  No consensus data available |
++------------------------------+
+""".strip()
+
+DESCRIPTOR_TEXT = """
+Consensus:
+
+r cyberphunk KXh3YBRc0aRzVSovxkxyqaEwgg4 VjdJThHuYj0jDY2tkkDJkCa8s1s 2016-04-04 19:03:16 94.23.150.191 8080 0
+s Fast Guard Running Stable Valid
+w Bandwidth=8410
+p reject 1-65535
+
+Server Descriptor:
+
+router cyberphunk 94.23.150.191 8080 0 0
+platform Tor 0.2.4.27 on Linux
+protocols Link 1 2 Circuit 1
+published 2016-04-04 19:03:16
+fingerprint 2978 7760 145C D1A4 7355 2A2F C64C 72A9 A130 820E
+uptime 3899791
+bandwidth 10240000 10444800 6482376
+extra-info-digest 9DC532664DDFD238A4119D623D30F136A3B851BF
+reject *:*
+router-signature
+-----BEGIN SIGNATURE-----
+EUFm38gONCoDuY7ZWHyJtBKuvk6Xi1MPuKuecS5frP3fX0wiZSrOVcpX0X8J+4Hr
+Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA
+NCGI042p6+7UgCVT1x3WcLnq3ScV//s1wXHrUXa7vi0=
+-----END SIGNATURE-----
+""".strip().split('\n')
+
+EXPECTED_DESCRIPTOR = """
+Consensus Descriptor (29787760145CD1A473552A2FC64C72A9A130820E):---------------------------------------------------+
+|  1 Consensus:                                                                                                    |
+|  2                                                                                                               |
+|  3 r cyberphunk KXh3YBRc0aRzVSovxkxyqaEwgg4 VjdJThHuYj0jDY2tkkDJkCa8s1s 2016-04-04 19:03:16 94.23.150.191 8080 0 |
+|  4 s Fast Guard Running Stable Valid                                                                             |
+|  5 w Bandwidth=8410                                                                                              |
+|  6 p reject 1-65535                                                                                              |
+|  7                                                                                                               |
+|  8 Server Descriptor:                                                                                            |
+|  9                                                                                                               |
+| 10 router cyberphunk 94.23.150.191 8080 0 0                                                                      |
+| 11 platform Tor 0.2.4.27 on Linux                                                                                |
+| 12 protocols Link 1 2 Circuit 1                                                                                  |
+| 13 published 2016-04-04 19:03:16                                                                                 |
+| 14 fingerprint 2978 7760 145C D1A4 7355 2A2F C64C 72A9 A130 820E                                                 |
+| 15 uptime 3899791                                                                                                |
+| 16 bandwidth 10240000 10444800 6482376                                                                           |
+| 17 extra-info-digest 9DC532664DDFD238A4119D623D30F136A3B851BF                                                    |
+| 18 reject *:*                                                                                                    |
+| 19 router-signature                                                                                              |
+| 20 -----BEGIN SIGNATURE-----                                                                                     |
+| 21 EUFm38gONCoDuY7ZWHyJtBKuvk6Xi1MPuKuecS5frP3fX0wiZSrOVcpX0X8J+4Hr                                              |
+| 22 Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA                                              |
+| 23 NCGI042p6+7UgCVT1x3WcLnq3ScV//s1wXHrUXa7vi0=                                                                  |
+| 24 -----END SIGNATURE-----                                                                                       |
++------------------------------------------------------------------------------------------------------------------+
+""".strip()
+
 
 class TestPopups(unittest.TestCase):
   @patch('nyx.controller.get_controller')
+  @patch('nyx.popups._top', Mock(return_value = 0))
   def test_help(self, get_controller_mock):
     header_panel = Mock()
 
@@ -121,30 +184,23 @@ class TestPopups(unittest.TestCase):
       nyx.panel.KeyHandler('c', 'clear event log'),
     )
 
-    get_controller_mock().header_panel().get_height.return_value = 0
     get_controller_mock().get_display_panels.return_value = [header_panel, graph_panel, log_panel]
 
     rendered = test.render(nyx.popups.show_help)
     self.assertEqual(EXPECTED_HELP_POPUP, rendered.content)
 
-  @patch('nyx.controller.get_controller')
-  def test_about(self, get_controller_mock):
-    get_controller_mock().header_panel().get_height.return_value = 0
-
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_about(self):
     rendered = test.render(nyx.popups.show_about)
     self.assertEqual(EXPECTED_ABOUT_POPUP, rendered.content)
 
-  @patch('nyx.controller.get_controller')
-  def test_counts_when_empty(self, get_controller_mock):
-    get_controller_mock().header_panel().get_height.return_value = 0
-
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_counts_when_empty(self):
     rendered = test.render(nyx.popups.show_counts, 'Client Locales', {})
     self.assertEqual(EXPECTED_EMPTY_COUNTS, rendered.content)
 
-  @patch('nyx.controller.get_controller')
-  def test_counts(self, get_controller_mock):
-    get_controller_mock().header_panel().get_height.return_value = 0
-
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_counts(self):
     clients = {
       'fr': 5,
       'us': 6,
@@ -156,19 +212,15 @@ class TestPopups(unittest.TestCase):
     rendered = test.render(nyx.popups.show_counts, 'Client Locales', clients, fill_char = '*')
     self.assertEqual(EXPECTED_COUNTS, rendered.content)
 
-  @patch('nyx.controller.get_controller')
-  def test_selector(self, get_controller_mock):
-    get_controller_mock().header_panel().get_height.return_value = 0
-
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_selector(self):
     options = ['each second', '5 seconds', '30 seconds', 'minutely', '15 minute', '30 minute', 'hourly', 'daily']
-    rendered = test.render(nyx.popups.show_selector, 'Update Interval:', options, 'each second')
-    self.assertEqual(EXPECTED_SELECTOR, rendered.content)
+    rendered = test.render(nyx.popups.show_list_selector, 'Update Interval:', options, 'each second')
+    self.assertEqual(EXPECTED_LIST_SELECTOR, rendered.content)
     self.assertEqual('each second', rendered.return_value)
 
-  @patch('nyx.controller.get_controller')
-  def test_sort_dialog(self, get_controller_mock):
-    get_controller_mock().header_panel().get_height.return_value = 0
-
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_sort_dialog(self):
     previous_order = ['Man Page Entry', 'Name', 'Is Set']
     options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
 
@@ -176,8 +228,8 @@ class TestPopups(unittest.TestCase):
     self.assertEqual(EXPECTED_SORT_DIALOG_START, rendered.content)
     self.assertEqual(None, rendered.return_value)
 
-  @patch('nyx.controller.get_controller')
-  def test_sort_dialog_selecting(self, get_controller_mock):
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_sort_dialog_selecting(self):
     # Use the dialog to make a selection. At the end we render two options as
     # being selected (rather than three) because the act of selecing the third
     # closed the popup.
@@ -193,11 +245,22 @@ class TestPopups(unittest.TestCase):
       with patch('nyx.curses.key_input', side_effect = keypresses):
         return nyx.popups.show_sort_dialog('Config Option Ordering:', options, previous_order, {})
 
-    get_controller_mock().header_panel().get_height.return_value = 0
-
     previous_order = ['Man Page Entry', 'Name', 'Is Set']
     options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
 
     rendered = test.render(draw_func)
     self.assertEqual(EXPECTED_SORT_DIALOG_END, rendered.content)
     self.assertEqual(['Name', 'Summary', 'Description'], rendered.return_value)
+
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_descriptor_without_fingerprint(self):
+    rendered = test.render(nyx.popups.show_descriptor, None, nyx.curses.Color.RED, lambda key: key.match('esc'))
+    self.assertEqual(EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT, rendered.content)
+    self.assertEqual(nyx.curses.KeyInput(27), rendered.return_value)
+
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.popups._descriptor_text', Mock(return_value = DESCRIPTOR_TEXT))
+  def test_descriptor(self):
+    rendered = test.render(nyx.popups.show_descriptor, '29787760145CD1A473552A2FC64C72A9A130820E', nyx.curses.Color.RED, lambda key: key.match('esc'))
+    self.assertEqual(EXPECTED_DESCRIPTOR, rendered.content)
+    self.assertEqual(nyx.curses.KeyInput(27), rendered.return_value)

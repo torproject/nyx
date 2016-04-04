@@ -237,7 +237,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       with nyx.curses.CURSES_LOCK:
         options = ['None'] + self._filter.latest_selections() + ['New...']
         initial_selection = self._filter.selection() if self._filter.selection() else 'None'
-        selection = nyx.popups.show_selector('Log Filter:', options, initial_selection)
+        selection = nyx.popups.show_list_selector('Log Filter:', options, initial_selection)
 
         if selection == 'None':
           self._filter.select(None)
