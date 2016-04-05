@@ -90,6 +90,25 @@ Config Option Ordering:--------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_EVENT_SELECTOR = """
+Event Types:-------------------------------------------------------------------+
+|  d DEBUG      a ADDRMAP           r CLIENTS_SEEN      C SIGNAL               |
+|  i INFO       f AUTHDIR_NEWDESCS  u DESCCHANGED       F STREAM_BW            |
+|  n NOTICE     j BUILDTIMEOUT_SET  g GUARD             G STATUS_CLIENT        |
+|  w WARN       b BW                h HS_DESC           H STATUS_GENERAL       |
+|  e ERR        k CELL_STATS        v HS_DESC_CONTENT   I STATUS_SERVER        |
+|               c CIRC              x NETWORK_LIVENESS  s STREAM               |
+|               l CIRC_BW           y NEWCONSENSUS      J TB_EMPTY             |
+|               m CIRC_MINOR        z NEWDESC           t TRANSPORT_LAUNCHED   |
+|               p CONF_CHANGED      B NS                                       |
+|               q CONN_BW           o ORCONN                                   |
+|                                                                              |
+|    DINWE tor runlevel+            A All Events                               |
+|    12345 nyx runlevel+            X No Events                                |
+|                                   U Unknown Events                           |
++------------------------------------------------------------------------------+
+""".strip()
+
 EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
 Consensus Descriptor:----------+
 |  No consensus data available |
@@ -251,6 +270,20 @@ class TestPopups(unittest.TestCase):
     rendered = test.render(draw_func)
     self.assertEqual(EXPECTED_SORT_DIALOG_END, rendered.content)
     self.assertEqual(['Name', 'Summary', 'Description'], rendered.return_value)
+
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.controller.input_prompt', Mock(return_value = None))
+  def test_event_selector_when_canceled(self):
+    rendered = test.render(nyx.popups.show_event_selector)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
+    self.assertEqual(None, rendered.return_value)
+
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.controller.input_prompt', Mock(return_value = '2bwe'))
+  def test_event_selector_with_input(self):
+    rendered = test.render(nyx.popups.show_event_selector)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
+    self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERR', 'NYX_WARN', 'NYX_NOTICE']), rendered.return_value)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
   def test_descriptor_without_fingerprint(self):

@@ -43,7 +43,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.prepopulateReadLimit': 5000,
   'features.log.maxRefreshRate': 300,
   'features.log.regex': [],
-  'msg.misc.event_types': '',
   'startup.events': 'N3',
 }, conf_handler)
 
@@ -142,33 +141,11 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     Prompts the user to select the events being listened for.
     """
 
-    # allow user to enter new types of events to log - unchanged if left blank
+    event_types = nyx.popups.show_event_selector()
 
-    with nyx.popups.popup_window(16, 80) as (popup, width, height):
-      if popup:
-        # displays the available flags
-
-        popup.draw_box()
-        popup.addstr(0, 0, 'Event Types:', HIGHLIGHT)
-        event_lines = CONFIG['msg.misc.event_types'].split('\n')
-
-        for i in range(len(event_lines)):
-          popup.addstr(i + 1, 1, event_lines[i][6:])
-
-        popup.win.refresh()
-
-        user_input = nyx.controller.input_prompt('Events to log: ')
-
-        if user_input:
-          try:
-            user_input = user_input.replace(' ', '')  # strip spaces
-            event_types = nyx.arguments.expand_events(user_input)
-
-            if event_types != self._event_types:
-              self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
-              self.redraw(True)
-          except ValueError as exc:
-            nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
+    if event_types != self._event_types:
+      self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
+      self.redraw(True)
 
   def show_snapshot_prompt(self):
     """
