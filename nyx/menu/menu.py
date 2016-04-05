@@ -11,7 +11,7 @@ import nyx.controller
 import nyx.menu.item
 import nyx.menu.actions
 
-from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE, HIGHLIGHT
+from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE
 
 
 class MenuCursor:
@@ -78,54 +78,43 @@ class MenuCursor:
 
 
 def show_menu():
-  with nyx.popups.popup_window(1, below_static = False) as (popup, width, height):
-    if popup:
-      # generates the menu and uses the initial selection of the first item in
-      # the file menu
+  selection_left = [0]
 
-      menu = nyx.menu.actions.make_menu()
-      cursor = MenuCursor(menu.get_children()[0].get_children()[0])
+  def _render(subwindow):
+    x = 0
 
-      while not cursor.is_done():
-        # sets the background color
+    for top_level_item in menu.get_children():
+      if top_level_item == selection_hierarchy[1]:
+        selection_left[0] = x
+        attr = UNDERLINE
+      else:
+        attr = NORMAL
 
-        popup.win.clear()
-        popup.win.bkgd(' ', nyx.curses.curses_attr(RED, HIGHLIGHT))
-        selection_hierarchy = cursor.get_selection().get_hierarchy()
+      x = subwindow.addstr(x, 0, ' %s ' % top_level_item.get_label()[1], BOLD, attr)
+      subwindow.vline(x, 0, 1)
+      x += 1
 
-        # provide a message saying how to close the menu
+  with nyx.curses.CURSES_LOCK:
+    # generates the menu and uses the initial selection of the first item in
+    # the file menu
 
-        nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
+    menu = nyx.menu.actions.make_menu()
+    cursor = MenuCursor(menu.get_children()[0].get_children()[0])
 
-        # renders the menu bar, noting where the open submenu is positioned
+    while not cursor.is_done():
+      selection_hierarchy = cursor.get_selection().get_hierarchy()
 
-        draw_left, selection_left = 0, 0
+      # provide a message saying how to close the menu
 
-        for top_level_item in menu.get_children():
-          if top_level_item == selection_hierarchy[1]:
-            attr = UNDERLINE
-            selection_left = draw_left
-          else:
-            attr = NORMAL
+      nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
+      nyx.curses.draw(_render, height = 1, background = RED)
+      _draw_submenu(cursor, 1, 1, selection_left[0])
+      cursor.handle_key(nyx.curses.key_input())
 
-          draw_label = ' %s ' % top_level_item.get_label()[1]
-          popup.addstr(0, draw_left, draw_label, BOLD, attr)
-          popup.vline(0, draw_left + len(draw_label), 1)
+      # redraws the rest of the interface if we're rendering on it again
 
-          draw_left += len(draw_label) + 1
-
-        # recursively shows opened submenus
-
-        _draw_submenu(cursor, 1, 1, selection_left)
-
-        popup.win.refresh()
-
-        cursor.handle_key(nyx.curses.key_input())
-
-        # redraws the rest of the interface if we're rendering on it again
-
-        if not cursor.is_done():
-          nyx.controller.get_controller().redraw()
+      if not cursor.is_done():
+        nyx.controller.get_controller().redraw()
 
   nyx.controller.show_message()
 
@@ -154,29 +143,15 @@ def _draw_submenu(cursor, level, top, left):
 
   label_format = ' %%-%is%%-%is%%-%is ' % (prefix_col_size, middle_col_size, suffix_col_size)
   menu_width = len(label_format % ('', '', ''))
+  selection_top = submenu.get_children().index(selection) if selection in submenu.get_children() else 0
 
-  with nyx.popups.popup_window(len(submenu.get_children()), menu_width, top, left, below_static = False) as (popup, _, _):
-    if not popup:
-      return
-
-    # sets the background color
-
-    popup.win.bkgd(' ', nyx.curses.curses_attr(RED, HIGHLIGHT))
-
-    draw_top, selection_top = 0, 0
-
-    for menu_item in submenu.get_children():
+  def _render(subwindow):
+    for y, menu_item in enumerate(submenu.get_children()):
       if menu_item == selection:
-        draw_format = (WHITE, BOLD)
-        selection_top = draw_top
+        subwindow.addstr(0, y, label_format % menu_item.get_label(), WHITE, BOLD)
       else:
-        draw_format = (NORMAL,)
+        subwindow.addstr(0, y, label_format % menu_item.get_label())
 
-      popup.addstr(draw_top, 0, label_format % menu_item.get_label(), *draw_format)
-      draw_top += 1
-
-    popup.win.refresh()
-
-    # shows the next submenu
-
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(_render, top = top, left = left, width = menu_width, height = len(submenu.get_children()), background = RED)
     _draw_submenu(cursor, level + 1, top + selection_top, left + menu_width)

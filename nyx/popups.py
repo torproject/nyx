@@ -47,57 +47,6 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 })
 
 
-def popup_window(height = -1, width = -1, top = 0, left = 0, below_static = True):
-  """
-  Provides a popup dialog you can use in a 'with' block...
-
-    with popup_window(5, 10) as (popup, width, height):
-      if popup:
-        ... do stuff...
-
-  This popup has a lock on the curses interface for the duration of the block,
-  preventing other draw operations from taking place. If the popup isn't
-  visible then the popup it returns will be **None**.
-
-  :param int height: maximum height of the popup
-  :param int width: maximum width of the popup
-  :param int top: top position, relative to the sticky content
-  :param int left: left position from the screen
-  :param bool below_static: positions popup below static content if True
-
-  :returns: tuple of the form (subwindow, width, height) when used in a with block
-  """
-
-  class _Popup(object):
-    def __enter__(self):
-      control = nyx.controller.get_controller()
-
-      if below_static:
-        sticky_height = control.header_panel().get_height()
-      else:
-        sticky_height = 0
-
-      popup = nyx.panel.Panel('popup', top + sticky_height, left, height, width)
-      popup.set_visible(True)
-
-      # Redraws the popup to prepare a subwindow instance. If none is spawned then
-      # the panel can't be drawn (for instance, due to not being visible).
-
-      popup.redraw(True)
-
-      if popup.win is not None:
-        nyx.curses.CURSES_LOCK.acquire()
-        return (popup, popup.max_x - 1, popup.max_y)
-      else:
-        return (None, 0, 0)
-
-    def __exit__(self, exit_type, value, traceback):
-      nyx.curses.CURSES_LOCK.release()
-      nyx.controller.get_controller().redraw(False)
-
-  return _Popup()
-
-
 def show_help():
   """
   Presents a popup with the current page's hotkeys.

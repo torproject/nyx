@@ -29,7 +29,10 @@ if we want Windows support in the future too.
 
   Subwindow - subwindow that can be drawn within
     |- addstr - draws a string
-    +- box - draws box with the given dimensions
+    |- addstr_wrap - draws a string with line wrapping
+    |- box - draws box with the given dimensions
+    |- hline - draws a horizontal line
+    +- vline - draws a vertical line
 
   KeyInput - user keyboard input
     |- match - checks if this matches the given inputs
@@ -414,7 +417,7 @@ def is_wide_characters_supported():
   return False
 
 
-def draw(func, left = 0, top = 0, width = None, height = None):
+def draw(func, left = 0, top = 0, width = None, height = None, background = None):
   """
   Renders a subwindow. This calls the given draw function with a
   :class:`~nyx.curses._Subwindow`.
@@ -424,6 +427,7 @@ def draw(func, left = 0, top = 0, width = None, height = None):
   :param int top: top position of the panel
   :param int width: panel width, uses all available space if **None**
   :param int height: panel height, uses all available space if **None**
+  :param nyx.curses.Color background: background color, unset if **None**
   """
 
   with CURSES_LOCK:
@@ -439,6 +443,10 @@ def draw(func, left = 0, top = 0, width = None, height = None):
 
     curses_subwindow = CURSES_SCREEN.subwin(subwindow_height, subwindow_width, top, left)
     curses_subwindow.erase()
+
+    if background:
+      curses_subwindow.bkgd(' ', curses_attr(background, HIGHLIGHT))
+
     func(_Subwindow(subwindow_width, subwindow_height, curses_subwindow))
     curses_subwindow.refresh()
 
@@ -464,6 +472,8 @@ class _Subwindow(object):
     :param int y: vertical location
     :param str msg: string to be written
     :param list attr: text attributes to apply
+
+    :returns: **int** with the horizontal position we drew to
     """
 
     if self.width > x and self.height > y:
@@ -486,6 +496,8 @@ class _Subwindow(object):
     :param int width: width avaialble to render the string
     :param int min_x: horizontal position to wrap to on new lines
     :param list attr: text attributes to apply
+
+    :returns: **tuple** of the (x, y) position we drew to
     """
 
     orig_y = y
@@ -523,10 +535,10 @@ class _Subwindow(object):
     width = max_width if width is None else min(width, max_width)
     height = max_height if height is None else min(height, max_height)
 
-    self._hline(left + 1, top, width - 2, *attr)  # top
-    self._hline(left + 1, top + height - 1, width - 2, *attr)  # bottom
-    self._vline(left, top + 1, height - 2, *attr)  # left
-    self._vline(left + width - 1, top + 1, height - 2, *attr)  # right
+    self.hline(left + 1, top, width - 2, *attr)  # top
+    self.hline(left + 1, top + height - 1, width - 2, *attr)  # bottom
+    self.vline(left, top + 1, height - 2, *attr)  # left
+    self.vline(left + width - 1, top + 1, height - 2, *attr)  # right
 
     self._addch(left, top, curses.ACS_ULCORNER, *attr)  # upper left corner
     self._addch(left, top + height - 1, curses.ACS_LLCORNER, *attr)  # lower left corner
@@ -543,14 +555,14 @@ class _Subwindow(object):
 
     return x
 
-  def _hline(self, x, y, length, *attr):
+  def hline(self, x, y, length, *attr):
     if self.width > x and self.height > y:
       try:
         self._curses_subwindow.hline(y, x, curses.ACS_HLINE | curses_attr(*attr), min(length, self.width - x))
       except:
         pass
 
-  def _vline(self, x, y, length, *attr):
+  def vline(self, x, y, length, *attr):
     if self.width > x and self.height > y:
       try:
         self._curses_subwindow.vline(y, x, curses.ACS_VLINE | curses_attr(*attr), min(length, self.height - y))
