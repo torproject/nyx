@@ -10,7 +10,7 @@ import time
 import threading
 
 import nyx.curses
-import nyx.menu.menu
+import nyx.menu
 import nyx.popups
 
 import nyx.panel
@@ -335,7 +335,7 @@ def start_nyx():
     elif key.match('p'):
       control.set_paused(not control.is_paused())
     elif key.match('m'):
-      nyx.menu.menu.show_menu()
+      nyx.menu.show_menu()
     elif key.match('q'):
       # provides prompt to confirm that nyx should exit
 

@@ -27,6 +27,7 @@ __all__ = [
   'controller',
   'curses',
   'log',
+  'menu',
   'panel',
   'popups',
   'starter',

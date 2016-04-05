@@ -99,7 +99,7 @@ setup(
   author = nyx.__author__,
   author_email = nyx.__contact__,
   url = nyx.__url__,
-  packages = ['nyx', 'nyx.panel', 'nyx.menu'],
+  packages = ['nyx', 'nyx.panel'],
   keywords = 'tor onion controller',
   install_requires = ['stem>=1.4.1'],
   package_data = {'nyx': ['settings/*', 'resources/*']},
