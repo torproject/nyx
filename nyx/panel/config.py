@@ -17,7 +17,7 @@ import nyx.popups
 import stem.control
 import stem.manual
 
-from nyx.curses import GREEN, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
+from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx import DATA_DIR, tor_controller
 
 from stem.util import conf, enum, log, str_tools
@@ -175,7 +175,7 @@ class ConfigPanel(nyx.panel.Panel):
     """
 
     sort_colors = dict([(attr, CONFIG['attr.config.sort_color'].get(attr, WHITE)) for attr in SortAttr])
-    results = nyx.popups.show_sort_dialog('Config Option Ordering:', SortAttr, self._sort_order, sort_colors)
+    results = nyx.popups.select_sort_order('Config Option Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
       self._sort_order = results
@@ -186,53 +186,15 @@ class ConfigPanel(nyx.panel.Panel):
     Confirmation dialog for saving tor's configuration.
     """
 
-    selection, controller = 1, tor_controller()
-    config_text = controller.get_info('config-text', None)
-    config_lines = config_text.splitlines() if config_text else []
+    controller = tor_controller()
+    torrc = controller.get_info('config-text', None)
 
-    with nyx.popups.popup_window(len(config_lines) + 2) as (popup, width, height):
-      if not popup or height <= 2:
-        return
-
-      while True:
-        height, width = popup.get_preferred_size()  # allow us to be resized
-        popup.win.erase()
-
-        for i, full_line in enumerate(config_lines):
-          line = str_tools.crop(full_line, width - 2)
-          option, arg = line.split(' ', 1) if ' ' in line else (line, '')
-
-          popup.addstr(i + 1, 1, option, GREEN, BOLD)
-          popup.addstr(i + 1, len(option) + 2, arg, CYAN, BOLD)
-
-        x = width - 16
-
-        for i, option in enumerate(['Save', 'Cancel']):
-          x = popup.addstr(height - 2, x, '[')
-          x = popup.addstr(height - 2, x, option, BOLD, HIGHLIGHT if i == selection else NORMAL)
-          x = popup.addstr(height - 2, x, '] ')
-
-        popup.draw_box()
-        popup.addstr(0, 0, 'Torrc to save:', HIGHLIGHT)
-        popup.win.refresh()
-
-        key = nyx.curses.key_input()
-
-        if key.match('left'):
-          selection = max(0, selection - 1)
-        elif key.match('right'):
-          selection = min(1, selection + 1)
-        elif key.is_selection():
-          if selection == 0:
-            try:
-              controller.save_conf()
-              nyx.controller.show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
-            except IOError as exc:
-              nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
-
-          break
-        elif key.match('esc'):
-          break  # esc - cancel
+    if nyx.popups.confirm_save_torrc(torrc):
+      try:
+        controller.save_conf()
+        nyx.controller.show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
+      except IOError as exc:
+        nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
 
     self.redraw(True)
 

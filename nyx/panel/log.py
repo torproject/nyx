@@ -141,7 +141,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     Prompts the user to select the events being listened for.
     """
 
-    event_types = nyx.popups.show_event_selector()
+    event_types = nyx.popups.select_event_types()
 
     if event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
@@ -214,7 +214,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
       with nyx.curses.CURSES_LOCK:
         options = ['None'] + self._filter.latest_selections() + ['New...']
         initial_selection = self._filter.selection() if self._filter.selection() else 'None'
-        selection = nyx.popups.show_list_selector('Log Filter:', options, initial_selection)
+        selection = nyx.popups.select_from_list('Log Filter:', options, initial_selection)
 
         if selection == 'None':
           self._filter.select(None)

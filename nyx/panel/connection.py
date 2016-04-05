@@ -311,7 +311,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
     """
 
     sort_colors = dict([(attr, CONFIG['attr.connection.sort_color'].get(attr, WHITE)) for attr in SortAttr])
-    results = nyx.popups.show_sort_dialog('Connection Ordering:', SortAttr, self._sort_order, sort_colors)
+    results = nyx.popups.select_sort_order('Connection Ordering:', SortAttr, self._sort_order, sort_colors)
 
     if results:
       self._sort_order = results
@@ -392,7 +392,7 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
       resolver = connection_tracker.get_custom_resolver()
       options = ['auto'] + list(connection.Resolver) + list(nyx.tracker.CustomResolver)
 
-      selected = nyx.popups.show_list_selector('Connection Resolver:', options, resolver if resolver else 'auto')
+      selected = nyx.popups.select_from_list('Connection Resolver:', options, resolver if resolver else 'auto')
       connection_tracker.set_custom_resolver(None if selected == 'auto' else selected)
 
       self.redraw(True)

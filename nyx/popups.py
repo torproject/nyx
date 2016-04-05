@@ -2,7 +2,20 @@
 # See LICENSE for licensing information
 
 """
-Functions for displaying popups in the interface.
+Popup dialogs provided by our interface.
+
+::
+
+  show_help - keybindings provided by the current page
+  show_about - basic information about our application
+  show_counts - listing of counts with bar graphs
+  show_descriptor - presents descriptors for a relay
+
+  select_from_list - selects from a list of options
+  select_sort_order - selects attributes by which to sort by
+  select_event_types - select from a list of event types
+
+  confirm_save_torrc - confirmation dialog for saving the torrc
 """
 
 import math
@@ -204,147 +217,6 @@ def show_counts(title, counts, fill_char = ' '):
     nyx.curses.key_input()
 
 
-def show_list_selector(title, options, previous_selection):
-  """
-  Provides list of items the user can choose from.
-
-  :param str title: dialog title
-  :param list options: options that can be selected from
-  :param str previous_selection: previously selected option
-
-  :returns: **str** of selection or **previous_selection** if dialog is canceled
-  """
-
-  selected_index = options.index(previous_selection) if previous_selection in options else 0
-
-  def _render(subwindow):
-    subwindow.box()
-    subwindow.addstr(0, 0, title, HIGHLIGHT)
-
-    for i, option in enumerate(options):
-      if option == previous_selection:
-        subwindow.addstr(2, i + 1, '> ')
-
-      attr = HIGHLIGHT if i == selected_index else NORMAL
-      subwindow.addstr(4, i + 1, ' %s ' % option, attr)
-
-  with nyx.curses.CURSES_LOCK:
-    while True:
-      nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = _top(), height = 1)  # hides title below us
-      nyx.curses.draw(_render, top = _top(), width = max(map(len, options)) + 9, height = len(options) + 2)
-      key = nyx.curses.key_input()
-
-      if key.match('up'):
-        selected_index = max(0, selected_index - 1)
-      elif key.match('down'):
-        selected_index = min(len(options) - 1, selected_index + 1)
-      elif key.is_selection():
-        return options[selected_index]
-      elif key.match('esc'):
-        return previous_selection
-
-
-def show_sort_dialog(title, options, previous_order, option_colors):
-  """
-  Provides sorting dialog of the form...
-
-    Current Order: <previous order>
-    New Order: <selected options>
-
-    <option 1>    <option 2>    <option 3>   Cancel
-
-  :param str title: dialog title
-  :param list options: sort options to be provided
-  :param list previous_order: previous ordering
-  :param dict option_colors: mapping of options to their color
-
-  :returns: **list** of the new sort order or **None** if dialog is canceled
-  """
-
-  new_order = []
-  cursor_index = 0
-  shown_options = list(options) + ['Cancel']
-
-  def _draw_selection(subwindow, y, label, selection):
-    x = subwindow.addstr(2, y, label, BOLD)
-
-    for i, option in enumerate(selection):
-      x = subwindow.addstr(x, y, option, option_colors.get(option, WHITE), BOLD)
-
-      if i < len(selection) - 1:
-        x = subwindow.addstr(x, y, ', ', BOLD)
-
-  def _render(subwindow):
-    subwindow.box()
-    subwindow.addstr(0, 0, title, HIGHLIGHT)
-
-    _draw_selection(subwindow, 1, 'Current Order: ', previous_order)
-    _draw_selection(subwindow, 2, 'New Order: ', new_order)
-
-    # presents remaining options, each row having up to four options
-
-    for i, option in enumerate(shown_options):
-      attr = HIGHLIGHT if i == cursor_index else NORMAL
-      subwindow.addstr((i % 4) * 19 + 2, (i / 4) + 4, option, attr)
-
-  with nyx.curses.CURSES_LOCK:
-    while len(new_order) < len(previous_order):
-      nyx.curses.draw(_render, top = _top(), width = 80, height = 9)
-      key = nyx.curses.key_input()
-
-      if key.match('left'):
-        cursor_index = max(0, cursor_index - 1)
-      elif key.match('right'):
-        cursor_index = min(len(shown_options) - 1, cursor_index + 1)
-      elif key.match('up'):
-        cursor_index = max(0, cursor_index - 4)
-      elif key.match('down'):
-        cursor_index = min(len(shown_options) - 1, cursor_index + 4)
-      elif key.is_selection():
-        selection = shown_options[cursor_index]
-
-        if selection == 'Cancel':
-          return None
-        else:
-          new_order.append(selection)
-          shown_options.remove(selection)
-          cursor_index = min(cursor_index, len(shown_options) - 1)
-      elif key.match('esc'):
-        return None
-
-  return new_order
-
-
-def show_event_selector():
-  """
-  Presents a chart of event types we support, with a prompt for the user to
-  select a set.
-
-  :returns: **list** of event types the user has selected or **None** if dialog
-    is canceled
-  """
-
-  def _render(subwindow):
-    subwindow.box()
-    subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
-
-    for i, line in enumerate(CONFIG['msg.misc.event_types'].split('\n')):
-      subwindow.addstr(1, i + 1, line[6:])
-
-  with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
-    user_input = nyx.controller.input_prompt('Events to log: ')
-
-    if user_input:
-      try:
-        user_input = user_input.replace(' ', '')  # strip spaces
-        return nyx.arguments.expand_events(user_input)
-      except ValueError as exc:
-        nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
-
-    return None
-
-
 def show_descriptor(fingerprint, color, is_close_key):
   """
   Provides a dialog showing descriptors for a relay.
@@ -453,6 +325,192 @@ def _descriptor_text(fingerprint):
     description += '\n\nMicrodescriptor:\n\n%s' % microdescriptor
 
   return description.split('\n')
+
+
+def select_from_list(title, options, previous_selection):
+  """
+  Provides list of items the user can choose from.
+
+  :param str title: dialog title
+  :param list options: options that can be selected from
+  :param str previous_selection: previously selected option
+
+  :returns: **str** of selection or **previous_selection** if dialog is canceled
+  """
+
+  selected_index = options.index(previous_selection) if previous_selection in options else 0
+
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+
+    for i, option in enumerate(options):
+      if option == previous_selection:
+        subwindow.addstr(2, i + 1, '> ')
+
+      attr = HIGHLIGHT if i == selected_index else NORMAL
+      subwindow.addstr(4, i + 1, ' %s ' % option, attr)
+
+  with nyx.curses.CURSES_LOCK:
+    while True:
+      nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = _top(), height = 1)  # hides title below us
+      nyx.curses.draw(_render, top = _top(), width = max(map(len, options)) + 9, height = len(options) + 2)
+      key = nyx.curses.key_input()
+
+      if key.match('up'):
+        selected_index = max(0, selected_index - 1)
+      elif key.match('down'):
+        selected_index = min(len(options) - 1, selected_index + 1)
+      elif key.is_selection():
+        return options[selected_index]
+      elif key.match('esc'):
+        return previous_selection
+
+
+def select_sort_order(title, options, previous_order, option_colors):
+  """
+  Provides sorting dialog of the form...
+
+    Current Order: <previous order>
+    New Order: <selected options>
+
+    <option 1>    <option 2>    <option 3>   Cancel
+
+  :param str title: dialog title
+  :param list options: sort options to be provided
+  :param list previous_order: previous ordering
+  :param dict option_colors: mapping of options to their color
+
+  :returns: **list** of the new sort order or **None** if dialog is canceled
+  """
+
+  new_order = []
+  cursor_index = 0
+  shown_options = list(options) + ['Cancel']
+
+  def _draw_selection(subwindow, y, label, selection):
+    x = subwindow.addstr(2, y, label, BOLD)
+
+    for i, option in enumerate(selection):
+      x = subwindow.addstr(x, y, option, option_colors.get(option, WHITE), BOLD)
+
+      if i < len(selection) - 1:
+        x = subwindow.addstr(x, y, ', ', BOLD)
+
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
+
+    _draw_selection(subwindow, 1, 'Current Order: ', previous_order)
+    _draw_selection(subwindow, 2, 'New Order: ', new_order)
+
+    # presents remaining options, each row having up to four options
+
+    for i, option in enumerate(shown_options):
+      attr = HIGHLIGHT if i == cursor_index else NORMAL
+      subwindow.addstr((i % 4) * 19 + 2, (i / 4) + 4, option, attr)
+
+  with nyx.curses.CURSES_LOCK:
+    while len(new_order) < len(previous_order):
+      nyx.curses.draw(_render, top = _top(), width = 80, height = 9)
+      key = nyx.curses.key_input()
+
+      if key.match('left'):
+        cursor_index = max(0, cursor_index - 1)
+      elif key.match('right'):
+        cursor_index = min(len(shown_options) - 1, cursor_index + 1)
+      elif key.match('up'):
+        cursor_index = max(0, cursor_index - 4)
+      elif key.match('down'):
+        cursor_index = min(len(shown_options) - 1, cursor_index + 4)
+      elif key.is_selection():
+        selection = shown_options[cursor_index]
+
+        if selection == 'Cancel':
+          return None
+        else:
+          new_order.append(selection)
+          shown_options.remove(selection)
+          cursor_index = min(cursor_index, len(shown_options) - 1)
+      elif key.match('esc'):
+        return None
+
+  return new_order
+
+
+def select_event_types():
+  """
+  Presents a chart of event types we support, with a prompt for the user to
+  select a set.
+
+  :returns: **list** of event types the user has selected or **None** if dialog
+    is canceled
+  """
+
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
+
+    for i, line in enumerate(CONFIG['msg.misc.event_types'].split('\n')):
+      subwindow.addstr(1, i + 1, line[6:])
+
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
+    user_input = nyx.controller.input_prompt('Events to log: ')
+
+    if user_input:
+      try:
+        user_input = user_input.replace(' ', '')  # strip spaces
+        return nyx.arguments.expand_events(user_input)
+      except ValueError as exc:
+        nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
+
+    return None
+
+
+def confirm_save_torrc(torrc):
+  """
+  Provides a confirmation dialog for saving tor's current configuration.
+
+  :param str torrc: torrc that would be saved
+
+  :returns: **True** if the torrc should be saved and **False** otherwise
+  """
+
+  torrc_lines = torrc.splitlines() if torrc else []
+  selection = 1
+
+  def _render(subwindow):
+    for i, full_line in enumerate(torrc_lines):
+      line = stem.util.str_tools.crop(full_line, subwindow.width - 2)
+      option, arg = line.split(' ', 1) if ' ' in line else (line, '')
+
+      subwindow.addstr(1, i + 1, option, GREEN, BOLD)
+      subwindow.addstr(len(option) + 2, i + 1, arg, CYAN, BOLD)
+
+    x = subwindow.width - 16
+
+    for i, option in enumerate(['Save', 'Cancel']):
+      x = subwindow.addstr(x, subwindow.height - 2, '[')
+      x = subwindow.addstr(x, subwindow.height - 2, option, BOLD, HIGHLIGHT if i == selection else NORMAL)
+      x = subwindow.addstr(x, subwindow.height - 2, '] ')
+
+    subwindow.box()
+    subwindow.addstr(0, 0, 'Torrc to save:', HIGHLIGHT)
+
+  with nyx.curses.CURSES_LOCK:
+    while True:
+      nyx.curses.draw(_render, top = _top(), height = len(torrc_lines) + 2)
+      key = nyx.curses.key_input()
+
+      if key.match('left'):
+        selection = max(0, selection - 1)
+      elif key.match('right'):
+        selection = min(1, selection + 1)
+      elif key.is_selection():
+        return selection == 0
+      elif key.match('esc'):
+        return False  # esc - cancel
 
 
 def _top():

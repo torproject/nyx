@@ -109,10 +109,24 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
-Consensus Descriptor:----------+
-|  No consensus data available |
-+------------------------------+
+TORRC = """
+ControlPort 9051
+CookieAuthentication 1
+ExitPolicy reject *:*
+DataDirectory /home/atagar/.tor
+Log notice file /home/atagar/.tor/log
+ORPort 7000
+""".strip()
+
+EXPECTED_SAVE_TORRC_CONFIRMATION = """
+Torrc to save:-----------------------------------------------------------------+
+|ControlPort 9051                                                              |
+|CookieAuthentication 1                                                        |
+|ExitPolicy reject *:*                                                         |
+|DataDirectory /home/atagar/.tor                                               |
+|Log notice file /home/atagar/.tor/log                                         |
+|ORPort 7000                                                    [Save] [Cancel]|
++------------------------------------------------------------------------------+
 """.strip()
 
 DESCRIPTOR_TEXT = """
@@ -141,6 +155,12 @@ Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA
 NCGI042p6+7UgCVT1x3WcLnq3ScV//s1wXHrUXa7vi0=
 -----END SIGNATURE-----
 """.strip().split('\n')
+
+EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
+Consensus Descriptor:----------+
+|  No consensus data available |
++------------------------------+
+""".strip()
 
 EXPECTED_DESCRIPTOR = """
 Consensus Descriptor (29787760145CD1A473552A2FC64C72A9A130820E):---------------------------------------------------+
@@ -232,23 +252,23 @@ class TestPopups(unittest.TestCase):
     self.assertEqual(EXPECTED_COUNTS, rendered.content)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
-  def test_selector(self):
+  def test_select_from_list(self):
     options = ['each second', '5 seconds', '30 seconds', 'minutely', '15 minute', '30 minute', 'hourly', 'daily']
-    rendered = test.render(nyx.popups.show_list_selector, 'Update Interval:', options, 'each second')
+    rendered = test.render(nyx.popups.select_from_list, 'Update Interval:', options, 'each second')
     self.assertEqual(EXPECTED_LIST_SELECTOR, rendered.content)
     self.assertEqual('each second', rendered.return_value)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
-  def test_sort_dialog(self):
+  def test_select_sort_order(self):
     previous_order = ['Man Page Entry', 'Name', 'Is Set']
     options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
 
-    rendered = test.render(nyx.popups.show_sort_dialog, 'Config Option Ordering:', options, previous_order, {})
+    rendered = test.render(nyx.popups.select_sort_order, 'Config Option Ordering:', options, previous_order, {})
     self.assertEqual(EXPECTED_SORT_DIALOG_START, rendered.content)
     self.assertEqual(None, rendered.return_value)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
-  def test_sort_dialog_selecting(self):
+  def test_select_sort_order_usage(self):
     # Use the dialog to make a selection. At the end we render two options as
     # being selected (rather than three) because the act of selecing the third
     # closed the popup.
@@ -262,7 +282,7 @@ class TestPopups(unittest.TestCase):
 
     def draw_func():
       with patch('nyx.curses.key_input', side_effect = keypresses):
-        return nyx.popups.show_sort_dialog('Config Option Ordering:', options, previous_order, {})
+        return nyx.popups.select_sort_order('Config Option Ordering:', options, previous_order, {})
 
     previous_order = ['Man Page Entry', 'Name', 'Is Set']
     options = ['Name', 'Value', 'Value Type', 'Category', 'Usage', 'Summary', 'Description', 'Man Page Entry', 'Is Set']
@@ -273,17 +293,32 @@ class TestPopups(unittest.TestCase):
 
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.controller.input_prompt', Mock(return_value = None))
-  def test_event_selector_when_canceled(self):
-    rendered = test.render(nyx.popups.show_event_selector)
+  def test_select_event_types_when_canceled(self):
+    rendered = test.render(nyx.popups.select_event_types)
     self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
     self.assertEqual(None, rendered.return_value)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.controller.input_prompt', Mock(return_value = '2bwe'))
-  def test_event_selector_with_input(self):
-    rendered = test.render(nyx.popups.show_event_selector)
+  def test_select_event_types_with_input(self):
+    rendered = test.render(nyx.popups.select_event_types)
     self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
     self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERR', 'NYX_WARN', 'NYX_NOTICE']), rendered.return_value)
+
+  @patch('nyx.curses.screen_size', Mock(return_value = nyx.curses.Dimensions(80, 60)))
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  def test_confirm_save_torrc(self):
+    rendered = test.render(nyx.popups.confirm_save_torrc, TORRC)
+    self.assertEqual(EXPECTED_SAVE_TORRC_CONFIRMATION, rendered.content)
+    self.assertEqual(False, rendered.return_value)
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = [nyx.curses.KeyInput(curses.KEY_LEFT), nyx.curses.KeyInput(curses.KEY_ENTER)]):
+        return nyx.popups.confirm_save_torrc(TORRC)
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_SAVE_TORRC_CONFIRMATION, rendered.content)
+    self.assertEqual(True, rendered.return_value)
 
   @patch('nyx.popups._top', Mock(return_value = 0))
   def test_descriptor_without_fingerprint(self):
