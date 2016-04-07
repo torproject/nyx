@@ -9,7 +9,6 @@ import unittest
 import nyx.curses
 
 from nyx import expand_path, join, uses_settings
-
 from mock import patch, Mock
 
 __all__ = [
@@ -20,11 +19,37 @@ __all__ = [
   'tracker',
 ]
 
-# If set we make test content we render for this many seconds.
+SHOW_RENDERED_CONTENT = None  # if set, tests render content this many seconds
 
-SHOW_RENDERED_CONTENT = None
+OUR_SCREEN_SIZE = None
+TEST_SCREEN_SIZE = nyx.curses.Dimensions(80, 25)
 
 RenderResult = collections.namedtuple('RenderResult', ['content', 'return_value', 'runtime'])
+
+
+def require_curses(func):
+  """
+  Skips the test unless curses is available with a minimal dimension needed by
+  our tests.
+  """
+
+  if OUR_SCREEN_SIZE is None:
+    def _check_screen_size():
+      global OUR_SCREEN_SIZE
+      OUR_SCREEN_SIZE = nyx.curses.screen_size()
+
+    nyx.curses.start(_check_screen_size)
+
+  def wrapped(self, *args, **kwargs):
+    if OUR_SCREEN_SIZE.width < TEST_SCREEN_SIZE.width:
+      self.skipTest("screen isn't wide enough")
+    elif OUR_SCREEN_SIZE.height < TEST_SCREEN_SIZE.height:
+      self.skipTest("screen isn't tall enough")
+    else:
+      with patch('nyx.curses.screen_size', Mock(return_value = TEST_SCREEN_SIZE)):
+        return func(self, *args, **kwargs)
+
+  return wrapped
 
 
 def render(func, *args, **kwargs):
