@@ -339,6 +339,13 @@ class Panel(object):
     if not self.visible or HALT_ACTIVITY:
       return
 
+    if self.panel_name in ('header'):
+      height = self.get_height() if self.get_height() != -1 else None
+      width = self.get_width() if self.get_width() != -1 else None
+
+      nyx.curses.draw(self.draw, top = self.top, width = width, height = height)
+      return
+
     # if the panel's completely outside its parent then this is a no-op
 
     new_height, new_width = self.get_preferred_size()

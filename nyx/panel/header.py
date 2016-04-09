@@ -171,48 +171,48 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       nyx.panel.KeyHandler('r', action = _reconnect),
     )
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     vals = self._vals  # local reference to avoid concurrency concerns
-    self._last_width = width
+    self._last_width = subwindow.width
     is_wide = self.is_wide()
 
     # space available for content
 
-    left_width = max(width / 2, 77) if is_wide else width
-    right_width = width - left_width
+    left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
+    right_width = subwindow.width - left_width
 
-    self._draw_platform_section(0, 0, left_width, vals)
+    self._draw_platform_section(subwindow, 0, 0, left_width, vals)
 
     if vals.is_connected:
-      self._draw_ports_section(0, 1, left_width, vals)
+      self._draw_ports_section(subwindow, 0, 1, left_width, vals)
     else:
-      self._draw_disconnected(0, 1, left_width, vals)
+      self._draw_disconnected(subwindow, 0, 1, left_width, vals)
 
     if is_wide:
-      self._draw_resource_usage(left_width, 0, right_width, vals)
+      self._draw_resource_usage(subwindow, left_width, 0, right_width, vals)
 
       if vals.is_relay:
-        self._draw_fingerprint_and_fd_usage(left_width, 1, right_width, vals)
-        self._draw_flags(0, 2, left_width, vals)
-        self._draw_exit_policy(left_width, 2, right_width, vals)
+        self._draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
+        self._draw_flags(subwindow, 0, 2, left_width, vals)
+        self._draw_exit_policy(subwindow, left_width, 2, right_width, vals)
       elif vals.is_connected:
-        self._draw_newnym_option(left_width, 1, right_width, vals)
+        self._draw_newnym_option(subwindow, left_width, 1, right_width, vals)
     else:
-      self._draw_resource_usage(0, 2, left_width, vals)
+      self._draw_resource_usage(subwindow, 0, 2, left_width, vals)
 
       if vals.is_relay:
-        self._draw_fingerprint_and_fd_usage(0, 3, left_width, vals)
-        self._draw_flags(0, 4, left_width, vals)
+        self._draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
+        self._draw_flags(subwindow, 0, 4, left_width, vals)
 
     if self._message:
-      self.addstr(height - 1, 0, self._message, *self._message_attr)
+      subwindow.addstr(0, subwindow.height - 1, self._message, *self._message_attr)
     elif not self.is_paused():
       controller = nyx.controller.get_controller()
-      self.addstr(height - 1, 0, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
+      subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
-      self.addstr(height - 1, 0, 'Paused', HIGHLIGHT)
+      subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
 
-  def _draw_platform_section(self, x, y, width, vals):
+  def _draw_platform_section(self, subwindow, x, y, width, vals):
     """
     Section providing the user's hostname, platform, and version information...
 
@@ -222,26 +222,26 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     initial_x, space_left = x, min(width, 40)
 
-    x = self.addstr(y, x, vals.format('nyx - {hostname}', space_left))
+    x = subwindow.addstr(x, y, vals.format('nyx - {hostname}', space_left))
     space_left -= x - initial_x
 
     if space_left >= 10:
-      self.addstr(y, x, ' (%s)' % vals.format('{platform}', space_left - 3))
+      subwindow.addstr(x, y, ' (%s)' % vals.format('{platform}', space_left - 3))
 
     x, space_left = initial_x + 43, width - 43
 
     if vals.version != 'Unknown' and space_left >= 10:
-      x = self.addstr(y, x, vals.format('Tor {version}', space_left))
+      x = subwindow.addstr(x, y, vals.format('Tor {version}', space_left))
       space_left -= x - 43 - initial_x
 
       if space_left >= 7 + len(vals.version_status):
         version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, WHITE)
 
-        x = self.addstr(y, x, ' (')
-        x = self.addstr(y, x, vals.version_status, version_color)
-        self.addstr(y, x, ')')
+        x = subwindow.addstr(x, y, ' (')
+        x = subwindow.addstr(x, y, vals.version_status, version_color)
+        subwindow.addstr(x, y, ')')
 
-  def _draw_ports_section(self, x, y, width, vals):
+  def _draw_ports_section(self, subwindow, x, y, width, vals):
     """
     Section providing our nickname, address, and port information...
 
@@ -249,37 +249,37 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     """
 
     if not vals.is_relay:
-      x = self.addstr(y, x, 'Relaying Disabled', CYAN)
+      x = subwindow.addstr(x, y, 'Relaying Disabled', CYAN)
     else:
-      x = self.addstr(y, x, vals.format('{nickname} - {address}:{or_port}'))
+      x = subwindow.addstr(x, y, vals.format('{nickname} - {address}:{or_port}'))
 
       if vals.dir_port != '0':
-        x = self.addstr(y, x, vals.format(', Dir Port: {dir_port}'))
+        x = subwindow.addstr(x, y, vals.format(', Dir Port: {dir_port}'))
 
     if vals.control_port:
       if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
         auth_color = RED if vals.auth_type == 'open' else GREEN
 
-        x = self.addstr(y, x, ', Control Port (')
-        x = self.addstr(y, x, vals.auth_type, auth_color)
-        self.addstr(y, x, vals.format('): {control_port}'))
+        x = subwindow.addstr(x, y, ', Control Port (')
+        x = subwindow.addstr(x, y, vals.auth_type, auth_color)
+        subwindow.addstr(x, y, vals.format('): {control_port}'))
       else:
-        self.addstr(y, x, vals.format(', Control Port: {control_port}'))
+        subwindow.addstr(x, y, vals.format(', Control Port: {control_port}'))
     elif vals.socket_path:
-      self.addstr(y, x, vals.format(', Control Socket: {socket_path}'))
+      subwindow.addstr(x, y, vals.format(', Control Socket: {socket_path}'))
 
-  def _draw_disconnected(self, x, y, width, vals):
+  def _draw_disconnected(self, subwindow, x, y, width, vals):
     """
     Message indicating that tor is disconnected...
 
       Tor Disconnected (15:21 07/13/2014, press r to reconnect)
     """
 
-    x = self.addstr(y, x, 'Tor Disconnected', RED, BOLD)
+    x = subwindow.addstr(x, y, 'Tor Disconnected', RED, BOLD)
     last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(vals.last_heartbeat))
-    self.addstr(y, x, ' (%s, press r to reconnect)' % last_heartbeat)
+    subwindow.addstr(x, y, ' (%s, press r to reconnect)' % last_heartbeat)
 
-  def _draw_resource_usage(self, x, y, width, vals):
+  def _draw_resource_usage(self, subwindow, x, y, width, vals):
     """
     System resource usage of the tor process...
 
@@ -307,11 +307,11 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     for (start, label) in sys_fields:
       if width >= start + len(label):
-        self.addstr(y, x + start, label)
+        subwindow.addstr(x + start, y, label)
       else:
         break
 
-  def _draw_fingerprint_and_fd_usage(self, x, y, width, vals):
+  def _draw_fingerprint_and_fd_usage(self, subwindow, x, y, width, vals):
     """
     Presents our fingerprint, and our file descriptor usage if we're running
     out...
@@ -321,7 +321,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     initial_x, space_left = x, width
 
-    x = self.addstr(y, x, vals.format('fingerprint: {fingerprint}', width))
+    x = subwindow.addstr(x, y, vals.format('fingerprint: {fingerprint}', width))
     space_left -= x - initial_x
 
     if space_left >= 30 and vals.fd_used and vals.fd_limit != -1:
@@ -337,38 +337,38 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         else:
           percentage_format = ()
 
-        x = self.addstr(y, x, ', file descriptors' if space_left >= 37 else ', file desc')
-        x = self.addstr(y, x, vals.format(': {fd_used} / {fd_limit} ('))
-        x = self.addstr(y, x, '%i%%' % fd_percent, *percentage_format)
-        self.addstr(y, x, ')')
+        x = subwindow.addstr(x, y, ', file descriptors' if space_left >= 37 else ', file desc')
+        x = subwindow.addstr(x, y, vals.format(': {fd_used} / {fd_limit} ('))
+        x = subwindow.addstr(x, y, '%i%%' % fd_percent, *percentage_format)
+        subwindow.addstr(x, y, ')')
 
-  def _draw_flags(self, x, y, width, vals):
+  def _draw_flags(self, subwindow, x, y, width, vals):
     """
     Presents flags held by our relay...
 
       flags: Running, Valid
     """
 
-    x = self.addstr(y, x, 'flags: ')
+    x = subwindow.addstr(x, y, 'flags: ')
 
     if vals.flags:
       for i, flag in enumerate(vals.flags):
         flag_color = CONFIG['attr.flag_colors'].get(flag, WHITE)
-        x = self.addstr(y, x, flag, flag_color, BOLD)
+        x = subwindow.addstr(x, y, flag, flag_color, BOLD)
 
         if i < len(vals.flags) - 1:
-          x = self.addstr(y, x, ', ')
+          x = subwindow.addstr(x, y, ', ')
     else:
-      self.addstr(y, x, 'none', CYAN, BOLD)
+      subwindow.addstr(x, y, 'none', CYAN, BOLD)
 
-  def _draw_exit_policy(self, x, y, width, vals):
+  def _draw_exit_policy(self, subwindow, x, y, width, vals):
     """
     Presents our exit policy...
 
       exit policy: reject *:*
     """
 
-    x = self.addstr(y, x, 'exit policy: ')
+    x = subwindow.addstr(x, y, 'exit policy: ')
 
     if not vals.exit_policy:
       return
@@ -377,28 +377,28 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     for i, rule in enumerate(rules):
       policy_color = GREEN if rule.is_accept else RED
-      x = self.addstr(y, x, str(rule), policy_color, BOLD)
+      x = subwindow.addstr(x, y, str(rule), policy_color, BOLD)
 
       if i < len(rules) - 1:
-        x = self.addstr(y, x, ', ')
+        x = subwindow.addstr(x, y, ', ')
 
     if vals.exit_policy.has_default():
       if rules:
-        x = self.addstr(y, x, ', ')
+        x = subwindow.addstr(x, y, ', ')
 
-      self.addstr(y, x, '<default>', CYAN, BOLD)
+      subwindow.addstr(x, y, '<default>', CYAN, BOLD)
 
-  def _draw_newnym_option(self, x, y, width, vals):
+  def _draw_newnym_option(self, subwindow, x, y, width, vals):
     """
     Provide a notice for requiesting a new identity, and time until it's next
     available if in the process of building circuits.
     """
 
     if vals.newnym_wait == 0:
-      self.addstr(y, x, "press 'n' for a new identity")
+      subwindow.addstr(x, y, "press 'n' for a new identity")
     else:
       plural = 's' if vals.newnym_wait > 1 else ''
-      self.addstr(y, x, 'building circuits, available again in %i second%s' % (vals.newnym_wait, plural))
+      subwindow.addstr(x, y, 'building circuits, available again in %i second%s' % (vals.newnym_wait, plural))
 
   def run(self):
     """
