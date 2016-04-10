@@ -184,7 +184,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
     if vals.is_connected:
-      self._draw_ports_section(subwindow, 0, 1, left_width, vals)
+      _draw_ports_section(subwindow, 0, 1, left_width, vals)
     else:
       self._draw_disconnected(subwindow, 0, 1, left_width, vals)
 
@@ -211,33 +211,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_ports_section(self, subwindow, x, y, width, vals):
-    """
-    Section providing our nickname, address, and port information...
-
-      Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
-    """
-
-    if not vals.is_relay:
-      x = subwindow.addstr(x, y, 'Relaying Disabled', CYAN)
-    else:
-      x = subwindow.addstr(x, y, vals.format('{nickname} - {address}:{or_port}'))
-
-      if vals.dir_port != '0':
-        x = subwindow.addstr(x, y, vals.format(', Dir Port: {dir_port}'))
-
-    if vals.control_port:
-      if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
-        auth_color = RED if vals.auth_type == 'open' else GREEN
-
-        x = subwindow.addstr(x, y, ', Control Port (')
-        x = subwindow.addstr(x, y, vals.auth_type, auth_color)
-        subwindow.addstr(x, y, vals.format('): {control_port}'))
-      else:
-        subwindow.addstr(x, y, vals.format(', Control Port: {control_port}'))
-    elif vals.socket_path:
-      subwindow.addstr(x, y, vals.format(', Control Socket: {socket_path}'))
 
   def _draw_disconnected(self, subwindow, x, y, width, vals):
     """
@@ -557,3 +530,30 @@ def _draw_platform_section(subwindow, x, y, width, vals):
       x = subwindow.addstr(x, y, ' (')
       x = subwindow.addstr(x, y, vals.version_status, version_color)
       subwindow.addstr(x, y, ')')
+
+def _draw_ports_section(subwindow, x, y, width, vals):
+  """
+  Section providing our nickname, address, and port information...
+
+    Unnamed - 0.0.0.0:7000, Control Port (cookie): 9051
+  """
+
+  if not vals.is_relay:
+    x = subwindow.addstr(x, y, 'Relaying Disabled', CYAN)
+  else:
+    x = subwindow.addstr(x, y, vals.format('{nickname} - {address}:{or_port}'))
+
+    if vals.dir_port != '0':
+      x = subwindow.addstr(x, y, vals.format(', Dir Port: {dir_port}'))
+
+  if vals.control_port:
+    if width >= x + 19 + len(vals.control_port) + len(vals.auth_type):
+      auth_color = RED if vals.auth_type == 'open' else GREEN
+
+      x = subwindow.addstr(x, y, ', Control Port (')
+      x = subwindow.addstr(x, y, vals.auth_type, auth_color)
+      subwindow.addstr(x, y, vals.format('): {control_port}'))
+    else:
+      subwindow.addstr(x, y, vals.format(', Control Port: {control_port}'))
+  elif vals.socket_path:
+    subwindow.addstr(x, y, vals.format(', Control Socket: {socket_path}'))

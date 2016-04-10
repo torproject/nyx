@@ -45,3 +45,34 @@ class TestHeader(unittest.TestCase):
 
     rendered = test.render(nyx.panel.header._draw_platform_section, 0, 0, 80, vals)
     self.assertEqual('nyx - odin (Linux 3.5.0-54-generic)', rendered.content)
+
+  @require_curses
+  def test_draw_ports_section(self):
+    vals = nyx.panel.header._sampling(
+      nickname = 'Unnamed',
+      address = '174.21.17.28',
+      or_port = '7000',
+      dir_port = '7001',
+      control_port = '9051',
+      auth_type = 'cookie',
+      is_relay = True,
+    )
+
+    test_input = {
+      80: 'Unnamed - 174.21.17.28:7000, Dir Port: 7001, Control Port (cookie): 9051',
+      50: 'Unnamed - 174.21.17.28:7000, Dir Port: 7001, Control Port: 9051',
+      0: 'Unnamed - 174.21.17.28:7000, Dir Port: 7001, Control Port: 9051',
+    }
+
+    for width, expected in test_input.items():
+      self.assertEqual(expected, test.render(nyx.panel.header._draw_ports_section, 0, 0, width, vals).content)
+
+  @require_curses
+  def test_draw_ports_section_with_relaying(self):
+    vals = nyx.panel.header._sampling(
+      control_port = None,
+      socket_path = '/path/to/control/socket',
+      is_relay = False,
+    )
+
+    self.assertEqual('Relaying Disabled, Control Socket: /path/to/control/socket', test.render(nyx.panel.header._draw_ports_section, 0, 0, 80, vals).content)
