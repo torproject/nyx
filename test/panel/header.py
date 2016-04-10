@@ -6,6 +6,7 @@ import time
 import unittest
 
 import nyx.panel.header
+import stem.exit_policy
 import test
 
 from test import require_curses
@@ -162,3 +163,8 @@ class TestHeader(unittest.TestCase):
     self.assertEqual('flags: none', test.render(nyx.panel.header._draw_flags, 0, 0, []).content)
     self.assertEqual('flags: Guard', test.render(nyx.panel.header._draw_flags, 0, 0, ['Guard']).content)
     self.assertEqual('flags: Running, Exit', test.render(nyx.panel.header._draw_flags, 0, 0, ['Running', 'Exit']).content)
+
+  @require_curses
+  def test_draw_exit_policy(self):
+    self.assertEqual('exit policy: reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('reject *:*')).content)
+    self.assertEqual('exit policy: accept *:80, accept *:443, reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('accept *:80', 'accept *:443', 'reject *:*')).content)

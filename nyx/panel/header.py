@@ -195,7 +195,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
         _draw_flags(subwindow, 0, 2, vals.flags)
-        self._draw_exit_policy(subwindow, left_width, 2, right_width, vals)
+        _draw_exit_policy(subwindow, left_width, 2, vals.exit_policy)
       elif vals.is_connected:
         self._draw_newnym_option(subwindow, left_width, 1, right_width, vals)
     else:
@@ -212,33 +212,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_exit_policy(self, subwindow, x, y, width, vals):
-    """
-    Presents our exit policy...
-
-      exit policy: reject *:*
-    """
-
-    x = subwindow.addstr(x, y, 'exit policy: ')
-
-    if not vals.exit_policy:
-      return
-
-    rules = list(vals.exit_policy.strip_private().strip_default())
-
-    for i, rule in enumerate(rules):
-      policy_color = GREEN if rule.is_accept else RED
-      x = subwindow.addstr(x, y, str(rule), policy_color, BOLD)
-
-      if i < len(rules) - 1:
-        x = subwindow.addstr(x, y, ', ')
-
-    if vals.exit_policy.has_default():
-      if rules:
-        x = subwindow.addstr(x, y, ', ')
-
-      subwindow.addstr(x, y, '<default>', CYAN, BOLD)
 
   def _draw_newnym_option(self, subwindow, x, y, width, vals):
     """
@@ -563,3 +536,31 @@ def _draw_flags(subwindow, x, y, flags):
         x = subwindow.addstr(x, y, ', ')
   else:
     subwindow.addstr(x, y, 'none', CYAN, BOLD)
+
+
+def _draw_exit_policy(subwindow, x, y, exit_policy):
+  """
+  Presents our exit policy...
+
+    exit policy: reject *:*
+  """
+
+  x = subwindow.addstr(x, y, 'exit policy: ')
+
+  if not exit_policy:
+    return
+
+  rules = list(exit_policy.strip_private().strip_default())
+
+  for i, rule in enumerate(rules):
+    policy_color = GREEN if rule.is_accept else RED
+    x = subwindow.addstr(x, y, str(rule), policy_color, BOLD)
+
+    if i < len(rules) - 1:
+      x = subwindow.addstr(x, y, ', ')
+
+  if exit_policy.has_default():
+    if rules:
+      x = subwindow.addstr(x, y, ', ')
+
+    subwindow.addstr(x, y, '<default>', CYAN, BOLD)
