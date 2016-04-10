@@ -180,6 +180,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
+    pause_time = self.get_pause_time() if self.is_paused() else None
 
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
@@ -189,7 +190,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       _draw_disconnected(subwindow, 0, 1, vals.last_heartbeat)
 
     if is_wide:
-      self._draw_resource_usage(subwindow, left_width, 0, right_width, vals)
+      _draw_resource_usage(subwindow, left_width, 0, right_width, vals, pause_time)
 
       if vals.is_relay:
         self._draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
@@ -198,7 +199,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       elif vals.is_connected:
         self._draw_newnym_option(subwindow, left_width, 1, right_width, vals)
     else:
-      self._draw_resource_usage(subwindow, 0, 2, left_width, vals)
+      _draw_resource_usage(subwindow, 0, 2, left_width, vals, pause_time)
 
       if vals.is_relay:
         self._draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
@@ -211,38 +212,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_resource_usage(self, subwindow, x, y, width, vals):
-    """
-    System resource usage of the tor process...
-
-      cpu: 0.0% tor, 1.0% nyx    mem: 0 (0.0%)       pid: 16329  uptime: 12-20:42:07
-    """
-
-    if vals.start_time:
-      if not vals.is_connected:
-        now = vals.connection_time
-      elif self.is_paused():
-        now = self.get_pause_time()
-      else:
-        now = time.time()
-
-      uptime = str_tools.short_time_label(now - vals.start_time)
-    else:
-      uptime = ''
-
-    sys_fields = (
-      (0, vals.format('cpu: {tor_cpu}% tor, {nyx_cpu}% nyx')),
-      (27, vals.format('mem: {memory} ({memory_percent}%)')),
-      (47, vals.format('pid: {pid}')),
-      (59, 'uptime: %s' % uptime),
-    )
-
-    for (start, label) in sys_fields:
-      if width >= start + len(label):
-        subwindow.addstr(x + start, y, label)
-      else:
-        break
 
   def _draw_fingerprint_and_fd_usage(self, subwindow, x, y, width, vals):
     """
@@ -559,3 +528,36 @@ def _draw_disconnected(subwindow, x, y, last_heartbeat):
   x = subwindow.addstr(x, y, 'Tor Disconnected', RED, BOLD)
   last_heartbeat_str = time.strftime('%H:%M %m/%d/%Y', time.localtime(last_heartbeat))
   subwindow.addstr(x, y, ' (%s, press r to reconnect)' % last_heartbeat_str)
+
+
+def _draw_resource_usage(subwindow, x, y, width, vals, pause_time):
+  """
+  System resource usage of the tor process...
+
+    cpu: 0.0% tor, 1.0% nyx    mem: 0 (0.0%)       pid: 16329  uptime: 12-20:42:07
+  """
+
+  if vals.start_time:
+    if not vals.is_connected:
+      now = vals.connection_time
+    elif pause_time:
+      now = pause_time
+    else:
+      now = time.time()
+
+    uptime = str_tools.short_time_label(now - vals.start_time)
+  else:
+    uptime = ''
+
+  sys_fields = (
+    (0, vals.format('cpu: {tor_cpu}% tor, {nyx_cpu}% nyx')),
+    (27, vals.format('mem: {memory} ({memory_percent}%)')),
+    (47, vals.format('pid: {pid}')),
+    (59, 'uptime: %s' % uptime),
+  )
+
+  for (start, label) in sys_fields:
+    if width >= start + len(label):
+      subwindow.addstr(x + start, y, label)
+    else:
+      break

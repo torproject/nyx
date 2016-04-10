@@ -84,3 +84,31 @@ class TestHeader(unittest.TestCase):
   def test_draw_disconnected(self, localtime_mock):
     localtime_mock.return_value = time.strptime('22:43 04/09/2016', '%H:%M %m/%d/%Y')
     self.assertEqual('Tor Disconnected (22:43 04/09/2016, press r to reconnect)', test.render(nyx.panel.header._draw_disconnected, 0, 0, 1460267022.231895).content)
+
+  @require_curses
+  def test_draw_resource_usage(self):
+    vals = nyx.panel.header._sampling(
+      start_time = 1460166022.231895,
+      connection_time = 1460267022.231895,
+      is_connected = False,
+      tor_cpu = '2.1',
+      nyx_cpu = '5.4',
+      memory = '118 MB',
+      memory_percent = '3.0',
+      pid = '22439',
+    )
+
+    test_input = {
+      80: 'cpu: 2.1% tor, 5.4% nyx    mem: 118 MB (3.0%)  pid: 22439  uptime: 1-04:03:20',
+      70: 'cpu: 2.1% tor, 5.4% nyx    mem: 118 MB (3.0%)  pid: 22439',
+      60: 'cpu: 2.1% tor, 5.4% nyx    mem: 118 MB (3.0%)  pid: 22439',
+      50: 'cpu: 2.1% tor, 5.4% nyx    mem: 118 MB (3.0%)',
+      40: 'cpu: 2.1% tor, 5.4% nyx',
+      30: 'cpu: 2.1% tor, 5.4% nyx',
+      20: '',
+      10: '',
+      0: '',
+    }
+
+    for width, expected in test_input.items():
+      self.assertEqual(expected, test.render(nyx.panel.header._draw_resource_usage, 0, 0, width, vals, None).content)
