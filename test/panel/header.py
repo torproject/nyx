@@ -168,3 +168,9 @@ class TestHeader(unittest.TestCase):
   def test_draw_exit_policy(self):
     self.assertEqual('exit policy: reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('reject *:*')).content)
     self.assertEqual('exit policy: accept *:80, accept *:443, reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('accept *:80', 'accept *:443', 'reject *:*')).content)
+
+  @require_curses
+  def test_draw_newnym_option(self):
+    self.assertEqual("press 'n' for a new identity", test.render(nyx.panel.header._draw_newnym_option, 0, 0, 0).content)
+    self.assertEqual('building circuits, available again in 1 second', test.render(nyx.panel.header._draw_newnym_option, 0, 0, 1).content)
+    self.assertEqual('building circuits, available again in 5 seconds', test.render(nyx.panel.header._draw_newnym_option, 0, 0, 5).content)

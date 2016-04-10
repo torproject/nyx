@@ -197,7 +197,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         _draw_flags(subwindow, 0, 2, vals.flags)
         _draw_exit_policy(subwindow, left_width, 2, vals.exit_policy)
       elif vals.is_connected:
-        self._draw_newnym_option(subwindow, left_width, 1, right_width, vals)
+        _draw_newnym_option(subwindow, left_width, 1, vals.newnym_wait)
     else:
       _draw_resource_usage(subwindow, 0, 2, left_width, vals, pause_time)
 
@@ -212,18 +212,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_newnym_option(self, subwindow, x, y, width, vals):
-    """
-    Provide a notice for requiesting a new identity, and time until it's next
-    available if in the process of building circuits.
-    """
-
-    if vals.newnym_wait == 0:
-      subwindow.addstr(x, y, "press 'n' for a new identity")
-    else:
-      plural = 's' if vals.newnym_wait > 1 else ''
-      subwindow.addstr(x, y, 'building circuits, available again in %i second%s' % (vals.newnym_wait, plural))
 
   def run(self):
     """
@@ -564,3 +552,16 @@ def _draw_exit_policy(subwindow, x, y, exit_policy):
       x = subwindow.addstr(x, y, ', ')
 
     subwindow.addstr(x, y, '<default>', CYAN, BOLD)
+
+
+def _draw_newnym_option(subwindow, x, y, newnym_wait):
+  """
+  Provide a notice for requiesting a new identity, and time until it's next
+  available if in the process of building circuits.
+  """
+
+  if newnym_wait == 0:
+    subwindow.addstr(x, y, "press 'n' for a new identity")
+  else:
+    plural = 's' if newnym_wait > 1 else ''
+    subwindow.addstr(x, y, 'building circuits, available again in %i second%s' % (newnym_wait, plural))
