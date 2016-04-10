@@ -2,12 +2,14 @@
 Unit tests for nyx.panel.header.
 """
 
+import time
 import unittest
 
 import nyx.panel.header
 import test
 
 from test import require_curses
+from mock import patch
 
 
 class TestHeader(unittest.TestCase):
@@ -76,3 +78,9 @@ class TestHeader(unittest.TestCase):
     )
 
     self.assertEqual('Relaying Disabled, Control Socket: /path/to/control/socket', test.render(nyx.panel.header._draw_ports_section, 0, 0, 80, vals).content)
+
+  @require_curses
+  @patch('time.localtime')
+  def test_draw_disconnected(self, localtime_mock):
+    localtime_mock.return_value = time.strptime('22:43 04/09/2016', '%H:%M %m/%d/%Y')
+    self.assertEqual('Tor Disconnected (22:43 04/09/2016, press r to reconnect)', test.render(nyx.panel.header._draw_disconnected, 0, 0, 1460267022.231895).content)

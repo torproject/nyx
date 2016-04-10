@@ -186,7 +186,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     if vals.is_connected:
       _draw_ports_section(subwindow, 0, 1, left_width, vals)
     else:
-      self._draw_disconnected(subwindow, 0, 1, left_width, vals)
+      _draw_disconnected(subwindow, 0, 1, vals.last_heartbeat)
 
     if is_wide:
       self._draw_resource_usage(subwindow, left_width, 0, right_width, vals)
@@ -211,17 +211,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_disconnected(self, subwindow, x, y, width, vals):
-    """
-    Message indicating that tor is disconnected...
-
-      Tor Disconnected (15:21 07/13/2014, press r to reconnect)
-    """
-
-    x = subwindow.addstr(x, y, 'Tor Disconnected', RED, BOLD)
-    last_heartbeat = time.strftime('%H:%M %m/%d/%Y', time.localtime(vals.last_heartbeat))
-    subwindow.addstr(x, y, ' (%s, press r to reconnect)' % last_heartbeat)
 
   def _draw_resource_usage(self, subwindow, x, y, width, vals):
     """
@@ -531,6 +520,7 @@ def _draw_platform_section(subwindow, x, y, width, vals):
       x = subwindow.addstr(x, y, vals.version_status, version_color)
       subwindow.addstr(x, y, ')')
 
+
 def _draw_ports_section(subwindow, x, y, width, vals):
   """
   Section providing our nickname, address, and port information...
@@ -557,3 +547,15 @@ def _draw_ports_section(subwindow, x, y, width, vals):
       subwindow.addstr(x, y, vals.format(', Control Port: {control_port}'))
   elif vals.socket_path:
     subwindow.addstr(x, y, vals.format(', Control Socket: {socket_path}'))
+
+
+def _draw_disconnected(subwindow, x, y, last_heartbeat):
+  """
+  Message indicating that tor is disconnected...
+
+    Tor Disconnected (15:21 07/13/2014, press r to reconnect)
+  """
+
+  x = subwindow.addstr(x, y, 'Tor Disconnected', RED, BOLD)
+  last_heartbeat_str = time.strftime('%H:%M %m/%d/%Y', time.localtime(last_heartbeat))
+  subwindow.addstr(x, y, ' (%s, press r to reconnect)' % last_heartbeat_str)
