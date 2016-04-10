@@ -31,7 +31,7 @@ class TestHeader(unittest.TestCase):
       30: 'nyx - odin (Linux 3.5.0-54...)',
       20: 'nyx - odin (Linu...)',
       10: 'nyx - odin',
-      0: 'nyx - odin',
+      0: '',
     }
 
     for width, expected in test_input.items():
@@ -112,3 +112,47 @@ class TestHeader(unittest.TestCase):
 
     for width, expected in test_input.items():
       self.assertEqual(expected, test.render(nyx.panel.header._draw_resource_usage, 0, 0, width, vals, None).content)
+
+  @require_curses
+  def test_draw_fingerprint_and_fd_usage(self):
+    vals = nyx.panel.header._sampling(
+      fingerprint = '1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+      fd_used = None,
+    )
+
+    test_input = {
+      80: 'fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+      70: 'fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+      60: 'fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+      50: 'fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008...',
+      40: 'fingerprint: 1A94D1A794FCB2F8B6CBC179...',
+      30: 'fingerprint: 1A94D1A794FCB2...',
+      20: 'fingerprint: 1A94...',
+      10: 'fingerp...',
+      0: '',
+    }
+
+    for width, expected in test_input.items():
+      self.assertEqual(expected, test.render(nyx.panel.header._draw_fingerprint_and_fd_usage, 0, 0, width, vals).content)
+
+  @require_curses
+  def test_draw_fingerprint_and_fd_usage_with_fd_count(self):
+    test_input = {
+      59: 'fingerprint: <stub>',
+      60: 'fingerprint: <stub>, file descriptors: 60 / 100 (60%)',
+      75: 'fingerprint: <stub>, file descriptors: 75 / 100 (75%)',
+      89: 'fingerprint: <stub>, file descriptors: 89 / 100 (89%)',
+      90: 'fingerprint: <stub>, file descriptors: 90 / 100 (90%)',
+      95: 'fingerprint: <stub>, file descriptors: 95 / 100 (95%)',
+      99: 'fingerprint: <stub>, file descriptors: 99 / 100 (99%)',
+      100: 'fingerprint: <stub>, file descriptors: 100 / 100 (100%)',
+    }
+
+    for fd_used, expected in test_input.items():
+      vals = nyx.panel.header._sampling(
+        fingerprint = '<stub>',
+        fd_used = fd_used,
+        fd_limit = 100,
+      )
+
+      self.assertEqual(expected, test.render(nyx.panel.header._draw_fingerprint_and_fd_usage, 0, 0, 80, vals).content)

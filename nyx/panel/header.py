@@ -193,7 +193,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       _draw_resource_usage(subwindow, left_width, 0, right_width, vals, pause_time)
 
       if vals.is_relay:
-        self._draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
+        _draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
         self._draw_flags(subwindow, 0, 2, left_width, vals)
         self._draw_exit_policy(subwindow, left_width, 2, right_width, vals)
       elif vals.is_connected:
@@ -202,7 +202,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       _draw_resource_usage(subwindow, 0, 2, left_width, vals, pause_time)
 
       if vals.is_relay:
-        self._draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
+        _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
         self._draw_flags(subwindow, 0, 4, left_width, vals)
 
     if self._message:
@@ -212,37 +212,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_fingerprint_and_fd_usage(self, subwindow, x, y, width, vals):
-    """
-    Presents our fingerprint, and our file descriptor usage if we're running
-    out...
-
-      fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B, file desc: 900 / 1000 (90%)
-    """
-
-    initial_x, space_left = x, width
-
-    x = subwindow.addstr(x, y, vals.format('fingerprint: {fingerprint}', width))
-    space_left -= x - initial_x
-
-    if space_left >= 30 and vals.fd_used and vals.fd_limit != -1:
-      fd_percent = 100 * vals.fd_used / vals.fd_limit
-
-      if fd_percent >= SHOW_FD_THRESHOLD:
-        if fd_percent >= 95:
-          percentage_format = (RED, BOLD)
-        elif fd_percent >= 90:
-          percentage_format = (RED,)
-        elif fd_percent >= 60:
-          percentage_format = (YELLOW,)
-        else:
-          percentage_format = ()
-
-        x = subwindow.addstr(x, y, ', file descriptors' if space_left >= 37 else ', file desc')
-        x = subwindow.addstr(x, y, vals.format(': {fd_used} / {fd_limit} ('))
-        x = subwindow.addstr(x, y, '%i%%' % fd_percent, *percentage_format)
-        subwindow.addstr(x, y, ')')
 
   def _draw_flags(self, subwindow, x, y, width, vals):
     """
@@ -377,7 +346,7 @@ def _sampling(**attr):
     def format(self, message, crop_width = None):
       formatted_msg = message.format(**self._attr)
 
-      if crop_width:
+      if crop_width is not None:
         formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
       return formatted_msg
@@ -561,3 +530,35 @@ def _draw_resource_usage(subwindow, x, y, width, vals, pause_time):
       subwindow.addstr(x + start, y, label)
     else:
       break
+
+
+def _draw_fingerprint_and_fd_usage(subwindow, x, y, width, vals):
+  """
+  Presents our fingerprint, and our file descriptor usage if we're running
+  out...
+
+    fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B, file desc: 900 / 1000 (90%)
+  """
+
+  initial_x, space_left = x, width
+
+  x = subwindow.addstr(x, y, vals.format('fingerprint: {fingerprint}', width))
+  space_left -= x - initial_x
+
+  if space_left >= 30 and vals.fd_used and vals.fd_limit != -1:
+    fd_percent = 100 * vals.fd_used / vals.fd_limit
+
+    if fd_percent >= SHOW_FD_THRESHOLD:
+      if fd_percent >= 95:
+        percentage_format = (RED, BOLD)
+      elif fd_percent >= 90:
+        percentage_format = (RED,)
+      elif fd_percent >= 60:
+        percentage_format = (YELLOW,)
+      else:
+        percentage_format = ()
+
+      x = subwindow.addstr(x, y, ', file descriptors' if space_left >= 37 else ', file desc')
+      x = subwindow.addstr(x, y, vals.format(': {fd_used} / {fd_limit} ('))
+      x = subwindow.addstr(x, y, '%i%%' % fd_percent, *percentage_format)
+      subwindow.addstr(x, y, ')')
