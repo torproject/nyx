@@ -6,14 +6,112 @@ import time
 import unittest
 
 import nyx.panel.header
+import stem.control
 import stem.exit_policy
+import stem.version
 import test
 
 from test import require_curses
-from mock import patch
+from mock import patch, Mock
 
 
 class TestHeader(unittest.TestCase):
+  @patch('nyx.panel.header.tor_controller')
+  @patch('nyx.tracker.get_resource_tracker')
+  @patch('time.time', Mock(return_value = 1234.5))
+  @patch('os.times', Mock(return_value = (0.08, 0.03, 0.0, 0.0, 18759021.31)))
+  @patch('os.uname', Mock(return_value = ('Linux', 'odin', '3.5.0-54-generic', '#81~precise1-Ubuntu SMP Tue Jul 15 04:05:58 UTC 2014', 'i686')))
+  @patch('nyx.panel.header.system.start_time', Mock(return_value = 5678))
+  @patch('nyx.panel.header.proc.file_descriptors_used', Mock(return_value = 89))
+  def test_sample(self, resource_tracker_mock, tor_controller_mock):
+    tor_controller_mock().is_alive.return_value = True
+    tor_controller_mock().connection_time.return_value = 567.8
+    tor_controller_mock().get_latest_heartbeat.return_value = 89.0
+    tor_controller_mock().get_newnym_wait.return_value = 0
+    tor_controller_mock().get_exit_policy.return_value = stem.exit_policy.ExitPolicy('reject *:*')
+    tor_controller_mock().get_network_status.return_value = None
+    tor_controller_mock().get_version.return_value = stem.version.Version('0.1.2.3-tag')
+    tor_controller_mock().get_pid.return_value = '123'
+
+    tor_controller_mock().get_info.side_effect = lambda param, default = None: {
+      'fingerprint': '1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+      'status/version/current': 'recommended',
+      'address': '174.21.17.28',
+      'process/descriptor-limit': 678,
+    }[param]
+
+    tor_controller_mock().get_conf.side_effect = lambda param, default = None: {
+      'Nickname': 'Unnamed',
+      'HashedControlPassword': None,
+      'CookieAuthentication': '1',
+      'DirPort': '7001',
+      'ControlSocket': None,
+    }[param]
+
+    tor_controller_mock().get_listeners.side_effect = lambda param, default = None: {
+      stem.control.Listener.OR: [('0.0.0.0', 7000)],
+      stem.control.Listener.CONTROL: [('0.0.0.0', 9051)],
+    }[param]
+
+    resources = Mock()
+    resources.cpu_sample = 6.7
+    resources.memory_bytes = 62464
+    resources.memory_percent = .125
+
+    resource_tracker_mock().get_value.return_value = resources
+
+    vals = nyx.panel.header.Sampling.create()
+
+    self.assertEqual(1234.5, vals.retrieved)
+    self.assertEqual(True, vals.is_connected)
+    self.assertEqual(567.8, vals.connection_time)
+    self.assertEqual(89.0, vals.last_heartbeat)
+    self.assertEqual('1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B', vals.fingerprint)
+    self.assertEqual('Unnamed', vals.nickname)
+    self.assertEqual(0, vals.newnym_wait)
+    self.assertEqual(stem.exit_policy.ExitPolicy('reject *:*'), vals.exit_policy)
+    self.assertEqual([], vals.flags)
+    self.assertEqual('0.1.2.3-tag', vals.version)
+    self.assertEqual('recommended', vals.version_status)
+    self.assertEqual('174.21.17.28', vals.address)
+    self.assertEqual(7000, vals.or_port)
+    self.assertEqual('7001', vals.dir_port)
+    self.assertEqual('9051', vals.control_port)
+    self.assertEqual(None, vals.socket_path)
+    self.assertEqual(True, vals.is_relay)
+    self.assertEqual('cookie', vals.auth_type)
+    self.assertEqual('123', vals.pid)
+    self.assertEqual(5678, vals.start_time)
+    self.assertEqual(678, vals.fd_limit)
+    self.assertEqual(89, vals.fd_used)
+    self.assertEqual(0.11, vals.nyx_total_cpu_time)
+    self.assertEqual('670.0', vals.tor_cpu)
+    self.assertEqual('0.0', vals.nyx_cpu)
+    self.assertEqual('61 KB', vals.memory)
+    self.assertEqual('12.5', vals.memory_percent)
+    self.assertEqual('odin', vals.hostname)
+    self.assertEqual('Linux 3.5.0-54-generic', vals.platform)
+
+  def test_sample_format(self):
+    vals = nyx.panel.header.Sampling(
+      version = '0.2.8.1',
+      version_status = 'unrecommended',
+    )
+
+    self.assertEqual('0.2.8.1 is unrecommended', vals.format('{version} is {version_status}'))
+
+    test_input = {
+      25: '0.2.8.1 is unrecommended',
+      20: '0.2.8.1 is unreco...',
+      15: '0.2.8.1 is...',
+      10: '0.2.8.1...',
+      5: '',
+      0: '',
+    }
+
+    for width, expected in test_input.items():
+      self.assertEqual(expected, vals.format('{version} is {version_status}', width))
+
   @require_curses
   def test_draw_platform_section(self):
     vals = nyx.panel.header.Sampling(
@@ -166,6 +264,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_exit_policy(self):
+    self.assertEqual('exit policy:', test.render(nyx.panel.header._draw_exit_policy, 0, 0, None).content)
     self.assertEqual('exit policy: reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('reject *:*')).content)
     self.assertEqual('exit policy: accept *:80, accept *:443, reject *:*', test.render(nyx.panel.header._draw_exit_policy, 0, 0, stem.exit_policy.ExitPolicy('accept *:80', 'accept *:443', 'reject *:*')).content)
 
