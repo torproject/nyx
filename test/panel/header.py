@@ -16,7 +16,7 @@ from mock import patch
 class TestHeader(unittest.TestCase):
   @require_curses
   def test_draw_platform_section(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       hostname = 'odin',
       platform = 'Linux 3.5.0-54-generic',
       version = '0.2.8.1-alpha-dev',
@@ -40,7 +40,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_platform_section_without_version(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       hostname = 'odin',
       platform = 'Linux 3.5.0-54-generic',
       version = 'Unknown',
@@ -51,7 +51,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_ports_section(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       nickname = 'Unnamed',
       address = '174.21.17.28',
       or_port = '7000',
@@ -72,7 +72,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_ports_section_with_relaying(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       control_port = None,
       socket_path = '/path/to/control/socket',
       is_relay = False,
@@ -88,7 +88,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_resource_usage(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       start_time = 1460166022.231895,
       connection_time = 1460267022.231895,
       is_connected = False,
@@ -116,7 +116,7 @@ class TestHeader(unittest.TestCase):
 
   @require_curses
   def test_draw_fingerprint_and_fd_usage(self):
-    vals = nyx.panel.header._sampling(
+    vals = nyx.panel.header.Sampling(
       fingerprint = '1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
       fd_used = None,
     )
@@ -150,7 +150,7 @@ class TestHeader(unittest.TestCase):
     }
 
     for fd_used, expected in test_input.items():
-      vals = nyx.panel.header._sampling(
+      vals = nyx.panel.header.Sampling(
         fingerprint = '<stub>',
         fd_used = fd_used,
         fd_limit = 100,

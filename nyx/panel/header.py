@@ -7,7 +7,6 @@ This expands the information it presents to two columns if there's room
 available.
 """
 
-import collections
 import os
 import time
 import threading
@@ -45,7 +44,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._vals = _get_sampling()
+    self._vals = Sampling.create()
 
     self._last_width = 100
     self._pause_condition = threading.Condition()
@@ -248,7 +247,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
   def _update(self):
     previous_height = self.get_height()
-    self._vals = _get_sampling(self._vals)
+    self._vals = Sampling.create(self._vals)
 
     if self._vals.fd_used and self._vals.fd_limit != -1:
       fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
@@ -279,96 +278,95 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       self.redraw(True)  # just need to redraw ourselves
 
 
-def _sampling(**attr):
-  class Sampling(collections.namedtuple('Sampling', attr.keys())):
-    def __init__(self, **attr):
-      super(Sampling, self).__init__(**attr)
-      self._attr = attr
+class Sampling(object):
+  def __init__(self, **attr):
+    self._attr = attr
 
-    def format(self, message, crop_width = None):
-      formatted_msg = message.format(**self._attr)
+    for key, value in attr.items():
+      setattr(self, key, value)
 
-      if crop_width is not None:
-        formatted_msg = str_tools.crop(formatted_msg, crop_width)
+  @staticmethod
+  def create(last_sampling = None):
+    controller = tor_controller()
+    retrieved = time.time()
 
-      return formatted_msg
+    pid = controller.get_pid('')
+    tor_resources = nyx.tracker.get_resource_tracker().get_value()
+    nyx_total_cpu_time = sum(os.times()[:3])
 
-  return Sampling(**attr)
+    or_listeners = controller.get_listeners(Listener.OR, [])
+    control_listeners = controller.get_listeners(Listener.CONTROL, [])
 
+    if controller.get_conf('HashedControlPassword', None):
+      auth_type = 'password'
+    elif controller.get_conf('CookieAuthentication', None) == '1':
+      auth_type = 'cookie'
+    else:
+      auth_type = 'open'
 
-def _get_sampling(last_sampling = None):
-  controller = tor_controller()
-  retrieved = time.time()
+    try:
+      fd_used = proc.file_descriptors_used(pid)
+    except IOError:
+      fd_used = None
 
-  pid = controller.get_pid('')
-  tor_resources = nyx.tracker.get_resource_tracker().get_value()
-  nyx_total_cpu_time = sum(os.times()[:3])
+    if last_sampling:
+      nyx_cpu_delta = nyx_total_cpu_time - last_sampling.nyx_total_cpu_time
+      nyx_time_delta = retrieved - last_sampling.retrieved
 
-  or_listeners = controller.get_listeners(Listener.OR, [])
-  control_listeners = controller.get_listeners(Listener.CONTROL, [])
+      python_cpu_time = nyx_cpu_delta / nyx_time_delta
+      sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
 
-  if controller.get_conf('HashedControlPassword', None):
-    auth_type = 'password'
-  elif controller.get_conf('CookieAuthentication', None) == '1':
-    auth_type = 'cookie'
-  else:
-    auth_type = 'open'
+      nyx_cpu = python_cpu_time + sys_call_cpu_time
+    else:
+      nyx_cpu = 0.0
 
-  try:
-    fd_used = proc.file_descriptors_used(pid)
-  except IOError:
-    fd_used = None
+    attr = {
+      'retrieved': retrieved,
+      'is_connected': controller.is_alive(),
+      'connection_time': controller.connection_time(),
+      'last_heartbeat': controller.get_latest_heartbeat(),
 
-  if last_sampling:
-    nyx_cpu_delta = nyx_total_cpu_time - last_sampling.nyx_total_cpu_time
-    nyx_time_delta = retrieved - last_sampling.retrieved
+      'fingerprint': controller.get_info('fingerprint', 'Unknown'),
+      'nickname': controller.get_conf('Nickname', ''),
+      'newnym_wait': controller.get_newnym_wait(),
+      'exit_policy': controller.get_exit_policy(None),
+      'flags': getattr(controller.get_network_status(default = None), 'flags', []),
 
-    python_cpu_time = nyx_cpu_delta / nyx_time_delta
-    sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
+      'version': str(controller.get_version('Unknown')).split()[0],
+      'version_status': controller.get_info('status/version/current', 'Unknown'),
 
-    nyx_cpu = python_cpu_time + sys_call_cpu_time
-  else:
-    nyx_cpu = 0.0
+      'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown'),
+      'or_port': or_listeners[0][1] if or_listeners else '',
+      'dir_port': controller.get_conf('DirPort', '0'),
+      'control_port': str(control_listeners[0][1]) if control_listeners else None,
+      'socket_path': controller.get_conf('ControlSocket', None),
+      'is_relay': bool(or_listeners),
 
-  attr = {
-    'retrieved': retrieved,
-    'is_connected': controller.is_alive(),
-    'connection_time': controller.connection_time(),
-    'last_heartbeat': controller.get_latest_heartbeat(),
+      'auth_type': auth_type,
+      'pid': pid,
+      'start_time': system.start_time(pid),
+      'fd_limit': int(controller.get_info('process/descriptor-limit', '-1')),
+      'fd_used': fd_used,
 
-    'fingerprint': controller.get_info('fingerprint', 'Unknown'),
-    'nickname': controller.get_conf('Nickname', ''),
-    'newnym_wait': controller.get_newnym_wait(),
-    'exit_policy': controller.get_exit_policy(None),
-    'flags': getattr(controller.get_network_status(default = None), 'flags', []),
+      'nyx_total_cpu_time': nyx_total_cpu_time,
+      'tor_cpu': '%0.1f' % (100 * tor_resources.cpu_sample),
+      'nyx_cpu': '%0.1f' % (nyx_cpu),
+      'memory': str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
+      'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
 
-    'version': str(controller.get_version('Unknown')).split()[0],
-    'version_status': controller.get_info('status/version/current', 'Unknown'),
+      'hostname': os.uname()[1],
+      'platform': '%s %s' % (os.uname()[0], os.uname()[2]),  # [platform name] [version]
+    }
 
-    'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown'),
-    'or_port': or_listeners[0][1] if or_listeners else '',
-    'dir_port': controller.get_conf('DirPort', '0'),
-    'control_port': str(control_listeners[0][1]) if control_listeners else None,
-    'socket_path': controller.get_conf('ControlSocket', None),
-    'is_relay': bool(or_listeners),
+    return Sampling(**attr)
 
-    'auth_type': auth_type,
-    'pid': pid,
-    'start_time': system.start_time(pid),
-    'fd_limit': int(controller.get_info('process/descriptor-limit', '-1')),
-    'fd_used': fd_used,
+  def format(self, message, crop_width = None):
+    formatted_msg = message.format(**self._attr)
 
-    'nyx_total_cpu_time': nyx_total_cpu_time,
-    'tor_cpu': '%0.1f' % (100 * tor_resources.cpu_sample),
-    'nyx_cpu': '%0.1f' % (nyx_cpu),
-    'memory': str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
-    'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
+    if crop_width is not None:
+      formatted_msg = str_tools.crop(formatted_msg, crop_width)
 
-    'hostname': os.uname()[1],
-    'platform': '%s %s' % (os.uname()[0], os.uname()[2]),  # [platform name] [version]
-  }
-
-  return _sampling(**attr)
+    return formatted_msg
 
 
 def _draw_platform_section(subwindow, x, y, width, vals):
