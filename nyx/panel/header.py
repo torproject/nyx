@@ -45,7 +45,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._vals = get_sampling()
+    self._vals = _get_sampling()
 
     self._last_width = 100
     self._pause_condition = threading.Condition()
@@ -181,7 +181,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
 
-    self._draw_platform_section(subwindow, 0, 0, left_width, vals)
+    _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
     if vals.is_connected:
       self._draw_ports_section(subwindow, 0, 1, left_width, vals)
@@ -211,35 +211,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_platform_section(self, subwindow, x, y, width, vals):
-    """
-    Section providing the user's hostname, platform, and version information...
-
-      nyx - odin (Linux 3.5.0-52-generic)        Tor 0.2.5.1-alpha-dev (unrecommended)
-      |------ platform (40 characters) ------|   |----------- tor version -----------|
-    """
-
-    initial_x, space_left = x, min(width, 40)
-
-    x = subwindow.addstr(x, y, vals.format('nyx - {hostname}', space_left))
-    space_left -= x - initial_x
-
-    if space_left >= 10:
-      subwindow.addstr(x, y, ' (%s)' % vals.format('{platform}', space_left - 3))
-
-    x, space_left = initial_x + 43, width - 43
-
-    if vals.version != 'Unknown' and space_left >= 10:
-      x = subwindow.addstr(x, y, vals.format('Tor {version}', space_left))
-      space_left -= x - 43 - initial_x
-
-      if space_left >= 7 + len(vals.version_status):
-        version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, WHITE)
-
-        x = subwindow.addstr(x, y, ' (')
-        x = subwindow.addstr(x, y, vals.version_status, version_color)
-        subwindow.addstr(x, y, ')')
 
   def _draw_ports_section(self, subwindow, x, y, width, vals):
     """
@@ -435,7 +406,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
   def _update(self):
     previous_height = self.get_height()
-    self._vals = get_sampling(self._vals)
+    self._vals = _get_sampling(self._vals)
 
     if self._vals.fd_used and self._vals.fd_limit != -1:
       fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
@@ -466,7 +437,24 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       self.redraw(True)  # just need to redraw ourselves
 
 
-def get_sampling(last_sampling = None):
+def _sampling(**attr):
+  class Sampling(collections.namedtuple('Sampling', attr.keys())):
+    def __init__(self, **attr):
+      super(Sampling, self).__init__(**attr)
+      self._attr = attr
+
+    def format(self, message, crop_width = None):
+      formatted_msg = message.format(**self._attr)
+
+      if crop_width:
+        formatted_msg = str_tools.crop(formatted_msg, crop_width)
+
+      return formatted_msg
+
+  return Sampling(**attr)
+
+
+def _get_sampling(last_sampling = None):
   controller = tor_controller()
   retrieved = time.time()
 
@@ -538,17 +526,34 @@ def get_sampling(last_sampling = None):
     'platform': '%s %s' % (os.uname()[0], os.uname()[2]),  # [platform name] [version]
   }
 
-  class Sampling(collections.namedtuple('Sampling', attr.keys())):
-    def __init__(self, **attr):
-      super(Sampling, self).__init__(**attr)
-      self._attr = attr
+  return _sampling(**attr)
 
-    def format(self, message, crop_width = None):
-      formatted_msg = message.format(**self._attr)
 
-      if crop_width:
-        formatted_msg = str_tools.crop(formatted_msg, crop_width)
+def _draw_platform_section(subwindow, x, y, width, vals):
+  """
+  Section providing the user's hostname, platform, and version information...
 
-      return formatted_msg
+    nyx - odin (Linux 3.5.0-52-generic)        Tor 0.2.5.1-alpha-dev (unrecommended)
+    |------ platform (40 characters) ------|   |----------- tor version -----------|
+  """
 
-  return Sampling(**attr)
+  initial_x, space_left = x, min(width, 40)
+
+  x = subwindow.addstr(x, y, vals.format('nyx - {hostname}', space_left))
+  space_left -= x - initial_x
+
+  if space_left >= 10:
+    subwindow.addstr(x, y, ' (%s)' % vals.format('{platform}', space_left - 3))
+
+  x, space_left = initial_x + 43, width - 43
+
+  if vals.version != 'Unknown' and space_left >= 10:
+    x = subwindow.addstr(x, y, vals.format('Tor {version}', space_left))
+    space_left -= x - 43 - initial_x
+
+    if space_left >= 7 + len(vals.version_status):
+      version_color = CONFIG['attr.version_status_colors'].get(vals.version_status, WHITE)
+
+      x = subwindow.addstr(x, y, ' (')
+      x = subwindow.addstr(x, y, vals.version_status, version_color)
+      subwindow.addstr(x, y, ')')
