@@ -156,3 +156,9 @@ class TestHeader(unittest.TestCase):
       )
 
       self.assertEqual(expected, test.render(nyx.panel.header._draw_fingerprint_and_fd_usage, 0, 0, 80, vals).content)
+
+  @require_curses
+  def test_draw_flags(self):
+    self.assertEqual('flags: none', test.render(nyx.panel.header._draw_flags, 0, 0, []).content)
+    self.assertEqual('flags: Guard', test.render(nyx.panel.header._draw_flags, 0, 0, ['Guard']).content)
+    self.assertEqual('flags: Running, Exit', test.render(nyx.panel.header._draw_flags, 0, 0, ['Running', 'Exit']).content)

@@ -194,7 +194,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
-        self._draw_flags(subwindow, 0, 2, left_width, vals)
+        _draw_flags(subwindow, 0, 2, vals.flags)
         self._draw_exit_policy(subwindow, left_width, 2, right_width, vals)
       elif vals.is_connected:
         self._draw_newnym_option(subwindow, left_width, 1, right_width, vals)
@@ -203,7 +203,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
-        self._draw_flags(subwindow, 0, 4, left_width, vals)
+        _draw_flags(subwindow, 0, 4, vals.flags)
 
     if self._message:
       subwindow.addstr(0, subwindow.height - 1, self._message, *self._message_attr)
@@ -212,25 +212,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
     else:
       subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
-
-  def _draw_flags(self, subwindow, x, y, width, vals):
-    """
-    Presents flags held by our relay...
-
-      flags: Running, Valid
-    """
-
-    x = subwindow.addstr(x, y, 'flags: ')
-
-    if vals.flags:
-      for i, flag in enumerate(vals.flags):
-        flag_color = CONFIG['attr.flag_colors'].get(flag, WHITE)
-        x = subwindow.addstr(x, y, flag, flag_color, BOLD)
-
-        if i < len(vals.flags) - 1:
-          x = subwindow.addstr(x, y, ', ')
-    else:
-      subwindow.addstr(x, y, 'none', CYAN, BOLD)
 
   def _draw_exit_policy(self, subwindow, x, y, width, vals):
     """
@@ -562,3 +543,23 @@ def _draw_fingerprint_and_fd_usage(subwindow, x, y, width, vals):
       x = subwindow.addstr(x, y, vals.format(': {fd_used} / {fd_limit} ('))
       x = subwindow.addstr(x, y, '%i%%' % fd_percent, *percentage_format)
       subwindow.addstr(x, y, ')')
+
+
+def _draw_flags(subwindow, x, y, flags):
+  """
+  Presents flags held by our relay...
+
+    flags: Running, Valid
+  """
+
+  x = subwindow.addstr(x, y, 'flags: ')
+
+  if flags:
+    for i, flag in enumerate(flags):
+      flag_color = CONFIG['attr.flag_colors'].get(flag, WHITE)
+      x = subwindow.addstr(x, y, flag, flag_color, BOLD)
+
+      if i < len(flags) - 1:
+        x = subwindow.addstr(x, y, ', ')
+  else:
+    subwindow.addstr(x, y, 'none', CYAN, BOLD)
