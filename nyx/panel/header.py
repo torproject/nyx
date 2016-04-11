@@ -31,6 +31,7 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 CONFIG = conf.config_dict('nyx', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
+  'tor.chroot': '',
 })
 
 
@@ -137,22 +138,11 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       if self._vals.is_connected:
         return
 
-      # TODO: This is borked. Not quite sure why but our attempt to call
-      # PROTOCOLINFO fails with a socket error, followed by completely freezing
-      # nyx. This is exposing two bugs...
-      #
-      # * This should be working. That's a stem issue.
-      # * Our interface shouldn't be locking up. That's an nyx issue.
-
-      return
-
       controller = tor_controller()
 
       try:
-        controller.connect()
-
         try:
-          controller.authenticate()  # TODO: should account for our chroot
+          controller.reconnect(chroot_path = CONFIG['tor.chroot'])
         except stem.connection.MissingPassword:
           password = self.input_prompt('Controller Password: ')
 
