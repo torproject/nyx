@@ -20,8 +20,6 @@ __all__ = [
   'tracker',
 ]
 
-SHOW_RENDERED_CONTENT = None  # if set, tests render content this many seconds
-
 OUR_SCREEN_SIZE = None
 TEST_SCREEN_SIZE = nyx.curses.Dimensions(80, 25)
 
@@ -83,9 +81,6 @@ def render(func, *args, **kwargs):
 
     attr['runtime'] = time.time() - start_time
     attr['content'] = nyx.curses.screenshot()
-
-    if SHOW_RENDERED_CONTENT:
-      time.sleep(SHOW_RENDERED_CONTENT)
 
   with patch('nyx.curses.key_input', return_value = nyx.curses.KeyInput(27)):
     nyx.curses.start(draw_func, transparent_background = True, cursor = False)
