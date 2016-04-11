@@ -522,7 +522,7 @@ class GraphPanel(nyx.panel.Panel):
       self.redraw(True)
 
     return (
-      nyx.panel.KeyHandler('r', 'resize graph', self.resize_graph),
+      nyx.panel.KeyHandler('g', 'resize graph', self.resize_graph),
       nyx.panel.KeyHandler('s', 'graphed stats', _pick_stats, self.displayed_stat if self.displayed_stat else 'none'),
       nyx.panel.KeyHandler('b', 'graph bounds', _next_bounds, self.bounds_type.replace('_', ' ')),
       nyx.panel.KeyHandler('i', 'graph update interval', _pick_interval, self.update_interval),
