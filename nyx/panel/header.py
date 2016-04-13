@@ -12,14 +12,17 @@ import time
 import threading
 
 import stem
+import stem.control
+import stem.util.proc
+import stem.util.str_tools
+import stem.util.system
 
 import nyx.controller
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from stem.control import Listener, State
-from stem.util import conf, log, proc, str_tools, system
+from stem.util import conf, log
 from nyx import msg, tor_controller
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
@@ -28,11 +31,33 @@ MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
 UPDATE_RATE = 5  # rate in seconds at which we refresh
 
+# Tracks total time spent shelling out to other commands like 'ps' and
+# 'netstat', so we can account for it as part of our cpu time.
+
+SYSTEM_CALL_TIME = 0.0
+SYSTEM_CALL_TIME_LOCK = threading.RLock()
+SYSTEM_CALL_ORIG = stem.util.system.call
+
 CONFIG = conf.config_dict('nyx', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
   'tor.chroot': '',
 })
+
+
+def call_wrapper(*args, **kwargs):
+  global SYSTEM_CALL_TIME
+
+  start_time = time.time()
+
+  try:
+    return SYSTEM_CALL_ORIG(*args, **kwargs)
+  finally:
+    with SYSTEM_CALL_TIME_LOCK:
+      SYSTEM_CALL_TIME += time.time() - start_time
+
+
+stem.util.system.call = call_wrapper
 
 
 class HeaderPanel(nyx.panel.Panel, threading.Thread):
@@ -232,7 +257,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
   def reset_listener(self, controller, event_type, _):
     self._update()
 
-    if event_type == State.CLOSED:
+    if event_type == stem.control.State.CLOSED:
       log.notice('Tor control port closed')
 
   def _update(self):
@@ -282,10 +307,10 @@ class Sampling(object):
 
     pid = controller.get_pid('')
     tor_resources = nyx.tracker.get_resource_tracker().get_value()
-    nyx_total_cpu_time = sum(os.times()[:3])
+    nyx_total_cpu_time = sum(os.times()[:3], SYSTEM_CALL_TIME)
 
-    or_listeners = controller.get_listeners(Listener.OR, [])
-    control_listeners = controller.get_listeners(Listener.CONTROL, [])
+    or_listeners = controller.get_listeners(stem.control.Listener.OR, [])
+    control_listeners = controller.get_listeners(stem.control.Listener.CONTROL, [])
 
     if controller.get_conf('HashedControlPassword', None):
       auth_type = 'password'
@@ -295,18 +320,14 @@ class Sampling(object):
       auth_type = 'open'
 
     try:
-      fd_used = proc.file_descriptors_used(pid)
+      fd_used = stem.util.proc.file_descriptors_used(pid)
     except IOError:
       fd_used = None
 
     if last_sampling:
       nyx_cpu_delta = nyx_total_cpu_time - last_sampling.nyx_total_cpu_time
       nyx_time_delta = retrieved - last_sampling.retrieved
-
-      python_cpu_time = nyx_cpu_delta / nyx_time_delta
-      sys_call_cpu_time = 0.0  # TODO: add a wrapper around call() to get this
-
-      nyx_cpu = python_cpu_time + sys_call_cpu_time
+      nyx_cpu = nyx_cpu_delta / nyx_time_delta
     else:
       nyx_cpu = 0.0
 
@@ -334,14 +355,14 @@ class Sampling(object):
 
       'auth_type': auth_type,
       'pid': pid,
-      'start_time': system.start_time(pid),
+      'start_time': stem.util.system.start_time(pid),
       'fd_limit': int(controller.get_info('process/descriptor-limit', '-1')),
       'fd_used': fd_used,
 
       'nyx_total_cpu_time': nyx_total_cpu_time,
       'tor_cpu': '%0.1f' % (100 * tor_resources.cpu_sample),
       'nyx_cpu': '%0.1f' % (nyx_cpu),
-      'memory': str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
+      'memory': stem.util.str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
       'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
 
       'hostname': os.uname()[1],
@@ -354,7 +375,7 @@ class Sampling(object):
     formatted_msg = message.format(**self._attr)
 
     if crop_width is not None:
-      formatted_msg = str_tools.crop(formatted_msg, crop_width)
+      formatted_msg = stem.util.str_tools.crop(formatted_msg, crop_width)
 
     return formatted_msg
 
@@ -444,7 +465,7 @@ def _draw_resource_usage(subwindow, x, y, width, vals, pause_time):
     else:
       now = time.time()
 
-    uptime = str_tools.short_time_label(now - vals.start_time)
+    uptime = stem.util.str_tools.short_time_label(now - vals.start_time)
   else:
     uptime = ''
 

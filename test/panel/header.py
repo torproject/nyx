@@ -5,10 +5,12 @@ Unit tests for nyx.panel.header.
 import time
 import unittest
 
-import nyx.panel.header
 import stem.control
 import stem.exit_policy
 import stem.version
+import stem.util.system
+
+import nyx.panel.header
 import test
 
 from test import require_curses
@@ -16,13 +18,18 @@ from mock import patch, Mock
 
 
 class TestHeader(unittest.TestCase):
+  def test_system_call_time_tracked(self):
+    initial = nyx.panel.header.SYSTEM_CALL_TIME
+    stem.util.system.call('sleep 0.5')
+    self.assertTrue(nyx.panel.header.SYSTEM_CALL_TIME - initial > 0.4)
+
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.tracker.get_resource_tracker')
   @patch('time.time', Mock(return_value = 1234.5))
   @patch('os.times', Mock(return_value = (0.08, 0.03, 0.0, 0.0, 18759021.31)))
   @patch('os.uname', Mock(return_value = ('Linux', 'odin', '3.5.0-54-generic', '#81~precise1-Ubuntu SMP Tue Jul 15 04:05:58 UTC 2014', 'i686')))
-  @patch('nyx.panel.header.system.start_time', Mock(return_value = 5678))
-  @patch('nyx.panel.header.proc.file_descriptors_used', Mock(return_value = 89))
+  @patch('stem.util.system.start_time', Mock(return_value = 5678))
+  @patch('stem.util.proc.file_descriptors_used', Mock(return_value = 89))
   def test_sample(self, resource_tracker_mock, tor_controller_mock):
     tor_controller_mock().is_alive.return_value = True
     tor_controller_mock().connection_time.return_value = 567.8
