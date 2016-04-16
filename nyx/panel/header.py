@@ -31,33 +31,11 @@ MIN_DUAL_COL_WIDTH = 141  # minimum width where we'll show two columns
 SHOW_FD_THRESHOLD = 60  # show file descriptor usage if usage is over this percentage
 UPDATE_RATE = 5  # rate in seconds at which we refresh
 
-# Tracks total time spent shelling out to other commands like 'ps' and
-# 'netstat', so we can account for it as part of our cpu time.
-
-SYSTEM_CALL_TIME = 0.0
-SYSTEM_CALL_TIME_LOCK = threading.RLock()
-SYSTEM_CALL_ORIG = stem.util.system.call
-
 CONFIG = conf.config_dict('nyx', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
   'tor.chroot': '',
 })
-
-
-def call_wrapper(*args, **kwargs):
-  global SYSTEM_CALL_TIME
-
-  start_time = time.time()
-
-  try:
-    return SYSTEM_CALL_ORIG(*args, **kwargs)
-  finally:
-    with SYSTEM_CALL_TIME_LOCK:
-      SYSTEM_CALL_TIME += time.time() - start_time
-
-
-stem.util.system.call = call_wrapper
 
 
 class HeaderPanel(nyx.panel.Panel, threading.Thread):
@@ -307,7 +285,7 @@ class Sampling(object):
 
     pid = controller.get_pid('')
     tor_resources = nyx.tracker.get_resource_tracker().get_value()
-    nyx_total_cpu_time = sum(os.times()[:3], SYSTEM_CALL_TIME)
+    nyx_total_cpu_time = sum(os.times()[:3], stem.util.system.SYSTEM_CALL_TIME)
 
     or_listeners = controller.get_listeners(stem.control.Listener.OR, [])
     control_listeners = controller.get_listeners(stem.control.Listener.CONTROL, [])

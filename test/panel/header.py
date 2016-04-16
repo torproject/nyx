@@ -18,11 +18,6 @@ from mock import patch, Mock
 
 
 class TestHeader(unittest.TestCase):
-  def test_system_call_time_tracked(self):
-    initial = nyx.panel.header.SYSTEM_CALL_TIME
-    stem.util.system.call('sleep 0.5')
-    self.assertTrue(nyx.panel.header.SYSTEM_CALL_TIME - initial > 0.4)
-
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.tracker.get_resource_tracker')
   @patch('time.time', Mock(return_value = 1234.5))
