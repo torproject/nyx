@@ -239,7 +239,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
       log.notice('Tor control port closed')
 
   def _update(self):
-    previous_height = self.get_height()
     self._vals = Sampling.create(self._vals)
 
     if self._vals.fd_used and self._vals.fd_limit != -1:
@@ -261,14 +260,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         self._reported_inactive = False
         log.notice('Relay resumed')
 
-    if previous_height != self.get_height():
-      # We're toggling between being a relay and client, causing the height
-      # of this panel to change. Redraw all content so we don't get
-      # overlapping content.
-
-      nyx.controller.get_controller().redraw()
-    else:
-      self.redraw(True)  # just need to redraw ourselves
+    self.redraw(True)
 
 
 class Sampling(object):
