@@ -143,7 +143,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     event_types = nyx.popups.select_event_types()
 
-    if event_types != self._event_types:
+    if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
       self.redraw(True)
 
