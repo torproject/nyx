@@ -275,3 +275,13 @@ class TestHeader(unittest.TestCase):
     self.assertEqual("press 'n' for a new identity", test.render(nyx.panel.header._draw_newnym_option, 0, 0, 0).content)
     self.assertEqual('building circuits, available again in 1 second', test.render(nyx.panel.header._draw_newnym_option, 0, 0, 1).content)
     self.assertEqual('building circuits, available again in 5 seconds', test.render(nyx.panel.header._draw_newnym_option, 0, 0, 5).content)
+
+  @require_curses
+  @patch('nyx.controller.get_controller')
+  def test_draw_status(self, nyx_controller_mock):
+    nyx_controller_mock().get_page.return_value = 1
+    nyx_controller_mock().get_page_count.return_value = 4
+
+    self.assertEqual('page 2 / 4 - m: menu, p: pause, h: page help, q: quit', test.render(nyx.panel.header._draw_status, 0, 0, False, None).content)
+    self.assertEqual('Paused', test.render(nyx.panel.header._draw_status, 0, 0, True, None).content)
+    self.assertEqual('pepperjack is wonderful!', test.render(nyx.panel.header._draw_status, 0, 0, False, 'pepperjack is wonderful!').content)

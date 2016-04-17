@@ -56,7 +56,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
     self._reported_inactive = False
 
     self._message = None
-    self._message_attr = None
+    self._message_attr = []
 
     tor_controller().add_status_listener(self.reset_listener)
 
@@ -197,13 +197,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
         _draw_flags(subwindow, 0, 4, vals.flags)
 
-    if self._message:
-      subwindow.addstr(0, subwindow.height - 1, self._message, *self._message_attr)
-    elif not self.is_paused():
-      controller = nyx.controller.get_controller()
-      subwindow.addstr(0, subwindow.height - 1, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
-    else:
-      subwindow.addstr(0, subwindow.height - 1, 'Paused', HIGHLIGHT)
+    _draw_status(subwindow, 0, subwindow.height - 1, self.is_paused(), self._message, *self._message_attr)
 
   def run(self):
     """
@@ -544,3 +538,17 @@ def _draw_newnym_option(subwindow, x, y, newnym_wait):
   else:
     plural = 's' if newnym_wait > 1 else ''
     subwindow.addstr(x, y, 'building circuits, available again in %i second%s' % (newnym_wait, plural))
+
+
+def _draw_status(subwindow, x, y, is_paused, message, *attr):
+  """
+  Provides general usage information or a custom message.
+  """
+
+  if message:
+    subwindow.addstr(x, y, message, *attr)
+  elif not is_paused:
+    controller = nyx.controller.get_controller()
+    subwindow.addstr(x, y, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
+  else:
+    subwindow.addstr(x, y, 'Paused', HIGHLIGHT)
