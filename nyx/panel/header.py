@@ -18,6 +18,7 @@ import stem.util.str_tools
 import stem.util.system
 
 import nyx.controller
+import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
@@ -50,7 +51,7 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
 
     self._vals = Sampling.create()
 
-    self._last_width = 100
+    self._last_width = nyx.curses.screen_size()[0]
     self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
     self._reported_inactive = False
