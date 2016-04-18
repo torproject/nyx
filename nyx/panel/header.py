@@ -137,6 +137,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         return
 
       controller = tor_controller()
+      self.show_message('Reconnecting...', HIGHLIGHT)
 
       try:
         try:
