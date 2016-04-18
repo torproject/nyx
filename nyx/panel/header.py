@@ -175,7 +175,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
         _draw_flags(subwindow, 0, 4, vals.flags)
 
-    _draw_status(subwindow, 0, subwindow.height - 1, self.is_paused(), self._message, *self._message_attr)
+    _draw_status(subwindow, 0, self.get_height() - 1, self.is_paused(), self._message, *self._message_attr)
 
   def reset_listener(self, controller, event_type, _):
     self._update()

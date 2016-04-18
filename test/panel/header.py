@@ -16,8 +16,70 @@ import test
 from test import require_curses
 from mock import patch, Mock
 
+EXPECTED_PANEL = """
+nyx - odin (Linux 3.5.0-54-generic)        Tor 0.2.8.1-alpha-dev
+Unnamed - 174.21.17.28:7000, Dir Port: 7001, Control Port (cookie): 7002
+cpu: 12.3% tor, 5.7% nyx   mem: 11 MB (2.1%)   pid: 765
+fingerprint: 1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B
+flags: Running, Exit
+
+page 2 / 4 - m: menu, p: pause, h: page help, q: quit
+""".strip()
+
+
+def test_sampling():
+  return nyx.panel.header.Sampling(
+    retrieved = 1234.5,
+    is_connected = True,
+    connection_time = 2345.6,
+    last_heartbeat = 3456.7,
+
+    fingerprint = '1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
+    nickname = 'Unnamed',
+    newnym_wait = None,
+    exit_policy = stem.exit_policy.ExitPolicy('reject *:*'),
+    flags = ['Running', 'Exit'],
+
+    version = '0.2.8.1-alpha-dev',
+    version_status = 'unrecommended',
+
+    address = '174.21.17.28',
+    or_port = '7000',
+    dir_port = '7001',
+    control_port = '7002',
+    socket_path = None,
+    is_relay = True,
+
+    auth_type = 'cookie',
+    pid = '765',
+    start_time = 4567.8,
+    fd_limit = 100,
+    fd_used = 40,
+
+    nyx_total_cpu_time = 100,
+    tor_cpu = '12.3',
+    nyx_cpu = '5.7',
+    memory = '11 MB',
+    memory_percent = '2.1',
+
+    hostname = 'odin',
+    platform = 'Linux 3.5.0-54-generic',
+  )
+
 
 class TestHeader(unittest.TestCase):
+  @require_curses
+  @patch('nyx.controller.get_controller')
+  @patch('nyx.panel.header.tor_controller')
+  @patch('nyx.panel.header.Sampling.create')
+  def test_rendering_panel(self, sampling_mock, tor_controller_mock, nyx_controller_mock):
+    nyx_controller_mock().get_page.return_value = 1
+    nyx_controller_mock().get_page_count.return_value = 4
+    sampling_mock.return_value = test_sampling()
+
+    panel = nyx.panel.header.HeaderPanel()
+    self.assertEqual(EXPECTED_PANEL, test.render(panel.draw).content)
+
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.tracker.get_resource_tracker')
   @patch('time.time', Mock(return_value = 1234.5))

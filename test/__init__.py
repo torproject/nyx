@@ -71,7 +71,7 @@ def render(func, *args, **kwargs):
 
     func_args = inspect.getargspec(func).args
 
-    if func_args and func_args[0] == 'subwindow':
+    if func_args[:1] == ['subwindow'] or func_args[:2] == ['self', 'subwindow']:
       def _draw(subwindow):
         return func(subwindow, *args, **kwargs)
 
