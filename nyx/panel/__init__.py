@@ -166,7 +166,7 @@ class Panel(object):
   redraw().
   """
 
-  def __init__(self, name, top = 0, left = 0, height = -1, width = -1):
+  def __init__(self, name):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
 
@@ -188,10 +188,10 @@ class Panel(object):
     self.paused = False
     self.pause_time = -1
 
-    self.top = top
-    self.left = left
-    self.height = height
-    self.width = width
+    self.top = 0
+    self.left = 0
+    self.height = -1
+    self.width = -1
 
     # The panel's subwindow instance. This is made available to implementors
     # via their draw method and shouldn't be accessed directly.
@@ -714,8 +714,8 @@ class Panel(object):
 
 
 class DaemonPanel(Panel, threading.Thread):
-  def __init__(self, name, top = 0, left = 0, height = -1, width = -1, update_rate = 10):
-    Panel.__init__(self, name, top, left, height, width)
+  def __init__(self, name, update_rate):
+    Panel.__init__(self, name)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

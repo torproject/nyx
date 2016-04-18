@@ -24,7 +24,7 @@ class TorrcPanel(panel.Panel):
   """
 
   def __init__(self):
-    panel.Panel.__init__(self, 'torrc', 0)
+    panel.Panel.__init__(self, 'torrc')
 
     self._scroller = nyx.curses.Scroller()
     self._show_line_numbers = True  # shows left aligned line numbers

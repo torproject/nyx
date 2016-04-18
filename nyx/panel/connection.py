@@ -262,7 +262,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
   """
 
   def __init__(self):
-    nyx.panel.DaemonPanel.__init__(self, 'connections', update_rate = UPDATE_RATE)
+    nyx.panel.DaemonPanel.__init__(self, 'connections', UPDATE_RATE)
 
     self._scroller = nyx.curses.CursorScroller()
     self._entries = []            # last fetched display entries
