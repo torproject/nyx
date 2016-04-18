@@ -313,7 +313,7 @@ class TestPopups(unittest.TestCase):
   def test_select_event_types_with_input(self):
     rendered = test.render(nyx.popups.select_event_types)
     self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
-    self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERR', 'NYX_WARN', 'NYX_NOTICE']), rendered.return_value)
+    self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERROR', 'NYX_WARNING', 'NYX_NOTICE']), rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
