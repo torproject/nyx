@@ -61,6 +61,7 @@ except ImportError:
   from stem.util.lru_cache import lru_cache
 
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
+NYX_RUNLEVELS = ['NYX_DEBUG', 'NYX_INFO', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
 
 
@@ -133,9 +134,16 @@ def condense_runlevels(*events):
       tor_runlevels.append(r)
       events.remove(r)
 
-    if 'NYX_%s' % r in events:
+    if r == 'WARN':
+      nyx_runlevel = 'NYX_WARNING'
+    elif r == 'ERR':
+      nyx_runlevel = 'NYX_ERROR'
+    else:
+      nyx_runlevel = 'NYX_%s' % r
+
+    if nyx_runlevel in events:
       nyx_runlevels.append(r)
-      events.remove('NYX_%s' % r)
+      events.remove(nyx_runlevel)
 
   tor_ranges = ranges(tor_runlevels)
   nyx_ranges = ranges(nyx_runlevels)
@@ -180,7 +188,7 @@ def listen_for_events(listener, events):
   # accounts for runlevel naming difference
 
   tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
-  nyx_events = events.intersection(set(['NYX_%s' % runlevel for runlevel in TOR_RUNLEVELS]))
+  nyx_events = events.intersection(set(NYX_RUNLEVELS))
 
   # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
 

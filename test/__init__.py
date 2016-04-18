@@ -3,6 +3,7 @@ Unit tests for nyx.
 """
 
 import collections
+import inspect
 import time
 import unittest
 
@@ -18,8 +19,6 @@ __all__ = [
   'log',
   'tracker',
 ]
-
-SHOW_RENDERED_CONTENT = None  # if set, tests render content this many seconds
 
 OUR_SCREEN_SIZE = None
 TEST_SCREEN_SIZE = nyx.curses.Dimensions(80, 25)
@@ -55,7 +54,8 @@ def require_curses(func):
 def render(func, *args, **kwargs):
   """
   Runs the given curses function, providing content that's rendered on the
-  screen.
+  screen. If the function starts with an argument named 'subwindow' then it's
+  provided one through :func:`~nyx.curses.draw`.
 
   :param function func: draw function to be invoked
 
@@ -67,14 +67,20 @@ def render(func, *args, **kwargs):
   def draw_func():
     nyx.curses.disable_acs()
     nyx.curses.CURSES_SCREEN.erase()
-
     start_time = time.time()
-    attr['return_value'] = func(*args, **kwargs)
+
+    func_args = inspect.getargspec(func).args
+
+    if func_args[:1] == ['subwindow'] or func_args[:2] == ['self', 'subwindow']:
+      def _draw(subwindow):
+        return func(subwindow, *args, **kwargs)
+
+      attr['return_value'] = nyx.curses.draw(_draw)
+    else:
+      attr['return_value'] = func(*args, **kwargs)
+
     attr['runtime'] = time.time() - start_time
     attr['content'] = nyx.curses.screenshot()
-
-    if SHOW_RENDERED_CONTENT:
-      time.sleep(SHOW_RENDERED_CONTENT)
 
   with patch('nyx.curses.key_input', return_value = nyx.curses.KeyInput(27)):
     nyx.curses.start(draw_func, transparent_background = True, cursor = False)

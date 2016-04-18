@@ -210,7 +210,10 @@ def _resources_via_ps(pid):
   #     TIME      ELAPSED    RSS %MEM
   #  0:04.40        37:57  18772  0.9
 
-  ps_call = system.call('ps -p {pid} -o cputime,etime,rss,%mem'.format(pid = pid))
+  try:
+    ps_call = system.call('ps -p {pid} -o cputime,etime,rss,%mem'.format(pid = pid))
+  except OSError as exc:
+    raise IOError(exc)
 
   if ps_call and len(ps_call) >= 2:
     stats = ps_call[1].strip().split()

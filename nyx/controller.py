@@ -66,7 +66,23 @@ def show_message(message = None, *attr, **kwargs):
 
 
 def input_prompt(msg, initial_value = ''):
-  return get_controller().header_panel().input_prompt(msg, initial_value)
+  """
+  Prompts the user for input.
+
+  :param str message: prompt for user input
+  :param str initial_value: initial value of the prompt
+
+  :returns: **str** with the user input, this is **None** if the prompt is
+    canceled
+  """
+
+  header_panel = get_controller().header_panel()
+
+  header_panel.show_message(msg)
+  user_input = nyx.curses.str_input(len(msg), header_panel.get_height() - 1, initial_value)
+  header_panel.show_message()
+
+  return user_input
 
 
 class Controller(object):

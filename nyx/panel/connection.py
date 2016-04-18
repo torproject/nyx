@@ -10,7 +10,6 @@ import time
 import collections
 import curses
 import itertools
-import threading
 
 import nyx.curses
 import nyx.panel
@@ -256,16 +255,14 @@ class CircuitEntry(Entry):
     return False
 
 
-class ConnectionPanel(nyx.panel.Panel, threading.Thread):
+class ConnectionPanel(nyx.panel.DaemonPanel):
   """
   Listing of connections tor is making, with information correlated against
   the current consensus and other data sources.
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'connections')
-    threading.Thread.__init__(self)
-    self.setDaemon(True)
+    nyx.panel.DaemonPanel.__init__(self, 'connections', UPDATE_RATE)
 
     self._scroller = nyx.curses.CursorScroller()
     self._entries = []            # last fetched display entries
@@ -273,9 +270,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
     self._sort_order = CONFIG['features.connection.order']
 
     self._last_resource_fetch = -1  # timestamp of the last ConnectionResolver results used
-
-    self._pause_condition = threading.Condition()
-    self._halt = False  # terminates thread if true
 
     # Tracks exiting port and client country statistics
 
@@ -316,34 +310,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
     if results:
       self._sort_order = results
       self._entries = sorted(self._entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
-
-  def run(self):
-    """
-    Keeps connections listing updated, checking for new entries at a set rate.
-    """
-
-    last_ran = -1
-
-    while not self._halt:
-      if self.is_paused() or not tor_controller().is_alive() or (time.time() - last_ran) < UPDATE_RATE:
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(0.2)
-
-        continue  # done waiting, try again
-
-      self._update()
-      self.redraw(True)
-
-      # TODO: The following is needed to show results *but* causes curses to
-      # flicker. For our plans on this see...
-      #
-      #   https://trac.torproject.org/projects/tor/ticket/18547#comment:1
-
-      # if last_ran == -1:
-      #   nyx.tracker.get_consensus_tracker().update(tor_controller().get_network_statuses([]))
-
-      last_ran = time.time()
 
   def key_handlers(self):
     def _scroll(key):
@@ -629,15 +595,6 @@ class ConnectionPanel(nyx.panel.Panel, threading.Thread):
       x = self.addstr(y, x, ' (', *attr)
       x = self.addstr(y, x, line.entry.get_type().upper(), BOLD, *attr)
       x = self.addstr(y, x, ')', *attr)
-
-  def stop(self):
-    """
-    Halts further resolutions and terminates the thread.
-    """
-
-    with self._pause_condition:
-      self._halt = True
-      self._pause_condition.notifyAll()
 
   def _update(self):
     """

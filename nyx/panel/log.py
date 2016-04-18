@@ -9,7 +9,6 @@ regular expressions.
 
 import os
 import time
-import threading
 
 import stem.response.events
 
@@ -28,8 +27,6 @@ from stem.util import conf, log
 def conf_handler(key, value):
   if key == 'features.log.prepopulateReadLimit':
     return max(0, value)
-  elif key == 'features.log.maxRefreshRate':
-    return max(10, value)
   elif key == 'cache.log_panel.size':
     return max(1000, value)
 
@@ -41,10 +38,11 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.showDuplicateEntries': False,
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
-  'features.log.maxRefreshRate': 300,
   'features.log.regex': [],
   'startup.events': 'N3',
 }, conf_handler)
+
+UPDATE_RATE = 0.3
 
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its
@@ -61,16 +59,14 @@ NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
 stem_logger.addHandler(NYX_LOGGER)
 
 
-class LogPanel(nyx.panel.Panel, threading.Thread):
+class LogPanel(nyx.panel.DaemonPanel):
   """
   Listens for and displays tor, nyx, and stem events. This prepopulates
   from tor's log file if it exists.
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'log')
-    threading.Thread.__init__(self)
-    self.setDaemon(True)
+    nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
 
     logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
@@ -81,9 +77,8 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     self._show_duplicates = CONFIG['features.log.showDuplicateEntries']
 
     self._scroller = nyx.curses.Scroller()
-    self._halt = False  # terminates thread if true
-    self._pause_condition = threading.Condition()
     self._has_new_event = False
+    self._last_day = nyx.log.day_count(time.time())
 
     # fetches past tor events from log file, if available
 
@@ -143,7 +138,7 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     event_types = nyx.popups.select_event_types()
 
-    if event_types != self._event_types:
+    if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
       self.redraw(True)
 
@@ -359,45 +354,18 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     return y + 1
 
-  def run(self):
+  def _update(self):
     """
     Redraws the display, coalescing updates if events are rapidly logged (for
     instance running at the DEBUG runlevel) while also being immediately
     responsive if additions are less frequent.
     """
 
-    last_ran, last_day = -1, nyx.log.day_count(time.time())
+    current_day = nyx.log.day_count(time.time())
 
-    while not self._halt:
-      current_day = nyx.log.day_count(time.time())
-      time_since_reset = time.time() - last_ran
-      max_log_update_rate = CONFIG['features.log.maxRefreshRate'] / 1000.0
-
-      sleep_time = 0
-
-      if (not self._has_new_event and last_day == current_day) or self.is_paused():
-        sleep_time = 5
-      elif time_since_reset < max_log_update_rate:
-        sleep_time = max(0.05, max_log_update_rate - time_since_reset)
-
-      if sleep_time:
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(sleep_time)
-
-        continue
-
-      last_ran, last_day = time.time(), current_day
+    if self._has_new_event or self._last_day != current_day:
+      self._last_day = current_day
       self.redraw(True)
-
-  def stop(self):
-    """
-    Halts further updates and terminates the thread.
-    """
-
-    with self._pause_condition:
-      self._halt = True
-      self._pause_condition.notifyAll()
 
   def _register_tor_event(self, event):
     msg = ' '.join(str(event).split(' ')[1:])
@@ -410,9 +378,6 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
     self._register_event(nyx.log.LogEntry(event.arrived_at, event.type, msg))
 
   def _register_nyx_event(self, record):
-    if record.levelname == 'WARNING':
-      record.levelname = 'WARN'
-
     self._register_event(nyx.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):
@@ -426,6 +391,3 @@ class LogPanel(nyx.panel.Panel, threading.Thread):
 
     if self._filter.match(event.display_message):
       self._has_new_event = True
-
-      with self._pause_condition:
-        self._pause_condition.notifyAll()
