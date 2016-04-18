@@ -47,7 +47,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     nyx.panel.DaemonPanel.__init__(self, 'header', UPDATE_RATE)
     self._vals = Sampling.create()
 
-    self._last_width = nyx.curses.screen_size()[0]
+    self._last_width = nyx.curses.screen_size().width
     self._reported_inactive = False
 
     self._message = None
@@ -90,7 +90,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     self.show_message(message)
     self.redraw(True)
-    user_input = self.getstr(self.get_height() - 1, len(message), initial_value)
+    user_input = nyx.curses.str_input(len(message), self.get_height() - 1, initial_value)
     self.show_message()
 
     return user_input

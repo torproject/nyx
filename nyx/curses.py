@@ -14,6 +14,7 @@ if we want Windows support in the future too.
   start - initializes curses with the given function
   raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
+  str_input - text field where user can input a string
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
@@ -82,6 +83,8 @@ from __future__ import absolute_import
 
 import collections
 import curses
+import curses.ascii
+import curses.textpad
 import threading
 
 import stem.util.conf
@@ -237,6 +240,69 @@ def key_input(input_timeout = None):
     curses.cbreak()  # wait indefinitely for key presses (no timeout)
 
   return KeyInput(CURSES_SCREEN.getch())
+
+
+def str_input(x, y, initial_text = ''):
+  """
+  Provides a text field where the user can input a string, blocking until
+  they've done so and returning the result. If the user presses escape then
+  this terminates and provides back **None**.
+
+  This blanks any content within the space that the input field is rendered
+  (otherwise stray characters would be interpreted as part of the initial
+  input).
+
+  :param int x: horizontal location
+  :param int y: vertical location
+  :param str initial_text: initial input of the field
+
+  :returns: **str** with the user input or **None** if the prompt is caneled
+  """
+
+  def handle_key(textbox, key):
+    y, x = textbox.win.getyx()
+
+    if key == 27:
+      return curses.ascii.BEL  # user pressed esc
+    elif key == curses.KEY_HOME:
+      textbox.win.move(y, 0)
+    elif key in (curses.KEY_END, curses.KEY_RIGHT):
+      msg_length = len(textbox.gather())
+      textbox.win.move(y, x)  # reverts cursor movement during gather call
+
+      if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
+        textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
+      elif key == curses.KEY_RIGHT and x < msg_length - 1:
+        textbox.win.move(y, x + 1)  # only move cursor if there's content after it
+    elif key == 410:
+      # if we're resizing the display during text entry then cancel it
+      # (otherwise the input field is filled with nonprintable characters)
+
+      return curses.ascii.BEL
+    else:
+      return key
+
+  with CURSES_LOCK:
+    try:
+      curses.curs_set(1)  # show cursor
+    except curses.error:
+      pass
+
+    width = screen_size().width - x
+
+    curses_subwindow = CURSES_SCREEN.subwin(1, width, y, x)
+    curses_subwindow.erase()
+    curses_subwindow.addstr(0, 0, initial_text[:width - 1])
+
+    textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
+    user_input = textbox.edit(lambda key: handle_key(textbox, key)).strip()
+
+    try:
+      curses.curs_set(0)  # hide cursor
+    except curses.error:
+      pass
+
+    return None if textbox.lastcmd == curses.ascii.BEL else user_input
 
 
 def curses_attr(*attributes):
