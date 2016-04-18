@@ -9,7 +9,6 @@ available.
 
 import os
 import time
-import threading
 
 import stem
 import stem.control
@@ -39,21 +38,16 @@ CONFIG = conf.config_dict('nyx', {
 })
 
 
-class HeaderPanel(nyx.panel.Panel, threading.Thread):
+class HeaderPanel(nyx.panel.DaemonPanel):
   """
   Top area containing tor settings and system information.
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'header')
-    threading.Thread.__init__(self)
-    self.setDaemon(True)
-
+    nyx.panel.DaemonPanel.__init__(self, 'header', update_rate = UPDATE_RATE)
     self._vals = Sampling.create()
 
     self._last_width = nyx.curses.screen_size()[0]
-    self._pause_condition = threading.Condition()
-    self._halt = False  # terminates thread if true
     self._reported_inactive = False
 
     self._message = None
@@ -199,33 +193,6 @@ class HeaderPanel(nyx.panel.Panel, threading.Thread):
         _draw_flags(subwindow, 0, 4, vals.flags)
 
     _draw_status(subwindow, 0, subwindow.height - 1, self.is_paused(), self._message, *self._message_attr)
-
-  def run(self):
-    """
-    Keeps stats updated, checking for new information at a set rate.
-    """
-
-    last_ran = -1
-
-    while not self._halt:
-      if self.is_paused() or not self._vals.is_connected or (time.time() - last_ran) < UPDATE_RATE:
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(0.2)
-
-        continue  # done waiting, try again
-
-      self._update()
-      last_ran = time.time()
-
-  def stop(self):
-    """
-    Halts further resolutions and terminates the thread.
-    """
-
-    with self._pause_condition:
-      self._halt = True
-      self._pause_condition.notifyAll()
 
   def reset_listener(self, controller, event_type, _):
     self._update()

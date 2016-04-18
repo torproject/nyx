@@ -63,16 +63,12 @@ features.confirmQuit true
 # prepopulateReadLimit
 #   maximum entries read from the log file, used to prevent huge log files from
 #   causing a slow startup time.
-# maxRefreshRate
-#   rate limiting (in milliseconds) for drawing the log if updates are made
-#   rapidly (for instance, when at the DEBUG runlevel)
 # regex
 #   preconfigured regular expression pattern, up to five will be loaded
 
 features.log.showDuplicateEntries false
 features.log.prepopulate true
 features.log.prepopulateReadLimit 5000
-features.log.maxRefreshRate 300
 #features.log.regex My First Regex Pattern
 #features.log.regex ^My Second Regex Pattern$
 

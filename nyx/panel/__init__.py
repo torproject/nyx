@@ -6,11 +6,12 @@ Panels consisting the nyx interface.
 """
 
 import collections
-import inspect
-import time
 import curses
 import curses.ascii
 import curses.textpad
+import inspect
+import threading
+import time
 
 import nyx.curses
 import stem.util.log
@@ -710,3 +711,44 @@ class Panel(object):
     self.addch(top, left + width - 1, curses.ACS_URCORNER, *attributes)
     self.addch(top + height - 1, left, curses.ACS_LLCORNER, *attributes)
     self.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, *attributes)
+
+
+class DaemonPanel(Panel, threading.Thread):
+  def __init__(self, name, top = 0, left = 0, height = -1, width = -1, update_rate = 10):
+    Panel.__init__(self, name, top, left, height, width)
+    threading.Thread.__init__(self)
+    self.setDaemon(True)
+
+    self._pause_condition = threading.Condition()
+    self._halt = False  # terminates thread if true
+    self._update_rate = update_rate
+
+  def _update(self):
+    pass
+
+  def run(self):
+    """
+    Performs our _update() action at the given rate.
+    """
+
+    last_ran = -1
+
+    while not self._halt:
+      if self.is_paused() or (time.time() - last_ran) < self._update_rate:
+        with self._pause_condition:
+          if not self._halt:
+            self._pause_condition.wait(0.2)
+
+        continue  # done waiting, try again
+
+      self._update()
+      last_ran = time.time()
+
+  def stop(self):
+    """
+    Halts further resolutions and terminates the thread.
+    """
+
+    with self._pause_condition:
+      self._halt = True
+      self._pause_condition.notifyAll()
