@@ -378,9 +378,6 @@ class LogPanel(nyx.panel.DaemonPanel):
     self._register_event(nyx.log.LogEntry(event.arrived_at, event.type, msg))
 
   def _register_nyx_event(self, record):
-    if record.levelname == 'WARNING':
-      record.levelname = 'WARN'
-
     self._register_event(nyx.log.LogEntry(int(record.created), 'NYX_%s' % record.levelname, record.msg))
 
   def _register_event(self, event):

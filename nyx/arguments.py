@@ -10,6 +10,7 @@ import getopt
 import os
 
 import nyx
+import nyx.log
 
 import stem.util.connection
 
@@ -215,12 +216,9 @@ def expand_events(flags):
 
   expanded_events, invalid_flags = set(), ''
 
-  tor_runlevels = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
-  nyx_runlevels = ['NYX_' + runlevel for runlevel in tor_runlevels]
-
   for flag in flags:
     if flag == 'A':
-      return set(list(TOR_EVENT_TYPES) + nyx_runlevels + ['UNKNOWN'])
+      return set(list(TOR_EVENT_TYPES) + nyx.log.NYX_RUNLEVELS + ['UNKNOWN'])
     elif flag == 'X':
       return set()
     elif flag in 'DINWE12345':
@@ -238,9 +236,9 @@ def expand_events(flags):
         runlevel_index = 4
 
       if flag in 'DINWE':
-        runlevels = tor_runlevels[runlevel_index:]
+        runlevels = nyx.log.TOR_RUNLEVELS[runlevel_index:]
       elif flag in '12345':
-        runlevels = nyx_runlevels[runlevel_index:]
+        runlevels = nyx.log.NYX_RUNLEVELS[runlevel_index:]
 
       expanded_events.update(set(runlevels))
     elif flag == 'U':
