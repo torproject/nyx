@@ -77,24 +77,6 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       self.show_message()  # clear override
       return user_input
 
-  def input_prompt(self, message, initial_value = ''):
-    """
-    Prompts the user for input.
-
-    :param str message: prompt for user input
-    :param str initial_value: initial value of the prompt
-
-    :returns: **str** with the user input, this is **None** if the prompt is
-      canceled
-    """
-
-    self.show_message(message)
-    self.redraw(True)
-    user_input = nyx.curses.str_input(len(message), self.get_height() - 1, initial_value)
-    self.show_message()
-
-    return user_input
-
   def is_wide(self):
     """
     True if we should show two columns of information, False otherwise.
@@ -143,7 +125,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         try:
           controller.reconnect(chroot_path = CONFIG['tor.chroot'])
         except stem.connection.MissingPassword:
-          password = self.input_prompt('Controller Password: ')
+          password = nyx.controller.input_prompt('Controller Password: ')
 
           if password:
             controller.authenticate(password)
