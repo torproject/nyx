@@ -535,7 +535,7 @@ class GraphPanel(nyx.panel.Panel):
 
     nyx.panel.Panel.set_paused(self, is_pause)
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     if not self.displayed_stat:
       return
 
@@ -549,26 +549,26 @@ class GraphPanel(nyx.panel.Panel):
     attr = DrawAttributes(
       stat = type(stat)(stat),  # clone the GraphCategory
       subgraph_height = self._graph_height + 2,  # graph rows + header + x-axis label
-      subgraph_width = min(width / 2, CONFIG['features.graph.max_width']),
+      subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width']),
       interval = self.update_interval,
       bounds_type = self.bounds_type,
       accounting = accounting_stats,
       right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
-    self.addstr(0, 0, attr.stat.title(width), HIGHLIGHT)
+    subwindow.addstr(0, 0, attr.stat.title(subwindow.width), HIGHLIGHT)
 
-    self._draw_subgraph(attr, attr.stat.primary, 0, PRIMARY_COLOR)
-    self._draw_subgraph(attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
+    self._draw_subgraph(subwindow, attr, attr.stat.primary, 0, PRIMARY_COLOR)
+    self._draw_subgraph(subwindow, attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
 
     if attr.stat.stat_type() == GraphStat.BANDWIDTH:
-      if width <= COLLAPSE_WIDTH:
-        self._draw_bandwidth_stats(attr, width)
+      if subwindow.width <= COLLAPSE_WIDTH:
+        self._draw_bandwidth_stats(subwindow, attr, subwindow.width)
 
       if attr.accounting:
-        self._draw_accounting_stats(attr)
+        self._draw_accounting_stats(subwindow, attr)
 
-  def _draw_subgraph(self, attr, data, x, color):
+  def _draw_subgraph(self, subwindow, attr, data, x, color):
     # Concering our subgraph colums, the y-axis label can be at most six
     # characters, with two spaces of padding on either side of the graph.
     # Starting with the smallest size, then possibly raise it after determing
@@ -582,16 +582,16 @@ class GraphPanel(nyx.panel.Panel):
     subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
     axis_offset = max([len(label) for label in y_axis_labels.values()])
 
-    self.addstr(1, x, data.header(attr.subgraph_width), color, BOLD)
+    subwindow.addstr(x, 1, data.header(attr.subgraph_width), color, BOLD)
 
     for x_offset, label in x_axis_labels.items():
       if attr.right_to_left:
-        self.addstr(attr.subgraph_height, x + attr.subgraph_width - x_offset, label, color)
+        subwindow.addstr(x + attr.subgraph_width - x_offset, attr.subgraph_height, label, color)
       else:
-        self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
+        subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
 
     for y, label in y_axis_labels.items():
-      self.addstr(y, x, label, color)
+      subwindow.addstr(x, y, label, color)
 
     for col in range(subgraph_columns):
       column_count = int(data.values[attr.interval][col]) - min_bound
@@ -599,9 +599,9 @@ class GraphPanel(nyx.panel.Panel):
 
       for row in range(column_height):
         if attr.right_to_left:
-          self.addstr(attr.subgraph_height - 1 - row, x + attr.subgraph_width - col - 1, ' ', color, HIGHLIGHT)
+          subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
         else:
-          self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', color, HIGHLIGHT)
+          subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
 
   def _get_graph_bounds(self, attr, data, subgraph_columns):
     """
@@ -684,39 +684,39 @@ class GraphPanel(nyx.panel.Panel):
 
     return x_axis_labels
 
-  def _draw_bandwidth_stats(self, attr, width):
+  def _draw_bandwidth_stats(self, subwindow, attr, width):
     """
     Replaces the x-axis labeling with bandwidth stats. This is done on small
     screens since this information otherwise wouldn't fit.
     """
 
     labeling_line = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4
-    self.addstr(labeling_line, 0, ' ' * width)  # clear line
+    subwindow.addstr(0, labeling_line, ' ' * width)  # clear line
 
     runtime = time.time() - attr.stat.start_time
     primary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.primary.total), _size_label(attr.stat.primary.total / runtime))
     secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.secondary.total), _size_label(attr.stat.secondary.total / runtime))
 
-    self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
-    self.addstr(labeling_line, attr.subgraph_width + 1, secondary_footer, SECONDARY_COLOR)
+    subwindow.addstr(1, labeling_line, primary_footer, PRIMARY_COLOR)
+    subwindow.addstr(attr.subgraph_width + 1, labeling_line, secondary_footer, SECONDARY_COLOR)
 
-  def _draw_accounting_stats(self, attr):
+  def _draw_accounting_stats(self, subwindow, attr):
     y = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2
 
     if tor_controller().is_alive():
       hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, RED)
 
-      x = self.addstr(y, 0, 'Accounting (', BOLD)
-      x = self.addstr(y, x, attr.accounting.status, BOLD, hibernate_color)
-      x = self.addstr(y, x, ')', BOLD)
+      x = subwindow.addstr(0, y, 'Accounting (', BOLD)
+      x = subwindow.addstr(x, y, attr.accounting.status, BOLD, hibernate_color)
+      x = subwindow.addstr(x, y, ')', BOLD)
 
-      self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
+      subwindow.addstr(35, y, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
 
-      self.addstr(y + 1, 2, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
-      self.addstr(y + 1, 37, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
+      subwindow.addstr(2, y + 1, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
+      subwindow.addstr(37, y + 1, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
     else:
-      self.addstr(y, 0, 'Accounting:', BOLD)
-      self.addstr(y, 12, 'Connection Closed...')
+      subwindow.addstr(0, y, 'Accounting:', BOLD)
+      subwindow.addstr(12, y, 'Connection Closed...')
 
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
