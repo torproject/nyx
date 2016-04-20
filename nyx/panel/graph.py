@@ -562,7 +562,7 @@ class GraphPanel(nyx.panel.Panel):
 
     if attr.stat.stat_type() == GraphStat.BANDWIDTH:
       if subwindow.width <= COLLAPSE_WIDTH:
-        self._draw_bandwidth_stats(subwindow, attr, subwindow.width)
+        _draw_bandwidth_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4, attr.stat, attr.subgraph_width)
 
       if accounting_stats:
         _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
@@ -683,22 +683,6 @@ class GraphPanel(nyx.panel.Panel):
 
     return x_axis_labels
 
-  def _draw_bandwidth_stats(self, subwindow, attr, width):
-    """
-    Replaces the x-axis labeling with bandwidth stats. This is done on small
-    screens since this information otherwise wouldn't fit.
-    """
-
-    labeling_line = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4
-    subwindow.addstr(0, labeling_line, ' ' * width)  # clear line
-
-    runtime = time.time() - attr.stat.start_time
-    primary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.primary.total), _size_label(attr.stat.primary.total / runtime))
-    secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.secondary.total), _size_label(attr.stat.secondary.total / runtime))
-
-    subwindow.addstr(1, labeling_line, primary_footer, PRIMARY_COLOR)
-    subwindow.addstr(attr.subgraph_width + 1, labeling_line, secondary_footer, SECONDARY_COLOR)
-
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
@@ -725,6 +709,22 @@ class GraphPanel(nyx.panel.Panel):
         self.redraw(True)
 
 
+def _draw_bandwidth_stats(subwindow, y, stat, subgraph_width):
+  """
+  Replaces the x-axis labeling with bandwidth stats. This is done on small
+  screens since this information otherwise wouldn't fit.
+  """
+
+  subwindow.addstr(0, y, ' ' * 500)  # clear line
+
+  runtime = time.time() - stat.start_time
+  primary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.primary.total), _size_label(stat.primary.total / runtime))
+  secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.secondary.total), _size_label(stat.secondary.total / runtime))
+
+  subwindow.addstr(1, y, primary_footer, PRIMARY_COLOR)
+  subwindow.addstr(subgraph_width + 1, y, secondary_footer, SECONDARY_COLOR)
+
+
 def _draw_accounting_stats(subwindow, y, accounting):
   if tor_controller().is_alive():
     hibernate_color = CONFIG['attr.hibernate_color'].get(accounting.status, RED)
@@ -735,8 +735,8 @@ def _draw_accounting_stats(subwindow, y, accounting):
 
     subwindow.addstr(35, y, 'Time to reset: %s' % str_tools.short_time_label(accounting.time_until_reset))
 
-    subwindow.addstr(2, y + 1, '%s / %s' % (str_tools.size_label(accounting.read_bytes), str_tools.size_label(accounting.read_limit)), PRIMARY_COLOR)
-    subwindow.addstr(37, y + 1, '%s / %s' % (str_tools.size_label(accounting.written_bytes), str_tools.size_label(accounting.write_limit)), SECONDARY_COLOR)
+    subwindow.addstr(2, y + 1, '%s / %s' % (_size_label(accounting.read_bytes), _size_label(accounting.read_limit)), PRIMARY_COLOR)
+    subwindow.addstr(37, y + 1, '%s / %s' % (_size_label(accounting.written_bytes), _size_label(accounting.write_limit)), SECONDARY_COLOR)
   else:
     subwindow.addstr(0, y, 'Accounting:', BOLD)
     subwindow.addstr(12, y, 'Connection Closed...')
