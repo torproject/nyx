@@ -33,7 +33,7 @@ GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections')
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
 
-DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'accounting', 'right_to_left'))
+DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'right_to_left'))
 
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
@@ -552,7 +552,6 @@ class GraphPanel(nyx.panel.Panel):
       subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width']),
       interval = self.update_interval,
       bounds_type = self.bounds_type,
-      accounting = accounting_stats,
       right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
@@ -565,8 +564,8 @@ class GraphPanel(nyx.panel.Panel):
       if subwindow.width <= COLLAPSE_WIDTH:
         self._draw_bandwidth_stats(subwindow, attr, subwindow.width)
 
-      if attr.accounting:
-        self._draw_accounting_stats(subwindow, attr)
+      if accounting_stats:
+        _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
 
   def _draw_subgraph(self, subwindow, attr, data, x, color):
     # Concering our subgraph colums, the y-axis label can be at most six
@@ -700,24 +699,6 @@ class GraphPanel(nyx.panel.Panel):
     subwindow.addstr(1, labeling_line, primary_footer, PRIMARY_COLOR)
     subwindow.addstr(attr.subgraph_width + 1, labeling_line, secondary_footer, SECONDARY_COLOR)
 
-  def _draw_accounting_stats(self, subwindow, attr):
-    y = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2
-
-    if tor_controller().is_alive():
-      hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, RED)
-
-      x = subwindow.addstr(0, y, 'Accounting (', BOLD)
-      x = subwindow.addstr(x, y, attr.accounting.status, BOLD, hibernate_color)
-      x = subwindow.addstr(x, y, ')', BOLD)
-
-      subwindow.addstr(35, y, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
-
-      subwindow.addstr(2, y + 1, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
-      subwindow.addstr(37, y + 1, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
-    else:
-      subwindow.addstr(0, y, 'Accounting:', BOLD)
-      subwindow.addstr(12, y, 'Connection Closed...')
-
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
@@ -742,6 +723,23 @@ class GraphPanel(nyx.panel.Panel):
 
       if param.primary.tick % update_rate == 0:
         self.redraw(True)
+
+
+def _draw_accounting_stats(subwindow, y, accounting):
+  if tor_controller().is_alive():
+    hibernate_color = CONFIG['attr.hibernate_color'].get(accounting.status, RED)
+
+    x = subwindow.addstr(0, y, 'Accounting (', BOLD)
+    x = subwindow.addstr(x, y, accounting.status, BOLD, hibernate_color)
+    x = subwindow.addstr(x, y, ')', BOLD)
+
+    subwindow.addstr(35, y, 'Time to reset: %s' % str_tools.short_time_label(accounting.time_until_reset))
+
+    subwindow.addstr(2, y + 1, '%s / %s' % (str_tools.size_label(accounting.read_bytes), str_tools.size_label(accounting.read_limit)), PRIMARY_COLOR)
+    subwindow.addstr(37, y + 1, '%s / %s' % (str_tools.size_label(accounting.written_bytes), str_tools.size_label(accounting.write_limit)), SECONDARY_COLOR)
+  else:
+    subwindow.addstr(0, y, 'Accounting:', BOLD)
+    subwindow.addstr(12, y, 'Connection Closed...')
 
 
 def _size_label(byte_count, decimal = 1):
