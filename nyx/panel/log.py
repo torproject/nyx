@@ -142,6 +142,9 @@ class LogPanel(nyx.panel.DaemonPanel):
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
       self.redraw(True)
 
+  def new_show_event_selection_prompt(self):
+    event_types = nyx.popups.new_select_event_types()
+
   def show_snapshot_prompt(self):
     """
     Lets user enter a path to take a snapshot, canceling if left blank.
@@ -233,6 +236,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
       nyx.panel.KeyHandler('a', 'save snapshot of the log', self.show_snapshot_prompt),
       nyx.panel.KeyHandler('e', 'change logged events', self.show_event_selection_prompt),
+      nyx.panel.KeyHandler('w', 'new change logged events', self.new_show_event_selection_prompt),
       nyx.panel.KeyHandler('f', 'log regex filter', _pick_filter, 'enabled' if self._filter.selection() else 'disabled'),
       nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self._show_duplicates else 'hidden'),
       nyx.panel.KeyHandler('c', 'clear event log', _clear_log),

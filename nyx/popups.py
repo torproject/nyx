@@ -417,6 +417,19 @@ def select_event_types():
     return None
 
 
+def new_select_event_types():
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
+
+    events = nyx.tor_controller().get_info('events/names', None)
+    for i, line in enumerate(events.split()):
+      subwindow.addstr(1, i + 1, line)
+
+  with nyx.curses.CURSES_LOCK:
+    nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
+    return None
+
 def confirm_save_torrc(torrc):
   """
   Provides a confirmation dialog for saving tor's current configuration.
