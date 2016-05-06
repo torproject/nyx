@@ -418,17 +418,49 @@ def select_event_types():
 
 
 def new_select_event_types():
+
+  selection = 0
+  selected_events = []
+
   def _render(subwindow):
     subwindow.box()
     subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
 
     events = nyx.tor_controller().get_info('events/names', None)
-    for i, line in enumerate(events.split()):
-      subwindow.addstr(1, i + 1, line)
+
+    if events:
+      events = events.split()
+      events = [events[i:i + 3] for i in xrange(0, len(events), 3)]
+
+      for i, line in enumerate(events):
+        for j, in_line in enumerate(line):
+          x = subwindow.addstr(j * 30 + 1, i + 1, '[X]' if (i * 3 + j) in selected_events else '[]')
+          x = subwindow.addstr(x, i + 1, in_line, HIGHLIGHT if selection == (i * 3 + j) else NORMAL)
 
   with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
-    return None
+    events = nyx.tor_controller().get_info('events/names', None)
+    if events:
+      events = events.split()
+      while True:
+        nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
+        key = nyx.curses.key_input()
+
+        if key.match('up'):
+          selection = max(0, selection - 3)
+        elif key.match('down'):
+          selection = min(len(events) - 1, selection + 3)
+        elif key.match('left'):
+          selection = max(0, selection - 1)
+        elif key.match('right'):
+          selection = min(len(events) - 1, selection + 1)
+        elif key.is_selection():
+          if selection in selected_events:
+            selected_events.remove(selection)
+          else:
+            selected_events.append(selection)
+        elif key.match('esc'):
+          return None
+
 
 def confirm_save_torrc(torrc):
   """
