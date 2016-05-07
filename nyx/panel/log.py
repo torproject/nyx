@@ -145,6 +145,10 @@ class LogPanel(nyx.panel.DaemonPanel):
   def new_show_event_selection_prompt(self):
     event_types = nyx.popups.new_select_event_types()
 
+    if event_types and event_types != self._event_types:
+      self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
+      self.redraw(True)
+
   def show_snapshot_prompt(self):
     """
     Lets user enter a path to take a snapshot, canceling if left blank.
