@@ -25,6 +25,7 @@ import nyx
 import nyx.arguments
 import nyx.controller
 import nyx.curses
+import nyx.log
 import nyx.panel
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
@@ -417,7 +418,7 @@ def select_event_types():
     return None
 
 
-def new_select_event_types():
+def new_select_event_types(initial_selection):
   """
   Presents a chart of event types Tor supports. The user can select a set of
   events.
@@ -433,8 +434,9 @@ def new_select_event_types():
     return
 
   events = events.split()
+  events = nyx.log.TOR_RUNLEVELS + [event for event in events if event not in nyx.log.TOR_RUNLEVELS]
   selection = 0
-  selected_events = []
+  selected_events = initial_selection
 
   def _render(subwindow):
     subwindow.box()
@@ -444,7 +446,7 @@ def new_select_event_types():
 
     for i, line in enumerate(tor_events):
       for j, in_line in enumerate(line):
-        x = subwindow.addstr(j * 30 + 1, i + 1, '[X]' if (i * 3 + j) in selected_events else '[ ]')
+        x = subwindow.addstr(j * 30 + 1, i + 1, '[X]' if in_line in selected_events else '[ ]')
         x = subwindow.addstr(x, i + 1, in_line, HIGHLIGHT if selection == (i * 3 + j) else NORMAL)
 
     x = 30
@@ -467,14 +469,14 @@ def new_select_event_types():
       elif key.match('right'):
         selection = min(len(events) + 1, selection + 1)
       elif key.is_selection():
-        if selection in selected_events:
-          selected_events.remove(selection)
-        elif selection == len(events):
-          return set([events[i] for i in selected_events])
+        if selection == len(events):
+          return set(selected_events)
         elif selection == (len(events) + 1):
           return None
+        elif events[selection] in selected_events:
+          selected_events.remove(events[selection])
         else:
-          selected_events.append(selection)
+          selected_events.append(events[selection])
       elif key.match('esc'):
         return None
 

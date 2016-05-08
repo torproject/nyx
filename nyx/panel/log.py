@@ -147,7 +147,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     Prompts the user to select the events being listened for.
     TODO: Replace show_event_selection_prompt() with this method.
     """
-    event_types = nyx.popups.new_select_event_types()
+    event_types = nyx.popups.new_select_event_types(self._event_types)
 
     if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
