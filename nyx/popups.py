@@ -434,7 +434,8 @@ def new_select_event_types(initial_selection):
     return
 
   events = events.split()
-  events = nyx.log.TOR_RUNLEVELS + [event for event in events if event not in nyx.log.TOR_RUNLEVELS]
+  events = nyx.log.TOR_RUNLEVELS + nyx.log.NYX_RUNLEVELS + [event for event in events if event not in nyx.log.TOR_RUNLEVELS]
+  tor_events = [events[i+10:i + 13] for i in xrange(0, len(events) - 10, 3)]
   selection = 0
   selected_events = initial_selection
 
@@ -442,18 +443,28 @@ def new_select_event_types(initial_selection):
     subwindow.box()
     subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
 
-    tor_events = [events[i:i + 3] for i in xrange(0, len(events), 3)]
+    x = subwindow.addstr(1, 1, "Tor Runlevel:")
+    for i, line in enumerate(events[:5]):
+      x = subwindow.addstr(x + 3, 1, '[X]' if line in selected_events else '[ ]')
+      x = subwindow.addstr(x, 1, line, HIGHLIGHT if selection == i else NORMAL)
+
+    x = subwindow.addstr(1, 2, "Nyx Runlevel:")
+    for i, line in enumerate(events[5:10]):
+      x = subwindow.addstr(x + 3, 2, '[X]' if line in selected_events else '[ ]')
+      x = subwindow.addstr(x, 2, line[4:], HIGHLIGHT if selection == (i + 5) else NORMAL)
+
+    subwindow.hline(1, 3, 78)
 
     for i, line in enumerate(tor_events):
       for j, in_line in enumerate(line):
-        x = subwindow.addstr(j * 30 + 1, i + 1, '[X]' if in_line in selected_events else '[ ]')
-        x = subwindow.addstr(x, i + 1, in_line, HIGHLIGHT if selection == (i * 3 + j) else NORMAL)
+        x = subwindow.addstr(j * 25 + 1, i + 4, '[X]' if in_line in selected_events else '[ ]')
+        x = subwindow.addstr(x, i + 4, in_line, HIGHLIGHT if selection == (i * 3 + j + 10) else NORMAL)
 
     x = 30
     for i, line in enumerate(['Ok', 'Cancel']):
-      x = subwindow.addstr(x, len(tor_events) + 2, '[')
-      x = subwindow.addstr(x, len(tor_events) + 2, line, HIGHLIGHT if selection == (len(events) + i) else NORMAL)
-      x = subwindow.addstr(x, len(tor_events) + 2, ']')
+      x = subwindow.addstr(x, len(tor_events) + 5, '[')
+      x = subwindow.addstr(x, len(tor_events) + 5, line, HIGHLIGHT if selection == (len(events) + i) else NORMAL)
+      x = subwindow.addstr(x, len(tor_events) + 5, ']')
 
   with nyx.curses.CURSES_LOCK:
     while True:
@@ -461,9 +472,23 @@ def new_select_event_types(initial_selection):
       key = nyx.curses.key_input()
 
       if key.match('up'):
-        selection = max(0, selection - 3)
+        if selection >= 5 and selection <= 9:
+          selection -= 5
+        elif selection >= 10 and selection <= 12:
+          selection = 5
+        elif selection == len(events) or selection == (len(events) + 1):
+          selection = len(events) - 1
+        else:
+          selection = max(0, selection - 3)
       elif key.match('down'):
-        selection = min(len(events) + 1, selection + 3)
+        if selection >= 0 and selection <=4:
+          selection += 5
+        elif selection >= 5 and selection <=9:
+          selection = 10
+        elif selection >= (((len(tor_events) -1) * 3) + 10) and selection < len(events):
+          selection = len(events)
+        else:
+          selection = min(len(events) + 1, selection + 3)
       elif key.match('left'):
         selection = max(0, selection - 1)
       elif key.match('right'):
