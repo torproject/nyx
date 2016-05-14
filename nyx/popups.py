@@ -18,6 +18,9 @@ Popup dialogs provided by our interface.
   confirm_save_torrc - confirmation dialog for saving the torrc
 """
 
+from __future__ import absolute_import
+
+import curses
 import math
 import operator
 
@@ -393,7 +396,7 @@ def select_event_types():
   Presents a chart of event types we support, with a prompt for the user to
   select a set.
 
-  :returns: **list** of event types the user has selected or **None** if dialog
+  :returns: **set** of event types the user has selected or **None** if dialog
     is canceled
   """
 
@@ -420,51 +423,53 @@ def select_event_types():
 
 def new_select_event_types(initial_selection):
   """
-  Presents a chart of event types Tor supports. The user can select a set of
-  events.
+  Presents chart of events for the user to select from.
 
-  TODO: Replace select_event_types() method with this method.
+  :param list initial_selection: initial events to be checked
 
-  :returns: **list** of event types the user has selected or **None** if dialog
+  :returns: **set** of event types the user has selected or **None** if dialog
     is canceled
   """
-  events = nyx.tor_controller().get_info('events/names', None)
 
-  if not events:
+  event_names = nyx.tor_controller().get_info('events/names', None)
+
+  if not event_names:
     return
 
-  events = events.split()
-  events = nyx.log.TOR_RUNLEVELS + nyx.log.NYX_RUNLEVELS + [event for event in events if event not in nyx.log.TOR_RUNLEVELS]
-  tor_events = [events[i+10:i + 13] for i in xrange(0, len(events) - 10, 3)]
   selection = 0
-  selected_events = initial_selection
+  selected_events = list(initial_selection)
+  events = [event for event in event_names.split() if event not in nyx.log.TOR_RUNLEVELS]
 
   def _render(subwindow):
     subwindow.box()
     subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
 
-    x = subwindow.addstr(1, 1, "Tor Runlevel:")
-    for i, line in enumerate(events[:5]):
-      x = subwindow.addstr(x + 3, 1, '[X]' if line in selected_events else '[ ]')
-      x = subwindow.addstr(x, 1, line, HIGHLIGHT if selection == i else NORMAL)
+    x = subwindow.addstr(1, 1, 'Tor Runlevel:')
 
-    x = subwindow.addstr(1, 2, "Nyx Runlevel:")
-    for i, line in enumerate(events[5:10]):
-      x = subwindow.addstr(x + 3, 2, '[X]' if line in selected_events else '[ ]')
-      x = subwindow.addstr(x, 2, line[4:], HIGHLIGHT if selection == (i + 5) else NORMAL)
+    for i, event in enumerate(nyx.log.TOR_RUNLEVELS):
+      x = subwindow.addstr(x + 4, 1, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 1, event, HIGHLIGHT if selection == i else NORMAL)
+
+    x = subwindow.addstr(1, 2, 'Nyx Runlevel:')
+
+    for i, event in enumerate(nyx.log.NYX_RUNLEVELS):
+      x = subwindow.addstr(x + 4, 2, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 2, nyx.log.TOR_RUNLEVELS[i], HIGHLIGHT if selection == (i + 5) else NORMAL)
 
     subwindow.hline(1, 3, 78)
+    subwindow._addch(0, 3, curses.ACS_LTEE)
+    subwindow._addch(79, 3, curses.ACS_RTEE)
 
-    for i, line in enumerate(tor_events):
-      for j, in_line in enumerate(line):
-        x = subwindow.addstr(j * 25 + 1, i + 4, '[X]' if in_line in selected_events else '[ ]')
-        x = subwindow.addstr(x, i + 4, in_line, HIGHLIGHT if selection == (i * 3 + j + 10) else NORMAL)
+    for i, event in enumerate(events):
+      x = subwindow.addstr((i % 3) * 25 + 1, i / 3 + 4, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, i / 3 + 4, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
 
-    x = 30
-    for i, line in enumerate(['Ok', 'Cancel']):
-      x = subwindow.addstr(x, len(tor_events) + 5, '[')
-      x = subwindow.addstr(x, len(tor_events) + 5, line, HIGHLIGHT if selection == (len(events) + i) else NORMAL)
-      x = subwindow.addstr(x, len(tor_events) + 5, ']')
+    x = subwindow.width - 14
+
+    for i, option in enumerate(['Ok', 'Cancel']):
+      x = subwindow.addstr(x, subwindow.height - 2, '[')
+      x = subwindow.addstr(x, subwindow.height - 2, option, BOLD, HIGHLIGHT if selection == len(events) + 10 + i else NORMAL)
+      x = subwindow.addstr(x, subwindow.height - 2, ']') + 1
 
   with nyx.curses.CURSES_LOCK:
     while True:
@@ -472,36 +477,39 @@ def new_select_event_types(initial_selection):
       key = nyx.curses.key_input()
 
       if key.match('up'):
-        if selection >= 5 and selection <= 9:
-          selection -= 5
-        elif selection >= 10 and selection <= 12:
+        if selection < 10:
+          selection = max(selection - 5, 0)
+        elif selection < 13:
           selection = 5
-        elif selection == len(events) or selection == (len(events) + 1):
-          selection = len(events) - 1
+        elif selection < len(events) + 10:
+          selection -= 3
         else:
-          selection = max(0, selection - 3)
+          selection = len(events) + 9
       elif key.match('down'):
-        if selection >= 0 and selection <=4:
-          selection += 5
-        elif selection >= 5 and selection <=9:
-          selection = 10
-        elif selection >= (((len(tor_events) -1) * 3) + 10) and selection < len(events):
-          selection = len(events)
-        else:
-          selection = min(len(events) + 1, selection + 3)
+        if selection < 10:
+          selection = min(selection + 5, 10)
+        elif selection < len(events) + 10:
+          selection = min(selection + 3, len(events) + 10)
       elif key.match('left'):
-        selection = max(0, selection - 1)
+        selection = max(selection - 1, 0)
       elif key.match('right'):
-        selection = min(len(events) + 1, selection + 1)
+        selection = min(selection + 1, len(events) + 11)
       elif key.is_selection():
-        if selection == len(events):
-          return set(selected_events)
-        elif selection == (len(events) + 1):
-          return None
-        elif events[selection] in selected_events:
-          selected_events.remove(events[selection])
+        if selection < 5:
+          selected_event = nyx.log.TOR_RUNLEVELS[selection]
+        elif selection < 10:
+          selected_event = nyx.log.NYX_RUNLEVELS[selection - 5]
+        elif selection == len(events) + 10:
+          return set(selected_events)  # selected 'Ok'
+        elif selection == len(events) + 11:
+          return None  # selected 'Cancel'
         else:
-          selected_events.append(events[selection])
+          selected_event = events[selection - 10]
+
+        if selected_event in selected_events:
+          selected_events.remove(selected_event)
+        else:
+          selected_events.append(selected_event)
       elif key.match('esc'):
         return None
 
