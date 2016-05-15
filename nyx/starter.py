@@ -82,6 +82,7 @@ def main(config):
   _setup_freebsd_chroot(controller)
   _notify_of_unknown_events()
   _use_english_subcommands()
+  _use_no_esc_delay()
   _use_unicode()
   _set_process_name()
 
@@ -222,6 +223,16 @@ def _use_english_subcommands():
   """
 
   os.putenv('LANG', 'C')
+
+
+def _use_no_esc_delay():
+  """
+  Make it so pressing 'esc' takes effect right away...
+
+    https://stackoverflow.com/questions/27372068/why-does-the-escape-key-have-a-delay-in-python-curses/28020568#28020568
+  """
+
+  os.putenv('ESCDELAY', '0')
 
 
 @uses_settings
