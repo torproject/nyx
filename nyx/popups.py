@@ -18,6 +18,9 @@ Popup dialogs provided by our interface.
   confirm_save_torrc - confirmation dialog for saving the torrc
 """
 
+from __future__ import absolute_import
+
+import curses
 import math
 import operator
 
@@ -25,6 +28,7 @@ import nyx
 import nyx.arguments
 import nyx.controller
 import nyx.curses
+import nyx.log
 import nyx.panel
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
@@ -392,7 +396,7 @@ def select_event_types():
   Presents a chart of event types we support, with a prompt for the user to
   select a set.
 
-  :returns: **list** of event types the user has selected or **None** if dialog
+  :returns: **set** of event types the user has selected or **None** if dialog
     is canceled
   """
 
@@ -415,6 +419,99 @@ def select_event_types():
         nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
 
     return None
+
+
+def new_select_event_types(initial_selection):
+  """
+  Presents chart of events for the user to select from.
+
+  :param list initial_selection: initial events to be checked
+
+  :returns: **set** of event types the user has selected or **None** if dialog
+    is canceled
+  """
+
+  event_names = nyx.tor_controller().get_info('events/names', None)
+
+  if not event_names:
+    return
+
+  selection = 0
+  selected_events = list(initial_selection)
+  events = [event for event in event_names.split() if event not in nyx.log.TOR_RUNLEVELS]
+
+  def _render(subwindow):
+    subwindow.box()
+    subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
+
+    x = subwindow.addstr(1, 1, 'Tor Runlevel:')
+
+    for i, event in enumerate(nyx.log.TOR_RUNLEVELS):
+      x = subwindow.addstr(x + 4, 1, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 1, event, HIGHLIGHT if selection == i else NORMAL)
+
+    x = subwindow.addstr(1, 2, 'Nyx Runlevel:')
+
+    for i, event in enumerate(nyx.log.NYX_RUNLEVELS):
+      x = subwindow.addstr(x + 4, 2, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 2, nyx.log.TOR_RUNLEVELS[i], HIGHLIGHT if selection == (i + 5) else NORMAL)
+
+    subwindow.hline(1, 3, 78)
+    subwindow._addch(0, 3, curses.ACS_LTEE)
+    subwindow._addch(79, 3, curses.ACS_RTEE)
+
+    for i, event in enumerate(events):
+      x = subwindow.addstr((i % 3) * 25 + 1, i / 3 + 4, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, i / 3 + 4, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
+
+    x = subwindow.width - 14
+
+    for i, option in enumerate(['Ok', 'Cancel']):
+      x = subwindow.addstr(x, subwindow.height - 2, '[')
+      x = subwindow.addstr(x, subwindow.height - 2, option, BOLD, HIGHLIGHT if selection == len(events) + 10 + i else NORMAL)
+      x = subwindow.addstr(x, subwindow.height - 2, ']') + 1
+
+  with nyx.curses.CURSES_LOCK:
+    while True:
+      nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
+      key = nyx.curses.key_input()
+
+      if key.match('up'):
+        if selection < 10:
+          selection = max(selection - 5, 0)
+        elif selection < 13:
+          selection = 5
+        elif selection < len(events) + 10:
+          selection -= 3
+        else:
+          selection = len(events) + 9
+      elif key.match('down'):
+        if selection < 10:
+          selection = min(selection + 5, 10)
+        elif selection < len(events) + 10:
+          selection = min(selection + 3, len(events) + 10)
+      elif key.match('left'):
+        selection = max(selection - 1, 0)
+      elif key.match('right'):
+        selection = min(selection + 1, len(events) + 11)
+      elif key.is_selection():
+        if selection < 5:
+          selected_event = nyx.log.TOR_RUNLEVELS[selection]
+        elif selection < 10:
+          selected_event = nyx.log.NYX_RUNLEVELS[selection - 5]
+        elif selection == len(events) + 10:
+          return set(selected_events)  # selected 'Ok'
+        elif selection == len(events) + 11:
+          return None  # selected 'Cancel'
+        else:
+          selected_event = events[selection - 10]
+
+        if selected_event in selected_events:
+          selected_events.remove(selected_event)
+        else:
+          selected_events.append(selected_event)
+      elif key.match('esc'):
+        return None
 
 
 def confirm_save_torrc(torrc):
