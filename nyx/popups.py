@@ -473,7 +473,7 @@ def new_select_event_types(initial_selection):
 
   with nyx.curses.CURSES_LOCK:
     while True:
-      nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
+      nyx.curses.draw(_render, top = _top(), width = 80, height = (len(events) / 3) + 7)
       key = nyx.curses.key_input()
 
       if key.match('up'):
