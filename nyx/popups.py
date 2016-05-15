@@ -477,8 +477,10 @@ def new_select_event_types(initial_selection):
       key = nyx.curses.key_input()
 
       if key.match('up'):
-        if selection < 10:
-          selection = max(selection - 5, 0)
+        if selection < 5:
+          pass
+        elif selection < 10:
+          selection -= 5
         elif selection < 13:
           selection = 5
         elif selection < len(events) + 10:
