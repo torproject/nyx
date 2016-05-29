@@ -111,6 +111,60 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_NEW_EVENT_SELECTOR = """
+Event Types:-------------------------------------------------------------------+
+|Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
+|Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
++------------------------------------------------------------------------------+
+|[ ] CIRC                 [ ] CIRC_MINOR                                       |
+|                                                                 [Ok] [Cancel]|
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_NEW_EVENT_SELECTOR_UP_DOWN = """
+Event Types:-------------------------------------------------------------------+
+|Tor Runlevel:    [X] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
+|Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
++------------------------------------------------------------------------------+
+|[ ] CIRC                 [ ] CIRC_MINOR           [ ] STREAM                  |
+|[ ] ORCONN               [ ] BW                                               |
+|                                                                 [Ok] [Cancel]|
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_NEW_EVENT_SELECTOR_LEFT_RIGHT = """
+Event Types:-------------------------------------------------------------------+
+|Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
+|Nyx Runlevel:    [X] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
++------------------------------------------------------------------------------+
+|[ ] CIRC                 [ ] CIRC_MINOR           [ ] STREAM                  |
+|[ ] ORCONN               [ ] BW                                               |
+|                                                                 [Ok] [Cancel]|
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_NEW_EVENT_SELECTOR_CANCEL = """
+Event Types:-------------------------------------------------------------------+
+|Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
+|Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
++------------------------------------------------------------------------------+
+|[ ] CIRC                 [ ] CIRC_MINOR           [ ] STREAM                  |
+|[ ] ORCONN               [ ] BW                                               |
+|                                                                 [Ok] [Cancel]|
++------------------------------------------------------------------------------+
+""".strip()
+
+EXPECTED_NEW_EVENT_SELECTOR_INITIAL_SELECTION = """
+Event Types:-------------------------------------------------------------------+
+|Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
+|Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
++------------------------------------------------------------------------------+
+|[ ] CIRC                 [X] CIRC_MINOR           [ ] STREAM                  |
+|[ ] ORCONN               [ ] BW                                               |
+|                                                                 [Ok] [Cancel]|
++------------------------------------------------------------------------------+
+""".strip()
+
 TORRC = """
 ControlPort 9051
 CookieAuthentication 1
@@ -314,6 +368,133 @@ class TestPopups(unittest.TestCase):
     rendered = test.render(nyx.popups.select_event_types)
     self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
     self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERROR', 'NYX_WARNING', 'NYX_NOTICE']), rendered.return_value)
+
+  @require_curses
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.tor_controller')
+  def test_new_select_event_types(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR'
+    controller_mock.return_value = controller
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.new_select_event_types([])
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR, rendered.content)
+    self.assertEqual(set([]), rendered.return_value)
+
+  @require_curses
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.tor_controller')
+  def test_new_select_event_types_up_down(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
+    controller_mock.return_value = controller
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_UP),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.new_select_event_types([])
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_UP_DOWN, rendered.content)
+    self.assertEqual(set(['DEBUG']), rendered.return_value)
+
+  @require_curses
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.tor_controller')
+  def test_new_select_event_types_left_right(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
+    controller_mock.return_value = controller
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_LEFT),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_RIGHT),
+      nyx.curses.KeyInput(curses.KEY_RIGHT),
+      nyx.curses.KeyInput(curses.KEY_LEFT),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.new_select_event_types([])
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_LEFT_RIGHT, rendered.content)
+    self.assertEqual(set(['NYX_DEBUG']), rendered.return_value)
+
+  @require_curses
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.tor_controller')
+  def test_new_select_event_types_cancel(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
+    controller_mock.return_value = controller
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_RIGHT),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.new_select_event_types([])
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_CANCEL, rendered.content)
+    self.assertEqual(None, rendered.return_value)
+
+  @require_curses
+  @patch('nyx.popups._top', Mock(return_value = 0))
+  @patch('nyx.tor_controller')
+  def test_new_select_event_types_initial_selection(self, controller_mock):
+    controller = Mock()
+    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
+    controller_mock.return_value = controller
+
+    keypresses = [
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_DOWN),
+      nyx.curses.KeyInput(curses.KEY_ENTER),
+    ]
+
+    def draw_func():
+      with patch('nyx.curses.key_input', side_effect = keypresses):
+        return nyx.popups.new_select_event_types(['CIRC_MINOR'])
+
+    rendered = test.render(draw_func)
+    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_INITIAL_SELECTION, rendered.content)
+    self.assertEqual(set(['CIRC_MINOR']), rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
