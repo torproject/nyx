@@ -11,7 +11,7 @@ import nyx.panel.graph
 import test
 
 from test import require_curses
-from mock import patch, Mock
+from mock import patch
 
 EXPECTED_ACCOUNTING = """
 Accounting (awake)                 Time to reset: 01:02
@@ -20,17 +20,6 @@ Accounting (awake)                 Time to reset: 01:02
 
 
 class TestGraph(unittest.TestCase):
-  @require_curses
-  @patch('time.time', Mock(return_value = 460.0))
-  def test_draw_bandwidth_stats(self):
-    stat = Mock()
-    stat.start_time = 215.0
-    stat.primary.total = 2306867.2
-    stat.secondary.total = 1782579.2
-
-    rendered = test.render(nyx.panel.graph._draw_bandwidth_stats, 0, stat, 40)
-    self.assertEqual(' total: 17.6 Mb, avg: 73.5 Kb/sec        total: 13.5 Mb, avg: 56.8 Kb/sec', rendered.content)
-
   @require_curses
   @patch('nyx.panel.graph.tor_controller')
   def test_draw_accounting_stats(self, tor_controller_mock):

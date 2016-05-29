@@ -51,7 +51,6 @@ PRIMARY_COLOR, SECONDARY_COLOR = GREEN, CYAN
 ACCOUNTING_RATE = 5
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
-COLLAPSE_WIDTH = 135  # width at which to move optional stats from the title to x-axis label
 
 
 def conf_handler(key, value):
@@ -228,7 +227,7 @@ class GraphCategory(object):
       header = CONFIG['attr.graph.header.secondary'].get(self.stat_type(), '')
       header_stats = self._secondary_header_stats
 
-    header_stats = join(header_stats, '', width - len(header) - 4)
+    header_stats = join(header_stats, '', width - len(header) - 4).rstrip()
     return '%s (%s):' % (header, header_stats) if header_stats else '%s:' % header
 
   def _y_axis_label(self, value, is_primary):
@@ -560,12 +559,8 @@ class GraphPanel(nyx.panel.Panel):
     self._draw_subgraph(subwindow, attr, attr.stat.primary, 0, PRIMARY_COLOR)
     self._draw_subgraph(subwindow, attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
 
-    if attr.stat.stat_type() == GraphStat.BANDWIDTH:
-      if subwindow.width <= COLLAPSE_WIDTH:
-        _draw_bandwidth_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4, attr.stat, attr.subgraph_width)
-
-      if accounting_stats:
-        _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
+    if attr.stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
+      _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
 
   def _draw_subgraph(self, subwindow, attr, data, x, color):
     # Concering our subgraph colums, the y-axis label can be at most six
@@ -707,22 +702,6 @@ class GraphPanel(nyx.panel.Panel):
 
       if param.primary.tick % update_rate == 0:
         self.redraw(True)
-
-
-def _draw_bandwidth_stats(subwindow, y, stat, subgraph_width):
-  """
-  Replaces the x-axis labeling with bandwidth stats. This is done on small
-  screens since this information otherwise wouldn't fit.
-  """
-
-  subwindow.addstr(0, y, ' ' * 500)  # clear line
-
-  runtime = time.time() - stat.start_time
-  primary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.primary.total), _size_label(stat.primary.total / runtime))
-  secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(stat.secondary.total), _size_label(stat.secondary.total / runtime))
-
-  subwindow.addstr(1, y, primary_footer, PRIMARY_COLOR)
-  subwindow.addstr(subgraph_width + 1, y, secondary_footer, SECONDARY_COLOR)
 
 
 def _draw_accounting_stats(subwindow, y, accounting):
