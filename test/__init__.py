@@ -51,6 +51,21 @@ def require_curses(func):
   return wrapped
 
 
+class mock_keybindings(object):
+  """
+  Mocks the given keyboard inputs.
+  """
+
+  def __init__(self, *keys):
+    self._mock = patch('nyx.curses.key_input', side_effect = [nyx.curses.KeyInput(key) for key in keys])
+
+  def __enter__(self, *args):
+    self._mock.__enter__(*args)
+
+  def __exit__(self, *args):
+    self._mock.__exit__(*args)
+
+
 def render(func, *args, **kwargs):
   """
   Runs the given curses function, providing content that's rendered on the

@@ -10,7 +10,7 @@ import nyx.panel
 import nyx.popups
 import test
 
-from test import require_curses
+from test import require_curses, mock_keybindings
 from mock import patch, Mock
 
 EXPECTED_HELP_POPUP = """
@@ -335,15 +335,8 @@ class TestPopups(unittest.TestCase):
     # being selected (rather than three) because the act of selecing the third
     # closed the popup.
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_ENTER, curses.KEY_DOWN, curses.KEY_ENTER, curses.KEY_ENTER):
         return nyx.popups.select_sort_order('Config Option Ordering:', options, previous_order, {})
 
     previous_order = ['Man Page Entry', 'Name', 'Is Set']
@@ -377,15 +370,8 @@ class TestPopups(unittest.TestCase):
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR'
     controller_mock.return_value = controller
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
         return nyx.popups.new_select_event_types([])
 
     rendered = test.render(draw_func)
@@ -400,18 +386,8 @@ class TestPopups(unittest.TestCase):
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_UP),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_UP, curses.KEY_ENTER, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
         return nyx.popups.new_select_event_types([])
 
     rendered = test.render(draw_func)
@@ -426,21 +402,8 @@ class TestPopups(unittest.TestCase):
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_LEFT),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_RIGHT),
-      nyx.curses.KeyInput(curses.KEY_RIGHT),
-      nyx.curses.KeyInput(curses.KEY_LEFT),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_LEFT, curses.KEY_DOWN, curses.KEY_ENTER, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_RIGHT, curses.KEY_RIGHT, curses.KEY_LEFT, curses.KEY_ENTER):
         return nyx.popups.new_select_event_types([])
 
     rendered = test.render(draw_func)
@@ -455,17 +418,8 @@ class TestPopups(unittest.TestCase):
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_RIGHT),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_RIGHT, curses.KEY_ENTER):
         return nyx.popups.new_select_event_types([])
 
     rendered = test.render(draw_func)
@@ -480,16 +434,8 @@ class TestPopups(unittest.TestCase):
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
-    keypresses = [
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_DOWN),
-      nyx.curses.KeyInput(curses.KEY_ENTER),
-    ]
-
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = keypresses):
+      with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
         return nyx.popups.new_select_event_types(['CIRC_MINOR'])
 
     rendered = test.render(draw_func)
@@ -504,7 +450,7 @@ class TestPopups(unittest.TestCase):
     self.assertEqual(False, rendered.return_value)
 
     def draw_func():
-      with patch('nyx.curses.key_input', side_effect = [nyx.curses.KeyInput(curses.KEY_LEFT), nyx.curses.KeyInput(curses.KEY_ENTER)]):
+      with mock_keybindings(curses.KEY_LEFT, curses.KEY_ENTER):
         return nyx.popups.confirm_save_torrc(TORRC)
 
     rendered = test.render(draw_func)
