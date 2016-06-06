@@ -24,7 +24,7 @@ DEFAULT_ARGS = {
   'user_provided_socket': False,
   'config': os.path.join(DATA_DIR, 'nyxrc'),
   'debug_path': None,
-  'logged_events': 'N3',
+  'logged_events': 'NOTICE,NYX_NOTICE',
   'print_version': False,
   'print_help': False,
 }
@@ -135,7 +135,7 @@ def parse(argv):
       args['debug_path'] = os.path.expanduser(arg)
     elif opt in ('-l', '--log'):
       try:
-        expand_events(arg)
+        validate_events(arg)
       except ValueError as exc:
         raise ValueError(msg('usage.unrecognized_log_flags', flags = exc))
 
@@ -181,6 +181,28 @@ def get_version():
     version = nyx.__version__,
     date = nyx.__release_date__,
   )
+
+
+def validate_events(events):
+  """
+  Check whether the events are any one of Tor runlevels, Nyx runlevels or
+  Tor events.
+  """
+
+  valid_events = set(TOR_EVENT_TYPES.values() + nyx.log.NYX_RUNLEVELS)
+  accepted_events, invalid_events = set(), set()
+
+  events = events.split(',')
+  for event in events:
+    if event in valid_events:
+      accepted_events.update([event])
+    else:
+      invalid_events.update([event])
+
+  if invalid_events:
+    raise ValueError(','.join(invalid_events))
+  else:
+    return accepted_events
 
 
 def expand_events(flags):

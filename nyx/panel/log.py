@@ -39,7 +39,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.regex': [],
-  'startup.events': 'N3',
+  'startup.events': 'NOTICE,NYX_NOTICE',
 }, conf_handler)
 
 UPDATE_RATE = 0.3
@@ -68,7 +68,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
 
-    logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
+    logged_events = nyx.arguments.validate_events(CONFIG['startup.events'])
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)

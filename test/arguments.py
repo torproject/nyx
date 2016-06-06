@@ -28,8 +28,8 @@ class TestArgumentParsing(unittest.TestCase):
     args = parse(['--debug', '/tmp/dump'])
     self.assertEqual('/tmp/dump', args.debug_path)
 
-    args = parse(['--log', 'D1'])
-    self.assertEqual('D1', args.logged_events)
+    args = parse(['--log', 'DEBUG,NYX_DEBUG'])
+    self.assertEqual('DEBUG,NYX_DEBUG', args.logged_events)
 
     args = parse(['--version'])
     self.assertEqual(True, args.print_version)
@@ -41,8 +41,8 @@ class TestArgumentParsing(unittest.TestCase):
     args = parse(['-i', '1643'])
     self.assertEqual(1643, args.control_port)
 
-    args = parse(['-l', 'we', '-c', '/tmp/cfg'])
-    self.assertEqual('we', args.logged_events)
+    args = parse(['-l', 'WARN,ERR', '-c', '/tmp/cfg'])
+    self.assertEqual('WARN,ERR', args.logged_events)
     self.assertEqual('/tmp/cfg', args.config)
 
   def test_that_we_reject_unrecognized_arguments(self):
