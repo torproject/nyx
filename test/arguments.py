@@ -1,8 +1,6 @@
 import unittest
 
-from mock import Mock, patch
-
-from nyx.arguments import DEFAULT_ARGS, parse, missing_event_types
+from nyx.arguments import DEFAULT_ARGS, parse
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -63,29 +61,3 @@ class TestArgumentParsing(unittest.TestCase):
 
     for invalid_input in invalid_inputs:
       self.assertRaises(ValueError, parse, ['--interface', invalid_input])
-
-
-class TestMissingEventTypes(unittest.TestCase):
-  @patch('nyx.arguments.tor_controller')
-  def test_with_a_failed_query(self, controller_mock):
-    controller = Mock()
-    controller.get_info.return_value = None
-    controller_mock.return_value = controller
-
-    self.assertEqual([], missing_event_types())
-
-  @patch('nyx.arguments.tor_controller')
-  def test_without_unrecognized_events(self, controller_mock):
-    controller = Mock()
-    controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR'
-    controller_mock.return_value = controller
-
-    self.assertEqual([], missing_event_types())
-
-  @patch('nyx.arguments.tor_controller')
-  def test_with_unrecognized_events(self, controller_mock):
-    controller = Mock()
-    controller.get_info.return_value = 'EVENT1 DEBUG INFO NOTICE WARN EVENT2 ERR EVENT3'
-    controller_mock.return_value = controller
-
-    self.assertEqual(['EVENT1', 'EVENT2', 'EVENT3'], missing_event_types())

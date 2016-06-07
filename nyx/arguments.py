@@ -14,7 +14,7 @@ import nyx.log
 
 import stem.util.connection
 
-from nyx import DATA_DIR, tor_controller, msg
+from nyx import DATA_DIR, msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -201,22 +201,3 @@ def validate_events(events):
     raise ValueError(','.join(invalid_events))
   else:
     return accepted_events
-
-
-def missing_event_types():
-  """
-  Provides the event types the current tor connection supports but nyx
-  doesn't. This provides an empty list if no event types are missing or the
-  GETINFO query fails.
-
-  :returns: **list** of missing event types
-  """
-
-  response = tor_controller().get_info('events/names', None)
-
-  if response is None:
-    return []  # GETINFO query failed
-
-  tor_event_types = response.split(' ')
-  recognized_types = TOR_EVENT_TYPES.values()
-  return list(filter(lambda x: x not in recognized_types, tor_event_types))

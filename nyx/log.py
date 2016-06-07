@@ -190,11 +190,6 @@ def listen_for_events(listener, events):
   tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
   nyx_events = events.intersection(set(NYX_RUNLEVELS))
 
-  # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
-
-  if 'UNKNOWN' in events:
-    tor_events.update(set(nyx.arguments.missing_event_types()))
-
   controller = nyx.tor_controller()
   controller.remove_event_listener(listener)
 
