@@ -68,7 +68,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
 
-    logged_events = nyx.arguments.validate_events(CONFIG['startup.events'])
+    logged_events = CONFIG['startup.events'].split(',')
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)

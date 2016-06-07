@@ -41,50 +41,6 @@ OPT_EXPANDED = [
   'help',
 ]
 
-TOR_EVENT_TYPES = {
-  # runlevels
-
-  'd': 'DEBUG',
-  'i': 'INFO',
-  'n': 'NOTICE',
-  'w': 'WARN',
-  'e': 'ERR',
-
-  # important events
-
-  'b': 'BW',
-  'c': 'CIRC',
-  's': 'STREAM',
-
-  # everything else
-
-  'a': 'ADDRMAP',
-  'f': 'AUTHDIR_NEWDESCS',
-  'j': 'BUILDTIMEOUT_SET',
-  'k': 'CELL_STATS',
-  'l': 'CIRC_BW',
-  'm': 'CIRC_MINOR',
-  'p': 'CONF_CHANGED',
-  'q': 'CONN_BW',
-  'r': 'CLIENTS_SEEN',
-  'u': 'DESCCHANGED',
-  'g': 'GUARD',
-  'h': 'HS_DESC',
-  'v': 'HS_DESC_CONTENT',
-  'x': 'NETWORK_LIVENESS',
-  'y': 'NEWCONSENSUS',
-  'z': 'NEWDESC',
-  'B': 'NS',
-  'o': 'ORCONN',
-  'C': 'SIGNAL',
-  'F': 'STREAM_BW',
-  'G': 'STATUS_CLIENT',
-  'H': 'STATUS_GENERAL',
-  'I': 'STATUS_SERVER',
-  'J': 'TB_EMPTY',
-  't': 'TRANSPORT_LAUNCHED',
-}
-
 
 def parse(argv):
   """
@@ -134,11 +90,6 @@ def parse(argv):
     elif opt in ('-d', '--debug'):
       args['debug_path'] = os.path.expanduser(arg)
     elif opt in ('-l', '--log'):
-      try:
-        validate_events(arg)
-      except ValueError as exc:
-        raise ValueError(msg('usage.unrecognized_log_events', events = exc))
-
       args['logged_events'] = arg
     elif opt in ('-v', '--version'):
       args['print_version'] = True
@@ -179,25 +130,3 @@ def get_version():
     version = nyx.__version__,
     date = nyx.__release_date__,
   )
-
-
-def validate_events(events):
-  """
-  Check whether the events are any one of Tor runlevels, Nyx runlevels or
-  Tor events.
-  """
-
-  valid_events = set(TOR_EVENT_TYPES.values() + nyx.log.NYX_RUNLEVELS)
-  accepted_events, invalid_events = set(), set()
-
-  events = events.split(',')
-  for event in events:
-    if event in valid_events:
-      accepted_events.update([event])
-    else:
-      invalid_events.update([event])
-
-  if invalid_events:
-    raise ValueError(','.join(invalid_events))
-  else:
-    return accepted_events

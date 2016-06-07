@@ -182,13 +182,9 @@ def listen_for_events(listener, events):
   :returns: **list** of event types we're successfully now listening to
   """
 
-  import nyx.arguments
   events = set(events)  # drops duplicates
-
-  # accounts for runlevel naming difference
-
-  tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
   nyx_events = events.intersection(set(NYX_RUNLEVELS))
+  tor_events = events.difference(nyx_events)
 
   controller = nyx.tor_controller()
   controller.remove_event_listener(listener)
