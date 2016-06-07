@@ -39,7 +39,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.regex': [],
-  'startup.events': 'NOTICE,NYX_NOTICE',
+  'startup.events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
 }, conf_handler)
 
 UPDATE_RATE = 0.3

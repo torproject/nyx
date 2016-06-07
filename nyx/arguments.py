@@ -24,7 +24,7 @@ DEFAULT_ARGS = {
   'user_provided_socket': False,
   'config': os.path.join(DATA_DIR, 'nyxrc'),
   'debug_path': None,
-  'logged_events': 'NOTICE,NYX_NOTICE',
+  'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
   'print_version': False,
   'print_help': False,
 }
@@ -137,7 +137,7 @@ def parse(argv):
       try:
         validate_events(arg)
       except ValueError as exc:
-        raise ValueError(msg('usage.unrecognized_log_flags', flags = exc))
+        raise ValueError(msg('usage.unrecognized_log_events', events = exc))
 
       args['logged_events'] = arg
     elif opt in ('-v', '--version'):
