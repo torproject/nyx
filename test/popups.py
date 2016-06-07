@@ -94,25 +94,6 @@ Config Option Ordering:--------------------------------------------------------+
 
 EXPECTED_EVENT_SELECTOR = """
 Event Types:-------------------------------------------------------------------+
-|  d DEBUG      a ADDRMAP           r CLIENTS_SEEN      C SIGNAL               |
-|  i INFO       f AUTHDIR_NEWDESCS  u DESCCHANGED       F STREAM_BW            |
-|  n NOTICE     j BUILDTIMEOUT_SET  g GUARD             G STATUS_CLIENT        |
-|  w WARN       b BW                h HS_DESC           H STATUS_GENERAL       |
-|  e ERR        k CELL_STATS        v HS_DESC_CONTENT   I STATUS_SERVER        |
-|               c CIRC              x NETWORK_LIVENESS  s STREAM               |
-|               l CIRC_BW           y NEWCONSENSUS      J TB_EMPTY             |
-|               m CIRC_MINOR        z NEWDESC           t TRANSPORT_LAUNCHED   |
-|               p CONF_CHANGED      B NS                                       |
-|               q CONN_BW           o ORCONN                                   |
-|                                                                              |
-|    DINWE tor runlevel+            A All Events                               |
-|    12345 nyx runlevel+            X No Events                                |
-|                                   U Unknown Events                           |
-+------------------------------------------------------------------------------+
-""".strip()
-
-EXPECTED_NEW_EVENT_SELECTOR = """
-Event Types:-------------------------------------------------------------------+
 |Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 |Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 +------------------------------------------------------------------------------+
@@ -121,7 +102,7 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_NEW_EVENT_SELECTOR_UP_DOWN = """
+EXPECTED_EVENT_SELECTOR_UP_DOWN = """
 Event Types:-------------------------------------------------------------------+
 |Tor Runlevel:    [X] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 |Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
@@ -132,7 +113,7 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_NEW_EVENT_SELECTOR_LEFT_RIGHT = """
+EXPECTED_EVENT_SELECTOR_LEFT_RIGHT = """
 Event Types:-------------------------------------------------------------------+
 |Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 |Nyx Runlevel:    [X] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
@@ -143,7 +124,7 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_NEW_EVENT_SELECTOR_CANCEL = """
+EXPECTED_EVENT_SELECTOR_CANCEL = """
 Event Types:-------------------------------------------------------------------+
 |Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 |Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
@@ -154,7 +135,7 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_NEW_EVENT_SELECTOR_INITIAL_SELECTION = """
+EXPECTED_EVENT_SELECTOR_INITIAL_SELECTION = """
 Event Types:-------------------------------------------------------------------+
 |Tor Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
 |Nyx Runlevel:    [ ] DEBUG    [ ] INFO    [ ] NOTICE    [ ] WARN    [ ] ERR   |
@@ -348,98 +329,82 @@ class TestPopups(unittest.TestCase):
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
-  @patch('nyx.controller.input_prompt', Mock(return_value = None))
-  def test_select_event_types_when_canceled(self):
-    rendered = test.render(nyx.popups.select_event_types)
-    self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
-    self.assertEqual(None, rendered.return_value)
-
-  @require_curses
-  @patch('nyx.popups._top', Mock(return_value = 0))
-  @patch('nyx.controller.input_prompt', Mock(return_value = '2bwe'))
-  def test_select_event_types_with_input(self):
-    rendered = test.render(nyx.popups.select_event_types)
-    self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
-    self.assertEqual(set(['NYX_INFO', 'ERR', 'WARN', 'BW', 'NYX_ERROR', 'NYX_WARNING', 'NYX_NOTICE']), rendered.return_value)
-
-  @require_curses
-  @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.tor_controller')
-  def test_new_select_event_types(self, controller_mock):
+  def test_select_event_types(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR'
     controller_mock.return_value = controller
 
     def draw_func():
       with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
-        return nyx.popups.new_select_event_types([])
+        return nyx.popups.select_event_types([])
 
     rendered = test.render(draw_func)
-    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR, rendered.content)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR, rendered.content)
     self.assertEqual(set([]), rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.tor_controller')
-  def test_new_select_event_types_up_down(self, controller_mock):
+  def test_select_event_types_up_down(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
     def draw_func():
       with mock_keybindings(curses.KEY_UP, curses.KEY_ENTER, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
-        return nyx.popups.new_select_event_types([])
+        return nyx.popups.select_event_types([])
 
     rendered = test.render(draw_func)
-    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_UP_DOWN, rendered.content)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR_UP_DOWN, rendered.content)
     self.assertEqual(set(['DEBUG']), rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.tor_controller')
-  def test_new_select_event_types_left_right(self, controller_mock):
+  def test_select_event_types_left_right(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
     def draw_func():
       with mock_keybindings(curses.KEY_LEFT, curses.KEY_DOWN, curses.KEY_ENTER, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_RIGHT, curses.KEY_RIGHT, curses.KEY_LEFT, curses.KEY_ENTER):
-        return nyx.popups.new_select_event_types([])
+        return nyx.popups.select_event_types([])
 
     rendered = test.render(draw_func)
-    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_LEFT_RIGHT, rendered.content)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR_LEFT_RIGHT, rendered.content)
     self.assertEqual(set(['NYX_DEBUG']), rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.tor_controller')
-  def test_new_select_event_types_cancel(self, controller_mock):
+  def test_select_event_types_cancel(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
     def draw_func():
       with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_RIGHT, curses.KEY_ENTER):
-        return nyx.popups.new_select_event_types([])
+        return nyx.popups.select_event_types([])
 
     rendered = test.render(draw_func)
-    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_CANCEL, rendered.content)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR_CANCEL, rendered.content)
     self.assertEqual(None, rendered.return_value)
 
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
   @patch('nyx.tor_controller')
-  def test_new_select_event_types_initial_selection(self, controller_mock):
+  def test_select_event_types_initial_selection(self, controller_mock):
     controller = Mock()
     controller.get_info.return_value = 'DEBUG INFO NOTICE WARN ERR CIRC CIRC_MINOR STREAM ORCONN BW'
     controller_mock.return_value = controller
 
     def draw_func():
       with mock_keybindings(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER):
-        return nyx.popups.new_select_event_types(['CIRC_MINOR'])
+        return nyx.popups.select_event_types(['CIRC_MINOR'])
 
     rendered = test.render(draw_func)
-    self.assertEqual(EXPECTED_NEW_EVENT_SELECTOR_INITIAL_SELECTION, rendered.content)
+    self.assertEqual(EXPECTED_EVENT_SELECTOR_INITIAL_SELECTION, rendered.content)
     self.assertEqual(set(['CIRC_MINOR']), rendered.return_value)
 
   @require_curses

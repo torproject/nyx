@@ -164,8 +164,8 @@ def get_help():
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
     config_path = DEFAULT_ARGS['config'],
-    events = DEFAULT_ARGS['logged_events'],
-    event_flags = msg('misc.event_types'),
+    default_events = DEFAULT_ARGS['logged_events'],
+    events = msg('misc.event_types'),
   )
 
 
