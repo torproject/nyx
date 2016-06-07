@@ -182,18 +182,9 @@ def listen_for_events(listener, events):
   :returns: **list** of event types we're successfully now listening to
   """
 
-  import nyx.arguments
   events = set(events)  # drops duplicates
-
-  # accounts for runlevel naming difference
-
-  tor_events = events.intersection(set(nyx.arguments.TOR_EVENT_TYPES.values()))
   nyx_events = events.intersection(set(NYX_RUNLEVELS))
-
-  # adds events unrecognized by nyx if we're listening to the 'UNKNOWN' type
-
-  if 'UNKNOWN' in events:
-    tor_events.update(set(nyx.arguments.missing_event_types()))
+  tor_events = events.difference(nyx_events)
 
   controller = nyx.tor_controller()
   controller.remove_event_listener(listener)
@@ -202,6 +193,7 @@ def listen_for_events(listener, events):
     try:
       controller.add_event_listener(listener, event_type)
     except stem.ProtocolError:
+      warn('panel.log.unsupported_event', event = event_type)
       tor_events.remove(event_type)
 
   return sorted(tor_events.union(nyx_events))
@@ -393,11 +385,11 @@ class LogFileOutput(object):
           os.makedirs(path_dir)
 
         self._file = open(path, 'a')
-        notice('nyx %s opening log file (%s)' % (nyx.__version__, path))
+        notice('panel.log.opening_log_file', version = nyx.__version__, path = path)
       except IOError as exc:
-        error('Unable to write to log file: %s' % exc.strerror)
+        error('msg.panel.log.unable_to_open_log_file', reason = exc.strerror)
       except OSError as exc:
-        error('Unable to write to log file: %s' % exc)
+        error('msg.panel.log.unable_to_open_log_file', reason = exc)
 
   def write(self, msg):
     if self._file:
@@ -405,7 +397,7 @@ class LogFileOutput(object):
         self._file.write(msg + '\n')
         self._file.flush()
       except IOError as exc:
-        error('Unable to write to log file: %s' % exc.strerror)
+        error('msg.panel.log.unable_to_open_log_file', reason = exc.strerror)
         self._file = None
 
 
@@ -443,7 +435,7 @@ class LogFilters(object):
         if len(self._past_filters) > self._max_filters:
           self._past_filters.popitem(False)
       except re.error as exc:
-        notice('Invalid regular expression pattern (%s): %s' % (exc, regex))
+        notice('panel.log.bad_filter_regex', reason = exc, pattern = regex)
 
   def selection(self):
     return self._selected

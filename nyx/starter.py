@@ -80,7 +80,6 @@ def main(config):
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
   _setup_freebsd_chroot(controller)
-  _notify_of_unknown_events()
   _use_english_subcommands()
   _use_no_esc_delay()
   _use_unicode()
@@ -203,17 +202,6 @@ def _setup_freebsd_chroot(controller, config):
     if jail_chroot and os.path.exists(jail_chroot):
       log.info('setup.set_freebsd_chroot', path = jail_chroot)
       config.set('tor.chroot', jail_chroot)
-
-
-def _notify_of_unknown_events():
-  """
-  Provides a notice about any event types tor supports but nyx doesn't.
-  """
-
-  missing_events = nyx.arguments.missing_event_types()
-
-  if missing_events:
-    log.info('setup.unknown_event_types', event_types = ', '.join(missing_events))
 
 
 def _use_english_subcommands():

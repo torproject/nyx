@@ -33,7 +33,7 @@ import nyx.panel
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 
-import stem.util.conf
+import stem.util.str_tools
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
@@ -45,10 +45,6 @@ BLOCK_START, BLOCK_END = '-----BEGIN ', '-----END '
 
 UNRESOLVED_MSG = 'No consensus data available'
 ERROR_MSG = 'Unable to retrieve data'
-
-CONFIG = stem.util.conf.config_dict('nyx', {
-  'msg.misc.event_types': '',
-})
 
 
 def show_help():
@@ -391,37 +387,7 @@ def select_sort_order(title, options, previous_order, option_colors):
   return new_order
 
 
-def select_event_types():
-  """
-  Presents a chart of event types we support, with a prompt for the user to
-  select a set.
-
-  :returns: **set** of event types the user has selected or **None** if dialog
-    is canceled
-  """
-
-  def _render(subwindow):
-    subwindow.box()
-    subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
-
-    for i, line in enumerate(CONFIG['msg.misc.event_types'].split('\n')):
-      subwindow.addstr(1, i + 1, line[6:])
-
-  with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = _top(), width = 80, height = 16)
-    user_input = nyx.controller.input_prompt('Events to log: ')
-
-    if user_input:
-      try:
-        user_input = user_input.replace(' ', '')  # strip spaces
-        return nyx.arguments.expand_events(user_input)
-      except ValueError as exc:
-        nyx.controller.show_message('Invalid flags: %s' % exc, HIGHLIGHT, max_wait = 2)
-
-    return None
-
-
-def new_select_event_types(initial_selection):
+def select_event_types(initial_selection):
   """
   Presents chart of events for the user to select from.
 

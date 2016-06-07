@@ -14,7 +14,7 @@ import nyx.log
 
 import stem.util.connection
 
-from nyx import DATA_DIR, tor_controller, msg
+from nyx import DATA_DIR, msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -24,7 +24,7 @@ DEFAULT_ARGS = {
   'user_provided_socket': False,
   'config': os.path.join(DATA_DIR, 'nyxrc'),
   'debug_path': None,
-  'logged_events': 'N3',
+  'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
   'print_version': False,
   'print_help': False,
 }
@@ -40,50 +40,6 @@ OPT_EXPANDED = [
   'version',
   'help',
 ]
-
-TOR_EVENT_TYPES = {
-  # runlevels
-
-  'd': 'DEBUG',
-  'i': 'INFO',
-  'n': 'NOTICE',
-  'w': 'WARN',
-  'e': 'ERR',
-
-  # important events
-
-  'b': 'BW',
-  'c': 'CIRC',
-  's': 'STREAM',
-
-  # everything else
-
-  'a': 'ADDRMAP',
-  'f': 'AUTHDIR_NEWDESCS',
-  'j': 'BUILDTIMEOUT_SET',
-  'k': 'CELL_STATS',
-  'l': 'CIRC_BW',
-  'm': 'CIRC_MINOR',
-  'p': 'CONF_CHANGED',
-  'q': 'CONN_BW',
-  'r': 'CLIENTS_SEEN',
-  'u': 'DESCCHANGED',
-  'g': 'GUARD',
-  'h': 'HS_DESC',
-  'v': 'HS_DESC_CONTENT',
-  'x': 'NETWORK_LIVENESS',
-  'y': 'NEWCONSENSUS',
-  'z': 'NEWDESC',
-  'B': 'NS',
-  'o': 'ORCONN',
-  'C': 'SIGNAL',
-  'F': 'STREAM_BW',
-  'G': 'STATUS_CLIENT',
-  'H': 'STATUS_GENERAL',
-  'I': 'STATUS_SERVER',
-  'J': 'TB_EMPTY',
-  't': 'TRANSPORT_LAUNCHED',
-}
 
 
 def parse(argv):
@@ -134,11 +90,6 @@ def parse(argv):
     elif opt in ('-d', '--debug'):
       args['debug_path'] = os.path.expanduser(arg)
     elif opt in ('-l', '--log'):
-      try:
-        expand_events(arg)
-      except ValueError as exc:
-        raise ValueError(msg('usage.unrecognized_log_flags', flags = exc))
-
       args['logged_events'] = arg
     elif opt in ('-v', '--version'):
       args['print_version'] = True
@@ -164,8 +115,6 @@ def get_help():
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
     config_path = DEFAULT_ARGS['config'],
-    events = DEFAULT_ARGS['logged_events'],
-    event_flags = msg('misc.event_types'),
   )
 
 
@@ -181,93 +130,3 @@ def get_version():
     version = nyx.__version__,
     date = nyx.__release_date__,
   )
-
-
-def expand_events(flags):
-  """
-  Expands event abbreviations to their full names. Beside mappings provided in
-  TOR_EVENT_TYPES this recognizes the following special events and aliases:
-
-  * A - all events
-  * X - no events
-  * U - UKNOWN events
-  * DINWE - runlevel and higher
-  * 12345 - nyx/stem runlevel and higher (NYX_DEBUG - NYX_ERR)
-
-  For example...
-
-  ::
-
-    >>> expand_events('inUt')
-    set(['INFO', 'NOTICE', 'UNKNOWN', 'STATUS_CLIENT'])
-
-    >>> expand_events('N4')
-    set(['NOTICE', 'WARN', 'ERR', 'NYX_WARN', 'NYX_ERR'])
-
-    >>> expand_events('cfX')
-    set([])
-
-  :param str flags: character flags to be expanded
-
-  :returns: **set** of the expanded event types
-
-  :raises: **ValueError** with invalid input if any flags are unrecognized
-  """
-
-  expanded_events, invalid_flags = set(), ''
-
-  for flag in flags:
-    if flag == 'A':
-      return set(list(TOR_EVENT_TYPES) + nyx.log.NYX_RUNLEVELS + ['UNKNOWN'])
-    elif flag == 'X':
-      return set()
-    elif flag in 'DINWE12345':
-      # all events for a runlevel and higher
-
-      if flag in 'D1':
-        runlevel_index = 0
-      elif flag in 'I2':
-        runlevel_index = 1
-      elif flag in 'N3':
-        runlevel_index = 2
-      elif flag in 'W4':
-        runlevel_index = 3
-      elif flag in 'E5':
-        runlevel_index = 4
-
-      if flag in 'DINWE':
-        runlevels = nyx.log.TOR_RUNLEVELS[runlevel_index:]
-      elif flag in '12345':
-        runlevels = nyx.log.NYX_RUNLEVELS[runlevel_index:]
-
-      expanded_events.update(set(runlevels))
-    elif flag == 'U':
-      expanded_events.add('UNKNOWN')
-    elif flag in TOR_EVENT_TYPES:
-      expanded_events.add(TOR_EVENT_TYPES[flag])
-    else:
-      invalid_flags += flag
-
-  if invalid_flags:
-    raise ValueError(''.join(set(invalid_flags)))
-  else:
-    return expanded_events
-
-
-def missing_event_types():
-  """
-  Provides the event types the current tor connection supports but nyx
-  doesn't. This provides an empty list if no event types are missing or the
-  GETINFO query fails.
-
-  :returns: **list** of missing event types
-  """
-
-  response = tor_controller().get_info('events/names', None)
-
-  if response is None:
-    return []  # GETINFO query failed
-
-  tor_event_types = response.split(' ')
-  recognized_types = TOR_EVENT_TYPES.values()
-  return list(filter(lambda x: x not in recognized_types, tor_event_types))

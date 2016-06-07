@@ -39,7 +39,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.regex': [],
-  'startup.events': 'N3',
+  'startup.events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
 }, conf_handler)
 
 UPDATE_RATE = 0.3
@@ -68,7 +68,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
 
-    logged_events = nyx.arguments.expand_events(CONFIG['startup.events'])
+    logged_events = CONFIG['startup.events'].split(',')
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
@@ -134,21 +134,10 @@ class LogPanel(nyx.panel.DaemonPanel):
   def show_event_selection_prompt(self):
     """
     Prompts the user to select the events being listened for.
-    """
-
-    event_types = nyx.popups.select_event_types()
-
-    if event_types and event_types != self._event_types:
-      self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
-      self.redraw(True)
-
-  def new_show_event_selection_prompt(self):
-    """
-    Prompts the user to select the events being listened for.
     TODO: Replace show_event_selection_prompt() with this method.
     """
 
-    event_types = nyx.popups.new_select_event_types(self._event_types)
+    event_types = nyx.popups.select_event_types(self._event_types)
 
     if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
@@ -245,7 +234,6 @@ class LogPanel(nyx.panel.DaemonPanel):
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
       nyx.panel.KeyHandler('a', 'save snapshot of the log', self.show_snapshot_prompt),
       nyx.panel.KeyHandler('e', 'change logged events', self.show_event_selection_prompt),
-      nyx.panel.KeyHandler('w', 'new change logged events', self.new_show_event_selection_prompt),
       nyx.panel.KeyHandler('f', 'log regex filter', _pick_filter, 'enabled' if self._filter.selection() else 'disabled'),
       nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self._show_duplicates else 'hidden'),
       nyx.panel.KeyHandler('c', 'clear event log', _clear_log),
