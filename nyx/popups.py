@@ -33,7 +33,7 @@ import nyx.panel
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 
-import stem.util.conf
+import stem.util.str_tools
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
@@ -45,10 +45,6 @@ BLOCK_START, BLOCK_END = '-----BEGIN ', '-----END '
 
 UNRESOLVED_MSG = 'No consensus data available'
 ERROR_MSG = 'Unable to retrieve data'
-
-CONFIG = stem.util.conf.config_dict('nyx', {
-  'msg.misc.event_types': '',
-})
 
 
 def show_help():
