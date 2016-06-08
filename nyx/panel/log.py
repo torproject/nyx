@@ -31,27 +31,6 @@ def conf_handler(key, value):
     return max(1000, value)
 
 
-def validate_events(events):
-  """
-  Check whether the events are any one of Tor runlevels, Nyx runlevels or
-  Tor events. If not, return the default events.
-  """
-  valid_events = tor_controller().get_info('events/names').split()
-  accepted_events, invalid_events = set(), set()
-
-  events = events.split(',')
-  for event in events:
-    if event in valid_events:
-      accepted_events.update([event])
-    else:
-      invalid_events.update([event])
-
-  if invalid_events:
-    return ['NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
-  else:
-    return accepted_events
-
-
 CONFIG = conf.config_dict('nyx', {
   'attr.log_color': {},
   'cache.log_panel.size': 1000,
@@ -89,7 +68,14 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
 
-    logged_events = validate_events(CONFIG['startup.events'])
+    logged_events = CONFIG['startup.events'].split(',')
+    tor_events = tor_controller().get_info('events/names', '').split()
+    invalid_events = filter(lambda event: not event.startswith('NYX_') and event not in tor_events, logged_events)
+
+    if invalid_events:
+      logged_events = ['NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
+      log.warn("Your --log argument had the following events tor doesn't recognize: %s" % ', '.join(invalid_events))
+
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
