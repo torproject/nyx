@@ -33,6 +33,7 @@ import nyx.panel
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 
+import stem.control
 import stem.util.str_tools
 
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
@@ -410,25 +411,36 @@ def select_event_types(initial_selection):
     subwindow.box()
     subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
 
-    x = subwindow.addstr(1, 1, 'Tor Runlevel:')
+    event = None
+    if selection < 5:
+      event = nyx.log.TOR_RUNLEVELS[selection]
+    elif selection < 10:
+      event = nyx.log.TOR_RUNLEVELS[selection - 5]
+    elif selection < (len(events) + 10):
+      event = events[selection - 10]
+
+    if event:
+      subwindow.addstr_wrap(1, 1, stem.control.event_description(event), subwindow.width - 1, 1)
+
+    x = subwindow.addstr(1, 4, 'Tor Runlevel:')
 
     for i, event in enumerate(nyx.log.TOR_RUNLEVELS):
-      x = subwindow.addstr(x + 4, 1, '[X]' if event in selected_events else '[ ]')
-      x = subwindow.addstr(x + 1, 1, event, HIGHLIGHT if selection == i else NORMAL)
+      x = subwindow.addstr(x + 4, 4, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 4, event, HIGHLIGHT if selection == i else NORMAL)
 
-    x = subwindow.addstr(1, 2, 'Nyx Runlevel:')
+    x = subwindow.addstr(1, 5, 'Nyx Runlevel:')
 
     for i, event in enumerate(nyx.log.NYX_RUNLEVELS):
-      x = subwindow.addstr(x + 4, 2, '[X]' if event in selected_events else '[ ]')
-      x = subwindow.addstr(x + 1, 2, nyx.log.TOR_RUNLEVELS[i], HIGHLIGHT if selection == (i + 5) else NORMAL)
+      x = subwindow.addstr(x + 4, 5, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, 5, nyx.log.TOR_RUNLEVELS[i], HIGHLIGHT if selection == (i + 5) else NORMAL)
 
-    subwindow.hline(1, 3, 78)
-    subwindow._addch(0, 3, curses.ACS_LTEE)
-    subwindow._addch(79, 3, curses.ACS_RTEE)
+    subwindow.hline(1, 6, 78)
+    subwindow._addch(0, 6, curses.ACS_LTEE)
+    subwindow._addch(79, 6, curses.ACS_RTEE)
 
     for i, event in enumerate(events):
-      x = subwindow.addstr((i % 3) * 25 + 1, i / 3 + 4, '[X]' if event in selected_events else '[ ]')
-      x = subwindow.addstr(x + 1, i / 3 + 4, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
+      x = subwindow.addstr((i % 3) * 25 + 1, i / 3 + 7, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, i / 3 + 7, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
 
     x = subwindow.width - 14
 
@@ -439,7 +451,7 @@ def select_event_types(initial_selection):
 
   with nyx.curses.CURSES_LOCK:
     while True:
-      nyx.curses.draw(_render, top = _top(), width = 80, height = (len(events) / 3) + 7)
+      nyx.curses.draw(_render, top = _top(), width = 80, height = (len(events) / 3) + 10)
       key = nyx.curses.key_input()
 
       if key.match('up'):
