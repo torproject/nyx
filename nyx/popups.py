@@ -36,13 +36,6 @@ from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 import stem.control
 import stem.util.str_tools
 
-from stem.util import conf
-
-
-CONFIG = conf.config_dict('nyx', {
-    'attr.log_color': {},
-})
-
 NO_STATS_MSG = "Usage stats aren't available yet, press any key..."
 
 HEADERS = ['Consensus:', 'Microdescriptor:', 'Server Descriptor:']
@@ -427,9 +420,7 @@ def select_event_types(initial_selection):
       event = events[selection - 10]
 
     if event:
-      color = CONFIG['attr.log_color'].get(event, WHITE) if event in nyx.log.TOR_RUNLEVELS else WHITE
-      subwindow.addstr_wrap(1, 1, stem.control.event_description(event), subwindow.width - 1, 0, color)
-      subwindow._addch(0, 2, curses.ACS_VLINE)
+      subwindow.addstr_wrap(1, 1, stem.control.event_description(event), subwindow.width - 1, 1, GREEN, BOLD)
 
     subwindow.hline(1, 3, 78)
     subwindow._addch(0, 3, curses.ACS_LTEE)
