@@ -411,16 +411,15 @@ def select_event_types(initial_selection):
     subwindow.box()
     subwindow.addstr(0, 0, 'Event Types:', HIGHLIGHT)
 
-    event = None
-    if selection < 5:
-      event = nyx.log.TOR_RUNLEVELS[selection]
-    elif selection < 10:
-      event = nyx.log.TOR_RUNLEVELS[selection - 5]
+    if selection < 10:
+      description = stem.control.event_description(nyx.log.TOR_RUNLEVELS[selection % 5])
     elif selection < (len(events) + 10):
-      event = events[selection - 10]
+      description = stem.control.event_description(events[selection - 10])
+    else:
+      description = None
 
-    if event:
-      subwindow.addstr_wrap(1, 1, stem.control.event_description(event), subwindow.width - 1, 1, GREEN, BOLD)
+    if description:
+      subwindow.addstr_wrap(1, 1, description, subwindow.width - 1, 1, GREEN, BOLD)
 
     subwindow.hline(1, 3, 78)
     subwindow._addch(0, 3, curses.ACS_LTEE)
