@@ -575,6 +575,7 @@ class _Subwindow(object):
         draw_msg, msg = stem.util.str_tools.crop(msg, width - x), ''  # first word is longer than the line
 
       x = self.addstr(x, y, draw_msg, *attr)
+      msg = msg.lstrip()
 
       if (y - orig_y + 1) >= CONFIG['features.maxLineWrap']:
         break  # maximum number we'll wrap
