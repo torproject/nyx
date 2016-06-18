@@ -20,6 +20,7 @@ import nyx.panel.graph
 import nyx.panel.header
 import nyx.panel.log
 import nyx.panel.torrc
+import nyx.panel.interpretor
 
 import stem
 
@@ -46,6 +47,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.panels.show.connection': True,
   'features.panels.show.config': True,
   'features.panels.show.torrc': True,
+  'features.panels.show.interpretor': True,
   'features.redrawRate': 5,
   'features.refreshRate': 5,
   'features.confirmQuit': True,
@@ -117,6 +119,9 @@ class Controller(object):
 
     if CONFIG['features.panels.show.torrc']:
       self._page_panels.append([nyx.panel.torrc.TorrcPanel()])
+
+    if CONFIG['features.panels.show.interpretor']:
+      self._page_panels.append([nyx.panel.interpretor.InterpretorPanel()])
 
     self.quit_signal = False
     self._page = 0
