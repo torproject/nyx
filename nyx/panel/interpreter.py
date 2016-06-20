@@ -7,8 +7,7 @@ import nyx.controller
 import nyx.curses
 
 from nyx.curses import GREEN, CYAN, BOLD, HIGHLIGHT
-from nyx.tor_interpreter import handle_query, InterpreterClosed
-from nyx import panel
+from nyx import panel, tor_interpreter
 
 
 USAGE_INFO = "to use this panel press enter"
@@ -25,6 +24,7 @@ class InterpreterPanel(panel.Panel):
     panel.Panel.__init__(self, 'interpreter')
 
     self._is_input_mode = False
+    self.interpreter = tor_interpreter.ControlInterpreter()
 
   def key_handlers(self):
     def _execute_command():
@@ -39,12 +39,12 @@ class InterpreterPanel(panel.Panel):
           is_done = True
         else:
           try:
-            input_entry, output_entry = handle_query(user_input)
+            input_entry, output_entry = self.interpreter.handle_query(user_input)
             input_entry.insert(0, (PROMPT, GREEN, BOLD))
             PROMPT_LINE.insert(len(PROMPT_LINE) - 1, input_entry)
             for line in output_entry:
-              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [line])
-          except InterpreterClosed:
+              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
+          except tor_interpreter.InterpreterClosed:
             is_done = True
 
         if is_done:
