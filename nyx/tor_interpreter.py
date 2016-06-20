@@ -5,6 +5,8 @@ from nyx import tor_controller
 # initial location /write will save to when no path is specified
 DEFAULT_WRITE_PATH = "/tmp/torInterpretor_output"
 
+MULTILINE_UNIMPLEMENTED_NOTICE = "Multi-line control options like this are not yet implemented."
+
 GENERAL_HELP = """Interpretor commands include:
   /help   - provides information for interpretor and tor commands/config options
   /info   - general information for a relay
@@ -222,6 +224,36 @@ class ControlInterpreter:
 
         for line in description.split("\n"):
           output_entry.append([("  " + line, BLUE, )])
+
+        if arg == "SIGNAL":
+          # lists descriptions for all of the signals
+          for signal, description in SIGNAL_DESCRIPTIONS:
+            output_entry.append([("%-15s" % signal, BLUE, BOLD), (" - %s" % description, BLUE, )])
+        elif arg == "SETEVENTS":
+          # lists all of the event types
+          event_options = tor_controller().get_info("events/names")
+          if event_options:
+            event_entries = event_options.split()
+
+            # displays four columns of 20 characters
+            for i in range(0, len(event_entries), 4):
+              line_entries = event_entries[i : i+4]
+
+              line_content = ""
+              for entry in line_entries:
+                line_content += "%-20s" % entry
+
+              output_entry.append([(line_content, BLUE, )])
+        elif arg == "USEFEATURE":
+          # lists the feature options
+          feature_options = tor_controller().get_info("features/names")
+          if feature_options:
+            output_entry.append([(feature_options, BLUE, )])
+        elif arg in ("LOADCONF", "POSTDESCRIPTOR"):
+          # gives a warning that this option isn't yet implemented
+          output_entry.append([(MULTILINE_UNIMPLEMENTED_NOTICE, RED, BOLD)])
+      else:
+        output_entry.append([("No help information available for '%s'..." % arg, RED, BOLD)])
     else:
       # provides the GENERAL_HELP with everything bolded except descriptions
       for line in GENERAL_HELP.split("\n"):
@@ -251,7 +283,7 @@ class ControlInterpreter:
     else: cmd, arg = user_input, ""
 
     if cmd.startswith("/"):
-      input_entry.append((cmd, MAGENTA, BOLD))
+      input_entry.append((user_input, MAGENTA, BOLD))
       if cmd == "/quit": raise InterpreterClosed()
       elif cmd == "/help": self.do_help(arg, output_entry)
       else:
