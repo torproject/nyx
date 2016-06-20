@@ -7,7 +7,7 @@ import nyx.controller
 import nyx.curses
 
 from nyx.curses import GREEN, CYAN, BOLD, HIGHLIGHT
-from nyx.tor_interpreter import handle_query
+from nyx.tor_interpreter import handle_query, InterpreterClosed
 from nyx import panel
 
 
@@ -38,11 +38,14 @@ class InterpreterPanel(panel.Panel):
         if not user_input:
           is_done = True
         else:
-          input_entry, output_entry = handle_query(user_input)
-          input_entry.insert(0, (PROMPT, GREEN, BOLD))
-          PROMPT_LINE.insert(len(PROMPT_LINE) - 1, input_entry)
-          for line in output_entry:
-            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [line])
+          try:
+            input_entry, output_entry = handle_query(user_input)
+            input_entry.insert(0, (PROMPT, GREEN, BOLD))
+            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, input_entry)
+            for line in output_entry:
+              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [line])
+          except InterpreterClosed:
+            is_done = True
 
         if is_done:
           self._is_input_mode = False
