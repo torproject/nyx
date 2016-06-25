@@ -97,7 +97,6 @@ class GraphData(object):
   :var int total: sum of all values we've recorded
   :var int tick: number of events we've processed
   :var dict values: mapping of intervals to an array of samplings from newest to oldest
-  :var dict max_value: mapping of intervals to the maximum value it has had
   """
 
   def __init__(self, clone = None, category = None, is_primary = True):
@@ -106,21 +105,21 @@ class GraphData(object):
       self.total = clone.total
       self.tick = clone.tick
       self.values = copy.deepcopy(clone.values)
-      self.max_value = dict(clone.max_value)
 
       self._category = clone._category
       self._is_primary = clone._is_primary
       self._in_process_value = dict(clone._in_process_value)
+      self._max_value = dict(clone._max_value)
     else:
       self.latest_value = 0
       self.total = 0
       self.tick = 0
       self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in Interval])
-      self.max_value = dict([(i, 0) for i in Interval])
 
       self._category = category
       self._is_primary = is_primary
       self._in_process_value = dict([(i, 0) for i in Interval])
+      self._max_value = dict([(i, 0) for i in Interval])  # interval => maximum value it's had
 
   def average(self):
     return self.total / max(1, self.tick)
@@ -137,7 +136,7 @@ class GraphData(object):
       if self.tick % interval_seconds == 0:
         new_entry = self._in_process_value[interval] / interval_seconds
         self.values[interval] = [new_entry] + self.values[interval][:-1]
-        self.max_value[interval] = max(self.max_value[interval], new_entry)
+        self._max_value[interval] = max(self._max_value[interval], new_entry)
         self._in_process_value[interval] = 0
 
   def header(self, width):
@@ -150,6 +149,35 @@ class GraphData(object):
     """
 
     return self._category._header(width, self._is_primary)
+
+  def bounds(self, bounds, interval, columns):
+    """
+    Range of values for the graph.
+
+    :param Bounds bounds: boundary type for the range we want
+    :param Interval interval: timing interval of the values
+    :param int columns: number of values to take into account
+
+    :returns: **tuple** of the form (min, max)
+    """
+
+    min_bound, max_bound = 0, 0
+    values = self.values[interval][:columns]
+
+    if bounds == Bounds.GLOBAL_MAX:
+      max_bound = self._max_value[interval]
+    elif columns > 0:
+      max_bound = max(values)  # local maxima
+
+    if bounds == Bounds.TIGHT and columns > 0:
+      min_bound = min(values)
+
+      # if the max = min pick zero so we still display something
+
+      if min_bound == max_bound:
+        min_bound = 0
+
+    return min_bound, max_bound
 
   def y_axis_label(self, value):
     """
@@ -595,7 +623,7 @@ def _draw_subgraph(subwindow, attr, data, x, color):
   # the y_axis_labels.
 
   subgraph_columns = attr.subgraph_width - 8
-  min_bound, max_bound = _get_graph_bounds(attr, data, subgraph_columns)
+  min_bound, max_bound = data.bounds(attr.bounds_type, attr.interval, subgraph_columns)
 
   x_axis_labels = _x_axis_labels(attr.interval, subgraph_columns)
   y_axis_labels = _y_axis_labels(attr.subgraph_height, data, min_bound, max_bound)
@@ -622,30 +650,6 @@ def _draw_subgraph(subwindow, attr, data, x, color):
         subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
       else:
         subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
-
-
-def _get_graph_bounds(attr, data, subgraph_columns):
-  """
-  Provides the range the graph shows (ie, its minimum and maximum value).
-  """
-
-  min_bound, max_bound = 0, 0
-  values = data.values[attr.interval][:subgraph_columns]
-
-  if attr.bounds_type == Bounds.GLOBAL_MAX:
-    max_bound = data.max_value[attr.interval]
-  elif subgraph_columns > 0:
-    max_bound = max(values)  # local maxima
-
-  if attr.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
-    min_bound = min(values)
-
-    # if the max = min pick zero so we still display something
-
-    if min_bound == max_bound:
-      min_bound = 0
-
-  return min_bound, max_bound
 
 
 def _x_axis_labels(interval, subgraph_columns):
