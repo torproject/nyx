@@ -556,127 +556,11 @@ class GraphPanel(nyx.panel.Panel):
 
     subwindow.addstr(0, 0, attr.stat.title(subwindow.width), HIGHLIGHT)
 
-    self._draw_subgraph(subwindow, attr, attr.stat.primary, 0, PRIMARY_COLOR)
-    self._draw_subgraph(subwindow, attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
+    _draw_subgraph(subwindow, attr, attr.stat.primary, 0, PRIMARY_COLOR)
+    _draw_subgraph(subwindow, attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
 
     if attr.stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
       _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
-
-  def _draw_subgraph(self, subwindow, attr, data, x, color):
-    # Concering our subgraph colums, the y-axis label can be at most six
-    # characters, with two spaces of padding on either side of the graph.
-    # Starting with the smallest size, then possibly raise it after determing
-    # the y_axis_labels.
-
-    subgraph_columns = attr.subgraph_width - 8
-    min_bound, max_bound = self._get_graph_bounds(attr, data, subgraph_columns)
-
-    x_axis_labels = self._get_x_axis_labels(attr, subgraph_columns)
-    y_axis_labels = self._get_y_axis_labels(attr, data, min_bound, max_bound)
-    subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
-    axis_offset = max([len(label) for label in y_axis_labels.values()])
-
-    subwindow.addstr(x, 1, data.header(attr.subgraph_width), color, BOLD)
-
-    for x_offset, label in x_axis_labels.items():
-      if attr.right_to_left:
-        subwindow.addstr(x + attr.subgraph_width - x_offset, attr.subgraph_height, label, color)
-      else:
-        subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
-
-    for y, label in y_axis_labels.items():
-      subwindow.addstr(x, y, label, color)
-
-    for col in range(subgraph_columns):
-      column_count = int(data.values[attr.interval][col]) - min_bound
-      column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
-
-      for row in range(column_height):
-        if attr.right_to_left:
-          subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
-        else:
-          subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
-
-  def _get_graph_bounds(self, attr, data, subgraph_columns):
-    """
-    Provides the range the graph shows (ie, its minimum and maximum value).
-    """
-
-    min_bound, max_bound = 0, 0
-    values = data.values[attr.interval][:subgraph_columns]
-
-    if attr.bounds_type == Bounds.GLOBAL_MAX:
-      max_bound = data.max_value[attr.interval]
-    elif subgraph_columns > 0:
-      max_bound = max(values)  # local maxima
-
-    if attr.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
-      min_bound = min(values)
-
-      # if the max = min pick zero so we still display something
-
-      if min_bound == max_bound:
-        min_bound = 0
-
-    return min_bound, max_bound
-
-  def _get_y_axis_labels(self, attr, data, min_bound, max_bound):
-    """
-    Provides the labels for the y-axis. This is a mapping of the position it
-    should be drawn at to its text.
-    """
-
-    y_axis_labels = {
-      2: data.y_axis_label(max_bound),
-      attr.subgraph_height - 1: data.y_axis_label(min_bound),
-    }
-
-    ticks = (attr.subgraph_height - 5) / 2
-
-    for i in range(ticks):
-      row = attr.subgraph_height - (2 * i) - 5
-
-      if attr.subgraph_height % 2 == 0 and i >= (ticks / 2):
-        row -= 1  # make extra gap be in the middle when we're an even size
-
-      val = (max_bound - min_bound) * (attr.subgraph_height - row - 3) / (attr.subgraph_height - 3)
-
-      if val not in (min_bound, max_bound):
-        y_axis_labels[row + 2] = data.y_axis_label(val)
-
-    return y_axis_labels
-
-  def _get_x_axis_labels(self, attr, subgraph_columns):
-    """
-    Provides the labels for the x-axis. We include the units for only its first
-    value, then bump the precision for subsequent units. For example...
-
-      10s, 20, 30, 40, 50, 1m, 1.1, 1.3, 1.5
-    """
-
-    x_axis_labels = {}
-
-    interval_sec = INTERVAL_SECONDS[attr.interval]
-    interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
-    units_label, decimal_precision = None, 0
-
-    for i in range((subgraph_columns - 4) / interval_spacing):
-      x = (i + 1) * interval_spacing
-      time_label = str_tools.time_label(x * interval_sec, decimal_precision)
-
-      if not units_label:
-        units_label = time_label[-1]
-      elif units_label != time_label[-1]:
-        # upped scale so also up precision of future measurements
-        units_label = time_label[-1]
-        decimal_precision += 1
-      else:
-        # if constrained on space then strips labeling since already provided
-        time_label = time_label[:-1]
-
-      x_axis_labels[x] = time_label
-
-    return x_axis_labels
 
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
@@ -702,6 +586,126 @@ class GraphPanel(nyx.panel.Panel):
 
       if param.primary.tick % update_rate == 0:
         self.redraw(True)
+
+
+def _draw_subgraph(subwindow, attr, data, x, color):
+  # Concering our subgraph colums, the y-axis label can be at most six
+  # characters, with two spaces of padding on either side of the graph.
+  # Starting with the smallest size, then possibly raise it after determing
+  # the y_axis_labels.
+
+  subgraph_columns = attr.subgraph_width - 8
+  min_bound, max_bound = _get_graph_bounds(attr, data, subgraph_columns)
+
+  x_axis_labels = _x_axis_labels(attr.interval, subgraph_columns)
+  y_axis_labels = _y_axis_labels(attr.subgraph_height, data, min_bound, max_bound)
+  subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
+  axis_offset = max([len(label) for label in y_axis_labels.values()])
+
+  subwindow.addstr(x, 1, data.header(attr.subgraph_width), color, BOLD)
+
+  for x_offset, label in x_axis_labels.items():
+    if attr.right_to_left:
+      subwindow.addstr(x + attr.subgraph_width - x_offset, attr.subgraph_height, label, color)
+    else:
+      subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
+
+  for y, label in y_axis_labels.items():
+    subwindow.addstr(x, y, label, color)
+
+  for col in range(subgraph_columns):
+    column_count = int(data.values[attr.interval][col]) - min_bound
+    column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
+
+    for row in range(column_height):
+      if attr.right_to_left:
+        subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
+      else:
+        subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
+
+
+def _get_graph_bounds(attr, data, subgraph_columns):
+  """
+  Provides the range the graph shows (ie, its minimum and maximum value).
+  """
+
+  min_bound, max_bound = 0, 0
+  values = data.values[attr.interval][:subgraph_columns]
+
+  if attr.bounds_type == Bounds.GLOBAL_MAX:
+    max_bound = data.max_value[attr.interval]
+  elif subgraph_columns > 0:
+    max_bound = max(values)  # local maxima
+
+  if attr.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
+    min_bound = min(values)
+
+    # if the max = min pick zero so we still display something
+
+    if min_bound == max_bound:
+      min_bound = 0
+
+  return min_bound, max_bound
+
+
+def _x_axis_labels(interval, subgraph_columns):
+  """
+  Provides the labels for the x-axis. We include the units for only its first
+  value, then bump the precision for subsequent units. For example...
+
+    10s, 20, 30, 40, 50, 1m, 1.1, 1.3, 1.5
+  """
+
+  x_axis_labels = {}
+
+  interval_sec = INTERVAL_SECONDS[interval]
+  interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
+  units_label, decimal_precision = None, 0
+
+  for i in range((subgraph_columns - 4) / interval_spacing):
+    x = (i + 1) * interval_spacing
+    time_label = str_tools.time_label(x * interval_sec, decimal_precision)
+
+    if not units_label:
+      units_label = time_label[-1]
+    elif units_label != time_label[-1]:
+      # upped scale so also up precision of future measurements
+      units_label = time_label[-1]
+      decimal_precision += 1
+    else:
+      # if constrained on space then strips labeling since already provided
+      time_label = time_label[:-1]
+
+    x_axis_labels[x] = time_label
+
+  return x_axis_labels
+
+
+def _y_axis_labels(subgraph_height, data, min_bound, max_bound):
+  """
+  Provides the labels for the y-axis. This is a mapping of the position it
+  should be drawn at to its text.
+  """
+
+  y_axis_labels = {
+    2: data.y_axis_label(max_bound),
+    subgraph_height - 1: data.y_axis_label(min_bound),
+  }
+
+  ticks = (subgraph_height - 5) / 2
+
+  for i in range(ticks):
+    row = subgraph_height - (2 * i) - 5
+
+    if subgraph_height % 2 == 0 and i >= (ticks / 2):
+      row -= 1  # make extra gap be in the middle when we're an even size
+
+    val = (max_bound - min_bound) * (subgraph_height - row - 3) / (subgraph_height - 3)
+
+    if val not in (min_bound, max_bound):
+      y_axis_labels[row + 2] = data.y_axis_label(val)
+
+  return y_axis_labels
 
 
 def _draw_accounting_stats(subwindow, y, accounting):
