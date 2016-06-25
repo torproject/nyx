@@ -20,6 +20,19 @@ PROMPT_LINE = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
 ANSI_RE = re.compile("\\x1b\[([0-9;]*)m")
 ATTRS = {"0": NORMAL, "1": BOLD, "30": BLACK, "31": RED, "32": GREEN, "33": YELLOW, "34": BLUE, "35": MAGENTA, "36": CYAN}
 
+def ansi_to_output(line, attrs):
+  ansi_re = ANSI_RE.findall(line)
+  new_attrs = []
+
+  if line.find("\x1b[") == 0 and ansi_re:
+    for attr in ansi_re[0].split(';'):
+      new_attrs.append(ATTRS[attr])
+    attrs = new_attrs
+  line = ANSI_RE.sub('', line)
+
+  return [(line, ) + tuple(attrs)], attrs
+
+
 class InterpreterPanel(panel.Panel):
   """
   Renders the interpreter panel with a prompt providing raw control port
@@ -55,14 +68,8 @@ class InterpreterPanel(panel.Panel):
           PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [(PROMPT, GREEN, BOLD), (user_input)])
           attrs = []
           for line in response.split('\n'):
-            new_attrs = []
-            ansi_re = ANSI_RE.findall(line)
-            if line.find("\x1b[") == 0 and ansi_re:
-              for attr in ansi_re[0].split(';'):
-                new_attrs.append(ATTRS[attr])
-              attrs = new_attrs
-            line = ANSI_RE.sub('', line)
-            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [(line, ) + tuple(attrs)])
+            line, attrs = ansi_to_output(line, attrs)
+            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
 
         if is_done:
           self._is_input_mode = False
