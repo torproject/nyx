@@ -8,8 +8,9 @@ import nyx.curses
 import re
 
 from nyx.curses import BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD, HIGHLIGHT, NORMAL
-from nyx import panel, tor_interpreter
+from nyx import panel
 
+import stem
 import stem.connection
 import stem.interpreter.commands
 
@@ -28,9 +29,21 @@ def ansi_to_output(line, attrs):
     for attr in ansi_re[0].split(';'):
       new_attrs.append(ATTRS[attr])
     attrs = new_attrs
+
   line = ANSI_RE.sub('', line)
 
   return [(line, ) + tuple(attrs)], attrs
+
+
+def format_input(user_input):
+  user_input = user_input.split(' ', 1)
+  cmd = user_input[0].upper()
+  output = [(PROMPT, GREEN, BOLD), (cmd, GREEN, BOLD)]
+
+  if len(user_input) > 1:
+    output.append((' ' + user_input[1], CYAN, BOLD))
+
+  return output
 
 
 class InterpreterPanel(panel.Panel):
@@ -43,6 +56,7 @@ class InterpreterPanel(panel.Panel):
     panel.Panel.__init__(self, 'interpreter')
 
     self._is_input_mode = False
+    self._last_content_height = 0
     self._x_offset = 0
     self._scroller = nyx.curses.Scroller()
     self.controller = stem.connection.connect(
@@ -54,8 +68,8 @@ class InterpreterPanel(panel.Panel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0]
-      is_changed = self._scroller.handle_key(key, len(PROMPT_LINE), page_height)
+      page_height = self.get_preferred_size()[0] - 1
+      is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
         self.redraw(True)
@@ -72,14 +86,17 @@ class InterpreterPanel(panel.Panel):
         if not user_input:
           is_done = True
 
-        response = self.interpreter.run_command(user_input)
-        color = None
-        if response:
-          PROMPT_LINE.insert(len(PROMPT_LINE) - 1, [(PROMPT, GREEN, BOLD), (user_input)])
-          attrs = []
-          for line in response.split('\n'):
-            line, attrs = ansi_to_output(line, attrs)
-            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
+        try:
+          response = self.interpreter.run_command(user_input)
+          color = None
+          if response:
+            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
+            attrs = []
+            for line in response.split('\n'):
+              line, attrs = ansi_to_output(line, attrs)
+              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
+        except stem.SocketClosed:
+          is_done = True
 
         if is_done:
           self._is_input_mode = False
@@ -91,30 +108,32 @@ class InterpreterPanel(panel.Panel):
     )
 
   def draw(self, width, height):
-    scroll = self._scroller.location(len(PROMPT_LINE), height)
+    scroll = self._scroller.location(self._last_content_height, height)
 
     usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
     self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
 
-    is_scrollbar_visible = len(PROMPT_LINE) > height - 1
+    is_scrollbar_visible = self._last_content_height > height - 1
     if is_scrollbar_visible:
-      self.add_scroll_bar(scroll, scroll + height, len(PROMPT_LINE), 1)
+      self.add_scroll_bar(scroll, scroll + height, self._last_content_height, 1)
 
-    self._x_offset, draw_line = 2 if is_scrollbar_visible else 0, 1 - scroll
+    self._x_offset, y = 2 if is_scrollbar_visible else 0, 1 - scroll
     for entry in PROMPT_LINE:
       cursor = self._x_offset
 
       for line in entry:
-        if len(line) == 1:
-          self.addstr(draw_line, cursor, line[0])
-        elif len(line) == 2:
-          self.addstr(draw_line, cursor, line[0], line[1])
+        if len(line) == 2:
+          self.addstr(y, cursor, line[0], line[1])
         elif len(line) == 3:
-          self.addstr(draw_line, cursor, line[0], line[1], line[2])
-        self.addstr(draw_line, cursor, line)
+          self.addstr(y, cursor, line[0], line[1], line[2])
         try:
           cursor += len(line[0])
         except:
           pass
 
-      draw_line += 1
+      y += 1
+
+    new_content_height = y + scroll - 1
+    if new_content_height != self._last_content_height:
+      self._last_content_height = new_content_height
+      self.redraw(True)
