@@ -43,6 +43,8 @@ class InterpreterPanel(panel.Panel):
     panel.Panel.__init__(self, 'interpreter')
 
     self._is_input_mode = False
+    self._x_offset = 0
+    self._scroller = nyx.curses.Scroller()
     self.controller = stem.connection.connect(
       control_port = ('127.0.0.1', 'default'),
       control_socket = '/var/run/tor/control',
@@ -51,12 +53,20 @@ class InterpreterPanel(panel.Panel):
     self.interpreter = stem.interpreter.commands.ControlInterpretor(self.controller)
 
   def key_handlers(self):
+    def _scroll(key):
+      page_height = self.get_preferred_size()[0]
+      is_changed = self._scroller.handle_key(key, len(PROMPT_LINE), page_height)
+
+      if is_changed:
+        self.redraw(True)
+
     def _execute_command():
       self._is_input_mode = True
 
       while self._is_input_mode:
         self.redraw(True)
-        user_input = nyx.curses.str_input(len(PROMPT), self.top + len(PROMPT_LINE))
+        page_height = self.get_preferred_size()[0] - 1
+        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]))
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
@@ -77,16 +87,22 @@ class InterpreterPanel(panel.Panel):
 
     return (
       nyx.panel.KeyHandler('enter', 'execute a command', _execute_command, key_func = lambda key: key.is_selection()),
+      nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
     )
 
   def draw(self, width, height):
+    scroll = self._scroller.location(len(PROMPT_LINE), height)
+
     usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
     self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
 
-    x_offset = 0
-    draw_line = 1
+    is_scrollbar_visible = len(PROMPT_LINE) > height - 1
+    if is_scrollbar_visible:
+      self.add_scroll_bar(scroll, scroll + height, len(PROMPT_LINE), 1)
+
+    self._x_offset, draw_line = 2 if is_scrollbar_visible else 0, 1 - scroll
     for entry in PROMPT_LINE:
-      cursor = x_offset
+      cursor = self._x_offset
 
       for line in entry:
         if len(line) == 1:
