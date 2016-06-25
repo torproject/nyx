@@ -660,21 +660,19 @@ def _x_axis_labels(interval, subgraph_columns):
 
   interval_sec = INTERVAL_SECONDS[interval]
   interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
-  units_label, decimal_precision = None, 0
+  previous_units, decimal_precision = None, 0
 
   for i in range((subgraph_columns - 4) / interval_spacing):
     x = (i + 1) * interval_spacing
     time_label = str_tools.time_label(x * interval_sec, decimal_precision)
 
-    if not units_label:
-      units_label = time_label[-1]
-    elif units_label != time_label[-1]:
-      # upped scale so also up precision of future measurements
-      units_label = time_label[-1]
-      decimal_precision += 1
+    if not previous_units:
+      previous_units = time_label[-1]
+    elif previous_units != time_label[-1]:
+      previous_units = time_label[-1]
+      decimal_precision = 1  # raised precision for future measurements
     else:
-      # if constrained on space then strips labeling since already provided
-      time_label = time_label[:-1]
+      time_label = time_label[:-1]  # strip units since already provided
 
     x_axis_labels[x] = time_label
 
