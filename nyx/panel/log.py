@@ -252,8 +252,8 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     nyx.panel.Panel.set_paused(self, is_pause)
 
-  def draw(self, width, height):
-    scroll = self._scroller.location(self._last_content_height, height)
+  def draw(self, subwindow):
+    scroll = self._scroller.location(self._last_content_height, subwindow.height)
 
     event_log = list(self._event_log_paused if self.is_paused() else self._event_log)
     event_filter = self._filter.clone()
@@ -261,10 +261,10 @@ class LogPanel(nyx.panel.DaemonPanel):
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
-    is_scrollbar_visible = last_content_height > height - 1
+    is_scrollbar_visible = last_content_height > subwindow.height - 1
 
     if is_scrollbar_visible:
-      self.add_scroll_bar(scroll, scroll + height - 1, last_content_height, 1)
+      subwindow.scrollbar(1, scroll, last_content_height)
 
     x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
 
@@ -283,22 +283,22 @@ class LogPanel(nyx.panel.DaemonPanel):
     for day in sorted(day_to_entries.keys(), reverse = True):
       if day == today:
         for entry in day_to_entries[day]:
-          y = self._draw_entry(x, y, width, entry, show_duplicates)
+          y = self._draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
       else:
         original_y, y = y, y + 1
 
         for entry in day_to_entries[day]:
-          y = self._draw_entry(x, y, width, entry, show_duplicates)
+          y = self._draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
 
-        self.draw_box(original_y, x - 1, width - x + 1, y - original_y + 1, YELLOW, BOLD)
+        subwindow.box(original_y, x - 1, subwindow.width - x + 1, y - original_y + 1, YELLOW, BOLD)
         time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
-        self.addstr(original_y, x + 1, time_label, YELLOW, BOLD)
+        subwindow.addstr(x + 1, original_y, time_label, YELLOW, BOLD)
 
         y += 1
 
     # drawing the title after the content, so we'll clear content from the top line
 
-    self._draw_title(width, event_types, event_filter)
+    self._draw_title(subwindow, subwindow.width, event_types, event_filter)
 
     # redraw the display if...
     # - last_content_height was off by too much
@@ -310,11 +310,11 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if content_height_delta >= CONTENT_HEIGHT_REDRAW_THRESHOLD:
       force_redraw_reason = 'estimate was off by %i' % content_height_delta
-    elif new_content_height > height and scroll + height - 1 > new_content_height:
+    elif new_content_height > subwindow.height and scroll + subwindow.height - 1 > new_content_height:
       force_redraw_reason = 'scrolled off the bottom of the page'
-    elif not is_scrollbar_visible and new_content_height > height - 1:
+    elif not is_scrollbar_visible and new_content_height > subwindow.height - 1:
       force_redraw_reason = "scroll bar wasn't previously visible"
-    elif is_scrollbar_visible and new_content_height <= height - 1:
+    elif is_scrollbar_visible and new_content_height <= subwindow.height - 1:
       force_redraw_reason = "scroll bar shouldn't be visible"
     else:
       force_redraw = False
@@ -326,12 +326,12 @@ class LogPanel(nyx.panel.DaemonPanel):
       log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
       self.redraw(True)
 
-  def _draw_title(self, width, event_types, event_filter):
+  def _draw_title(self, subwindow, width, event_types, event_filter):
     """
     Panel title with the event types we're logging and our regex filter if set.
     """
 
-    self.addstr(0, 0, ' ' * width)  # clear line
+    subwindow.addstr(0, 0, ' ' * width)  # clear line
     title_comp = list(nyx.log.condense_runlevels(*event_types))
 
     if event_filter.selection():
@@ -340,9 +340,9 @@ class LogPanel(nyx.panel.DaemonPanel):
     title_comp_str = join(title_comp, ', ', width - 10)
     title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
 
-    self.addstr(0, 0, title, HIGHLIGHT)
+    subwindow.addstr(0, 0, title, HIGHLIGHT)
 
-  def _draw_entry(self, x, y, width, entry, show_duplicates):
+  def _draw_entry(self, subwindow, x, y, width, entry, show_duplicates):
     """
     Presents a log entry with line wrapping.
     """
@@ -352,13 +352,13 @@ class LogPanel(nyx.panel.DaemonPanel):
     color = CONFIG['attr.log_color'].get(entry.type, WHITE)
 
     for line in msg.splitlines():
-      x, y = self.addstr_wrap(y, x, line, width, min_x, boldness, color)
+      x, y = subwindow.addstr_wrap(x, y, line, width, min_x, boldness, color)
 
     if entry.duplicates and not show_duplicates:
       duplicate_count = len(entry.duplicates) - 1
       plural = 's' if duplicate_count > 1 else ''
       duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
-      x, y = self.addstr_wrap(y, x, duplicate_msg, width, min_x, GREEN, BOLD)
+      x, y = subwindow.addstr_wrap(x, y, duplicate_msg, width, min_x, GREEN, BOLD)
 
     return y + 1
 

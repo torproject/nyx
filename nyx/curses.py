@@ -612,6 +612,56 @@ class _Subwindow(object):
     self._addch(left + width - 1, top, curses.ACS_URCORNER, *attr)  # upper right corner
     self._addch(left + width - 1, top + height - 1, curses.ACS_LRCORNER, *attr)  # lower right corner
 
+  def scrollbar(self, top, top_index, size):
+    """
+    Draws a left justified scrollbar reflecting position within a vertical
+    listing. The bottom is squared off, having a layout like:
+
+    ::
+
+      -+---------------------------
+       | lovely content we're
+      *| showing in the window
+      *|
+      *|
+       |
+      -+
+
+    :param int top: top row in the subwindow where the scrollbar should be drawn
+    :param int top_index: list index for the top-most visible element
+    :param int size: size of the list in which the listed elements are contained
+    """
+
+    if (self.height - top) < 2:
+      return  # not enough room
+
+    # determines scrollbar dimensions
+
+    scrollbar_height = self.height - top - 1
+    bottom_index = top_index + scrollbar_height
+    slider_top = scrollbar_height * top_index / size
+    slider_size = scrollbar_height * (bottom_index - top_index) / size
+    max_slider_top = scrollbar_height - slider_size - 1
+
+    # ensures slider isn't at top or bottom unless really at those extreme bounds
+
+    slider_top = 0 if top_index == 0 else max(slider_top, 1)
+    slider_top = max_slider_top if bottom_index == size else min(slider_top, max_slider_top - 1)
+
+    # draws scrollbar slider
+
+    for i in range(scrollbar_height):
+      if i >= slider_top and i <= slider_top + slider_size:
+        self.addstr(0, i + top, ' ', Attr.HIGHLIGHT)
+      else:
+        self.addstr(0, i + top, ' ')
+
+    # draws box around the scrollbar
+
+    self.vline(1, top, self.height - 2)
+    self._addch(1, self.height - 1, curses.ACS_LRCORNER)
+    self._addch(0, self.height - 1, curses.ACS_HLINE)
+
   def _addch(self, x, y, char, *attr):
     if self.width > x and self.height > y:
       try:
