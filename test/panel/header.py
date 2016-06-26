@@ -123,6 +123,7 @@ class TestHeader(unittest.TestCase):
     resources.memory_percent = .125
 
     resource_tracker_mock().get_value.return_value = resources
+    stem.util.system.SYSTEM_CALL_TIME = 0.0
 
     vals = nyx.panel.header.Sampling.create()
 

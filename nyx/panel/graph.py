@@ -14,7 +14,6 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
          25s  50   1m   1.6  2.0           25s  50   1m   1.6  2.0
 """
 
-import collections
 import copy
 import time
 
@@ -33,8 +32,6 @@ GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections')
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
 
-DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'accounting', 'right_to_left'))
-
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
   Interval.FIVE_SECONDS: 5,
@@ -51,7 +48,6 @@ PRIMARY_COLOR, SECONDARY_COLOR = GREEN, CYAN
 ACCOUNTING_RATE = 5
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
-COLLAPSE_WIDTH = 135  # width at which to move optional stats from the title to x-axis label
 
 
 def conf_handler(key, value):
@@ -83,7 +79,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.graph.interval': Interval.EACH_SECOND,
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 300,  # we need some sort of max size so we know how much graph data to retain
-  'features.graph.right_to_left': False,
   'features.panels.show.connection': True,
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
@@ -98,7 +93,6 @@ class GraphData(object):
   :var int total: sum of all values we've recorded
   :var int tick: number of events we've processed
   :var dict values: mapping of intervals to an array of samplings from newest to oldest
-  :var dict max_value: mapping of intervals to the maximum value it has had
   """
 
   def __init__(self, clone = None, category = None, is_primary = True):
@@ -107,21 +101,21 @@ class GraphData(object):
       self.total = clone.total
       self.tick = clone.tick
       self.values = copy.deepcopy(clone.values)
-      self.max_value = dict(clone.max_value)
 
       self._category = clone._category
       self._is_primary = clone._is_primary
       self._in_process_value = dict(clone._in_process_value)
+      self._max_value = dict(clone._max_value)
     else:
       self.latest_value = 0
       self.total = 0
       self.tick = 0
       self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in Interval])
-      self.max_value = dict([(i, 0) for i in Interval])
 
       self._category = category
       self._is_primary = is_primary
       self._in_process_value = dict([(i, 0) for i in Interval])
+      self._max_value = dict([(i, 0) for i in Interval])  # interval => maximum value it's had
 
   def average(self):
     return self.total / max(1, self.tick)
@@ -138,7 +132,7 @@ class GraphData(object):
       if self.tick % interval_seconds == 0:
         new_entry = self._in_process_value[interval] / interval_seconds
         self.values[interval] = [new_entry] + self.values[interval][:-1]
-        self.max_value[interval] = max(self.max_value[interval], new_entry)
+        self._max_value[interval] = max(self._max_value[interval], new_entry)
         self._in_process_value[interval] = 0
 
   def header(self, width):
@@ -151,6 +145,35 @@ class GraphData(object):
     """
 
     return self._category._header(width, self._is_primary)
+
+  def bounds(self, bounds, interval, columns):
+    """
+    Range of values for the graph.
+
+    :param Bounds bounds: boundary type for the range we want
+    :param Interval interval: timing interval of the values
+    :param int columns: number of values to take into account
+
+    :returns: **tuple** of the form (min, max)
+    """
+
+    min_bound, max_bound = 0, 0
+    values = self.values[interval][:columns]
+
+    if bounds == Bounds.GLOBAL_MAX:
+      max_bound = self._max_value[interval]
+    elif columns > 0:
+      max_bound = max(values)  # local maxima
+
+    if bounds == Bounds.TIGHT and columns > 0:
+      min_bound = min(values)
+
+      # if the max = min pick zero so we still display something
+
+      if min_bound == max_bound:
+        min_bound = 0
+
+    return min_bound, max_bound
 
   def y_axis_label(self, value):
     """
@@ -228,7 +251,7 @@ class GraphCategory(object):
       header = CONFIG['attr.graph.header.secondary'].get(self.stat_type(), '')
       header_stats = self._secondary_header_stats
 
-    header_stats = join(header_stats, '', width - len(header) - 4)
+    header_stats = join(header_stats, '', width - len(header) - 4).rstrip()
     return '%s (%s):' % (header, header_stats) if header_stats else '%s:' % header
 
   def _y_axis_label(self, value, is_primary):
@@ -535,7 +558,7 @@ class GraphPanel(nyx.panel.Panel):
 
     nyx.panel.Panel.set_paused(self, is_pause)
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     if not self.displayed_stat:
       return
 
@@ -546,177 +569,18 @@ class GraphPanel(nyx.panel.Panel):
       stat = self._stats_paused[self.displayed_stat]
       accounting_stats = self._accounting_stats_paused
 
-    attr = DrawAttributes(
-      stat = type(stat)(stat),  # clone the GraphCategory
-      subgraph_height = self._graph_height + 2,  # graph rows + header + x-axis label
-      subgraph_width = min(width / 2, CONFIG['features.graph.max_width']),
-      interval = self.update_interval,
-      bounds_type = self.bounds_type,
-      accounting = accounting_stats,
-      right_to_left = CONFIG['features.graph.right_to_left'],
-    )
+    stat = type(stat)(stat)  # clone the GraphCategory
+    subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
+    subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width'])
+    interval, bounds_type = self.update_interval, self.bounds_type
 
-    self.addstr(0, 0, attr.stat.title(width), HIGHLIGHT)
+    subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
 
-    self._draw_subgraph(attr, attr.stat.primary, 0, PRIMARY_COLOR)
-    self._draw_subgraph(attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
+    _draw_subgraph(subwindow, stat.primary, 0, subgraph_width, subgraph_height, bounds_type, interval, PRIMARY_COLOR)
+    _draw_subgraph(subwindow, stat.secondary, subgraph_width, subgraph_width, subgraph_height, bounds_type, interval, SECONDARY_COLOR)
 
-    if attr.stat.stat_type() == GraphStat.BANDWIDTH:
-      if width <= COLLAPSE_WIDTH:
-        self._draw_bandwidth_stats(attr, width)
-
-      if attr.accounting:
-        self._draw_accounting_stats(attr)
-
-  def _draw_subgraph(self, attr, data, x, color):
-    # Concering our subgraph colums, the y-axis label can be at most six
-    # characters, with two spaces of padding on either side of the graph.
-    # Starting with the smallest size, then possibly raise it after determing
-    # the y_axis_labels.
-
-    subgraph_columns = attr.subgraph_width - 8
-    min_bound, max_bound = self._get_graph_bounds(attr, data, subgraph_columns)
-
-    x_axis_labels = self._get_x_axis_labels(attr, subgraph_columns)
-    y_axis_labels = self._get_y_axis_labels(attr, data, min_bound, max_bound)
-    subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
-    axis_offset = max([len(label) for label in y_axis_labels.values()])
-
-    self.addstr(1, x, data.header(attr.subgraph_width), color, BOLD)
-
-    for x_offset, label in x_axis_labels.items():
-      if attr.right_to_left:
-        self.addstr(attr.subgraph_height, x + attr.subgraph_width - x_offset, label, color)
-      else:
-        self.addstr(attr.subgraph_height, x + x_offset + axis_offset, label, color)
-
-    for y, label in y_axis_labels.items():
-      self.addstr(y, x, label, color)
-
-    for col in range(subgraph_columns):
-      column_count = int(data.values[attr.interval][col]) - min_bound
-      column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
-
-      for row in range(column_height):
-        if attr.right_to_left:
-          self.addstr(attr.subgraph_height - 1 - row, x + attr.subgraph_width - col - 1, ' ', color, HIGHLIGHT)
-        else:
-          self.addstr(attr.subgraph_height - 1 - row, x + col + axis_offset + 1, ' ', color, HIGHLIGHT)
-
-  def _get_graph_bounds(self, attr, data, subgraph_columns):
-    """
-    Provides the range the graph shows (ie, its minimum and maximum value).
-    """
-
-    min_bound, max_bound = 0, 0
-    values = data.values[attr.interval][:subgraph_columns]
-
-    if attr.bounds_type == Bounds.GLOBAL_MAX:
-      max_bound = data.max_value[attr.interval]
-    elif subgraph_columns > 0:
-      max_bound = max(values)  # local maxima
-
-    if attr.bounds_type == Bounds.TIGHT and subgraph_columns > 0:
-      min_bound = min(values)
-
-      # if the max = min pick zero so we still display something
-
-      if min_bound == max_bound:
-        min_bound = 0
-
-    return min_bound, max_bound
-
-  def _get_y_axis_labels(self, attr, data, min_bound, max_bound):
-    """
-    Provides the labels for the y-axis. This is a mapping of the position it
-    should be drawn at to its text.
-    """
-
-    y_axis_labels = {
-      2: data.y_axis_label(max_bound),
-      attr.subgraph_height - 1: data.y_axis_label(min_bound),
-    }
-
-    ticks = (attr.subgraph_height - 5) / 2
-
-    for i in range(ticks):
-      row = attr.subgraph_height - (2 * i) - 5
-
-      if attr.subgraph_height % 2 == 0 and i >= (ticks / 2):
-        row -= 1  # make extra gap be in the middle when we're an even size
-
-      val = (max_bound - min_bound) * (attr.subgraph_height - row - 3) / (attr.subgraph_height - 3)
-
-      if val not in (min_bound, max_bound):
-        y_axis_labels[row + 2] = data.y_axis_label(val)
-
-    return y_axis_labels
-
-  def _get_x_axis_labels(self, attr, subgraph_columns):
-    """
-    Provides the labels for the x-axis. We include the units for only its first
-    value, then bump the precision for subsequent units. For example...
-
-      10s, 20, 30, 40, 50, 1m, 1.1, 1.3, 1.5
-    """
-
-    x_axis_labels = {}
-
-    interval_sec = INTERVAL_SECONDS[attr.interval]
-    interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
-    units_label, decimal_precision = None, 0
-
-    for i in range((subgraph_columns - 4) / interval_spacing):
-      x = (i + 1) * interval_spacing
-      time_label = str_tools.time_label(x * interval_sec, decimal_precision)
-
-      if not units_label:
-        units_label = time_label[-1]
-      elif units_label != time_label[-1]:
-        # upped scale so also up precision of future measurements
-        units_label = time_label[-1]
-        decimal_precision += 1
-      else:
-        # if constrained on space then strips labeling since already provided
-        time_label = time_label[:-1]
-
-      x_axis_labels[x] = time_label
-
-    return x_axis_labels
-
-  def _draw_bandwidth_stats(self, attr, width):
-    """
-    Replaces the x-axis labeling with bandwidth stats. This is done on small
-    screens since this information otherwise wouldn't fit.
-    """
-
-    labeling_line = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 4
-    self.addstr(labeling_line, 0, ' ' * width)  # clear line
-
-    runtime = time.time() - attr.stat.start_time
-    primary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.primary.total), _size_label(attr.stat.primary.total / runtime))
-    secondary_footer = 'total: %s, avg: %s/sec' % (_size_label(attr.stat.secondary.total), _size_label(attr.stat.secondary.total / runtime))
-
-    self.addstr(labeling_line, 1, primary_footer, PRIMARY_COLOR)
-    self.addstr(labeling_line, attr.subgraph_width + 1, secondary_footer, SECONDARY_COLOR)
-
-  def _draw_accounting_stats(self, attr):
-    y = DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2
-
-    if tor_controller().is_alive():
-      hibernate_color = CONFIG['attr.hibernate_color'].get(attr.accounting.status, RED)
-
-      x = self.addstr(y, 0, 'Accounting (', BOLD)
-      x = self.addstr(y, x, attr.accounting.status, BOLD, hibernate_color)
-      x = self.addstr(y, x, ')', BOLD)
-
-      self.addstr(y, 35, 'Time to reset: %s' % str_tools.short_time_label(attr.accounting.time_until_reset))
-
-      self.addstr(y + 1, 2, '%s / %s' % (attr.accounting.read_bytes, attr.accounting.read_limit), PRIMARY_COLOR)
-      self.addstr(y + 1, 37, '%s / %s' % (attr.accounting.written_bytes, attr.accounting.write_limit), SECONDARY_COLOR)
-    else:
-      self.addstr(y, 0, 'Accounting:', BOLD)
-      self.addstr(y, 12, 'Connection Closed...')
+    if stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
+      _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + subgraph_height - 2, accounting_stats)
 
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
@@ -742,6 +606,110 @@ class GraphPanel(nyx.panel.Panel):
 
       if param.primary.tick % update_rate == 0:
         self.redraw(True)
+
+
+def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):
+  """
+  Renders subgraph including its title, labeled axis, and content.
+  """
+
+  columns = width - 8  # y-axis labels can be at most six characters wide with a space on either side
+  min_bound, max_bound = data.bounds(bounds_type, interval, columns)
+
+  x_axis_labels = _x_axis_labels(interval, columns)
+  y_axis_labels = _y_axis_labels(height, data, min_bound, max_bound)
+  columns = max(columns, width - max([len(label) for label in y_axis_labels.values()]) - 2)
+  axis_offset = max([len(label) for label in y_axis_labels.values()])
+
+  subwindow.addstr(x, 1, data.header(width), color, BOLD)
+
+  for x_offset, label in x_axis_labels.items():
+    subwindow.addstr(x + x_offset + axis_offset, height, label, color)
+
+  for y, label in y_axis_labels.items():
+    subwindow.addstr(x, y, label, color)
+
+  for col in range(columns):
+    column_count = int(data.values[interval][col]) - min_bound
+    column_height = int(min(height - 2, (height - 2) * column_count / (max(1, max_bound) - min_bound)))
+
+    for row in range(column_height):
+      subwindow.addstr(x + col + axis_offset + 1, height - 1 - row, fill_char, color, HIGHLIGHT)
+
+
+def _x_axis_labels(interval, columns):
+  """
+  Provides the labels for the x-axis. We include the units for only its first
+  value, then bump the precision for subsequent units. For example...
+
+    10s, 20, 30, 40, 50, 1m, 1.1, 1.3, 1.5
+  """
+
+  x_axis_labels = {}
+
+  interval_sec = INTERVAL_SECONDS[interval]
+  interval_spacing = 10 if columns >= WIDE_LABELING_GRAPH_COL else 5
+  previous_units, decimal_precision = None, 0
+
+  for i in range((columns - 4) / interval_spacing):
+    x = (i + 1) * interval_spacing
+    time_label = str_tools.time_label(x * interval_sec, decimal_precision)
+
+    if not previous_units:
+      previous_units = time_label[-1]
+    elif previous_units != time_label[-1]:
+      previous_units = time_label[-1]
+      decimal_precision = 1  # raised precision for future measurements
+    else:
+      time_label = time_label[:-1]  # strip units since already provided
+
+    x_axis_labels[x] = time_label
+
+  return x_axis_labels
+
+
+def _y_axis_labels(subgraph_height, data, min_bound, max_bound):
+  """
+  Provides the labels for the y-axis. This is a mapping of the position it
+  should be drawn at to its text.
+  """
+
+  y_axis_labels = {
+    2: data.y_axis_label(max_bound),
+    subgraph_height - 1: data.y_axis_label(min_bound),
+  }
+
+  ticks = (subgraph_height - 5) / 2
+
+  for i in range(ticks):
+    row = subgraph_height - (2 * i) - 5
+
+    if subgraph_height % 2 == 0 and i >= (ticks / 2):
+      row -= 1  # make extra gap be in the middle when we're an even size
+
+    val = (max_bound - min_bound) * (subgraph_height - row - 3) / (subgraph_height - 3)
+
+    if val not in (min_bound, max_bound):
+      y_axis_labels[row + 2] = data.y_axis_label(val)
+
+  return y_axis_labels
+
+
+def _draw_accounting_stats(subwindow, y, accounting):
+  if tor_controller().is_alive():
+    hibernate_color = CONFIG['attr.hibernate_color'].get(accounting.status, RED)
+
+    x = subwindow.addstr(0, y, 'Accounting (', BOLD)
+    x = subwindow.addstr(x, y, accounting.status, BOLD, hibernate_color)
+    x = subwindow.addstr(x, y, ')', BOLD)
+
+    subwindow.addstr(35, y, 'Time to reset: %s' % str_tools.short_time_label(accounting.time_until_reset))
+
+    subwindow.addstr(2, y + 1, '%s / %s' % (_size_label(accounting.read_bytes), _size_label(accounting.read_limit)), PRIMARY_COLOR)
+    subwindow.addstr(37, y + 1, '%s / %s' % (_size_label(accounting.written_bytes), _size_label(accounting.write_limit)), SECONDARY_COLOR)
+  else:
+    subwindow.addstr(0, y, 'Accounting:', BOLD)
+    subwindow.addstr(12, y, 'Connection Closed...')
 
 
 def _size_label(byte_count, decimal = 1):
