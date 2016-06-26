@@ -8,6 +8,7 @@ import nyx.controller
 import nyx.curses
 import re
 
+from mock import patch
 from nyx.curses import BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD, HIGHLIGHT, NORMAL
 from nyx import panel
 
@@ -96,17 +97,20 @@ class InterpreterPanel(panel.Panel):
 
         if not user_input:
           is_done = True
-
-        try:
-          response = self.interpreter.run_command(user_input)
-          if response:
-            PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
-            attrs = []
-            for line in response.split('\n'):
-              line, attrs = ansi_to_output(line, attrs)
-              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
-        except stem.SocketClosed:
-          is_done = True
+        else:
+          try:
+            with patch('stem.interpreter.commands.code.InteractiveConsole.push') as console_push:
+              response = self.interpreter.run_command(user_input)
+              if console_push.called:
+                response = '\x1b[31;1m\'' + user_input + '\' isn\'t a recognized command\r\n'
+            if response:
+              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
+              attrs = []
+              for line in response.split('\n'):
+                line, attrs = ansi_to_output(line, attrs)
+                PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
+          except stem.SocketClosed:
+            is_done = True
 
         if is_done:
           self._is_input_mode = False
