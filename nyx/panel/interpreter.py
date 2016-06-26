@@ -102,7 +102,7 @@ class InterpreterPanel(panel.Panel):
             with patch('stem.interpreter.commands.code.InteractiveConsole.push') as console_push:
               response = self.interpreter.run_command(user_input)
               if console_push.called:
-                response = '\x1b[31;1m\'' + user_input + '\' isn\'t a recognized command\r\n'
+                response = '\x1b[31;1m\'' + user_input + '\' isn\'t a recognized command\n'
             if response:
               PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
               attrs = []
