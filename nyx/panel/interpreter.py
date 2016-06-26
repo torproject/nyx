@@ -3,6 +3,7 @@ Panel providing raw control port access with syntax hilighting, usage
 information, tab completion, and other usability features.
 """
 
+import curses
 import nyx.controller
 import nyx.curses
 import re
@@ -18,14 +19,15 @@ import stem.interpreter.commands
 USAGE_INFO = 'to use this panel press enter'
 PROMPT = '>>> '
 PROMPT_LINE = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
-ANSI_RE = re.compile("\\x1b\[([0-9;]*)m")
-ATTRS = {"0": NORMAL, "1": BOLD, "30": BLACK, "31": RED, "32": GREEN, "33": YELLOW, "34": BLUE, "35": MAGENTA, "36": CYAN}
+ANSI_RE = re.compile('\\x1b\[([0-9;]*)m')
+ATTRS = {'0': NORMAL, '1': BOLD, '30': BLACK, '31': RED, '32': GREEN, '33': YELLOW, '34': BLUE, '35': MAGENTA, '36': CYAN}
+
 
 def ansi_to_output(line, attrs):
   ansi_re = ANSI_RE.findall(line)
   new_attrs = []
 
-  if line.find("\x1b[") == 0 and ansi_re:
+  if line.find('\x1b[') == 0 and ansi_re:
     for attr in ansi_re[0].split(';'):
       new_attrs.append(ATTRS[attr])
     attrs = new_attrs
@@ -79,6 +81,7 @@ class InterpreterPanel(panel.Panel):
 
       while self._is_input_mode:
         self.redraw(True)
+        _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_preferred_size()[0] - 1
         user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]))
         user_input, is_done = user_input.strip(), False
@@ -88,7 +91,6 @@ class InterpreterPanel(panel.Panel):
 
         try:
           response = self.interpreter.run_command(user_input)
-          color = None
           if response:
             PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
             attrs = []
@@ -113,11 +115,11 @@ class InterpreterPanel(panel.Panel):
     usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
     self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
 
-    is_scrollbar_visible = self._last_content_height > height - 1
-    if is_scrollbar_visible:
+    if self._last_content_height > height - 1:
+      self._x_offset = 2
       self.add_scroll_bar(scroll, scroll + height, self._last_content_height, 1)
 
-    self._x_offset, y = 2 if is_scrollbar_visible else 0, 1 - scroll
+    y = 1 - scroll
     for entry in PROMPT_LINE:
       cursor = self._x_offset
 
@@ -133,7 +135,7 @@ class InterpreterPanel(panel.Panel):
 
       y += 1
 
-    new_content_height = y + scroll - 1
+    new_content_height = y + scroll
     if new_content_height != self._last_content_height:
       self._last_content_height = new_content_height
       self.redraw(True)
