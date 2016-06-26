@@ -33,7 +33,7 @@ GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections')
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
 
-DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type', 'right_to_left'))
+DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type'))
 
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
@@ -82,7 +82,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.graph.interval': Interval.EACH_SECOND,
   'features.graph.bound': Bounds.LOCAL_MAX,
   'features.graph.max_width': 300,  # we need some sort of max size so we know how much graph data to retain
-  'features.graph.right_to_left': False,
   'features.panels.show.connection': True,
   'features.graph.bw.transferInBytes': False,
   'features.graph.bw.accounting.show': True,
@@ -579,7 +578,6 @@ class GraphPanel(nyx.panel.Panel):
       subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width']),
       interval = self.update_interval,
       bounds_type = self.bounds_type,
-      right_to_left = CONFIG['features.graph.right_to_left'],
     )
 
     subwindow.addstr(0, 0, attr.stat.title(subwindow.width), HIGHLIGHT)
@@ -633,10 +631,7 @@ def _draw_subgraph(subwindow, attr, data, x, color, fill_char = ' '):
   subwindow.addstr(x, 1, data.header(attr.subgraph_width), color, BOLD)
 
   for x_offset, label in x_axis_labels.items():
-    if attr.right_to_left:
-      subwindow.addstr(x + attr.subgraph_width - x_offset, attr.subgraph_height, label, color)
-    else:
-      subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
+    subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
 
   for y, label in y_axis_labels.items():
     subwindow.addstr(x, y, label, color)
@@ -646,10 +641,7 @@ def _draw_subgraph(subwindow, attr, data, x, color, fill_char = ' '):
     column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
 
     for row in range(column_height):
-      if attr.right_to_left:
-        subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
-      else:
-        subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
+      subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
 
 
 def _x_axis_labels(interval, subgraph_columns):

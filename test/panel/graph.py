@@ -102,7 +102,6 @@ class TestGraph(unittest.TestCase):
       subgraph_width = 30,
       interval = nyx.panel.graph.Interval.EACH_SECOND,
       bounds_type = nyx.panel.graph.Bounds.LOCAL_MAX,
-      right_to_left = False,
     )
 
     data = nyx.panel.graph.BandwidthStats()
@@ -121,7 +120,6 @@ class TestGraph(unittest.TestCase):
       subgraph_width = 30,
       interval = nyx.panel.graph.Interval.EACH_SECOND,
       bounds_type = nyx.panel.graph.Bounds.LOCAL_MAX,
-      right_to_left = False,
     )
 
     data = nyx.panel.graph.BandwidthStats()
