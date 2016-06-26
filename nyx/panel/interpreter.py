@@ -112,9 +112,6 @@ class InterpreterPanel(panel.Panel):
   def draw(self, width, height):
     scroll = self._scroller.location(self._last_content_height, height)
 
-    usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
-    self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
-
     if self._last_content_height > height - 1:
       self._x_offset = 2
       self.add_scroll_bar(scroll, scroll + height, self._last_content_height, 1)
@@ -134,6 +131,10 @@ class InterpreterPanel(panel.Panel):
           pass
 
       y += 1
+
+    self.addstr(0, 0, ' ' * width)
+    usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
+    self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
 
     new_content_height = y + scroll
     if new_content_height != self._last_content_height:
