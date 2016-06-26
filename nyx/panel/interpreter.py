@@ -38,12 +38,20 @@ def ansi_to_output(line, attrs):
 
 
 def format_input(user_input):
-  user_input = user_input.split(' ', 1)
-  cmd = user_input[0].upper()
-  output = [(PROMPT, GREEN, BOLD), (cmd, GREEN, BOLD)]
+  output = [(PROMPT, GREEN, BOLD)]
 
-  if len(user_input) > 1:
-    output.append((' ' + user_input[1], CYAN, BOLD))
+  if ' ' in user_input:
+    cmd, arg = user_input.split(' ', 1)
+  else:
+    cmd, arg = user_input, ''
+
+  if cmd.startswith('/'):
+    output.append((user_input, MAGENTA, BOLD))
+  else:
+    cmd = cmd.upper()
+    output.append((cmd + ' ', GREEN, BOLD))
+    if arg:
+      output.append((arg, CYAN, BOLD))
 
   return output
 
