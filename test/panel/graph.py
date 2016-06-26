@@ -95,36 +95,18 @@ class TestGraph(unittest.TestCase):
   @patch('nyx.panel.graph.tor_controller')
   def test_draw_subgraph_blank(self, tor_controller_mock):
     tor_controller_mock().get_info.return_value = None
-
-    attr = nyx.panel.graph.DrawAttributes(
-      stat = None,
-      subgraph_height = 7,
-      subgraph_width = 30,
-      interval = nyx.panel.graph.Interval.EACH_SECOND,
-      bounds_type = nyx.panel.graph.Bounds.LOCAL_MAX,
-    )
-
     data = nyx.panel.graph.BandwidthStats()
 
-    rendered = test.render(nyx.panel.graph._draw_subgraph, attr, data.primary, 0, nyx.curses.Color.CYAN, '*')
+    rendered = test.render(nyx.panel.graph._draw_subgraph, data.primary, 0, 30, 7, nyx.panel.graph.Bounds.LOCAL_MAX, nyx.panel.graph.Interval.EACH_SECOND, nyx.curses.Color.CYAN, '*')
     self.assertEqual(EXPECTED_BLANK_GRAPH, rendered.content)
 
   @require_curses
   @patch('nyx.panel.graph.tor_controller')
   def test_draw_subgraph(self, tor_controller_mock):
     tor_controller_mock().get_info.return_value = '543,543 421,421 551,551 710,710 200,200 175,175 188,188 250,250 377,377'
-
-    attr = nyx.panel.graph.DrawAttributes(
-      stat = None,
-      subgraph_height = 7,
-      subgraph_width = 30,
-      interval = nyx.panel.graph.Interval.EACH_SECOND,
-      bounds_type = nyx.panel.graph.Bounds.LOCAL_MAX,
-    )
-
     data = nyx.panel.graph.BandwidthStats()
 
-    rendered = test.render(nyx.panel.graph._draw_subgraph, attr, data.primary, 0, nyx.curses.Color.CYAN, '*')
+    rendered = test.render(nyx.panel.graph._draw_subgraph, data.primary, 0, 30, 7, nyx.panel.graph.Bounds.LOCAL_MAX, nyx.panel.graph.Interval.EACH_SECOND, nyx.curses.Color.CYAN, '*')
     self.assertEqual(EXPECTED_GRAPH, rendered.content)
 
   @require_curses

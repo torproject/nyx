@@ -14,7 +14,6 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
          25s  50   1m   1.6  2.0           25s  50   1m   1.6  2.0
 """
 
-import collections
 import copy
 import time
 
@@ -32,8 +31,6 @@ from stem.util import conf, enum, log, str_tools, system
 GraphStat = enum.Enum(('BANDWIDTH', 'bandwidth'), ('CONNECTIONS', 'connections'), ('SYSTEM_RESOURCES', 'resources'))
 Interval = enum.Enum(('EACH_SECOND', 'each second'), ('FIVE_SECONDS', '5 seconds'), ('THIRTY_SECONDS', '30 seconds'), ('MINUTELY', 'minutely'), ('FIFTEEN_MINUTE', '15 minute'), ('THIRTY_MINUTE', '30 minute'), ('HOURLY', 'hourly'), ('DAILY', 'daily'))
 Bounds = enum.Enum(('GLOBAL_MAX', 'global_max'), ('LOCAL_MAX', 'local_max'), ('TIGHT', 'tight'))
-
-DrawAttributes = collections.namedtuple('DrawAttributes', ('stat', 'subgraph_height', 'subgraph_width', 'interval', 'bounds_type'))
 
 INTERVAL_SECONDS = {
   Interval.EACH_SECOND: 1,
@@ -572,21 +569,18 @@ class GraphPanel(nyx.panel.Panel):
       stat = self._stats_paused[self.displayed_stat]
       accounting_stats = self._accounting_stats_paused
 
-    attr = DrawAttributes(
-      stat = type(stat)(stat),  # clone the GraphCategory
-      subgraph_height = self._graph_height + 2,  # graph rows + header + x-axis label
-      subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width']),
-      interval = self.update_interval,
-      bounds_type = self.bounds_type,
-    )
+    stat = type(stat)(stat)  # clone the GraphCategory
+    subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
+    subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width'])
+    interval, bounds_type = self.update_interval, self.bounds_type
 
-    subwindow.addstr(0, 0, attr.stat.title(subwindow.width), HIGHLIGHT)
+    subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
 
-    _draw_subgraph(subwindow, attr, attr.stat.primary, 0, PRIMARY_COLOR)
-    _draw_subgraph(subwindow, attr, attr.stat.secondary, attr.subgraph_width, SECONDARY_COLOR)
+    _draw_subgraph(subwindow, stat.primary, 0, subgraph_width, subgraph_height, bounds_type, interval, PRIMARY_COLOR)
+    _draw_subgraph(subwindow, stat.secondary, subgraph_width, subgraph_width, subgraph_height, bounds_type, interval, SECONDARY_COLOR)
 
-    if attr.stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
-      _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + attr.subgraph_height - 2, accounting_stats)
+    if stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
+      _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + subgraph_height - 2, accounting_stats)
 
   def _update_accounting(self, event):
     if not CONFIG['features.graph.bw.accounting.show']:
@@ -614,37 +608,36 @@ class GraphPanel(nyx.panel.Panel):
         self.redraw(True)
 
 
-def _draw_subgraph(subwindow, attr, data, x, color, fill_char = ' '):
-  # Concering our subgraph colums, the y-axis label can be at most six
-  # characters, with two spaces of padding on either side of the graph.
-  # Starting with the smallest size, then possibly raise it after determing
-  # the y_axis_labels.
+def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):
+  """
+  Renders subgraph including its title, labeled axis, and content.
+  """
 
-  subgraph_columns = attr.subgraph_width - 8
-  min_bound, max_bound = data.bounds(attr.bounds_type, attr.interval, subgraph_columns)
+  columns = width - 8  # y-axis labels can be at most six characters wide with a space on either side
+  min_bound, max_bound = data.bounds(bounds_type, interval, columns)
 
-  x_axis_labels = _x_axis_labels(attr.interval, subgraph_columns)
-  y_axis_labels = _y_axis_labels(attr.subgraph_height, data, min_bound, max_bound)
-  subgraph_columns = max(subgraph_columns, attr.subgraph_width - max([len(label) for label in y_axis_labels.values()]) - 2)
+  x_axis_labels = _x_axis_labels(interval, columns)
+  y_axis_labels = _y_axis_labels(height, data, min_bound, max_bound)
+  columns = max(columns, width - max([len(label) for label in y_axis_labels.values()]) - 2)
   axis_offset = max([len(label) for label in y_axis_labels.values()])
 
-  subwindow.addstr(x, 1, data.header(attr.subgraph_width), color, BOLD)
+  subwindow.addstr(x, 1, data.header(width), color, BOLD)
 
   for x_offset, label in x_axis_labels.items():
-    subwindow.addstr(x + x_offset + axis_offset, attr.subgraph_height, label, color)
+    subwindow.addstr(x + x_offset + axis_offset, height, label, color)
 
   for y, label in y_axis_labels.items():
     subwindow.addstr(x, y, label, color)
 
-  for col in range(subgraph_columns):
-    column_count = int(data.values[attr.interval][col]) - min_bound
-    column_height = int(min(attr.subgraph_height - 2, (attr.subgraph_height - 2) * column_count / (max(1, max_bound) - min_bound)))
+  for col in range(columns):
+    column_count = int(data.values[interval][col]) - min_bound
+    column_height = int(min(height - 2, (height - 2) * column_count / (max(1, max_bound) - min_bound)))
 
     for row in range(column_height):
-      subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
+      subwindow.addstr(x + col + axis_offset + 1, height - 1 - row, fill_char, color, HIGHLIGHT)
 
 
-def _x_axis_labels(interval, subgraph_columns):
+def _x_axis_labels(interval, columns):
   """
   Provides the labels for the x-axis. We include the units for only its first
   value, then bump the precision for subsequent units. For example...
@@ -655,10 +648,10 @@ def _x_axis_labels(interval, subgraph_columns):
   x_axis_labels = {}
 
   interval_sec = INTERVAL_SECONDS[interval]
-  interval_spacing = 10 if subgraph_columns >= WIDE_LABELING_GRAPH_COL else 5
+  interval_spacing = 10 if columns >= WIDE_LABELING_GRAPH_COL else 5
   previous_units, decimal_precision = None, 0
 
-  for i in range((subgraph_columns - 4) / interval_spacing):
+  for i in range((columns - 4) / interval_spacing):
     x = (i + 1) * interval_spacing
     time_label = str_tools.time_label(x * interval_sec, decimal_precision)
 
