@@ -616,7 +616,7 @@ class GraphPanel(nyx.panel.Panel):
         self.redraw(True)
 
 
-def _draw_subgraph(subwindow, attr, data, x, color):
+def _draw_subgraph(subwindow, attr, data, x, color, fill_char = ' '):
   # Concering our subgraph colums, the y-axis label can be at most six
   # characters, with two spaces of padding on either side of the graph.
   # Starting with the smallest size, then possibly raise it after determing
@@ -647,9 +647,9 @@ def _draw_subgraph(subwindow, attr, data, x, color):
 
     for row in range(column_height):
       if attr.right_to_left:
-        subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
+        subwindow.addstr(x + attr.subgraph_width - col - 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
       else:
-        subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, ' ', color, HIGHLIGHT)
+        subwindow.addstr(x + col + axis_offset + 1, attr.subgraph_height - 1 - row, fill_char, color, HIGHLIGHT)
 
 
 def _x_axis_labels(interval, subgraph_columns):
