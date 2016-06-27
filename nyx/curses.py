@@ -612,7 +612,7 @@ class _Subwindow(object):
     self._addch(left + width - 1, top, curses.ACS_URCORNER, *attr)  # upper right corner
     self._addch(left + width - 1, top + height - 1, curses.ACS_LRCORNER, *attr)  # lower right corner
 
-  def scrollbar(self, top, top_index, size):
+  def scrollbar(self, top, top_index, size, fill_char = ' '):
     """
     Draws a left justified scrollbar reflecting position within a vertical
     listing. The bottom is squared off, having a layout like:
@@ -630,6 +630,7 @@ class _Subwindow(object):
     :param int top: top row in the subwindow where the scrollbar should be drawn
     :param int top_index: list index for the top-most visible element
     :param int size: size of the list in which the listed elements are contained
+    :param str fill_char: character to use for scrollbar handle
     """
 
     if (self.height - top) < 2:
@@ -652,7 +653,7 @@ class _Subwindow(object):
 
     for i in range(scrollbar_height):
       if i >= slider_top and i <= slider_top + slider_size:
-        self.addstr(0, i + top, ' ', Attr.HIGHLIGHT)
+        self.addstr(0, i + top, fill_char, Attr.HIGHLIGHT)
       else:
         self.addstr(0, i + top, ' ')
 

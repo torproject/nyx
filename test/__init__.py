@@ -14,9 +14,11 @@ from mock import patch, Mock
 
 __all__ = [
   'arguments',
-  'expand_path',
+  'curses',
   'installation',
   'log',
+  'panel',
+  'popups',
   'tracker',
 ]
 

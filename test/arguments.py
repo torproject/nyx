@@ -1,3 +1,7 @@
+"""
+Unit tests for nyx.arguments.
+"""
+
 import unittest
 
 from nyx.arguments import DEFAULT_ARGS, parse
