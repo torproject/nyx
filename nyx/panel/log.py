@@ -253,7 +253,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     nyx.panel.Panel.set_paused(self, is_pause)
 
   def draw(self, subwindow):
-    scroll = self._scroller.location(self._last_content_height, subwindow.height)
+    scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
     event_log = list(self._event_log_paused if self.is_paused() else self._event_log)
     event_filter = self._filter.clone()
@@ -264,7 +264,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     is_scrollbar_visible = last_content_height > subwindow.height - 1
 
     if is_scrollbar_visible:
-      subwindow.scrollbar(1, scroll, last_content_height)
+      subwindow.scrollbar(1, scroll, last_content_height - 1)
 
     x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
 
