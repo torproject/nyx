@@ -3,11 +3,14 @@ Panel providing raw control port access with syntax hilighting, usage
 information, tab completion, and other usability features.
 """
 
+import code
 import curses
 import nyx.controller
 import nyx.curses
 import re
+import sys
 
+from cStringIO import StringIO
 from mock import patch
 from nyx.curses import BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD, HIGHLIGHT, NORMAL
 from nyx import panel
@@ -22,6 +25,7 @@ PROMPT = '>>> '
 PROMPT_LINE = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
 ANSI_RE = re.compile('\\x1b\[([0-9;]*)m')
 ATTRS = {'0': NORMAL, '1': BOLD, '30': BLACK, '31': RED, '32': GREEN, '33': YELLOW, '34': BLUE, '35': MAGENTA, '36': CYAN}
+BACKLOG_LIMIT = 100
 
 
 def ansi_to_output(line, attrs):
@@ -49,7 +53,6 @@ def format_input(user_input):
   if cmd.startswith('/'):
     output.append((user_input, MAGENTA, BOLD))
   else:
-    cmd = cmd.upper()
     output.append((cmd + ' ', GREEN, BOLD))
     if arg:
       output.append((arg, CYAN, BOLD))
@@ -70,6 +73,7 @@ class InterpreterPanel(panel.Panel):
     self._last_content_height = 0
     self._x_offset = 0
     self._scroller = nyx.curses.Scroller()
+    self._backlog = []
     self.controller = stem.connection.connect(
       control_port = ('127.0.0.1', 'default'),
       control_socket = '/var/run/tor/control',
@@ -98,11 +102,27 @@ class InterpreterPanel(panel.Panel):
         if not user_input:
           is_done = True
         else:
+          self._backlog.append(user_input)
+          backlog_crop = len(self._backlog) - BACKLOG_LIMIT
+          if backlog_crop > 0:
+            raise Exception(self._backlog)
+            self._backlog = self._backlog[backlog_crop:]
+
           try:
+            console_called = False
             with patch('stem.interpreter.commands.code.InteractiveConsole.push') as console_push:
               response = self.interpreter.run_command(user_input)
               if console_push.called:
-                response = '\x1b[31;1m\'' + user_input + '\' isn\'t a recognized command\n'
+                console_called = True
+
+            if console_called:
+              old_stderr = sys.stderr
+              sys.stderr = new_stderr = StringIO()
+              interactive_console = code.InteractiveConsole()
+              interactive_console.push(user_input)
+              sys.stderr = old_stderr
+              response = '\x1b[31;1m' + new_stderr.getvalue()
+              sys.stderr = old_stderr
             if response:
               PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
               attrs = []
