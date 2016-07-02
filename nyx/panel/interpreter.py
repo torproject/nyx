@@ -17,6 +17,7 @@ from nyx import panel
 
 import stem
 import stem.connection
+import stem.interpreter.autocomplete
 import stem.interpreter.commands
 
 
@@ -79,6 +80,7 @@ class InterpreterPanel(panel.Panel):
       control_socket = '/var/run/tor/control',
       password_prompt = True,
     )
+    self.autocompleter = stem.interpreter.autocomplete.Autocompleter(self.controller)
     self.interpreter = stem.interpreter.commands.ControlInterpretor(self.controller)
 
   def key_handlers(self):
@@ -96,7 +98,7 @@ class InterpreterPanel(panel.Panel):
         self.redraw(True)
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_preferred_size()[0] - 1
-        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]), '', list(reversed(self._backlog)))
+        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:

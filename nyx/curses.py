@@ -86,6 +86,7 @@ import collections
 import curses
 import curses.ascii
 import curses.textpad
+import os
 import threading
 
 import stem.util.conf
@@ -244,7 +245,7 @@ def key_input(input_timeout = None):
   return KeyInput(CURSES_SCREEN.getch())
 
 
-def str_input(x, y, initial_text = '', backlog=None):
+def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
   """
   Provides a text field where the user can input a string, blocking until
   they've done so and returning the result. If the user presses escape then
@@ -316,6 +317,30 @@ def str_input(x, y, initial_text = '', backlog=None):
 
     return handle_key(textbox, key)
 
+  def handle_tab_completion(textbox, key):
+    if key == 9:
+      current_contents = textbox.gather().strip()
+      matches = tab_completion(current_contents)
+      new_input = None
+
+      if len(matches) == 1:
+        new_input = matches[0]
+      elif len(matches) > 1:
+        common_prefix = os.path.commonprefix(matches)
+        if common_prefix != current_contents:
+          new_input = common_prefix
+
+      if new_input:
+        y, _ = textbox.win.getyx()
+        _, max_x = textbox.win.getmaxyx()
+        textbox.win.clear()
+        textbox.win.addstr(y, 0, new_input[:max_x - 1])
+        textbox.win.move(y, min(len(new_input), max_x - 1))
+
+      return None
+
+    return handle_history_key(textbox, key)
+
   with CURSES_LOCK:
     if HALT_ACTIVITY:
       return None
@@ -332,7 +357,9 @@ def str_input(x, y, initial_text = '', backlog=None):
     curses_subwindow.addstr(0, 0, initial_text[:width - 1])
 
     textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
-    if backlog is not None:
+    if tab_completion is not None:
+      user_input = textbox.edit(lambda key: handle_tab_completion(textbox, key)).strip()
+    elif backlog is not None:
       user_input = textbox.edit(lambda key: handle_history_key(textbox, key)).strip()
     else:
       user_input = textbox.edit(lambda key: handle_key(textbox, key)).strip()
