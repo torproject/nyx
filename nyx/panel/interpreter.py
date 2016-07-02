@@ -96,7 +96,7 @@ class InterpreterPanel(panel.Panel):
         self.redraw(True)
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_preferred_size()[0] - 1
-        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]))
+        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]), '', list(reversed(self._backlog)))
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
