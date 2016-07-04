@@ -113,8 +113,6 @@ class TestCurses(unittest.TestCase):
   @require_curses
   def test_scrollbar_bottom(self):
     def _draw(subwindow):
-      subwindow.scrollbar(15, 30, 30, fill_char = '*')
-
-    self.skipTest('nyx presently has a bug with regard to scrolling to the bottom')
+      subwindow.scrollbar(15, 21, 30, fill_char = '*')
 
     self.assertEqual(EXPECTED_SCROLLBAR_BOTTOM, test.render(_draw).content.strip())
