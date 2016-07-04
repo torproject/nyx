@@ -414,6 +414,8 @@ class LogFilters(object):
     self._lock = threading.RLock()
 
     if initial_filters:
+      # register these regexes as options, then blank our selection
+
       for regex in initial_filters:
         self.select(regex)
 

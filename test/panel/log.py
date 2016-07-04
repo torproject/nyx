@@ -7,7 +7,7 @@ import unittest
 import nyx.panel.log
 import test
 
-from nyx.log import LogEntry
+from nyx.log import LogEntry, LogFilters
 from test import require_curses
 
 EXPECTED_WRAPPED_MSG = """\
@@ -18,6 +18,25 @@ EXPECTED_WRAPPED_MSG = """\
 
 
 class TestLogPanel(unittest.TestCase):
+  @require_curses
+  def test_draw_title(self):
+    rendered = test.render(nyx.panel.log._draw_title, ['NOTICE', 'WARN', 'ERR'], LogFilters())
+    self.assertEqual('Events (NOTICE-ERR):', rendered.content)
+
+    rendered = test.render(nyx.panel.log._draw_title, ['NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR', 'NOTICE', 'WARN', 'ERR'], LogFilters())
+    self.assertEqual('Events (TOR/NYX NOTICE-ERR):', rendered.content)
+
+    rendered = test.render(nyx.panel.log._draw_title, ['NYX_DEBUG', 'NYX_INFO', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR', 'NOTICE', 'WARN', 'ERR'], LogFilters())
+    self.assertEqual('Events (NOTICE-ERR, NYX DEBUG-ERR):', rendered.content)
+
+  @require_curses
+  def test_draw_title_with_filter(self):
+    log_filter = LogFilters()
+    log_filter.select('stuff*')
+
+    rendered = test.render(nyx.panel.log._draw_title, ['NOTICE', 'WARN', 'ERR'], log_filter)
+    self.assertEqual('Events (NOTICE-ERR, filter: stuff*):', rendered.content)
+
   @require_curses
   def test_draw_entry(self):
     entry = LogEntry(1467656897.08663, 'NOTICE', 'feeding sulfur to baby dragons is just mean...')

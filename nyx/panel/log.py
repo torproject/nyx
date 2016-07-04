@@ -298,7 +298,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     # drawing the title after the content, so we'll clear content from the top line
 
-    self._draw_title(subwindow, subwindow.width, event_types, event_filter)
+    _draw_title(subwindow, event_types, event_filter)
 
     # redraw the display if...
     # - last_content_height was off by too much
@@ -325,22 +325,6 @@ class LogPanel(nyx.panel.DaemonPanel):
     if force_redraw:
       log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
       self.redraw(True)
-
-  def _draw_title(self, subwindow, width, event_types, event_filter):
-    """
-    Panel title with the event types we're logging and our regex filter if set.
-    """
-
-    subwindow.addstr(0, 0, ' ' * width)  # clear line
-    title_comp = list(nyx.log.condense_runlevels(*event_types))
-
-    if event_filter.selection():
-      title_comp.append('filter: %s' % event_filter.selection())
-
-    title_comp_str = join(title_comp, ', ', width - 10)
-    title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
-
-    subwindow.addstr(0, 0, title, HIGHLIGHT)
 
   def _update(self):
     """
@@ -379,6 +363,23 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if self._filter.match(event.display_message):
       self._has_new_event = True
+
+
+def _draw_title(subwindow, event_types, event_filter):
+  """
+  Panel title with the event types we're logging and our regex filter if set.
+  """
+
+  subwindow.addstr(0, 0, ' ' * subwindow.width)  # clear line
+  title_comp = list(nyx.log.condense_runlevels(*event_types))
+
+  if event_filter.selection():
+    title_comp.append('filter: %s' % event_filter.selection())
+
+  title_comp_str = join(title_comp, ', ', subwindow.width - 10)
+  title = 'Events (%s):' % title_comp_str if title_comp_str else 'Events:'
+
+  subwindow.addstr(0, 0, title, HIGHLIGHT)
 
 
 def _draw_entry(subwindow, x, y, entry, show_duplicates):
