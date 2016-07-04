@@ -266,7 +266,7 @@ class Panel(object):
     if not self.visible or HALT_ACTIVITY:
       return
 
-    if self.panel_name in ('header', 'graph'):
+    if self.panel_name in ('header', 'graph', 'log'):
       height = self.get_height() if self.get_height() != -1 else None
       width = self.get_width() if self.get_width() != -1 else None
 

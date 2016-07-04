@@ -104,7 +104,7 @@ class TorrcPanel(panel.Panel):
     )
 
   def draw(self, width, height):
-    scroll = self._scroller.location(self._last_content_height, height)
+    scroll = self._scroller.location(self._last_content_height - 1, height - 1)
 
     if self._torrc_content is None:
       self.addstr(1, 0, self._torrc_load_error, RED, BOLD)
@@ -121,7 +121,7 @@ class TorrcPanel(panel.Panel):
 
       if self._last_content_height > height - 1:
         scroll_offset = 3
-        self.add_scroll_bar(scroll, scroll + height - 1, self._last_content_height, 1)
+        self.add_scroll_bar(scroll, scroll + height - 1, self._last_content_height - 1, 1)
 
       y = 1 - scroll
       is_multiline = False  # true if we're in the middle of a multiline torrc entry
