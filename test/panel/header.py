@@ -67,7 +67,7 @@ def test_sampling():
   )
 
 
-class TestHeader(unittest.TestCase):
+class TestHeaderPanel(unittest.TestCase):
   @require_curses
   @patch('nyx.controller.get_controller')
   @patch('nyx.panel.header.tor_controller')

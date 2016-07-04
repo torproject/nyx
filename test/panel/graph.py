@@ -40,7 +40,7 @@ Download:
 """.rstrip()
 
 
-class TestGraph(unittest.TestCase):
+class TestGraphPanel(unittest.TestCase):
   def test_x_axis_labels(self):
     test_inputs = {
       0: {},

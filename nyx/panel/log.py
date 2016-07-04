@@ -283,12 +283,12 @@ class LogPanel(nyx.panel.DaemonPanel):
     for day in sorted(day_to_entries.keys(), reverse = True):
       if day == today:
         for entry in day_to_entries[day]:
-          y = self._draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
+          y = _draw_entry(subwindow, x, y, entry, show_duplicates)
       else:
         original_y, y = y, y + 1
 
         for entry in day_to_entries[day]:
-          y = self._draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
+          y = _draw_entry(subwindow, x, y, entry, show_duplicates)
 
         subwindow.box(original_y, x - 1, subwindow.width - x + 1, y - original_y + 1, YELLOW, BOLD)
         time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
@@ -342,26 +342,6 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     subwindow.addstr(0, 0, title, HIGHLIGHT)
 
-  def _draw_entry(self, subwindow, x, y, width, entry, show_duplicates):
-    """
-    Presents a log entry with line wrapping.
-    """
-
-    min_x, msg = x + 2, entry.display_message
-    boldness = BOLD if 'ERR' in entry.type else NORMAL  # emphasize ERR messages
-    color = CONFIG['attr.log_color'].get(entry.type, WHITE)
-
-    for line in msg.splitlines():
-      x, y = subwindow.addstr_wrap(x, y, line, width, min_x, boldness, color)
-
-    if entry.duplicates and not show_duplicates:
-      duplicate_count = len(entry.duplicates) - 1
-      plural = 's' if duplicate_count > 1 else ''
-      duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
-      x, y = subwindow.addstr_wrap(x, y, duplicate_msg, width, min_x, GREEN, BOLD)
-
-    return y + 1
-
   def _update(self):
     """
     Redraws the display, coalescing updates if events are rapidly logged (for
@@ -399,3 +379,24 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if self._filter.match(event.display_message):
       self._has_new_event = True
+
+
+def _draw_entry(subwindow, x, y, entry, show_duplicates):
+  """
+  Presents a log entry with line wrapping.
+  """
+
+  color = CONFIG['attr.log_color'].get(entry.type, WHITE)
+  boldness = BOLD if entry.type in ('ERR', 'ERROR') else NORMAL  # emphasize ERROR messages
+  min_x = x + 2
+
+  for line in entry.display_message.splitlines():
+    x, y = subwindow.addstr_wrap(x, y, line, subwindow.width, min_x, boldness, color)
+
+  if entry.duplicates and not show_duplicates:
+    duplicate_count = len(entry.duplicates) - 1
+    plural = 's' if duplicate_count > 1 else ''
+    duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
+    x, y = subwindow.addstr_wrap(x, y, duplicate_msg, subwindow.width, min_x, GREEN, BOLD)
+
+  return y + 1
