@@ -255,11 +255,14 @@ class LogPanel(nyx.panel.DaemonPanel):
   def draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
-    event_log = list(self._event_log_paused if self.is_paused() else self._event_log)
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
+
+    event_log = self._event_log_paused if self.is_paused() else self._event_log
+    event_log = filter(lambda entry: event_filter.match(entry.display_message), event_log)
+    event_log = filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log)
 
     is_scrollbar_visible = last_content_height > subwindow.height - 1
 
@@ -267,34 +270,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       subwindow.scrollbar(1, scroll, last_content_height - 1)
 
     x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
-
-    # group entries by date, filtering out those that aren't visible
-
-    day_to_entries, today = {}, nyx.log.day_count(time.time())
-
-    for entry in event_log:
-      if entry.is_duplicate and not show_duplicates:
-        continue  # deduplicated message
-      elif not event_filter.match(entry.display_message):
-        continue  # filter doesn't match log message
-
-      day_to_entries.setdefault(entry.day_count(), []).append(entry)
-
-    for day in sorted(day_to_entries.keys(), reverse = True):
-      if day == today:
-        for entry in day_to_entries[day]:
-          y = _draw_entry(subwindow, x, y, entry, show_duplicates)
-      else:
-        original_y, y = y, y + 1
-
-        for entry in day_to_entries[day]:
-          y = _draw_entry(subwindow, x, y, entry, show_duplicates)
-
-        subwindow.box(original_y, x - 1, subwindow.width - x + 1, y - original_y + 1, YELLOW, BOLD)
-        time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
-        subwindow.addstr(x + 1, original_y, time_label, YELLOW, BOLD)
-
-        y += 1
+    y = _draw_entries(subwindow, x, y, event_log, show_duplicates)
 
     # drawing the title after the content, so we'll clear content from the top line
 
@@ -382,9 +358,38 @@ def _draw_title(subwindow, event_types, event_filter):
   subwindow.addstr(0, 0, title, HIGHLIGHT)
 
 
-def _draw_entry(subwindow, x, y, entry, show_duplicates):
+def _draw_entries(subwindow, x, y, event_log, show_duplicates):
   """
-  Presents a log entry with line wrapping.
+  Presents a list of log entries, grouped by the day they appeared.
+  """
+
+  day_to_entries, today = {}, nyx.log.day_count(time.time())
+
+  for entry in event_log:
+    day_to_entries.setdefault(entry.day_count(), []).append(entry)
+
+  for day in sorted(day_to_entries.keys(), reverse = True):
+    if day == today:
+      for entry in day_to_entries[day]:
+        y = _draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
+    else:
+      original_y, y = y, y + 1
+
+      for entry in day_to_entries[day]:
+        y = _draw_entry(subwindow, x, y, subwindow.width - 1, entry, show_duplicates)
+
+      subwindow.box(original_y, x - 1, subwindow.width - x + 1, y - original_y + 1, YELLOW, BOLD)
+      time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
+      subwindow.addstr(x + 1, original_y, time_label, YELLOW, BOLD)
+
+      y += 1
+
+  return y
+
+
+def _draw_entry(subwindow, x, y, width, entry, show_duplicates):
+  """
+  Presents an individual log entry with line wrapping.
   """
 
   color = CONFIG['attr.log_color'].get(entry.type, WHITE)
@@ -392,12 +397,12 @@ def _draw_entry(subwindow, x, y, entry, show_duplicates):
   min_x = x + 2
 
   for line in entry.display_message.splitlines():
-    x, y = subwindow.addstr_wrap(x, y, line, subwindow.width, min_x, boldness, color)
+    x, y = subwindow.addstr_wrap(x, y, line, width, min_x, boldness, color)
 
   if entry.duplicates and not show_duplicates:
     duplicate_count = len(entry.duplicates) - 1
     plural = 's' if duplicate_count > 1 else ''
     duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
-    x, y = subwindow.addstr_wrap(x, y, duplicate_msg, subwindow.width, min_x, GREEN, BOLD)
+    x, y = subwindow.addstr_wrap(x, y, duplicate_msg, width, min_x, GREEN, BOLD)
 
   return y + 1
