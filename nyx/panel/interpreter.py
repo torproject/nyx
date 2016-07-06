@@ -143,12 +143,12 @@ class InterpreterPanel(panel.Panel):
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
     )
 
-  def draw(self, width, height):
-    scroll = self._scroller.location(self._last_content_height, height)
+  def draw(self, subwindow):
+    scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
-    if self._last_content_height > height - 1:
+    if self._last_content_height > subwindow.height - 1:
       self._x_offset = 2
-      self.add_scroll_bar(scroll, scroll + height, self._last_content_height, 1)
+      subwindow.scrollbar(1, scroll, self._last_content_height - 1)
 
     y = 1 - scroll
     for entry in PROMPT_LINE:
@@ -156,9 +156,9 @@ class InterpreterPanel(panel.Panel):
 
       for line in entry:
         if len(line) == 2:
-          self.addstr(y, cursor, line[0], line[1])
+          subwindow.addstr(cursor, y, line[0], line[1])
         elif len(line) == 3:
-          self.addstr(y, cursor, line[0], line[1], line[2])
+          subwindow.addstr(cursor, y, line[0], line[1], line[2])
         try:
           cursor += len(line[0])
         except:
@@ -166,11 +166,11 @@ class InterpreterPanel(panel.Panel):
 
       y += 1
 
-    self.addstr(0, 0, ' ' * width)
+    subwindow.addstr(0, 0, ' ' * subwindow.width)
     usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
-    self.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
+    subwindow.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
 
-    new_content_height = y + scroll
+    new_content_height = y + scroll - 1
     if new_content_height != self._last_content_height:
       self._last_content_height = new_content_height
       self.redraw(True)
