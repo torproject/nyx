@@ -418,7 +418,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     is_scrollbar_visible = len(lines) > subwindow.height - details_offset - 1
     scroll_offset = 2 if is_scrollbar_visible else 0
 
-    self._draw_title(subwindow, entries, self._show_details)
+    _draw_title(subwindow, entries, self._show_details)
 
     if is_showing_details:
       self._draw_details(subwindow, selected, subwindow.width, is_scrollbar_visible)
@@ -432,20 +432,6 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
       if y >= subwindow.height:
         break
-
-  def _draw_title(self, subwindow, entries, showing_details):
-    """
-    Panel title with the number of connections we presently have.
-    """
-
-    if showing_details:
-      subwindow.addstr(0, 0, 'Connection Details:', HIGHLIGHT)
-    elif not entries:
-      subwindow.addstr(0, 0, 'Connections:', HIGHLIGHT)
-    else:
-      counts = collections.Counter([entry.get_type() for entry in entries])
-      count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
-      subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
 
   def _draw_details(self, subwindow, selected, width, is_scrollbar_visible):
     """
@@ -652,3 +638,17 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
           remote_ports.append(line.connection.local_port)
 
       nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+
+def _draw_title(subwindow, entries, showing_details):
+  """
+  Panel title with the number of connections we presently have.
+  """
+
+  if showing_details:
+    subwindow.addstr(0, 0, 'Connection Details:', HIGHLIGHT)
+  elif not entries:
+    subwindow.addstr(0, 0, 'Connections:', HIGHLIGHT)
+  else:
+    counts = collections.Counter([entry.get_type() for entry in entries])
+    count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
+    subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
