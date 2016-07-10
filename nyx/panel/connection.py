@@ -421,7 +421,12 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     _draw_title(subwindow, entries, self._show_details)
 
     if is_showing_details:
-      self._draw_details(subwindow, selected, subwindow.width, is_scrollbar_visible)
+      _draw_details(subwindow, selected)
+
+      # draw a 'T' pipe if connecting with the scrollbar
+
+      if is_scrollbar_visible:
+        subwindow._addch(1, DETAILS_HEIGHT + 1, curses.ACS_TTEE)
 
     if is_scrollbar_visible:
       subwindow.scrollbar(1 + details_offset, scroll, len(lines))
@@ -432,67 +437,6 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
       if y >= subwindow.height:
         break
-
-  def _draw_details(self, subwindow, selected, width, is_scrollbar_visible):
-    """
-    Shows detailed information about the selected connection.
-    """
-
-    attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE), BOLD)
-
-    if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
-      subwindow.addstr(2, 1, 'Building Circuit...', *attr)
-    else:
-      address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
-      subwindow.addstr(2, 1, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
-      subwindow.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
-
-      matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
-
-      if not matches:
-        subwindow.addstr(2, 3, 'No consensus data found', *attr)
-      elif len(matches) == 1 or selected.connection.remote_port in matches:
-        controller = tor_controller()
-        fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
-        router_status_entry = controller.get_network_status(fingerprint, None)
-
-        subwindow.addstr(15, 2, 'fingerprint: %s' % fingerprint, *attr)
-
-        if router_status_entry:
-          dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
-          subwindow.addstr(2, 3, 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label), *attr)
-          subwindow.addstr(2, 4, 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y"), *attr)
-          subwindow.addstr(2, 5, 'flags: %s' % ', '.join(router_status_entry.flags), *attr)
-
-          server_descriptor = controller.get_server_descriptor(fingerprint, None)
-
-          if server_descriptor:
-            policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
-            subwindow.addstr(2, 6, 'exit policy: %s' % policy_label, *attr)
-            subwindow.addstr(38, 4, 'os: %-14s version: %s' % (server_descriptor.operating_system, server_descriptor.tor_version), *attr)
-
-            if server_descriptor.contact:
-              subwindow.addstr(2, 7, 'contact: %s' % server_descriptor.contact, *attr)
-      else:
-        subwindow.addstr(2, 3, 'Multiple matches, possible fingerprints are:', *attr)
-
-        for i, port in enumerate(sorted(matches.keys())):
-          is_last_line, remaining_relays = i == 3, len(matches) - i
-
-          if not is_last_line or remaining_relays == 1:
-            subwindow.addstr(2, 4 + i, '%i. or port: %-5s fingerprint: %s' % (i + 1, port, matches[port]), *attr)
-          else:
-            subwindow.addstr(2, 4 + i, '... %i more' % remaining_relays, *attr)
-
-          if is_last_line:
-            break
-
-    # draw the border, with a 'T' pipe if connecting with the scrollbar
-
-    subwindow.box(0, 0, width, DETAILS_HEIGHT + 2)
-
-    if is_scrollbar_visible:
-      subwindow._addch(1, DETAILS_HEIGHT + 1, curses.ACS_TTEE)
 
   def _draw_line(self, subwindow, x, y, line, is_selected, width, current_time):
     attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
@@ -639,6 +583,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
       nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
 
+
 def _draw_title(subwindow, entries, showing_details):
   """
   Panel title with the number of connections we presently have.
@@ -652,3 +597,60 @@ def _draw_title(subwindow, entries, showing_details):
     counts = collections.Counter([entry.get_type() for entry in entries])
     count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
     subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
+
+
+def _draw_details(subwindow, selected):
+  """
+  Shows detailed information about the selected connection.
+  """
+
+  attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE), BOLD)
+
+  if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
+    subwindow.addstr(2, 1, 'Building Circuit...', *attr)
+  else:
+    address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
+    subwindow.addstr(2, 1, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
+    subwindow.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
+
+    matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
+
+    if not matches:
+      subwindow.addstr(2, 3, 'No consensus data found', *attr)
+    elif len(matches) == 1 or selected.connection.remote_port in matches:
+      controller = tor_controller()
+      fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
+      router_status_entry = controller.get_network_status(fingerprint, None)
+
+      subwindow.addstr(15, 2, 'fingerprint: %s' % fingerprint, *attr)
+
+      if router_status_entry:
+        dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
+        subwindow.addstr(2, 3, 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label), *attr)
+        subwindow.addstr(2, 4, 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y"), *attr)
+        subwindow.addstr(2, 5, 'flags: %s' % ', '.join(router_status_entry.flags), *attr)
+
+        server_descriptor = controller.get_server_descriptor(fingerprint, None)
+
+        if server_descriptor:
+          policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
+          subwindow.addstr(2, 6, 'exit policy: %s' % policy_label, *attr)
+          subwindow.addstr(38, 4, 'os: %-14s version: %s' % (server_descriptor.operating_system, server_descriptor.tor_version), *attr)
+
+          if server_descriptor.contact:
+            subwindow.addstr(2, 7, 'contact: %s' % server_descriptor.contact, *attr)
+    else:
+      subwindow.addstr(2, 3, 'Multiple matches, possible fingerprints are:', *attr)
+
+      for i, port in enumerate(sorted(matches.keys())):
+        is_last_line, remaining_relays = i == 3, len(matches) - i
+
+        if not is_last_line or remaining_relays == 1:
+          subwindow.addstr(2, 4 + i, '%i. or port: %-5s fingerprint: %s' % (i + 1, port, matches[port]), *attr)
+        else:
+          subwindow.addstr(2, 4 + i, '... %i more' % remaining_relays, *attr)
+
+        if is_last_line:
+          break
+
+  subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT + 2)
