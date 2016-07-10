@@ -399,14 +399,14 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     return tuple(options)
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     controller = tor_controller()
     entries = self._entries
 
     lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
     is_showing_details = self._show_details and lines
     details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
-    selected, scroll = self._scroller.selection(lines, height - details_offset - 1)
+    selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
     if self.is_paused():
       current_time = self.get_pause_time()
@@ -415,186 +415,28 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     else:
       current_time = time.time()
 
-    is_scrollbar_visible = len(lines) > height - details_offset - 1
+    is_scrollbar_visible = len(lines) > subwindow.height - details_offset - 1
     scroll_offset = 2 if is_scrollbar_visible else 0
 
-    self._draw_title(entries, self._show_details)
+    _draw_title(subwindow, entries, self._show_details)
 
     if is_showing_details:
-      self._draw_details(selected, width, is_scrollbar_visible)
+      _draw_details(subwindow, selected)
+
+      # draw a 'T' pipe if connecting with the scrollbar
+
+      if is_scrollbar_visible:
+        subwindow._addch(1, DETAILS_HEIGHT + 1, curses.ACS_TTEE)
 
     if is_scrollbar_visible:
-      self.add_scroll_bar(scroll, scroll + height - details_offset - 1, len(lines), 1 + details_offset)
+      subwindow.scrollbar(1 + details_offset, scroll, len(lines))
 
     for line_number in range(scroll, len(lines)):
       y = line_number + details_offset + 1 - scroll
-      self._draw_line(scroll_offset, y, lines[line_number], lines[line_number] == selected, width - scroll_offset, current_time)
+      _draw_line(subwindow, scroll_offset, y, lines[line_number], lines[line_number] == selected, subwindow.width - scroll_offset, current_time)
 
-      if y >= height:
+      if y >= subwindow.height:
         break
-
-  def _draw_title(self, entries, showing_details):
-    """
-    Panel title with the number of connections we presently have.
-    """
-
-    if showing_details:
-      self.addstr(0, 0, 'Connection Details:', HIGHLIGHT)
-    elif not entries:
-      self.addstr(0, 0, 'Connections:', HIGHLIGHT)
-    else:
-      counts = collections.Counter([entry.get_type() for entry in entries])
-      count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
-      self.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
-
-  def _draw_details(self, selected, width, is_scrollbar_visible):
-    """
-    Shows detailed information about the selected connection.
-    """
-
-    attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE), BOLD)
-
-    if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
-      self.addstr(1, 2, 'Building Circuit...', *attr)
-    else:
-      address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
-      self.addstr(1, 2, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
-      self.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
-
-      matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
-
-      if not matches:
-        self.addstr(3, 2, 'No consensus data found', *attr)
-      elif len(matches) == 1 or selected.connection.remote_port in matches:
-        controller = tor_controller()
-        fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
-        router_status_entry = controller.get_network_status(fingerprint, None)
-
-        self.addstr(2, 15, 'fingerprint: %s' % fingerprint, *attr)
-
-        if router_status_entry:
-          dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
-          self.addstr(3, 2, 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label), *attr)
-          self.addstr(4, 2, 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y"), *attr)
-          self.addstr(5, 2, 'flags: %s' % ', '.join(router_status_entry.flags), *attr)
-
-          server_descriptor = controller.get_server_descriptor(fingerprint, None)
-
-          if server_descriptor:
-            policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
-            self.addstr(6, 2, 'exit policy: %s' % policy_label, *attr)
-            self.addstr(4, 38, 'os: %-14s version: %s' % (server_descriptor.operating_system, server_descriptor.tor_version), *attr)
-
-            if server_descriptor.contact:
-              self.addstr(7, 2, 'contact: %s' % server_descriptor.contact, *attr)
-      else:
-        self.addstr(3, 2, 'Multiple matches, possible fingerprints are:', *attr)
-
-        for i, port in enumerate(sorted(matches.keys())):
-          is_last_line, remaining_relays = i == 3, len(matches) - i
-
-          if not is_last_line or remaining_relays == 1:
-            self.addstr(4 + i, 2, '%i. or port: %-5s fingerprint: %s' % (i + 1, port, matches[port]), *attr)
-          else:
-            self.addstr(4 + i, 2, '... %i more' % remaining_relays, *attr)
-
-          if is_last_line:
-            break
-
-    # draw the border, with a 'T' pipe if connecting with the scrollbar
-
-    self.draw_box(0, 0, width, DETAILS_HEIGHT + 2)
-
-    if is_scrollbar_visible:
-      self.addch(DETAILS_HEIGHT + 1, 1, curses.ACS_TTEE)
-
-  def _draw_line(self, x, y, line, is_selected, width, current_time):
-    attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
-    attr.append(HIGHLIGHT if is_selected else NORMAL)
-
-    self.addstr(y, x, ' ' * (width - x), *attr)
-
-    if line.line_type == LineType.CIRCUIT:
-      if line.circuit.path[-1][0] == line.fingerprint:
-        prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
-      else:
-        prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
-
-      for char in prefix:
-        x = self.addch(y, x, char)
-    else:
-      x += 1  # offset from edge
-
-    self._draw_address_column(x, y, line, attr)
-    self._draw_line_details(57, y, line, width - 57 - 20, attr)
-    self._draw_right_column(width - 18, y, line, current_time, attr)
-
-  def _draw_address_column(self, x, y, line, attr):
-    src = tor_controller().get_info('address', line.connection.local_address)
-    src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
-
-    if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
-      dst = 'Building...'
-    else:
-      dst = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
-      dst += ':%s' % line.connection.remote_port
-
-      if line.entry.get_type() == Category.EXIT:
-        purpose = connection.port_usage(line.connection.remote_port)
-
-        if purpose:
-          dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
-      elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
-        dst += ' (%s)' % (line.locale if line.locale else '??')
-
-    if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
-      dst, src = src, dst
-
-    if line.line_type == LineType.CIRCUIT:
-      self.addstr(y, x, dst, *attr)
-    else:
-      self.addstr(y, x, '%-21s  -->  %-26s' % (src, dst), *attr)
-
-  def _draw_line_details(self, x, y, line, width, attr):
-    if line.line_type == LineType.CIRCUIT_HEADER:
-      comp = ['Purpose: %s' % line.circuit.purpose.capitalize(), ', Circuit ID: %s' % line.circuit.id]
-    elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      try:
-        port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
-        process = nyx.tracker.get_port_usage_tracker().fetch(port)
-        comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
-      except nyx.tracker.UnresolvedResult:
-        comp = ['resolving...']
-      except nyx.tracker.UnknownApplication:
-        comp = ['UNKNOWN']
-    else:
-      comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
-
-    for entry in comp:
-      if width >= x + len(entry):
-        x = self.addstr(y, x, entry, *attr)
-      else:
-        return
-
-  def _draw_right_column(self, x, y, line, current_time, attr):
-    if line.line_type == LineType.CIRCUIT:
-      circ_path = [fp for fp, _ in line.circuit.path]
-      circ_index = circ_path.index(line.fingerprint)
-
-      if circ_index == len(circ_path) - 1:
-        placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
-      elif circ_index == 0:
-        placement_type = 'Guard'
-      else:
-        placement_type = 'Middle'
-
-      self.addstr(y, x + 4, '%i / %s' % (circ_index + 1, placement_type), *attr)
-    else:
-      x = self.addstr(y, x, '+' if line.connection.is_legacy else ' ', *attr)
-      x = self.addstr(y, x, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), *attr)
-      x = self.addstr(y, x, ' (', *attr)
-      x = self.addstr(y, x, line.entry.get_type().upper(), BOLD, *attr)
-      x = self.addstr(y, x, ')', *attr)
 
   def _update(self):
     """
@@ -652,3 +494,167 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
           remote_ports.append(line.connection.local_port)
 
       nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+
+
+def _draw_title(subwindow, entries, showing_details):
+  """
+  Panel title with the number of connections we presently have.
+  """
+
+  if showing_details:
+    subwindow.addstr(0, 0, 'Connection Details:', HIGHLIGHT)
+  elif not entries:
+    subwindow.addstr(0, 0, 'Connections:', HIGHLIGHT)
+  else:
+    counts = collections.Counter([entry.get_type() for entry in entries])
+    count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
+    subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
+
+
+def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
+  attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
+  attr.append(HIGHLIGHT if is_selected else NORMAL)
+
+  subwindow.addstr(x, y, ' ' * (width - x), *attr)
+
+  if line.line_type == LineType.CIRCUIT:
+    if line.circuit.path[-1][0] == line.fingerprint:
+      prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
+    else:
+      prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+
+    for char in prefix:
+      x = subwindow._addch(x, y, char)
+  else:
+    x += 1  # offset from edge
+
+  _draw_address_column(subwindow, x, y, line, attr)
+  _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
+  _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
+
+
+def _draw_address_column(subwindow, x, y, line, attr):
+  src = tor_controller().get_info('address', line.connection.local_address)
+  src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
+
+  if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
+    dst = 'Building...'
+  else:
+    dst = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
+    dst += ':%s' % line.connection.remote_port
+
+    if line.entry.get_type() == Category.EXIT:
+      purpose = connection.port_usage(line.connection.remote_port)
+
+      if purpose:
+        dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
+    elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
+      dst += ' (%s)' % (line.locale if line.locale else '??')
+
+  if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
+    dst, src = src, dst
+
+  if line.line_type == LineType.CIRCUIT:
+    subwindow.addstr(x, y, dst, *attr)
+  else:
+    subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
+
+
+def _draw_details(subwindow, selected):
+  """
+  Shows detailed information about the selected connection.
+  """
+
+  attr = (CONFIG['attr.connection.category_color'].get(selected.entry.get_type(), WHITE), BOLD)
+
+  if selected.line_type == LineType.CIRCUIT_HEADER and selected.circuit.status != 'BUILT':
+    subwindow.addstr(2, 1, 'Building Circuit...', *attr)
+  else:
+    address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
+    subwindow.addstr(2, 1, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
+    subwindow.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
+
+    matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
+
+    if not matches:
+      subwindow.addstr(2, 3, 'No consensus data found', *attr)
+    elif len(matches) == 1 or selected.connection.remote_port in matches:
+      controller = tor_controller()
+      fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
+      router_status_entry = controller.get_network_status(fingerprint, None)
+
+      subwindow.addstr(15, 2, 'fingerprint: %s' % fingerprint, *attr)
+
+      if router_status_entry:
+        dir_port_label = 'dirport: %s' % router_status_entry.dir_port if router_status_entry.dir_port else ''
+        subwindow.addstr(2, 3, 'nickname: %-25s orport: %-10s %s' % (router_status_entry.nickname, router_status_entry.or_port, dir_port_label), *attr)
+        subwindow.addstr(2, 4, 'published: %s' % router_status_entry.published.strftime("%H:%M %m/%d/%Y"), *attr)
+        subwindow.addstr(2, 5, 'flags: %s' % ', '.join(router_status_entry.flags), *attr)
+
+        server_descriptor = controller.get_server_descriptor(fingerprint, None)
+
+        if server_descriptor:
+          policy_label = server_descriptor.exit_policy.summary() if server_descriptor.exit_policy else 'unknown'
+          subwindow.addstr(2, 6, 'exit policy: %s' % policy_label, *attr)
+          subwindow.addstr(38, 4, 'os: %-14s version: %s' % (server_descriptor.operating_system, server_descriptor.tor_version), *attr)
+
+          if server_descriptor.contact:
+            subwindow.addstr(2, 7, 'contact: %s' % server_descriptor.contact, *attr)
+    else:
+      subwindow.addstr(2, 3, 'Multiple matches, possible fingerprints are:', *attr)
+
+      for i, port in enumerate(sorted(matches.keys())):
+        is_last_line, remaining_relays = i == 3, len(matches) - i
+
+        if not is_last_line or remaining_relays == 1:
+          subwindow.addstr(2, 4 + i, '%i. or port: %-5s fingerprint: %s' % (i + 1, port, matches[port]), *attr)
+        else:
+          subwindow.addstr(2, 4 + i, '... %i more' % remaining_relays, *attr)
+
+        if is_last_line:
+          break
+
+  subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT + 2)
+
+
+def _draw_line_details(subwindow, x, y, line, width, attr):
+  if line.line_type == LineType.CIRCUIT_HEADER:
+    comp = ['Purpose: %s' % line.circuit.purpose.capitalize(), ', Circuit ID: %s' % line.circuit.id]
+  elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+    try:
+      port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
+      process = nyx.tracker.get_port_usage_tracker().fetch(port)
+      comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
+    except nyx.tracker.UnresolvedResult:
+      comp = ['resolving...']
+    except nyx.tracker.UnknownApplication:
+      comp = ['UNKNOWN']
+  else:
+    comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
+
+  for entry in comp:
+    if width >= x + len(entry):
+      x = subwindow.addstr(x, y, entry, *attr)
+    else:
+      return
+
+
+def _draw_right_column(subwindow, x, y, line, current_time, attr):
+  if line.line_type == LineType.CIRCUIT:
+    circ_path = [fp for fp, _ in line.circuit.path]
+    circ_index = circ_path.index(line.fingerprint)
+
+    if circ_index == len(circ_path) - 1:
+      placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
+    elif circ_index == 0:
+      placement_type = 'Guard'
+    else:
+      placement_type = 'Middle'
+
+    subwindow.addstr(x + 4, y, '%i / %s' % (circ_index + 1, placement_type), *attr)
+  else:
+    x = subwindow.addstr(x, y, '+' if line.connection.is_legacy else ' ', *attr)
+    x = subwindow.addstr(x, y, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), *attr)
+    x = subwindow.addstr(x, y, ' (', *attr)
+    x = subwindow.addstr(x, y, line.entry.get_type().upper(), BOLD, *attr)
+    x = subwindow.addstr(x, y, ')', *attr)

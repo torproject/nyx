@@ -6,4 +6,5 @@ __all__ = [
   'header',
   'graph',
   'log',
+  'connection',
 ]
