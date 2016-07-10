@@ -433,31 +433,10 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     for line_number in range(scroll, len(lines)):
       y = line_number + details_offset + 1 - scroll
-      self._draw_line(subwindow, scroll_offset, y, lines[line_number], lines[line_number] == selected, subwindow.width - scroll_offset, current_time)
+      _draw_line(subwindow, scroll_offset, y, lines[line_number], lines[line_number] == selected, subwindow.width - scroll_offset, current_time)
 
       if y >= subwindow.height:
         break
-
-  def _draw_line(self, subwindow, x, y, line, is_selected, width, current_time):
-    attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
-    attr.append(HIGHLIGHT if is_selected else NORMAL)
-
-    subwindow.addstr(x, y, ' ' * (width - x), *attr)
-
-    if line.line_type == LineType.CIRCUIT:
-      if line.circuit.path[-1][0] == line.fingerprint:
-        prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
-      else:
-        prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
-
-      for char in prefix:
-        x = subwindow._addch(x, y, char)
-    else:
-      x += 1  # offset from edge
-
-    _draw_address_column(subwindow, x, y, line, attr)
-    _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
-    _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
 
   def _update(self):
     """
@@ -530,6 +509,28 @@ def _draw_title(subwindow, entries, showing_details):
     counts = collections.Counter([entry.get_type() for entry in entries])
     count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
     subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
+
+
+def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
+  attr = [CONFIG['attr.connection.category_color'].get(line.entry.get_type(), WHITE)]
+  attr.append(HIGHLIGHT if is_selected else NORMAL)
+
+  subwindow.addstr(x, y, ' ' * (width - x), *attr)
+
+  if line.line_type == LineType.CIRCUIT:
+    if line.circuit.path[-1][0] == line.fingerprint:
+      prefix = (ord(' '), curses.ACS_LLCORNER, curses.ACS_HLINE, ord(' '))
+    else:
+      prefix = (ord(' '), curses.ACS_VLINE, ord(' '), ord(' '))
+
+    for char in prefix:
+      x = subwindow._addch(x, y, char)
+  else:
+    x += 1  # offset from edge
+
+  _draw_address_column(subwindow, x, y, line, attr)
+  _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
+  _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
 
 
 def _draw_address_column(subwindow, x, y, line, attr):
