@@ -96,8 +96,10 @@ class MockEntry(Entry):
 
 
 class MockCircuit(object):
-  def __init__(self, status = 'BUILT', path = None):
+  def __init__(self, circ_id = 7, status = 'BUILT', purpose = 'GENERAL', path = None):
+    self.id = circ_id
     self.status = status
+    self.purpose = purpose
 
     if path:
       self.path = path
@@ -178,6 +180,20 @@ class TestConnectionPanel(unittest.TestCase):
     }
 
     self.assertEqual(DETAILS_FOR_MULTIPLE_MATCHES, test.render(nyx.panel.connection._draw_details, line()).content)
+
+  @require_curses
+  @patch('nyx.tracker.get_port_usage_tracker')
+  def test_draw_line_details(self, port_usage_tracker_mock):
+    process = Mock()
+    process.name = 'firefox'
+    process.pid = 722
+
+    port_usage_tracker_mock().fetch.return_value = process
+
+    self.assertEqual('1F43EE37A0670301AD9CB555D94AFEC2C89FDE86  Unnamed', test.render(nyx.panel.connection._draw_line_details, 0, 0, line(), 80, ()).content)
+    self.assertEqual('1F43EE37A0670301AD9CB555D94AFEC2C89FDE86', test.render(nyx.panel.connection._draw_line_details, 0, 0, line(), 45, ()).content)
+    self.assertEqual('Purpose: General, Circuit ID: 7', test.render(nyx.panel.connection._draw_line_details, 0, 0, line(line_type = LineType.CIRCUIT_HEADER), 45, ()).content)
+    self.assertEqual('firefox (722)', test.render(nyx.panel.connection._draw_line_details, 0, 0, line(entry = MockEntry(entry_type = Category.CONTROL)), 80, ()).content)
 
   @require_curses
   def test_draw_right_column(self):

@@ -456,7 +456,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       x += 1  # offset from edge
 
     self._draw_address_column(subwindow, x, y, line, attr)
-    self._draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
+    _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
     _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
 
   def _draw_address_column(self, subwindow, x, y, line, attr):
@@ -484,27 +484,6 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       subwindow.addstr(x, y, dst, *attr)
     else:
       subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
-
-  def _draw_line_details(self, subwindow, x, y, line, width, attr):
-    if line.line_type == LineType.CIRCUIT_HEADER:
-      comp = ['Purpose: %s' % line.circuit.purpose.capitalize(), ', Circuit ID: %s' % line.circuit.id]
-    elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
-      try:
-        port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
-        process = nyx.tracker.get_port_usage_tracker().fetch(port)
-        comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
-      except nyx.tracker.UnresolvedResult:
-        comp = ['resolving...']
-      except nyx.tracker.UnknownApplication:
-        comp = ['UNKNOWN']
-    else:
-      comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
-
-    for entry in comp:
-      if width >= x + len(entry):
-        x = subwindow.addstr(x, y, entry, *attr)
-      else:
-        return
 
   def _update(self):
     """
@@ -634,6 +613,28 @@ def _draw_details(subwindow, selected):
           break
 
   subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT + 2)
+
+
+def _draw_line_details(subwindow, x, y, line, width, attr):
+  if line.line_type == LineType.CIRCUIT_HEADER:
+    comp = ['Purpose: %s' % line.circuit.purpose.capitalize(), ', Circuit ID: %s' % line.circuit.id]
+  elif line.entry.get_type() in (Category.SOCKS, Category.HIDDEN, Category.CONTROL):
+    try:
+      port = line.connection.local_port if line.entry.get_type() == Category.HIDDEN else line.connection.remote_port
+      process = nyx.tracker.get_port_usage_tracker().fetch(port)
+      comp = ['%s (%s)' % (process.name, process.pid) if process.pid else process.name]
+    except nyx.tracker.UnresolvedResult:
+      comp = ['resolving...']
+    except nyx.tracker.UnknownApplication:
+      comp = ['UNKNOWN']
+  else:
+    comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
+
+  for entry in comp:
+    if width >= x + len(entry):
+      x = subwindow.addstr(x, y, entry, *attr)
+    else:
+      return
 
 
 def _draw_right_column(subwindow, x, y, line, current_time, attr):
