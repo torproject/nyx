@@ -455,35 +455,9 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     else:
       x += 1  # offset from edge
 
-    self._draw_address_column(subwindow, x, y, line, attr)
+    _draw_address_column(subwindow, x, y, line, attr)
     _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
     _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
-
-  def _draw_address_column(self, subwindow, x, y, line, attr):
-    src = tor_controller().get_info('address', line.connection.local_address)
-    src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
-
-    if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
-      dst = 'Building...'
-    else:
-      dst = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
-      dst += ':%s' % line.connection.remote_port
-
-      if line.entry.get_type() == Category.EXIT:
-        purpose = connection.port_usage(line.connection.remote_port)
-
-        if purpose:
-          dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
-      elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
-        dst += ' (%s)' % (line.locale if line.locale else '??')
-
-    if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
-      dst, src = src, dst
-
-    if line.line_type == LineType.CIRCUIT:
-      subwindow.addstr(x, y, dst, *attr)
-    else:
-      subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
 
   def _update(self):
     """
@@ -556,6 +530,33 @@ def _draw_title(subwindow, entries, showing_details):
     counts = collections.Counter([entry.get_type() for entry in entries])
     count_labels = ['%i %s' % (counts[category], category.lower()) for category in Category if counts[category]]
     subwindow.addstr(0, 0, 'Connections (%s):' % ', '.join(count_labels), HIGHLIGHT)
+
+
+def _draw_address_column(subwindow, x, y, line, attr):
+  src = tor_controller().get_info('address', line.connection.local_address)
+  src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
+
+  if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
+    dst = 'Building...'
+  else:
+    dst = '<scrubbed>' if line.entry.is_private() else line.connection.remote_address
+    dst += ':%s' % line.connection.remote_port
+
+    if line.entry.get_type() == Category.EXIT:
+      purpose = connection.port_usage(line.connection.remote_port)
+
+      if purpose:
+        dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
+    elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
+      dst += ' (%s)' % (line.locale if line.locale else '??')
+
+  if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
+    dst, src = src, dst
+
+  if line.line_type == LineType.CIRCUIT:
+    subwindow.addstr(x, y, dst, *attr)
+  else:
+    subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
 
 
 def _draw_details(subwindow, selected):

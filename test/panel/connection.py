@@ -182,6 +182,17 @@ class TestConnectionPanel(unittest.TestCase):
     self.assertEqual(DETAILS_FOR_MULTIPLE_MATCHES, test.render(nyx.panel.connection._draw_details, line()).content)
 
   @require_curses
+  @patch('nyx.panel.connection.tor_controller')
+  def test_draw_address_column(self, tor_controller_mock):
+    tor_controller_mock().get_info.return_value = '82.121.9.9'
+    tor_controller_mock().is_geoip_unavailable.return_value = False
+
+    self.assertEqual('75.119.206.243:22 (de)  -->  82.121.9.9:3531', test.render(nyx.panel.connection._draw_address_column, 0, 0, line(), ()).content)
+    self.assertEqual('82.121.9.9:3531        -->  75.119.206.243:22 (SSH)', test.render(nyx.panel.connection._draw_address_column, 0, 0, line(entry = MockEntry(entry_type = Category.EXIT)), ()).content)
+    self.assertEqual('Building...            -->  82.121.9.9', test.render(nyx.panel.connection._draw_address_column, 0, 0, line(line_type = LineType.CIRCUIT_HEADER, circ = MockCircuit(status = 'EXTENDING')), ()).content)
+    self.assertEqual('82.121.9.9', test.render(nyx.panel.connection._draw_address_column, 0, 0, line(line_type = LineType.CIRCUIT), ()).content)
+
+  @require_curses
   @patch('nyx.tracker.get_port_usage_tracker')
   def test_draw_line_details(self, port_usage_tracker_mock):
     process = Mock()
