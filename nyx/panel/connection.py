@@ -457,7 +457,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     self._draw_address_column(subwindow, x, y, line, attr)
     self._draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
-    self._draw_right_column(subwindow, width - 18, y, line, current_time, attr)
+    _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
 
   def _draw_address_column(self, subwindow, x, y, line, attr):
     src = tor_controller().get_info('address', line.connection.local_address)
@@ -505,26 +505,6 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
         x = subwindow.addstr(x, y, entry, *attr)
       else:
         return
-
-  def _draw_right_column(self, subwindow, x, y, line, current_time, attr):
-    if line.line_type == LineType.CIRCUIT:
-      circ_path = [fp for fp, _ in line.circuit.path]
-      circ_index = circ_path.index(line.fingerprint)
-
-      if circ_index == len(circ_path) - 1:
-        placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
-      elif circ_index == 0:
-        placement_type = 'Guard'
-      else:
-        placement_type = 'Middle'
-
-      subwindow.addstr(x + 4, y, '%i / %s' % (circ_index + 1, placement_type), *attr)
-    else:
-      x = subwindow.addstr(x, y, '+' if line.connection.is_legacy else ' ', *attr)
-      x = subwindow.addstr(x, y, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), *attr)
-      x = subwindow.addstr(x, y, ' (', *attr)
-      x = subwindow.addstr(x, y, line.entry.get_type().upper(), BOLD, *attr)
-      x = subwindow.addstr(x, y, ')', *attr)
 
   def _update(self):
     """
@@ -654,3 +634,24 @@ def _draw_details(subwindow, selected):
           break
 
   subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT + 2)
+
+
+def _draw_right_column(subwindow, x, y, line, current_time, attr):
+  if line.line_type == LineType.CIRCUIT:
+    circ_path = [fp for fp, _ in line.circuit.path]
+    circ_index = circ_path.index(line.fingerprint)
+
+    if circ_index == len(circ_path) - 1:
+      placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
+    elif circ_index == 0:
+      placement_type = 'Guard'
+    else:
+      placement_type = 'Middle'
+
+    subwindow.addstr(x + 4, y, '%i / %s' % (circ_index + 1, placement_type), *attr)
+  else:
+    x = subwindow.addstr(x, y, '+' if line.connection.is_legacy else ' ', *attr)
+    x = subwindow.addstr(x, y, '%5s' % str_tools.time_label(current_time - line.connection.start_time, 1), *attr)
+    x = subwindow.addstr(x, y, ' (', *attr)
+    x = subwindow.addstr(x, y, line.entry.get_type().upper(), BOLD, *attr)
+    x = subwindow.addstr(x, y, ')', *attr)
