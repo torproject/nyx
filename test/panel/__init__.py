@@ -7,4 +7,5 @@ __all__ = [
   'graph',
   'log',
   'connection',
+  'torrc',
 ]

@@ -17,6 +17,17 @@ from stem import ControllerError
 from stem.control import State
 
 
+def _read_torrc(path):
+  contents = []
+
+  with open(path) as torrc_file:
+    for line in torrc_file.readlines():
+      line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
+      contents.append(filter(lambda char: char in string.printable, line))
+
+  return contents
+
+
 class TorrcPanel(panel.Panel):
   """
   Renders the current torrc or nyxrc with syntax highlighting in a scrollable
@@ -47,20 +58,14 @@ class TorrcPanel(panel.Panel):
     if event_type == State.RESET:
       try:
         self._torrc_location = expand_path(controller.get_info('config-file'))
-        contents = []
-
-        with open(self._torrc_location) as torrc_file:
-          for line in torrc_file.readlines():
-            line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
-            contents.append(filter(lambda char: char in string.printable, line))
-
-        self._torrc_content = contents
+        self._torrc_content = _read_torrc(self._torrc_location)
       except ControllerError as exc:
         self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
         self._torrc_location = None
         self._torrc_content = None
       except Exception as exc:
-        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc.strerror)
+        exc_msg = exc.strerror if (hasattr(exc, 'strerror') and exc.strerror) else str(exc)
+        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc_msg)
         self._torrc_content = None
 
   def set_comments_visible(self, is_visible):
@@ -121,7 +126,7 @@ class TorrcPanel(panel.Panel):
 
       if self._last_content_height > subwindow.height - 1:
         scroll_offset = 3
-        subwindow.scrollbar(1, scroll, height - 1)
+        subwindow.scrollbar(1, scroll, subwindow.height - 1)
 
       y = 1 - scroll
       is_multiline = False  # true if we're in the middle of a multiline torrc entry
@@ -144,8 +149,8 @@ class TorrcPanel(panel.Panel):
         elif ' ' not in line.strip():
           option, argument = line, ''  # no argument
         else:
-          whitespace = ' ' * (len(line) - len(line.strip()))
-          option, argument = line.strip().split(' ', 1)
+          whitespace = ' ' * (len(line) - len(line.lstrip()))
+          option, argument = line.lstrip().split(' ', 1)
           option = whitespace + option + ' '
 
         is_multiline = line.endswith('\\')  # next line's part of a multi-line entry

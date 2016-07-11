@@ -118,30 +118,40 @@ def line(entry = MockEntry(), line_type = LineType.CONNECTION, connection = CONN
 class TestConnectionPanel(unittest.TestCase):
   @require_curses
   def test_draw_title(self):
-    self.assertEqual('Connection Details:', test.render(nyx.panel.connection._draw_title, [], True).content)
-    self.assertEqual('Connections:', test.render(nyx.panel.connection._draw_title, [], False).content)
+    rendered = test.render(nyx.panel.connection._draw_title, [], True)
+    self.assertEqual('Connection Details:', rendered.content)
+
+    rendered = test.render(nyx.panel.connection._draw_title, [], False)
+    self.assertEqual('Connections:', rendered.content)
 
     entries = [MockEntry(entry_type = category) for category in (Category.INBOUND, Category.INBOUND, Category.OUTBOUND, Category.INBOUND, Category.CONTROL)]
-    self.assertEqual('Connections (3 inbound, 1 outbound, 1 control):', test.render(nyx.panel.connection._draw_title, entries, False).content)
+
+    rendered = test.render(nyx.panel.connection._draw_title, entries, False)
+    self.assertEqual('Connections (3 inbound, 1 outbound, 1 control):', rendered.content)
 
   @require_curses
   def test_draw_details_incomplete_circuit(self):
     selected = line(line_type = LineType.CIRCUIT_HEADER, circ = MockCircuit(status = 'EXTENDING'))
-    self.assertEqual(DETAILS_BUILDING_CIRCUIT, test.render(nyx.panel.connection._draw_details, selected).content)
+
+    rendered = test.render(nyx.panel.connection._draw_details, selected)
+    self.assertEqual(DETAILS_BUILDING_CIRCUIT, rendered.content)
 
   @require_curses
   @patch('nyx.tracker.get_consensus_tracker')
   def test_draw_details_no_consensus_data(self, consensus_tracker_mock):
     consensus_tracker_mock().get_relay_fingerprints.return_value = None
-    self.assertEqual(DETAILS_NO_CONSENSUS_DATA, test.render(nyx.panel.connection._draw_details, line()).content)
+
+    rendered = test.render(nyx.panel.connection._draw_details, line())
+    self.assertEqual(DETAILS_NO_CONSENSUS_DATA, rendered.content)
 
   @require_curses
   @patch('nyx.tracker.get_consensus_tracker')
   def test_draw_details_when_private(self, consensus_tracker_mock):
     consensus_tracker_mock().get_relay_fingerprints.return_value = None
-
     selected = line(entry = MockEntry(is_private = True))
-    self.assertEqual(DETAILS_WHEN_PRIVATE, test.render(nyx.panel.connection._draw_details, selected).content)
+
+    rendered = test.render(nyx.panel.connection._draw_details, selected)
+    self.assertEqual(DETAILS_WHEN_PRIVATE, rendered.content)
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
@@ -168,7 +178,8 @@ class TestConnectionPanel(unittest.TestCase):
       22: 'B6D83EC2D9E18B0A7A33428F8CFA9C536769E209'
     }
 
-    self.assertEqual(DETAILS_FOR_RELAY, test.render(nyx.panel.connection._draw_details, line()).content)
+    rendered = test.render(nyx.panel.connection._draw_details, line())
+    self.assertEqual(DETAILS_FOR_RELAY, rendered.content)
 
   @require_curses
   @patch('nyx.tracker.get_consensus_tracker')
@@ -179,7 +190,8 @@ class TestConnectionPanel(unittest.TestCase):
       443: 'E0BD57A11F00041A9789577C53A1B784473669E4',
     }
 
-    self.assertEqual(DETAILS_FOR_MULTIPLE_MATCHES, test.render(nyx.panel.connection._draw_details, line()).content)
+    rendered = test.render(nyx.panel.connection._draw_details, line())
+    self.assertEqual(DETAILS_FOR_MULTIPLE_MATCHES, rendered.content)
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
@@ -201,7 +213,8 @@ class TestConnectionPanel(unittest.TestCase):
     }
 
     for test_line, expected in test_data.items():
-      self.assertEqual(expected, test.render(nyx.panel.connection._draw_line, 0, 0, test_line, False, 80, TIMESTAMP + 15.4).content)
+      rendered = test.render(nyx.panel.connection._draw_line, 0, 0, test_line, False, 80, TIMESTAMP + 15.4)
+      self.assertEqual(expected, rendered.content)
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
@@ -221,7 +234,8 @@ class TestConnectionPanel(unittest.TestCase):
     }
 
     for test_line, expected in test_data.items():
-      self.assertEqual(expected, test.render(nyx.panel.connection._draw_address_column, 0, 0, test_line, ()).content)
+      rendered = test.render(nyx.panel.connection._draw_address_column, 0, 0, test_line, ())
+      self.assertEqual(expected, rendered.content)
 
   @require_curses
   @patch('nyx.tracker.get_port_usage_tracker')
@@ -242,15 +256,19 @@ class TestConnectionPanel(unittest.TestCase):
     }
 
     for test_line, expected in test_data.items():
-      self.assertEqual(expected, test.render(nyx.panel.connection._draw_line_details, 0, 0, test_line, 80, ()).content)
+      rendered = test.render(nyx.panel.connection._draw_line_details, 0, 0, test_line, 80, ())
+      self.assertEqual(expected, rendered.content)
 
   @require_curses
   def test_draw_right_column(self):
-    self.assertEqual('  1.0m (INBOUND)', test.render(nyx.panel.connection._draw_right_column, 0, 0, line(), TIMESTAMP + 62, ()).content)
+    rendered = test.render(nyx.panel.connection._draw_right_column, 0, 0, line(), TIMESTAMP + 62, ())
+    self.assertEqual('  1.0m (INBOUND)', rendered.content)
 
     legacy_connection = Connection(TIMESTAMP, True, '127.0.0.1', 3531, '75.119.206.243', 22, 'tcp', False)
     test_line = line(entry = MockEntry(entry_type = Category.CONTROL), connection = legacy_connection)
-    self.assertEqual('+ 1.1m (CONTROL)', test.render(nyx.panel.connection._draw_right_column, 0, 0, test_line, TIMESTAMP + 68, ()).content)
+
+    rendered = test.render(nyx.panel.connection._draw_right_column, 0, 0, test_line, TIMESTAMP + 68, ())
+    self.assertEqual('+ 1.1m (CONTROL)', rendered.content)
 
     test_data = {
       '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86': '    1 / Guard',
@@ -260,4 +278,6 @@ class TestConnectionPanel(unittest.TestCase):
 
     for fp, expected in test_data.items():
       test_line = line(line_type = LineType.CIRCUIT, fingerprint = fp)
-      self.assertEqual(expected, test.render(nyx.panel.connection._draw_right_column, 0, 0, test_line, TIMESTAMP + 62, ()).content)
+
+      rendered = test.render(nyx.panel.connection._draw_right_column, 0, 0, test_line, TIMESTAMP + 62, ())
+      self.assertEqual(expected, rendered.content)
