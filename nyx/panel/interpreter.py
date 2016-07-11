@@ -23,7 +23,6 @@ import stem.interpreter.commands
 
 USAGE_INFO = 'to use this panel press enter'
 PROMPT = '>>> '
-PROMPT_LINE = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
 ANSI_RE = re.compile('\\x1b\[([0-9;]*)m')
 ATTRS = {'0': NORMAL, '1': BOLD, '30': BLACK, '31': RED, '32': GREEN, '33': YELLOW, '34': BLUE, '35': MAGENTA, '36': CYAN}
 BACKLOG_LIMIT = 100
@@ -82,6 +81,7 @@ class InterpreterPanel(panel.Panel):
     )
     self.autocompleter = stem.interpreter.autocomplete.Autocompleter(self.controller)
     self.interpreter = stem.interpreter.commands.ControlInterpretor(self.controller)
+    self.prompt_line = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
 
   def key_handlers(self):
     def _scroll(key):
@@ -98,7 +98,7 @@ class InterpreterPanel(panel.Panel):
         self.redraw(True)
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_preferred_size()[0] - 1
-        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(PROMPT_LINE[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
+        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(self.prompt_line[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
@@ -126,11 +126,11 @@ class InterpreterPanel(panel.Panel):
               response = '\x1b[31;1m' + new_stderr.getvalue()
               sys.stderr = old_stderr
             if response:
-              PROMPT_LINE.insert(len(PROMPT_LINE) - 1, format_input(user_input))
+              self.prompt_line.insert(len(self.prompt_line) - 1, format_input(user_input))
               attrs = []
               for line in response.split('\n'):
                 line, attrs = ansi_to_output(line, attrs)
-                PROMPT_LINE.insert(len(PROMPT_LINE) - 1, line)
+                self.prompt_line.insert(len(self.prompt_line) - 1, line)
           except stem.SocketClosed:
             is_done = True
 
@@ -151,7 +151,7 @@ class InterpreterPanel(panel.Panel):
       subwindow.scrollbar(1, scroll, self._last_content_height - 1)
 
     y = 1 - scroll
-    for entry in PROMPT_LINE:
+    for entry in self.prompt_line:
       cursor = self._x_offset
 
       for line in entry:
