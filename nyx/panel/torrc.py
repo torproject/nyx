@@ -17,6 +17,17 @@ from stem import ControllerError
 from stem.control import State
 
 
+def _read_torrc(path):
+  contents = []
+
+  with open(path) as torrc_file:
+    for line in torrc_file.readlines():
+      line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
+      contents.append(filter(lambda char: char in string.printable, line))
+
+  return contents
+
+
 class TorrcPanel(panel.Panel):
   """
   Renders the current torrc or nyxrc with syntax highlighting in a scrollable
@@ -47,20 +58,14 @@ class TorrcPanel(panel.Panel):
     if event_type == State.RESET:
       try:
         self._torrc_location = expand_path(controller.get_info('config-file'))
-        contents = []
-
-        with open(self._torrc_location) as torrc_file:
-          for line in torrc_file.readlines():
-            line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
-            contents.append(filter(lambda char: char in string.printable, line))
-
-        self._torrc_content = contents
+        self._torrc_content = _read_torrc(self._torrc_location)
       except ControllerError as exc:
         self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
         self._torrc_location = None
         self._torrc_content = None
       except Exception as exc:
-        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc.strerror)
+        exc_msg = exc.strerror if (hasattr(exc, 'strerror') and exc.strerror) else str(exc)
+        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc_msg)
         self._torrc_content = None
 
   def set_comments_visible(self, is_visible):
@@ -103,11 +108,11 @@ class TorrcPanel(panel.Panel):
       nyx.panel.KeyHandler('l', 'line numbering', _toggle_line_numbers, 'on' if self._show_line_numbers else 'off'),
     )
 
-  def draw(self, width, height):
-    scroll = self._scroller.location(self._last_content_height - 1, height - 1)
+  def draw(self, subwindow):
+    scroll = self._scroller.location(self._last_content_height - 1, subwindow.height - 1)
 
     if self._torrc_content is None:
-      self.addstr(1, 0, self._torrc_load_error, RED, BOLD)
+      subwindow.addstr(0, 1, self._torrc_load_error, RED, BOLD)
       new_content_height = 1
     else:
       if not self._show_line_numbers:
@@ -119,9 +124,9 @@ class TorrcPanel(panel.Panel):
 
       scroll_offset = 0
 
-      if self._last_content_height > height - 1:
+      if self._last_content_height > subwindow.height - 1:
         scroll_offset = 3
-        self.add_scroll_bar(scroll, scroll + height - 1, self._last_content_height - 1, 1)
+        subwindow.scrollbar(1, scroll, subwindow.height - 1)
 
       y = 1 - scroll
       is_multiline = False  # true if we're in the middle of a multiline torrc entry
@@ -144,30 +149,30 @@ class TorrcPanel(panel.Panel):
         elif ' ' not in line.strip():
           option, argument = line, ''  # no argument
         else:
-          whitespace = ' ' * (len(line) - len(line.strip()))
-          option, argument = line.strip().split(' ', 1)
+          whitespace = ' ' * (len(line) - len(line.lstrip()))
+          option, argument = line.lstrip().split(' ', 1)
           option = whitespace + option + ' '
 
         is_multiline = line.endswith('\\')  # next line's part of a multi-line entry
 
         if self._show_line_numbers:
-          self.addstr(y, scroll_offset, str(line_number + 1).rjust(line_number_offset - 1), YELLOW, BOLD)
+          subwindow.addstr(scroll_offset, y, str(line_number + 1).rjust(line_number_offset - 1), YELLOW, BOLD)
 
         x = line_number_offset + scroll_offset
         min_x = line_number_offset + scroll_offset
 
-        x, y = self.addstr_wrap(y, x, option, width, min_x, GREEN, BOLD)
-        x, y = self.addstr_wrap(y, x, argument, width, min_x, CYAN, BOLD)
-        x, y = self.addstr_wrap(y, x, comment, width, min_x, WHITE)
+        x, y = subwindow.addstr_wrap(x, y, option, subwindow.width, min_x, GREEN, BOLD)
+        x, y = subwindow.addstr_wrap(x, y, argument, subwindow.width, min_x, CYAN, BOLD)
+        x, y = subwindow.addstr_wrap(x, y, comment, subwindow.width, min_x, WHITE)
 
         y += 1
 
       new_content_height = y + scroll - 1
 
-    self.addstr(0, 0, ' ' * width)  # clear line
+    subwindow.addstr(0, 0, ' ' * subwindow.width)  # clear line
     location = ' (%s)' % self._torrc_location if self._torrc_location else ''
-    self.addstr(0, 0, 'Tor Configuration File%s:' % location, HIGHLIGHT)
+    subwindow.addstr(0, 0, 'Tor Configuration File%s:' % location, HIGHLIGHT)
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height
-      self.redraw(True)
+      self.draw(subwindow)
