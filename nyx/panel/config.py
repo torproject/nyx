@@ -246,7 +246,7 @@ class ConfigPanel(nyx.panel.Panel):
     is_scrollbar_visible = len(contents) > subwindow.height - DETAILS_HEIGHT
 
     if selected is not None:
-      self._draw_selection_details(subwindow, selected)
+      _draw_selection_details(subwindow, selected)
 
     hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
     subwindow.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
@@ -288,28 +288,30 @@ class ConfigPanel(nyx.panel.Panel):
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
-  def _draw_selection_details(self, subwindow, selected):
-    """
-    Shows details of the currently selected option.
-    """
 
-    description = 'Description: %s' % (selected.manual.description)
-    attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
-    selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
-    subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
+def _draw_selection_details(subwindow, selected):
+  """
+  Shows details of the currently selected option.
+  """
 
-    subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
-    subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, subwindow.width - len(selected.value()) - 13)), selected_color, BOLD)
+  attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
+  selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
+  subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
 
-    for i in range(DETAILS_HEIGHT - 4):
-      if not description:
-        break  # done writing description
+  subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
+  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, subwindow.width - len(selected.value()) - 13)), selected_color, BOLD)
 
-      line, description = description.split('\n', 1) if '\n' in description else (description, '')
+  description = 'Description: %s' % selected.manual.description
 
-      if i < DETAILS_HEIGHT - 5:
-        line, remainder = str_tools.crop(line, subwindow.width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
-        description = '  ' + remainder.strip() + description
-        subwindow.addstr(2, 3 + i, line, selected_color, BOLD)
-      else:
-        subwindow.addstr(2, 3 + i, str_tools.crop(line, subwindow.width - 3, 4, 4), selected_color, BOLD)
+  for i in range(DETAILS_HEIGHT - 4):
+    if not description:
+      break  # done writing description
+
+    line, description = description.split('\n', 1) if '\n' in description else (description, '')
+
+    if i < DETAILS_HEIGHT - 5:
+      line, remainder = str_tools.crop(line, subwindow.width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
+      description = '  ' + remainder.strip() + description
+      subwindow.addstr(2, 3 + i, line, selected_color, BOLD)
+    else:
+      subwindow.addstr(2, 3 + i, str_tools.crop(line, subwindow.width - 3, 4, 4), selected_color, BOLD)
