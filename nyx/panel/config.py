@@ -272,21 +272,29 @@ class ConfigPanel(nyx.panel.Panel):
       value_width = VALUE_WIDTH
 
     for i, entry in enumerate(contents[scroll:]):
-      attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
-      attr.append(BOLD if entry.is_set() else NORMAL)
-      attr.append(HIGHLIGHT if entry == selected else NORMAL)
-
-      option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
-      value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
-      summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
-
-      subwindow.addstr(scroll_offset, DETAILS_HEIGHT + i, option_label + value_label + summary_label, *attr)
+      _draw_line(subwindow, scroll_offset, DETAILS_HEIGHT + i, entry, entry == selected, value_width, description_width)
 
       if DETAILS_HEIGHT + i >= subwindow.height:
         break
 
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
+
+
+def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):
+  """
+  Show an individual configuration line.
+  """
+
+  attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
+  attr.append(BOLD if entry.is_set() else NORMAL)
+  attr.append(HIGHLIGHT if is_selected else NORMAL)
+
+  option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
+  value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
+  summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
+
+  subwindow.addstr(x, y, option_label + value_label + summary_label, *attr)
 
 
 def _draw_selection_details(subwindow, selected):
