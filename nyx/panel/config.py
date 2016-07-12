@@ -240,30 +240,30 @@ class ConfigPanel(nyx.panel.Panel):
       nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
     )
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     contents = self._get_config_options()
-    selected, scroll = self._scroller.selection(contents, height - DETAILS_HEIGHT)
-    is_scrollbar_visible = len(contents) > height - DETAILS_HEIGHT
+    selected, scroll = self._scroller.selection(contents, subwindow.height - DETAILS_HEIGHT)
+    is_scrollbar_visible = len(contents) > subwindow.height - DETAILS_HEIGHT
 
     if selected is not None:
-      self._draw_selection_details(selected, width)
+      _draw_selection_details(subwindow, selected)
 
     hidden_msg = "press 'a' to hide most options" if self._show_all else "press 'a' to show all options"
-    self.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
+    subwindow.addstr(0, 0, 'Tor Configuration (%s):' % hidden_msg, HIGHLIGHT)
 
     scroll_offset = 1
 
     if is_scrollbar_visible:
       scroll_offset = 3
-      self.add_scroll_bar(scroll, scroll + height - DETAILS_HEIGHT, len(contents), DETAILS_HEIGHT)
+      subwindow.scrollbar(DETAILS_HEIGHT, scroll, len(contents) - 1)
 
       if selected is not None:
-        self.addch(DETAILS_HEIGHT - 1, 1, curses.ACS_TTEE)
+        subwindow._addch(1, DETAILS_HEIGHT - 1, curses.ACS_TTEE)
 
     # Description column can grow up to eighty characters. After that any extra
     # space goes to the value.
 
-    description_width = max(0, width - scroll_offset - NAME_WIDTH - VALUE_WIDTH - 2)
+    description_width = max(0, subwindow.width - scroll_offset - NAME_WIDTH - VALUE_WIDTH - 2)
 
     if description_width > 80:
       value_width = VALUE_WIDTH + (description_width - 80)
@@ -272,44 +272,54 @@ class ConfigPanel(nyx.panel.Panel):
       value_width = VALUE_WIDTH
 
     for i, entry in enumerate(contents[scroll:]):
-      attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
-      attr.append(BOLD if entry.is_set() else NORMAL)
-      attr.append(HIGHLIGHT if entry == selected else NORMAL)
+      _draw_line(subwindow, scroll_offset, DETAILS_HEIGHT + i, entry, entry == selected, value_width, description_width)
 
-      option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
-      value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
-      summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
-
-      self.addstr(DETAILS_HEIGHT + i, scroll_offset, option_label + value_label + summary_label, *attr)
-
-      if DETAILS_HEIGHT + i >= height:
+      if DETAILS_HEIGHT + i >= subwindow.height:
         break
 
   def _get_config_options(self):
     return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
 
-  def _draw_selection_details(self, selected, width):
-    """
-    Shows details of the currently selected option.
-    """
 
-    description = 'Description: %s' % (selected.manual.description)
-    attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
-    selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
-    self.draw_box(0, 0, width, DETAILS_HEIGHT)
+def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):
+  """
+  Show an individual configuration line.
+  """
 
-    self.addstr(1, 2, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
-    self.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, width - len(selected.value()) - 13)), selected_color, BOLD)
+  attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
+  attr.append(BOLD if entry.is_set() else NORMAL)
+  attr.append(HIGHLIGHT if is_selected else NORMAL)
 
-    for i in range(DETAILS_HEIGHT - 4):
-      if not description:
-        break  # done writing description
+  option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
+  value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
+  summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
 
-      line, description = description.split('\n', 1) if '\n' in description else (description, '')
+  subwindow.addstr(x, y, option_label + value_label + summary_label, *attr)
 
-      if i < DETAILS_HEIGHT - 5:
-        line, remainder = str_tools.crop(line, width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
-        description = '  ' + remainder.strip() + description
-        self.addstr(3 + i, 2, line, selected_color, BOLD)
-      else:
-        self.addstr(3 + i, 2, str_tools.crop(line, width - 3, 4, 4), selected_color, BOLD)
+
+def _draw_selection_details(subwindow, selected):
+  """
+  Shows details of the currently selected option.
+  """
+
+  attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
+  selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
+  subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
+
+  subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
+  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, subwindow.width - len(selected.value()) - 13)), selected_color, BOLD)
+
+  description = 'Description: %s' % selected.manual.description
+
+  for i in range(DETAILS_HEIGHT - 4):
+    if not description:
+      break  # done writing description
+
+    line, description = description.split('\n', 1) if '\n' in description else (description, '')
+
+    if i < DETAILS_HEIGHT - 5:
+      line, remainder = str_tools.crop(line, subwindow.width - 3, 4, 4, str_tools.Ending.HYPHEN, True)
+      description = '  ' + remainder.strip() + description
+      subwindow.addstr(2, 3 + i, line, selected_color, BOLD)
+    else:
+      subwindow.addstr(2, 3 + i, str_tools.crop(line, subwindow.width - 3, 4, 4), selected_color, BOLD)
