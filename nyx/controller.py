@@ -153,7 +153,7 @@ class Controller(object):
     if page_number != self._page:
       self._page = page_number
       self._force_redraw = True
-      self.header_panel().redraw(True)
+      self.header_panel().redraw()
 
   def next_page(self):
     """
@@ -184,7 +184,7 @@ class Controller(object):
     if is_pause != self._is_paused:
       self._is_paused = is_pause
       self._force_redraw = True
-      self.header_panel().redraw(True)
+      self.header_panel().redraw()
 
       for panel_impl in self.get_all_panels():
         panel_impl.set_paused(is_pause)
@@ -265,7 +265,7 @@ class Controller(object):
         stdscr.clear()
 
     for panel_impl in display_panels:
-      panel_impl.redraw(force)
+      panel_impl.redraw()
 
     if force:
       self._last_drawn = current_time

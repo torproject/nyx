@@ -70,7 +70,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     self._message = message
     self._message_attr = attr
-    self.redraw(True)
+    self.redraw()
 
     if 'max_wait' in kwargs:
       user_input = nyx.curses.key_input(kwargs['max_wait'])
@@ -205,7 +205,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         self._reported_inactive = False
         log.notice('Relay resumed')
 
-    self.redraw(True)
+    self.redraw()
 
 
 class Sampling(object):

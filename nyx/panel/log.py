@@ -148,7 +148,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
-      self.redraw(True)
+      self.redraw()
 
   def show_snapshot_prompt(self):
     """
@@ -170,7 +170,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     """
 
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
-    self.redraw(True)
+    self.redraw()
 
   def save_snapshot(self, path):
     """
@@ -211,7 +211,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _pick_filter():
       with nyx.curses.CURSES_LOCK:
@@ -228,7 +228,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     def _toggle_deduplication():
       self.set_duplicate_visability(not self._show_duplicates)
-      self.redraw(True)
+      self.redraw()
 
     def _clear_log():
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
@@ -300,7 +300,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if force_redraw:
       log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
-      self.redraw(True)
+      self.redraw()
 
   def _update(self):
     """
@@ -313,7 +313,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if self._has_new_event or self._last_day != current_day:
       self._last_day = current_day
-      self.redraw(True)
+      self.redraw()
 
   def _register_tor_event(self, event):
     msg = ' '.join(str(event).split(' ')[1:])

@@ -435,7 +435,7 @@ class GraphPanel(nyx.panel.Panel):
     controller = tor_controller()
     controller.add_event_listener(self._update_accounting, EventType.BW)
     controller.add_event_listener(self._update_stats, EventType.BW)
-    controller.add_status_listener(lambda *args: self.redraw(True))
+    controller.add_status_listener(lambda *args: self.redraw())
 
   @property
   def displayed_stat(self):
@@ -538,11 +538,11 @@ class GraphPanel(nyx.panel.Panel):
 
     def _next_bounds():
       self.bounds_type = Bounds.next(self.bounds_type)
-      self.redraw(True)
+      self.redraw()
 
     def _pick_interval():
       self.update_interval = nyx.popups.select_from_list('Update Interval:', list(Interval), self.update_interval)
-      self.redraw(True)
+      self.redraw()
 
     return (
       nyx.panel.KeyHandler('g', 'resize graph', self.resize_graph),
@@ -605,7 +605,7 @@ class GraphPanel(nyx.panel.Panel):
       update_rate = INTERVAL_SECONDS[self.update_interval]
 
       if param.primary.tick % update_rate == 0:
-        self.redraw(True)
+        self.redraw()
 
 
 def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):

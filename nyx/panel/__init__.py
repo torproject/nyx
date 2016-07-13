@@ -172,7 +172,7 @@ class Panel(object):
         self.pause_time = time.time()
 
       self.paused = is_pause
-      self.redraw(True)
+      self.redraw()
 
   def get_pause_time(self):
     """
@@ -238,7 +238,7 @@ class Panel(object):
 
     return ()
 
-  def draw(self, width, height):
+  def draw(self, subwindow):
     """
     Draws display's content. This is meant to be overwritten by
     implementations and not called directly (use redraw() instead). The
@@ -246,19 +246,15 @@ class Panel(object):
     a column less than the actual space.
 
     Arguments:
-      width  - horizontal space available for content
-      height - vertical space available for content
+      subwindow - window content is drawn into
     """
 
     pass
 
-  def redraw(self, force_redraw=False):
+  def redraw(self):
     """
     Clears display and redraws its content. This can skip redrawing content if
     able (ie, the subwindow's unchanged), instead just refreshing the display.
-
-    Arguments:
-      force_redraw - forces the content to be cleared and redrawn if true
     """
 
     # skipped if not currently visible or activity has been halted
@@ -266,51 +262,10 @@ class Panel(object):
     if not self.visible or HALT_ACTIVITY:
       return
 
-    if self.panel_name in ('header', 'graph', 'log', 'connections', 'configuration', 'torrc'):
-      height = self.get_height() if self.get_height() != -1 else None
-      width = self.get_width() if self.get_width() != -1 else None
+    height = self.get_height() if self.get_height() != -1 else None
+    width = self.get_width() if self.get_width() != -1 else None
 
-      nyx.curses.draw(self.draw, top = self.top, width = width, height = height)
-      return
-
-    # if the panel's completely outside its parent then this is a no-op
-
-    new_height, new_width = self.get_preferred_size()
-
-    if new_height == 0 or new_width == 0:
-      self.win = None
-      return
-
-    # recreates the subwindow if necessary
-
-    is_new_window = self._reset_subwindow()
-
-    if not self.win:
-      return
-
-    # The reset argument is disregarded in a couple of situations:
-    # - The subwindow's been recreated (obviously it then doesn't have the old
-    #   content to refresh).
-    # - The subwindow's dimensions have changed since last drawn (this will
-    #   likely change the content's layout)
-
-    subwin_max_y, subwin_max_x = self.win.getmaxyx()
-
-    if is_new_window or subwin_max_y != self.max_y or subwin_max_x != self.max_x:
-      force_redraw = True
-
-    self.max_y, self.max_x = subwin_max_y, subwin_max_x
-
-    if not nyx.curses.CURSES_LOCK.acquire(False):
-      return
-
-    try:
-      if force_redraw:
-        self.win.erase()  # clears any old contents
-        self.draw(self.max_x, self.max_y)
-      self.win.refresh()
-    finally:
-      nyx.curses.CURSES_LOCK.release()
+    nyx.curses.draw(self.draw, top = self.top, width = width, height = height)
 
   def hline(self, y, x, length, *attributes):
     """

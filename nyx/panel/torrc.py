@@ -76,7 +76,7 @@ class TorrcPanel(panel.Panel):
     """
 
     self._show_comments = is_visible
-    self.redraw(True)
+    self.redraw()
 
   def set_line_number_visible(self, is_visible):
     """
@@ -86,7 +86,7 @@ class TorrcPanel(panel.Panel):
     """
 
     self._show_line_numbers = is_visible
-    self.redraw(True)
+    self.redraw()
 
   def key_handlers(self):
     def _scroll(key):
@@ -94,7 +94,7 @@ class TorrcPanel(panel.Panel):
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _toggle_comment_stripping():
       self.set_comments_visible(not self._show_comments)
@@ -175,4 +175,4 @@ class TorrcPanel(panel.Panel):
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height
-      self.draw(subwindow)
+      self.redraw()

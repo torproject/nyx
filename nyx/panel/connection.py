@@ -322,11 +322,11 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       is_changed = self._scroller.handle_key(key, lines, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _show_details():
       self._show_details = not self._show_details
-      self.redraw(True)
+      self.redraw()
 
     def _show_descriptor():
       entries = self._entries
@@ -351,7 +351,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
         elif key.match('right'):
           _scroll(nyx.curses.KeyInput(curses.KEY_DOWN))
 
-      self.redraw(True)
+      self.redraw()
 
     def _pick_connection_resolver():
       connection_tracker = nyx.tracker.get_connection_tracker()
@@ -361,7 +361,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       selected = nyx.popups.select_from_list('Connection Resolver:', options, resolver if resolver else 'auto')
       connection_tracker.set_custom_resolver(None if selected == 'auto' else selected)
 
-      self.redraw(True)
+      self.redraw()
 
     def _show_client_locales():
       nyx.popups.show_counts('Client Locales', self._client_locale_usage)

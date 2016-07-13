@@ -196,7 +196,7 @@ class ConfigPanel(nyx.panel.Panel):
       except IOError as exc:
         nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
 
-    self.redraw(True)
+    self.redraw()
 
   def key_handlers(self):
     def _scroll(key):
@@ -204,7 +204,7 @@ class ConfigPanel(nyx.panel.Panel):
       is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _edit_selected_value():
       selected = self._scroller.selection(self._get_config_options())
@@ -224,13 +224,13 @@ class ConfigPanel(nyx.panel.Panel):
             new_value = new_value.split(',')  # set_conf accepts list inputs
 
           tor_controller().set_conf(selected.name, new_value)
-          self.redraw(True)
+          self.redraw()
         except Exception as exc:
           nyx.controller.show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
 
     def _toggle_show_all():
       self._show_all = not self._show_all
-      self.redraw(True)
+      self.redraw()
 
     return (
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
