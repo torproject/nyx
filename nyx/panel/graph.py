@@ -512,7 +512,7 @@ class GraphPanel(nyx.panel.Panel):
             # (plus an extra line for the graph/log gap)
 
             with nyx.curses.raw_screen() as stdscr:
-              max_height = stdscr.getmaxyx()[0] - self.top
+              max_height = stdscr.getmaxyx()[0] - self.get_top()
 
             current_height = self.get_height()
 

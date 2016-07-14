@@ -65,44 +65,20 @@ class KeyHandler(collections.namedtuple('Help', ['key', 'description', 'current'
 
 class Panel(object):
   """
-  Wrapper for curses subwindows. This hides most of the ugliness in common
-  curses operations including:
-    - locking when concurrently drawing to multiple windows
-    - gracefully handle terminal resizing
-    - clip text that falls outside the panel
-    - convenience methods for word wrap, in-line formatting, etc
-
-  This uses a design akin to Swing where panel instances provide their display
-  implementation by overwriting the draw() method, and are redrawn with
-  redraw().
+  Common parent for interface panels, providing the ability to pause and
+  configure dimensions.
   """
 
   def __init__(self):
-    """
-    Creates a durable wrapper for a curses subwindow in the given parent.
+    self._visible = False
 
-    Arguments:
-      top    - positioning of top within parent
-      left   - positioning of the left edge within the parent
-      height - maximum height of panel (uses all available space if -1)
-      width  - maximum width of panel (uses all available space if -1)
-    """
+    self._paused = False
+    self._pause_time = -1
 
-    # The not-so-pythonic getters for these parameters are because some
-    # implementations aren't entirely deterministic (for instance panels
-    # might chose their height based on its parent's current width).
-
-    self.visible = False
-
-    self.paused = False
-    self.pause_time = -1
-
-    self.top = 0
-    self.left = 0
-    self.height = -1
-    self.width = -1
-
-    self.max_y, self.max_x = -1, -1  # subwindow dimensions when last redrawn
+    self._top = 0
+    self._left = 0
+    self._height = -1
+    self._width = -1
 
   def set_visible(self, is_visible):
     """
@@ -112,14 +88,14 @@ class Panel(object):
       is_visible - panel is redrawn when requested if true, skipped otherwise
     """
 
-    self.visible = is_visible
+    self._visible = is_visible
 
   def is_paused(self):
     """
     Provides if the panel's configured to be paused or not.
     """
 
-    return self.paused
+    return self._paused
 
   def set_paused(self, is_pause):
     """
@@ -133,11 +109,11 @@ class Panel(object):
                         them editable otherwise
     """
 
-    if is_pause != self.paused:
+    if is_pause != self._paused:
       if is_pause:
-        self.pause_time = time.time()
+        self._pause_time = time.time()
 
-      self.paused = is_pause
+      self._paused = is_pause
       self.redraw()
 
   def get_pause_time(self):
@@ -146,7 +122,14 @@ class Panel(object):
     been paused.
     """
 
-    return self.pause_time
+    return self._pause_time
+
+  def get_top(self):
+    """
+    Provides the top position used for subwindows.
+    """
+
+    return self._top
 
   def set_top(self, top):
     """
@@ -156,22 +139,22 @@ class Panel(object):
       top - positioning of top within parent
     """
 
-    if self.top != top:
-      self.top = top
+    if self._top != top:
+      self._top = top
 
   def get_height(self):
     """
     Provides the height used for subwindows (-1 if it isn't limited).
     """
 
-    return self.height
+    return self._height
 
   def get_width(self):
     """
     Provides the width used for subwindows (-1 if it isn't limited).
     """
 
-    return self.width
+    return self._width
 
   def get_preferred_size(self):
     """
@@ -184,8 +167,8 @@ class Panel(object):
       new_height, new_width = stdscr.getmaxyx()
 
     set_height, set_width = self.get_height(), self.get_width()
-    new_height = max(0, new_height - self.top)
-    new_width = max(0, new_width - self.left)
+    new_height = max(0, new_height - self._top)
+    new_width = max(0, new_width - self._left)
 
     if set_height != -1:
       new_height = min(new_height, set_height)
@@ -224,13 +207,13 @@ class Panel(object):
 
     # skipped if not currently visible or activity has been halted
 
-    if not self.visible or HALT_ACTIVITY:
+    if not self._visible or HALT_ACTIVITY:
       return
 
     height = self.get_height() if self.get_height() != -1 else None
     width = self.get_width() if self.get_width() != -1 else None
 
-    nyx.curses.draw(self.draw, top = self.top, width = width, height = height)
+    nyx.curses.draw(self.draw, top = self._top, width = width, height = height)
 
 
 class DaemonPanel(Panel, threading.Thread):
