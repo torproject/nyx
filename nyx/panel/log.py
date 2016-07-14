@@ -66,7 +66,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   """
 
   def __init__(self):
-    nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
+    nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
     logged_events = CONFIG['startup.events'].split(',')
     tor_events = tor_controller().get_info('events/names', '').split()

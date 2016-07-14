@@ -10,7 +10,11 @@ import functools
 import nyx.controller
 import nyx.curses
 import nyx.popups
+import nyx.panel.config
+import nyx.panel.connection
 import nyx.panel.graph
+import nyx.panel.log
+import nyx.panel.torrc
 import nyx.controller
 import nyx.tracker
 
@@ -38,15 +42,15 @@ def make_menu():
   control = nyx.controller.get_controller()
 
   for page_panel in control.get_display_panels():
-    if page_panel.get_name() == 'graph':
+    if isinstance(page_panel, nyx.panel.graph.GraphPanel):
       base_menu.add(make_graph_menu(page_panel))
-    elif page_panel.get_name() == 'log':
+    elif isinstance(page_panel, nyx.panel.log.LogPanel):
       base_menu.add(make_log_menu(page_panel))
-    elif page_panel.get_name() == 'connections':
+    elif isinstance(page_panel, nyx.panel.connection.ConnectionPanel):
       base_menu.add(make_connections_menu(page_panel))
-    elif page_panel.get_name() == 'configuration':
+    elif isinstance(page_panel, nyx.panel.config.ConfigPanel):
       base_menu.add(make_configuration_menu(page_panel))
-    elif page_panel.get_name() == 'torrc':
+    elif isinstance(page_panel, nyx.panel.torrc.TorrcPanel):
       base_menu.add(make_torrc_menu(page_panel))
 
   base_menu.add(make_help_menu())
@@ -100,7 +104,7 @@ def make_view_menu():
 
     for i in range(control.get_page_count()):
       page_panels = control.get_display_panels(page_number = i)
-      label = ' / '.join([str_tools._to_camel_case(panel.get_name()) for panel in page_panels])
+      label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
 
       view_menu.add(SelectionMenuItem(label, page_group, i))
 

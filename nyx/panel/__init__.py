@@ -77,12 +77,11 @@ class Panel(object):
   redraw().
   """
 
-  def __init__(self, name):
+  def __init__(self):
     """
     Creates a durable wrapper for a curses subwindow in the given parent.
 
     Arguments:
-      name   - identifier for the panel
       top    - positioning of top within parent
       left   - positioning of the left edge within the parent
       height - maximum height of panel (uses all available space if -1)
@@ -93,7 +92,6 @@ class Panel(object):
     # implementations aren't entirely deterministic (for instance panels
     # might chose their height based on its parent's current width).
 
-    self.panel_name = name
     self.visible = False
 
     self.paused = False
@@ -105,13 +103,6 @@ class Panel(object):
     self.width = -1
 
     self.max_y, self.max_x = -1, -1  # subwindow dimensions when last redrawn
-
-  def get_name(self):
-    """
-    Provides panel's identifier.
-    """
-
-    return self.panel_name
 
   def set_visible(self, is_visible):
     """
@@ -243,8 +234,8 @@ class Panel(object):
 
 
 class DaemonPanel(Panel, threading.Thread):
-  def __init__(self, name, update_rate):
-    Panel.__init__(self, name)
+  def __init__(self, update_rate):
+    Panel.__init__(self)
     threading.Thread.__init__(self)
     self.setDaemon(True)
 

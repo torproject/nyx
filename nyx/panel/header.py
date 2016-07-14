@@ -44,7 +44,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
   """
 
   def __init__(self):
-    nyx.panel.DaemonPanel.__init__(self, 'header', UPDATE_RATE)
+    nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
     self._vals = Sampling.create()
 
     self._last_width = nyx.curses.screen_size().width
