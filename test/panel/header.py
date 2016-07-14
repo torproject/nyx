@@ -73,6 +73,7 @@ class TestHeaderPanel(unittest.TestCase):
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.panel.header.Sampling.create')
   def test_rendering_panel(self, sampling_mock, tor_controller_mock, nyx_controller_mock):
+    nyx_controller_mock().is_paused.return_value = False
     nyx_controller_mock().get_page.return_value = 1
     nyx_controller_mock().get_page_count.return_value = 4
     sampling_mock.return_value = test_sampling()

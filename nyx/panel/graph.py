@@ -481,8 +481,9 @@ class GraphPanel(nyx.panel.Panel):
     if not self.displayed_stat:
       return 0
 
+    nyx_controller = nyx.controller.get_controller()
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
-    accounting_stats = self._accounting_stats if self.is_paused() else self._accounting_stats_paused
+    accounting_stats = self._accounting_stats if nyx_controller.is_paused() else self._accounting_stats_paused
 
     if self.displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
@@ -556,13 +557,13 @@ class GraphPanel(nyx.panel.Panel):
       self._accounting_stats_paused = copy.copy(self._accounting_stats)
       self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
-    nyx.panel.Panel.set_paused(self, is_pause)
-
   def draw(self, subwindow):
     if not self.displayed_stat:
       return
 
-    if not self.is_paused():
+    nyx_controller = nyx.controller.get_controller()
+
+    if not nyx_controller.is_paused():
       stat = self._stats[self.displayed_stat]
       accounting_stats = self._accounting_stats
     else:
@@ -586,10 +587,11 @@ class GraphPanel(nyx.panel.Panel):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
     elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
+      nyx_controller = nyx.controller.get_controller()
       old_accounting_stats = self._accounting_stats
       self._accounting_stats = tor_controller().get_accounting_stats(None)
 
-      if not self.is_paused():
+      if not nyx_controller.is_paused():
         # if we either added or removed accounting info then redraw the whole
         # screen to account for resizing
 

@@ -72,9 +72,6 @@ class Panel(object):
   def __init__(self):
     self._visible = False
 
-    self._paused = False
-    self._pause_time = -1
-
     self._top = 0
     self._left = 0
     self._height = -1
@@ -89,40 +86,6 @@ class Panel(object):
     """
 
     self._visible = is_visible
-
-  def is_paused(self):
-    """
-    Provides if the panel's configured to be paused or not.
-    """
-
-    return self._paused
-
-  def set_paused(self, is_pause):
-    """
-    Toggles if the panel is paused or not. This causes the panel to be redrawn
-    when toggling is pause state unless told to do otherwise. This is
-    important when pausing since otherwise the panel's display could change
-    when redrawn for other reasons.
-
-    Arguments:
-      is_pause        - freezes the state of the pause attributes if true, makes
-                        them editable otherwise
-    """
-
-    if is_pause != self._paused:
-      if is_pause:
-        self._pause_time = time.time()
-
-      self._paused = is_pause
-      self.redraw()
-
-  def get_pause_time(self):
-    """
-    Provides the time that we were last paused, returning -1 if we've never
-    been paused.
-    """
-
-    return self._pause_time
 
   def get_top(self):
     """
@@ -234,10 +197,13 @@ class DaemonPanel(Panel, threading.Thread):
     Performs our _update() action at the given rate.
     """
 
+    import nyx.controller
+
     last_ran = -1
+    nyx_controller = nyx.controller.get_controller()
 
     while not self._halt:
-      if self.is_paused() or (time.time() - last_ran) < self._update_rate:
+      if nyx_controller.is_paused() or (time.time() - last_ran) < self._update_rate:
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(0.2)

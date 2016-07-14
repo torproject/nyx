@@ -148,9 +148,10 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     # space available for content
 
+    nyx_controller = nyx.controller.get_controller()
     left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
-    pause_time = self.get_pause_time() if self.is_paused() else None
+    pause_time = nyx_controller.get_pause_time() if nyx_controller.is_paused() else None
 
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
@@ -175,7 +176,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
         _draw_flags(subwindow, 0, 4, vals.flags)
 
-    _draw_status(subwindow, 0, self.get_height() - 1, self.is_paused(), self._message, *self._message_attr)
+    _draw_status(subwindow, 0, self.get_height() - 1, nyx_controller.is_paused(), self._message, *self._message_attr)
 
   def reset_listener(self, controller, event_type, _):
     self._update()

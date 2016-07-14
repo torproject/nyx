@@ -250,17 +250,16 @@ class LogPanel(nyx.panel.DaemonPanel):
     if is_pause:
       self._event_log_paused = self._event_log.clone()
 
-    nyx.panel.Panel.set_paused(self, is_pause)
-
   def draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
+    nyx_controller = nyx.controller.get_controller()
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
-    event_log = self._event_log_paused if self.is_paused() else self._event_log
+    event_log = self._event_log_paused if nyx_controller.is_paused() else self._event_log
     event_log = filter(lambda entry: event_filter.match(entry.display_message), event_log)
     event_log = filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log)
 
