@@ -149,6 +149,8 @@ SPECIAL_KEYS = {
 
 Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
 
+HISTORY_DICT = {'selection_index': -1, 'custom_input': ''}
+
 
 def conf_handler(key, value):
   if key == 'features.colorOverride':
@@ -245,6 +247,87 @@ def key_input(input_timeout = None):
   return KeyInput(CURSES_SCREEN.getch())
 
 
+def str_input_handle_key(textbox, key):
+  y, x = textbox.win.getyx()
+
+  if key == 27:
+    return curses.ascii.BEL  # user pressed esc
+  elif key == curses.KEY_HOME:
+    textbox.win.move(y, 0)
+  elif key in (curses.KEY_END, curses.KEY_RIGHT):
+    msg_length = len(textbox.gather())
+    textbox.win.move(y, x)  # reverts cursor movement during gather call
+
+    if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
+      textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
+    elif key == curses.KEY_RIGHT and x < msg_length - 1:
+      textbox.win.move(y, x + 1)  # only move cursor if there's content after it
+  elif key == 410:
+    # if we're resizing the display during text entry then cancel it
+    # (otherwise the input field is filled with nonprintable characters)
+
+    return curses.ascii.BEL
+  else:
+    return key
+
+
+def str_input_handle_history_key(textbox, key, backlog):
+  global HISTORY_DICT
+  if key in (curses.KEY_UP, curses.KEY_DOWN):
+    offset = 1 if key == curses.KEY_UP else -1
+    new_selection = HISTORY_DICT['selection_index'] + offset
+
+    new_selection = max(-1, new_selection)
+    new_selection = min(len(backlog) - 1, new_selection)
+
+    if HISTORY_DICT['selection_index'] == new_selection:
+      return None
+
+    if HISTORY_DICT['selection_index'] == -1:
+      HISTORY_DICT['custom_input'] = textbox.gather().strip()
+
+    if new_selection == -1:
+      new_input = HISTORY_DICT['custom_input']
+    else:
+      new_input = backlog[new_selection]
+
+    y, _ = textbox.win.getyx()
+    _, max_x = textbox.win.getmaxyx()
+    textbox.win.clear()
+    textbox.win.addstr(y, 0, new_input[:max_x - 1])
+    textbox.win.move(y, min(len(new_input), max_x - 1))
+
+    HISTORY_DICT['selection_index'] = new_selection
+    return None
+
+  return str_input_handle_key(textbox, key)
+
+
+def str_input_handle_tab_completion(textbox, key, backlog, tab_completion):
+  if key == 9:
+    current_contents = textbox.gather().strip()
+    matches = tab_completion(current_contents)
+    new_input = None
+
+    if len(matches) == 1:
+      new_input = matches[0]
+    elif len(matches) > 1:
+      common_prefix = os.path.commonprefix(matches)
+      if common_prefix != current_contents:
+        new_input = common_prefix
+
+    if new_input:
+      y, _ = textbox.win.getyx()
+      _, max_x = textbox.win.getmaxyx()
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, new_input[:max_x - 1])
+      textbox.win.move(y, min(len(new_input), max_x - 1))
+
+    return None
+
+  return str_input_handle_history_key(textbox, key, backlog)
+
+
 def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
   """
   Provides a text field where the user can input a string, blocking until
@@ -261,85 +344,6 @@ def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
 
   :returns: **str** with the user input or **None** if the prompt is caneled
   """
-
-  def handle_key(textbox, key):
-    y, x = textbox.win.getyx()
-
-    if key == 27:
-      return curses.ascii.BEL  # user pressed esc
-    elif key == curses.KEY_HOME:
-      textbox.win.move(y, 0)
-    elif key in (curses.KEY_END, curses.KEY_RIGHT):
-      msg_length = len(textbox.gather())
-      textbox.win.move(y, x)  # reverts cursor movement during gather call
-
-      if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
-        textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
-      elif key == curses.KEY_RIGHT and x < msg_length - 1:
-        textbox.win.move(y, x + 1)  # only move cursor if there's content after it
-    elif key == 410:
-      # if we're resizing the display during text entry then cancel it
-      # (otherwise the input field is filled with nonprintable characters)
-
-      return curses.ascii.BEL
-    else:
-      return key
-
-  history_dict = {'selection_index': -1, 'custom_input': ''}
-
-  def handle_history_key(textbox, key):
-    if key in (curses.KEY_UP, curses.KEY_DOWN):
-      offset = 1 if key == curses.KEY_UP else -1
-      new_selection = history_dict['selection_index'] + offset
-
-      new_selection = max(-1, new_selection)
-      new_selection = min(len(backlog) - 1, new_selection)
-
-      if history_dict['selection_index'] == new_selection:
-        return None
-
-      if history_dict['selection_index'] == -1:
-        history_dict['custom_input'] = textbox.gather().strip()
-
-      if new_selection == -1:
-        new_input = history_dict['custom_input']
-      else:
-        new_input = backlog[new_selection]
-
-      y, _ = textbox.win.getyx()
-      _, max_x = textbox.win.getmaxyx()
-      textbox.win.clear()
-      textbox.win.addstr(y, 0, new_input[:max_x - 1])
-      textbox.win.move(y, min(len(new_input), max_x - 1))
-
-      history_dict['selection_index'] = new_selection
-      return None
-
-    return handle_key(textbox, key)
-
-  def handle_tab_completion(textbox, key):
-    if key == 9:
-      current_contents = textbox.gather().strip()
-      matches = tab_completion(current_contents)
-      new_input = None
-
-      if len(matches) == 1:
-        new_input = matches[0]
-      elif len(matches) > 1:
-        common_prefix = os.path.commonprefix(matches)
-        if common_prefix != current_contents:
-          new_input = common_prefix
-
-      if new_input:
-        y, _ = textbox.win.getyx()
-        _, max_x = textbox.win.getmaxyx()
-        textbox.win.clear()
-        textbox.win.addstr(y, 0, new_input[:max_x - 1])
-        textbox.win.move(y, min(len(new_input), max_x - 1))
-
-      return None
-
-    return handle_history_key(textbox, key)
 
   with CURSES_LOCK:
     if HALT_ACTIVITY:
@@ -358,11 +362,11 @@ def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
 
     textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
     if tab_completion is not None:
-      user_input = textbox.edit(lambda key: handle_tab_completion(textbox, key)).strip()
+      user_input = textbox.edit(lambda key: str_input_handle_tab_completion(textbox, key, backlog, tab_completion)).strip()
     elif backlog is not None:
-      user_input = textbox.edit(lambda key: handle_history_key(textbox, key)).strip()
+      user_input = textbox.edit(lambda key: str_input_handle_history_key(textbox, key, backlog)).strip()
     else:
-      user_input = textbox.edit(lambda key: handle_key(textbox, key)).strip()
+      user_input = textbox.edit(lambda key: str_input_handle_key(textbox, key)).strip()
 
     try:
       curses.curs_set(0)  # hide cursor
