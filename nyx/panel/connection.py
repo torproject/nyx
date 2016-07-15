@@ -135,13 +135,9 @@ class Entry(object):
     if attr == SortAttr.IP_ADDRESS:
       if self.is_private():
         return 255 ** 4  # orders at the end
-
-      ip_value = 0
-
-      for octet in line.connection.remote_address.split('.'):
-        ip_value = ip_value * 255 + int(octet)
-
-      return ip_value * 65536 + line.connection.remote_port
+      else:
+        address_int = connection.address_to_int(line.connection.remote_address)
+        return address_int * 65536 + line.connection.remote_port
     elif attr == SortAttr.PORT:
       return line.connection.remote_port
     elif attr == SortAttr.FINGERPRINT:
