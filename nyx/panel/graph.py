@@ -557,7 +557,7 @@ class GraphPanel(nyx.panel.Panel):
       self._accounting_stats_paused = copy.copy(self._accounting_stats)
       self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     if not self.displayed_stat:
       return
 

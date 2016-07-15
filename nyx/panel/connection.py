@@ -400,7 +400,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     return tuple(options)
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     controller = tor_controller()
     nyx_controller = nyx.controller.get_controller()
     entries = self._entries

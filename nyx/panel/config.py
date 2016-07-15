@@ -240,7 +240,7 @@ class ConfigPanel(nyx.panel.Panel):
       nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     contents = self._get_config_options()
     selected, scroll = self._scroller.selection(contents, subwindow.height - DETAILS_HEIGHT)
     is_scrollbar_visible = len(contents) > subwindow.height - DETAILS_HEIGHT

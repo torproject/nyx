@@ -250,7 +250,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     if is_pause:
       self._event_log_paused = self._event_log.clone()
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
     nyx_controller = nyx.controller.get_controller()

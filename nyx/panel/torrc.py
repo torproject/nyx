@@ -108,7 +108,7 @@ class TorrcPanel(panel.Panel):
       nyx.panel.KeyHandler('l', 'line numbering', _toggle_line_numbers, 'on' if self._show_line_numbers else 'off'),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height - 1, subwindow.height - 1)
 
     if self._torrc_content is None:

@@ -79,7 +79,7 @@ class TestHeaderPanel(unittest.TestCase):
     sampling_mock.return_value = test_sampling()
 
     panel = nyx.panel.header.HeaderPanel()
-    self.assertEqual(EXPECTED_PANEL, test.render(panel.draw).content)
+    self.assertEqual(EXPECTED_PANEL, test.render(panel._draw).content)
 
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.tracker.get_resource_tracker')

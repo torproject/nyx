@@ -3,6 +3,27 @@
 
 """
 Panels consisting the nyx interface.
+
+**Module Overview:**
+
+::
+
+  KeyHandler - keyboard input a panel accepts
+    +- handle - triggers the keyboard action
+
+  Panel - panel within the interface
+    |- DaemonPanel - panel that triggers actions at a set rate
+    |  |- run - starts triggering daemon actions
+    |  +- stop - stops triggering daemon actions
+    |
+    |- get_top - top position we're rendered into on the screen
+    |- set_top - sets top position within the screen
+    |- get_height - height occupied by the panel
+    |
+    |- set_visible - toggles panel visiblity
+    |- key_handlers - keyboard input accepted by the panel
+    |- get_preferred_size - dimensions when rendered
+    +- redraw - renders the panel content
 """
 
 import collections
@@ -63,56 +84,64 @@ class KeyHandler(collections.namedtuple('Help', ['key', 'description', 'current'
 
 class Panel(object):
   """
-  Common parent for interface panels, providing the ability to pause and
-  configure dimensions.
+  Panel within the nyx interface.
   """
 
   def __init__(self):
-    self._visible = False
     self._top = 0
-
-  def set_visible(self, is_visible):
-    """
-    Toggles if the panel is visible or not.
-
-    Arguments:
-      is_visible - panel is redrawn when requested if true, skipped otherwise
-    """
-
-    self._visible = is_visible
+    self._visible = False
 
   def get_top(self):
     """
-    Provides the top position used for subwindows.
+    Provides our top position in the overall screen.
+
+    :returns: **int** with the top coordinate
     """
 
     return self._top
 
   def set_top(self, top):
     """
-    Changes the position where subwindows are placed within its parent.
+    Changes the position where we're rendered in the screen.
 
-    Arguments:
-      top - positioning of top within parent
+    :param int top: top position within the sceen
     """
 
-    if self._top != top:
-      self._top = top
+    self._top = top
 
   def get_height(self):
     """
-    Provides the height used by this panel.
+    Provides the height occupied by this panel.
 
     :returns: **int** for the height of the panel or **None** if unlimited
     """
 
     return None
 
+  def set_visible(self, is_visible):
+    """
+    Toggles if the panel is visible or not.
+
+    :param bool is_visible: shows panel if **True**, hides otherwise
+    """
+
+    self._visible = is_visible
+
+  def key_handlers(self):
+    """
+    Provides keyboard input this panel supports.
+
+    :returns: **tuple** of :class:`~nyx.panel.KeyHandler` instances
+    """
+
+    return ()
+
   def get_preferred_size(self):
     """
-    Provides the dimensions the subwindow would use when next redrawn, given
-    that none of the properties of the panel or parent change before then. This
-    returns a tuple of (height, width).
+    Provides the dimensions the subwindow would use when next redrawn if none
+    of its properties change.
+
+    :returns: **tuple** of the form **(height, width)**
     """
 
     with nyx.curses.raw_screen() as stdscr:
@@ -128,40 +157,25 @@ class Panel(object):
 
     return (new_height, new_width)
 
-  def key_handlers(self):
-    """
-    Provides options this panel supports. This is a tuple of
-    :class:`~nyx.panel.KeyHandler` instances.
-    """
-
-    return ()
-
-  def draw(self, subwindow):
-    """
-    Draws display's content. This is meant to be overwritten by
-    implementations and not called directly (use redraw() instead). The
-    dimensions provided are the drawable dimensions, which in terms of width is
-    a column less than the actual space.
-
-    Arguments:
-      subwindow - window content is drawn into
-    """
-
-    pass
-
   def redraw(self):
     """
-    Clears display and redraws its content. This can skip redrawing content if
-    able (ie, the subwindow's unchanged), instead just refreshing the display.
+    Renders our panel's content to the screen.
     """
 
     if not self._visible:
       return  # not currently visible
 
-    nyx.curses.draw(self.draw, top = self._top, height = self.get_height())
+    nyx.curses.draw(self._draw, top = self._top, height = self.get_height())
+
+  def _draw(self, subwindow):
+    pass
 
 
 class DaemonPanel(Panel, threading.Thread):
+  """
+  Panel that triggers its _update() method at a set rate.
+  """
+
   def __init__(self, update_rate):
     Panel.__init__(self)
     threading.Thread.__init__(self)

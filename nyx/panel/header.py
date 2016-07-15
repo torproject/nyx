@@ -141,7 +141,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       nyx.panel.KeyHandler('r', action = _reconnect),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     vals = self._vals  # local reference to avoid concurrency concerns
     self._last_width = subwindow.width
     is_wide = self.is_wide()
