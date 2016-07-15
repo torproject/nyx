@@ -71,11 +71,7 @@ class Panel(object):
 
   def __init__(self):
     self._visible = False
-
     self._top = 0
-    self._left = 0
-    self._height = -1
-    self._width = -1
 
   def set_visible(self, is_visible):
     """
@@ -107,17 +103,12 @@ class Panel(object):
 
   def get_height(self):
     """
-    Provides the height used for subwindows (-1 if it isn't limited).
+    Provides the height used by this panel.
+
+    :returns: **int** for the height of the panel or **None** if unlimited
     """
 
-    return self._height
-
-  def get_width(self):
-    """
-    Provides the width used for subwindows (-1 if it isn't limited).
-    """
-
-    return self._width
+    return None
 
   def get_preferred_size(self):
     """
@@ -129,15 +120,13 @@ class Panel(object):
     with nyx.curses.raw_screen() as stdscr:
       new_height, new_width = stdscr.getmaxyx()
 
-    set_height, set_width = self.get_height(), self.get_width()
     new_height = max(0, new_height - self._top)
-    new_width = max(0, new_width - self._left)
+    new_width = max(0, new_width)
 
-    if set_height != -1:
+    set_height = self.get_height()
+
+    if set_height is not None:
       new_height = min(new_height, set_height)
-
-    if set_width != -1:
-      new_width = min(new_width, set_width)
 
     return (new_height, new_width)
 
@@ -173,10 +162,7 @@ class Panel(object):
     if not self._visible or HALT_ACTIVITY:
       return
 
-    height = self.get_height() if self.get_height() != -1 else None
-    width = self.get_width() if self.get_width() != -1 else None
-
-    nyx.curses.draw(self.draw, top = self._top, width = width, height = height)
+    nyx.curses.draw(self.draw, top = self._top, height = self.get_height())
 
 
 class DaemonPanel(Panel, threading.Thread):

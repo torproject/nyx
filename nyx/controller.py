@@ -278,7 +278,10 @@ class Controller(object):
 
     for panel_impl in display_panels:
       panel_impl.set_top(occupied_content)
-      occupied_content += panel_impl.get_height()
+      height = panel_impl.get_height()
+
+      if height:
+        occupied_content += height
 
     # apparently curses may cache display contents unless we explicitely
     # request a redraw here...
