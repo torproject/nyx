@@ -21,8 +21,6 @@ __all__ = [
   'torrc',
 ]
 
-HALT_ACTIVITY = False  # prevents curses redraws if set
-
 
 class KeyHandler(collections.namedtuple('Help', ['key', 'description', 'current'])):
   """
@@ -157,10 +155,8 @@ class Panel(object):
     able (ie, the subwindow's unchanged), instead just refreshing the display.
     """
 
-    # skipped if not currently visible or activity has been halted
-
-    if not self._visible or HALT_ACTIVITY:
-      return
+    if not self._visible:
+      return  # not currently visible
 
     nyx.curses.draw(self.draw, top = self._top, height = self.get_height())
 
