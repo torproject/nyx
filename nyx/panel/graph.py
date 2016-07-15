@@ -478,6 +478,8 @@ class GraphPanel(nyx.panel.Panel):
     Provides the height of the content.
     """
 
+    max_height = nyx.panel.Panel.get_height(self)
+
     if not self.displayed_stat:
       return 0
 
@@ -488,7 +490,7 @@ class GraphPanel(nyx.panel.Panel):
     if self.displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
 
-    return height
+    return min(max_height, height)
 
   def set_graph_height(self, new_graph_height):
     self._graph_height = max(1, new_graph_height)

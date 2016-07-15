@@ -22,7 +22,6 @@ Panels consisting the nyx interface.
     |
     |- set_visible - toggles panel visiblity
     |- key_handlers - keyboard input accepted by the panel
-    |- get_preferred_size - dimensions when rendered
     +- redraw - renders the panel content
 """
 
@@ -113,10 +112,10 @@ class Panel(object):
     """
     Provides the height occupied by this panel.
 
-    :returns: **int** for the height of the panel or **None** if unlimited
+    :returns: **int** for the height of the panel
     """
 
-    return None
+    return max(0, nyx.curses.screen_size().height - self._top)
 
   def set_visible(self, is_visible):
     """
@@ -135,27 +134,6 @@ class Panel(object):
     """
 
     return ()
-
-  def get_preferred_size(self):
-    """
-    Provides the dimensions the subwindow would use when next redrawn if none
-    of its properties change.
-
-    :returns: **tuple** of the form **(height, width)**
-    """
-
-    with nyx.curses.raw_screen() as stdscr:
-      new_height, new_width = stdscr.getmaxyx()
-
-    new_height = max(0, new_height - self._top)
-    new_width = max(0, new_width)
-
-    set_height = self.get_height()
-
-    if set_height is not None:
-      new_height = min(new_height, set_height)
-
-    return (new_height, new_width)
 
   def redraw(self):
     """

@@ -90,7 +90,7 @@ class TorrcPanel(panel.Panel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:

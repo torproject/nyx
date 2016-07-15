@@ -200,7 +200,7 @@ class ConfigPanel(nyx.panel.Panel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT
+      page_height = self.get_height() - DETAILS_HEIGHT
       is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
       if is_changed:

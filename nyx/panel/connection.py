@@ -314,7 +314,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
 
       if self._show_details:
         page_height -= (DETAILS_HEIGHT + 1)

@@ -90,10 +90,12 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     panel's maximum width.
     """
 
+    max_height = nyx.panel.DaemonPanel.get_height(self)
+
     if self._vals.is_relay:
-      return 5 if self.is_wide() else 7
+      return min(max_height, 5 if self.is_wide() else 7)
     else:
-      return 4 if self.is_wide() else 5
+      return min(max_height, 4 if self.is_wide() else 5)
 
   def send_newnym(self):
     """
