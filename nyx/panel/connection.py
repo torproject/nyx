@@ -11,6 +11,7 @@ import collections
 import curses
 import itertools
 
+import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
@@ -262,7 +263,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
   """
 
   def __init__(self):
-    nyx.panel.DaemonPanel.__init__(self, 'connections', UPDATE_RATE)
+    nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
     self._scroller = nyx.curses.CursorScroller()
     self._entries = []            # last fetched display entries
@@ -313,7 +314,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
 
       if self._show_details:
         page_height -= (DETAILS_HEIGHT + 1)
@@ -322,11 +323,11 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       is_changed = self._scroller.handle_key(key, lines, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _show_details():
       self._show_details = not self._show_details
-      self.redraw(True)
+      self.redraw()
 
     def _show_descriptor():
       entries = self._entries
@@ -351,7 +352,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
         elif key.match('right'):
           _scroll(nyx.curses.KeyInput(curses.KEY_DOWN))
 
-      self.redraw(True)
+      self.redraw()
 
     def _pick_connection_resolver():
       connection_tracker = nyx.tracker.get_connection_tracker()
@@ -361,7 +362,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       selected = nyx.popups.select_from_list('Connection Resolver:', options, resolver if resolver else 'auto')
       connection_tracker.set_custom_resolver(None if selected == 'auto' else selected)
 
-      self.redraw(True)
+      self.redraw()
 
     def _show_client_locales():
       nyx.popups.show_counts('Client Locales', self._client_locale_usage)
@@ -399,8 +400,9 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     return tuple(options)
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     controller = tor_controller()
+    nyx_controller = nyx.controller.get_controller()
     entries = self._entries
 
     lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
@@ -408,8 +410,8 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
     selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
-    if self.is_paused():
-      current_time = self.get_pause_time()
+    if nyx_controller.is_paused():
+      current_time = nyx_controller.get_pause_time()
     elif not controller.is_alive():
       current_time = controller.connection_time()
     else:

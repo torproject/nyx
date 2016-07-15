@@ -18,6 +18,7 @@ if we want Windows support in the future too.
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
+  halt - prevents further curses rendering during shutdown
 
   is_color_supported - checks if terminal supports color output
   get_color_override - provides color we override requests with
@@ -99,6 +100,7 @@ from nyx import msg, log
 
 CURSES_SCREEN = None
 CURSES_LOCK = threading.RLock()
+HALT_ACTIVITY = False
 
 # Text colors and attributes. These are *very* commonly used so including
 # shorter aliases (so they can be referenced as just GREEN or BOLD).
@@ -283,6 +285,9 @@ def str_input(x, y, initial_text = ''):
       return key
 
   with CURSES_LOCK:
+    if HALT_ACTIVITY:
+      return None
+
     try:
       curses.curs_set(1)  # show cursor
     except curses.error:
@@ -352,6 +357,17 @@ def screenshot():
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
   return '\n'.join(lines).rstrip()
+
+
+def halt():
+  """
+  Prevents further rendering of curses content while python's shutting down.
+  """
+
+  global HALT_ACTIVITY
+
+  with CURSES_LOCK:
+    HALT_ACTIVITY = True
 
 
 def is_color_supported():
@@ -497,6 +513,9 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
   """
 
   with CURSES_LOCK:
+    if HALT_ACTIVITY:
+      return
+
     dimensions = screen_size()
     subwindow_width = max(0, dimensions.width - left)
     subwindow_height = max(0, dimensions.height - top)

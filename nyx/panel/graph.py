@@ -409,7 +409,7 @@ class GraphPanel(nyx.panel.Panel):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'graph')
+    nyx.panel.Panel.__init__(self)
 
     self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
     self._update_interval = CONFIG['features.graph.interval']
@@ -435,7 +435,7 @@ class GraphPanel(nyx.panel.Panel):
     controller = tor_controller()
     controller.add_event_listener(self._update_accounting, EventType.BW)
     controller.add_event_listener(self._update_stats, EventType.BW)
-    controller.add_status_listener(lambda *args: self.redraw(True))
+    controller.add_status_listener(lambda *args: self.redraw())
 
   @property
   def displayed_stat(self):
@@ -478,16 +478,19 @@ class GraphPanel(nyx.panel.Panel):
     Provides the height of the content.
     """
 
+    max_height = nyx.panel.Panel.get_height(self)
+
     if not self.displayed_stat:
       return 0
 
+    nyx_controller = nyx.controller.get_controller()
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
-    accounting_stats = self._accounting_stats if self.is_paused() else self._accounting_stats_paused
+    accounting_stats = self._accounting_stats if nyx_controller.is_paused() else self._accounting_stats_paused
 
     if self.displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
 
-    return height
+    return min(max_height, height)
 
   def set_graph_height(self, new_graph_height):
     self._graph_height = max(1, new_graph_height)
@@ -512,7 +515,7 @@ class GraphPanel(nyx.panel.Panel):
             # (plus an extra line for the graph/log gap)
 
             with nyx.curses.raw_screen() as stdscr:
-              max_height = stdscr.getmaxyx()[0] - self.top
+              max_height = stdscr.getmaxyx()[0] - self.get_top()
 
             current_height = self.get_height()
 
@@ -538,11 +541,11 @@ class GraphPanel(nyx.panel.Panel):
 
     def _next_bounds():
       self.bounds_type = Bounds.next(self.bounds_type)
-      self.redraw(True)
+      self.redraw()
 
     def _pick_interval():
       self.update_interval = nyx.popups.select_from_list('Update Interval:', list(Interval), self.update_interval)
-      self.redraw(True)
+      self.redraw()
 
     return (
       nyx.panel.KeyHandler('g', 'resize graph', self.resize_graph),
@@ -556,13 +559,13 @@ class GraphPanel(nyx.panel.Panel):
       self._accounting_stats_paused = copy.copy(self._accounting_stats)
       self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
-    nyx.panel.Panel.set_paused(self, is_pause)
-
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     if not self.displayed_stat:
       return
 
-    if not self.is_paused():
+    nyx_controller = nyx.controller.get_controller()
+
+    if not nyx_controller.is_paused():
       stat = self._stats[self.displayed_stat]
       accounting_stats = self._accounting_stats
     else:
@@ -586,10 +589,11 @@ class GraphPanel(nyx.panel.Panel):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
     elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
+      nyx_controller = nyx.controller.get_controller()
       old_accounting_stats = self._accounting_stats
       self._accounting_stats = tor_controller().get_accounting_stats(None)
 
-      if not self.is_paused():
+      if not nyx_controller.is_paused():
         # if we either added or removed accounting info then redraw the whole
         # screen to account for resizing
 
@@ -605,7 +609,7 @@ class GraphPanel(nyx.panel.Panel):
       update_rate = INTERVAL_SECONDS[self.update_interval]
 
       if param.primary.tick % update_rate == 0:
-        self.redraw(True)
+        self.redraw()
 
 
 def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):

@@ -120,7 +120,8 @@ class Controller(object):
 
     self.quit_signal = False
     self._page = 0
-    self._is_paused = False
+    self._paused = False
+    self._pause_time = -1
     self._force_redraw = False
     self._last_drawn = 0
 
@@ -153,7 +154,7 @@ class Controller(object):
     if page_number != self._page:
       self._page = page_number
       self._force_redraw = True
-      self.header_panel().redraw(True)
+      self.header_panel().redraw()
 
   def next_page(self):
     """
@@ -171,23 +172,46 @@ class Controller(object):
 
   def is_paused(self):
     """
-    True if the interface is paused, false otherwise.
+    Provides if the interface is configured to be paused or not.
+
+    :returns: **True** if the interface is paused and **False** otherwise
     """
 
-    return self._is_paused
+    return self._paused
 
   def set_paused(self, is_pause):
     """
-    Sets the interface to be paused or unpaused.
+    Pauses or unpauses the interface.
+
+    :param bool is_pause: suspends the interface if **True**, resumes it
+      otherwise
     """
 
-    if is_pause != self._is_paused:
-      self._is_paused = is_pause
-      self._force_redraw = True
-      self.header_panel().redraw(True)
+    if is_pause != self._paused:
+      if is_pause:
+        self._pause_time = time.time()
+
+      # Couple panels have their own pausing behavior. I'll later change this to
+      # a listener approach or someting else that's less hacky.
 
       for panel_impl in self.get_all_panels():
-        panel_impl.set_paused(is_pause)
+        if isinstance(panel_impl, nyx.panel.graph.GraphPanel) or isinstance(panel_impl, nyx.panel.log.LogPanel):
+          panel_impl.set_paused(is_pause)
+
+      self._paused = is_pause
+
+      for panel_impl in self.get_display_panels():
+        panel_impl.redraw()
+
+  def get_pause_time(self):
+    """
+    Provides the time that we were last paused, returning -1 if we've never
+    been paused.
+
+    :returns: **float** with the unix timestamp for when we were last paused
+    """
+
+    return self._pause_time
 
   def header_panel(self):
     return self._header_panel
@@ -254,7 +278,10 @@ class Controller(object):
 
     for panel_impl in display_panels:
       panel_impl.set_top(occupied_content)
-      occupied_content += panel_impl.get_height()
+      height = panel_impl.get_height()
+
+      if height:
+        occupied_content += height
 
     # apparently curses may cache display contents unless we explicitely
     # request a redraw here...
@@ -265,7 +292,7 @@ class Controller(object):
         stdscr.clear()
 
     for panel_impl in display_panels:
-      panel_impl.redraw(force)
+      panel_impl.redraw()
 
     if force:
       self._last_drawn = current_time

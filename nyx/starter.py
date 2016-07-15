@@ -18,7 +18,6 @@ import nyx
 import nyx.arguments
 import nyx.controller
 import nyx.curses
-import nyx.panel
 import nyx.tracker
 
 import stem
@@ -95,7 +94,7 @@ def main(config):
   except KeyboardInterrupt:
     pass  # skip printing a stack trace
   finally:
-    nyx.panel.HALT_ACTIVITY = True
+    nyx.curses.halt()
     _shutdown_daemons(controller)
 
 

@@ -35,7 +35,7 @@ class TorrcPanel(panel.Panel):
   """
 
   def __init__(self):
-    panel.Panel.__init__(self, 'torrc')
+    panel.Panel.__init__(self)
 
     self._scroller = nyx.curses.Scroller()
     self._show_line_numbers = True  # shows left aligned line numbers
@@ -76,7 +76,7 @@ class TorrcPanel(panel.Panel):
     """
 
     self._show_comments = is_visible
-    self.redraw(True)
+    self.redraw()
 
   def set_line_number_visible(self, is_visible):
     """
@@ -86,15 +86,15 @@ class TorrcPanel(panel.Panel):
     """
 
     self._show_line_numbers = is_visible
-    self.redraw(True)
+    self.redraw()
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _toggle_comment_stripping():
       self.set_comments_visible(not self._show_comments)
@@ -108,7 +108,7 @@ class TorrcPanel(panel.Panel):
       nyx.panel.KeyHandler('l', 'line numbering', _toggle_line_numbers, 'on' if self._show_line_numbers else 'off'),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height - 1, subwindow.height - 1)
 
     if self._torrc_content is None:
@@ -175,4 +175,4 @@ class TorrcPanel(panel.Panel):
 
     if self._last_content_height != new_content_height:
       self._last_content_height = new_content_height
-      self.draw(subwindow)
+      self.redraw()

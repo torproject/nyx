@@ -66,7 +66,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   """
 
   def __init__(self):
-    nyx.panel.DaemonPanel.__init__(self, 'log', UPDATE_RATE)
+    nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
     logged_events = CONFIG['startup.events'].split(',')
     tor_events = tor_controller().get_info('events/names', '').split()
@@ -148,7 +148,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if event_types and event_types != self._event_types:
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
-      self.redraw(True)
+      self.redraw()
 
   def show_snapshot_prompt(self):
     """
@@ -170,7 +170,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     """
 
     self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
-    self.redraw(True)
+    self.redraw()
 
   def save_snapshot(self, path):
     """
@@ -207,11 +207,11 @@ class LogPanel(nyx.panel.DaemonPanel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _pick_filter():
       with nyx.curses.CURSES_LOCK:
@@ -228,7 +228,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     def _toggle_deduplication():
       self.set_duplicate_visability(not self._show_duplicates)
-      self.redraw(True)
+      self.redraw()
 
     def _clear_log():
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
@@ -250,17 +250,16 @@ class LogPanel(nyx.panel.DaemonPanel):
     if is_pause:
       self._event_log_paused = self._event_log.clone()
 
-    nyx.panel.Panel.set_paused(self, is_pause)
-
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
+    nyx_controller = nyx.controller.get_controller()
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
-    event_log = self._event_log_paused if self.is_paused() else self._event_log
+    event_log = self._event_log_paused if nyx_controller.is_paused() else self._event_log
     event_log = filter(lambda entry: event_filter.match(entry.display_message), event_log)
     event_log = filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log)
 
@@ -300,7 +299,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if force_redraw:
       log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
-      self.redraw(True)
+      self.redraw()
 
   def _update(self):
     """
@@ -313,7 +312,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     if self._has_new_event or self._last_day != current_day:
       self._last_day = current_day
-      self.redraw(True)
+      self.redraw()
 
   def _register_tor_event(self, event):
     msg = ' '.join(str(event).split(' ')[1:])

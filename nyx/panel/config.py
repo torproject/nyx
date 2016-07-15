@@ -122,7 +122,7 @@ class ConfigPanel(nyx.panel.Panel):
   """
 
   def __init__(self):
-    nyx.panel.Panel.__init__(self, 'configuration')
+    nyx.panel.Panel.__init__(self)
 
     self._contents = []
     self._scroller = nyx.curses.CursorScroller()
@@ -196,15 +196,15 @@ class ConfigPanel(nyx.panel.Panel):
       except IOError as exc:
         nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
 
-    self.redraw(True)
+    self.redraw()
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - DETAILS_HEIGHT
+      page_height = self.get_height() - DETAILS_HEIGHT
       is_changed = self._scroller.handle_key(key, self._get_config_options(), page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _edit_selected_value():
       selected = self._scroller.selection(self._get_config_options())
@@ -224,13 +224,13 @@ class ConfigPanel(nyx.panel.Panel):
             new_value = new_value.split(',')  # set_conf accepts list inputs
 
           tor_controller().set_conf(selected.name, new_value)
-          self.redraw(True)
+          self.redraw()
         except Exception as exc:
           nyx.controller.show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
 
     def _toggle_show_all():
       self._show_all = not self._show_all
-      self.redraw(True)
+      self.redraw()
 
     return (
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
@@ -240,7 +240,7 @@ class ConfigPanel(nyx.panel.Panel):
       nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     contents = self._get_config_options()
     selected, scroll = self._scroller.selection(contents, subwindow.height - DETAILS_HEIGHT)
     is_scrollbar_visible = len(contents) > subwindow.height - DETAILS_HEIGHT
