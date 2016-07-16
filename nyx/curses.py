@@ -14,6 +14,9 @@ if we want Windows support in the future too.
   start - initializes curses with the given function
   raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
+  str_input_handle_key - helper function to display content in text field
+  str_input_handle_history_key - handle up/down arrow key in text field
+  str_input_handle_tab_completion - handle tab completion in text field
   str_input - text field where user can input a string
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
@@ -248,6 +251,14 @@ def key_input(input_timeout = None):
 
 
 def str_input_handle_key(textbox, key):
+  """
+  Outputs the entered key onto the textbox.
+
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
+
+  :returns: **str** with the user input or **None** if the prompt is canceled
+  """
   y, x = textbox.win.getyx()
 
   if key == 27:
@@ -272,6 +283,17 @@ def str_input_handle_key(textbox, key):
 
 
 def str_input_handle_history_key(textbox, key, backlog):
+  """
+  Handles history validation. When the up/down arrow keys are pressed,
+  the relative previous/next commands are shown.
+
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
+  :param list backlog: backlog of all previous commands entered
+
+  :returns: **None** if up/down arrow key is pressed or calls function
+    to write key to the textbox
+  """
   global HISTORY_DICT
   if key in (curses.KEY_UP, curses.KEY_DOWN):
     offset = 1 if key == curses.KEY_UP else -1
@@ -304,6 +326,20 @@ def str_input_handle_history_key(textbox, key, backlog):
 
 
 def str_input_handle_tab_completion(textbox, key, backlog, tab_completion):
+  """
+  Handles tab completion. If the tab key is pressed, the current textbox
+  contents are checked for probable commands.
+
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
+  :param list backlog: backlog of all previous commands entered
+  :param Autocompleter.matches tab_completion: function to suggest probable
+    commands based on current content
+
+  :returns: **None** when tab key is pressed or calls function to handle
+    history validation
+  """
+
   if key == 9:
     current_contents = textbox.gather().strip()
     matches = tab_completion(current_contents)
@@ -342,7 +378,7 @@ def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
   :param int y: vertical location
   :param str initial_text: initial input of the field
 
-  :returns: **str** with the user input or **None** if the prompt is caneled
+  :returns: **str** with the user input or **None** if the prompt is canceled
   """
 
   with CURSES_LOCK:
