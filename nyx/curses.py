@@ -499,7 +499,7 @@ def is_wide_characters_supported():
   return False
 
 
-def draw(func, left = 0, top = 0, width = None, height = None, background = None):
+def draw(func, left = 0, top = 0, width = None, height = None, background = None, draw_if_resized = None):
   """
   Renders a subwindow. This calls the given draw function with a
   :class:`~nyx.curses._Subwindow`.
@@ -510,6 +510,10 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
   :param int width: panel width, uses all available space if **None**
   :param int height: panel height, uses all available space if **None**
   :param nyx.curses.Color background: background color, unset if **None**
+  :param nyx.curses.Dimension draw_if_resized: only draw content if
+    dimentions have changed from this
+
+  :returns: :class:`~nyx.curses.Dimension` for the space we drew within
   """
 
   with CURSES_LOCK:
@@ -526,6 +530,11 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
     if height:
       subwindow_height = min(height, subwindow_height)
 
+    subwindow_dimensions = Dimensions(subwindow_width, subwindow_height)
+
+    if subwindow_dimensions == draw_if_resized:
+      return subwindow_dimensions  # draw size hasn't changed
+
     curses_subwindow = CURSES_SCREEN.subwin(subwindow_height, subwindow_width, top, left)
     curses_subwindow.erase()
 
@@ -534,6 +543,8 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
 
     func(_Subwindow(subwindow_width, subwindow_height, curses_subwindow))
     curses_subwindow.refresh()
+
+    return subwindow_dimensions
 
 
 class _Subwindow(object):

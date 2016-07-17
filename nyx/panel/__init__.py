@@ -90,6 +90,9 @@ class Panel(object):
     self._top = 0
     self._visible = False
 
+    self._last_draw_top = 0
+    self._last_draw_size = nyx.curses.Dimensions(0, 0)
+
   def get_top(self):
     """
     Provides our top position in the overall screen.
@@ -135,15 +138,24 @@ class Panel(object):
 
     return ()
 
-  def redraw(self):
+  def redraw(self, force = True):
     """
     Renders our panel's content to the screen.
+
+    :param bool force: if **False** only redraws content if the panel's
+      dimensions have changed
     """
 
     if not self._visible:
       return  # not currently visible
 
-    nyx.curses.draw(self._draw, top = self._top, height = self.get_height())
+    if not force and self._last_draw_top == self._top:
+      draw_dimension = self._last_draw_size
+    else:
+      draw_dimension = None  # force redraw
+
+    self._last_draw_top = self._top
+    self._last_draw_size = nyx.curses.draw(self._draw, top = self._top, height = self.get_height(), draw_if_resized = draw_dimension)
 
   def _draw(self, subwindow):
     pass

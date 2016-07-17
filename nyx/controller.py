@@ -292,7 +292,7 @@ class Controller(object):
         stdscr.clear()
 
     for panel_impl in display_panels:
-      panel_impl.redraw()
+      panel_impl.redraw(force = force)
 
     if force:
       self._last_drawn = current_time
