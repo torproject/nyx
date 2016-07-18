@@ -14,9 +14,6 @@ if we want Windows support in the future too.
   start - initializes curses with the given function
   raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
-  str_input_handle_key - helper function to display content in text field
-  str_input_handle_history_key - handle up/down arrow key in text field
-  str_input_handle_tab_completion - handle tab completion in text field
   str_input - text field where user can input a string
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
@@ -250,7 +247,55 @@ def key_input(input_timeout = None):
   return KeyInput(CURSES_SCREEN.getch())
 
 
-def str_input_handle_key(textbox, key):
+def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
+  """
+  Provides a text field where the user can input a string, blocking until
+  they've done so and returning the result. If the user presses escape then
+  this terminates and provides back **None**.
+
+  This blanks any content within the space that the input field is rendered
+  (otherwise stray characters would be interpreted as part of the initial
+  input).
+
+  :param int x: horizontal location
+  :param int y: vertical location
+  :param str initial_text: initial input of the field
+
+  :returns: **str** with the user input or **None** if the prompt is canceled
+  """
+
+  with CURSES_LOCK:
+    if HALT_ACTIVITY:
+      return None
+
+    try:
+      curses.curs_set(1)  # show cursor
+    except curses.error:
+      pass
+
+    width = screen_size().width - x
+
+    curses_subwindow = CURSES_SCREEN.subwin(1, width, y, x)
+    curses_subwindow.erase()
+    curses_subwindow.addstr(0, 0, initial_text[:width - 1])
+
+    textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
+    if tab_completion is not None:
+      user_input = textbox.edit(lambda key: _handle_tab_completion(textbox, key, backlog, tab_completion)).strip()
+    elif backlog is not None:
+      user_input = textbox.edit(lambda key: _handle_history_key(textbox, key, backlog)).strip()
+    else:
+      user_input = textbox.edit(lambda key: _handle_key(textbox, key)).strip()
+
+    try:
+      curses.curs_set(0)  # hide cursor
+    except curses.error:
+      pass
+
+    return None if textbox.lastcmd == curses.ascii.BEL else user_input
+
+
+def _handle_key(textbox, key):
   """
   Outputs the entered key onto the textbox.
 
@@ -259,6 +304,7 @@ def str_input_handle_key(textbox, key):
 
   :returns: **str** with the user input or **None** if the prompt is canceled
   """
+
   y, x = textbox.win.getyx()
 
   if key == 27:
@@ -282,7 +328,7 @@ def str_input_handle_key(textbox, key):
     return key
 
 
-def str_input_handle_history_key(textbox, key, backlog):
+def _handle_history_key(textbox, key, backlog):
   """
   Handles history validation. When the up/down arrow keys are pressed,
   the relative previous/next commands are shown.
@@ -294,7 +340,9 @@ def str_input_handle_history_key(textbox, key, backlog):
   :returns: **None** if up/down arrow key is pressed or calls function
     to write key to the textbox
   """
+
   global HISTORY_DICT
+
   if key in (curses.KEY_UP, curses.KEY_DOWN):
     offset = 1 if key == curses.KEY_UP else -1
     new_selection = HISTORY_DICT['selection_index'] + offset
@@ -322,10 +370,10 @@ def str_input_handle_history_key(textbox, key, backlog):
     HISTORY_DICT['selection_index'] = new_selection
     return None
 
-  return str_input_handle_key(textbox, key)
+  return _handle_key(textbox, key)
 
 
-def str_input_handle_tab_completion(textbox, key, backlog, tab_completion):
+def _handle_tab_completion(textbox, key, backlog, tab_completion):
   """
   Handles tab completion. If the tab key is pressed, the current textbox
   contents are checked for probable commands.
@@ -361,55 +409,7 @@ def str_input_handle_tab_completion(textbox, key, backlog, tab_completion):
 
     return None
 
-  return str_input_handle_history_key(textbox, key, backlog)
-
-
-def str_input(x, y, initial_text = '', backlog=None, tab_completion=None):
-  """
-  Provides a text field where the user can input a string, blocking until
-  they've done so and returning the result. If the user presses escape then
-  this terminates and provides back **None**.
-
-  This blanks any content within the space that the input field is rendered
-  (otherwise stray characters would be interpreted as part of the initial
-  input).
-
-  :param int x: horizontal location
-  :param int y: vertical location
-  :param str initial_text: initial input of the field
-
-  :returns: **str** with the user input or **None** if the prompt is canceled
-  """
-
-  with CURSES_LOCK:
-    if HALT_ACTIVITY:
-      return None
-
-    try:
-      curses.curs_set(1)  # show cursor
-    except curses.error:
-      pass
-
-    width = screen_size().width - x
-
-    curses_subwindow = CURSES_SCREEN.subwin(1, width, y, x)
-    curses_subwindow.erase()
-    curses_subwindow.addstr(0, 0, initial_text[:width - 1])
-
-    textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
-    if tab_completion is not None:
-      user_input = textbox.edit(lambda key: str_input_handle_tab_completion(textbox, key, backlog, tab_completion)).strip()
-    elif backlog is not None:
-      user_input = textbox.edit(lambda key: str_input_handle_history_key(textbox, key, backlog)).strip()
-    else:
-      user_input = textbox.edit(lambda key: str_input_handle_key(textbox, key)).strip()
-
-    try:
-      curses.curs_set(0)  # hide cursor
-    except curses.error:
-      pass
-
-    return None if textbox.lastcmd == curses.ascii.BEL else user_input
+  return _handle_history_key(textbox, key, backlog)
 
 
 def curses_attr(*attributes):

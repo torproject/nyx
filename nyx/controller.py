@@ -18,9 +18,9 @@ import nyx.panel.config
 import nyx.panel.connection
 import nyx.panel.graph
 import nyx.panel.header
+import nyx.panel.interpreter
 import nyx.panel.log
 import nyx.panel.torrc
-import nyx.panel.interpreter
 
 import stem
 
