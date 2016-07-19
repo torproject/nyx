@@ -86,6 +86,7 @@ import collections
 import curses
 import curses.ascii
 import curses.textpad
+import functools
 import os
 import threading
 
@@ -280,12 +281,15 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
     curses_subwindow.addstr(0, 0, initial_text[:width - 1])
 
     textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
-    if tab_completion is not None:
-      user_input = textbox.edit(lambda key: _handle_tab_completion(textbox, key, backlog, tab_completion)).strip()
-    elif backlog is not None:
-      user_input = textbox.edit(lambda key: _handle_history_key(textbox, key, backlog)).strip()
-    else:
-      user_input = textbox.edit(lambda key: _handle_key(textbox, key)).strip()
+    handler = _handle_key
+
+    if backlog:
+      handler = functools.partial(_handle_history_key, handler, backlog)
+
+    if tab_completion:
+      handler = functools.partial(_handle_tab_completion, handler, tab_completion)
+
+    user_input = textbox.edit(lambda key: handler(textbox, key)).strip()
 
     try:
       curses.curs_set(0)  # hide cursor
@@ -328,14 +332,15 @@ def _handle_key(textbox, key):
     return key
 
 
-def _handle_history_key(textbox, key, backlog):
+def _handle_history_key(next_handler, backlog, textbox, key):
   """
   Handles history validation. When the up/down arrow keys are pressed,
   the relative previous/next commands are shown.
 
+  :param func next_handler: handler to invoke after this
+  :param list backlog: backlog of all previous commands entered
   :param Textbox textbox: current textbox context
   :param int key: key pressed
-  :param list backlog: backlog of all previous commands entered
 
   :returns: **None** if up/down arrow key is pressed or calls function
     to write key to the textbox
@@ -370,19 +375,19 @@ def _handle_history_key(textbox, key, backlog):
     HISTORY_DICT['selection_index'] = new_selection
     return None
 
-  return _handle_key(textbox, key)
+  return next_handler(textbox, key)
 
 
-def _handle_tab_completion(textbox, key, backlog, tab_completion):
+def _handle_tab_completion(next_handler, tab_completion, textbox, key):
   """
   Handles tab completion. If the tab key is pressed, the current textbox
   contents are checked for probable commands.
 
-  :param Textbox textbox: current textbox context
-  :param int key: key pressed
-  :param list backlog: backlog of all previous commands entered
+  :param func next_handler: handler to invoke after this
   :param Autocompleter.matches tab_completion: function to suggest probable
     commands based on current content
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
 
   :returns: **None** when tab key is pressed or calls function to handle
     history validation
@@ -409,7 +414,7 @@ def _handle_tab_completion(textbox, key, backlog, tab_completion):
 
     return None
 
-  return _handle_history_key(textbox, key, backlog)
+  return next_handler(textbox, key)
 
 
 def curses_attr(*attributes):

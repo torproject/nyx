@@ -68,6 +68,8 @@ EXPECTED_SCROLLBAR_BOTTOM = """
 -+
 """.strip()
 
+NO_OP_HANDLER = lambda key, textbox: None
+
 
 class TestCurses(unittest.TestCase):
   @require_curses
@@ -156,21 +158,20 @@ class TestCurses(unittest.TestCase):
     key_pressed = ord('a')
     self.assertEqual(key_pressed, nyx.curses._handle_key(textbox, key_pressed))
 
-  @patch('nyx.curses._handle_key')
-  def test_handle_history_key(self, mock_handle_key):
+  def test_handle_history_key(self):
     backlog = ['GETINFO version']
     dimensions = (40, 80)
 
     textbox = Mock()
     textbox.win.getyx.return_value = dimensions
-    self.assertIsNone(nyx.curses._handle_history_key(textbox, curses.KEY_UP, []))
+    self.assertIsNone(nyx.curses._handle_history_key(NO_OP_HANDLER, [], textbox, curses.KEY_UP))
 
     textbox = Mock()
     textbox.win.getyx.return_value = dimensions
     textbox.win.getmaxyx.return_value = dimensions
     textbox.win.addstr = Mock()
     textbox.win.move = Mock()
-    nyx.curses._handle_history_key(textbox, curses.KEY_UP, backlog)
+    nyx.curses._handle_history_key(NO_OP_HANDLER, backlog, textbox, curses.KEY_UP)
     self.assertTrue(textbox.win.clear.called)
     expected_addstr_call = call(dimensions[0], 0, backlog[0])
     self.assertEqual(expected_addstr_call, textbox.win.addstr.call_args)
@@ -178,7 +179,8 @@ class TestCurses(unittest.TestCase):
     self.assertEqual(expected_move_call, textbox.win.move.call_args)
 
     textbox = Mock()
-    nyx.curses._handle_history_key(textbox, curses.KEY_LEFT, [])
+    mock_handle_key = Mock()
+    nyx.curses._handle_history_key(mock_handle_key, [], textbox, curses.KEY_LEFT)
     self.assertTrue(mock_handle_key.called)
 
   @patch('nyx.curses._handle_history_key')
@@ -193,7 +195,7 @@ class TestCurses(unittest.TestCase):
     textbox.win.move = Mock()
     tab_completion = Mock()
     tab_completion.return_value = [tab_completion_content]
-    nyx.curses._handle_tab_completion(textbox, 9, [], tab_completion)
+    nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
     self.assertTrue(textbox.win.clear.called)
     expected_addstr_call = call(dimensions[0], 0, tab_completion_content)
     self.assertEqual(expected_addstr_call, textbox.win.addstr.call_args)
