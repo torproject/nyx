@@ -67,7 +67,7 @@ class InterpreterPanel(panel.Panel):
   """
 
   def __init__(self):
-    panel.Panel.__init__(self, 'interpreter')
+    panel.Panel.__init__(self)
 
     self._is_input_mode = False
     self._last_content_height = 0
@@ -85,7 +85,7 @@ class InterpreterPanel(panel.Panel):
 
   def key_handlers(self):
     def _scroll(key):
-      page_height = self.get_preferred_size()[0] - 1
+      page_height = self.get_height() - 1
       is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
 
       if is_changed:
@@ -97,8 +97,8 @@ class InterpreterPanel(panel.Panel):
       while self._is_input_mode:
         self.redraw(True)
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
-        page_height = self.get_preferred_size()[0] - 1
-        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.top + len(self.prompt_line[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
+        page_height = self.get_height() - 1
+        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.get_top() + len(self.prompt_line[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
@@ -143,7 +143,7 @@ class InterpreterPanel(panel.Panel):
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
     )
 
-  def draw(self, subwindow):
+  def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
     if self._last_content_height > subwindow.height - 1:
