@@ -261,6 +261,8 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
   :param int x: horizontal location
   :param int y: vertical location
   :param str initial_text: initial input of the field
+  :param list backlog: previous inputs that can be selected by pressing up/down
+  :param func tab_completion: function to suggest inputs to tab complete with
 
   :returns: **str** with the user input or **None** if the prompt is canceled
   """
@@ -384,8 +386,7 @@ def _handle_tab_completion(next_handler, tab_completion, textbox, key):
   contents are checked for probable commands.
 
   :param func next_handler: handler to invoke after this
-  :param Autocompleter.matches tab_completion: function to suggest probable
-    commands based on current content
+  :param func tab_completion: function to suggest inputs to tab complete with
   :param Textbox textbox: current textbox context
   :param int key: key pressed
 
