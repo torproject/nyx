@@ -13,10 +13,9 @@ import sys
 from cStringIO import StringIO
 from mock import patch
 from nyx.curses import BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD, HIGHLIGHT, NORMAL
-from nyx import panel
+from nyx import tor_controller, panel
 
 import stem
-import stem.connection
 import stem.interpreter.autocomplete
 import stem.interpreter.commands
 
@@ -74,13 +73,10 @@ class InterpreterPanel(panel.Panel):
     self._x_offset = 0
     self._scroller = nyx.curses.Scroller()
     self._backlog = []
-    self.controller = stem.connection.connect(
-      control_port = ('127.0.0.1', 'default'),
-      control_socket = '/var/run/tor/control',
-      password_prompt = True,
-    )
-    self.autocompleter = stem.interpreter.autocomplete.Autocompleter(self.controller)
-    self.interpreter = stem.interpreter.commands.ControlInterpretor(self.controller)
+
+    controller = tor_controller()
+    self.autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
+    self.interpreter = stem.interpreter.commands.ControlInterpretor(controller)
     self.prompt_line = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
 
   def key_handlers(self):

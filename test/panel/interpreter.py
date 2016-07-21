@@ -8,6 +8,8 @@ import nyx.curses
 import nyx.panel.interpreter
 import test
 
+from mock import patch
+
 EXPECTED_PANEL = """
 Control Interpreter:
 >>> to use this panel press enter
@@ -57,20 +59,26 @@ class TestInterpreter(unittest.TestCase):
     self.assertEqual(('>>> ', 'Green', 'Bold'), output[0])
     self.assertEqual(('/help', 'Magenta', 'Bold'), output[1])
 
-  def test_rendering_panel(self):
+  @patch('nyx.panel.interpreter.tor_controller')
+  def test_rendering_panel(self, tor_controller_mock):
+    tor_controller_mock()._handle_event = lambda event: None
     panel = nyx.panel.interpreter.InterpreterPanel()
     self.assertEqual(EXPECTED_PANEL, test.render(panel._draw).content)
 
     panel._is_input_mode = True
     self.assertEqual(EXPECTED_PANEL_INPUT_MODE, test.render(panel._draw).content)
 
-  def test_rendering_multiline_panel(self):
+  @patch('nyx.panel.interpreter.tor_controller')
+  def test_rendering_multiline_panel(self, tor_controller_mock):
+    tor_controller_mock()._handle_event = lambda event: None
     panel = nyx.panel.interpreter.InterpreterPanel()
     panel.prompt_line = [[('>>> ', 'Green', 'Bold'), ('GETINFO', 'Green', 'Bold'), (' version', 'Cyan')]]
     panel.prompt_line.append([('250-version=0.2.4.27 (git-412e3f7dc9c6c01a)', 'Blue')])
     self.assertEqual(EXPECTED_MULTILINE_PANEL, test.render(panel._draw).content)
 
-  def test_scrollbar(self):
+  @patch('nyx.panel.interpreter.tor_controller')
+  def test_scrollbar(self, tor_controller_mock):
+    tor_controller_mock()._handle_event = lambda event: None
     panel = nyx.panel.interpreter.InterpreterPanel()
     self.assertIsInstance(panel._scroller, nyx.curses.Scroller)
 
@@ -80,7 +88,9 @@ class TestInterpreter(unittest.TestCase):
     self.assertEqual(height, len(output_lines))
     self.assertEqual(EXPECTED_SCROLLBAR_PANEL, output_lines[1])
 
-  def test_key_handlers(self):
+  @patch('nyx.panel.interpreter.tor_controller')
+  def test_key_handlers(self, tor_controller_mock):
+    tor_controller_mock()._handle_event = lambda event: None
     panel = nyx.panel.interpreter.InterpreterPanel()
     output = panel.key_handlers()
     self.assertEqual(2, len(output))
