@@ -69,6 +69,7 @@ EXPECTED_SCROLLBAR_BOTTOM = """
 """.strip()
 
 NO_OP_HANDLER = lambda key, textbox: None
+DIMENSIONS = (40, 80)
 
 
 class TestCurses(unittest.TestCase):
@@ -126,56 +127,53 @@ class TestCurses(unittest.TestCase):
     self.assertEqual(EXPECTED_SCROLLBAR_BOTTOM, test.render(_draw).content.strip())
 
   def test_handle_key(self):
-    dimensions = (40, 80)
-
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(textbox, 27))
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     textbox.win.move = Mock()
-    expected_call = call(dimensions[0], 0)
+    expected_call = call(DIMENSIONS[0], 0)
     nyx.curses._handle_key(textbox, curses.KEY_HOME)
     self.assertTrue(textbox.win.move.called)
     self.assertEquals(expected_call, textbox.win.move.call_args)
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     textbox.gather.return_value = 'Sample Text'
     textbox.win.move = Mock()
-    expected_call = call(*dimensions)
+    expected_call = call(*DIMENSIONS)
     nyx.curses._handle_key(textbox, curses.KEY_RIGHT)
     self.assertTrue(textbox.win.move.called)
     self.assertEquals(expected_call, textbox.win.move.call_args)
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(textbox, 410))
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     key_pressed = ord('a')
     self.assertEqual(key_pressed, nyx.curses._handle_key(textbox, key_pressed))
 
   def test_handle_history_key(self):
     backlog = ['GETINFO version']
-    dimensions = (40, 80)
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
     self.assertIsNone(nyx.curses._handle_history_key(NO_OP_HANDLER, [], textbox, curses.KEY_UP))
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
-    textbox.win.getmaxyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
+    textbox.win.getmaxyx.return_value = DIMENSIONS
     textbox.win.addstr = Mock()
     textbox.win.move = Mock()
     nyx.curses._handle_history_key(NO_OP_HANDLER, backlog, textbox, curses.KEY_UP)
     self.assertTrue(textbox.win.clear.called)
-    expected_addstr_call = call(dimensions[0], 0, backlog[0])
+    expected_addstr_call = call(DIMENSIONS[0], 0, backlog[0])
     self.assertEqual(expected_addstr_call, textbox.win.addstr.call_args)
-    expected_move_call = call(dimensions[0], len(backlog[0]))
+    expected_move_call = call(DIMENSIONS[0], len(backlog[0]))
     self.assertEqual(expected_move_call, textbox.win.move.call_args)
 
     textbox = Mock()
@@ -185,19 +183,18 @@ class TestCurses(unittest.TestCase):
 
   @patch('nyx.curses._handle_history_key')
   def test_handle_tab_completion(self, mock_handle_history_key):
-    dimensions = (40, 80)
     tab_completion_content = 'GETINFO version'
 
     textbox = Mock()
-    textbox.win.getyx.return_value = dimensions
-    textbox.win.getmaxyx.return_value = dimensions
+    textbox.win.getyx.return_value = DIMENSIONS
+    textbox.win.getmaxyx.return_value = DIMENSIONS
     textbox.win.addstr = Mock()
     textbox.win.move = Mock()
     tab_completion = Mock()
     tab_completion.return_value = [tab_completion_content]
     nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
     self.assertTrue(textbox.win.clear.called)
-    expected_addstr_call = call(dimensions[0], 0, tab_completion_content)
+    expected_addstr_call = call(DIMENSIONS[0], 0, tab_completion_content)
     self.assertEqual(expected_addstr_call, textbox.win.addstr.call_args)
-    expected_move_call = call(dimensions[0], len(tab_completion_content))
+    expected_move_call = call(DIMENSIONS[0], len(tab_completion_content))
     self.assertTrue(expected_move_call, textbox.win.move.call_args)

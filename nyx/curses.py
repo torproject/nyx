@@ -336,16 +336,14 @@ def _handle_key(textbox, key):
 
 def _handle_history_key(next_handler, backlog, textbox, key):
   """
-  Handles history validation. When the up/down arrow keys are pressed,
-  the relative previous/next commands are shown.
+  Allows user to select previous inputs when pressing up/down.
 
   :param func next_handler: handler to invoke after this
-  :param list backlog: backlog of all previous commands entered
+  :param list backlog: backlog of all previous commands
   :param Textbox textbox: current textbox context
   :param int key: key pressed
 
-  :returns: **None** if up/down arrow key is pressed or calls function
-    to write key to the textbox
+  :returns: **None** if up/down is pressed, otherwise invokes next handler
   """
 
   global HISTORY_DICT
@@ -382,16 +380,15 @@ def _handle_history_key(next_handler, backlog, textbox, key):
 
 def _handle_tab_completion(next_handler, tab_completion, textbox, key):
   """
-  Handles tab completion. If the tab key is pressed, the current textbox
-  contents are checked for probable commands.
+  Allows user to tab complete commands if sufficient context is provided to
+  narrow to a single option.
 
   :param func next_handler: handler to invoke after this
   :param func tab_completion: function to suggest inputs to tab complete with
   :param Textbox textbox: current textbox context
   :param int key: key pressed
 
-  :returns: **None** when tab key is pressed or calls function to handle
-    history validation
+  :returns: **None** when tab is pressed, otherwise invokes next handler
   """
 
   if key == 9:
@@ -403,6 +400,7 @@ def _handle_tab_completion(next_handler, tab_completion, textbox, key):
       new_input = matches[0]
     elif len(matches) > 1:
       common_prefix = os.path.commonprefix(matches)
+
       if common_prefix != current_contents:
         new_input = common_prefix
 
