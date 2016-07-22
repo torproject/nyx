@@ -11,7 +11,7 @@ import nyx.curses
 import nyx.panel.interpreter
 import test
 
-from mock import call, Mock, patch
+from mock import patch, call, Mock
 
 from test import require_curses
 
@@ -72,6 +72,12 @@ NO_OP_HANDLER = lambda key, textbox: None
 DIMENSIONS = (40, 80)
 
 
+def _textbox(x = 0):
+  textbox = Mock()
+  textbox.win.getyx.return_value = (0, x)
+  return textbox
+
+
 class TestCurses(unittest.TestCase):
   @require_curses
   def test_addstr(self):
@@ -126,36 +132,45 @@ class TestCurses(unittest.TestCase):
 
     self.assertEqual(EXPECTED_SCROLLBAR_BOTTOM, test.render(_draw).content.strip())
 
-  def test_handle_key(self):
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
-    self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(textbox, 27))
+  def test_handle_key_with_text(self):
+    self.assertEqual(ord('a'), nyx.curses._handle_key(_textbox(), ord('a')))
 
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
-    textbox.win.move = Mock()
-    expected_call = call(DIMENSIONS[0], 0)
+  def test_handle_key_with_esc(self):
+    self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(_textbox(), 27))
+
+  def test_handle_key_with_home(self):
+    textbox = _textbox()
     nyx.curses._handle_key(textbox, curses.KEY_HOME)
-    self.assertTrue(textbox.win.move.called)
-    self.assertEquals(expected_call, textbox.win.move.call_args)
+    self.assertEquals(call(0, 0), textbox.win.move.call_args)
 
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
+  def test_handle_key_with_end(self):
+    textbox = _textbox()
     textbox.gather.return_value = 'Sample Text'
-    textbox.win.move = Mock()
-    expected_call = call(*DIMENSIONS)
+    nyx.curses._handle_key(textbox, curses.KEY_END)
+    self.assertEquals(call(0, 10), textbox.win.move.call_args)
+
+  def test_handle_key_with_right_arrow(self):
+    textbox = _textbox()
+    textbox.gather.return_value = 'Sample Text'
     nyx.curses._handle_key(textbox, curses.KEY_RIGHT)
-    self.assertTrue(textbox.win.move.called)
-    self.assertEquals(expected_call, textbox.win.move.call_args)
 
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
-    self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(textbox, 410))
+    # move is called twice, to revert the gather() and move the cursor
 
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
-    key_pressed = ord('a')
-    self.assertEqual(key_pressed, nyx.curses._handle_key(textbox, key_pressed))
+    self.assertEquals(2, textbox.win.move.call_count)
+    self.assertEquals(call(0, 1), textbox.win.move.call_args)
+
+  def test_handle_key_with_right_arrow_at_end(self):
+    textbox = _textbox(10)
+    textbox.gather.return_value = 'Sample Text'
+    nyx.curses._handle_key(textbox, curses.KEY_RIGHT)
+
+    # move is only called to revert the gather()
+
+    self.assertEquals(1, textbox.win.move.call_count)
+    self.assertEquals(call(0, 10), textbox.win.move.call_args)
+
+  def test_handle_key_when_resized(self):
+    self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(_textbox(), 410))
 
   def test_handle_history_key(self):
     backlog = ['GETINFO version']

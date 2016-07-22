@@ -303,7 +303,8 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
 
 def _handle_key(textbox, key):
   """
-  Outputs the entered key onto the textbox.
+  Handles esc, home, end, right arrow, and resizing. We don't need ot handle
+  the left arrow key because curses has reasonable behavior for that one.
 
   :param Textbox textbox: current textbox context
   :param int key: key pressed
