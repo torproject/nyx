@@ -11,7 +11,7 @@ import nyx.curses
 import nyx.panel.interpreter
 import test
 
-from mock import patch, call, Mock
+from mock import call, Mock
 
 from test import require_curses
 
@@ -68,13 +68,15 @@ EXPECTED_SCROLLBAR_BOTTOM = """
 -+
 """.strip()
 
-NO_OP_HANDLER = lambda key, textbox: None
+NO_OP_HANDLER = lambda textbox, key: key
 DIMENSIONS = (40, 80)
 
 
-def _textbox(x = 0):
+def _textbox(x = 0, text = ''):
   textbox = Mock()
   textbox.win.getyx.return_value = (0, x)
+  textbox.win.getmaxyx.return_value = (0, 40)  # allow up to forty characters
+  textbox.gather.return_value = text
   return textbox
 
 
@@ -160,7 +162,7 @@ class TestCurses(unittest.TestCase):
     self.assertEquals(call(0, 1), textbox.win.move.call_args)
 
   def test_handle_key_with_right_arrow_at_end(self):
-    textbox = _textbox(10)
+    textbox = _textbox(x = 10)
     textbox.gather.return_value = 'Sample Text'
     nyx.curses._handle_key(textbox, curses.KEY_RIGHT)
 
@@ -196,20 +198,33 @@ class TestCurses(unittest.TestCase):
     nyx.curses._handle_history_key(mock_handle_key, [], textbox, curses.KEY_LEFT)
     self.assertTrue(mock_handle_key.called)
 
-  @patch('nyx.curses._handle_history_key')
-  def test_handle_tab_completion(self, mock_handle_history_key):
-    tab_completion_content = 'GETINFO version'
+  def test_handle_tab_completion_no_op(self):
+    tab_completion = lambda txt_input: ['GETINFO version']
+    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, _textbox(), ord('a'))
+    self.assertEqual(ord('a'), result)
 
-    textbox = Mock()
-    textbox.win.getyx.return_value = DIMENSIONS
-    textbox.win.getmaxyx.return_value = DIMENSIONS
-    textbox.win.addstr = Mock()
-    textbox.win.move = Mock()
-    tab_completion = Mock()
-    tab_completion.return_value = [tab_completion_content]
-    nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
-    self.assertTrue(textbox.win.clear.called)
-    expected_addstr_call = call(DIMENSIONS[0], 0, tab_completion_content)
-    self.assertEqual(expected_addstr_call, textbox.win.addstr.call_args)
-    expected_move_call = call(DIMENSIONS[0], len(tab_completion_content))
-    self.assertTrue(expected_move_call, textbox.win.move.call_args)
+  def test_handle_tab_completion_no_matches(self):
+    tab_completion = lambda txt_input: []
+    textbox = _textbox(text = 'GETINF')
+    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+
+    self.assertEqual(None, result)  # consumes input
+    self.assertFalse(textbox.win.addstr.called)
+
+  def test_handle_tab_completion_single_match(self):
+    tab_completion = lambda txt_input: ['GETINFO version']
+    textbox = _textbox(text = 'GETINF')
+    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+
+    self.assertEqual(None, result)  # consumes input
+    self.assertEquals(call(0, 15), textbox.win.move.call_args)  # move cursor to end
+    self.assertEqual(call(0, 0, 'GETINFO version'), textbox.win.addstr.call_args)
+
+  def test_handle_tab_completion_multiple_matches(self):
+    tab_completion = lambda txt_input: ['GETINFO version', 'GETINFO info/events']
+    textbox = _textbox(text = 'GETINF')
+    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+
+    self.assertEqual(None, result)  # consumes input
+    self.assertEquals(call(0, 8), textbox.win.move.call_args)  # move cursor to end
+    self.assertEqual(call(0, 0, 'GETINFO '), textbox.win.addstr.call_args)
