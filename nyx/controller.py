@@ -98,9 +98,18 @@ class Controller(object):
     top to bottom on the page.
     """
 
-    self._header_panel = nyx.panel.header.HeaderPanel()
+    self._page_panels = []
+    self._header_panel = None
+    self.quit_signal = False
+    self._page = 0
+    self._paused = False
+    self._pause_time = -1
+    self._force_redraw = False
+    self._last_drawn = 0
 
-    self._page_panels, first_page_panels = [], []
+  def init(self):
+    self._header_panel = nyx.panel.header.HeaderPanel()
+    first_page_panels = []
 
     if CONFIG['features.panels.show.graph']:
       first_page_panels.append(nyx.panel.graph.GraphPanel())
@@ -330,6 +339,7 @@ def start_nyx():
   global NYX_CONTROLLER
 
   NYX_CONTROLLER = Controller()
+  NYX_CONTROLLER.init()
   control = get_controller()
 
   if not CONFIG['features.acsSupport']:
