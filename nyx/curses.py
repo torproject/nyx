@@ -303,7 +303,7 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
 
 def _handle_key(textbox, key):
   """
-  Handles esc, home, end, right arrow, and resizing. We don't need ot handle
+  Handles esc, home, end, right arrow, and resizing. We don't need to handle
   the left arrow key because curses has reasonable behavior for that one.
 
   :param Textbox textbox: current textbox context
@@ -322,7 +322,7 @@ def _handle_key(textbox, key):
     msg_length = len(textbox.gather())
     textbox.win.move(y, x)  # reverts cursor movement during gather call
 
-    if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
+    if key == curses.KEY_END and x < msg_length - 1:
       textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
     elif key == curses.KEY_RIGHT and x < msg_length - 1:
       textbox.win.move(y, x + 1)  # only move cursor if there's content after it
@@ -393,9 +393,12 @@ def _handle_tab_completion(next_handler, tab_completion, textbox, key):
   """
 
   if key == 9:
+    y, x = textbox.win.getyx()
     current_contents = textbox.gather().strip()
-    matches = tab_completion(current_contents)
+    textbox.win.move(y, x)  # reverts cursor movement during gather call
+
     new_input = None
+    matches = tab_completion(current_contents)
 
     if len(matches) == 1:
       new_input = matches[0]
@@ -406,7 +409,6 @@ def _handle_tab_completion(next_handler, tab_completion, textbox, key):
         new_input = common_prefix
 
     if new_input:
-      y, _ = textbox.win.getyx()
       _, max_x = textbox.win.getmaxyx()
       textbox.win.clear()
       textbox.win.addstr(y, 0, new_input[:max_x - 1])
