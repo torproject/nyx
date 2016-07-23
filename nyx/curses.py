@@ -150,8 +150,6 @@ SPECIAL_KEYS = {
 
 Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
 
-HISTORY_DICT = {'selection_index': -1, 'custom_input': ''}
-
 
 def conf_handler(key, value):
   if key == 'features.colorOverride':
@@ -286,7 +284,7 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
     handler = _handle_key
 
     if backlog:
-      handler = functools.partial(_handle_history_key, handler, backlog)
+      handler = functools.partial(_TextBacklog(backlog)._handler, handler)
 
     if tab_completion:
       handler = functools.partial(_handle_tab_completion, handler, tab_completion)
@@ -335,50 +333,6 @@ def _handle_key(textbox, key):
     return key
 
 
-def _handle_history_key(next_handler, backlog, textbox, key):
-  """
-  Allows user to select previous inputs when pressing up/down.
-
-  :param func next_handler: handler to invoke after this
-  :param list backlog: backlog of all previous commands
-  :param Textbox textbox: current textbox context
-  :param int key: key pressed
-
-  :returns: **None** if up/down is pressed, otherwise invokes next handler
-  """
-
-  global HISTORY_DICT
-
-  if key in (curses.KEY_UP, curses.KEY_DOWN):
-    offset = 1 if key == curses.KEY_UP else -1
-    new_selection = HISTORY_DICT['selection_index'] + offset
-
-    new_selection = max(-1, new_selection)
-    new_selection = min(len(backlog) - 1, new_selection)
-
-    if HISTORY_DICT['selection_index'] == new_selection:
-      return None
-
-    if HISTORY_DICT['selection_index'] == -1:
-      HISTORY_DICT['custom_input'] = textbox.gather().strip()
-
-    if new_selection == -1:
-      new_input = HISTORY_DICT['custom_input']
-    else:
-      new_input = backlog[new_selection]
-
-    y, _ = textbox.win.getyx()
-    _, max_x = textbox.win.getmaxyx()
-    textbox.win.clear()
-    textbox.win.addstr(y, 0, new_input[:max_x - 1])
-    textbox.win.move(y, min(len(new_input), max_x - 1))
-
-    HISTORY_DICT['selection_index'] = new_selection
-    return None
-
-  return next_handler(textbox, key)
-
-
 def _handle_tab_completion(next_handler, tab_completion, textbox, key):
   """
   Allows user to tab complete commands if sufficient context is provided to
@@ -417,6 +371,44 @@ def _handle_tab_completion(next_handler, tab_completion, textbox, key):
     return None
 
   return next_handler(textbox, key)
+
+
+class _TextBacklog(object):
+  """
+  History backlog that allows the :func:`~nyx.curses.str_input` function to
+  scroll through prior inputs when pressing the up and down arrow keys.
+  """
+
+  def __init__(self, backlog = []):
+    self._backlog = backlog  # backlog contents, newest to oldest
+    self._selection = -1     # selected item, -1 if we're not on the backlog
+    self._custom_input = ''  # field's input prior to selecting a backlog item
+
+  def _handler(self, next_handler, textbox, key):
+    if key in (curses.KEY_UP, curses.KEY_DOWN):
+      if key == curses.KEY_UP:
+        new_selection = min(len(self._backlog) - 1, self._selection + 1)
+      else:
+        new_selection = max(-1, self._selection - 1)
+
+      if self._selection == new_selection:
+        return None
+
+      if self._selection == -1:
+        self._custom_input = textbox.gather().strip()  # save custom input
+
+      new_input = self._custom_input if new_selection == -1 else self._backlog[new_selection]
+
+      y, _ = textbox.win.getyx()
+      _, max_x = textbox.win.getmaxyx()
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, new_input[:max_x - 1])
+      textbox.win.move(y, min(len(new_input), max_x - 1))
+      self._selection = new_selection
+
+      return None
+
+    return next_handler(textbox, key)
 
 
 def curses_attr(*attributes):
