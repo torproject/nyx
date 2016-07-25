@@ -14,6 +14,7 @@ import test
 from mock import call, Mock
 
 from test import require_curses
+from nyx.curses import Color, Attr
 
 EXPECTED_ADDSTR_WRAP = """
 0123456789 0123456789
@@ -81,6 +82,15 @@ def _textbox(x = 0, text = ''):
 
 
 class TestCurses(unittest.TestCase):
+  def test_asci_to_curses(self):
+    self.assertEqual([], nyx.curses.asci_to_curses(''))
+    self.assertEqual([('hi!', ())], nyx.curses.asci_to_curses('hi!'))
+    self.assertEqual([('hi!', (Color.RED,))], nyx.curses.asci_to_curses('\x1b[31mhi!\x1b[0m'))
+    self.assertEqual([('boo', ()), ('hi!', (Color.RED, Attr.BOLD))], nyx.curses.asci_to_curses('boo\x1b[31;1mhi!\x1b[0m'))
+    self.assertEqual([('boo', ()), ('hi', (Color.RED,)), (' dami!', (Color.RED, Attr.BOLD))], nyx.curses.asci_to_curses('boo\x1b[31mhi\x1b[1m dami!\x1b[0m'))
+    self.assertEqual([('boo', ()), ('hi', (Color.RED,)), (' dami!', (Color.BLUE,))], nyx.curses.asci_to_curses('boo\x1b[31mhi\x1b[34m dami!\x1b[0m'))
+    self.assertEqual([('boo', ()), ('hi!', (Color.RED, Attr.BOLD)), ('and bye!', ())], nyx.curses.asci_to_curses('boo\x1b[31;1mhi!\x1b[0mand bye!'))
+
   @require_curses
   def test_addstr(self):
     def _draw(subwindow):

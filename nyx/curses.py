@@ -18,6 +18,7 @@ if we want Windows support in the future too.
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
+  asci_to_curses - converts terminal formatting to curses
   halt - prevents further curses rendering during shutdown
 
   is_color_supported - checks if terminal supports color output
@@ -88,6 +89,7 @@ import curses.ascii
 import curses.textpad
 import functools
 import os
+import re
 import threading
 
 import stem.util.conf
@@ -112,6 +114,7 @@ RED, GREEN, YELLOW, BLUE, CYAN, MAGENTA, BLACK, WHITE = list(Color)
 
 Attr = stem.util.enum.Enum('NORMAL', 'BOLD', 'UNDERLINE', 'HIGHLIGHT')
 NORMAL, BOLD, UNDERLINE, HIGHLIGHT = list(Attr)
+ANSI_RE = re.compile('\x1B\[([0-9;]+)m')
 
 CURSES_COLORS = {
   Color.RED: curses.COLOR_RED,
@@ -129,6 +132,18 @@ CURSES_ATTRIBUTES = {
   Attr.BOLD: curses.A_BOLD,
   Attr.UNDERLINE: curses.A_UNDERLINE,
   Attr.HIGHLIGHT: curses.A_STANDOUT,
+}
+
+ASCI_TO_CURSES = {
+  '1': BOLD,
+  '30': BLACK,
+  '31': RED,
+  '32': GREEN,
+  '33': YELLOW,
+  '34': BLUE,
+  '35': MAGENTA,
+  '36': CYAN,
+  '37': WHITE,
 }
 
 DEFAULT_COLOR_ATTR = dict([(color, 0) for color in Color])
@@ -458,6 +473,50 @@ def screenshot():
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
   return '\n'.join(lines).rstrip()
+
+
+def asci_to_curses(msg):
+  """
+  Translates ANSI terminal escape sequences to curses formatting.
+
+  :param str msg: string to be converted
+
+  :returns: **list** series of (text, attr) tuples that's renderable by curses
+  """
+
+  entries, next_attr = [], ()
+  match = ANSI_RE.search(msg)
+
+  while match:
+    if match.start() > 0:
+      entries.append((msg[:match.start()], next_attr))
+
+    curses_attr = match.group(1).split(';')
+    new_attr = [ASCI_TO_CURSES[num] for num in curses_attr if num in ASCI_TO_CURSES]
+
+    if '0' in curses_attr:
+      next_attr = tuple(new_attr)  # includes a 'reset'
+    else:
+      combined_attr = list(next_attr)
+
+      for attr in new_attr:
+        if attr in combined_attr:
+          continue
+        elif attr in Color:
+          # replace previous color with new one
+          combined_attr = filter(lambda attr: attr not in Color, combined_attr)
+
+        combined_attr.append(attr)
+
+      next_attr = tuple(combined_attr)
+
+    msg = msg[match.end():]
+    match = ANSI_RE.search(msg)
+
+  if msg:
+    entries.append((msg, next_attr))
+
+  return entries
 
 
 def halt():

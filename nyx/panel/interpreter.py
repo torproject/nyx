@@ -7,12 +7,11 @@ import code
 import curses
 import nyx.controller
 import nyx.curses
-import re
 import sys
 
 from cStringIO import StringIO
 from mock import patch
-from nyx.curses import BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD, HIGHLIGHT, NORMAL
+from nyx.curses import GREEN, MAGENTA, CYAN, BOLD, HIGHLIGHT
 from nyx import tor_controller, panel
 
 import stem
@@ -22,23 +21,7 @@ import stem.interpreter.commands
 
 USAGE_INFO = 'to use this panel press enter'
 PROMPT = '>>> '
-ANSI_RE = re.compile('\\x1b\[([0-9;]*)m')
-ATTRS = {'0': NORMAL, '1': BOLD, '30': BLACK, '31': RED, '32': GREEN, '33': YELLOW, '34': BLUE, '35': MAGENTA, '36': CYAN}
 BACKLOG_LIMIT = 100
-
-
-def ansi_to_output(line, attrs):
-  ansi_re = ANSI_RE.findall(line)
-  new_attrs = []
-
-  if line.find('\x1b[') == 0 and ansi_re:
-    for attr in ansi_re[0].split(';'):
-      new_attrs.append(ATTRS[attr])
-    attrs = new_attrs
-
-  line = ANSI_RE.sub('', line)
-
-  return [(line, ) + tuple(attrs)], attrs
 
 
 def format_input(user_input):
@@ -123,10 +106,14 @@ class InterpreterPanel(panel.Panel):
               sys.stderr = old_stderr
             if response:
               self.prompt_line.insert(len(self.prompt_line) - 1, format_input(user_input))
-              attrs = []
+
               for line in response.split('\n'):
-                line, attrs = ansi_to_output(line, attrs)
-                self.prompt_line.insert(len(self.prompt_line) - 1, line)
+                new_line = []
+
+                for text, attr in nyx.curses.asci_to_curses(line):
+                  new_line.append([text] + list(attr))
+
+                self.prompt_line.insert(len(self.prompt_line) - 1, new_line)
           except stem.SocketClosed:
             is_done = True
 
