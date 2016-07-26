@@ -19,13 +19,12 @@ import stem.interpreter.autocomplete
 import stem.interpreter.commands
 
 
-USAGE_INFO = 'to use this panel press enter'
-PROMPT = '>>> '
 BACKLOG_LIMIT = 100
+PROMPT = [('>>> ', (GREEN, BOLD)), ('to use this panel press enter', (CYAN, BOLD))]
 
 
 def format_input(user_input):
-  output = [(PROMPT, GREEN, BOLD)]
+  output = [('>>> ', (GREEN, BOLD))]
 
   if ' ' in user_input:
     cmd, arg = user_input.split(' ', 1)
@@ -33,11 +32,11 @@ def format_input(user_input):
     cmd, arg = user_input, ''
 
   if cmd.startswith('/'):
-    output.append((user_input, MAGENTA, BOLD))
+    output.append((user_input, (MAGENTA, BOLD)))
   else:
-    output.append((cmd + ' ', GREEN, BOLD))
+    output.append((cmd + ' ', (GREEN, BOLD)))
     if arg:
-      output.append((arg, CYAN, BOLD))
+      output.append((arg, (CYAN, BOLD)))
 
   return output
 
@@ -60,7 +59,7 @@ class InterpreterPanel(panel.Panel):
     controller = tor_controller()
     self.autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
     self.interpreter = stem.interpreter.commands.ControlInterpretor(controller)
-    self.prompt_line = [[(PROMPT, GREEN, BOLD), (USAGE_INFO, CYAN, BOLD)]]
+    self._lines = []
 
   def key_handlers(self):
     def _scroll(key):
@@ -77,7 +76,7 @@ class InterpreterPanel(panel.Panel):
         self.redraw(True)
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_height() - 1
-        user_input = nyx.curses.str_input(len(PROMPT) + self._x_offset, self.get_top() + len(self.prompt_line[-page_height:]), '', list(reversed(self._backlog)), self.autocompleter.matches)
+        user_input = nyx.curses.str_input(4 + self._x_offset, self.get_top() + max(len(self._lines[-page_height:]), 1), '', list(reversed(self._backlog)), self.autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
@@ -104,16 +103,12 @@ class InterpreterPanel(panel.Panel):
               sys.stderr = old_stderr
               response = '\x1b[31;1m' + new_stderr.getvalue()
               sys.stderr = old_stderr
+
             if response:
-              self.prompt_line.insert(len(self.prompt_line) - 1, format_input(user_input))
+              self._lines.append(format_input(user_input))
 
               for line in response.split('\n'):
-                new_line = []
-
-                for text, attr in nyx.curses.asci_to_curses(line):
-                  new_line.append([text] + list(attr))
-
-                self.prompt_line.insert(len(self.prompt_line) - 1, new_line)
+                self._lines.append([(text, attr) for text, attr in nyx.curses.asci_to_curses(line)])
           except stem.SocketClosed:
             is_done = True
 
@@ -134,18 +129,12 @@ class InterpreterPanel(panel.Panel):
       subwindow.scrollbar(1, scroll, self._last_content_height - 1)
 
     y = 1 - scroll
-    for entry in self.prompt_line:
-      cursor = self._x_offset
 
-      for line in entry:
-        if len(line) == 2:
-          subwindow.addstr(cursor, y, line[0], line[1])
-        elif len(line) == 3:
-          subwindow.addstr(cursor, y, line[0], line[1], line[2])
-        try:
-          cursor += len(line[0])
-        except:
-          pass
+    for line in self._lines + [PROMPT]:
+      x = self._x_offset
+
+      for text, attr in line:
+        x = subwindow.addstr(x, y, text, *attr)
 
       y += 1
 
