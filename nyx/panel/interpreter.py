@@ -51,20 +51,19 @@ class InterpreterPanel(panel.Panel):
     panel.Panel.__init__(self)
 
     self._is_input_mode = False
-    self._last_content_height = 0
     self._x_offset = 0
     self._scroller = nyx.curses.Scroller()
     self._backlog = []
+    self._lines = []
 
     controller = tor_controller()
-    self.autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
-    self.interpreter = stem.interpreter.commands.ControlInterpretor(controller)
-    self._lines = []
+    self._autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
+    self._interpreter = stem.interpreter.commands.ControlInterpretor(controller)
 
   def key_handlers(self):
     def _scroll(key):
       page_height = self.get_height() - 1
-      is_changed = self._scroller.handle_key(key, self._last_content_height, page_height)
+      is_changed = self._scroller.handle_key(key, len(self._lines) + 1, page_height)
 
       if is_changed:
         self.redraw(True)
@@ -73,10 +72,10 @@ class InterpreterPanel(panel.Panel):
       self._is_input_mode = True
 
       while self._is_input_mode:
-        self.redraw(True)
+        self.redraw()
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_height() - 1
-        user_input = nyx.curses.str_input(4 + self._x_offset, self.get_top() + max(len(self._lines[-page_height:]), 1), '', list(reversed(self._backlog)), self.autocompleter.matches)
+        user_input = nyx.curses.str_input(4 + self._x_offset, self.get_top() + max(len(self._lines[-page_height:]), 1), '', list(reversed(self._backlog)), self._autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
@@ -91,7 +90,8 @@ class InterpreterPanel(panel.Panel):
           try:
             console_called = False
             with patch('stem.interpreter.commands.code.InteractiveConsole.push') as console_push:
-              response = self.interpreter.run_command(user_input)
+              response = self._interpreter.run_command(user_input)
+
               if console_push.called:
                 console_called = True
 
@@ -114,7 +114,7 @@ class InterpreterPanel(panel.Panel):
 
         if is_done:
           self._is_input_mode = False
-          self.redraw(True)
+          self.redraw()
 
     return (
       nyx.panel.KeyHandler('enter', 'execute a command', _execute_command, key_func = lambda key: key.is_selection()),
@@ -122,27 +122,24 @@ class InterpreterPanel(panel.Panel):
     )
 
   def _draw(self, subwindow):
-    scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
+    if self._is_input_mode:
+      subwindow.addstr(0, 0, 'Control Interpreter (enter "/help" for usage or a blank line to stop):', HIGHLIGHT)
+    else:
+      subwindow.addstr(0, 0, 'Control Interpreter:', HIGHLIGHT)
 
-    if self._last_content_height > subwindow.height - 1:
+    scroll = self._scroller.location(len(self._lines) + 1, subwindow.height - 1)
+
+    if len(self._lines) > subwindow.height - 2:
       self._x_offset = 2
-      subwindow.scrollbar(1, scroll, self._last_content_height - 1)
+      subwindow.scrollbar(1, scroll, len(self._lines))
 
     y = 1 - scroll
 
     for line in self._lines + [PROMPT]:
       x = self._x_offset
 
-      for text, attr in line:
-        x = subwindow.addstr(x, y, text, *attr)
+      if y > 0:
+        for text, attr in line:
+          x = subwindow.addstr(x, y, text, *attr)
 
       y += 1
-
-    subwindow.addstr(0, 0, ' ' * subwindow.width)
-    usage_msg = ' (enter \"/help\" for usage or a blank line to stop)' if self._is_input_mode else ""
-    subwindow.addstr(0, 0, 'Control Interpreter%s:' % usage_msg, HIGHLIGHT)
-
-    new_content_height = y + scroll - 1
-    if new_content_height != self._last_content_height:
-      self._last_content_height = new_content_height
-      self.redraw(True)

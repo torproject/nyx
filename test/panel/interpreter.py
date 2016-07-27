@@ -27,8 +27,6 @@ Control Interpreter:
 >>> to use this panel press enter
 """.strip()
 
-EXPECTED_SCROLLBAR_PANEL = ' |>>> to use this panel press enter'
-
 
 class TestInterpreter(unittest.TestCase):
   def test_format_input(self):
@@ -75,10 +73,9 @@ class TestInterpreter(unittest.TestCase):
     self.assertIsInstance(panel._scroller, nyx.curses.Scroller)
 
     height = panel.get_height()
-    panel._last_content_height = height
+    panel._lines = [()] * height
     output_lines = test.render(panel._draw).content.split('\n')
     self.assertEqual(height, len(output_lines))
-    self.assertEqual(EXPECTED_SCROLLBAR_PANEL, output_lines[1])
 
   @patch('nyx.panel.interpreter.tor_controller')
   def test_key_handlers(self, tor_controller_mock):
