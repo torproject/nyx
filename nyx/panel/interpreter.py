@@ -53,8 +53,8 @@ class InterpreterPanel(panel.Panel):
     self._is_input_mode = False
     self._x_offset = 0
     self._scroller = nyx.curses.Scroller()
-    self._backlog = []
     self._lines = []
+    self._backlog = []  # previous user inputs
 
     controller = tor_controller()
     self._autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
@@ -75,18 +75,16 @@ class InterpreterPanel(panel.Panel):
         self.redraw()
         _scroll(nyx.curses.KeyInput(curses.KEY_END))
         page_height = self.get_height() - 1
-        user_input = nyx.curses.str_input(4 + self._x_offset, self.get_top() + max(len(self._lines[-page_height:]), 1), '', list(reversed(self._backlog)), self._autocompleter.matches)
+        user_input = nyx.curses.str_input(4 + self._x_offset, self.get_top() + max(len(self._lines[-page_height:]), 1), '', self._backlog, self._autocompleter.matches)
         user_input, is_done = user_input.strip(), False
 
         if not user_input:
           is_done = True
         else:
           self._backlog.append(user_input)
-          backlog_crop = len(self._backlog) - BACKLOG_LIMIT
 
-          if backlog_crop > 0:
-            raise Exception(self._backlog)
-            self._backlog = self._backlog[backlog_crop:]
+          if len(self._backlog) > BACKLOG_LIMIT:
+            self._backlog = self._backlog[-BACKLOG_LIMIT:]
 
           try:
             console_called = False

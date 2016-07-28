@@ -274,7 +274,8 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
   :param int x: horizontal location
   :param int y: vertical location
   :param str initial_text: initial input of the field
-  :param list backlog: previous inputs that can be selected by pressing up/down
+  :param list backlog: previous inputs that can be selected by pressing
+    up/down, oldest to newest
   :param func tab_completion: function to suggest inputs to tab complete with
 
   :returns: **str** with the user input or **None** if the prompt is canceled
@@ -395,24 +396,30 @@ class _TextBacklog(object):
   """
 
   def __init__(self, backlog = []):
-    self._backlog = backlog  # backlog contents, newest to oldest
-    self._selection = -1     # selected item, -1 if we're not on the backlog
+    self._backlog = backlog  # backlog contents, oldest to newest
+    self._selection = None   # selected item, None if we're not on the backlog
     self._custom_input = ''  # field's input prior to selecting a backlog item
 
   def _handler(self, next_handler, textbox, key):
     if key in (curses.KEY_UP, curses.KEY_DOWN):
       if key == curses.KEY_UP:
-        new_selection = min(len(self._backlog) - 1, self._selection + 1)
+        if self._selection is None:
+          new_selection = len(self._backlog) - 1
+        else:
+          new_selection = max(0, self._selection - 1)
       else:
-        new_selection = max(-1, self._selection - 1)
+        if self._selection is None or self._selection == len(self._backlog) - 1:
+          new_selection = None
+        else:
+          new_selection = self._selection + 1
 
       if self._selection == new_selection:
         return None
 
-      if self._selection == -1:
+      if self._selection is None:
         self._custom_input = textbox.gather().strip()  # save custom input
 
-      new_input = self._custom_input if new_selection == -1 else self._backlog[new_selection]
+      new_input = self._custom_input if new_selection is None else self._backlog[new_selection]
 
       y, _ = textbox.win.getyx()
       _, max_x = textbox.win.getmaxyx()
