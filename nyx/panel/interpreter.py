@@ -66,7 +66,7 @@ class InterpreterPanel(panel.Panel):
       is_changed = self._scroller.handle_key(key, len(self._lines) + 1, page_height)
 
       if is_changed:
-        self.redraw(True)
+        self.redraw()
 
     def _execute_command():
       self._is_input_mode = True
@@ -83,12 +83,14 @@ class InterpreterPanel(panel.Panel):
         else:
           self._backlog.append(user_input)
           backlog_crop = len(self._backlog) - BACKLOG_LIMIT
+
           if backlog_crop > 0:
             raise Exception(self._backlog)
             self._backlog = self._backlog[backlog_crop:]
 
           try:
             console_called = False
+
             with patch('stem.interpreter.commands.code.InteractiveConsole.push') as console_push:
               response = self._interpreter.run_command(user_input)
 
@@ -133,13 +135,9 @@ class InterpreterPanel(panel.Panel):
       self._x_offset = 2
       subwindow.scrollbar(1, scroll, len(self._lines))
 
-    y = 1 - scroll
-
-    for line in self._lines + [PROMPT]:
-      x = self._x_offset
+    for i, line in enumerate(self._lines + [PROMPT]):
+      x, y = self._x_offset, i + 1 - scroll
 
       if y > 0:
         for text, attr in line:
           x = subwindow.addstr(x, y, text, *attr)
-
-      y += 1
