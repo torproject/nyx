@@ -53,7 +53,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     self._message = None
     self._message_attr = []
 
-    tor_controller().add_status_listener(self.reset_listener)
+    tor_controller().add_status_listener(self._reset_listener)
 
   def show_message(self, message = None, *attr, **kwargs):
     """
@@ -180,7 +180,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     _draw_status(subwindow, 0, self.get_height() - 1, nyx_controller.is_paused(), self._message, *self._message_attr)
 
-  def reset_listener(self, controller, event_type, _):
+  def _reset_listener(self, controller, event_type, _):
     self._update()
 
     if event_type == stem.control.State.CLOSED:

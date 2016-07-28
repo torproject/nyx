@@ -47,10 +47,10 @@ class TorrcPanel(panel.Panel):
     self._torrc_load_error = None
 
     controller = tor_controller()
-    controller.add_status_listener(self.reset_listener)
-    self.reset_listener(controller, State.RESET, None)
+    controller.add_status_listener(self._reset_listener)
+    self._reset_listener(controller, State.RESET, None)
 
-  def reset_listener(self, controller, event_type, _):
+  def _reset_listener(self, controller, event_type, _):
     """
     Reloads and displays the torrc on tor reload (sighup) events.
     """
