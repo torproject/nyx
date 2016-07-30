@@ -17,7 +17,7 @@ Control Interpreter:
 
 EXPECTED_PANEL_INPUT_MODE = """
 Control Interpreter (enter "/help" for usage or a blank line to stop):
->>> to use this panel press enter
+>>>
 """.strip()
 
 EXPECTED_MULTILINE_PANEL = """
@@ -29,22 +29,22 @@ Control Interpreter:
 
 
 class TestInterpreter(unittest.TestCase):
-  def test_format_input(self):
+  def test_format_prompt_input(self):
     user_input = 'getinfo'
-    output = nyx.panel.interpreter.format_input(user_input)
+    output = nyx.panel.interpreter._format_prompt_input(user_input)
     self.assertEqual(2, len(output))
     self.assertEqual(('>>> ', ('Green', 'Bold')), output[0])
     self.assertEqual(('getinfo ', ('Green', 'Bold')), output[1])
 
     user_input = 'getinfo version'
-    output = nyx.panel.interpreter.format_input(user_input)
+    output = nyx.panel.interpreter._format_prompt_input(user_input)
     self.assertEqual(3, len(output))
     self.assertEqual(('>>> ', ('Green', 'Bold')), output[0])
     self.assertEqual(('getinfo ', ('Green', 'Bold')), output[1])
     self.assertEqual(('version', ('Cyan', 'Bold')), output[2])
 
     user_input = '/help'
-    output = nyx.panel.interpreter.format_input(user_input)
+    output = nyx.panel.interpreter._format_prompt_input(user_input)
     self.assertEqual(2, len(output))
     self.assertEqual(('>>> ', ('Green', 'Bold')), output[0])
     self.assertEqual(('/help', ('Magenta', 'Bold')), output[1])

@@ -1,3 +1,6 @@
+# Copyright 2016, Damian Johnson and The Tor Project
+# See LICENSE for licensing information
+
 """
 Panel providing raw control port access with syntax hilighting, usage
 information, tab completion, and other usability features.
@@ -6,45 +9,43 @@ information, tab completion, and other usability features.
 import curses
 import nyx.controller
 import nyx.curses
-
-from nyx.curses import GREEN, MAGENTA, CYAN, BOLD, HIGHLIGHT
-from nyx import tor_controller, panel
+import nyx.panel
 
 import stem
 import stem.interpreter.autocomplete
 import stem.interpreter.commands
 
+from nyx import tor_controller
+from nyx.curses import GREEN, MAGENTA, CYAN, BOLD, HIGHLIGHT
 
 USER_INPUT_BACKLOG_LIMIT = 100
-PROMPT = [('>>> ', (GREEN, BOLD)), ('to use this panel press enter', (CYAN, BOLD))]
+
+PROMPT = ('>>> ', (GREEN, BOLD))
+PROMPT_USAGE = ('to use this panel press enter', (CYAN, BOLD))
 
 
-def format_input(user_input):
-  output = [('>>> ', (GREEN, BOLD))]
-
-  if ' ' in user_input:
-    cmd, arg = user_input.split(' ', 1)
-  else:
-    cmd, arg = user_input, ''
+def _format_prompt_input(user_input):
+  line = [PROMPT]
+  cmd, arg = user_input.split(' ', 1) if ' ' in user_input else (user_input, '')
 
   if cmd.startswith('/'):
-    output.append((user_input, (MAGENTA, BOLD)))
+    line.append((user_input, (MAGENTA, BOLD)))
   else:
-    output.append((cmd + ' ', (GREEN, BOLD)))
+    line.append((cmd + ' ', (GREEN, BOLD)))
+
     if arg:
-      output.append((arg, (CYAN, BOLD)))
+      line.append((arg, (CYAN, BOLD)))
 
-  return output
+  return line
 
 
-class InterpreterPanel(panel.Panel):
+class InterpreterPanel(nyx.panel.Panel):
   """
-  Renders the interpreter panel with a prompt providing raw control port
-  access.
+  Prompt with raw control port access.
   """
 
   def __init__(self):
-    panel.Panel.__init__(self)
+    nyx.panel.Panel.__init__(self)
 
     self._is_input_mode = False
     self._x_offset = 0
@@ -65,44 +66,48 @@ class InterpreterPanel(panel.Panel):
       if is_changed:
         self.redraw()
 
-    def _execute_command():
+    def _prompt_input():
+      _scroll(nyx.curses.KeyInput(curses.KEY_END))  # scroll to bottom
+      self.redraw()
+
+      return nyx.curses.str_input(
+        4 + self._x_offset,
+        self.get_top() + max(1, min(len(self._lines) + 1, self.get_height() - 1)),
+        backlog = self._user_inputs,
+        tab_completion = self._autocompleter.matches
+      ).strip()
+
+    def _start_input_mode():
       self._is_input_mode = True
 
       while self._is_input_mode:
-        self.redraw()
-        _scroll(nyx.curses.KeyInput(curses.KEY_END))
-        page_height = self.get_height() - 1
-
-        user_input = nyx.curses.str_input(
-          4 + self._x_offset,
-          self.get_top() + max(len(self._lines[-page_height:]), 1),
-          backlog = self._user_inputs,
-          tab_completion = self._autocompleter.matches
-        ).strip()
+        user_input = _prompt_input()
 
         if not user_input:
           self._is_input_mode = False
-        else:
-          self._user_inputs.append(user_input)
+          break
 
-          if len(self._user_inputs) > USER_INPUT_BACKLOG_LIMIT:
-            self._user_inputs = self._user_inputs[-USER_INPUT_BACKLOG_LIMIT:]
+        self._user_inputs.append(user_input)
 
-          try:
-            response = self._interpreter.run_command(user_input)
+        if len(self._user_inputs) > USER_INPUT_BACKLOG_LIMIT:
+          self._user_inputs = self._user_inputs[-USER_INPUT_BACKLOG_LIMIT:]
 
-            if response:
-              self._lines.append(format_input(user_input))
+        try:
+          response = self._interpreter.run_command(user_input)
+        except stem.SocketClosed:
+          self._is_input_mode = False
+          break
 
-              for line in response.split('\n'):
-                self._lines.append([(text, attr) for text, attr in nyx.curses.asci_to_curses(line)])
-          except stem.SocketClosed:
-            self._is_input_mode = False
+        self._lines.append(_format_prompt_input(user_input))
+
+        if response:
+          for line in response.split('\n'):
+            self._lines.append([(text, attr) for text, attr in nyx.curses.asci_to_curses(line)])
 
       self.redraw()
 
     return (
-      nyx.panel.KeyHandler('enter', 'execute a command', _execute_command, key_func = lambda key: key.is_selection()),
+      nyx.panel.KeyHandler('enter', 'execute a command', _start_input_mode, key_func = lambda key: key.is_selection()),
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
     )
 
@@ -113,12 +118,13 @@ class InterpreterPanel(panel.Panel):
       subwindow.addstr(0, 0, 'Control Interpreter:', HIGHLIGHT)
 
     scroll = self._scroller.location(len(self._lines) + 1, subwindow.height - 1)
+    prompt = [PROMPT] if self._is_input_mode else [PROMPT, PROMPT_USAGE]
 
     if len(self._lines) > subwindow.height - 2:
       self._x_offset = 2
       subwindow.scrollbar(1, scroll, len(self._lines))
 
-    for i, line in enumerate(self._lines + [PROMPT]):
+    for i, line in enumerate(self._lines + [prompt]):
       x, y = self._x_offset, i + 1 - scroll
 
       if y > 0:
