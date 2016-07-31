@@ -305,7 +305,7 @@ def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
     if tab_completion:
       handler = functools.partial(_handle_tab_completion, handler, tab_completion)
 
-    user_input = textbox.edit(lambda key: handler(textbox, key)).strip()
+    user_input = textbox.edit(lambda key: handler(textbox, key)).rstrip()
 
     try:
       curses.curs_set(0)  # hide cursor

@@ -21,11 +21,12 @@ from nyx.curses import GREEN, MAGENTA, CYAN, BOLD, HIGHLIGHT
 USER_INPUT_BACKLOG_LIMIT = 100
 
 PROMPT = ('>>> ', (GREEN, BOLD))
+MULTILINE_PROMPT = ('... ', ())
 PROMPT_USAGE = ('to use this panel press enter', (CYAN, BOLD))
 
 
-def _format_prompt_input(user_input):
-  line = [PROMPT]
+def _format_prompt_input(user_input, prompt = PROMPT):
+  line = [prompt]
   cmd, arg = user_input.split(' ', 1) if ' ' in user_input else (user_input, '')
 
   if cmd.startswith('/'):
@@ -56,7 +57,6 @@ class InterpreterPanel(nyx.panel.Panel):
     controller = tor_controller()
     self._autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
     self._interpreter = stem.interpreter.commands.ControlInterpreter(controller)
-    self._interpreter._run_python_commands = False
 
   def key_handlers(self):
     def _scroll(key):
@@ -75,7 +75,7 @@ class InterpreterPanel(nyx.panel.Panel):
         self.get_top() + max(1, min(len(self._lines) + 1, self.get_height() - 1)),
         backlog = self._user_inputs,
         tab_completion = self._autocompleter.matches
-      ).strip()
+      )
 
     def _start_input_mode():
       self._is_input_mode = True
@@ -83,11 +83,12 @@ class InterpreterPanel(nyx.panel.Panel):
       while self._is_input_mode:
         user_input = _prompt_input()
 
-        if not user_input:
+        if not user_input and not self._interpreter.is_multiline_context:
           self._is_input_mode = False
           break
 
         self._user_inputs.append(user_input)
+        prompt = MULTILINE_PROMPT if self._interpreter.is_multiline_context else PROMPT
 
         if len(self._user_inputs) > USER_INPUT_BACKLOG_LIMIT:
           self._user_inputs = self._user_inputs[-USER_INPUT_BACKLOG_LIMIT:]
@@ -98,7 +99,7 @@ class InterpreterPanel(nyx.panel.Panel):
           self._is_input_mode = False
           break
 
-        self._lines.append(_format_prompt_input(user_input))
+        self._lines.append(_format_prompt_input(user_input, prompt))
 
         if response:
           for line in response.split('\n'):
@@ -118,7 +119,13 @@ class InterpreterPanel(nyx.panel.Panel):
       subwindow.addstr(0, 0, 'Control Interpreter:', HIGHLIGHT)
 
     scroll = self._scroller.location(len(self._lines) + 1, subwindow.height - 1)
-    prompt = [PROMPT] if self._is_input_mode else [PROMPT, PROMPT_USAGE]
+
+    if self._interpreter.is_multiline_context:
+      prompt = [MULTILINE_PROMPT]
+    elif self._is_input_mode:
+      prompt = [PROMPT]
+    else:
+      prompt = [PROMPT, PROMPT_USAGE]
 
     if len(self._lines) > subwindow.height - 2:
       self._x_offset = 2
