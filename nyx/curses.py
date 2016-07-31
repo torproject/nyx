@@ -18,6 +18,7 @@ if we want Windows support in the future too.
   curses_attr - curses encoded text attribute
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
+  asci_to_curses - converts terminal formatting to curses
   halt - prevents further curses rendering during shutdown
 
   is_color_supported - checks if terminal supports color output
@@ -86,6 +87,9 @@ import collections
 import curses
 import curses.ascii
 import curses.textpad
+import functools
+import os
+import re
 import threading
 
 import stem.util.conf
@@ -110,6 +114,7 @@ RED, GREEN, YELLOW, BLUE, CYAN, MAGENTA, BLACK, WHITE = list(Color)
 
 Attr = stem.util.enum.Enum('NORMAL', 'BOLD', 'UNDERLINE', 'HIGHLIGHT')
 NORMAL, BOLD, UNDERLINE, HIGHLIGHT = list(Attr)
+ANSI_RE = re.compile('\x1B\[([0-9;]+)m')
 
 CURSES_COLORS = {
   Color.RED: curses.COLOR_RED,
@@ -127,6 +132,18 @@ CURSES_ATTRIBUTES = {
   Attr.BOLD: curses.A_BOLD,
   Attr.UNDERLINE: curses.A_UNDERLINE,
   Attr.HIGHLIGHT: curses.A_STANDOUT,
+}
+
+ASCI_TO_CURSES = {
+  '1': BOLD,
+  '30': BLACK,
+  '31': RED,
+  '32': GREEN,
+  '33': YELLOW,
+  '34': BLUE,
+  '35': MAGENTA,
+  '36': CYAN,
+  '37': WHITE,
 }
 
 DEFAULT_COLOR_ATTR = dict([(color, 0) for color in Color])
@@ -244,7 +261,7 @@ def key_input(input_timeout = None):
   return KeyInput(CURSES_SCREEN.getch())
 
 
-def str_input(x, y, initial_text = ''):
+def str_input(x, y, initial_text = '', backlog = None, tab_completion = None):
   """
   Provides a text field where the user can input a string, blocking until
   they've done so and returning the result. If the user presses escape then
@@ -257,32 +274,12 @@ def str_input(x, y, initial_text = ''):
   :param int x: horizontal location
   :param int y: vertical location
   :param str initial_text: initial input of the field
+  :param list backlog: previous inputs that can be selected by pressing
+    up/down, oldest to newest
+  :param func tab_completion: function to suggest inputs to tab complete with
 
-  :returns: **str** with the user input or **None** if the prompt is caneled
+  :returns: **str** with the user input or **None** if the prompt is canceled
   """
-
-  def handle_key(textbox, key):
-    y, x = textbox.win.getyx()
-
-    if key == 27:
-      return curses.ascii.BEL  # user pressed esc
-    elif key == curses.KEY_HOME:
-      textbox.win.move(y, 0)
-    elif key in (curses.KEY_END, curses.KEY_RIGHT):
-      msg_length = len(textbox.gather())
-      textbox.win.move(y, x)  # reverts cursor movement during gather call
-
-      if key == curses.KEY_END and msg_length > 0 and x < msg_length - 1:
-        textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
-      elif key == curses.KEY_RIGHT and x < msg_length - 1:
-        textbox.win.move(y, x + 1)  # only move cursor if there's content after it
-    elif key == 410:
-      # if we're resizing the display during text entry then cancel it
-      # (otherwise the input field is filled with nonprintable characters)
-
-      return curses.ascii.BEL
-    else:
-      return key
 
   with CURSES_LOCK:
     if HALT_ACTIVITY:
@@ -300,7 +297,15 @@ def str_input(x, y, initial_text = ''):
     curses_subwindow.addstr(0, 0, initial_text[:width - 1])
 
     textbox = curses.textpad.Textbox(curses_subwindow, insert_mode = True)
-    user_input = textbox.edit(lambda key: handle_key(textbox, key)).strip()
+    handler = _handle_key
+
+    if backlog:
+      handler = functools.partial(_TextBacklog(backlog)._handler, handler)
+
+    if tab_completion:
+      handler = functools.partial(_handle_tab_completion, handler, tab_completion)
+
+    user_input = textbox.edit(lambda key: handler(textbox, key)).rstrip()
 
     try:
       curses.curs_set(0)  # hide cursor
@@ -308,6 +313,124 @@ def str_input(x, y, initial_text = ''):
       pass
 
     return None if textbox.lastcmd == curses.ascii.BEL else user_input
+
+
+def _handle_key(textbox, key):
+  """
+  Handles esc, home, end, right arrow, and resizing. We don't need to handle
+  the left arrow key because curses has reasonable behavior for that one.
+
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
+
+  :returns: **str** with the user input or **None** if the prompt is canceled
+  """
+
+  y, x = textbox.win.getyx()
+
+  if key == 27:
+    return curses.ascii.BEL  # user pressed esc
+  elif key == curses.KEY_HOME:
+    textbox.win.move(y, 0)
+  elif key in (curses.KEY_END, curses.KEY_RIGHT):
+    msg_length = len(textbox.gather())
+    textbox.win.move(y, x)  # reverts cursor movement during gather call
+
+    if key == curses.KEY_END and x < msg_length - 1:
+      textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
+    elif key == curses.KEY_RIGHT and x < msg_length - 1:
+      textbox.win.move(y, x + 1)  # only move cursor if there's content after it
+  elif key == 410:
+    # if we're resizing the display during text entry then cancel it
+    # (otherwise the input field is filled with nonprintable characters)
+
+    return curses.ascii.BEL
+  else:
+    return key
+
+
+def _handle_tab_completion(next_handler, tab_completion, textbox, key):
+  """
+  Allows user to tab complete commands if sufficient context is provided to
+  narrow to a single option.
+
+  :param func next_handler: handler to invoke after this
+  :param func tab_completion: function to suggest inputs to tab complete with
+  :param Textbox textbox: current textbox context
+  :param int key: key pressed
+
+  :returns: **None** when tab is pressed, otherwise invokes next handler
+  """
+
+  if key == 9:
+    y, x = textbox.win.getyx()
+    current_contents = textbox.gather().strip()
+    textbox.win.move(y, x)  # reverts cursor movement during gather call
+
+    new_input = None
+    matches = tab_completion(current_contents)
+
+    if len(matches) == 1:
+      new_input = matches[0]
+    elif len(matches) > 1:
+      common_prefix = os.path.commonprefix(matches)
+
+      if common_prefix != current_contents:
+        new_input = common_prefix
+
+    if new_input:
+      _, max_x = textbox.win.getmaxyx()
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, new_input[:max_x - 1])
+      textbox.win.move(y, min(len(new_input), max_x - 1))
+
+    return None
+
+  return next_handler(textbox, key)
+
+
+class _TextBacklog(object):
+  """
+  History backlog that allows the :func:`~nyx.curses.str_input` function to
+  scroll through prior inputs when pressing the up and down arrow keys.
+  """
+
+  def __init__(self, backlog = []):
+    self._backlog = backlog  # backlog contents, oldest to newest
+    self._selection = None   # selected item, None if we're not on the backlog
+    self._custom_input = ''  # field's input prior to selecting a backlog item
+
+  def _handler(self, next_handler, textbox, key):
+    if key in (curses.KEY_UP, curses.KEY_DOWN):
+      if key == curses.KEY_UP:
+        if self._selection is None:
+          new_selection = len(self._backlog) - 1
+        else:
+          new_selection = max(0, self._selection - 1)
+      else:
+        if self._selection is None or self._selection == len(self._backlog) - 1:
+          new_selection = None
+        else:
+          new_selection = self._selection + 1
+
+      if self._selection == new_selection:
+        return None
+
+      if self._selection is None:
+        self._custom_input = textbox.gather().strip()  # save custom input
+
+      new_input = self._custom_input if new_selection is None else self._backlog[new_selection]
+
+      y, _ = textbox.win.getyx()
+      _, max_x = textbox.win.getmaxyx()
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, new_input[:max_x - 1])
+      textbox.win.move(y, min(len(new_input), max_x - 1))
+      self._selection = new_selection
+
+      return None
+
+    return next_handler(textbox, key)
 
 
 def curses_attr(*attributes):
@@ -357,6 +480,50 @@ def screenshot():
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
   return '\n'.join(lines).rstrip()
+
+
+def asci_to_curses(msg):
+  """
+  Translates ANSI terminal escape sequences to curses formatting.
+
+  :param str msg: string to be converted
+
+  :returns: **list** series of (text, attr) tuples that's renderable by curses
+  """
+
+  entries, next_attr = [], ()
+  match = ANSI_RE.search(msg)
+
+  while match:
+    if match.start() > 0:
+      entries.append((msg[:match.start()], next_attr))
+
+    curses_attr = match.group(1).split(';')
+    new_attr = [ASCI_TO_CURSES[num] for num in curses_attr if num in ASCI_TO_CURSES]
+
+    if '0' in curses_attr:
+      next_attr = tuple(new_attr)  # includes a 'reset'
+    else:
+      combined_attr = list(next_attr)
+
+      for attr in new_attr:
+        if attr in combined_attr:
+          continue
+        elif attr in Color:
+          # replace previous color with new one
+          combined_attr = filter(lambda attr: attr not in Color, combined_attr)
+
+        combined_attr.append(attr)
+
+      next_attr = tuple(combined_attr)
+
+    msg = msg[match.end():]
+    match = ANSI_RE.search(msg)
+
+  if msg:
+    entries.append((msg, next_attr))
+
+  return entries
 
 
 def halt():

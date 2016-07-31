@@ -37,6 +37,7 @@ __all__ = [
   'connection',
   'graph',
   'header',
+  'interpreter',
   'log',
   'torrc',
 ]
