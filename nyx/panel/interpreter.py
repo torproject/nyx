@@ -55,7 +55,7 @@ class InterpreterPanel(nyx.panel.Panel):
 
     controller = tor_controller()
     self._autocompleter = stem.interpreter.autocomplete.Autocompleter(controller)
-    self._interpreter = stem.interpreter.commands.ControlInterpretor(controller)
+    self._interpreter = stem.interpreter.commands.ControlInterpreter(controller)
     self._interpreter._run_python_commands = False
 
   def key_handlers(self):
