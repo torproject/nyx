@@ -2,7 +2,7 @@
 # See LICENSE for licensing information
 
 """
-Display logic for presenting the menu.
+Menu for controlling nyx.
 """
 
 import functools
@@ -71,6 +71,7 @@ def make_actions_menu():
   control = nyx.controller.get_controller()
   controller = tor_controller()
   header_panel = control.header_panel()
+
   actions_menu = Submenu('Actions')
   actions_menu.add(MenuItem('Close Menu', None))
   actions_menu.add(MenuItem('New Identity', header_panel.send_newnym))
@@ -100,22 +101,22 @@ def make_view_menu():
   control = nyx.controller.get_controller()
 
   if control.get_page_count() > 0:
-    page_group = SelectionGroup(control.set_page, control.get_page())
+    page_group = RadioGroup(control.set_page, control.get_page())
 
     for i in range(control.get_page_count()):
       page_panels = control.get_display_panels(page_number = i)
       label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
 
-      view_menu.add(SelectionMenuItem(label, page_group, i))
+      view_menu.add(RadioMenuItem(label, page_group, i))
 
   if nyx.curses.is_color_supported():
     color_menu = Submenu('Color')
-    color_group = SelectionGroup(nyx.curses.set_color_override, nyx.curses.get_color_override())
+    color_group = RadioGroup(nyx.curses.set_color_override, nyx.curses.get_color_override())
 
-    color_menu.add(SelectionMenuItem('All', color_group, None))
+    color_menu.add(RadioMenuItem('All', color_group, None))
 
     for color in nyx.curses.Color:
-      color_menu.add(SelectionMenuItem(str_tools._to_camel_case(color), color_group, color))
+      color_menu.add(RadioMenuItem(str_tools._to_camel_case(color), color_group, color))
 
     view_menu.add(color_menu)
 
@@ -153,14 +154,14 @@ def make_graph_menu(graph_panel):
 
   # stats options
 
-  stat_group = SelectionGroup(functools.partial(setattr, graph_panel, 'displayed_stat'), graph_panel.displayed_stat)
+  stat_group = RadioGroup(functools.partial(setattr, graph_panel, 'displayed_stat'), graph_panel.displayed_stat)
   available_stats = graph_panel.stat_options()
   available_stats.sort()
 
   for stat_key in ['None'] + available_stats:
     label = str_tools._to_camel_case(stat_key, divider = ' ')
     stat_key = None if stat_key == 'None' else stat_key
-    graph_menu.add(SelectionMenuItem(label, stat_group, stat_key))
+    graph_menu.add(RadioMenuItem(label, stat_group, stat_key))
 
   # resizing option
 
@@ -169,20 +170,20 @@ def make_graph_menu(graph_panel):
   # interval submenu
 
   interval_menu = Submenu('Interval')
-  interval_group = SelectionGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
+  interval_group = RadioGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
 
   for interval in nyx.panel.graph.Interval:
-    interval_menu.add(SelectionMenuItem(interval, interval_group, interval))
+    interval_menu.add(RadioMenuItem(interval, interval_group, interval))
 
   graph_menu.add(interval_menu)
 
   # bounds submenu
 
   bounds_menu = Submenu('Bounds')
-  bounds_group = SelectionGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
+  bounds_group = RadioGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
 
   for bounds_type in nyx.panel.graph.Bounds:
-    bounds_menu.add(SelectionMenuItem(bounds_type, bounds_group, bounds_type))
+    bounds_menu.add(RadioMenuItem(bounds_type, bounds_group, bounds_type))
 
   graph_menu.add(bounds_menu)
 
@@ -220,12 +221,12 @@ def make_log_menu(log_panel):
   log_filter = log_panel.get_filter()
 
   filter_menu = Submenu('Filter')
-  filter_group = SelectionGroup(log_filter.select, log_filter.selection())
+  filter_group = RadioGroup(log_filter.select, log_filter.selection())
 
-  filter_menu.add(SelectionMenuItem('None', filter_group, None))
+  filter_menu.add(RadioMenuItem('None', filter_group, None))
 
   for option in log_filter.latest_selections():
-    filter_menu.add(SelectionMenuItem(option, filter_group, option))
+    filter_menu.add(RadioMenuItem(option, filter_group, option))
 
   filter_menu.add(MenuItem('New...', log_panel.show_filter_prompt))
   log_menu.add(filter_menu)
@@ -253,12 +254,12 @@ def make_connections_menu(conn_panel):
 
   conn_resolver = nyx.tracker.get_connection_tracker()
   resolver_menu = Submenu('Resolver')
-  resolver_group = SelectionGroup(conn_resolver.set_custom_resolver, conn_resolver.get_custom_resolver())
+  resolver_group = RadioGroup(conn_resolver.set_custom_resolver, conn_resolver.get_custom_resolver())
 
-  resolver_menu.add(SelectionMenuItem('auto', resolver_group, None))
+  resolver_menu.add(RadioMenuItem('auto', resolver_group, None))
 
   for option in stem.util.connection.Resolver:
-    resolver_menu.add(SelectionMenuItem(option, resolver_group, option))
+    resolver_menu.add(RadioMenuItem(option, resolver_group, option))
 
   connections_menu.add(resolver_menu)
 
@@ -608,9 +609,9 @@ class Submenu(MenuItem):
     return False
 
 
-class SelectionGroup():
+class RadioGroup():
   """
-  Radio button groups that SelectionMenuItems can belong to.
+  Radio button groups that RadioMenuItems can belong to.
   """
 
   def __init__(self, action, selected_arg):
@@ -618,7 +619,7 @@ class SelectionGroup():
     self.selected_arg = selected_arg
 
 
-class SelectionMenuItem(MenuItem):
+class RadioMenuItem(MenuItem):
   """
   Menu item with an associated group which determines the selection. This is
   for the common single argument getter/setter pattern.
