@@ -69,16 +69,6 @@ class MenuItem(object):
     my_hierarchy.reverse()
     return my_hierarchy
 
-  def get_root(self):
-    """
-    Provides the base submenu we belong to.
-    """
-
-    if self._parent:
-      return self._parent.get_root()
-    else:
-      return self
-
   def select(self):
     """
     Performs the callback for the menu item, returning true if we should close
