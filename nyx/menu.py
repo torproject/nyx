@@ -120,9 +120,6 @@ class MenuItem(object):
     else:
       raise ValueError("Menu option '%s' doesn't have a parent" % self)
 
-  def __str__(self):
-    return self.label
-
 
 class Submenu(MenuItem):
   """
