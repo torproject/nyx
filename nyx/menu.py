@@ -63,6 +63,7 @@ class MenuItem(object):
     """
 
     my_hierarchy = [self]
+
     while my_hierarchy[-1].get_parent():
       my_hierarchy.append(my_hierarchy[-1].get_parent())
 
@@ -71,16 +72,13 @@ class MenuItem(object):
 
   def select(self):
     """
-    Performs the callback for the menu item, returning true if we should close
-    the menu and false otherwise.
+    Performs the callback for the menu item.
     """
 
     if self._callback:
       control = nyx.controller.get_controller()
       control.redraw()
       self._callback()
-
-    return True
 
   def next(self):
     """
@@ -165,9 +163,6 @@ class Submenu(MenuItem):
 
     return not bool(self._children)
 
-  def select(self):
-    return False
-
 
 class RadioMenuItem(MenuItem):
   """
@@ -198,8 +193,6 @@ class RadioMenuItem(MenuItem):
 
     if not self.is_selected():
       self._group.action(self._arg)
-
-    return True
 
 
 class RadioGroup(object):
@@ -527,7 +520,8 @@ class MenuCursor:
         if not self._selection.is_empty():
           self._selection = self._selection.get_children()[0]
       else:
-        self._is_done = self._selection.select()
+        self._selection.select()
+        self._is_done = True
     elif key.match('up'):
       self._selection = self._selection.prev()
     elif key.match('down'):
