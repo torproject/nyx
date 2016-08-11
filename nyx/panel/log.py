@@ -111,6 +111,15 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     NYX_LOGGER.emit = self._register_nyx_event
 
+  def is_duplicates_visible(self):
+    """
+    Checks if duplicate log entries are collapsed or not.
+
+    :returns: **True** if duplicates are shown and **False** otherwise
+    """
+
+    return self._show_duplicates
+
   def set_duplicate_visability(self, is_visible):
     """
     Sets if duplicate log entries are collaped or expanded.
@@ -227,7 +236,7 @@ class LogPanel(nyx.panel.DaemonPanel):
           self._filter.select(selection)
 
     def _toggle_deduplication():
-      self.set_duplicate_visability(not self._show_duplicates)
+      self.set_duplicate_visability(not self.is_duplicates_visible())
       self.redraw()
 
     def _clear_log():
@@ -242,7 +251,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       nyx.panel.KeyHandler('a', 'save snapshot of the log', self.show_snapshot_prompt),
       nyx.panel.KeyHandler('e', 'change logged events', self.show_event_selection_prompt),
       nyx.panel.KeyHandler('f', 'log regex filter', _pick_filter, 'enabled' if self._filter.selection() else 'disabled'),
-      nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self._show_duplicates else 'hidden'),
+      nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self.is_duplicates_visible() else 'hidden'),
       nyx.panel.KeyHandler('c', 'clear event log', _clear_log),
     )
 

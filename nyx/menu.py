@@ -23,11 +23,7 @@ import stem.util.connection
 
 from nyx import tor_controller
 from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE
-from stem.util import conf, str_tools
-
-CONFIG = conf.config_dict('nyx', {
-  'features.log.showDuplicateEntries': False,
-})
+from stem.util import str_tools
 
 
 class MenuItem(object):
@@ -381,7 +377,7 @@ def make_log_menu(log_panel):
   log_menu.add(MenuItem('Snapshot...', log_panel.show_snapshot_prompt))
   log_menu.add(MenuItem('Clear', log_panel.clear))
 
-  if CONFIG['features.log.showDuplicateEntries']:
+  if log_panel.is_duplicates_visible():
     label, arg = 'Hide', False
   else:
     label, arg = 'Show', True
