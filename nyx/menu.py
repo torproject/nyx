@@ -30,9 +30,12 @@ class MenuItem(object):
   """
   Drop-down menu item.
 
-  :var str prefix: text coming before our label
+  :var str prefix: text before our label
   :var str label: text we display
-  :var str suffix: text coming after our label
+  :var str suffix: text after our label
+
+  :var Submenu parent: submenu we reside within
+  :var Submenu submenu: top-level submenu we reside within
   """
 
   def __init__(self, label, callback):
@@ -46,25 +49,13 @@ class MenuItem(object):
   def prefix(self):
     return ''
 
-  def get_parent(self):
-    """
-    Provides the Submenu we're contained within.
-    """
-
+  @property
+  def parent(self):
     return self._parent
 
-  def get_hierarchy(self):
-    """
-    Provides a list with all of our parents, up to the root.
-    """
-
-    my_hierarchy = [self]
-
-    while my_hierarchy[-1].get_parent():
-      my_hierarchy.append(my_hierarchy[-1].get_parent())
-
-    my_hierarchy.reverse()
-    return my_hierarchy
+  @property
+  def submenu(self):
+    return self._parent.submenu if (self._parent and self._parent._parent) else self
 
   def select(self):
     """
@@ -136,7 +127,7 @@ class Submenu(MenuItem):
       menu_item - menu option to be added
     """
 
-    if menu_item.get_parent():
+    if menu_item.parent:
       raise ValueError("Menu option '%s' already has a parent" % menu_item)
     else:
       menu_item._parent = self
@@ -506,7 +497,6 @@ class MenuCursor:
 
   def handle_key(self, key):
     is_selection_submenu = isinstance(self._selection, Submenu)
-    selection_hierarchy = self._selection.get_hierarchy()
 
     if key.is_selection():
       if is_selection_submenu:
@@ -520,15 +510,15 @@ class MenuCursor:
     elif key.match('down'):
       self._selection = self._selection.next()
     elif key.match('left'):
-      if len(selection_hierarchy) <= 3:
+      if self._selection.parent == self._selection.submenu:
         # shift to the previous main submenu
 
-        prev_submenu = selection_hierarchy[1].prev()
+        prev_submenu = self._selection.submenu.prev()
         self._selection = prev_submenu.get_children()[0]
       else:
         # go up a submenu level
 
-        self._selection = self._selection.get_parent()
+        self._selection = self._selection.parent
     elif key.match('right'):
       if is_selection_submenu:
         # open submenu (same as making a selection)
@@ -538,7 +528,7 @@ class MenuCursor:
       else:
         # shift to the next main submenu
 
-        next_submenu = selection_hierarchy[1].next()
+        next_submenu = self._selection.submenu.next()
         self._selection = next_submenu.get_children()[0]
     elif key.match('esc', 'm'):
       self._is_done = True
@@ -551,7 +541,7 @@ def show_menu():
     x = 0
 
     for top_level_item in menu.get_children():
-      if top_level_item == selection_hierarchy[1]:
+      if top_level_item == cursor.get_selection().submenu:
         selection_left[0] = x
         attr = UNDERLINE
       else:
@@ -569,8 +559,6 @@ def show_menu():
     cursor = MenuCursor(menu.get_children()[0].get_children()[0])
 
     while not cursor.is_done():
-      selection_hierarchy = cursor.get_selection().get_hierarchy()
-
       # provide a message saying how to close the menu
 
       nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
@@ -587,7 +575,12 @@ def show_menu():
 
 
 def _draw_submenu(cursor, level, top, left):
-  selection_hierarchy = cursor.get_selection().get_hierarchy()
+  selection_hierarchy = [cursor.get_selection()]
+
+  while selection_hierarchy[-1].parent:
+    selection_hierarchy.append(selection_hierarchy[-1].parent)
+
+  selection_hierarchy.reverse()
 
   # checks if there's nothing to display
 
