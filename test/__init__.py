@@ -17,6 +17,7 @@ __all__ = [
   'curses',
   'installation',
   'log',
+  'menu',
   'panel',
   'popups',
   'tracker',
