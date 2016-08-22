@@ -148,33 +148,17 @@ class Submenu(MenuItem):
 
 class RadioMenuItem(MenuItem):
   """
-  Menu item with an associated group which determines the selection. This is
-  for the common single argument getter/setter pattern.
+  Menu item with an associated group which determines the selection.
   """
 
   def __init__(self, label, group, arg):
-    MenuItem.__init__(self, label, None)
+    MenuItem.__init__(self, label, lambda: group.action(arg))
     self._group = group
     self._arg = arg
 
   @property
   def prefix(self):
-    return '[X] ' if self.is_selected() else '[ ] '
-
-  def is_selected(self):
-    """
-    True if we're the selected item, false otherwise.
-    """
-
-    return self._arg == self._group.selected_arg
-
-  def select(self):
-    """
-    Performs the group's setter action with our argument.
-    """
-
-    if not self.is_selected():
-      self._group.action(self._arg)
+    return '[X] ' if self._arg == self._group.selected_arg else '[ ] '
 
 
 class RadioGroup(object):
@@ -183,7 +167,7 @@ class RadioGroup(object):
   """
 
   def __init__(self, action, selected_arg):
-    self.action = action
+    self.action = lambda arg: action(arg) if arg != self.selected_arg else None
     self.selected_arg = selected_arg
 
 
