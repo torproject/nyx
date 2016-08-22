@@ -63,8 +63,6 @@ class MenuItem(object):
     """
 
     if self._callback:
-      control = nyx.controller.get_controller()
-      control.redraw()
       self._callback()
 
   def next(self):
