@@ -16,6 +16,9 @@ class TestMenu(unittest.TestCase):
     self.assertEqual('', menu_item.prefix)
     self.assertEqual('Test Item', menu_item.label)
     self.assertEqual('', menu_item.suffix)
+
+    self.assertEqual(None, menu_item.next)
+    self.assertEqual(None, menu_item.prev)
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
@@ -25,6 +28,9 @@ class TestMenu(unittest.TestCase):
     self.assertEqual('', menu_item.prefix)
     self.assertEqual('Test Item', menu_item.label)
     self.assertEqual(' >', menu_item.suffix)
+
+    self.assertEqual(None, menu_item.next)
+    self.assertEqual(None, menu_item.prev)
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
@@ -35,6 +41,9 @@ class TestMenu(unittest.TestCase):
     self.assertEqual('[X] ', menu_item.prefix)
     self.assertEqual('Test Item', menu_item.label)
     self.assertEqual('', menu_item.suffix)
+
+    self.assertEqual(None, menu_item.next)
+    self.assertEqual(None, menu_item.prev)
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
@@ -51,10 +60,10 @@ class TestMenu(unittest.TestCase):
 
     self.assertEqual(middle_submenu, bottom_item.parent)
     self.assertEqual(middle_submenu, bottom_item.submenu)
-    self.assertEqual(bottom_item, bottom_item.next())
-    self.assertEqual(bottom_item, bottom_item.prev())
+    self.assertEqual(bottom_item, bottom_item.next)
+    self.assertEqual(bottom_item, bottom_item.prev)
 
     self.assertEqual(root_submenu, middle_submenu.parent)
     self.assertEqual(middle_submenu, middle_submenu.submenu)
-    self.assertEqual('Middle Item 1', middle_submenu.next().label)
-    self.assertEqual('Middle Item 2', middle_submenu.prev().label)
+    self.assertEqual('Middle Item 1', middle_submenu.next.label)
+    self.assertEqual('Middle Item 2', middle_submenu.prev.label)

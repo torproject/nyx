@@ -34,6 +34,8 @@ class MenuItem(object):
   :var str label: text we display
   :var str suffix: text after our label
 
+  :var MenuItem next: menu item after this one
+  :var MenuItem prev: menu item before this one
   :var Submenu parent: submenu we reside within
   :var Submenu submenu: top-level submenu we reside within
   """
@@ -48,6 +50,14 @@ class MenuItem(object):
   @property
   def prefix(self):
     return ''
+
+  @property
+  def next(self):
+    return self._sibling(1)
+
+  @property
+  def prev(self):
+    return self._sibling(-1)
 
   @property
   def parent(self):
@@ -65,45 +75,23 @@ class MenuItem(object):
     if self._callback:
       self._callback()
 
-  def next(self):
+  def _sibling(self, offset):
     """
-    Provides the next option for the submenu we're in, raising a ValueError
-    if we don't have a parent.
-    """
-
-    return self._get_sibling(1)
-
-  def prev(self):
-    """
-    Provides the previous option for the submenu we're in, raising a ValueError
-    if we don't have a parent.
+    Provides sibling with a given offset from us.
     """
 
-    return self._get_sibling(-1)
+    if not self._parent:
+      return None
 
-  def _get_sibling(self, offset):
-    """
-    Provides our sibling with a given index offset from us, raising a
-    ValueError if we don't have a parent.
+    my_siblings = self._parent.get_children()
 
-    Arguments:
-      offset - index offset for the sibling to be returned
-    """
+    try:
+      my_index = my_siblings.index(self)
+      return my_siblings[(my_index + offset) % len(my_siblings)]
+    except ValueError:
+      # submenus and children should have bidirectional references
 
-    if self._parent:
-      my_siblings = self._parent.get_children()
-
-      try:
-        my_index = my_siblings.index(self)
-        return my_siblings[(my_index + offset) % len(my_siblings)]
-      except ValueError:
-        # We expect a bidirectional references between submenus and their
-        # children. If we don't have this then our menu's screwed up.
-
-        msg = "The '%s' submenu doesn't contain '%s' (children: '%s')" % (self, self._parent, "', '".join(my_siblings))
-        raise ValueError(msg)
-    else:
-      raise ValueError("Menu option '%s' doesn't have a parent" % self)
+      raise ValueError("BUG: The '%s' submenu doesn't contain '%s' (children: '%s')" % (self._parent, self.label, "', '".join(my_siblings)))
 
 
 class Submenu(MenuItem):
@@ -488,14 +476,14 @@ class MenuCursor:
         self._selection.select()
         self._is_done = True
     elif key.match('up'):
-      self._selection = self._selection.prev()
+      self._selection = self._selection.prev
     elif key.match('down'):
-      self._selection = self._selection.next()
+      self._selection = self._selection.next
     elif key.match('left'):
       if self._selection.parent == self._selection.submenu:
         # shift to the previous main submenu
 
-        prev_submenu = self._selection.submenu.prev()
+        prev_submenu = self._selection.submenu.prev
         self._selection = prev_submenu.get_children()[0]
       else:
         # go up a submenu level
@@ -510,7 +498,7 @@ class MenuCursor:
       else:
         # shift to the next main submenu
 
-        next_submenu = self._selection.submenu.next()
+        next_submenu = self._selection.submenu.next
         self._selection = next_submenu.get_children()[0]
     elif key.match('esc', 'm'):
       self._is_done = True
