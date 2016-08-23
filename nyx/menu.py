@@ -83,7 +83,7 @@ class MenuItem(object):
     if not self._parent:
       return None
 
-    my_siblings = self._parent.get_children()
+    my_siblings = self._parent.children
 
     try:
       my_index = my_siblings.index(self)
@@ -97,41 +97,29 @@ class MenuItem(object):
 class Submenu(MenuItem):
   """
   Menu item that lists other menu options.
+
+  :var list children: menu items this contains
   """
 
   def __init__(self, label):
     MenuItem.__init__(self, label, None)
     self.suffix = ' >'
-    self._children = []
+    self.children = []
 
   def add(self, menu_item):
     """
-    Adds the given menu item to our listing. This raises a ValueError if the
-    item already has a parent.
+    Adds the given menu item to our listing.
 
-    Arguments:
-      menu_item - menu option to be added
+    :param MenuItem menu_item: menu item to be added
+
+    :raises: **ValueError** if the item is already in a submenu
     """
 
     if menu_item.parent:
       raise ValueError("Menu option '%s' already has a parent" % menu_item)
-    else:
-      menu_item._parent = self
-      self._children.append(menu_item)
 
-  def get_children(self):
-    """
-    Provides the menu and submenus we contain.
-    """
-
-    return list(self._children)
-
-  def is_empty(self):
-    """
-    True if we have no children, false otherwise.
-    """
-
-    return not bool(self._children)
+    menu_item._parent = self
+    self.children.append(menu_item)
 
 
 class RadioMenuItem(MenuItem):
@@ -470,8 +458,8 @@ class MenuCursor:
 
     if key.is_selection():
       if is_selection_submenu:
-        if not self._selection.is_empty():
-          self._selection = self._selection.get_children()[0]
+        if self._selection.children:
+          self._selection = self._selection.children[0]
       else:
         self._selection.select()
         self._is_done = True
@@ -484,7 +472,7 @@ class MenuCursor:
         # shift to the previous main submenu
 
         prev_submenu = self._selection.submenu.prev
-        self._selection = prev_submenu.get_children()[0]
+        self._selection = prev_submenu.children[0]
       else:
         # go up a submenu level
 
@@ -493,13 +481,13 @@ class MenuCursor:
       if is_selection_submenu:
         # open submenu (same as making a selection)
 
-        if not self._selection.is_empty():
-          self._selection = self._selection.get_children()[0]
+        if self._selection.children:
+          self._selection = self._selection.children[0]
       else:
         # shift to the next main submenu
 
         next_submenu = self._selection.submenu.next
-        self._selection = next_submenu.get_children()[0]
+        self._selection = next_submenu.children[0]
     elif key.match('esc', 'm'):
       self._is_done = True
 
@@ -510,7 +498,7 @@ def show_menu():
   def _render(subwindow):
     x = 0
 
-    for top_level_item in menu.get_children():
+    for top_level_item in menu.children:
       if top_level_item == cursor.get_selection().submenu:
         selection_left[0] = x
         attr = UNDERLINE
@@ -526,7 +514,7 @@ def show_menu():
     # the file menu
 
     menu = make_menu()
-    cursor = MenuCursor(menu.get_children()[0].get_children()[0])
+    cursor = MenuCursor(menu.children[0].children[0])
 
     while not cursor.is_done():
       # provide a message saying how to close the menu
@@ -564,7 +552,7 @@ def _draw_submenu(cursor, level, top, left):
 
   # gets the size of the prefix, middle, and suffix columns
 
-  all_label_sets = [(entry.prefix, entry.label, entry.suffix) for entry in submenu.get_children()]
+  all_label_sets = [(entry.prefix, entry.label, entry.suffix) for entry in submenu.children]
   prefix_col_size = max([len(entry[0]) for entry in all_label_sets])
   middle_col_size = max([len(entry[1]) for entry in all_label_sets])
   suffix_col_size = max([len(entry[2]) for entry in all_label_sets])
@@ -573,15 +561,15 @@ def _draw_submenu(cursor, level, top, left):
 
   label_format = ' %%-%is%%-%is%%-%is ' % (prefix_col_size, middle_col_size, suffix_col_size)
   menu_width = len(label_format % ('', '', ''))
-  selection_top = submenu.get_children().index(selection) if selection in submenu.get_children() else 0
+  selection_top = submenu.children.index(selection) if selection in submenu.children else 0
 
   def _render(subwindow):
-    for y, menu_item in enumerate(submenu.get_children()):
+    for y, menu_item in enumerate(submenu.children):
       if menu_item == selection:
         subwindow.addstr(0, y, label_format % (menu_item.prefix, menu_item.label, menu_item.suffix), WHITE, BOLD)
       else:
         subwindow.addstr(0, y, label_format % (menu_item.prefix, menu_item.label, menu_item.suffix))
 
   with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = top, left = left, width = menu_width, height = len(submenu.get_children()), background = RED)
+    nyx.curses.draw(_render, top = top, left = left, width = menu_width, height = len(submenu.children), background = RED)
     _draw_submenu(cursor, level + 1, top + selection_top, left + menu_width)

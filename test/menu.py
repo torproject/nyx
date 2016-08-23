@@ -80,6 +80,27 @@ class TestSubmenu(unittest.TestCase):
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
+  def test_add(self):
+    submenu = Submenu('Menu')
+    item_1 = MenuItem('Test Item 1', NO_OP)
+    item_2 = MenuItem('Test Item 2', NO_OP)
+
+    self.assertEqual([], submenu.children)
+
+    submenu.add(item_1)
+    self.assertEqual([item_1], submenu.children)
+
+    submenu.add(item_2)
+    self.assertEqual([item_1, item_2], submenu.children)
+
+  def test_add_raises_when_already_in_menu(self):
+    submenu_1 = Submenu('Menu 1')
+    submenu_2 = Submenu('Menu 2')
+    item = MenuItem('Test Item', NO_OP)
+
+    submenu_1.add(item)
+    self.assertRaises(ValueError, submenu_2.add, item)
+
 
 class TestRadioMenuItem(unittest.TestCase):
   def setUp(self):
