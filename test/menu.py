@@ -80,6 +80,15 @@ class TestSubmenu(unittest.TestCase):
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
+    self.assertEqual([], menu_item.children)
+
+    menu_item = Submenu('Test Item', [
+      MenuItem('Test Item 1', NO_OP),
+      MenuItem('Test Item 2', NO_OP),
+    ])
+
+    self.assertEqual(2, len(menu_item.children))
+
   def test_add(self):
     submenu = Submenu('Menu')
     item_1 = MenuItem('Test Item 1', NO_OP)

@@ -101,10 +101,14 @@ class Submenu(MenuItem):
   :var list children: menu items this contains
   """
 
-  def __init__(self, label):
+  def __init__(self, label, children = None):
     MenuItem.__init__(self, label, None)
     self.suffix = ' >'
     self.children = []
+
+    if children:
+      for child in children:
+        self.add(child)
 
   def add(self, menu_item):
     """
@@ -247,10 +251,10 @@ def make_help_menu():
     About
   """
 
-  help_menu = Submenu('Help')
-  help_menu.add(MenuItem('Hotkeys', nyx.popups.show_help))
-  help_menu.add(MenuItem('About', nyx.popups.show_about))
-  return help_menu
+  return Submenu('Help', [
+    MenuItem('Hotkeys', nyx.popups.show_help),
+    MenuItem('About', nyx.popups.show_about),
+  ])
 
 
 def make_graph_menu(graph_panel):
@@ -394,10 +398,10 @@ def make_configuration_menu(config_panel):
     config_panel - instance of the configuration panel
   """
 
-  config_menu = Submenu('Configuration')
-  config_menu.add(MenuItem('Save Config...', config_panel.show_write_dialog))
-  config_menu.add(MenuItem('Sorting...', config_panel.show_sort_dialog))
-  return config_menu
+  return Submenu('Configuration', [
+    MenuItem('Save Config...', config_panel.show_write_dialog),
+    MenuItem('Sorting...', config_panel.show_sort_dialog),
+  ])
 
 
 def make_torrc_menu(torrc_panel):
