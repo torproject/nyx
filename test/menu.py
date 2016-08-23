@@ -6,11 +6,27 @@ import unittest
 
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 
+
+class Container(object):
+  value = False
+
+  def __nonzero__(self):
+    return self.value
+
+
+def action(*args):
+  IS_CALLED.value = True
+
+
 NO_OP = lambda: None
+IS_CALLED = Container()
 
 
-class TestMenu(unittest.TestCase):
-  def test_menu_item_parameters(self):
+class TestMenuItem(unittest.TestCase):
+  def setUp(self):
+    IS_CALLED.value = False
+
+  def test_parameters(self):
     menu_item = MenuItem('Test Item', NO_OP)
 
     self.assertEqual('', menu_item.prefix)
@@ -22,30 +38,12 @@ class TestMenu(unittest.TestCase):
     self.assertEqual(None, menu_item.parent)
     self.assertEqual(menu_item, menu_item.submenu)
 
-  def test_submenu_parameters(self):
-    menu_item = Submenu('Test Item')
+  def test_selection(self):
+    menu_item = MenuItem('Test Item', action)
 
-    self.assertEqual('', menu_item.prefix)
-    self.assertEqual('Test Item', menu_item.label)
-    self.assertEqual(' >', menu_item.suffix)
-
-    self.assertEqual(None, menu_item.next)
-    self.assertEqual(None, menu_item.prev)
-    self.assertEqual(None, menu_item.parent)
-    self.assertEqual(menu_item, menu_item.submenu)
-
-  def test_radio_menu_item_parameters(self):
-    group = RadioGroup(NO_OP, 'selected_item')
-    menu_item = RadioMenuItem('Test Item', group, 'selected_item')
-
-    self.assertEqual('[X] ', menu_item.prefix)
-    self.assertEqual('Test Item', menu_item.label)
-    self.assertEqual('', menu_item.suffix)
-
-    self.assertEqual(None, menu_item.next)
-    self.assertEqual(None, menu_item.prev)
-    self.assertEqual(None, menu_item.parent)
-    self.assertEqual(menu_item, menu_item.submenu)
+    self.assertFalse(IS_CALLED)
+    menu_item.select()
+    self.assertTrue(IS_CALLED)
 
   def test_menu_item_hierarchy(self):
     root_submenu = Submenu('Root Submenu')
@@ -67,3 +65,49 @@ class TestMenu(unittest.TestCase):
     self.assertEqual(middle_submenu, middle_submenu.submenu)
     self.assertEqual('Middle Item 1', middle_submenu.next.label)
     self.assertEqual('Middle Item 2', middle_submenu.prev.label)
+
+
+class TestSubmenu(unittest.TestCase):
+  def test_parameters(self):
+    menu_item = Submenu('Test Item')
+
+    self.assertEqual('', menu_item.prefix)
+    self.assertEqual('Test Item', menu_item.label)
+    self.assertEqual(' >', menu_item.suffix)
+
+    self.assertEqual(None, menu_item.next)
+    self.assertEqual(None, menu_item.prev)
+    self.assertEqual(None, menu_item.parent)
+    self.assertEqual(menu_item, menu_item.submenu)
+
+
+class TestRadioMenuItem(unittest.TestCase):
+  def setUp(self):
+    IS_CALLED.value = False
+
+  def test_parameters(self):
+    group = RadioGroup(NO_OP, 'selected_item')
+    menu_item = RadioMenuItem('Test Item', group, 'selected_item')
+
+    self.assertEqual('[X] ', menu_item.prefix)
+    self.assertEqual('Test Item', menu_item.label)
+    self.assertEqual('', menu_item.suffix)
+
+    self.assertEqual(None, menu_item.next)
+    self.assertEqual(None, menu_item.prev)
+    self.assertEqual(None, menu_item.parent)
+    self.assertEqual(menu_item, menu_item.submenu)
+
+  def test_selection(self):
+    group = RadioGroup(action, 'other_item')
+    menu_item = RadioMenuItem('Test Item', group, 'selected_item')
+
+    menu_item.select()
+    self.assertTrue(IS_CALLED)
+
+  def test_when_already_selected(self):
+    group = RadioGroup(action, 'selected_item')
+    menu_item = RadioMenuItem('Test Item', group, 'selected_item')
+
+    menu_item.select()
+    self.assertFalse(IS_CALLED)
