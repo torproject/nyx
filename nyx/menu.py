@@ -40,12 +40,15 @@ class MenuItem(object):
   :var Submenu submenu: top-level submenu we reside within
   """
 
-  def __init__(self, label, callback):
+  def __init__(self, label, callback, *args):
     self.label = label
     self.suffix = ''
-
-    self._callback = callback
     self._parent = None
+
+    if args:
+      self._callback = functools.partial(callback, *args)
+    else:
+      self._callback = callback
 
   @property
   def prefix(self):
@@ -196,14 +199,13 @@ def make_actions_menu():
   actions_menu = Submenu('Actions')
   actions_menu.add(MenuItem('Close Menu', None))
   actions_menu.add(MenuItem('New Identity', header_panel.send_newnym))
-  actions_menu.add(MenuItem('Reset Tor', functools.partial(controller.signal, stem.Signal.RELOAD)))
+  actions_menu.add(MenuItem('Reset Tor', controller.signal, stem.Signal.RELOAD))
 
   if control.is_paused():
-    label, arg = 'Unpause', False
+    actions_menu.add(MenuItem('Unpause', control.set_paused, False))
   else:
-    label, arg = 'Pause', True
+    actions_menu.add(MenuItem('Pause', control.set_paused, True))
 
-  actions_menu.add(MenuItem(label, functools.partial(control.set_paused, arg)))
   actions_menu.add(MenuItem('Exit', control.quit))
 
   return actions_menu
@@ -331,11 +333,9 @@ def make_log_menu(log_panel):
   log_menu.add(MenuItem('Clear', log_panel.clear))
 
   if log_panel.is_duplicates_visible():
-    label, arg = 'Hide', False
+    log_menu.add(MenuItem('Hide Duplicates', log_panel.set_duplicate_visability, False))
   else:
-    label, arg = 'Show', True
-
-  log_menu.add(MenuItem('%s Duplicates' % label, functools.partial(log_panel.set_duplicate_visability, arg)))
+    log_menu.add(MenuItem('Show Duplicates', log_panel.set_duplicate_visability, True))
 
   # filter submenu
 
@@ -418,17 +418,14 @@ def make_torrc_menu(torrc_panel):
   torrc_menu = Submenu('Torrc')
 
   if torrc_panel._show_comments:
-    label, arg = 'Hide', False
+    torrc_menu.add(MenuItem('Hide Comments', torrc_panel.set_comments_visible, False))
   else:
-    label, arg = 'Show', True
-
-  torrc_menu.add(MenuItem('%s Comments' % label, functools.partial(torrc_panel.set_comments_visible, arg)))
+    torrc_menu.add(MenuItem('Show Comments', torrc_panel.set_comments_visible, True))
 
   if torrc_panel._show_line_numbers:
-    label, arg = 'Hide', False
+    torrc_menu.add(MenuItem('Hide Line Numbers', torrc_panel.set_line_number_visible, False))
   else:
-    label, arg = 'Show', True
-  torrc_menu.add(MenuItem('%s Line Numbers' % label, functools.partial(torrc_panel.set_line_number_visible, arg)))
+    torrc_menu.add(MenuItem('Show Line Numbers', torrc_panel.set_line_number_visible, True))
 
   return torrc_menu
 

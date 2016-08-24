@@ -11,11 +11,11 @@ class Container(object):
   value = False
 
   def __nonzero__(self):
-    return self.value
+    return bool(self.value)
 
 
 def action(*args):
-  IS_CALLED.value = True
+  IS_CALLED.value = args if args else True
 
 
 NO_OP = lambda: None
@@ -40,10 +40,13 @@ class TestMenuItem(unittest.TestCase):
 
   def test_selection(self):
     menu_item = MenuItem('Test Item', action)
-
-    self.assertFalse(IS_CALLED)
     menu_item.select()
     self.assertTrue(IS_CALLED)
+
+  def test_selection_with_value(self):
+    menu_item = MenuItem('Test Item', action, 'hi')
+    menu_item.select()
+    self.assertEqual(('hi',), IS_CALLED.value)
 
   def test_menu_item_hierarchy(self):
     root_submenu = Submenu('Root Submenu')
