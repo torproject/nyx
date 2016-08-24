@@ -11,7 +11,10 @@ class Container(object):
   value = False
 
   def __nonzero__(self):
-    return bool(self.value)
+    return bool(self.value)  # for python 2.x
+
+  def __bool__(self):
+    return bool(self.value)  # for python 3.x
 
 
 def action(*args):
