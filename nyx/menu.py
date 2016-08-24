@@ -111,22 +111,26 @@ class Submenu(MenuItem):
 
     if children:
       for child in children:
-        self.add(child)
+        if isinstance(child, list):
+          self.add(*child)
+        else:
+          self.add(child)
 
-  def add(self, menu_item):
+  def add(self, *menu_items):
     """
     Adds the given menu item to our listing.
 
-    :param MenuItem menu_item: menu item to be added
+    :param list menu_items: menu item to be added
 
     :raises: **ValueError** if the item is already in a submenu
     """
 
-    if menu_item.parent:
-      raise ValueError("Menu option '%s' already has a parent" % menu_item)
+    for menu_item in menu_items:
+      if menu_item.parent:
+        raise ValueError("Menu option '%s' already has a parent" % menu_item)
 
-    menu_item._parent = self
-    self.children.append(menu_item)
+      menu_item._parent = self
+      self.children.append(menu_item)
 
 
 class RadioMenuItem(MenuItem):
@@ -159,243 +163,160 @@ def make_menu():
   Constructs the base menu and all of its contents.
   """
 
-  base_menu = Submenu('')
-  base_menu.add(make_actions_menu())
-  base_menu.add(make_view_menu())
+  nyx_controller = nyx.controller.get_controller()
 
-  control = nyx.controller.get_controller()
-
-  for page_panel in control.get_display_panels():
-    if isinstance(page_panel, nyx.panel.graph.GraphPanel):
-      base_menu.add(make_graph_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.log.LogPanel):
-      base_menu.add(make_log_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.connection.ConnectionPanel):
-      base_menu.add(make_connections_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.config.ConfigPanel):
-      base_menu.add(make_configuration_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.torrc.TorrcPanel):
-      base_menu.add(make_torrc_menu(page_panel))
-
-  base_menu.add(make_help_menu())
-
-  return base_menu
-
-
-def make_actions_menu():
-  """
-  Submenu consisting of...
-    Close Menu
-    New Identity
-    Reset Tor
-    Pause / Unpause
-    Exit
-  """
-
-  control = nyx.controller.get_controller()
-  controller = tor_controller()
-  header_panel = control.header_panel()
-
-  actions_menu = Submenu('Actions')
-  actions_menu.add(MenuItem('Close Menu', None))
-  actions_menu.add(MenuItem('New Identity', header_panel.send_newnym))
-  actions_menu.add(MenuItem('Reset Tor', controller.signal, stem.Signal.RELOAD))
-
-  if control.is_paused():
-    actions_menu.add(MenuItem('Unpause', control.set_paused, False))
+  if not nyx_controller.is_paused():
+    pause_item = MenuItem('Pause', nyx_controller.set_paused, True)
   else:
-    actions_menu.add(MenuItem('Pause', control.set_paused, True))
+    pause_item = MenuItem('Unpause', nyx_controller.set_paused, False)
 
-  actions_menu.add(MenuItem('Exit', control.quit))
+  root_menu = Submenu('')
 
-  return actions_menu
+  root_menu.add(Submenu('Actions', [
+    MenuItem('Close Menu', None),
+    MenuItem('New Identity', nyx_controller.header_panel().send_newnym),
+    MenuItem('Reset Tor', tor_controller().signal, stem.Signal.RELOAD),
+    pause_item,
+    MenuItem('Exit', nyx_controller.quit),
+  ]))
+
+  root_menu.add(_view_menu())
+
+  for page_panel in nyx_controller.get_display_panels():
+    if isinstance(page_panel, nyx.panel.graph.GraphPanel):
+      root_menu.add(_graph_menu(page_panel))
+    elif isinstance(page_panel, nyx.panel.log.LogPanel):
+      root_menu.add(_log_menu(page_panel))
+    elif isinstance(page_panel, nyx.panel.connection.ConnectionPanel):
+      root_menu.add(_connections_menu(page_panel))
+    elif isinstance(page_panel, nyx.panel.config.ConfigPanel):
+      root_menu.add(_configuration_menu(page_panel))
+    elif isinstance(page_panel, nyx.panel.torrc.TorrcPanel):
+      root_menu.add(_torrc_menu(page_panel))
+
+  root_menu.add(Submenu('Help', [
+    MenuItem('Hotkeys', nyx.popups.show_help),
+    MenuItem('About', nyx.popups.show_about),
+  ]))
+
+  return root_menu
 
 
-def make_view_menu():
+def _view_menu():
   """
-  Submenu consisting of...
+  View submenu consisting of...
+
     [X] <Page 1>
     [ ] <Page 2>
     [ ] etc...
         Color (Submenu)
   """
 
+  nyx_controller = nyx.controller.get_controller()
+
   view_menu = Submenu('View')
-  control = nyx.controller.get_controller()
+  page_group = RadioGroup(nyx_controller.set_page, nyx_controller.get_page())
 
-  if control.get_page_count() > 0:
-    page_group = RadioGroup(control.set_page, control.get_page())
-
-    for i in range(control.get_page_count()):
-      page_panels = control.get_display_panels(page_number = i)
-      label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
-
-      view_menu.add(RadioMenuItem(label, page_group, i))
+  for i in range(nyx_controller.get_page_count()):
+    page_panels = nyx_controller.get_display_panels(page_number = i)
+    label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
+    view_menu.add(RadioMenuItem(label, page_group, i))
 
   if nyx.curses.is_color_supported():
-    color_menu = Submenu('Color')
     color_group = RadioGroup(nyx.curses.set_color_override, nyx.curses.get_color_override())
 
-    color_menu.add(RadioMenuItem('All', color_group, None))
-
-    for color in nyx.curses.Color:
-      color_menu.add(RadioMenuItem(str_tools._to_camel_case(color), color_group, color))
-
-    view_menu.add(color_menu)
+    view_menu.add(Submenu('Color', [
+      RadioMenuItem('All', color_group, None),
+      [RadioMenuItem(str_tools._to_camel_case(opt), color_group, opt) for opt in nyx.curses.Color],
+    ]))
 
   return view_menu
 
 
-def make_help_menu():
+def _graph_menu(graph_panel):
   """
-  Submenu consisting of...
-    Hotkeys
-    About
-  """
+  Graph panel submenu consisting of...
 
-  return Submenu('Help', [
-    MenuItem('Hotkeys', nyx.popups.show_help),
-    MenuItem('About', nyx.popups.show_about),
-  ])
-
-
-def make_graph_menu(graph_panel):
-  """
-  Submenu for the graph panel, consisting of...
     [X] <Stat 1>
     [ ] <Stat 2>
     [ ] <Stat 2>
         Resize...
         Interval (Submenu)
         Bounds (Submenu)
-
-  Arguments:
-    graph_panel - instance of the graph panel
   """
-
-  graph_menu = Submenu('Graph')
-
-  # stats options
 
   stat_group = RadioGroup(functools.partial(setattr, graph_panel, 'displayed_stat'), graph_panel.displayed_stat)
-  available_stats = graph_panel.stat_options()
-  available_stats.sort()
-
-  for stat_key in ['None'] + available_stats:
-    label = str_tools._to_camel_case(stat_key, divider = ' ')
-    stat_key = None if stat_key == 'None' else stat_key
-    graph_menu.add(RadioMenuItem(label, stat_group, stat_key))
-
-  # resizing option
-
-  graph_menu.add(MenuItem('Resize...', graph_panel.resize_graph))
-
-  # interval submenu
-
-  interval_menu = Submenu('Interval')
   interval_group = RadioGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
-
-  for interval in nyx.panel.graph.Interval:
-    interval_menu.add(RadioMenuItem(interval, interval_group, interval))
-
-  graph_menu.add(interval_menu)
-
-  # bounds submenu
-
-  bounds_menu = Submenu('Bounds')
   bounds_group = RadioGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
 
-  for bounds_type in nyx.panel.graph.Bounds:
-    bounds_menu.add(RadioMenuItem(bounds_type, bounds_group, bounds_type))
+  return Submenu('Graph', [
+    RadioMenuItem('None', stat_group, None),
+    [RadioMenuItem(str_tools._to_camel_case(opt, divider = ' '), stat_group, opt) for opt in sorted(graph_panel.stat_options())],
+    MenuItem('Resize...', graph_panel.resize_graph),
+    Submenu('Interval', [RadioMenuItem(opt, interval_group, opt) for opt in nyx.panel.graph.Interval]),
+    Submenu('Bounds', [RadioMenuItem(opt, bounds_group, opt) for opt in nyx.panel.graph.Bounds]),
+  ])
 
-  graph_menu.add(bounds_menu)
 
-  return graph_menu
-
-
-def make_log_menu(log_panel):
+def _log_menu(log_panel):
   """
-  Submenu for the log panel, consisting of...
+  Log panel submenu consisting of...
+
     Events...
     Snapshot...
     Clear
     Show / Hide Duplicates
     Filter (Submenu)
-
-  Arguments:
-    log_panel - instance of the log panel
   """
-
-  log_menu = Submenu('Log')
-
-  log_menu.add(MenuItem('Events...', log_panel.show_event_selection_prompt))
-  log_menu.add(MenuItem('Snapshot...', log_panel.show_snapshot_prompt))
-  log_menu.add(MenuItem('Clear', log_panel.clear))
-
-  if log_panel.is_duplicates_visible():
-    log_menu.add(MenuItem('Hide Duplicates', log_panel.set_duplicate_visability, False))
-  else:
-    log_menu.add(MenuItem('Show Duplicates', log_panel.set_duplicate_visability, True))
-
-  # filter submenu
 
   log_filter = log_panel.get_filter()
-
-  filter_menu = Submenu('Filter')
   filter_group = RadioGroup(log_filter.select, log_filter.selection())
 
-  filter_menu.add(RadioMenuItem('None', filter_group, None))
+  if not log_panel.is_duplicates_visible():
+    duplicate_item = MenuItem('Show Duplicates', log_panel.set_duplicate_visability, True)
+  else:
+    duplicate_item = MenuItem('Hide Duplicates', log_panel.set_duplicate_visability, False)
 
-  for option in log_filter.latest_selections():
-    filter_menu.add(RadioMenuItem(option, filter_group, option))
+  return Submenu('Log', [
+    MenuItem('Events...', log_panel.show_event_selection_prompt),
+    MenuItem('Snapshot...', log_panel.show_snapshot_prompt),
+    MenuItem('Clear', log_panel.clear),
+    duplicate_item,
+    Submenu('Filter', [
+      RadioMenuItem('None', filter_group, None),
+      [RadioMenuItem(opt, filter_group, opt) for opt in log_filter.latest_selections()],
+      MenuItem('New...', log_panel.show_filter_prompt),
+    ]),
+  ])
 
-  filter_menu.add(MenuItem('New...', log_panel.show_filter_prompt))
-  log_menu.add(filter_menu)
 
-  return log_menu
-
-
-def make_connections_menu(conn_panel):
+def _connections_menu(conn_panel):
   """
-  Submenu for the connections panel, consisting of...
-        Sorting...
-        Resolver (Submenu)
+  Connection panel submenu consisting of...
 
-  Arguments:
-    conn_panel - instance of the connections panel
+    Sorting...
+    Resolver (Submenu)
   """
 
-  connections_menu = Submenu('Connections')
+  tracker = nyx.tracker.get_connection_tracker()
+  resolver_group = RadioGroup(tracker.set_custom_resolver, tracker.get_custom_resolver())
 
-  # sorting option
-
-  connections_menu.add(MenuItem('Sorting...', conn_panel.show_sort_dialog))
-
-  # resolver submenu
-
-  conn_resolver = nyx.tracker.get_connection_tracker()
-  resolver_menu = Submenu('Resolver')
-  resolver_group = RadioGroup(conn_resolver.set_custom_resolver, conn_resolver.get_custom_resolver())
-
-  resolver_menu.add(RadioMenuItem('auto', resolver_group, None))
-
-  for option in stem.util.connection.Resolver:
-    resolver_menu.add(RadioMenuItem(option, resolver_group, option))
-
-  connections_menu.add(resolver_menu)
-
-  return connections_menu
+  return Submenu('Connections', [
+    MenuItem('Sorting...', conn_panel.show_sort_dialog),
+    Submenu('Resolver', [
+      RadioMenuItem('auto', resolver_group, None),
+      [RadioMenuItem(opt, resolver_group, opt) for opt in stem.util.connection.Resolver],
+    ]),
+  ])
 
 
-def make_configuration_menu(config_panel):
+def _configuration_menu(config_panel):
   """
-  Submenu for the configuration panel, consisting of...
+  Configuration panel submenu consisting of...
+
     Save Config...
     Sorting...
     Filter / Unfilter Options
-
-  Arguments:
-    config_panel - instance of the configuration panel
   """
 
   return Submenu('Configuration', [
@@ -404,30 +325,29 @@ def make_configuration_menu(config_panel):
   ])
 
 
-def make_torrc_menu(torrc_panel):
+def _torrc_menu(torrc_panel):
   """
-  Submenu for the torrc panel, consisting of...
+  Torrc panel submenu consisting of...
+
     Reload
     Show / Hide Comments
     Show / Hide Line Numbers
-
-  Arguments:
-    torrc_panel - instance of the torrc panel
   """
 
-  torrc_menu = Submenu('Torrc')
-
-  if torrc_panel._show_comments:
-    torrc_menu.add(MenuItem('Hide Comments', torrc_panel.set_comments_visible, False))
+  if not torrc_panel._show_comments:
+    comments_item = MenuItem('Show Comments', torrc_panel.set_comments_visible, True)
   else:
-    torrc_menu.add(MenuItem('Show Comments', torrc_panel.set_comments_visible, True))
+    comments_item = MenuItem('Hide Comments', torrc_panel.set_comments_visible, False)
 
-  if torrc_panel._show_line_numbers:
-    torrc_menu.add(MenuItem('Hide Line Numbers', torrc_panel.set_line_number_visible, False))
+  if not torrc_panel._show_line_numbers:
+    line_number_item = MenuItem('Show Line Numbers', torrc_panel.set_line_number_visible, True)
   else:
-    torrc_menu.add(MenuItem('Show Line Numbers', torrc_panel.set_line_number_visible, True))
+    line_number_item = MenuItem('Hide Line Numbers', torrc_panel.set_line_number_visible, False)
 
-  return torrc_menu
+  return Submenu('Torrc', [
+    comments_item,
+    line_number_item,
+  ])
 
 
 class MenuCursor:
