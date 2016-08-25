@@ -22,6 +22,7 @@ Panels consisting the nyx interface.
     |
     |- set_visible - toggles panel visiblity
     |- key_handlers - keyboard input accepted by the panel
+    |- submenu - submenu for the panel
     +- redraw - renders the panel content
 """
 
@@ -138,6 +139,16 @@ class Panel(object):
     """
 
     return ()
+
+  def submenu(self):
+    """
+    Provides submenu to include when the panel is shown.
+
+    :returns: :class:`~nyx.menu.Submenu` with the panel's options or **None**
+      if no submenu should be shown
+    """
+
+    return None
 
   def redraw(self, force = True):
     """

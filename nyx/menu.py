@@ -10,16 +10,8 @@ import functools
 import nyx.controller
 import nyx.curses
 import nyx.popups
-import nyx.panel.config
-import nyx.panel.connection
-import nyx.panel.graph
-import nyx.panel.log
-import nyx.panel.torrc
-import nyx.controller
-import nyx.tracker
 
 import stem
-import stem.util.connection
 
 from nyx import tor_controller
 from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE
@@ -182,17 +174,11 @@ def make_menu():
 
   root_menu.add(_view_menu())
 
-  for page_panel in nyx_controller.get_display_panels():
-    if isinstance(page_panel, nyx.panel.graph.GraphPanel):
-      root_menu.add(_graph_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.log.LogPanel):
-      root_menu.add(_log_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.connection.ConnectionPanel):
-      root_menu.add(_connections_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.config.ConfigPanel):
-      root_menu.add(_configuration_menu(page_panel))
-    elif isinstance(page_panel, nyx.panel.torrc.TorrcPanel):
-      root_menu.add(_torrc_menu(page_panel))
+  for panel in nyx_controller.get_display_panels():
+    submenu = panel.submenu()
+
+    if submenu:
+      root_menu.add(submenu)
 
   root_menu.add(Submenu('Help', [
     MenuItem('Hotkeys', nyx.popups.show_help),
@@ -231,123 +217,6 @@ def _view_menu():
     ]))
 
   return view_menu
-
-
-def _graph_menu(graph_panel):
-  """
-  Graph panel submenu consisting of...
-
-    [X] <Stat 1>
-    [ ] <Stat 2>
-    [ ] <Stat 2>
-        Resize...
-        Interval (Submenu)
-        Bounds (Submenu)
-  """
-
-  stat_group = RadioGroup(functools.partial(setattr, graph_panel, 'displayed_stat'), graph_panel.displayed_stat)
-  interval_group = RadioGroup(functools.partial(setattr, graph_panel, 'update_interval'), graph_panel.update_interval)
-  bounds_group = RadioGroup(functools.partial(setattr, graph_panel, 'bounds_type'), graph_panel.bounds_type)
-
-  return Submenu('Graph', [
-    RadioMenuItem('None', stat_group, None),
-    [RadioMenuItem(str_tools._to_camel_case(opt, divider = ' '), stat_group, opt) for opt in sorted(graph_panel.stat_options())],
-    MenuItem('Resize...', graph_panel.resize_graph),
-    Submenu('Interval', [RadioMenuItem(opt, interval_group, opt) for opt in nyx.panel.graph.Interval]),
-    Submenu('Bounds', [RadioMenuItem(opt, bounds_group, opt) for opt in nyx.panel.graph.Bounds]),
-  ])
-
-
-def _log_menu(log_panel):
-  """
-  Log panel submenu consisting of...
-
-    Events...
-    Snapshot...
-    Clear
-    Show / Hide Duplicates
-    Filter (Submenu)
-  """
-
-  log_filter = log_panel.get_filter()
-  filter_group = RadioGroup(log_filter.select, log_filter.selection())
-
-  if not log_panel.is_duplicates_visible():
-    duplicate_item = MenuItem('Show Duplicates', log_panel.set_duplicate_visability, True)
-  else:
-    duplicate_item = MenuItem('Hide Duplicates', log_panel.set_duplicate_visability, False)
-
-  return Submenu('Log', [
-    MenuItem('Events...', log_panel.show_event_selection_prompt),
-    MenuItem('Snapshot...', log_panel.show_snapshot_prompt),
-    MenuItem('Clear', log_panel.clear),
-    duplicate_item,
-    Submenu('Filter', [
-      RadioMenuItem('None', filter_group, None),
-      [RadioMenuItem(opt, filter_group, opt) for opt in log_filter.latest_selections()],
-      MenuItem('New...', log_panel.show_filter_prompt),
-    ]),
-  ])
-
-
-def _connections_menu(conn_panel):
-  """
-  Connection panel submenu consisting of...
-
-    Sorting...
-    Resolver (Submenu)
-  """
-
-  tracker = nyx.tracker.get_connection_tracker()
-  resolver_group = RadioGroup(tracker.set_custom_resolver, tracker.get_custom_resolver())
-
-  return Submenu('Connections', [
-    MenuItem('Sorting...', conn_panel.show_sort_dialog),
-    Submenu('Resolver', [
-      RadioMenuItem('auto', resolver_group, None),
-      [RadioMenuItem(opt, resolver_group, opt) for opt in stem.util.connection.Resolver],
-    ]),
-  ])
-
-
-def _configuration_menu(config_panel):
-  """
-  Configuration panel submenu consisting of...
-
-    Save Config...
-    Sorting...
-    Filter / Unfilter Options
-  """
-
-  return Submenu('Configuration', [
-    MenuItem('Save Config...', config_panel.show_write_dialog),
-    MenuItem('Sorting...', config_panel.show_sort_dialog),
-  ])
-
-
-def _torrc_menu(torrc_panel):
-  """
-  Torrc panel submenu consisting of...
-
-    Reload
-    Show / Hide Comments
-    Show / Hide Line Numbers
-  """
-
-  if not torrc_panel._show_comments:
-    comments_item = MenuItem('Show Comments', torrc_panel.set_comments_visible, True)
-  else:
-    comments_item = MenuItem('Hide Comments', torrc_panel.set_comments_visible, False)
-
-  if not torrc_panel._show_line_numbers:
-    line_number_item = MenuItem('Show Line Numbers', torrc_panel.set_line_number_visible, True)
-  else:
-    line_number_item = MenuItem('Hide Line Numbers', torrc_panel.set_line_number_visible, False)
-
-  return Submenu('Torrc', [
-    comments_item,
-    line_number_item,
-  ])
 
 
 class MenuCursor:
