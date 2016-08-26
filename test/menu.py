@@ -2,9 +2,12 @@
 Unit tests for nyx.menu.
 """
 
+import curses
 import unittest
 
-from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
+import nyx.curses
+
+from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup, MenuCursor
 
 
 class Container(object):
@@ -21,8 +24,34 @@ def action(*args):
   IS_CALLED.value = args if args else True
 
 
+def menu_cursor(*key_inputs):
+  cursor = MenuCursor(INITIAL_SELECTION)
+
+  for key in key_inputs:
+    cursor.handle_key(nyx.curses.KeyInput(key))
+
+  return cursor
+
+
 NO_OP = lambda: None
 IS_CALLED = Container()
+
+TEST_MENU = Submenu('Root Submenu', [
+  Submenu('Submenu 1', [
+    MenuItem('Item 1', action, 'selected 1'),
+    MenuItem('Item 2', action, 'selected 2'),
+    Submenu('Inner Submenu', [
+      MenuItem('Item 3', action, 'selected 3'),
+    ]),
+    Submenu('Empty Submenu', []),
+  ]),
+  Submenu('Submenu 2', [
+    MenuItem('Item 4', action, 'selected 1'),
+    MenuItem('Item 5', action, 'selected 2'),
+  ])
+])
+
+INITIAL_SELECTION = TEST_MENU.children[0].children[0]
 
 
 class TestMenuItem(unittest.TestCase):
@@ -147,3 +176,70 @@ class TestRadioMenuItem(unittest.TestCase):
 
     menu_item.select()
     self.assertFalse(IS_CALLED)
+
+
+class TestMenuCursor(unittest.TestCase):
+  def setUp(self):
+    IS_CALLED.value = False
+
+  def test_selection_of_item(self):
+    cursor = menu_cursor(curses.KEY_ENTER)
+    self.assertEqual(('selected 1',), IS_CALLED.value)
+    self.assertTrue(cursor.is_done)
+
+  def test_selection_of_submenu(self):
+    cursor = menu_cursor(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_ENTER)
+    self.assertEqual('Item 3', cursor.selection.label)
+    self.assertFalse(IS_CALLED.value)
+    self.assertFalse(cursor.is_done)
+
+  def test_up(self):
+    cursor = menu_cursor()
+
+    for expected in ('Item 1', 'Empty Submenu', 'Inner Submenu', 'Item 2', 'Item 1'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_UP))
+
+  def test_down(self):
+    cursor = menu_cursor()
+
+    for expected in ('Item 1', 'Item 2', 'Inner Submenu', 'Empty Submenu', 'Item 1'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_DOWN))
+
+  def test_left(self):
+    cursor = menu_cursor()
+
+    for expected in ('Item 1', 'Item 4', 'Item 1'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_LEFT))
+
+  def test_left_when_inner_submenu(self):
+    cursor = menu_cursor(curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_RIGHT)
+
+    for expected in ('Item 3', 'Inner Submenu', 'Item 4'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_LEFT))
+
+  def test_right(self):
+    cursor = menu_cursor()
+
+    for expected in ('Item 1', 'Item 4', 'Item 1'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_RIGHT))
+
+  def test_right_when_inner_submenu(self):
+    cursor = menu_cursor(curses.KEY_DOWN, curses.KEY_DOWN)
+
+    for expected in ('Inner Submenu', 'Item 3', 'Item 4', 'Item 1'):
+      self.assertEqual(expected, cursor.selection.label)
+      cursor.handle_key(nyx.curses.KeyInput(curses.KEY_RIGHT))
+
+  def test_esc(self):
+    cursor = menu_cursor(27)
+    self.assertTrue(cursor.is_done)
+
+    # pressing 'm' closes the menu too
+
+    cursor = menu_cursor(ord('m'))
+    self.assertTrue(cursor.is_done)
