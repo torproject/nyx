@@ -150,6 +150,56 @@ class RadioGroup(object):
     self.selected_arg = selected_arg
 
 
+class MenuCursor(object):
+  """
+  Tracks selection and movement through the menu.
+
+  :var MenuItem selection: presently selected menu item
+  :var bool is_done: **True** if a selection indicates we should close the
+    menu, **False** otherwise
+  """
+
+  def __init__(self, initial_selection):
+    self.selection = initial_selection
+    self.is_done = False
+
+  def handle_key(self, key):
+    if key.is_selection():
+      if isinstance(self.selection, Submenu):
+        if self.selection.children:
+          self.selection = self.selection.children[0]
+      else:
+        self.selection.select()
+        self.is_done = True
+    elif key.match('up'):
+      self.selection = self.selection.prev
+    elif key.match('down'):
+      self.selection = self.selection.next
+    elif key.match('left'):
+      if self.selection.parent == self.selection.submenu:
+        # shift to the previous main submenu
+
+        prev_submenu = self.selection.submenu.prev
+        self.selection = prev_submenu.children[0]
+      else:
+        # go up a submenu level
+
+        self.selection = self.selection.parent
+    elif key.match('right'):
+      if isinstance(self.selection, Submenu):
+        # open submenu (same as making a selection)
+
+        if self.selection.children:
+          self.selection = self.selection.children[0]
+      else:
+        # shift to the next main submenu
+
+        next_submenu = self.selection.submenu.next
+        self.selection = next_submenu.children[0]
+    elif key.match('esc', 'm'):
+      self.is_done = True
+
+
 def make_menu():
   """
   Constructs the base menu and all of its contents.
@@ -190,7 +240,7 @@ def make_menu():
 
 def _view_menu():
   """
-  View submenu consisting of...
+  Submenu consisting of...
 
     [X] <Page 1>
     [ ] <Page 2>
@@ -219,69 +269,6 @@ def _view_menu():
   return view_menu
 
 
-class MenuCursor:
-  """
-  Tracks selection and key handling in the menu.
-  """
-
-  def __init__(self, initial_selection):
-    self._selection = initial_selection
-    self._is_done = False
-
-  def is_done(self):
-    """
-    Provides true if a selection has indicated that we should close the menu.
-    False otherwise.
-    """
-
-    return self._is_done
-
-  def get_selection(self):
-    """
-    Provides the currently selected menu item.
-    """
-
-    return self._selection
-
-  def handle_key(self, key):
-    is_selection_submenu = isinstance(self._selection, Submenu)
-
-    if key.is_selection():
-      if is_selection_submenu:
-        if self._selection.children:
-          self._selection = self._selection.children[0]
-      else:
-        self._selection.select()
-        self._is_done = True
-    elif key.match('up'):
-      self._selection = self._selection.prev
-    elif key.match('down'):
-      self._selection = self._selection.next
-    elif key.match('left'):
-      if self._selection.parent == self._selection.submenu:
-        # shift to the previous main submenu
-
-        prev_submenu = self._selection.submenu.prev
-        self._selection = prev_submenu.children[0]
-      else:
-        # go up a submenu level
-
-        self._selection = self._selection.parent
-    elif key.match('right'):
-      if is_selection_submenu:
-        # open submenu (same as making a selection)
-
-        if self._selection.children:
-          self._selection = self._selection.children[0]
-      else:
-        # shift to the next main submenu
-
-        next_submenu = self._selection.submenu.next
-        self._selection = next_submenu.children[0]
-    elif key.match('esc', 'm'):
-      self._is_done = True
-
-
 def show_menu():
   selection_left = [0]
 
@@ -289,7 +276,7 @@ def show_menu():
     x = 0
 
     for top_level_item in menu.children:
-      if top_level_item == cursor.get_selection().submenu:
+      if top_level_item == cursor.selection.submenu:
         selection_left[0] = x
         attr = UNDERLINE
       else:
@@ -306,7 +293,7 @@ def show_menu():
     menu = make_menu()
     cursor = MenuCursor(menu.children[0].children[0])
 
-    while not cursor.is_done():
+    while not cursor.is_done:
       # provide a message saying how to close the menu
 
       nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
@@ -316,14 +303,14 @@ def show_menu():
 
       # redraws the rest of the interface if we're rendering on it again
 
-      if not cursor.is_done():
+      if not cursor.is_done:
         nyx.controller.get_controller().redraw()
 
   nyx.controller.show_message()
 
 
 def _draw_submenu(cursor, level, top, left):
-  selection_hierarchy = [cursor.get_selection()]
+  selection_hierarchy = [cursor.selection]
 
   while selection_hierarchy[-1].parent:
     selection_hierarchy.append(selection_hierarchy[-1].parent)
