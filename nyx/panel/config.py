@@ -16,8 +16,10 @@ import nyx.popups
 
 import stem.control
 import stem.manual
+import stem.util.connection
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
+from nyx.menu import MenuItem, Submenu
 from nyx import DATA_DIR, tor_controller
 
 from stem.util import conf, enum, log, str_tools
@@ -169,7 +171,7 @@ class ConfigPanel(nyx.panel.Panel):
     except stem.ControllerError as exc:
       log.warn('Unable to determine the configuration options tor supports: %s' % exc)
 
-  def show_sort_dialog(self):
+  def _show_sort_dialog(self):
     """
     Provides the dialog for sorting our configuration options.
     """
@@ -181,7 +183,7 @@ class ConfigPanel(nyx.panel.Panel):
       self._sort_order = results
       self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
-  def show_write_dialog(self):
+  def _show_write_dialog(self):
     """
     Confirmation dialog for saving tor's configuration.
     """
@@ -235,10 +237,24 @@ class ConfigPanel(nyx.panel.Panel):
     return (
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
       nyx.panel.KeyHandler('enter', 'edit configuration option', _edit_selected_value, key_func = lambda key: key.is_selection()),
-      nyx.panel.KeyHandler('w', 'write torrc', self.show_write_dialog),
+      nyx.panel.KeyHandler('w', 'write torrc', self._show_write_dialog),
       nyx.panel.KeyHandler('a', 'toggle filtering', _toggle_show_all),
-      nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
+      nyx.panel.KeyHandler('s', 'sort ordering', self._show_sort_dialog),
     )
+
+  def submenu(self):
+    """
+    Submenu consisting of...
+
+      Save Config...
+      Sorting...
+      Filter / Unfilter Options
+    """
+
+    return Submenu('Configuration', [
+      MenuItem('Save Config...', self._show_write_dialog),
+      MenuItem('Sorting...', self._show_sort_dialog),
+    ])
 
   def _draw(self, subwindow):
     contents = self._get_config_options()

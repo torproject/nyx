@@ -7,6 +7,7 @@ for. This provides prepopulation from the log file and supports filtering by
 regular expressions.
 """
 
+import functools
 import os
 import time
 
@@ -21,6 +22,7 @@ import nyx.log
 
 from nyx import join, tor_controller
 from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
+from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.util import conf, log
 
 
@@ -111,24 +113,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     NYX_LOGGER.emit = self._register_nyx_event
 
-  def set_duplicate_visability(self, is_visible):
-    """
-    Sets if duplicate log entries are collaped or expanded.
-
-    :param bool is_visible: if **True** all log entries are shown, otherwise
-      they're deduplicated
-    """
-
-    self._show_duplicates = is_visible
-
-  def get_filter(self):
-    """
-    Provides our currently selected regex filter.
-    """
-
-    return self._filter
-
-  def show_filter_prompt(self):
+  def _show_filter_prompt(self):
     """
     Prompts the user to add a new regex filter.
     """
@@ -138,10 +123,9 @@ class LogPanel(nyx.panel.DaemonPanel):
     if regex_input:
       self._filter.select(regex_input)
 
-  def show_event_selection_prompt(self):
+  def _show_event_selection_prompt(self):
     """
     Prompts the user to select the events being listened for.
-    TODO: Replace show_event_selection_prompt() with this method.
     """
 
     event_types = nyx.popups.select_event_types(self._event_types)
@@ -150,7 +134,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       self._event_types = nyx.log.listen_for_events(self._register_tor_event, event_types)
       self.redraw()
 
-  def show_snapshot_prompt(self):
+  def _show_snapshot_prompt(self):
     """
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
@@ -164,7 +148,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       except IOError as exc:
         nyx.controller.show_message('Unable to save snapshot: %s' % exc, HIGHLIGHT, max_wait = 2)
 
-  def clear(self):
+  def _clear(self):
     """
     Clears the contents of the event log.
     """
@@ -222,12 +206,12 @@ class LogPanel(nyx.panel.DaemonPanel):
         if selection == 'None':
           self._filter.select(None)
         elif selection == 'New...':
-          self.show_filter_prompt()  # prompt user to input regular expression
+          self._show_filter_prompt()  # prompt user to input regular expression
         else:
           self._filter.select(selection)
 
     def _toggle_deduplication():
-      self.set_duplicate_visability(not self._show_duplicates)
+      self._show_duplicates = not self._show_duplicates
       self.redraw()
 
     def _clear_log():
@@ -235,16 +219,42 @@ class LogPanel(nyx.panel.DaemonPanel):
       key_press = nyx.controller.show_message(msg, BOLD, max_wait = 30)
 
       if key_press.match('c'):
-        self.clear()
+        self._clear()
 
     return (
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
-      nyx.panel.KeyHandler('a', 'save snapshot of the log', self.show_snapshot_prompt),
-      nyx.panel.KeyHandler('e', 'change logged events', self.show_event_selection_prompt),
+      nyx.panel.KeyHandler('a', 'save snapshot of the log', self._show_snapshot_prompt),
+      nyx.panel.KeyHandler('e', 'change logged events', self._show_event_selection_prompt),
       nyx.panel.KeyHandler('f', 'log regex filter', _pick_filter, 'enabled' if self._filter.selection() else 'disabled'),
       nyx.panel.KeyHandler('u', 'duplicate log entries', _toggle_deduplication, 'visible' if self._show_duplicates else 'hidden'),
       nyx.panel.KeyHandler('c', 'clear event log', _clear_log),
     )
+
+  def submenu(self):
+    """
+    Submenu consisting of...
+
+      Events...
+      Snapshot...
+      Clear
+      Show / Hide Duplicates
+      Filter (Submenu)
+    """
+
+    filter_group = RadioGroup(self._filter.select, self._filter.selection())
+    duplicates_label, duplicates_arg = ('Hide Duplicates', False) if self._show_duplicates else ('Show Duplicates', True)
+
+    return Submenu('Log', [
+      MenuItem('Events...', self._show_event_selection_prompt),
+      MenuItem('Snapshot...', self._show_snapshot_prompt),
+      MenuItem('Clear', self._clear),
+      MenuItem(duplicates_label, functools.partial(setattr, self, '_show_duplicates'), duplicates_arg),
+      Submenu('Filter', [
+        RadioMenuItem('None', filter_group, None),
+        [RadioMenuItem(opt, filter_group, opt) for opt in self._filter.latest_selections()],
+        MenuItem('New...', self._show_filter_prompt),
+      ]),
+    ])
 
   def set_paused(self, is_pause):
     if is_pause:

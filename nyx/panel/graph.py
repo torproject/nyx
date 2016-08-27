@@ -15,6 +15,7 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
 """
 
 import copy
+import functools
 import time
 
 import nyx.controller
@@ -25,6 +26,7 @@ import nyx.tracker
 
 from nyx import join, msg, tor_controller
 from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
+from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.control import EventType, Listener
 from stem.util import conf, enum, log, str_tools, system
 
@@ -413,7 +415,7 @@ class GraphPanel(nyx.panel.Panel):
 
     self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
     self._update_interval = CONFIG['features.graph.interval']
-    self._bounds = CONFIG['features.graph.bound']
+    self._bounds_type = CONFIG['features.graph.bound']
     self._graph_height = CONFIG['features.graph.height']
 
     self._accounting_stats = None
@@ -437,41 +439,8 @@ class GraphPanel(nyx.panel.Panel):
     controller.add_event_listener(self._update_stats, EventType.BW)
     controller.add_status_listener(lambda *args: self.redraw())
 
-  @property
-  def displayed_stat(self):
-    return self._displayed_stat
-
-  @displayed_stat.setter
-  def displayed_stat(self, value):
-    if value is not None and value not in self._stats.keys():
-      raise ValueError("%s isn't a graphed statistic" % value)
-
-    self._displayed_stat = value
-
   def stat_options(self):
     return self._stats.keys()
-
-  @property
-  def update_interval(self):
-    return self._update_interval
-
-  @update_interval.setter
-  def update_interval(self, value):
-    if value not in Interval:
-      raise ValueError("%s isn't a valid graphing update interval" % value)
-
-    self._update_interval = value
-
-  @property
-  def bounds_type(self):
-    return self._bounds
-
-  @bounds_type.setter
-  def bounds_type(self, value):
-    if value not in Bounds:
-      raise ValueError("%s isn't a valid type of bounds" % value)
-
-    self._bounds = value
 
   def get_height(self):
     """
@@ -480,14 +449,14 @@ class GraphPanel(nyx.panel.Panel):
 
     max_height = nyx.panel.Panel.get_height(self)
 
-    if not self.displayed_stat:
+    if not self._displayed_stat:
       return 0
 
     nyx_controller = nyx.controller.get_controller()
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
     accounting_stats = self._accounting_stats if nyx_controller.is_paused() else self._accounting_stats_paused
 
-    if self.displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
+    if self._displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
 
     return min(max_height, height)
@@ -495,7 +464,7 @@ class GraphPanel(nyx.panel.Panel):
   def set_graph_height(self, new_graph_height):
     self._graph_height = max(1, new_graph_height)
 
-  def resize_graph(self):
+  def _resize_graph(self):
     """
     Prompts for user input to resize the graph panel. Options include...
 
@@ -534,25 +503,49 @@ class GraphPanel(nyx.panel.Panel):
     def _pick_stats():
       available_stats = sorted(self.stat_options())
       options = ['None'] + [stat.capitalize() for stat in available_stats]
-      previous_selection = options[available_stats.index(self.displayed_stat) + 1] if self.displayed_stat else 'None'
+      previous_selection = options[available_stats.index(self._displayed_stat) + 1] if self._displayed_stat else 'None'
 
       selection = nyx.popups.select_from_list('Graphed Stats:', options, previous_selection)
-      self.displayed_stat = None if selection == 'None' else available_stats[options.index(selection) - 1]
+      self._displayed_stat = None if selection == 'None' else available_stats[options.index(selection) - 1]
 
     def _next_bounds():
-      self.bounds_type = Bounds.next(self.bounds_type)
+      self._bounds_type = Bounds.next(self._bounds_type)
       self.redraw()
 
     def _pick_interval():
-      self.update_interval = nyx.popups.select_from_list('Update Interval:', list(Interval), self.update_interval)
+      self._update_interval = nyx.popups.select_from_list('Update Interval:', list(Interval), self._update_interval)
       self.redraw()
 
     return (
-      nyx.panel.KeyHandler('g', 'resize graph', self.resize_graph),
-      nyx.panel.KeyHandler('s', 'graphed stats', _pick_stats, self.displayed_stat if self.displayed_stat else 'none'),
-      nyx.panel.KeyHandler('b', 'graph bounds', _next_bounds, self.bounds_type.replace('_', ' ')),
-      nyx.panel.KeyHandler('i', 'graph update interval', _pick_interval, self.update_interval),
+      nyx.panel.KeyHandler('g', 'resize graph', self._resize_graph),
+      nyx.panel.KeyHandler('s', 'graphed stats', _pick_stats, self._displayed_stat if self._displayed_stat else 'none'),
+      nyx.panel.KeyHandler('b', 'graph bounds', _next_bounds, self._bounds_type.replace('_', ' ')),
+      nyx.panel.KeyHandler('i', 'graph update interval', _pick_interval, self._update_interval),
     )
+
+  def submenu(self):
+    """
+    Submenu consisting of...
+
+      [X] <Stat 1>
+      [ ] <Stat 2>
+      [ ] <Stat 2>
+          Resize...
+          Interval (Submenu)
+          Bounds (Submenu)
+    """
+
+    stat_group = RadioGroup(functools.partial(setattr, self, '_displayed_stat'), self._displayed_stat)
+    interval_group = RadioGroup(functools.partial(setattr, self, '_update_interval'), self._update_interval)
+    bounds_group = RadioGroup(functools.partial(setattr, self, '_bounds_type'), self._bounds_type)
+
+    return Submenu('Graph', [
+      RadioMenuItem('None', stat_group, None),
+      [RadioMenuItem(str_tools._to_camel_case(opt, divider = ' '), stat_group, opt) for opt in sorted(self.stat_options())],
+      MenuItem('Resize...', self._resize_graph),
+      Submenu('Interval', [RadioMenuItem(opt, interval_group, opt) for opt in Interval]),
+      Submenu('Bounds', [RadioMenuItem(opt, bounds_group, opt) for opt in Bounds]),
+    ])
 
   def set_paused(self, is_pause):
     if is_pause:
@@ -560,22 +553,22 @@ class GraphPanel(nyx.panel.Panel):
       self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
   def _draw(self, subwindow):
-    if not self.displayed_stat:
+    if not self._displayed_stat:
       return
 
     nyx_controller = nyx.controller.get_controller()
 
     if not nyx_controller.is_paused():
-      stat = self._stats[self.displayed_stat]
+      stat = self._stats[self._displayed_stat]
       accounting_stats = self._accounting_stats
     else:
-      stat = self._stats_paused[self.displayed_stat]
+      stat = self._stats_paused[self._displayed_stat]
       accounting_stats = self._accounting_stats_paused
 
     stat = type(stat)(stat)  # clone the GraphCategory
     subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
     subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width'])
-    interval, bounds_type = self.update_interval, self.bounds_type
+    interval, bounds_type = self._update_interval, self._bounds_type
 
     subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
 
@@ -604,9 +597,9 @@ class GraphPanel(nyx.panel.Panel):
     for stat in self._stats.values():
       stat.bandwidth_event(event)
 
-    if self.displayed_stat:
-      param = self._stats[self.displayed_stat]
-      update_rate = INTERVAL_SECONDS[self.update_interval]
+    if self._displayed_stat:
+      param = self._stats[self._displayed_stat]
+      update_rate = INTERVAL_SECONDS[self._update_interval]
 
       if param.primary.tick % update_rate == 0:
         self.redraw()

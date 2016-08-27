@@ -18,6 +18,7 @@ import nyx.popups
 import nyx.tracker
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
+from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from nyx import tor_controller
 
 from stem.control import Listener
@@ -296,7 +297,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
             locale, count = entry.split('=', 1)
             self._client_locale_usage[locale] = int(count)
 
-  def show_sort_dialog(self):
+  def _show_sort_dialog(self):
     """
     Provides a dialog for sorting our connections.
     """
@@ -384,7 +385,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
       nyx.panel.KeyHandler('enter', 'show connection details', _show_details, key_func = lambda key: key.is_selection()),
       nyx.panel.KeyHandler('d', 'raw consensus descriptor', _show_descriptor),
-      nyx.panel.KeyHandler('s', 'sort ordering', self.show_sort_dialog),
+      nyx.panel.KeyHandler('s', 'sort ordering', self._show_sort_dialog),
       nyx.panel.KeyHandler('r', 'connection resolver', _pick_connection_resolver, 'auto' if resolver is None else resolver),
     ]
 
@@ -395,6 +396,25 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       options.append(nyx.panel.KeyHandler('e', 'exit port usage summary', _show_exiting_port_usage))
 
     return tuple(options)
+
+  def submenu(self):
+    """
+    Submenu consisting of...
+
+      Sorting...
+      Resolver (Submenu)
+    """
+
+    tracker = nyx.tracker.get_connection_tracker()
+    resolver_group = RadioGroup(tracker.set_custom_resolver, tracker.get_custom_resolver())
+
+    return Submenu('Connections', [
+      MenuItem('Sorting...', self._show_sort_dialog),
+      Submenu('Resolver', [
+        RadioMenuItem('auto', resolver_group, None),
+        [RadioMenuItem(opt, resolver_group, opt) for opt in connection.Resolver],
+      ]),
+    ])
 
   def _draw(self, subwindow):
     controller = tor_controller()

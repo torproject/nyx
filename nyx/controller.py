@@ -372,9 +372,7 @@ def start_nyx():
     for panel_impl in control.get_all_panels():
       panel_impl.set_visible(panel_impl in display_panels)
 
-    # redraws the interface if it's needed
-
-    control.redraw(False)
+    control.redraw()
 
     with nyx.curses.raw_screen() as stdscr:
       stdscr.refresh()
@@ -419,9 +417,6 @@ def start_nyx():
           log.error('Error detected when reloading tor: %s' % exc.strerror)
     elif key.match('h'):
       override_key = nyx.popups.show_help()
-    elif key == ord('l') - 96:
-      # force redraw when ctrl+l is pressed
-      control.redraw(True)
     else:
       for panel_impl in display_panels:
         for keybinding in panel_impl.key_handlers():

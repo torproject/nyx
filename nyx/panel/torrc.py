@@ -5,12 +5,14 @@
 Panel displaying the torrc or nyxrc with the validation done against it.
 """
 
+import functools
 import math
 import string
 
 import nyx.curses
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
+from nyx.menu import MenuItem, Submenu
 from nyx import expand_path, msg, panel, tor_controller
 
 from stem import ControllerError
@@ -68,26 +70,6 @@ class TorrcPanel(panel.Panel):
         self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc_msg)
         self._torrc_content = None
 
-  def set_comments_visible(self, is_visible):
-    """
-    Sets if comments and blank lines are shown or stripped.
-
-    :var bool is_visible: shows comments if true, strips otherwise
-    """
-
-    self._show_comments = is_visible
-    self.redraw()
-
-  def set_line_number_visible(self, is_visible):
-    """
-    Sets if line numbers are shown or hidden.
-
-    :var bool is_visible: displays line numbers if true, hides otherwise
-    """
-
-    self._show_line_numbers = is_visible
-    self.redraw()
-
   def key_handlers(self):
     def _scroll(key):
       page_height = self.get_height() - 1
@@ -97,16 +79,33 @@ class TorrcPanel(panel.Panel):
         self.redraw()
 
     def _toggle_comment_stripping():
-      self.set_comments_visible(not self._show_comments)
+      self._show_comments = not self._show_comments
 
     def _toggle_line_numbers():
-      self.set_line_number_visible(not self._show_line_numbers)
+      self._show_line_numbers = not self._show_line_numbers
 
     return (
       nyx.panel.KeyHandler('arrows', 'scroll up and down', _scroll, key_func = lambda key: key.is_scroll()),
       nyx.panel.KeyHandler('s', 'comment stripping', _toggle_comment_stripping, 'off' if self._show_comments else 'on'),
       nyx.panel.KeyHandler('l', 'line numbering', _toggle_line_numbers, 'on' if self._show_line_numbers else 'off'),
     )
+
+  def submenu(self):
+    """
+    Submenu consisting of...
+
+      Reload
+      Show / Hide Comments
+      Show / Hide Line Numbers
+    """
+
+    comments_label, comments_arg = ('Hide Comments', False) if self._show_comments else ('Show Comments', True)
+    line_number_label, line_number_arg = ('Hide Line Numbers', False) if self._show_line_numbers else ('Show Line Numbers', True)
+
+    return Submenu('Torrc', [
+      MenuItem(comments_label, functools.partial(setattr, self, '_show_comments'), comments_arg),
+      MenuItem(line_number_label, functools.partial(setattr, self, '_show_line_numbers'), line_number_arg),
+    ])
 
   def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
