@@ -200,7 +200,23 @@ class MenuCursor(object):
       self.is_done = True
 
 
-def make_menu():
+def show_menu():
+  menu = _make_menu()
+  cursor = MenuCursor(menu.children[0].children[0])
+
+  with nyx.curses.CURSES_LOCK:
+    nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
+
+    while not cursor.is_done:
+      selection_x = _draw_top_menubar(menu, cursor.selection)
+      _draw_submenu(cursor.selection, cursor.selection.submenu, 1, selection_x)
+      cursor.handle_key(nyx.curses.key_input())
+      nyx.controller.get_controller().redraw()
+
+    nyx.controller.show_message()
+
+
+def _make_menu():
   """
   Constructs the base menu and all of its contents.
   """
@@ -269,84 +285,43 @@ def _view_menu():
   return view_menu
 
 
-def show_menu():
-  selection_left = [0]
-
+def _draw_top_menubar(menu, selection):
   def _render(subwindow):
     x = 0
 
-    for top_level_item in menu.children:
-      if top_level_item == cursor.selection.submenu:
-        selection_left[0] = x
-        attr = UNDERLINE
-      else:
-        attr = NORMAL
-
-      x = subwindow.addstr(x, 0, ' %s ' % top_level_item.label, BOLD, attr)
+    for submenu in menu.children:
+      x = subwindow.addstr(x, 0, ' %s ' % submenu.label, BOLD, UNDERLINE if submenu == selection.submenu else NORMAL)
       subwindow.vline(x, 0, 1)
       x += 1
 
-  with nyx.curses.CURSES_LOCK:
-    # generates the menu and uses the initial selection of the first item in
-    # the file menu
+  nyx.curses.draw(_render, height = 1, background = RED)
 
-    menu = make_menu()
-    cursor = MenuCursor(menu.children[0].children[0])
-
-    while not cursor.is_done:
-      # provide a message saying how to close the menu
-
-      nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
-      nyx.curses.draw(_render, height = 1, background = RED)
-      _draw_submenu(cursor, 1, 1, selection_left[0])
-      cursor.handle_key(nyx.curses.key_input())
-
-      # redraws the rest of the interface if we're rendering on it again
-
-      if not cursor.is_done:
-        nyx.controller.get_controller().redraw()
-
-  nyx.controller.show_message()
+  selection_index = menu.children.index(selection.submenu)
+  return 3 * selection_index + sum([len(entry.label) for entry in menu.children[:selection_index]])
 
 
-def _draw_submenu(cursor, level, top, left):
-  selection_hierarchy = [cursor.selection]
+def _draw_submenu(selection, submenu, top, left):
+  # find the item from within this submenu that's selected
 
-  while selection_hierarchy[-1].parent:
-    selection_hierarchy.append(selection_hierarchy[-1].parent)
+  submenu_selection = selection
 
-  selection_hierarchy.reverse()
+  while submenu_selection.parent != submenu:
+    submenu_selection = submenu_selection.parent
 
-  # checks if there's nothing to display
+  prefix_size = max([len(entry.prefix) for entry in submenu.children])
+  middle_size = max([len(entry.label) for entry in submenu.children])
+  suffix_size = max([len(entry.suffix) for entry in submenu.children])
 
-  if len(selection_hierarchy) < level + 2:
-    return
-
-  # fetches the submenu and selection we're displaying
-
-  submenu = selection_hierarchy[level]
-  selection = selection_hierarchy[level + 1]
-
-  # gets the size of the prefix, middle, and suffix columns
-
-  all_label_sets = [(entry.prefix, entry.label, entry.suffix) for entry in submenu.children]
-  prefix_col_size = max([len(entry[0]) for entry in all_label_sets])
-  middle_col_size = max([len(entry[1]) for entry in all_label_sets])
-  suffix_col_size = max([len(entry[2]) for entry in all_label_sets])
-
-  # formatted string so we can display aligned menu entries
-
-  label_format = ' %%-%is%%-%is%%-%is ' % (prefix_col_size, middle_col_size, suffix_col_size)
-  menu_width = len(label_format % ('', '', ''))
-  selection_top = submenu.children.index(selection) if selection in submenu.children else 0
+  menu_width = prefix_size + middle_size + suffix_size + 2
+  label_format = ' %%-%is%%-%is%%-%is ' % (prefix_size, middle_size, suffix_size)
 
   def _render(subwindow):
     for y, menu_item in enumerate(submenu.children):
-      if menu_item == selection:
-        subwindow.addstr(0, y, label_format % (menu_item.prefix, menu_item.label, menu_item.suffix), WHITE, BOLD)
-      else:
-        subwindow.addstr(0, y, label_format % (menu_item.prefix, menu_item.label, menu_item.suffix))
+      label = label_format % (menu_item.prefix, menu_item.label, menu_item.suffix)
+      attr = (WHITE, BOLD) if menu_item == submenu_selection else (NORMAL,)
+      subwindow.addstr(0, y, label, *attr)
 
-  with nyx.curses.CURSES_LOCK:
-    nyx.curses.draw(_render, top = top, left = left, width = menu_width, height = len(submenu.children), background = RED)
-    _draw_submenu(cursor, level + 1, top + selection_top, left + menu_width)
+  nyx.curses.draw(_render, top = top, left = left, width = menu_width, height = len(submenu.children), background = RED)
+
+  if submenu != selection.parent:
+    _draw_submenu(selection, submenu_selection, top + submenu.children.index(submenu_selection), left + menu_width)
