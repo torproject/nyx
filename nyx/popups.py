@@ -67,7 +67,7 @@ def show_help():
     subwindow.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
 
     for i, option in enumerate(handlers):
-      if i / 2 >= subwindow.height - 2:
+      if i // 2 >= subwindow.height - 2:
         break
 
       # Entries are shown in the form '<key>: <description>[ (<selection>)]',
@@ -76,7 +76,7 @@ def show_help():
       #   u: duplicate log entries (hidden)
 
       x = 2 if i % 2 == 0 else 41
-      y = (i / 2) + 1
+      y = (i // 2) + 1
 
       x = subwindow.addstr(x, y, option.key, BOLD)
       x = subwindow.addstr(x, y, ': ' + option.description)
@@ -150,7 +150,7 @@ def show_counts(title, counts, fill_char = ' '):
     sorted_counts = sorted(counts.items(), key = operator.itemgetter(1), reverse = True)
 
     for y, (k, v) in enumerate(sorted_counts):
-      label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
+      label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 // value_total)
       x = subwindow.addstr(2, y + 1, label, GREEN, BOLD)
 
       for j in range(graph_width * v // value_total):
@@ -358,7 +358,7 @@ def select_sort_order(title, options, previous_order, option_colors):
 
     for i, option in enumerate(shown_options):
       attr = HIGHLIGHT if i == cursor_index else NORMAL
-      subwindow.addstr((i % 4) * 19 + 2, (i / 4) + 4, option, attr)
+      subwindow.addstr((i % 4) * 19 + 2, (i // 4) + 4, option, attr)
 
   with nyx.curses.CURSES_LOCK:
     while len(new_order) < len(previous_order):
@@ -442,8 +442,8 @@ def select_event_types(initial_selection):
     subwindow._addch(79, 6, curses.ACS_RTEE)
 
     for i, event in enumerate(events):
-      x = subwindow.addstr((i % 3) * 25 + 1, i / 3 + 7, '[X]' if event in selected_events else '[ ]')
-      x = subwindow.addstr(x + 1, i / 3 + 7, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
+      x = subwindow.addstr((i % 3) * 25 + 1, i // 3 + 7, '[X]' if event in selected_events else '[ ]')
+      x = subwindow.addstr(x + 1, i // 3 + 7, event, HIGHLIGHT if selection == (i + 10) else NORMAL)
 
     x = subwindow.width - 14
 
