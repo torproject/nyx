@@ -25,7 +25,7 @@ def _read_torrc(path):
   with open(path) as torrc_file:
     for line in torrc_file.readlines():
       line = line.replace('\t', '   ').replace('\xc2', "'").rstrip()
-      contents.append(filter(lambda char: char in string.printable, line))
+      contents.append(''.join(filter(lambda char: char in string.printable, line)))
 
   return contents
 
