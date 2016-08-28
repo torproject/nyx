@@ -479,7 +479,7 @@ def screenshot():
   for y in range(screen_size().height):
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
-  return '\n'.join(lines).rstrip()
+  return stem.util.str_tools._to_unicode(b'\n'.join(lines).rstrip())
 
 
 def asci_to_curses(msg):
