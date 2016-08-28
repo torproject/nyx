@@ -147,13 +147,13 @@ def show_counts(title, counts, fill_char = ' '):
     subwindow.addstr(0, 0, title, HIGHLIGHT)
 
     graph_width = subwindow.width - key_width - val_width - 11  # border, extra spaces, and percentage column
-    sorted_counts = sorted(counts.iteritems(), key = operator.itemgetter(1), reverse = True)
+    sorted_counts = sorted(counts.items(), key = operator.itemgetter(1), reverse = True)
 
     for y, (k, v) in enumerate(sorted_counts):
       label = '%s %s (%-2i%%)' % (k.ljust(key_width), str(v).rjust(val_width), v * 100 / value_total)
       x = subwindow.addstr(2, y + 1, label, GREEN, BOLD)
 
-      for j in range(graph_width * v / value_total):
+      for j in range(graph_width * v // value_total):
         subwindow.addstr(x + j + 1, y + 1, fill_char, RED, HIGHLIGHT)
 
     subwindow.addstr(2, subwindow.height - 2, 'Press any key...')
