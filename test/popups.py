@@ -161,6 +161,40 @@ Event Types:-------------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
+EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
+Consensus Descriptor:----------+
+|  No consensus data available |
++------------------------------+
+""".strip()
+
+EXPECTED_DESCRIPTOR = """
+Consensus Descriptor (29787760145CD1A473552A2FC64C72A9A130820E):---------------+
+|  1 Consensus:                                                                |
+|  2                                                                           |
+|  3 r cyberphunk KXh3YBRc0aRzVSovxkxyqaEwgg4 VjdJThHuYj0jDY2tkkDJkCa8s1s      |
+|    2016-04-04 19:03:16 94.23.150.191 8080 0                                  |
+|  4 s Fast Guard Running Stable Valid                                         |
+|  5 w Bandwidth=8410                                                          |
+|  6 p reject 1-65535                                                          |
+|  7                                                                           |
+|  8 Server Descriptor:                                                        |
+|  9                                                                           |
+| 10 router cyberphunk 94.23.150.191 8080 0 0                                  |
+| 11 platform Tor 0.2.4.27 on Linux                                            |
+| 12 protocols Link 1 2 Circuit 1                                              |
+| 13 published 2016-04-04 19:03:16                                             |
+| 14 fingerprint 2978 7760 145C D1A4 7355 2A2F C64C 72A9 A130 820E             |
+| 15 uptime 3899791                                                            |
+| 16 bandwidth 10240000 10444800 6482376                                       |
+| 17 extra-info-digest 9DC532664DDFD238A4119D623D30F136A3B851BF                |
+| 18 reject *:*                                                                |
+| 19 router-signature                                                          |
+| 20 -----BEGIN SIGNATURE-----                                                 |
+| 21 EUFm38gONCoDuY7ZWHyJtBKuvk6Xi1MPuKuecS5frP3fX0wiZSrOVcpX0X8J+4Hr          |
+| 22 Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA          |
++------------------------------------------------------------------------------+
+""".strip()
+
 TORRC = """
 ControlPort 9051
 CookieAuthentication 1
@@ -207,40 +241,6 @@ Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA
 NCGI042p6+7UgCVT1x3WcLnq3ScV//s1wXHrUXa7vi0=
 -----END SIGNATURE-----
 """.strip().split('\n')
-
-EXPECTED_DESCRIPTOR_WITHOUT_FINGERPRINT = """
-Consensus Descriptor:----------+
-|  No consensus data available |
-+------------------------------+
-""".strip()
-
-EXPECTED_DESCRIPTOR = """
-Consensus Descriptor (29787760145CD1A473552A2FC64C72A9A130820E):---------------+
-|  1 Consensus:                                                                |
-|  2                                                                           |
-|  3 r cyberphunk KXh3YBRc0aRzVSovxkxyqaEwgg4 VjdJThHuYj0jDY2tkkDJkCa8s1s      |
-|    2016-04-04 19:03:16 94.23.150.191 8080 0                                  |
-|  4 s Fast Guard Running Stable Valid                                         |
-|  5 w Bandwidth=8410                                                          |
-|  6 p reject 1-65535                                                          |
-|  7                                                                           |
-|  8 Server Descriptor:                                                        |
-|  9                                                                           |
-| 10 router cyberphunk 94.23.150.191 8080 0 0                                  |
-| 11 platform Tor 0.2.4.27 on Linux                                            |
-| 12 protocols Link 1 2 Circuit 1                                              |
-| 13 published 2016-04-04 19:03:16                                             |
-| 14 fingerprint 2978 7760 145C D1A4 7355 2A2F C64C 72A9 A130 820E             |
-| 15 uptime 3899791                                                            |
-| 16 bandwidth 10240000 10444800 6482376                                       |
-| 17 extra-info-digest 9DC532664DDFD238A4119D623D30F136A3B851BF                |
-| 18 reject *:*                                                                |
-| 19 router-signature                                                          |
-| 20 -----BEGIN SIGNATURE-----                                                 |
-| 21 EUFm38gONCoDuY7ZWHyJtBKuvk6Xi1MPuKuecS5frP3fX0wiZSrOVcpX0X8J+4Hr          |
-| 22 Fb5i+yuMIAXeEn6UhtjqhhZBbY9PW9GdZOMTH8hJpG+evURyr+10PZq6UElg86rA          |
-+------------------------------------------------------------------------------+
-""".strip()
 
 
 class TestPopups(unittest.TestCase):

@@ -479,7 +479,7 @@ def screenshot():
   for y in range(screen_size().height):
     lines.append(CURSES_SCREEN.instr(y, 0).rstrip())
 
-  return '\n'.join(lines).rstrip()
+  return stem.util.str_tools._to_unicode(b'\n'.join(lines).rstrip())
 
 
 def asci_to_curses(msg):
@@ -511,7 +511,7 @@ def asci_to_curses(msg):
           continue
         elif attr in Color:
           # replace previous color with new one
-          combined_attr = filter(lambda attr: attr not in Color, combined_attr)
+          combined_attr = list(filter(lambda attr: attr not in Color, combined_attr))
 
         combined_attr.append(attr)
 

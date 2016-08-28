@@ -58,7 +58,7 @@ class ConfigEntry(object):
     self.name = name
     self.value_type = value_type
     self.manual = manual.config_options.get(name, stem.manual.ConfigOption(name))
-    self._index = manual.config_options.keys().index(name) if name in manual.config_options else 99999
+    self._index = list(manual.config_options.keys()).index(name) if name in manual.config_options else 99999
 
   def value(self):
     """
@@ -294,7 +294,7 @@ class ConfigPanel(nyx.panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
+    return self._contents if self._show_all else list(filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents))
 
 
 def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):

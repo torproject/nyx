@@ -598,7 +598,7 @@ def _draw_details(subwindow, selected):
       subwindow.addstr(2, 3, 'No consensus data found', *attr)
     elif len(matches) == 1 or selected.connection.remote_port in matches:
       controller = tor_controller()
-      fingerprint = matches.values()[0] if len(matches) == 1 else matches[selected.connection.remote_port]
+      fingerprint = list(matches.values())[0] if len(matches) == 1 else matches[selected.connection.remote_port]
       router_status_entry = controller.get_network_status(fingerprint, None)
 
       subwindow.addstr(15, 2, 'fingerprint: %s' % fingerprint, *attr)

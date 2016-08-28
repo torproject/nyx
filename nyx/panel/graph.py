@@ -567,7 +567,7 @@ class GraphPanel(nyx.panel.Panel):
 
     stat = type(stat)(stat)  # clone the GraphCategory
     subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
-    subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width'])
+    subgraph_width = min(subwindow.width // 2, CONFIG['features.graph.max_width'])
     interval, bounds_type = self._update_interval, self._bounds_type
 
     subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
@@ -648,7 +648,7 @@ def _x_axis_labels(interval, columns):
   interval_spacing = 10 if columns >= WIDE_LABELING_GRAPH_COL else 5
   previous_units, decimal_precision = None, 0
 
-  for i in range((columns - 4) / interval_spacing):
+  for i in range((columns - 4) // interval_spacing):
     x = (i + 1) * interval_spacing
     time_label = str_tools.time_label(x * interval_sec, decimal_precision)
 
@@ -676,15 +676,15 @@ def _y_axis_labels(subgraph_height, data, min_bound, max_bound):
     subgraph_height - 1: data.y_axis_label(min_bound),
   }
 
-  ticks = (subgraph_height - 5) / 2
+  ticks = (subgraph_height - 5) // 2
 
   for i in range(ticks):
     row = subgraph_height - (2 * i) - 5
 
-    if subgraph_height % 2 == 0 and i >= (ticks / 2):
+    if subgraph_height % 2 == 0 and i >= (ticks // 2):
       row -= 1  # make extra gap be in the middle when we're an even size
 
-    val = (max_bound - min_bound) * (subgraph_height - row - 3) / (subgraph_height - 3)
+    val = (max_bound - min_bound) * (subgraph_height - row - 3) // (subgraph_height - 3)
 
     if val not in (min_bound, max_bound):
       y_axis_labels[row + 2] = data.y_axis_label(val)
