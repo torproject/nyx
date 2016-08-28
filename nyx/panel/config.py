@@ -58,7 +58,7 @@ class ConfigEntry(object):
     self.name = name
     self.value_type = value_type
     self.manual = manual.config_options.get(name, stem.manual.ConfigOption(name))
-    self._index = manual.config_options.keys().index(name) if name in manual.config_options else 99999
+    self._index = list(manual.config_options.keys()).index(name) if name in manual.config_options else 99999
 
   def value(self):
     """
