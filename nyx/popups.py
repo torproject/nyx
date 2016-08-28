@@ -233,7 +233,7 @@ def show_descriptor(fingerprint, color, is_close_key):
 
   for line in lines:
     width = min(screen_size.width, max(width, len(line) + line_number_width + 5))
-    height += len(line) / (screen_size.width - line_number_width - 5)  # extra lines due to text wrap
+    height += len(line) // (screen_size.width - line_number_width - 5)  # extra lines due to text wrap
 
   with nyx.curses.CURSES_LOCK:
     nyx.curses.draw(lambda subwindow: subwindow.addstr(0, 0, ' ' * 500), top = _top(), height = 1)  # hides title below us
@@ -454,7 +454,7 @@ def select_event_types(initial_selection):
 
   with nyx.curses.CURSES_LOCK:
     while True:
-      nyx.curses.draw(_render, top = _top(), width = 80, height = (len(events) / 3) + 10)
+      nyx.curses.draw(_render, top = _top(), width = 80, height = (len(events) // 3) + 10)
       key = nyx.curses.key_input()
 
       if key.match('up'):
