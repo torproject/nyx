@@ -567,7 +567,7 @@ class GraphPanel(nyx.panel.Panel):
 
     stat = type(stat)(stat)  # clone the GraphCategory
     subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
-    subgraph_width = min(subwindow.width / 2, CONFIG['features.graph.max_width'])
+    subgraph_width = min(subwindow.width // 2, CONFIG['features.graph.max_width'])
     interval, bounds_type = self._update_interval, self._bounds_type
 
     subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
