@@ -72,7 +72,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     logged_events = CONFIG['startup.events'].split(',')
     tor_events = tor_controller().get_info('events/names', '').split()
-    invalid_events = filter(lambda event: not event.startswith('NYX_') and event not in tor_events, logged_events)
+    invalid_events = list(filter(lambda event: not event.startswith('NYX_') and event not in tor_events, logged_events))
 
     if invalid_events:
       logged_events = ['NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
@@ -270,8 +270,8 @@ class LogPanel(nyx.panel.DaemonPanel):
     show_duplicates = self._show_duplicates
 
     event_log = self._event_log_paused if nyx_controller.is_paused() else self._event_log
-    event_log = filter(lambda entry: event_filter.match(entry.display_message), event_log)
-    event_log = filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log)
+    event_log = list(filter(lambda entry: event_filter.match(entry.display_message), event_log))
+    event_log = list(filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log))
 
     is_scrollbar_visible = last_content_height > subwindow.height - 1
 

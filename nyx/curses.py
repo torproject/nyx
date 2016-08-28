@@ -511,7 +511,7 @@ def asci_to_curses(msg):
           continue
         elif attr in Color:
           # replace previous color with new one
-          combined_attr = filter(lambda attr: attr not in Color, combined_attr)
+          combined_attr = list(filter(lambda attr: attr not in Color, combined_attr))
 
         combined_attr.append(attr)
 

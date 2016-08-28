@@ -294,7 +294,7 @@ class ConfigPanel(nyx.panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents)
+    return self._contents if self._show_all else list(filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents))
 
 
 def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):
