@@ -410,7 +410,7 @@ def start_nyx():
       msg = "This will reset Tor's internal state. Are you sure (x again to confirm)?"
       confirmation_key = show_message(msg, BOLD, max_wait = 30)
 
-      if confirmation_key in (ord('x'), ord('X')):
+      if confirmation_key.match('x'):
         try:
           tor_controller().signal(stem.Signal.RELOAD)
         except IOError as exc:
