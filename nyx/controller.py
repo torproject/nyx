@@ -413,7 +413,7 @@ def start_nyx():
       if confirmation_key.match('x'):
         try:
           tor_controller().signal(stem.Signal.RELOAD)
-        except IOError as exc:
+        except stem.ControllerError as exc:
           log.error('Error detected when reloading tor: %s' % exc.strerror)
     elif key.match('h'):
       override_key = nyx.popups.show_help()
