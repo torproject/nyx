@@ -13,7 +13,7 @@ import nyx.popups
 
 import stem
 
-from nyx import tor_controller
+from nyx import nyx_interface, tor_controller
 from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE
 from stem.util import str_tools
 
@@ -211,7 +211,7 @@ def show_menu():
       selection_x = _draw_top_menubar(menu, cursor.selection)
       _draw_submenu(cursor.selection, cursor.selection.submenu, 1, selection_x)
       cursor.handle_key(nyx.curses.key_input())
-      nyx.controller.get_controller().redraw()
+      nyx_interface().redraw()
 
     nyx.controller.show_message()
 
@@ -221,26 +221,26 @@ def _make_menu():
   Constructs the base menu and all of its contents.
   """
 
-  nyx_controller = nyx.controller.get_controller()
+  interface = nyx_interface()
 
-  if not nyx_controller.is_paused():
-    pause_item = MenuItem('Pause', nyx_controller.set_paused, True)
+  if not interface.is_paused():
+    pause_item = MenuItem('Pause', interface.set_paused, True)
   else:
-    pause_item = MenuItem('Unpause', nyx_controller.set_paused, False)
+    pause_item = MenuItem('Unpause', interface.set_paused, False)
 
   root_menu = Submenu('')
 
   root_menu.add(Submenu('Actions', [
     MenuItem('Close Menu', None),
-    MenuItem('New Identity', nyx_controller.header_panel().send_newnym),
+    MenuItem('New Identity', interface.header_panel().send_newnym),
     MenuItem('Reset Tor', tor_controller().signal, stem.Signal.RELOAD),
     pause_item,
-    MenuItem('Exit', nyx_controller.quit),
+    MenuItem('Exit', interface.quit),
   ]))
 
   root_menu.add(_view_menu())
 
-  for panel in nyx_controller.get_display_panels():
+  for panel in interface.get_display_panels():
     submenu = panel.submenu()
 
     if submenu:
@@ -264,13 +264,13 @@ def _view_menu():
         Color (Submenu)
   """
 
-  nyx_controller = nyx.controller.get_controller()
+  interface = nyx_interface()
 
   view_menu = Submenu('View')
-  page_group = RadioGroup(nyx_controller.set_page, nyx_controller.get_page())
+  page_group = RadioGroup(interface.set_page, interface.get_page())
 
-  for i in range(nyx_controller.get_page_count()):
-    page_panels = nyx_controller.get_display_panels(page_number = i)
+  for i in range(interface.get_page_count()):
+    page_panels = interface.get_display_panels(page_number = i)
     label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
     view_menu.add(RadioMenuItem(label, page_group, i))
 

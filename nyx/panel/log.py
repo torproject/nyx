@@ -20,7 +20,7 @@ import nyx.panel
 import nyx.popups
 import nyx.log
 
-from nyx import join, tor_controller
+from nyx import join, nyx_interface, tor_controller
 from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.util import conf, log
@@ -263,13 +263,12 @@ class LogPanel(nyx.panel.DaemonPanel):
   def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
-    nyx_controller = nyx.controller.get_controller()
     event_filter = self._filter.clone()
     event_types = list(self._event_types)
     last_content_height = self._last_content_height
     show_duplicates = self._show_duplicates
 
-    event_log = self._event_log_paused if nyx_controller.is_paused() else self._event_log
+    event_log = self._event_log_paused if nyx_interface().is_paused() else self._event_log
     event_log = list(filter(lambda entry: event_filter.match(entry.display_message), event_log))
     event_log = list(filter(lambda entry: not entry.is_duplicate or show_duplicates, event_log))
 

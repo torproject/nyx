@@ -33,6 +33,8 @@ import time
 
 import nyx.curses
 
+from nyx import nyx_interface
+
 __all__ = [
   'config',
   'connection',
@@ -195,13 +197,10 @@ class DaemonPanel(Panel, threading.Thread):
     Performs our _update() action at the given rate.
     """
 
-    import nyx.controller
-
     last_ran = -1
-    nyx_controller = nyx.controller.get_controller()
 
     while not self._halt:
-      if nyx_controller.is_paused() or (time.time() - last_ran) < self._update_rate:
+      if nyx_interface().is_paused() or (time.time() - last_ran) < self._update_rate:
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(0.2)

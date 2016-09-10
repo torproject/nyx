@@ -81,6 +81,17 @@ def main():
     sys.exit(1)
 
 
+def nyx_interface():
+  """
+  Singleton controller for our interface.
+
+  :returns: :class:`~nyx.Interface` controller
+  """
+
+  import nyx.controller
+  return nyx.controller.get_controller()
+
+
 def tor_controller():
   """
   Singleton for getting our tor controller connection.

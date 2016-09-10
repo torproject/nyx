@@ -246,8 +246,8 @@ NCGI042p6+7UgCVT1x3WcLnq3ScV//s1wXHrUXa7vi0=
 class TestPopups(unittest.TestCase):
   @require_curses
   @patch('nyx.popups._top', Mock(return_value = 0))
-  @patch('nyx.controller.get_controller')
-  def test_help(self, get_controller_mock):
+  @patch('nyx.popups.nyx_interface')
+  def test_help(self, nyx_interface_mock):
     header_panel = Mock()
 
     header_panel.key_handlers.return_value = (
@@ -275,7 +275,7 @@ class TestPopups(unittest.TestCase):
       nyx.panel.KeyHandler('c', 'clear event log'),
     )
 
-    get_controller_mock().get_display_panels.return_value = [header_panel, graph_panel, log_panel]
+    nyx_interface_mock().get_display_panels.return_value = [header_panel, graph_panel, log_panel]
 
     rendered = test.render(nyx.popups.show_help)
     self.assertEqual(EXPECTED_HELP_POPUP, rendered.content)

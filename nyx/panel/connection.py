@@ -11,15 +11,14 @@ import collections
 import curses
 import itertools
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
+from nyx import nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
-from nyx import tor_controller
 
 from stem.control import Listener
 from stem.util import datetime_to_unix, conf, connection, enum, str_tools
@@ -418,7 +417,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
   def _draw(self, subwindow):
     controller = tor_controller()
-    nyx_controller = nyx.controller.get_controller()
+    interface = nyx_interface()
     entries = self._entries
 
     lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
@@ -426,8 +425,8 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
     selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
-    if nyx_controller.is_paused():
-      current_time = nyx_controller.get_pause_time()
+    if interface.is_paused():
+      current_time = interface.get_pause_time()
     elif not controller.is_alive():
       current_time = controller.connection_time()
     else:

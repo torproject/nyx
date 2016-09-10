@@ -24,7 +24,7 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from nyx import log, init_controller, msg, uses_settings
+from nyx import log, init_controller, msg, uses_settings, nyx_interface
 
 
 @uses_settings
@@ -254,10 +254,10 @@ def _shutdown_daemons(controller):
   """
 
   halt_threads = [nyx.tracker.stop_trackers()]
-  curses_controller = nyx.controller.get_controller()
+  interface = nyx_interface()
 
-  if curses_controller:
-    halt_threads.append(curses_controller.halt())
+  if interface:
+    halt_threads.append(interface.halt())
 
   for thread in halt_threads:
     thread.join()

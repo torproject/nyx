@@ -69,13 +69,13 @@ def test_sampling():
 
 class TestHeaderPanel(unittest.TestCase):
   @require_curses
-  @patch('nyx.controller.get_controller')
+  @patch('nyx.panel.header.nyx_interface')
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.panel.header.Sampling.create')
-  def test_rendering_panel(self, sampling_mock, tor_controller_mock, nyx_controller_mock):
-    nyx_controller_mock().is_paused.return_value = False
-    nyx_controller_mock().get_page.return_value = 1
-    nyx_controller_mock().get_page_count.return_value = 4
+  def test_rendering_panel(self, sampling_mock, tor_controller_mock, nyx_interface_mock):
+    nyx_interface_mock().is_paused.return_value = False
+    nyx_interface_mock().get_page.return_value = 1
+    nyx_interface_mock().get_page_count.return_value = 4
     sampling_mock.return_value = test_sampling()
 
     panel = nyx.panel.header.HeaderPanel()
@@ -341,10 +341,10 @@ class TestHeaderPanel(unittest.TestCase):
     self.assertEqual('building circuits, available again in 5 seconds', test.render(nyx.panel.header._draw_newnym_option, 0, 0, 5).content)
 
   @require_curses
-  @patch('nyx.controller.get_controller')
-  def test_draw_status(self, nyx_controller_mock):
-    nyx_controller_mock().get_page.return_value = 1
-    nyx_controller_mock().get_page_count.return_value = 4
+  @patch('nyx.panel.header.nyx_interface')
+  def test_draw_status(self, nyx_interface_mock):
+    nyx_interface_mock().get_page.return_value = 1
+    nyx_interface_mock().get_page_count.return_value = 4
 
     self.assertEqual('page 2 / 4 - m: menu, p: pause, h: page help, q: quit', test.render(nyx.panel.header._draw_status, 0, 0, False, None).content)
     self.assertEqual('Paused', test.render(nyx.panel.header._draw_status, 0, 0, True, None).content)

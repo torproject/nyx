@@ -26,11 +26,11 @@ import operator
 
 import nyx
 import nyx.arguments
-import nyx.controller
 import nyx.curses
 import nyx.log
 import nyx.panel
 
+from nyx import nyx_interface
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, NORMAL, BOLD, HIGHLIGHT
 
 import stem.control
@@ -56,15 +56,15 @@ def show_help():
     if it's one panels should act upon, **None** otherwise
   """
 
-  control = nyx.controller.get_controller()
+  interface = nyx_interface()
   handlers = []
 
-  for panel in reversed(control.get_display_panels()):
+  for panel in reversed(interface.get_display_panels()):
     handlers += [handler for handler in panel.key_handlers() if handler.description]
 
   def _render(subwindow):
     subwindow.box()
-    subwindow.addstr(0, 0, 'Page %i Commands:' % (control.get_page() + 1), HIGHLIGHT)
+    subwindow.addstr(0, 0, 'Page %i Commands:' % (interface.get_page() + 1), HIGHLIGHT)
 
     for i, option in enumerate(handlers):
       if i // 2 >= subwindow.height - 2:
@@ -543,4 +543,4 @@ def confirm_save_torrc(torrc):
 
 
 def _top():
-  return nyx.controller.get_controller().header_panel().get_height()
+  return nyx_interface().header_panel().get_height()
