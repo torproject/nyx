@@ -498,6 +498,11 @@ class GraphPanel(nyx.panel.Panel):
       finally:
         nyx.controller.show_message()
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._accounting_stats_paused = copy.copy(self._accounting_stats)
+      self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
+
   def key_handlers(self):
     def _pick_stats():
       available_stats = sorted(self.stat_options())
@@ -545,11 +550,6 @@ class GraphPanel(nyx.panel.Panel):
       Submenu('Interval', [RadioMenuItem(opt, interval_group, opt) for opt in Interval]),
       Submenu('Bounds', [RadioMenuItem(opt, bounds_group, opt) for opt in Bounds]),
     ])
-
-  def set_paused(self, is_pause):
-    if is_pause:
-      self._accounting_stats_paused = copy.copy(self._accounting_stats)
-      self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
   def _draw(self, subwindow):
     if not self._displayed_stat:

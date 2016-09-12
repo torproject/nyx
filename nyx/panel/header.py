@@ -49,6 +49,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     self._last_width = nyx.curses.screen_size().width
     self._reported_inactive = False
+    self._pause_time = 0
 
     self._message = None
     self._message_attr = []
@@ -115,6 +116,10 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     if not self.is_wide():
       self.show_message('Requesting a new identity', HIGHLIGHT, max_wait = 1)
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._pause_time = time.time()
+
   def key_handlers(self):
     def _reconnect():
       if self._vals.is_connected:
@@ -153,7 +158,6 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     interface = nyx_interface()
     left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
-    pause_time = interface.get_pause_time() if interface.is_paused() else None
 
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
@@ -163,7 +167,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       _draw_disconnected(subwindow, 0, 1, vals.last_heartbeat)
 
     if is_wide:
-      _draw_resource_usage(subwindow, left_width, 0, right_width, vals, pause_time)
+      _draw_resource_usage(subwindow, left_width, 0, right_width, vals, self._pause_time)
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
@@ -172,7 +176,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       elif vals.is_connected:
         _draw_newnym_option(subwindow, left_width, 1, vals.newnym_wait)
     else:
-      _draw_resource_usage(subwindow, 0, 2, left_width, vals, pause_time)
+      _draw_resource_usage(subwindow, 0, 2, left_width, vals, self._pause_time)
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)

@@ -189,6 +189,10 @@ class LogPanel(nyx.panel.DaemonPanel):
       except Exception as exc:
         raise IOError("unable to write to '%s': %s" % (path, exc))
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._event_log_paused = self._event_log.clone()
+
   def key_handlers(self):
     def _scroll(key):
       page_height = self.get_height() - 1
@@ -255,10 +259,6 @@ class LogPanel(nyx.panel.DaemonPanel):
         MenuItem('New...', self._show_filter_prompt),
       ]),
     ])
-
-  def set_paused(self, is_pause):
-    if is_pause:
-      self._event_log_paused = self._event_log.clone()
 
   def _draw(self, subwindow):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)

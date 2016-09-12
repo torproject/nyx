@@ -265,6 +265,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     self._entries = []            # last fetched display entries
     self._show_details = False    # presents the details panel if true
     self._sort_order = CONFIG['features.connection.order']
+    self._pause_time = 0
 
     self._last_resource_fetch = -1  # timestamp of the last ConnectionResolver results used
 
@@ -307,6 +308,10 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     if results:
       self._sort_order = results
       self._entries = sorted(self._entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
+
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._pause_time = time.time()
 
   def key_handlers(self):
     def _scroll(key):
@@ -426,7 +431,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
     if interface.is_paused():
-      current_time = interface.get_pause_time()
+      current_time = self._pause_time()
     elif not controller.is_alive():
       current_time = controller.connection_time()
     else:

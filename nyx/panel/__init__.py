@@ -21,6 +21,7 @@ Panels consisting the nyx interface.
     |- get_height - height occupied by the panel
     |
     |- set_visible - toggles panel visiblity
+    |- set_paused - notified when interface pauses or unpauses
     |- key_handlers - keyboard input accepted by the panel
     |- submenu - submenu for the panel
     +- redraw - renders the panel content
@@ -132,6 +133,15 @@ class Panel(object):
     """
 
     self._visible = is_visible
+
+  def set_paused(self, is_pause):
+    """
+    Notified when the interface pauses or unpauses.
+
+    :param bool is_pause: suspended if **True**, resumed otherwise
+    """
+
+    pass
 
   def key_handlers(self):
     """
