@@ -3,11 +3,27 @@
 
 """
 Tor curses monitoring application.
+
+::
+
+  nyx_interface - nyx interface singleton
+  tor_controller - tor connection singleton
+
+  init_controller - initializes our connection to tor
+  expand_path - expands path with respect to our chroot
+  join - joins a series of strings up to a set length
+  msg - string from our configuration
+
+  Interface - overall nyx interface
+    |- is_paused - checks if the interface is paused
+    |- pause_time - time when the interface was paused
+    +- set_paused - sets paused state
 """
 
 import distutils.spawn
 import os
 import sys
+import time
 
 import stem.connection
 import stem.control
@@ -196,3 +212,58 @@ def msg(message, config, **attr):
 
     stem.util.log.notice(msg)
     return ''
+
+
+class Interface(object):
+  """
+  Overall state of the nyx interface.
+  """
+
+  def __init__(self):
+    self._paused = False
+    self._pause_time = None
+
+  def is_paused(self):
+    """
+    Checks if the interface is configured to be paused.
+
+    :returns: **True** if the interface is paused, **False** otherwise
+    """
+
+    return self._paused
+
+  def get_pause_time(self):
+    """
+    Provides the time that we were last paused.
+
+    :returns: **float** with the unix timestamp for when we were last paused,
+      **None** if not paused
+    """
+
+    return self._pause_time
+
+  def set_paused(self, is_pause):
+    """
+    Pauses or unpauses the interface.
+
+    :param bool is_pause: suspends the interface if **True**, resumes it
+      otherwise
+    """
+
+    if is_pause != self._paused:
+      self._paused = is_pause
+      self._pause_time = time.time() if is_pause else None
+
+      # Couple panels have their own pausing behavior. I'll later change this to
+      # a listener approach or someting else that's less hacky.
+
+      for panel_impl in self.get_all_panels():
+        if isinstance(panel_impl, nyx.panel.graph.GraphPanel) or isinstance(panel_impl, nyx.panel.log.LogPanel):
+          panel_impl.set_paused(is_pause)
+
+      for panel_impl in self.get_display_panels():
+        panel_impl.redraw()
+
+
+import nyx.panel.graph
+import nyx.panel.log

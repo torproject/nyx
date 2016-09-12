@@ -27,7 +27,7 @@ import stem
 from stem.util import conf, log
 
 from nyx.curses import BOLD
-from nyx import tor_controller
+from nyx import Interface, tor_controller
 
 
 NYX_CONTROLLER = None
@@ -87,7 +87,7 @@ def input_prompt(msg, initial_value = ''):
   return user_input
 
 
-class Controller(object):
+class Controller(Interface):
   """
   Tracks the global state of the interface
   """
@@ -98,12 +98,12 @@ class Controller(object):
     top to bottom on the page.
     """
 
+    super(Controller, self).__init__()
+
     self._page_panels = []
     self._header_panel = None
     self.quit_signal = False
     self._page = 0
-    self._paused = False
-    self._pause_time = -1
     self._force_redraw = False
     self._last_drawn = 0
 
@@ -134,8 +134,6 @@ class Controller(object):
 
     self.quit_signal = False
     self._page = 0
-    self._paused = False
-    self._pause_time = -1
     self._force_redraw = False
     self._last_drawn = 0
 
@@ -183,49 +181,6 @@ class Controller(object):
     """
 
     self.set_page((self._page - 1) % len(self._page_panels))
-
-  def is_paused(self):
-    """
-    Provides if the interface is configured to be paused or not.
-
-    :returns: **True** if the interface is paused and **False** otherwise
-    """
-
-    return self._paused
-
-  def set_paused(self, is_pause):
-    """
-    Pauses or unpauses the interface.
-
-    :param bool is_pause: suspends the interface if **True**, resumes it
-      otherwise
-    """
-
-    if is_pause != self._paused:
-      if is_pause:
-        self._pause_time = time.time()
-
-      # Couple panels have their own pausing behavior. I'll later change this to
-      # a listener approach or someting else that's less hacky.
-
-      for panel_impl in self.get_all_panels():
-        if isinstance(panel_impl, nyx.panel.graph.GraphPanel) or isinstance(panel_impl, nyx.panel.log.LogPanel):
-          panel_impl.set_paused(is_pause)
-
-      self._paused = is_pause
-
-      for panel_impl in self.get_display_panels():
-        panel_impl.redraw()
-
-  def get_pause_time(self):
-    """
-    Provides the time that we were last paused, returning -1 if we've never
-    been paused.
-
-    :returns: **float** with the unix timestamp for when we were last paused
-    """
-
-    return self._pause_time
 
   def header_panel(self):
     return self._header_panel
