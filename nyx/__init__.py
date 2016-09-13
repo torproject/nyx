@@ -15,6 +15,10 @@ Tor curses monitoring application.
   msg - string from our configuration
 
   Interface - overall nyx interface
+    |- get_page - page we're showing
+    |- set_page - sets the page we're showing
+    |- page_count - pages within our interface
+    |
     |- is_paused - checks if the interface is paused
     +- set_paused - sets paused state
 """
@@ -218,7 +222,43 @@ class Interface(object):
   """
 
   def __init__(self):
+    self._page = 0
     self._paused = False
+
+  def get_page(self):
+    """
+    Provides the page we're showing.
+
+    :return: **int** of the page we're showing
+    """
+
+    return self._page
+
+  def set_page(self, page_number):
+    """
+    Sets the selected page.
+
+    :param int page_number: page to be shown
+
+    :raises: **ValueError** if the page_number is invalid
+    """
+
+    if page_number < 0 or page_number >= self.page_count():
+      raise ValueError('Invalid page number: %i' % page_number)
+
+    if page_number != self._page:
+      self._page = page_number
+      self._force_redraw = True
+      self.header_panel().redraw()
+
+  def page_count(self):
+    """
+    Provides the number of pages the interface has.
+
+    :returns: **int** number of pages in the interface
+    """
+
+    return len(self._page_panels)
 
   def is_paused(self):
     """

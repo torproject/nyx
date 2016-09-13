@@ -103,7 +103,6 @@ class Controller(Interface):
     self._page_panels = []
     self._header_panel = None
     self.quit_signal = False
-    self._page = 0
     self._force_redraw = False
     self._last_drawn = 0
 
@@ -136,51 +135,6 @@ class Controller(Interface):
     self._page = 0
     self._force_redraw = False
     self._last_drawn = 0
-
-  def get_page_count(self):
-    """
-    Provides the number of pages the interface has. This may be zero if all
-    page panels have been disabled.
-    """
-
-    return len(self._page_panels)
-
-  def get_page(self):
-    """
-    Provides the number belonging to this page. Page numbers start at zero.
-    """
-
-    return self._page
-
-  def set_page(self, page_number):
-    """
-    Sets the selected page, raising a ValueError if the page number is invalid.
-
-    Arguments:
-      page_number - page number to be selected
-    """
-
-    if page_number < 0 or page_number >= self.get_page_count():
-      raise ValueError('Invalid page number: %i' % page_number)
-
-    if page_number != self._page:
-      self._page = page_number
-      self._force_redraw = True
-      self.header_panel().redraw()
-
-  def next_page(self):
-    """
-    Increments the page number.
-    """
-
-    self.set_page((self._page + 1) % len(self._page_panels))
-
-  def prev_page(self):
-    """
-    Decrements the page number.
-    """
-
-    self.set_page((self._page - 1) % len(self._page_panels))
 
   def header_panel(self):
     return self._header_panel
@@ -295,7 +249,7 @@ def start_nyx():
 
   NYX_CONTROLLER = Controller()
   NYX_CONTROLLER.init()
-  control = get_controller()
+  interface = get_controller()
 
   if not CONFIG['features.acsSupport']:
     nyx.curses.disable_acs()
@@ -308,7 +262,7 @@ def start_nyx():
 
   # tells daemon panels to start
 
-  for panel_impl in control.get_daemon_panels():
+  for panel_impl in interface.get_daemon_panels():
     panel_impl.start()
 
   # logs the initialization time
@@ -319,15 +273,15 @@ def start_nyx():
 
   override_key = None      # uses this rather than waiting on user input
 
-  while not control.quit_signal:
-    display_panels = [control.header_panel()] + control.get_display_panels()
+  while not interface.quit_signal:
+    display_panels = [interface.header_panel()] + interface.get_display_panels()
 
     # sets panel visability
 
-    for panel_impl in control.get_all_panels():
+    for panel_impl in interface.get_all_panels():
       panel_impl.set_visible(panel_impl in display_panels)
 
-    control.redraw()
+    interface.redraw()
 
     with nyx.curses.raw_screen() as stdscr:
       stdscr.refresh()
@@ -340,11 +294,11 @@ def start_nyx():
       key = nyx.curses.key_input(CONFIG['features.redrawRate'])
 
     if key.match('right'):
-      control.next_page()
+      interface.set_page((interface.get_page() + 1) % interface.page_count())
     elif key.match('left'):
-      control.prev_page()
+      interface.set_page((interface.get_page() - 1) % interface.page_count())
     elif key.match('p'):
-      control.set_paused(not control.is_paused())
+      interface.set_paused(not interface.is_paused())
     elif key.match('m'):
       nyx.menu.show_menu()
     elif key.match('q'):

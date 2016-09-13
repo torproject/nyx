@@ -269,7 +269,7 @@ def _view_menu():
   view_menu = Submenu('View')
   page_group = RadioGroup(interface.set_page, interface.get_page())
 
-  for i in range(interface.get_page_count()):
+  for i in range(interface.page_count()):
     page_panels = interface.get_display_panels(page_number = i)
     label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
     view_menu.add(RadioMenuItem(label, page_group, i))

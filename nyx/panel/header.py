@@ -507,6 +507,6 @@ def _draw_status(subwindow, x, y, is_paused, message, *attr):
     subwindow.addstr(x, y, message, *attr)
   elif not is_paused:
     interface = nyx_interface()
-    subwindow.addstr(x, y, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (interface.get_page() + 1, interface.get_page_count()))
+    subwindow.addstr(x, y, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (interface.get_page() + 1, interface.page_count()))
   else:
     subwindow.addstr(x, y, 'Paused', HIGHLIGHT)

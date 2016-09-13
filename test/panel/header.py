@@ -75,7 +75,7 @@ class TestHeaderPanel(unittest.TestCase):
   def test_rendering_panel(self, sampling_mock, tor_controller_mock, nyx_interface_mock):
     nyx_interface_mock().is_paused.return_value = False
     nyx_interface_mock().get_page.return_value = 1
-    nyx_interface_mock().get_page_count.return_value = 4
+    nyx_interface_mock().page_count.return_value = 4
     sampling_mock.return_value = test_sampling()
 
     panel = nyx.panel.header.HeaderPanel()
@@ -344,7 +344,7 @@ class TestHeaderPanel(unittest.TestCase):
   @patch('nyx.panel.header.nyx_interface')
   def test_draw_status(self, nyx_interface_mock):
     nyx_interface_mock().get_page.return_value = 1
-    nyx_interface_mock().get_page_count.return_value = 4
+    nyx_interface_mock().page_count.return_value = 4
 
     self.assertEqual('page 2 / 4 - m: menu, p: pause, h: page help, q: quit', test.render(nyx.panel.header._draw_status, 0, 0, False, None).content)
     self.assertEqual('Paused', test.render(nyx.panel.header._draw_status, 0, 0, True, None).content)
