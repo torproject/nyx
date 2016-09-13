@@ -60,6 +60,9 @@ def get_controller():
   Provides the nyx controller instance.
   """
 
+  if NYX_CONTROLLER is None:
+    Controller()  # constructor sets NYX_CONTROLLER
+
   return NYX_CONTROLLER
 
 
@@ -98,6 +101,7 @@ class Controller(Interface):
     top to bottom on the page.
     """
 
+    global NYX_CONTROLLER
     super(Controller, self).__init__()
 
     self._page_panels = []
@@ -106,9 +110,9 @@ class Controller(Interface):
     self._force_redraw = False
     self._last_drawn = 0
 
-  def init(self):
+    NYX_CONTROLLER = self
+
     self._header_panel = nyx.panel.header.HeaderPanel()
-    first_page_panels = []
 
     if CONFIG['features.panels.show.graph']:
       first_page_panels.append(nyx.panel.graph.GraphPanel())
@@ -130,11 +134,6 @@ class Controller(Interface):
 
     if CONFIG['features.panels.show.interpreter']:
       self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
-
-    self.quit_signal = False
-    self._page = 0
-    self._force_redraw = False
-    self._last_drawn = 0
 
   def header_panel(self):
     return self._header_panel
@@ -207,10 +206,6 @@ def start_nyx():
   Main draw loop context.
   """
 
-  global NYX_CONTROLLER
-
-  NYX_CONTROLLER = Controller()
-  NYX_CONTROLLER.init()
   interface = get_controller()
 
   if not CONFIG['features.acsSupport']:
