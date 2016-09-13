@@ -139,44 +139,6 @@ class Controller(Interface):
   def header_panel(self):
     return self._header_panel
 
-  def get_display_panels(self, page_number = None):
-    """
-    Provides all panels belonging to a page and sticky content above it. This
-    is ordered they way they are presented (top to bottom) on the page.
-
-    Arguments:
-      page_number    - page number of the panels to be returned, the current
-                      page if None
-    """
-
-    return_page = self._page if page_number is None else page_number
-    return list(self._page_panels[return_page]) if self._page_panels else []
-
-  def get_daemon_panels(self):
-    """
-    Provides thread panels.
-    """
-
-    thread_panels = []
-
-    for panel_impl in self.get_all_panels():
-      if isinstance(panel_impl, threading.Thread):
-        thread_panels.append(panel_impl)
-
-    return thread_panels
-
-  def get_all_panels(self):
-    """
-    Provides all panels in the interface.
-    """
-
-    all_panels = [self._header_panel]
-
-    for page in self._page_panels:
-      all_panels += list(page)
-
-    return all_panels
-
   def redraw(self, force = True):
     """
     Redraws the displayed panel content.
@@ -195,7 +157,7 @@ class Controller(Interface):
       if self._last_drawn + CONFIG['features.refreshRate'] <= current_time:
         force = True
 
-    display_panels = [self.header_panel()] + self.get_display_panels()
+    display_panels = [self.header_panel()] + self.get_page_panels()
 
     occupied_content = 0
 
@@ -274,11 +236,11 @@ def start_nyx():
   override_key = None      # uses this rather than waiting on user input
 
   while not interface.quit_signal:
-    display_panels = [interface.header_panel()] + interface.get_display_panels()
+    display_panels = [interface.header_panel()] + interface.get_page_panels()
 
     # sets panel visability
 
-    for panel_impl in interface.get_all_panels():
+    for panel_impl in interface.get_panels():
       panel_impl.set_visible(panel_impl in display_panels)
 
     interface.redraw()

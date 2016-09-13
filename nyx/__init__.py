@@ -19,6 +19,10 @@ Tor curses monitoring application.
     |- set_page - sets the page we're showing
     |- page_count - pages within our interface
     |
+    |- get_panels - provides all panels
+    |- get_page_panels - provides panels on a page
+    |- get_daemon_panels - provides daemon panels
+    |
     |- is_paused - checks if the interface is paused
     +- set_paused - sets paused state
 """
@@ -260,6 +264,41 @@ class Interface(object):
 
     return len(self._page_panels)
 
+  def get_panels(self):
+    """
+    Provides all panels in the interface.
+
+    :returns: **list** with panels in the interface
+    """
+
+    all_panels = [self._header_panel]
+
+    for page in self._page_panels:
+      all_panels += list(page)
+
+    return all_panels
+
+  def get_page_panels(self, page_number = None):
+    """
+    Provides panels belonging to a page, ordered top to bottom.
+
+    :param int page_number: page to provide the panels of, current page if
+      **None**
+
+    :returns: **list** of panels on that page
+    """
+
+    return list(self._page_panels[self._page if page_number is None else page_number])
+
+  def get_daemon_panels(self):
+    """
+    Provides panels that are daemons.
+
+    :returns: **list** of DaemonPanel in the interface
+    """
+
+    return [panel for panel in self.get_panels() if isinstance(panel, nyx.panel.DaemonPanel)]
+
   def is_paused(self):
     """
     Checks if the interface is configured to be paused.
@@ -280,8 +319,10 @@ class Interface(object):
     if is_pause != self._paused:
       self._paused = is_pause
 
-      for panel_impl in self.get_all_panels():
+      for panel_impl in self.get_panels():
         panel_impl.set_paused(is_pause)
 
-      for panel_impl in self.get_display_panels():
+      for panel_impl in self.get_page_panels():
         panel_impl.redraw()
+
+import nyx.panel

@@ -59,7 +59,7 @@ def show_help():
   interface = nyx_interface()
   handlers = []
 
-  for panel in reversed(interface.get_display_panels()):
+  for panel in reversed(interface.get_page_panels()):
     handlers += [handler for handler in panel.key_handlers() if handler.description]
 
   def _render(subwindow):
