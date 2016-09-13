@@ -7,7 +7,6 @@ user input to the proper panels.
 """
 
 import time
-import threading
 
 import nyx.curses
 import nyx.menu
@@ -106,13 +105,13 @@ class Controller(Interface):
 
     self._page_panels = []
     self._header_panel = None
-    self.quit_signal = False
     self._force_redraw = False
     self._last_drawn = 0
 
     NYX_CONTROLLER = self
 
     self._header_panel = nyx.panel.header.HeaderPanel()
+    first_page_panels = []
 
     if CONFIG['features.panels.show.graph']:
       first_page_panels.append(nyx.panel.graph.GraphPanel())
@@ -181,25 +180,6 @@ class Controller(Interface):
     if force:
       self._last_drawn = current_time
 
-  def quit(self):
-    self.quit_signal = True
-
-  def halt(self):
-    """
-    Halts curses panels, providing back the thread doing so.
-    """
-
-    def halt_panels():
-      for panel_impl in self.get_daemon_panels():
-        panel_impl.stop()
-
-      for panel_impl in self.get_daemon_panels():
-        panel_impl.join()
-
-    halt_thread = threading.Thread(target = halt_panels)
-    halt_thread.start()
-    return halt_thread
-
 
 def start_nyx():
   """
@@ -230,7 +210,7 @@ def start_nyx():
 
   override_key = None      # uses this rather than waiting on user input
 
-  while not interface.quit_signal:
+  while not interface._quit:
     display_panels = [interface.header_panel()] + interface.get_page_panels()
 
     # sets panel visability

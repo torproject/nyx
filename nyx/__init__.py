@@ -24,12 +24,16 @@ Tor curses monitoring application.
     |- get_daemon_panels - provides daemon panels
     |
     |- is_paused - checks if the interface is paused
-    +- set_paused - sets paused state
+    |- set_paused - sets paused state
+    |
+    |- quit - quits our application
+    +- halt - stops daemon panels
 """
 
 import distutils.spawn
 import os
 import sys
+import threading
 
 import stem.connection
 import stem.control
@@ -228,6 +232,7 @@ class Interface(object):
   def __init__(self):
     self._page = 0
     self._paused = False
+    self._quit = False
 
   def get_page(self):
     """
@@ -324,5 +329,31 @@ class Interface(object):
 
       for panel_impl in self.get_page_panels():
         panel_impl.redraw()
+
+  def quit(self):
+    """
+    Quits our application.
+    """
+
+    self._quit = True
+
+  def halt(self):
+    """
+    Stops curses panels in our interface.
+
+    :returns: **threading.Thread** terminating daemons
+    """
+
+    def halt_panels():
+      for panel_impl in self.get_daemon_panels():
+        panel_impl.stop()
+
+      for panel_impl in self.get_daemon_panels():
+        panel_impl.join()
+
+    halt_thread = threading.Thread(target = halt_panels)
+    halt_thread.start()
+    return halt_thread
+
 
 import nyx.panel
