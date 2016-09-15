@@ -1,4 +1,4 @@
-# Copyright 2010-2016, Damian Johnson and The Tor Project
+# Copyright 2009-2016, Damian Johnson and The Tor Project
 # See LICENSE for licensing information
 
 """
@@ -61,6 +61,16 @@ __all__ = [
   'tracker',
 ]
 
+CONFIG = stem.util.conf.config_dict('nyx', {
+  'features.panels.show.graph': True,
+  'features.panels.show.log': True,
+  'features.panels.show.connection': True,
+  'features.panels.show.config': True,
+  'features.panels.show.torrc': True,
+  'features.panels.show.interpreter': True,
+})
+
+NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 DATA_DIR = os.path.expanduser('~/.nyx')
@@ -115,8 +125,10 @@ def nyx_interface():
   :returns: :class:`~nyx.Interface` controller
   """
 
-  import nyx.controller
-  return nyx.controller.get_controller()
+  if NYX_INTERFACE is None:
+    Interface()  # constructor sets NYX_INTERFACE
+
+  return NYX_INTERFACE
 
 
 def tor_controller():
@@ -231,9 +243,39 @@ class Interface(object):
   """
 
   def __init__(self):
+    global NYX_INTERFACE
+
     self._page = 0
+    self._page_panels = []
+    self._header_panel = None
     self._paused = False
     self._quit = False
+
+    NYX_INTERFACE = self
+
+    self._header_panel = nyx.panel.header.HeaderPanel()
+    first_page_panels = []
+
+    if CONFIG['features.panels.show.graph']:
+      first_page_panels.append(nyx.panel.graph.GraphPanel())
+
+    if CONFIG['features.panels.show.log']:
+      first_page_panels.append(nyx.panel.log.LogPanel())
+
+    if first_page_panels:
+      self._page_panels.append(first_page_panels)
+
+    if CONFIG['features.panels.show.connection']:
+      self._page_panels.append([nyx.panel.connection.ConnectionPanel()])
+
+    if CONFIG['features.panels.show.config']:
+      self._page_panels.append([nyx.panel.config.ConfigPanel()])
+
+    if CONFIG['features.panels.show.torrc']:
+      self._page_panels.append([nyx.panel.torrc.TorrcPanel()])
+
+    if CONFIG['features.panels.show.interpreter']:
+      self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
 
   def get_page(self):
     """
@@ -379,3 +421,10 @@ class Interface(object):
 
 
 import nyx.panel
+import nyx.panel.config
+import nyx.panel.connection
+import nyx.panel.graph
+import nyx.panel.header
+import nyx.panel.interpreter
+import nyx.panel.log
+import nyx.panel.torrc

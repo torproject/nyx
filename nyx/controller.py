@@ -13,23 +13,13 @@ import nyx.menu
 import nyx.popups
 
 import nyx.panel
-import nyx.panel.config
-import nyx.panel.connection
-import nyx.panel.graph
-import nyx.panel.header
-import nyx.panel.interpreter
-import nyx.panel.log
-import nyx.panel.torrc
 
 import stem
 
 from stem.util import conf, log
 
 from nyx.curses import BOLD
-from nyx import Interface, tor_controller
-
-
-NYX_CONTROLLER = None
+from nyx import nyx_interface, tor_controller
 
 
 def conf_handler(key, value):
@@ -39,31 +29,14 @@ def conf_handler(key, value):
 
 CONFIG = conf.config_dict('nyx', {
   'features.acsSupport': True,
-  'features.panels.show.graph': True,
-  'features.panels.show.log': True,
-  'features.panels.show.connection': True,
-  'features.panels.show.config': True,
-  'features.panels.show.torrc': True,
-  'features.panels.show.interpreter': True,
   'features.redrawRate': 5,
   'features.confirmQuit': True,
   'start_time': 0,
 }, conf_handler)
 
 
-def get_controller():
-  """
-  Provides the nyx controller instance.
-  """
-
-  if NYX_CONTROLLER is None:
-    Controller()  # constructor sets NYX_CONTROLLER
-
-  return NYX_CONTROLLER
-
-
 def show_message(message = None, *attr, **kwargs):
-  return get_controller().header_panel().show_message(message, *attr, **kwargs)
+  return nyx_interface().header_panel().show_message(message, *attr, **kwargs)
 
 
 def input_prompt(msg, initial_value = ''):
@@ -77,7 +50,7 @@ def input_prompt(msg, initial_value = ''):
     canceled
   """
 
-  header_panel = get_controller().header_panel()
+  header_panel = nyx_interface().header_panel()
 
   header_panel.show_message(msg)
   user_input = nyx.curses.str_input(len(msg), header_panel.get_height() - 1, initial_value)
@@ -86,56 +59,12 @@ def input_prompt(msg, initial_value = ''):
   return user_input
 
 
-class Controller(Interface):
-  """
-  Tracks the global state of the interface
-  """
-
-  def __init__(self):
-    """
-    Creates a new controller instance. Panel lists are ordered as they appear,
-    top to bottom on the page.
-    """
-
-    global NYX_CONTROLLER
-    super(Controller, self).__init__()
-
-    self._page_panels = []
-    self._header_panel = None
-
-    NYX_CONTROLLER = self
-
-    self._header_panel = nyx.panel.header.HeaderPanel()
-    first_page_panels = []
-
-    if CONFIG['features.panels.show.graph']:
-      first_page_panels.append(nyx.panel.graph.GraphPanel())
-
-    if CONFIG['features.panels.show.log']:
-      first_page_panels.append(nyx.panel.log.LogPanel())
-
-    if first_page_panels:
-      self._page_panels.append(first_page_panels)
-
-    if CONFIG['features.panels.show.connection']:
-      self._page_panels.append([nyx.panel.connection.ConnectionPanel()])
-
-    if CONFIG['features.panels.show.config']:
-      self._page_panels.append([nyx.panel.config.ConfigPanel()])
-
-    if CONFIG['features.panels.show.torrc']:
-      self._page_panels.append([nyx.panel.torrc.TorrcPanel()])
-
-    if CONFIG['features.panels.show.interpreter']:
-      self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
-
-
 def start_nyx():
   """
   Main draw loop context.
   """
 
-  interface = get_controller()
+  interface = nyx_interface()
 
   if not CONFIG['features.acsSupport']:
     nyx.curses.disable_acs()
