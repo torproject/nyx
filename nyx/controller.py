@@ -129,9 +129,6 @@ class Controller(Interface):
     if CONFIG['features.panels.show.interpreter']:
       self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
 
-  def header_panel(self):
-    return self._header_panel
-
 
 def start_nyx():
   """
@@ -151,7 +148,7 @@ def start_nyx():
 
   # tells daemon panels to start
 
-  for panel in interface.get_daemon_panels():
+  for panel in interface.daemon_panels():
     panel.start()
 
   # logs the initialization time
@@ -163,7 +160,7 @@ def start_nyx():
   override_key = None      # uses this rather than waiting on user input
 
   while not interface._quit:
-    display_panels = [interface.header_panel()] + interface.get_page_panels()
+    display_panels = [interface.header_panel()] + interface.page_panels()
 
     # sets panel visability
 

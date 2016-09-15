@@ -240,7 +240,7 @@ def _make_menu():
 
   root_menu.add(_view_menu())
 
-  for panel in interface.get_page_panels():
+  for panel in interface.page_panels():
     submenu = panel.submenu()
 
     if submenu:
@@ -270,7 +270,7 @@ def _view_menu():
   page_group = RadioGroup(interface.set_page, interface.get_page())
 
   for i in range(interface.page_count()):
-    page_panels = interface.get_page_panels(page_number = i)
+    page_panels = interface.page_panels(page_number = i)
     label = ' / '.join([type(panel).__name__.replace('Panel', '') for panel in page_panels])
     view_menu.add(RadioMenuItem(label, page_group, i))
 

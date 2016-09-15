@@ -275,7 +275,7 @@ class TestPopups(unittest.TestCase):
       nyx.panel.KeyHandler('c', 'clear event log'),
     )
 
-    nyx_interface_mock().get_page_panels.return_value = [header_panel, graph_panel, log_panel]
+    nyx_interface_mock().page_panels.return_value = [header_panel, graph_panel, log_panel]
 
     rendered = test.render(nyx.popups.show_help)
     self.assertEqual(EXPECTED_HELP_POPUP, rendered.content)

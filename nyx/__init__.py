@@ -19,8 +19,9 @@ Tor curses monitoring application.
     |- set_page - sets the page we're showing
     |- page_count - pages within our interface
     |
-    |- get_page_panels - provides panels on a page
-    |- get_daemon_panels - provides daemon panels
+    |- header_panel - provides the header panel
+    |- page_panels - provides panels on a page
+    |- daemon_panels - provides daemon panels
     |
     |- is_paused - checks if the interface is paused
     |- set_paused - sets paused state
@@ -268,7 +269,16 @@ class Interface(object):
 
     return len(self._page_panels)
 
-  def get_page_panels(self, page_number = None):
+  def header_panel(self):
+    """
+    Provides our interface's header.
+
+    :returns: :class:`~nyx.panel.header.HeaderPanel` of our interface
+    """
+
+    return self._header_panel
+
+  def page_panels(self, page_number = None):
     """
     Provides panels belonging to a page, ordered top to bottom.
 
@@ -280,7 +290,7 @@ class Interface(object):
 
     return list(self._page_panels[self._page if page_number is None else page_number])
 
-  def get_daemon_panels(self):
+  def daemon_panels(self):
     """
     Provides panels that are daemons.
 
@@ -312,7 +322,7 @@ class Interface(object):
       for panel in self:
         panel.set_paused(is_pause)
 
-      for panel in self.get_page_panels():
+      for panel in self.page_panels():
         panel.redraw()
 
   def redraw(self, force = True):
@@ -331,7 +341,7 @@ class Interface(object):
 
     occupied = 0
 
-    for panel in [self.header_panel()] + self.get_page_panels():
+    for panel in [self.header_panel()] + self.page_panels():
       panel.redraw(force = force, top = occupied)
       occupied += panel.get_height()
 
@@ -350,10 +360,10 @@ class Interface(object):
     """
 
     def halt_panels():
-      for panel in self.get_daemon_panels():
+      for panel in self.daemon_panels():
         panel.stop()
 
-      for panel in self.get_daemon_panels():
+      for panel in self.daemon_panels():
         panel.join()
 
     halt_thread = threading.Thread(target = halt_panels)
