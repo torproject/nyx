@@ -19,7 +19,6 @@ Tor curses monitoring application.
     |- set_page - sets the page we're showing
     |- page_count - pages within our interface
     |
-    |- get_panels - provides all panels
     |- get_page_panels - provides panels on a page
     |- get_daemon_panels - provides daemon panels
     |
@@ -269,20 +268,6 @@ class Interface(object):
 
     return len(self._page_panels)
 
-  def get_panels(self):
-    """
-    Provides all panels in the interface.
-
-    :returns: **list** with panels in the interface
-    """
-
-    all_panels = [self._header_panel]
-
-    for page in self._page_panels:
-      all_panels += list(page)
-
-    return all_panels
-
   def get_page_panels(self, page_number = None):
     """
     Provides panels belonging to a page, ordered top to bottom.
@@ -302,7 +287,7 @@ class Interface(object):
     :returns: **list** of DaemonPanel in the interface
     """
 
-    return [panel for panel in self.get_panels() if isinstance(panel, nyx.panel.DaemonPanel)]
+    return [panel for panel in self if isinstance(panel, nyx.panel.DaemonPanel)]
 
   def is_paused(self):
     """
@@ -324,11 +309,11 @@ class Interface(object):
     if is_pause != self._paused:
       self._paused = is_pause
 
-      for panel_impl in self.get_panels():
-        panel_impl.set_paused(is_pause)
+      for panel in self:
+        panel.set_paused(is_pause)
 
-      for panel_impl in self.get_page_panels():
-        panel_impl.redraw()
+      for panel in self.get_page_panels():
+        panel.redraw()
 
   def redraw(self, force = True):
     """
@@ -365,15 +350,22 @@ class Interface(object):
     """
 
     def halt_panels():
-      for panel_impl in self.get_daemon_panels():
-        panel_impl.stop()
+      for panel in self.get_daemon_panels():
+        panel.stop()
 
-      for panel_impl in self.get_daemon_panels():
-        panel_impl.join()
+      for panel in self.get_daemon_panels():
+        panel.join()
 
     halt_thread = threading.Thread(target = halt_panels)
     halt_thread.start()
     return halt_thread
+
+  def __iter__(self):
+    yield self._header_panel
+
+    for page in self._page_panels:
+      for panel in page:
+        yield panel
 
 
 import nyx.panel

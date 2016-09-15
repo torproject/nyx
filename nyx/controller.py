@@ -151,8 +151,8 @@ def start_nyx():
 
   # tells daemon panels to start
 
-  for panel_impl in interface.get_daemon_panels():
-    panel_impl.start()
+  for panel in interface.get_daemon_panels():
+    panel.start()
 
   # logs the initialization time
 
@@ -167,8 +167,8 @@ def start_nyx():
 
     # sets panel visability
 
-    for panel_impl in interface.get_panels():
-      panel_impl.set_visible(panel_impl in display_panels)
+    for panel in interface:
+      panel.set_visible(panel in display_panels)
 
     interface.redraw()
 
@@ -216,6 +216,6 @@ def start_nyx():
     elif key.match('h'):
       override_key = nyx.popups.show_help()
     else:
-      for panel_impl in display_panels:
-        for keybinding in panel_impl.key_handlers():
+      for panel in display_panels:
+        for keybinding in panel.key_handlers():
           keybinding.handle(key)
