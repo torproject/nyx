@@ -16,14 +16,13 @@ import stem.util.proc
 import stem.util.str_tools
 import stem.util.system
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
 from stem.util import conf, log
-from nyx import msg, nyx_interface, tor_controller
+from nyx import nyx_interface, tor_controller, msg, input_prompt
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
@@ -132,7 +131,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         try:
           controller.reconnect(chroot_path = CONFIG['tor.chroot'])
         except stem.connection.MissingPassword:
-          password = nyx.controller.input_prompt('Controller Password: ')
+          password = input_prompt('Controller Password: ')
 
           if password:
             controller.authenticate(password)

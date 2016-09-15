@@ -19,7 +19,7 @@ import stem
 from stem.util import conf, log
 
 from nyx.curses import BOLD
-from nyx import nyx_interface, tor_controller
+from nyx import nyx_interface, tor_controller, show_message
 
 
 def conf_handler(key, value):
@@ -33,30 +33,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.confirmQuit': True,
   'start_time': 0,
 }, conf_handler)
-
-
-def show_message(message = None, *attr, **kwargs):
-  return nyx_interface().header_panel().show_message(message, *attr, **kwargs)
-
-
-def input_prompt(msg, initial_value = ''):
-  """
-  Prompts the user for input.
-
-  :param str message: prompt for user input
-  :param str initial_value: initial value of the prompt
-
-  :returns: **str** with the user input, this is **None** if the prompt is
-    canceled
-  """
-
-  header_panel = nyx_interface().header_panel()
-
-  header_panel.show_message(msg)
-  user_input = nyx.curses.str_input(len(msg), header_panel.get_height() - 1, initial_value)
-  header_panel.show_message()
-
-  return user_input
 
 
 def start_nyx():

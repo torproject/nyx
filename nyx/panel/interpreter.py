@@ -7,7 +7,6 @@ information, tab completion, and other usability features.
 """
 
 import curses
-import nyx.controller
 import nyx.curses
 import nyx.panel
 

@@ -9,6 +9,8 @@ Tor curses monitoring application.
   nyx_interface - nyx interface singleton
   tor_controller - tor connection singleton
 
+  show_message - shows a message to the user
+  input_prompt - prompts the user for text input
   init_controller - initializes our connection to tor
   expand_path - expands path with respect to our chroot
   join - joins a series of strings up to a set length
@@ -139,6 +141,36 @@ def tor_controller():
   """
 
   return TOR_CONTROLLER
+
+
+def show_message(message = None, *attr, **kwargs):
+  """
+  Shows a message in our header.
+
+  :param str message: message to be shown
+  """
+
+  return nyx_interface().header_panel().show_message(message, *attr, **kwargs)
+
+
+def input_prompt(msg, initial_value = ''):
+  """
+  Prompts the user for input.
+
+  :param str message: prompt for user input
+  :param str initial_value: initial value of the prompt
+
+  :returns: **str** with the user input, this is **None** if the prompt is
+    canceled
+  """
+
+  header_panel = nyx_interface().header_panel()
+
+  header_panel.show_message(msg)
+  user_input = nyx.curses.str_input(len(msg), header_panel.get_height() - 1, initial_value)
+  header_panel.show_message()
+
+  return user_input
 
 
 def init_controller(*args, **kwargs):

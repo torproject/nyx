@@ -18,13 +18,12 @@ import copy
 import functools
 import time
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import join, msg, nyx_interface, tor_controller
+from nyx import nyx_interface, tor_controller, msg, join, show_message
 from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.control import EventType, Listener
@@ -475,7 +474,7 @@ class GraphPanel(nyx.panel.Panel):
     with nyx.curses.CURSES_LOCK:
       try:
         while True:
-          nyx.controller.show_message('press the down/up to resize the graph, and enter when done', BOLD)
+          show_message('press the down/up to resize the graph, and enter when done', BOLD)
           key = nyx.curses.key_input()
 
           if key.match('down'):
@@ -496,7 +495,7 @@ class GraphPanel(nyx.panel.Panel):
 
           nyx_interface().redraw()
       finally:
-        nyx.controller.show_message()
+        show_message()
 
   def set_paused(self, is_pause):
     if is_pause:

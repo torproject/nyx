@@ -7,13 +7,12 @@ Menu for controlling nyx.
 
 import functools
 
-import nyx.controller
 import nyx.curses
 import nyx.popups
 
 import stem
 
-from nyx import nyx_interface, tor_controller
+from nyx import nyx_interface, tor_controller, show_message
 from nyx.curses import RED, WHITE, NORMAL, BOLD, UNDERLINE
 from stem.util import str_tools
 
@@ -205,7 +204,7 @@ def show_menu():
   cursor = MenuCursor(menu.children[0].children[0])
 
   with nyx.curses.CURSES_LOCK:
-    nyx.controller.show_message('Press m or esc to close the menu.', BOLD)
+    show_message('Press m or esc to close the menu.', BOLD)
 
     while not cursor.is_done:
       selection_x = _draw_top_menubar(menu, cursor.selection)
@@ -213,7 +212,7 @@ def show_menu():
       cursor.handle_key(nyx.curses.key_input())
       nyx_interface().redraw()
 
-    nyx.controller.show_message()
+    show_message()
 
 
 def _make_menu():

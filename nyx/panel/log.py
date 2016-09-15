@@ -14,13 +14,12 @@ import time
 import stem.response.events
 
 import nyx.arguments
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.log
 
-from nyx import join, nyx_interface, tor_controller
+from nyx import nyx_interface, tor_controller, join, input_prompt, show_message
 from nyx.curses import GREEN, YELLOW, WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.util import conf, log
@@ -118,7 +117,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     Prompts the user to add a new regex filter.
     """
 
-    regex_input = nyx.controller.input_prompt('Regular expression: ')
+    regex_input = input_prompt('Regular expression: ')
 
     if regex_input:
       self._filter.select(regex_input)
@@ -139,14 +138,14 @@ class LogPanel(nyx.panel.DaemonPanel):
     Lets user enter a path to take a snapshot, canceling if left blank.
     """
 
-    path_input = nyx.controller.input_prompt('Path to save log snapshot: ')
+    path_input = input_prompt('Path to save log snapshot: ')
 
     if path_input:
       try:
         self.save_snapshot(path_input)
-        nyx.controller.show_message('Saved: %s' % path_input, HIGHLIGHT, max_wait = 2)
+        show_message('Saved: %s' % path_input, HIGHLIGHT, max_wait = 2)
       except IOError as exc:
-        nyx.controller.show_message('Unable to save snapshot: %s' % exc, HIGHLIGHT, max_wait = 2)
+        show_message('Unable to save snapshot: %s' % exc, HIGHLIGHT, max_wait = 2)
 
   def _clear(self):
     """
@@ -220,7 +219,7 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     def _clear_log():
       msg = 'This will clear the log. Are you sure (c again to confirm)?'
-      key_press = nyx.controller.show_message(msg, BOLD, max_wait = 30)
+      key_press = show_message(msg, BOLD, max_wait = 30)
 
       if key_press.match('c'):
         self._clear()
