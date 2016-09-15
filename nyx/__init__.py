@@ -26,6 +26,7 @@ Tor curses monitoring application.
     |- is_paused - checks if the interface is paused
     |- set_paused - sets paused state
     |
+    |- redraw - renders our content
     |- quit - quits our application
     +- halt - stops daemon panels
 """
@@ -257,7 +258,6 @@ class Interface(object):
 
     if page_number != self._page:
       self._page = page_number
-      self._force_redraw = True
       self.header_panel().redraw()
 
   def page_count(self):
@@ -329,6 +329,26 @@ class Interface(object):
 
       for panel_impl in self.get_page_panels():
         panel_impl.redraw()
+
+  def redraw(self, force = True):
+    """
+    Renders our displayed content.
+
+    :param bool force: if **False** only redraws content if resized
+    """
+
+    # Curses may overly cache content without clearing here...
+    # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
+
+    if force:
+      with nyx.curses.raw_screen() as stdscr:
+        stdscr.clear()
+
+    occupied = 0
+
+    for panel in [self.header_panel()] + self.get_page_panels():
+      panel.redraw(force = force, top = occupied)
+      occupied += panel.get_height()
 
   def quit(self):
     """

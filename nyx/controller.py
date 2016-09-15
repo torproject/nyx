@@ -35,8 +35,6 @@ NYX_CONTROLLER = None
 def conf_handler(key, value):
   if key == 'features.redrawRate':
     return max(1, value)
-  elif key == 'features.refreshRate':
-    return max(0, value)
 
 
 CONFIG = conf.config_dict('nyx', {
@@ -48,7 +46,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.panels.show.torrc': True,
   'features.panels.show.interpreter': True,
   'features.redrawRate': 5,
-  'features.refreshRate': 5,
   'features.confirmQuit': True,
   'start_time': 0,
 }, conf_handler)
@@ -105,8 +102,6 @@ class Controller(Interface):
 
     self._page_panels = []
     self._header_panel = None
-    self._force_redraw = False
-    self._last_drawn = 0
 
     NYX_CONTROLLER = self
 
@@ -136,49 +131,6 @@ class Controller(Interface):
 
   def header_panel(self):
     return self._header_panel
-
-  def redraw(self, force = True):
-    """
-    Redraws the displayed panel content.
-
-    Arguments:
-      force - redraws regardless of if it's needed if true, otherwise ignores
-              the request when there aren't changes to be displayed
-    """
-
-    force |= self._force_redraw
-    self._force_redraw = False
-
-    current_time = time.time()
-
-    if CONFIG['features.refreshRate'] != 0:
-      if self._last_drawn + CONFIG['features.refreshRate'] <= current_time:
-        force = True
-
-    display_panels = [self.header_panel()] + self.get_page_panels()
-
-    occupied_content = 0
-
-    for panel_impl in display_panels:
-      panel_impl.set_top(occupied_content)
-      height = panel_impl.get_height()
-
-      if height:
-        occupied_content += height
-
-    # apparently curses may cache display contents unless we explicitely
-    # request a redraw here...
-    # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
-
-    if force:
-      with nyx.curses.raw_screen() as stdscr:
-        stdscr.clear()
-
-    for panel_impl in display_panels:
-      panel_impl.redraw(force = force)
-
-    if force:
-      self._last_drawn = current_time
 
 
 def start_nyx():

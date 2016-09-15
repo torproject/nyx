@@ -17,7 +17,6 @@ Panels consisting the nyx interface.
     |  +- stop - stops triggering daemon actions
     |
     |- get_top - top position we're rendered into on the screen
-    |- set_top - sets top position within the screen
     |- get_height - height occupied by the panel
     |
     |- set_visible - toggles panel visiblity
@@ -107,15 +106,6 @@ class Panel(object):
 
     return self._top
 
-  def set_top(self, top):
-    """
-    Changes the position where we're rendered in the screen.
-
-    :param int top: top position within the sceen
-    """
-
-    self._top = top
-
   def get_height(self):
     """
     Provides the height occupied by this panel.
@@ -162,13 +152,17 @@ class Panel(object):
 
     return None
 
-  def redraw(self, force = True):
+  def redraw(self, force = True, top = None):
     """
     Renders our panel's content to the screen.
 
     :param bool force: if **False** only redraws content if the panel's
       dimensions have changed
+    :param int top: position to render relative to the top of the screen
     """
+
+    if top:
+      self._top = top
 
     if not self._visible:
       return  # not currently visible

@@ -45,11 +45,6 @@ features.logFile
 # Seconds to wait on user input before refreshing content
 features.redrawRate 5
 
-# Rate (seconds) to periodically redraw the screen, disabled if zero. This
-# shouldn't be necessary, but can correct issues if the terminal gets into a
-# funky state.
-features.refreshRate 5
-
 # Confirms promt to confirm when quiting if true
 features.confirmQuit true
 
