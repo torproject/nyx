@@ -9,7 +9,6 @@ and the resulting configuration files saved.
 import curses
 import os
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
@@ -20,7 +19,7 @@ import stem.util.connection
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu
-from nyx import DATA_DIR, tor_controller
+from nyx import DATA_DIR, tor_controller, input_prompt, show_message
 
 from stem.util import conf, enum, log, str_tools
 
@@ -194,9 +193,9 @@ class ConfigPanel(nyx.panel.Panel):
     if nyx.popups.confirm_save_torrc(torrc):
       try:
         controller.save_conf()
-        nyx.controller.show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
+        show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
       except IOError as exc:
-        nyx.controller.show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
+        show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
 
     self.redraw()
 
@@ -211,7 +210,7 @@ class ConfigPanel(nyx.panel.Panel):
     def _edit_selected_value():
       selected = self._scroller.selection(self._get_config_options())
       initial_value = selected.value() if selected.is_set() else ''
-      new_value = nyx.controller.input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
+      new_value = input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
 
       if new_value != initial_value:
         try:
@@ -228,7 +227,7 @@ class ConfigPanel(nyx.panel.Panel):
           tor_controller().set_conf(selected.name, new_value)
           self.redraw()
         except Exception as exc:
-          nyx.controller.show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
+          show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
 
     def _toggle_show_all():
       self._show_all = not self._show_all

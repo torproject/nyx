@@ -17,10 +17,10 @@ Panels consisting the nyx interface.
     |  +- stop - stops triggering daemon actions
     |
     |- get_top - top position we're rendered into on the screen
-    |- set_top - sets top position within the screen
     |- get_height - height occupied by the panel
     |
     |- set_visible - toggles panel visiblity
+    |- set_paused - notified when interface pauses or unpauses
     |- key_handlers - keyboard input accepted by the panel
     |- submenu - submenu for the panel
     +- redraw - renders the panel content
@@ -32,6 +32,8 @@ import threading
 import time
 
 import nyx.curses
+
+from nyx import nyx_interface
 
 __all__ = [
   'config',
@@ -104,15 +106,6 @@ class Panel(object):
 
     return self._top
 
-  def set_top(self, top):
-    """
-    Changes the position where we're rendered in the screen.
-
-    :param int top: top position within the sceen
-    """
-
-    self._top = top
-
   def get_height(self):
     """
     Provides the height occupied by this panel.
@@ -130,6 +123,15 @@ class Panel(object):
     """
 
     self._visible = is_visible
+
+  def set_paused(self, is_pause):
+    """
+    Notified when the interface pauses or unpauses.
+
+    :param bool is_pause: suspended if **True**, resumed otherwise
+    """
+
+    pass
 
   def key_handlers(self):
     """
@@ -150,13 +152,17 @@ class Panel(object):
 
     return None
 
-  def redraw(self, force = True):
+  def redraw(self, force = True, top = None):
     """
     Renders our panel's content to the screen.
 
     :param bool force: if **False** only redraws content if the panel's
       dimensions have changed
+    :param int top: position to render relative to the top of the screen
     """
+
+    if top:
+      self._top = top
 
     if not self._visible:
       return  # not currently visible
@@ -195,13 +201,10 @@ class DaemonPanel(Panel, threading.Thread):
     Performs our _update() action at the given rate.
     """
 
-    import nyx.controller
-
     last_ran = -1
-    nyx_controller = nyx.controller.get_controller()
 
     while not self._halt:
-      if nyx_controller.is_paused() or (time.time() - last_ran) < self._update_rate:
+      if nyx_interface().is_paused() or (time.time() - last_ran) < self._update_rate:
         with self._pause_condition:
           if not self._halt:
             self._pause_condition.wait(0.2)

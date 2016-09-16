@@ -16,14 +16,13 @@ import stem.util.proc
 import stem.util.str_tools
 import stem.util.system
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
 from stem.util import conf, log
-from nyx import msg, tor_controller
+from nyx import nyx_interface, tor_controller, msg, input_prompt
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
@@ -49,6 +48,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     self._last_width = nyx.curses.screen_size().width
     self._reported_inactive = False
+    self._pause_time = 0
 
     self._message = None
     self._message_attr = []
@@ -115,6 +115,10 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     if not self.is_wide():
       self.show_message('Requesting a new identity', HIGHLIGHT, max_wait = 1)
 
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._pause_time = time.time()
+
   def key_handlers(self):
     def _reconnect():
       if self._vals.is_connected:
@@ -127,7 +131,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
         try:
           controller.reconnect(chroot_path = CONFIG['tor.chroot'])
         except stem.connection.MissingPassword:
-          password = nyx.controller.input_prompt('Controller Password: ')
+          password = input_prompt('Controller Password: ')
 
           if password:
             controller.authenticate(password)
@@ -150,10 +154,9 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
     # space available for content
 
-    nyx_controller = nyx.controller.get_controller()
+    interface = nyx_interface()
     left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
-    pause_time = nyx_controller.get_pause_time() if nyx_controller.is_paused() else None
 
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
 
@@ -163,7 +166,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       _draw_disconnected(subwindow, 0, 1, vals.last_heartbeat)
 
     if is_wide:
-      _draw_resource_usage(subwindow, left_width, 0, right_width, vals, pause_time)
+      _draw_resource_usage(subwindow, left_width, 0, right_width, vals, self._pause_time)
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, left_width, 1, right_width, vals)
@@ -172,13 +175,13 @@ class HeaderPanel(nyx.panel.DaemonPanel):
       elif vals.is_connected:
         _draw_newnym_option(subwindow, left_width, 1, vals.newnym_wait)
     else:
-      _draw_resource_usage(subwindow, 0, 2, left_width, vals, pause_time)
+      _draw_resource_usage(subwindow, 0, 2, left_width, vals, self._pause_time)
 
       if vals.is_relay:
         _draw_fingerprint_and_fd_usage(subwindow, 0, 3, left_width, vals)
         _draw_flags(subwindow, 0, 4, vals.flags)
 
-    _draw_status(subwindow, 0, self.get_height() - 1, nyx_controller.is_paused(), self._message, *self._message_attr)
+    _draw_status(subwindow, 0, self.get_height() - 1, interface.is_paused(), self._message, *self._message_attr)
 
   def _reset_listener(self, controller, event_type, _):
     self._update()
@@ -502,7 +505,7 @@ def _draw_status(subwindow, x, y, is_paused, message, *attr):
   if message:
     subwindow.addstr(x, y, message, *attr)
   elif not is_paused:
-    controller = nyx.controller.get_controller()
-    subwindow.addstr(x, y, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (controller.get_page() + 1, controller.get_page_count()))
+    interface = nyx_interface()
+    subwindow.addstr(x, y, 'page %i / %i - m: menu, p: pause, h: page help, q: quit' % (interface.get_page() + 1, interface.page_count()))
   else:
     subwindow.addstr(x, y, 'Paused', HIGHLIGHT)

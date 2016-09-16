@@ -25,7 +25,6 @@ if we want Windows support in the future too.
   get_color_override - provides color we override requests with
   set_color_override - sets color we override requests with
 
-  disable_acs - renders replacements for ACS characters
   is_wide_characters_supported - checks if curses supports wide character
 
   draw - renders subwindow that can be drawn into
@@ -181,11 +180,12 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 }, conf_handler)
 
 
-def start(function, transparent_background = False, cursor = True):
+def start(function, acs_support = True, transparent_background = False, cursor = True):
   """
   Starts a curses interface, delegating to the given function.
 
   :param funtion: function to invoke when curses starts
+  :param bool acs_support: uses wide characters for pipes
   :param bool transparent_background: allows background transparency
   :param bool cursor: makes cursor visible
   """
@@ -194,6 +194,9 @@ def start(function, transparent_background = False, cursor = True):
     global CURSES_SCREEN
 
     CURSES_SCREEN = stdscr
+
+    if not acs_support:
+      _disable_acs()
 
     if transparent_background:
       try:
@@ -608,7 +611,7 @@ def _color_attr():
   return COLOR_ATTR
 
 
-def disable_acs():
+def _disable_acs():
   """
   Replaces ACS characters used for showing borders. This can be preferable if
   curses is `unable to render them

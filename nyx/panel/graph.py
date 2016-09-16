@@ -18,13 +18,12 @@ import copy
 import functools
 import time
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import join, msg, tor_controller
+from nyx import nyx_interface, tor_controller, msg, join, show_message
 from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.control import EventType, Listener
@@ -452,9 +451,8 @@ class GraphPanel(nyx.panel.Panel):
     if not self._displayed_stat:
       return 0
 
-    nyx_controller = nyx.controller.get_controller()
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
-    accounting_stats = self._accounting_stats if nyx_controller.is_paused() else self._accounting_stats_paused
+    accounting_stats = self._accounting_stats if nyx_interface().is_paused() else self._accounting_stats_paused
 
     if self._displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
@@ -476,7 +474,7 @@ class GraphPanel(nyx.panel.Panel):
     with nyx.curses.CURSES_LOCK:
       try:
         while True:
-          nyx.controller.show_message('press the down/up to resize the graph, and enter when done', BOLD)
+          show_message('press the down/up to resize the graph, and enter when done', BOLD)
           key = nyx.curses.key_input()
 
           if key.match('down'):
@@ -495,9 +493,14 @@ class GraphPanel(nyx.panel.Panel):
           elif key.is_selection():
             break
 
-          nyx.controller.get_controller().redraw()
+          nyx_interface().redraw()
       finally:
-        nyx.controller.show_message()
+        show_message()
+
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._accounting_stats_paused = copy.copy(self._accounting_stats)
+      self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
 
   def key_handlers(self):
     def _pick_stats():
@@ -547,18 +550,11 @@ class GraphPanel(nyx.panel.Panel):
       Submenu('Bounds', [RadioMenuItem(opt, bounds_group, opt) for opt in Bounds]),
     ])
 
-  def set_paused(self, is_pause):
-    if is_pause:
-      self._accounting_stats_paused = copy.copy(self._accounting_stats)
-      self._stats_paused = dict([(key, type(self._stats[key])(self._stats[key])) for key in self._stats])
-
   def _draw(self, subwindow):
     if not self._displayed_stat:
       return
 
-    nyx_controller = nyx.controller.get_controller()
-
-    if not nyx_controller.is_paused():
+    if not nyx_interface().is_paused():
       stat = self._stats[self._displayed_stat]
       accounting_stats = self._accounting_stats
     else:
@@ -582,16 +578,15 @@ class GraphPanel(nyx.panel.Panel):
     if not CONFIG['features.graph.bw.accounting.show']:
       self._accounting_stats = None
     elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
-      nyx_controller = nyx.controller.get_controller()
       old_accounting_stats = self._accounting_stats
       self._accounting_stats = tor_controller().get_accounting_stats(None)
 
-      if not nyx_controller.is_paused():
+      if not nyx_interface().is_paused():
         # if we either added or removed accounting info then redraw the whole
         # screen to account for resizing
 
         if bool(old_accounting_stats) != bool(self._accounting_stats):
-          nyx.controller.get_controller().redraw()
+          nyx_interface().redraw()
 
   def _update_stats(self, event):
     for stat in self._stats.values():

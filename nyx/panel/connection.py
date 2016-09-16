@@ -11,15 +11,14 @@ import collections
 import curses
 import itertools
 
-import nyx.controller
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
+from nyx import nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
-from nyx import tor_controller
 
 from stem.control import Listener
 from stem.util import datetime_to_unix, conf, connection, enum, str_tools
@@ -266,6 +265,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     self._entries = []            # last fetched display entries
     self._show_details = False    # presents the details panel if true
     self._sort_order = CONFIG['features.connection.order']
+    self._pause_time = 0
 
     self._last_resource_fetch = -1  # timestamp of the last ConnectionResolver results used
 
@@ -308,6 +308,10 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     if results:
       self._sort_order = results
       self._entries = sorted(self._entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
+
+  def set_paused(self, is_pause):
+    if is_pause:
+      self._pause_time = time.time()
 
   def key_handlers(self):
     def _scroll(key):
@@ -418,7 +422,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
   def _draw(self, subwindow):
     controller = tor_controller()
-    nyx_controller = nyx.controller.get_controller()
+    interface = nyx_interface()
     entries = self._entries
 
     lines = list(itertools.chain.from_iterable([entry.get_lines() for entry in entries]))
@@ -426,8 +430,8 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     details_offset = DETAILS_HEIGHT + 1 if is_showing_details else 0
     selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
-    if nyx_controller.is_paused():
-      current_time = nyx_controller.get_pause_time()
+    if interface.is_paused():
+      current_time = self._pause_time()
     elif not controller.is_alive():
       current_time = controller.connection_time()
     else:

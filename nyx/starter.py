@@ -16,7 +16,6 @@ import time
 
 import nyx
 import nyx.arguments
-import nyx.controller
 import nyx.curses
 import nyx.tracker
 
@@ -24,7 +23,7 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from nyx import log, init_controller, msg, uses_settings
+from nyx import log, init_controller, msg, uses_settings, nyx_interface
 
 
 @uses_settings
@@ -78,6 +77,7 @@ def main(config):
 
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
+  _warn_about_unused_config_keys()
   _setup_freebsd_chroot(controller)
   _use_english_subcommands()
   _use_no_esc_delay()
@@ -85,7 +85,7 @@ def main(config):
   _set_process_name()
 
   try:
-    nyx.curses.start(nyx.controller.start_nyx, transparent_background = True, cursor = False)
+    nyx.curses.start(nyx.draw_loop, acs_support = config.get('features.acsSupport', True), transparent_background = True, cursor = False)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       print(msg('setup.unknown_term', term = os.environ['TERM']))
@@ -190,6 +190,17 @@ def _warn_if_unable_to_get_pid(controller):
 
 
 @uses_settings
+def _warn_about_unused_config_keys(config):
+  """
+  Provides a notice if the user's nyxrc has any entries that are unused.
+  """
+
+  for key in sorted(config.unused_keys()):
+    if not key.startswith('msg.') and not key.startswith('dedup.'):
+      log.notice('Unused configuration entry: %s' % key)
+
+
+@uses_settings
 def _setup_freebsd_chroot(controller, config):
   """
   If we're running under FreeBSD then check the system for a chroot path.
@@ -254,10 +265,10 @@ def _shutdown_daemons(controller):
   """
 
   halt_threads = [nyx.tracker.stop_trackers()]
-  curses_controller = nyx.controller.get_controller()
+  interface = nyx_interface()
 
-  if curses_controller:
-    halt_threads.append(curses_controller.halt())
+  if interface:
+    halt_threads.append(interface.halt())
 
   for thread in halt_threads:
     thread.join()
