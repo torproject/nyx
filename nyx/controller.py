@@ -28,7 +28,6 @@ def conf_handler(key, value):
 
 
 CONFIG = conf.config_dict('nyx', {
-  'features.acsSupport': True,
   'features.redrawRate': 5,
   'features.confirmQuit': True,
   'start_time': 0,
@@ -39,9 +38,6 @@ def start_nyx():
   """
   Main draw loop context.
   """
-
-  if not CONFIG['features.acsSupport']:
-    nyx.curses.disable_acs()
 
   # provides notice about any unused config keys
 

@@ -85,7 +85,7 @@ def main(config):
   _set_process_name()
 
   try:
-    nyx.curses.start(nyx.controller.start_nyx, transparent_background = True, cursor = False)
+    nyx.curses.start(nyx.controller.start_nyx, acs_support = config.get('features.acsSupport', True), transparent_background = True, cursor = False)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       print(msg('setup.unknown_term', term = os.environ['TERM']))
