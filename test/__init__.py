@@ -83,7 +83,7 @@ def render(func, *args, **kwargs):
   attr = {}
 
   def draw_func():
-    nyx.curses.disable_acs()
+    nyx.curses._disable_acs()
     nyx.curses.CURSES_SCREEN.erase()
     start_time = time.time()
 

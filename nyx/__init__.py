@@ -36,7 +36,9 @@ import distutils.spawn
 import os
 import sys
 import threading
+import time
 
+import stem
 import stem.connection
 import stem.control
 import stem.util.conf
@@ -62,14 +64,23 @@ __all__ = [
   'tracker',
 ]
 
+
+def conf_handler(key, value):
+  if key == 'features.redrawRate':
+    return max(1, value)
+
+
 CONFIG = stem.util.conf.config_dict('nyx', {
+  'features.confirmQuit': True,
   'features.panels.show.graph': True,
   'features.panels.show.log': True,
   'features.panels.show.connection': True,
   'features.panels.show.config': True,
   'features.panels.show.torrc': True,
   'features.panels.show.interpreter': True,
-})
+  'features.redrawRate': 5,
+  'start_time': 0,
+}, conf_handler)
 
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
@@ -94,7 +105,6 @@ except IOError as exc:
 
 def main():
   try:
-    import nyx.starter
     nyx.starter.main()
   except ImportError as exc:
     if exc.message == 'No module named stem':
@@ -117,6 +127,55 @@ def main():
       print('Unable to start nyx: %s' % exc)
 
     sys.exit(1)
+
+
+def draw_loop():
+  interface = nyx_interface()
+  next_key = None  # use this as the next user input
+
+  stem.util.log.info(msg('startup_time', start_time = time.time() - CONFIG['start_time']))
+
+  while not interface._quit:
+    interface.redraw()
+
+    with nyx.curses.raw_screen() as stdscr:
+      stdscr.refresh()
+
+    if next_key:
+      key, next_key = next_key, None
+    else:
+      key = nyx.curses.key_input(CONFIG['features.redrawRate'])
+
+    if key.match('right'):
+      interface.set_page((interface.get_page() + 1) % interface.page_count())
+    elif key.match('left'):
+      interface.set_page((interface.get_page() - 1) % interface.page_count())
+    elif key.match('p'):
+      interface.set_paused(not interface.is_paused())
+    elif key.match('m'):
+      nyx.menu.show_menu()
+    elif key.match('q'):
+      if CONFIG['features.confirmQuit']:
+        confirmation_key = show_message(msg('confirm_quit'), nyx.curses.BOLD, max_wait = 30)
+
+        if not confirmation_key.match('q'):
+          continue
+
+      break
+    elif key.match('x'):
+      confirmation_key = show_message(msg('confirm_reload'), nyx.curses.BOLD, max_wait = 30)
+
+      if confirmation_key.match('x'):
+        try:
+          tor_controller().signal(stem.Signal.RELOAD)
+        except stem.ControllerError as exc:
+          stem.util.log.error('Error detected when reloading tor: %s' % exc.strerror)
+    elif key.match('h'):
+      next_key = nyx.popups.show_help()
+    else:
+      for panel in interface.page_panels():
+        for keybinding in panel.key_handlers():
+          keybinding.handle(key)
 
 
 def nyx_interface():
@@ -308,7 +367,11 @@ class Interface(object):
     if CONFIG['features.panels.show.interpreter']:
       self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
 
+    visible_panels = self.page_panels()
+
     for panel in self:
+      panel.set_visible(panel in visible_panels)
+
       if isinstance(panel, nyx.panel.DaemonPanel):
         panel.start()
 
@@ -336,6 +399,11 @@ class Interface(object):
     if page_number != self._page:
       self._page = page_number
       self.header_panel().redraw()
+
+      visible_panels = self.page_panels()
+
+      for panel in self:
+        panel.set_visible(panel in visible_panels)
 
   def page_count(self):
     """
@@ -365,7 +433,8 @@ class Interface(object):
     :returns: **list** of panels on that page
     """
 
-    return list(self._page_panels[self._page if page_number is None else page_number])
+    page_number = self._page if page_number is None else page_number
+    return [self._header_panel] + self._page_panels[page_number]
 
   def is_paused(self):
     """
@@ -409,7 +478,7 @@ class Interface(object):
 
     occupied = 0
 
-    for panel in [self.header_panel()] + self.page_panels():
+    for panel in self.page_panels():
       panel.redraw(force = force, top = occupied)
       occupied += panel.get_height()
 
@@ -430,10 +499,10 @@ class Interface(object):
     def halt_panels():
       daemons = [panel for panel in self if isinstance(panel, nyx.panel.DaemonPanel)]
 
-      for panel in daemons():
+      for panel in daemons:
         panel.stop()
 
-      for panel in daemons():
+      for panel in daemons:
         panel.join()
 
     halt_thread = threading.Thread(target = halt_panels)
@@ -448,6 +517,8 @@ class Interface(object):
         yield panel
 
 
+import nyx.curses
+import nyx.menu
 import nyx.panel
 import nyx.panel.config
 import nyx.panel.connection
@@ -456,3 +527,5 @@ import nyx.panel.header
 import nyx.panel.interpreter
 import nyx.panel.log
 import nyx.panel.torrc
+import nyx.popups
+import nyx.starter
