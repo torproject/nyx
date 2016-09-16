@@ -40,8 +40,6 @@ def start_nyx():
   Main draw loop context.
   """
 
-  interface = nyx_interface()
-
   if not CONFIG['features.acsSupport']:
     nyx.curses.disable_acs()
 
@@ -51,10 +49,7 @@ def start_nyx():
     if not key.startswith('msg.') and not key.startswith('dedup.'):
       log.notice('Unused configuration entry: %s' % key)
 
-  # tells daemon panels to start
-
-  for panel in interface.daemon_panels():
-    panel.start()
+  interface = nyx_interface()
 
   # logs the initialization time
 

@@ -23,7 +23,6 @@ Tor curses monitoring application.
     |
     |- header_panel - provides the header panel
     |- page_panels - provides panels on a page
-    |- daemon_panels - provides daemon panels
     |
     |- is_paused - checks if the interface is paused
     |- set_paused - sets paused state
@@ -309,6 +308,10 @@ class Interface(object):
     if CONFIG['features.panels.show.interpreter']:
       self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
 
+    for panel in self:
+      if isinstance(panel, nyx.panel.DaemonPanel):
+        panel.start()
+
   def get_page(self):
     """
     Provides the page we're showing.
@@ -363,15 +366,6 @@ class Interface(object):
     """
 
     return list(self._page_panels[self._page if page_number is None else page_number])
-
-  def daemon_panels(self):
-    """
-    Provides panels that are daemons.
-
-    :returns: **list** of DaemonPanel in the interface
-    """
-
-    return [panel for panel in self if isinstance(panel, nyx.panel.DaemonPanel)]
 
   def is_paused(self):
     """
@@ -434,10 +428,12 @@ class Interface(object):
     """
 
     def halt_panels():
-      for panel in self.daemon_panels():
+      daemons = [panel for panel in self if isinstance(panel, nyx.panel.DaemonPanel)]
+
+      for panel in daemons():
         panel.stop()
 
-      for panel in self.daemon_panels():
+      for panel in daemons():
         panel.join()
 
     halt_thread = threading.Thread(target = halt_panels)
