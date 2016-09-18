@@ -6,4 +6,5 @@ Contents
 
    change_log
    download
+   screenshots
 

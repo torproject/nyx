@@ -3,6 +3,21 @@ Welcome to Nyx!
 
 Nyx is a command line interface for `Tor <https://www.torproject.org/>`_, providing detailed real-time relaying information. With it you can view bandwidth usage, connections, logs, and much more. Nyx's latest version is **1.4.5** (released April 28th, 2012).
 
+.. Main Nyx Logo
+   Source: Oxygen (http://www.oxygen-icons.org/)
+   Author: Andrea Joseph
+   License: CCv3 (A, SA) - http://creativecommons.org/licenses/by-sa/3.0/
+   File: Oxygen/128x128/apps/utilities-system-monitor.png
+
+.. Source: Crystal (http://www.everaldo.com/crystal/)
+   Author: Everaldo Coelho (http://www.everaldo.com/)
+   License: LGPL v2
+   File: Crystal/128x128/filesystems/desktop.png
+         Crystal/128x128/filesystems/chardevice.png
+
+.. image:: /_static/buttons/screenshots.png
+   :target: screenshots.html
+
 .. Source: Nuovo (http://www.silvestre.com.ar/?p=5)
    Author: Silvestre Herrera (http://www.silvestre.com.ar/)
    License: GPL v2
