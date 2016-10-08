@@ -60,6 +60,34 @@ Unreleased
 The following are only available within Nyx's `git repository
 <download.html>`_.
 
+From a user perspective little has changed, but this release is nothing less
+than a complete rewrite of our codebase. This adds long overdue **support for
+python 3.x**, test coverage, and migrate from TorCtl to `Stem
+<https://stem.torproject.org/>`_.
+
+Python 2.5 is no longer supported, but hopefully by now nobody will miss it. ;)
+
+ * **Startup**
+
+  * Startup is several seconds faster when ran for the first time
+
+ * **Graph**
+
+  * Graph prepopulation no longer requires shifting to 15 minute intervals
+
+ * **Connections**
+
+  * Connections are now shown despite DisableDebuggerAttachment
+  * Support for showing IPv6 connections
+
+ * **Logging**
+
+  * Order of magnitude faster log deduplication
+
+ * **Curses**
+
+  * Interface continues to update while awaiting user input
+
 .. _version_1.4.5:
 
 Version 1.4.5 (April 28th, 2012)
