@@ -68,3 +68,10 @@ Python 2.5 is no longer supported, but hopefully by now nobody will miss it. ;)
 
   * Interface continues to update while awaiting user input
 
+Version 1.x
+-----------
+
+Prior to its 2.x release Nyx went under the name of "**arm**". This series was
+under active development 2009-2012. Changelog for the series is available `here
+<change_log_legacy.html>`_.
+
