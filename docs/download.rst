@@ -64,22 +64,22 @@ Download
    :header-rows: 0
 
    * - .. image:: /_static/section/download/pypi.png
-          :target: https://pypi.python.org/pypi/stem/
+          :target: https://pypi.python.org/pypi/nyx/
 
      - .. image:: /_static/label/python_package_index.png
-          :target: https://pypi.python.org/pypi/stem/
+          :target: https://pypi.python.org/pypi/nyx/
 
        Signed releases and instructions for both Python 2.x and 3.x. You can
        easily install from its `tarball
-       <https://pypi.python.org/packages/source/s/stem/stem-1.4.1b.tar.bz2>`_
+       <https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2>`_
        (`sig
-       <https://pypi.python.org/packages/source/s/stem/stem-1.4.1b.tar.bz2.asc>`_),
+       <https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2.asc>`_),
        or with **pip**...
 
        ::
 
          % sudo easy_install pip
-         % sudo pip install stem
+         % sudo pip install nyx
 
    * - .. image:: /_static/section/download/osx.png
 
@@ -91,106 +91,88 @@ Download
        ::
 
          % sudo easy_install pip
-         % sudo pip install stem
+         % sudo pip install nyx
 
    * - .. image:: /_static/section/download/debian.png
-          :target: http://packages.debian.org/sid/python-stem
+          :target: http://packages.debian.org/sid/tor-arm
 
      - .. image:: /_static/label/debian.png
-          :target: http://packages.debian.org/sid/python-stem
+          :target: http://packages.debian.org/sid/tor-arm
 
        Package maintained by Dererk for Debian.
 
        ::
 
-         % sudo apt-get install python-stem
+         % sudo apt-get install tor-arm
 
    * - .. image:: /_static/section/download/ubuntu.png
-          :target: https://launchpad.net/ubuntu/+source/python-stem
+          :target: https://launchpad.net/ubuntu/+source/tor-arm
 
      - .. image:: /_static/label/ubuntu.png
-          :target: https://launchpad.net/ubuntu/+source/python-stem
+          :target: https://launchpad.net/ubuntu/+source/tor-arm
 
        Package derived from Debian for Ubuntu.
 
        ::
 
-         % sudo apt-get install python-stem
+         % sudo apt-get install tor-arm
 
    * - .. image:: /_static/section/download/fedora.png
-          :target: https://apps.fedoraproject.org/packages/python-stem
+          :target: https://apps.fedoraproject.org/packages/tor-arm
 
      - .. image:: /_static/label/fedora.png
-          :target: https://apps.fedoraproject.org/packages/python-stem
+          :target: https://apps.fedoraproject.org/packages/tor-arm
 
-       Packages maintained by Juan for Fedora. These include **python-stem**
-       (Stem for Python 2.x), **python3-stem** (Stem for Python 3.x), and
-       **python-stem-doc** (this website).
+       Packages maintained by Juan for Fedora.
 
        ::
 
-         % sudo yum install python-stem
+         % sudo yum install tor-arm
 
    * - .. image:: /_static/section/download/gentoo.png
-          :target: http://packages.gentoo.org/package/net-libs/stem
+          :target: http://packages.gentoo.org/package/net-misc/arm
 
      - .. image:: /_static/label/gentoo.png
-          :target: http://packages.gentoo.org/package/net-libs/stem
+          :target: http://packages.gentoo.org/package/net-misc/arm
 
-       Package maintained by Anthony Basile for Gentoo.
-
-       ::
-
-         % sudo emerge stem
-
-   * - .. image:: /_static/section/download/archlinux.png
-          :target: https://aur.archlinux.org/packages/stem/
-
-     - .. image:: /_static/label/archlinux.png
-          :target: https://aur.archlinux.org/packages/stem/
-
-       Package maintained by Sjon for `Arch Linux
-       <https://wiki.archlinux.org/index.php/AUR#Installing_packages>`_.
+       Package maintained by Jesse for Gentoo.
 
        ::
 
-           % wget https://aur.archlinux.org/packages/st/stem/stem.tar.gz
-           % tar -xvf stem.tar.gz
-           % cd stem
-           % makepkg --install
+         % sudo emerge arm
 
    * - .. image:: /_static/section/download/slackware.png
-          :target: http://slackbuilds.org/repository/14.1/python/stem/
+          :target: https://slackbuilds.org/repository/13.37/network/arm/
 
      - .. image:: /_static/label/slackware.png
-          :target: http://slackbuilds.org/repository/14.1/python/stem/
+          :target: https://slackbuilds.org/repository/13.37/network/arm/
 
-       Package maintained by Markus for `Slackware
+       Package maintained by pyllyukko for `Slackware
        <http://slackbuilds.org/howto/>`_.
 
    * - .. image:: /_static/section/download/freebsd.png
-          :target: http://www.freshports.org/security/py-stem/
+          :target: http://www.freshports.org/security/arm
 
      - .. image:: /_static/label/freebsd.png
-          :target: http://www.freshports.org/security/py-stem/
+          :target: http://www.freshports.org/security/arm
 
        Port maintained by Carlo for `FreeBSD
        <http://www.freebsd.org/doc/en_US.ISO8859-1/books/handbook/ports.html>`_.
 
        ::
 
-           % pkg install security/py-stem
+           % pkg install security/arm
 
    * - .. image:: /_static/section/download/git.png
-          :target: https://gitweb.torproject.org/stem.git
+          :target: https://gitweb.torproject.org/nyx.git
 
      - .. image:: /_static/label/source_repository.png
-          :target: https://gitweb.torproject.org/stem.git
+          :target: https://gitweb.torproject.org/nyx.git
 
-       For those wanting to live on the bleeding edge or contribute to Stem,
-       Stem's git repository can be fetched with...
+       For those wanting to live on the bleeding edge or contribute to Nyx,
+       Nyx's git repository can be fetched with...
 
        ::
 
-         % git clone https://git.torproject.org/stem.git
+         % git clone https://git.torproject.org/nyx.git
 
