@@ -125,7 +125,7 @@ class TorrcPanel(panel.Panel):
 
       if self._last_content_height > subwindow.height - 1:
         scroll_offset = 3
-        subwindow.scrollbar(1, scroll, self._last_content_height - 1)
+        subwindow.scrollbar(1, scroll, self._last_content_height)
 
       y = 1 - scroll
       is_multiline = False  # true if we're in the middle of a multiline torrc entry

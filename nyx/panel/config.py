@@ -270,7 +270,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     if is_scrollbar_visible:
       scroll_offset = 3
-      subwindow.scrollbar(DETAILS_HEIGHT, scroll, len(contents) - 1)
+      subwindow.scrollbar(DETAILS_HEIGHT, scroll, len(contents))
 
       if selected is not None:
         subwindow._addch(1, DETAILS_HEIGHT - 1, curses.ACS_TTEE)

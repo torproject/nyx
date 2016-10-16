@@ -838,8 +838,8 @@ class _Subwindow(object):
 
     # determines scrollbar dimensions
 
-    scrollbar_height = self.height - top - 1
-    bottom_index = top_index + scrollbar_height
+    scrollbar_height = self.height - top - 1  # -1 is for the bottom border
+    bottom_index = top_index + scrollbar_height + 1
     slider_top = scrollbar_height * top_index / size
     slider_size = scrollbar_height * (bottom_index - top_index) / size
     max_slider_top = scrollbar_height - slider_size - 1

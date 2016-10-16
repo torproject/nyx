@@ -274,7 +274,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     is_scrollbar_visible = last_content_height > subwindow.height - 1
 
     if is_scrollbar_visible:
-      subwindow.scrollbar(1, scroll, last_content_height - 1)
+      subwindow.scrollbar(1, scroll, last_content_height)
 
     x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
     y = _draw_entries(subwindow, x, y, event_log, show_duplicates)
