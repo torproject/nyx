@@ -55,6 +55,7 @@ import time
 import threading
 
 import stem.control
+import stem.descriptor.router_status_entry
 
 from nyx import log, tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
@@ -816,10 +817,27 @@ class ConsensusTracker(object):
     self._nickname_cache = {}  # fingerprint => nickname lookup cache
     self._address_cache = {}
 
-    tor_controller().add_event_listener(self._new_consensus_event, stem.control.EventType.NEWCONSENSUS)
+    # Stem's get_network_statuses() is slow, and overkill for what we need
+    # here. Just parsing the raw GETINFO response to cut startup time down.
 
-  def _new_consensus_event(self, event):
-    self.update(event.desc)
+    controller = tor_controller()
+    ns_response = controller.get_info('ns/all', None)
+
+    if ns_response:
+      for line in ns_response.splitlines():
+        if line.startswith('r '):
+          r_comp = line.split(' ')
+
+          address = r_comp[6]
+          or_port = int(r_comp[7])
+          fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
+          nickname = r_comp[1]
+
+          self._fingerprint_cache.setdefault(address, []).append((or_port, fingerprint))
+          self._address_cache[fingerprint] = (address, or_port)
+          self._nickname_cache[fingerprint] = nickname
+
+    controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 
   def update(self, router_status_entries):
     """
@@ -835,7 +853,7 @@ class ConsensusTracker(object):
     for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
       new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
-      new_nickname_cache[desc.fingerprint] = desc.nickname if desc.nickname else 'Unnamed'
+      new_nickname_cache[desc.fingerprint] = desc.nickname
 
     self._fingerprint_cache = new_fingerprint_cache
     self._address_cache = new_address_cache
