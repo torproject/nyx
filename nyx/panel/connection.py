@@ -467,16 +467,35 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     global LAST_RETRIEVED_CIRCUITS, LAST_RETRIEVED_HS_CONF
 
+    conn_resolver = nyx.tracker.get_connection_tracker()
+    resolution_count = conn_resolver.run_counter()
+
+    # when first starting up wait a bit for initial results
+
+    if resolution_count == 0:
+      start_time = time.time()
+
+      while True:
+        with self._pause_condition:
+          if not self._halt:
+            self._pause_condition.wait(0.5)
+
+        resolution_count = conn_resolver.run_counter()
+
+        if resolution_count != 0:
+          break
+        elif time.time() - start_time > 5:
+          break
+        elif self._halt:
+          return
+
     controller = tor_controller()
     LAST_RETRIEVED_CIRCUITS = controller.get_circuits([])
     LAST_RETRIEVED_HS_CONF = controller.get_hidden_service_conf({})
 
-    conn_resolver = nyx.tracker.get_connection_tracker()
-    current_resolution_count = conn_resolver.run_counter()
-
     if not conn_resolver.is_alive():
       return  # if we're not fetching connections then this is a no-op
-    elif current_resolution_count == self._last_resource_fetch:
+    elif resolution_count == self._last_resource_fetch:
       return  # no new connections to process
 
     new_entries = [Entry.from_connection(conn) for conn in conn_resolver.get_value()]
@@ -502,7 +521,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
         self._counted_connections.add(line.connection)
 
     self._entries = sorted(new_entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
-    self._last_resource_fetch = current_resolution_count
+    self._last_resource_fetch = resolution_count
 
     if CONFIG['features.connection.resolveApps']:
       local_ports, remote_ports = [], []
@@ -516,6 +535,8 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
           remote_ports.append(line.connection.local_port)
 
       nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+
+    self.redraw()
 
 
 def _draw_title(subwindow, entries, showing_details):
