@@ -116,13 +116,6 @@ def main():
         advice = ', you can find it at https://stem.torproject.org/download.html'
 
       print('nyx requires stem' + advice)
-    elif exc.message == 'No module named curses':
-      if distutils.spawn.find_executable('apt-get') is not None:
-        advice = ", try running 'sudo apt-get install python-curses'"
-      else:
-        advice = ''  # not sure what to do for other platforms
-
-      print('nyx requires curses' + advice)
     else:
       print('Unable to start nyx: %s' % exc)
 
