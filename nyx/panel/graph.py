@@ -103,7 +103,7 @@ class GraphData(object):
       self.tick = clone.tick
       self.values = copy.deepcopy(clone.values)
 
-      self._category = clone._category
+      self._category = category
       self._is_primary = clone._is_primary
       self._in_process_value = dict(clone._in_process_value)
       self._max_value = dict(clone._max_value)
@@ -200,8 +200,8 @@ class GraphCategory(object):
 
   def __init__(self, clone = None):
     if clone:
-      self.primary = GraphData(clone.primary)
-      self.secondary = GraphData(clone.secondary)
+      self.primary = GraphData(clone.primary, category = self)
+      self.secondary = GraphData(clone.secondary, category = self)
       self.start_time = clone.start_time
       self._title_stats = list(clone._title_stats)
       self._primary_header_stats = list(clone._primary_header_stats)
