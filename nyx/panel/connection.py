@@ -431,7 +431,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     selected, scroll = self._scroller.selection(lines, subwindow.height - details_offset - 1)
 
     if interface.is_paused():
-      current_time = self._pause_time()
+      current_time = self._pause_time
     elif not controller.is_alive():
       current_time = controller.connection_time()
     else:
