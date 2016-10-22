@@ -19,7 +19,7 @@ import stem.util.connection
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu
-from nyx import DATA_DIR, tor_controller, input_prompt, show_message
+from nyx import DEFAULT_DATA_DIR, tor_controller, input_prompt, show_message
 
 from stem.util import conf, enum, log, str_tools
 
@@ -41,6 +41,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.NAME, SortAttr.IS_SET],
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
+  'startup.data_directory': DEFAULT_DATA_DIR,
 }, conf_handler)
 
 
@@ -130,7 +131,7 @@ class ConfigPanel(nyx.panel.Panel):
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the important ones
 
-    cached_manual_path = os.path.join(DATA_DIR, 'manual')
+    cached_manual_path = os.path.join(CONFIG['startup.data_directory'], 'manual')
 
     if os.path.exists(cached_manual_path):
       manual = stem.manual.Manual.from_cache(cached_manual_path)

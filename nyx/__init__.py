@@ -85,7 +85,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
-DATA_DIR = os.path.expanduser('~/.nyx')
+DEFAULT_DATA_DIR = os.path.expanduser('~/.nyx')
 TESTING = False
 
 # technically can change but we use this query a *lot* so needs to be cached
