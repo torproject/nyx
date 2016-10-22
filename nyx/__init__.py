@@ -85,7 +85,6 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
-DEFAULT_DATA_DIR = os.path.expanduser('~/.nyx')
 TESTING = False
 
 # technically can change but we use this query a *lot* so needs to be cached
@@ -235,6 +234,12 @@ def init_controller(*args, **kwargs):
   global TOR_CONTROLLER
   TOR_CONTROLLER = stem.connection.connect(*args, **kwargs)
   return TOR_CONTROLLER
+
+
+@uses_settings
+def data_directory(config):
+  path = config.get('data_directory', '~/.nyx')
+  return None if path == 'disabled' else os.path.expanduser(path)
 
 
 @uses_settings

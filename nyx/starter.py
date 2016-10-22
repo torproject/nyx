@@ -32,7 +32,7 @@ def main(config):
 
   try:
     args = nyx.arguments.parse(sys.argv[1:])
-    config.set('startup.events', args.logged_events)
+    config.set('logged_events', args.logged_events)
   except ValueError as exc:
     print(exc)
     sys.exit(1)

@@ -19,7 +19,7 @@ import stem.util.connection
 
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu
-from nyx import DEFAULT_DATA_DIR, tor_controller, input_prompt, show_message
+from nyx import tor_controller, data_directory, input_prompt, show_message
 
 from stem.util import conf, enum, log, str_tools
 
@@ -41,7 +41,6 @@ CONFIG = conf.config_dict('nyx', {
   'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.NAME, SortAttr.IS_SET],
   'features.config.state.showPrivateOptions': False,
   'features.config.state.showVirtualOptions': False,
-  'startup.data_directory': DEFAULT_DATA_DIR,
 }, conf_handler)
 
 
@@ -131,21 +130,24 @@ class ConfigPanel(nyx.panel.Panel):
     self._sort_order = CONFIG['features.config.order']
     self._show_all = False  # show all options, or just the important ones
 
-    cached_manual_path = os.path.join(CONFIG['startup.data_directory'], 'manual')
+    data_dir = data_directory()
 
-    if os.path.exists(cached_manual_path):
-      manual = stem.manual.Manual.from_cache(cached_manual_path)
-    else:
-      try:
-        manual = stem.manual.Manual.from_man()
+    if data_dir:
+      cached_manual_path = os.path.join(data_dir, 'manual')
 
+      if os.path.exists(cached_manual_path):
+        manual = stem.manual.Manual.from_cache(cached_manual_path)
+      else:
         try:
-          manual.save(cached_manual_path)
+          manual = stem.manual.Manual.from_man()
+
+          try:
+            manual.save(cached_manual_path)
+          except IOError as exc:
+            log.debug("Unable to cache manual information to '%s'. This is fine, but means starting Nyx takes a little longer than usual: " % (cached_manual_path, exc))
         except IOError as exc:
-          log.debug("Unable to cache manual information to '%s'. This is fine, but means starting Nyx takes a little longer than usual: " % (cached_manual_path, exc))
-      except IOError as exc:
-        log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
-        manual = stem.manual.Manual.from_cache()
+          log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
+          manual = stem.manual.Manual.from_cache()
 
     try:
       for line in tor_controller().get_info('config/names').splitlines():

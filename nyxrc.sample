@@ -1,6 +1,12 @@
-# Startup options
-startup.events N3
-startup.dataDirectory ~/.nyx
+# Events that are shown by default in the log. You can also set these with
+# 'nyx --log <events>'.
+
+logged_events NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR
+
+# Location where information is cached. You can disable caching by setting this
+# to 'disabled'.
+
+data_directory ~/.nyx
 
 # Seconds between querying information
 

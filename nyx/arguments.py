@@ -14,7 +14,7 @@ import nyx.log
 
 import stem.util.connection
 
-from nyx import DEFAULT_DATA_DIR, msg
+from nyx import msg
 
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
@@ -22,7 +22,7 @@ DEFAULT_ARGS = {
   'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
-  'config': os.path.join(DEFAULT_DATA_DIR, 'nyxrc'),
+  'config': os.path.join(os.path.expanduser('~/.nyx'), 'nyxrc'),
   'debug_path': None,
   'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
   'print_version': False,

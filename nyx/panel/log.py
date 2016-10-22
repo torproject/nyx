@@ -40,7 +40,7 @@ CONFIG = conf.config_dict('nyx', {
   'features.log.prepopulate': True,
   'features.log.prepopulateReadLimit': 5000,
   'features.log.regex': [],
-  'startup.events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
+  'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
 }, conf_handler)
 
 UPDATE_RATE = 0.3
@@ -69,7 +69,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
-    logged_events = CONFIG['startup.events'].split(',')
+    logged_events = CONFIG['logged_events'].split(',')
     tor_events = tor_controller().get_info('events/names', '').split()
     invalid_events = list(filter(lambda event: not event.startswith('NYX_') and event not in tor_events, logged_events))
 
