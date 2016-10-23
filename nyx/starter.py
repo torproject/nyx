@@ -69,7 +69,7 @@ def main(config):
     control_port = control_port,
     control_socket = control_socket,
     password_prompt = True,
-    chroot_path = config.get('tor.chroot', ''),
+    chroot_path = config.get('tor_chroot', ''),
   )
 
   if controller is None:
@@ -85,7 +85,7 @@ def main(config):
   _set_process_name()
 
   try:
-    nyx.curses.start(nyx.draw_loop, acs_support = config.get('features.acsSupport', True), transparent_background = True, cursor = False)
+    nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
       print(msg('setup.unknown_term', term = os.environ['TERM']))
@@ -153,13 +153,13 @@ def _load_user_nyxrc(path, config):
       # If the user provided us with a chroot then validate and normalize the
       # path.
 
-      chroot = config.get('tor.chroot', '').strip().rstrip(os.path.sep)
+      chroot = config.get('tor_chroot', '').strip().rstrip(os.path.sep)
 
       if chroot and not os.path.exists(chroot):
         log.notice('setup.chroot_doesnt_exist', path = chroot)
-        config.set('tor.chroot', '')
+        config.set('tor_chroot', '')
       else:
-        config.set('tor.chroot', chroot)  # use the normalized path
+        config.set('tor_chroot', chroot)  # use the normalized path
     except IOError as exc:
       log.warn('config.unable_to_read_file', error = exc.strerror)
   else:
@@ -206,12 +206,12 @@ def _setup_freebsd_chroot(controller, config):
   If we're running under FreeBSD then check the system for a chroot path.
   """
 
-  if not config.get('tor.chroot', None) and platform.system() == 'FreeBSD':
+  if not config.get('tor_chroot', None) and platform.system() == 'FreeBSD':
     jail_chroot = stem.util.system.bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
       log.info('setup.set_freebsd_chroot', path = jail_chroot)
-      config.set('tor.chroot', jail_chroot)
+      config.set('tor_chroot', jail_chroot)
 
 
 def _use_english_subcommands():
@@ -241,7 +241,7 @@ def _use_unicode(config):
   initializing curses.
   """
 
-  if not config.get('features.printUnicode', True):
+  if not config.get('unicode_support', True):
     return
 
   is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()

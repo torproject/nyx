@@ -115,11 +115,11 @@ class TestBaseUtil(unittest.TestCase):
     self.assertEqual('/absolute/path/to/torrc', expand_path('/absolute/path/to/torrc'))
     self.assertEqual('/your_cwd/torrc', expand_path('torrc'))
 
-    config.set('tor.chroot', '/chroot')
+    config.set('tor_chroot', '/chroot')
     self.assertEqual('/chroot/absolute/path/to/torrc', expand_path('/absolute/path/to/torrc'))
     self.assertEqual('/chroot/your_cwd/torrc', expand_path('torrc'))
 
-    config.set('tor.chroot', None)
+    config.set('tor_chroot', None)
 
   def test_join(self):
     # check our pydoc examples

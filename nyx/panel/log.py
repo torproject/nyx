@@ -26,21 +26,21 @@ from stem.util import conf, log
 
 
 def conf_handler(key, value):
-  if key == 'features.log.prepopulateReadLimit':
+  if key == 'prepopulate_read_limit':
     return max(0, value)
-  elif key == 'cache.log_panel.size':
+  elif key == 'max_log_size':
     return max(1000, value)
 
 
 CONFIG = conf.config_dict('nyx', {
   'attr.log_color': {},
-  'cache.log_panel.size': 1000,
-  'features.logFile': '',
-  'features.log.showDuplicateEntries': False,
-  'features.log.prepopulate': True,
-  'features.log.prepopulateReadLimit': 5000,
-  'features.log.regex': [],
+  'deduplicate_log': True,
   'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
+  'logging_filter': [],
+  'max_log_size': 1000,
+  'prepopulate_log': True,
+  'prepopulate_read_limit': 5000,
+  'write_logs_to': '',
 }, conf_handler)
 
 UPDATE_RATE = 0.3
@@ -77,12 +77,12 @@ class LogPanel(nyx.panel.DaemonPanel):
       logged_events = ['NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
       log.warn("Your --log argument had the following events tor doesn't recognize: %s" % ', '.join(invalid_events))
 
-    self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'], group_by_day = True)
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
-    self._log_file = nyx.log.LogFileOutput(CONFIG['features.logFile'])
-    self._filter = nyx.log.LogFilters(initial_filters = CONFIG['features.log.regex'])
-    self._show_duplicates = CONFIG['features.log.showDuplicateEntries']
+    self._log_file = nyx.log.LogFileOutput(CONFIG['write_logs_to'])
+    self._filter = nyx.log.LogFilters(initial_filters = CONFIG['logging_filter'])
+    self._show_duplicates = not CONFIG['deduplicate_log']
 
     self._scroller = nyx.curses.Scroller()
     self._has_new_event = False
@@ -90,12 +90,12 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     # fetches past tor events from log file, if available
 
-    if CONFIG['features.log.prepopulate']:
+    if CONFIG['prepopulate_log']:
       log_location = nyx.log.log_file_path(tor_controller())
 
       if log_location:
         try:
-          for entry in reversed(list(nyx.log.read_tor_log(log_location, CONFIG['features.log.prepopulateReadLimit']))):
+          for entry in reversed(list(nyx.log.read_tor_log(log_location, CONFIG['prepopulate_read_limit']))):
             if entry.type in self._event_types:
               self._event_log.add(entry)
         except IOError as exc:
@@ -152,7 +152,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     Clears the contents of the event log.
     """
 
-    self._event_log = nyx.log.LogGroup(CONFIG['cache.log_panel.size'], group_by_day = True)
+    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'], group_by_day = True)
     self.redraw()
 
   def save_snapshot(self, path):

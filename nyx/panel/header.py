@@ -33,7 +33,7 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 CONFIG = conf.config_dict('nyx', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
-  'tor.chroot': '',
+  'tor_chroot': '',
 })
 
 
@@ -129,7 +129,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
       try:
         try:
-          controller.reconnect(chroot_path = CONFIG['tor.chroot'])
+          controller.reconnect(chroot_path = CONFIG['tor_chroot'])
         except stem.connection.MissingPassword:
           password = input_prompt('Controller Password: ')
 

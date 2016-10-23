@@ -31,16 +31,16 @@ VALUE_WIDTH = 15
 
 
 def conf_handler(key, value):
-  if key == 'features.config.order':
+  if key == 'config_order':
     return conf.parse_enum_csv(key, value[0], SortAttr, 3)
 
 
 CONFIG = conf.config_dict('nyx', {
   'attr.config.category_color': {},
   'attr.config.sort_color': {},
-  'features.config.order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.NAME, SortAttr.IS_SET],
-  'features.config.state.showPrivateOptions': False,
-  'features.config.state.showVirtualOptions': False,
+  'config_order': [SortAttr.MAN_PAGE_ENTRY, SortAttr.NAME, SortAttr.IS_SET],
+  'show_private_options': False,
+  'show_virtual_options': False,
 }, conf_handler)
 
 
@@ -127,7 +127,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     self._contents = []
     self._scroller = nyx.curses.CursorScroller()
-    self._sort_order = CONFIG['features.config.order']
+    self._sort_order = CONFIG['config_order']
     self._show_all = False  # show all options, or just the important ones
 
     data_dir = data_directory()
@@ -162,9 +162,9 @@ class ConfigPanel(nyx.panel.Panel):
 
         # skips private and virtual entries if not configured to show them
 
-        if name.startswith('__') and not CONFIG['features.config.state.showPrivateOptions']:
+        if name.startswith('__') and not CONFIG['show_private_options']:
           continue
-        elif value_type == 'Virtual' and not CONFIG['features.config.state.showVirtualOptions']:
+        elif value_type == 'Virtual' and not CONFIG['show_virtual_options']:
           continue
 
         self._contents.append(ConfigEntry(name, value_type, manual))

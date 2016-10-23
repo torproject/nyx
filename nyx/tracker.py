@@ -61,9 +61,9 @@ from nyx import log, tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
-  'queries.connections.rate': 5,
-  'queries.resources.rate': 5,
-  'queries.port_usage.rate': 5,
+  'connection_rate': 5,
+  'resource_rate': 5,
+  'port_usage_rate': 5,
 })
 
 CONNECTION_TRACKER = None
@@ -114,7 +114,7 @@ def get_connection_tracker():
   global CONNECTION_TRACKER
 
   if CONNECTION_TRACKER is None:
-    CONNECTION_TRACKER = ConnectionTracker(CONFIG['queries.connections.rate'])
+    CONNECTION_TRACKER = ConnectionTracker(CONFIG['connection_rate'])
     CONNECTION_TRACKER.start()
 
   return CONNECTION_TRACKER
@@ -128,7 +128,7 @@ def get_resource_tracker():
   global RESOURCE_TRACKER
 
   if RESOURCE_TRACKER is None:
-    RESOURCE_TRACKER = ResourceTracker(CONFIG['queries.resources.rate'])
+    RESOURCE_TRACKER = ResourceTracker(CONFIG['resource_rate'])
     RESOURCE_TRACKER.start()
 
   return RESOURCE_TRACKER
@@ -142,7 +142,7 @@ def get_port_usage_tracker():
   global PORT_USAGE_TRACKER
 
   if PORT_USAGE_TRACKER is None:
-    PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['queries.port_usage.rate'])
+    PORT_USAGE_TRACKER = PortUsageTracker(CONFIG['port_usage_rate'])
     PORT_USAGE_TRACKER.start()
 
   return PORT_USAGE_TRACKER

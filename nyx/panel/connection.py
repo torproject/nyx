@@ -67,16 +67,16 @@ Line = collections.namedtuple('Line', [
 
 
 def conf_handler(key, value):
-  if key == 'features.connection.order':
+  if key == 'connection_order':
     return conf.parse_enum_csv(key, value[0], SortAttr, 3)
 
 
 CONFIG = conf.config_dict('nyx', {
   'attr.connection.category_color': {},
   'attr.connection.sort_color': {},
-  'features.connection.resolveApps': True,
-  'features.connection.order': [SortAttr.CATEGORY, SortAttr.IP_ADDRESS, SortAttr.UPTIME],
-  'features.connection.showIps': True,
+  'connection_order': [SortAttr.CATEGORY, SortAttr.IP_ADDRESS, SortAttr.UPTIME],
+  'resolve_processes': True,
+  'show_addresses': True,
 }, conf_handler)
 
 
@@ -207,7 +207,7 @@ class ConnectionEntry(Entry):
 
   @lru_cache()
   def is_private(self):
-    if not CONFIG['features.connection.showIps']:
+    if not CONFIG['show_addresses']:
       return True
 
     if self.get_type() == Category.INBOUND:
@@ -264,7 +264,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     self._scroller = nyx.curses.CursorScroller()
     self._entries = []            # last fetched display entries
     self._show_details = False    # presents the details panel if true
-    self._sort_order = CONFIG['features.connection.order']
+    self._sort_order = CONFIG['connection_order']
     self._pause_time = 0
 
     self._last_resource_fetch = -1  # timestamp of the last ConnectionResolver results used
@@ -523,7 +523,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     self._entries = sorted(new_entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
     self._last_resource_fetch = resolution_count
 
-    if CONFIG['features.connection.resolveApps']:
+    if CONFIG['resolve_processes']:
       local_ports, remote_ports = [], []
 
       for entry in new_entries:

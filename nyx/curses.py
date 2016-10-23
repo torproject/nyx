@@ -166,17 +166,17 @@ Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
 
 
 def conf_handler(key, value):
-  if key == 'features.colorOverride':
+  if key == 'color_override':
     if value not in Color and value != 'None':
       raise ValueError(msg('usage.unable_to_set_color_override', color = value))
-  elif key == 'features.torrc.maxLineWrap':
+  elif key == 'max_line_wrap':
     return max(1, value)
 
 
 CONFIG = stem.util.conf.config_dict('nyx', {
-  'features.colorOverride': 'None',
-  'features.colorInterface': True,
-  'features.maxLineWrap': 8,
+  'color_interface': True,
+  'color_override': 'None',
+  'max_line_wrap': 8,
 }, conf_handler)
 
 
@@ -558,7 +558,7 @@ def get_color_override():
     overwritten with, **None** if no override is set
   """
 
-  color_override = CONFIG.get('features.colorOverride', 'None')
+  color_override = CONFIG.get('color_override', 'None')
   return None if color_override == 'None' else color_override
 
 
@@ -575,9 +575,9 @@ def set_color_override(color = None):
   nyx_config = stem.util.conf.get_config('nyx')
 
   if color is None:
-    nyx_config.set('features.colorOverride', 'None')
+    nyx_config.set('color_override', 'None')
   elif color in Color:
-    nyx_config.set('features.colorOverride', color)
+    nyx_config.set('color_override', color)
   else:
     raise ValueError(msg('usage.unable_to_set_color_override', color = color))
 
@@ -591,7 +591,7 @@ def _color_attr():
   global COLOR_ATTR
 
   if COLOR_ATTR is None:
-    if not CONFIG['features.colorInterface']:
+    if not CONFIG['color_interface']:
       COLOR_ATTR = DEFAULT_COLOR_ATTR
     elif curses.has_colors():
       color_attr = dict(DEFAULT_COLOR_ATTR)
@@ -777,7 +777,7 @@ class _Subwindow(object):
       x = self.addstr(x, y, draw_msg, *attr)
       msg = msg.lstrip()
 
-      if (y - orig_y + 1) >= CONFIG['features.maxLineWrap']:
+      if (y - orig_y + 1) >= CONFIG['max_line_wrap']:
         break  # maximum number we'll wrap
 
       if msg:

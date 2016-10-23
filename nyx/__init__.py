@@ -66,19 +66,19 @@ __all__ = [
 
 
 def conf_handler(key, value):
-  if key == 'features.redrawRate':
+  if key == 'redraw_rate':
     return max(1, value)
 
 
 CONFIG = stem.util.conf.config_dict('nyx', {
-  'features.confirmQuit': True,
-  'features.panels.show.graph': True,
-  'features.panels.show.log': True,
-  'features.panels.show.connection': True,
-  'features.panels.show.config': True,
-  'features.panels.show.torrc': True,
-  'features.panels.show.interpreter': True,
-  'features.redrawRate': 5,
+  'confirm_quit': True,
+  'redraw_rate': 5,
+  'show_graph': True,
+  'show_log': True,
+  'show_connections': True,
+  'show_config': True,
+  'show_torrc': True,
+  'show_interpreter': True,
   'start_time': 0,
 }, conf_handler)
 
@@ -136,7 +136,7 @@ def draw_loop():
     if next_key:
       key, next_key = next_key, None
     else:
-      key = nyx.curses.key_input(CONFIG['features.redrawRate'])
+      key = nyx.curses.key_input(CONFIG['redraw_rate'])
 
     if key.match('right'):
       interface.set_page((interface.get_page() + 1) % interface.page_count())
@@ -147,7 +147,7 @@ def draw_loop():
     elif key.match('m'):
       nyx.menu.show_menu()
     elif key.match('q'):
-      if CONFIG['features.confirmQuit']:
+      if CONFIG['confirm_quit']:
         confirmation_key = show_message(msg('confirm_quit'), nyx.curses.BOLD, max_wait = 30)
 
         if not confirmation_key.match('q'):
@@ -256,7 +256,7 @@ def expand_path(path, config):
     return None
 
   try:
-    chroot = config.get('tor.chroot', '')
+    chroot = config.get('tor_chroot', '')
     tor_cwd = stem.util.system.cwd(tor_controller().get_pid(None))
     return chroot + stem.util.system.expand_path(path, tor_cwd)
   except IOError as exc:
@@ -344,25 +344,25 @@ class Interface(object):
     self._header_panel = nyx.panel.header.HeaderPanel()
     first_page_panels = []
 
-    if CONFIG['features.panels.show.graph']:
+    if CONFIG['show_graph']:
       first_page_panels.append(nyx.panel.graph.GraphPanel())
 
-    if CONFIG['features.panels.show.log']:
+    if CONFIG['show_log']:
       first_page_panels.append(nyx.panel.log.LogPanel())
 
     if first_page_panels:
       self._page_panels.append(first_page_panels)
 
-    if CONFIG['features.panels.show.connection']:
+    if CONFIG['show_connections']:
       self._page_panels.append([nyx.panel.connection.ConnectionPanel()])
 
-    if CONFIG['features.panels.show.config']:
+    if CONFIG['show_config']:
       self._page_panels.append([nyx.panel.config.ConfigPanel()])
 
-    if CONFIG['features.panels.show.torrc']:
+    if CONFIG['show_torrc']:
       self._page_panels.append([nyx.panel.torrc.TorrcPanel()])
 
-    if CONFIG['features.panels.show.interpreter']:
+    if CONFIG['show_interpreter']:
       self._page_panels.append([nyx.panel.interpreter.InterpreterPanel()])
 
     visible_panels = self.page_panels()

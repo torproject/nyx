@@ -52,22 +52,22 @@ WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-
 
 
 def conf_handler(key, value):
-  if key == 'features.graph.height':
+  if key == 'graph_height':
     return max(1, value)
-  elif key == 'features.graph.max_width':
+  elif key == 'max_graph_width':
     return max(1, value)
-  elif key == 'features.graph.type':
+  elif key == 'graph_stat':
     if value != 'none' and value not in GraphStat:
-      log.warn("'%s' isn't a valid graph type, options are: none, %s" % (CONFIG['features.graph.type'], ', '.join(GraphStat)))
-      return CONFIG['features.graph.type']  # keep the default
-  elif key == 'features.graph.interval':
+      log.warn("'%s' isn't a valid graph type, options are: none, %s" % (CONFIG['graph_stat'], ', '.join(GraphStat)))
+      return CONFIG['graph_stat']  # keep the default
+  elif key == 'graph_interval':
     if value not in Interval:
       log.warn("'%s' isn't a valid graphing interval, options are: %s" % (value, ', '.join(Interval)))
-      return CONFIG['features.graph.interval']  # keep the default
-  elif key == 'features.graph.bound':
+      return CONFIG['graph_interval']  # keep the default
+  elif key == 'graph_bound':
     if value not in Bounds:
       log.warn("'%s' isn't a valid graph bounds, options are: %s" % (value, ', '.join(Bounds)))
-      return CONFIG['features.graph.bound']  # keep the default
+      return CONFIG['graph_bound']  # keep the default
 
 
 CONFIG = conf.config_dict('nyx', {
@@ -75,14 +75,14 @@ CONFIG = conf.config_dict('nyx', {
   'attr.graph.title': {},
   'attr.graph.header.primary': {},
   'attr.graph.header.secondary': {},
-  'features.graph.height': 7,
-  'features.graph.type': GraphStat.BANDWIDTH,
-  'features.graph.interval': Interval.EACH_SECOND,
-  'features.graph.bound': Bounds.LOCAL_MAX,
-  'features.graph.max_width': 300,  # we need some sort of max size so we know how much graph data to retain
-  'features.panels.show.connection': True,
-  'features.graph.bw.transferInBytes': False,
-  'features.graph.bw.accounting.show': True,
+  'graph_bound': Bounds.LOCAL_MAX,
+  'graph_height': 7,
+  'graph_interval': Interval.EACH_SECOND,
+  'graph_stat': GraphStat.BANDWIDTH,
+  'max_graph_width': 300,  # we need some sort of max size so we know how much graph data to retain
+  'show_accounting': True,
+  'show_bytes': False,
+  'show_connections': True,
 }, conf_handler)
 
 
@@ -111,7 +111,7 @@ class GraphData(object):
       self.latest_value = 0
       self.total = 0
       self.tick = 0
-      self.values = dict([(i, CONFIG['features.graph.max_width'] * [0]) for i in Interval])
+      self.values = dict([(i, CONFIG['max_graph_width'] * [0]) for i in Interval])
 
       self._category = category
       self._is_primary = is_primary
@@ -412,10 +412,10 @@ class GraphPanel(nyx.panel.Panel):
   def __init__(self):
     nyx.panel.Panel.__init__(self)
 
-    self._displayed_stat = None if CONFIG['features.graph.type'] == 'none' else CONFIG['features.graph.type']
-    self._update_interval = CONFIG['features.graph.interval']
-    self._bounds_type = CONFIG['features.graph.bound']
-    self._graph_height = CONFIG['features.graph.height']
+    self._displayed_stat = None if CONFIG['graph_stat'] == 'none' else CONFIG['graph_stat']
+    self._update_interval = CONFIG['graph_interval']
+    self._bounds_type = CONFIG['graph_bound']
+    self._graph_height = CONFIG['graph_height']
 
     self._accounting_stats = None
     self._accounting_stats_paused = None
@@ -427,10 +427,10 @@ class GraphPanel(nyx.panel.Panel):
 
     self._stats_paused = None
 
-    if CONFIG['features.panels.show.connection']:
+    if CONFIG['show_connections']:
       self._stats[GraphStat.CONNECTIONS] = ConnectionStats()
     elif self._displayed_stat == GraphStat.CONNECTIONS:
-      log.warn("The connection graph is unavailble when you set 'features.panels.show.connection false'.")
+      log.warn("The connection graph is unavailble when you set 'show_connections false'.")
       self._displayed_stat = GraphStat.BANDWIDTH
 
     controller = tor_controller()
@@ -563,7 +563,7 @@ class GraphPanel(nyx.panel.Panel):
 
     stat = type(stat)(stat)  # clone the GraphCategory
     subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
-    subgraph_width = min(subwindow.width // 2, CONFIG['features.graph.max_width'])
+    subgraph_width = min(subwindow.width // 2, CONFIG['max_graph_width'])
     interval, bounds_type = self._update_interval, self._bounds_type
 
     subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
@@ -575,7 +575,7 @@ class GraphPanel(nyx.panel.Panel):
       _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + subgraph_height - 2, accounting_stats)
 
   def _update_accounting(self, event):
-    if not CONFIG['features.graph.bw.accounting.show']:
+    if not CONFIG['show_accounting']:
       self._accounting_stats = None
     elif not self._accounting_stats or time.time() - self._accounting_stats.retrieved >= ACCOUNTING_RATE:
       old_accounting_stats = self._accounting_stats
@@ -710,4 +710,4 @@ def _size_label(byte_count, decimal = 1):
   or bytes.
   """
 
-  return str_tools.size_label(byte_count, decimal, is_bytes = CONFIG['features.graph.bw.transferInBytes'])
+  return str_tools.size_label(byte_count, decimal, is_bytes = CONFIG['show_bytes'])

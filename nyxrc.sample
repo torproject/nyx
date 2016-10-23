@@ -1,170 +1,90 @@
-# Events that are shown by default in the log. You can also set these with
-# 'nyx --log <events>'.
+data_directory ~/.nyx   # Caching location, can be set to 'disabled'.
+tor_chroot /path        # Chroot jail tor resides within if there is one.
+show_bytes false        # Bandwidth rate as bytes if true, bits otherwise.
+confirm_quit true       # Confirm before quitting.
+color_interface true    # Uses color in our interface.
+color_override none     # Replaces instances of color with this hue.
+unicode_support true    # Render text as unicode.
+acs_support true        # Uses ACS (alternate character set) for nice borders.
 
-logged_events NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR
+redraw_rate 5           # Seconds to await user input before redrawing.
+connection_rate 5       # Seconds between querying connections.
+resource_rate 5         # Seconds between querying process resource usage.
+port_usage_rate 5       # Seconds between querying processes using ports.
 
-# Location where information is cached. You can disable caching by setting this
-# to 'disabled'.
+logged_events events    # Events that are shown by default in the log. [1]
+deduplicate_log true    # Hides duplicate log messages.
+prepopulate_log true    # Populates with events that occure before we started.
+logging_filter pattern  # Regex filter for log messages that are shown.
+write_logs_to /path     # Writes events that occure while running here.
+max_log_size 1000       # Maximum number of log entries.
 
-data_directory ~/.nyx
+graph_stat bandwidth        # Statistic to be graphed. [2]
+graph_interval each second  # Graph sampling interval. [3]
+graph_bound max_local       # Bounding for the graph min and max. [4]
+graph_height 7              # Height of the graph.
+max_graph_width 300         # Maximum number of samplings.
 
-# Seconds between querying information
+config_order order          # Order for tor config options. [5]
+show_private_options false  # Shows configurations with a '__option' prefix.
+show_virtual_options false  # Shows unsettable tor configurations.
 
-queries.connections.rate 5
-queries.resources.rate 5
-queries.port_usage.rate 5
+connection_order order  # Order for connections. [6]
+resolve_processes true  # Shows processes for SOCKS and CONTROL connections.
+show_addresses true     # Shows addresses of connections.
 
-queries.refreshRate.rate 5
+show_graph true         # Shows the graph.
+show_accounting true    # Shows accounting stats if AccountingMax is set.
+show_log true           # Shows the event log.
+show_connections true   # Shows connection information.
+show_config true        # Shows tor's configuration.
+show_torrc true         # Shows the torrc.
+show_interpreter true   # Shows the control interpreter.
 
-# allows individual panels to be included/excluded
-features.panels.show.graph true
-features.panels.show.log true
-features.panels.show.connection true
-features.panels.show.config true
-features.panels.show.torrc true
-
-# Renders the interface with color if set and the terminal supports it
-features.colorInterface true
-
-# Uses ACS (alternate character support) to display nice borders. This may not
-# work on all terminals.
-features.acsSupport true
-
-# Replaces all colored content (ie, anything that isn't white) with this
-# color. Valid options are:
-# none, red, green, yellow, blue, cyan, magenta, black, white
-features.colorOverride none
-
-# Includes unicode characters in the interface.
-features.printUnicode true
-
-# Set this if you're running in a chroot jail or other environment where tor's
-# resources (log, state, etc) should have a prefix in their paths.
-
-tor.chroot
-
-# If set, nyx appends any log messages it reports while running to the given
-# log file. This does not take filters into account or include prepopulated
-# events.
-features.logFile 
-
-# Seconds to wait on user input before refreshing content
-features.redrawRate 5
-
-# Confirms promt to confirm when quiting if true
-features.confirmQuit true
-
-# Paremters for the log panel
-# ---------------------------
-# showDuplicateEntries
-#   shows all log entries if true, otherwise collapses similar entries with an
-#   indicator for how much is being hidden
-# prepopulate
-#   attempts to read past events from the log file if true
-# prepopulateReadLimit
-#   maximum entries read from the log file, used to prevent huge log files from
-#   causing a slow startup time.
-# regex
-#   preconfigured regular expression pattern, up to five will be loaded
-
-features.log.showDuplicateEntries false
-features.log.prepopulate true
-features.log.prepopulateReadLimit 5000
-#features.log.regex My First Regex Pattern
-#features.log.regex ^My Second Regex Pattern$
-
-features.maxLineWrap 8
-
-# Paremters for the config panel
-# ---------------------------
-# order
-#   three comma separated configuration attributes, options including:
+# [1] logged_events is a comma separated list. Default value is...
 #
-#     * NAME
-#     * VALUE
-#     * VALUE_TYPE
-#     * CATEGORY
-#     * USAGE
-#     * SUMMARY
-#     * DESCRIPTION
-#     * MAN_PAGE_ENTRY
-#     * IS_SET
+#       NOTICE, WARN, ERR, NYX_NOTICE, NYX_WARNING, NYX_ERROR
 #
-# state.showPrivateOptions
-#   tor provides config options of the form "__<option>" that can be dangerous
-#   to set, if true nyx provides these on the config panel
-# state.showVirtualOptions
-#   virtual options are placeholders for other option groups, never having
-#   values or being setable themselves
-# file.maxLinesPerEntry
-#   max number of lines to display for a single entry in the torrc
-
-features.config.order MAN_PAGE_ENTRY, NAME, IS_SET
-features.config.state.showPrivateOptions false
-features.config.state.showVirtualOptions false
-features.config.file.maxLinesPerEntry 8
-
-# General graph parameters
-# ------------------------
-# height
-#   height of graphed stats
-# maxWidth
-#   maximum number of graphed entries
-# interval
-#   each second,   5 seconds,     30 seconds,  minutely,      
-#   15 minute,     30 minute,     hourly,      daily
-# bound
-#   global_max - global maximum (highest value ever seen)
-#   local_max - local maximum (highest value currently on the graph)
-#   tight - local maximum and minimum
-# type
-#   none, bandwidth, connections, resources
-
-features.graph.height 7
-features.graph.maxWidth 150
-features.graph.interval each second
-features.graph.bound local_max
-features.graph.type bandwidth
-
-# Parameters for graphing bandwidth stats
-# ---------------------------------------
-# prepopulate
-#   attempts to use tor's state file to prepopulate the bandwidth graph at the
-#   15-minute interval (this requires the minimum of a day's worth of uptime)
-# transferInBytes
-#   shows rate measurments in bytes if true, bits otherwise
-# accounting.show
-#   provides accounting stats if AccountingMax was set
-
-features.graph.bw.transferInBytes false
-features.graph.bw.accounting.show true
-
-# Parameters for connection display
-# ---------------------------------
-# order
-#   three comma separated configuration attributes, options including:
+# [2] graph_stat options include...
 #
-#   * CATEGORY
-#   * UPTIME
-#   * IP_ADDRESS
-#   * PORT
-#   * FINGERPRINT
-#   * NICKNAME
-#   * COUNTRY
+#       none - hide the graph
+#       bandwidth - bandwidth rate downloaded/uploaded
+#       connections- number of connections inbound/outbound
+#       resources - cpu/memory usage of tor
 #
-# resolveApps
-#   issues lsof queries to determining the applications involved in local
-#   SOCKS and CONTROL connections
-# showIps
-#   shows ip addresses for other tor relays, dropping this information if
-#   false
-
-features.connection.order CATEGORY, IP_ADDRESS, UPTIME
-features.connection.resolveApps true
-features.connection.showIps true
-
-# Caching parameters
-cache.logPanel.size 1000
-cache.nyxLog.size 1000
-cache.nyxLog.trimSize 200
-
+# [3] graph_interval options include...
+#
+#       each second,   5 seconds,     30 seconds,  minutely,
+#       15 minute,     30 minute,     hourly,      daily
+#
+# [4] graph_bound options include...
+#
+#       global_max - global maximum (highest value ever seen)
+#       local_max - local maximum (highest value currently on the graph)
+#       tight - local maximum and minimum
+#
+# [5] config_order is three comma separated values that can include...
+#
+#       * NAME
+#       * VALUE
+#       * VALUE_TYPE
+#       * CATEGORY
+#       * USAGE
+#       * SUMMARY
+#       * DESCRIPTION
+#       * MAN_PAGE_ENTRY
+#       * IS_SET
+#
+#     Default is: MAN_PAGE_ENTRY, NAME, IS_SET
+#
+# [6] connection_order is three comma separated values that can include...
+#
+#       * CATEGORY
+#       * UPTIME
+#       * IP_ADDRESS
+#       * PORT
+#       * FINGERPRINT
+#       * NICKNAME
+#       * COUNTRY
+#
+#     Default is: CATEGORY, IP_ADDRESS, UPTIME
