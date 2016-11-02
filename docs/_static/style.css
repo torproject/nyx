@@ -1,0 +1,17 @@
+div.literal-block-wrapper {
+    padding: 0;
+}
+
+span.caption-text {
+    float: right;
+}
+
+span.red {
+    color: red;
+    font-weight: bold;
+}
+
+span.green {
+    color: green;
+    font-weight: bold;
+}
