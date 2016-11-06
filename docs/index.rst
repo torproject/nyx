@@ -18,6 +18,19 @@ Nyx is a command line interface for `Tor <https://www.torproject.org/>`_, provid
 .. image:: /_static/buttons/screenshots.png
    :target: screenshots.html
 
+.. Source: https://openclipart.org/detail/171951/help-by-diamonjohn-171951
+   Author: John Diamond (https://openclipart.org/user-detail/diamonjohn)
+   License: Public Domain
+   
+   Alternate:
+   Source: Oxygen (http://www.oxygen-icons.org/)
+   Author: Andrea Joseph
+   License: CCv3 (A, SA) - http://creativecommons.org/licenses/by-sa/3.0/
+   File: Oxygen/128x128/categories/system-help.png
+
+.. image:: /_static/buttons/faq.png
+   :target: faq.html
+
 .. Source: Nuovo (http://www.silvestre.com.ar/?p=5)
    Author: Silvestre Herrera (http://www.silvestre.com.ar/)
    License: GPL v2

@@ -7,5 +7,6 @@ Contents
    change_log
    change_log_legacy
    download
+   faq
    screenshots
 
