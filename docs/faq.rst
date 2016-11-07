@@ -4,10 +4,20 @@ Frequently Asked Questions
 * **General Information**
 
  * :ref:`what_is_nyx`
+ * :ref:`why_is_it_called_nyx`
  * :ref:`does_nyx_have_any_dependencies`
  * :ref:`what_python_versions_is_nyx_compatible_with`
  * :ref:`are_there_any_other_tor_uis`
  * :ref:`what_license_is_nyx_under`
+
+* **Usage**
+
+ * :ref:`will_exits_include_user_traffic`
+ * :ref:`is_it_harmful_to_share_data`
+ * :ref:`can_nyx_leak_data`
+ * :ref:`why_dont_i_see_the_bandwith_graph`
+ * :ref:`why_are_borders_broken`
+ * :ref:`why_are_relay_details_missing`
 
 * **Development**
 
@@ -34,6 +44,18 @@ usage, logs, connections, configuration, `and more <screenshots.html>`_.
 As a curses interface Nyx is particularly well suited for ssh connections, tty
 terminals, and command-line aficionados.
 
+.. _why_is_it_called_nyx:
+
+Why is it called Nyx?
+---------------------
+
+Simple - because it's short and memorable. Terminal applications are handiest
+when they're easy to remember and type, such as *top*, *ssh*, etc. Anything
+longer is just asking to be aliased down.
+
+Besides, Nyx is the `Greek goddess of night
+<https://en.wikipedia.org/wiki/Nyx>`_.
+
 .. _does_nyx_have_any_dependencies:
 
 Does Nyx have any dependencies?
@@ -50,7 +72,7 @@ Nyx works with **Python 2.6 and greater**, including the Python 3.x series.
 
 .. _are_there_any_other_tor_uis:
 
-Are there any other user interfaces for tor?
+Are there any other user interfaces for Tor?
 --------------------------------------------
 
 .. image:: /_static/section/screenshots/vidalia.png
@@ -66,7 +88,7 @@ launcher, settings editor, map, and more. `TorK
 information as well but never reached the same level of prominence. Both
 interfaces are now unmaintained.
 
-Smaller widgits include...
+Smaller widgets include...
 
 * `Syboa <https://gitorious.org/syboa/syboa>`_ - General interface
 * `OnionLauncher <https://github.com/neelchauhan/OnionLauncher>`_ - Tor launcher
@@ -85,6 +107,95 @@ What license is Nyx under?
 Nyx is under the `GPLv3 <https://www.gnu.org/licenses/gpl>`_.
 
 .. _where_can_i_get_help:
+
+Usage
+=====
+
+.. _will_exits_include_user_traffic:
+
+When running an exit will I see people's traffic?
+-------------------------------------------------
+
+**No**. Potential client and exit connections are scrubbed of sensitive
+information. Be aware that it's highly discouraged (and possibly illegal) for
+relay operators to view this data, so please don't.
+
+.. _is_it_harmful_to_share_data:
+
+Is it harmful to share the information provided by Nyx?
+-------------------------------------------------------
+
+**Not really**, but show some moderation. Screenshots of Nyx are unlikely to do
+any harm but try to avoid exposing data en mass.
+
+.. _can_nyx_leak_data:
+
+Is there any chance that nyx will leak data?
+--------------------------------------------
+
+**No**. Nyx is a completely passive listener, fetching all information from
+either Tor or the local system.
+
+.. _why_dont_i_see_the_bandwith_graph:
+
+Why don't I see the bandwidth graph?
+------------------------------------
+
+On some terminals such as Gentoo screen sessions appear to have a bug where
+highlighted spaces aren't shown. Try running...
+
+::
+
+  export TERM="rxvt-unicode"
+
+.. _why_are_borders_broken:
+
+Why are there borders like 'mwqqqqqqqqj'?
+-----------------------------------------
+
+
+If you're getting something that looks like...
+
+.. image:: /_static/section/screenshots/acs_display_failure.png
+   :target: _static/section/screenshots/acs_display_failure_full.png
+
+... you are encountering a terminal bug where alternate character support (ACS)
+`is unavailable
+<http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing>`_.
+
+Unfortunately there doesn't seem to be a way for Nyx to automatically detect
+or correct this. To work around this you can set the following in your nyxrc
+to not use ACS borders...
+
+::
+
+  features.acsSupport false
+
+.. _why_are_relay_details_missing:
+
+Why are relay details for connections missing?
+----------------------------------------------
+
+Relays publish information about themselves in documents called *descriptors*.
+These documents are downloaded by Tor. New documents available on an hourly
+basis but Tor will only download them if it needs them, so the descriptors you
+have may be older.
+
+Nyx's connections page use these descriptors to enrich connection information
+with data about the relay you're connected with. If Tor doesn't have this
+information the data may be stale or missing.
+
+**This is fine.** Descriptor information we use changes infrequently so even if
+they're a few hours old it won't matter. However, if you really need up-to-date
+information you can add the following to your torrc...
+
+::
+
+  # download new descriptors even if our cache is still valid
+
+  FetchDirInfoEarly 1
+  FetchDirInfoExtraEarly 1
+  FetchUselessDescriptors 1
 
 Development
 ===========
