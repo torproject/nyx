@@ -22,7 +22,7 @@ DEFAULT_ARGS = {
   'user_provided_port': False,
   'control_socket': '/var/run/tor/control',
   'user_provided_socket': False,
-  'config': os.path.join(os.path.expanduser('~/.nyx'), 'nyxrc'),
+  'config': os.path.join(os.path.expanduser('~/.nyx'), 'config'),
   'debug_path': None,
   'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
   'print_version': False,
