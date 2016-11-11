@@ -1,51 +1,46 @@
 .TH nyx 1 "27 August 2010"
 .SH NAME
-nyx - Terminal Tor status monitor
+nyx - Tor terminal status monitor
 
 .SH SYNOPSIS
 nyx [\fIOPTION\fR]
 
 .SH DESCRIPTION
-The anonymizing relay monitor (nyx) is a terminal status monitor for Tor
-relays, intended for command-line aficionados, ssh connections, and anyone
-stuck with a tty terminal. This works much like top does for system usage,
-providing real time statistics for:
+Nyx is a command line interface for Tor (https://www.torproject.org/),
+providing detailed real-time relaying information for...
+
   * bandwidth, cpu, and memory usage
-  * relay's current configuration
-  * logged events
-  * connection details (ip, fingerprint, and consensus data)
+  * connection information
+  * tor configuration
+  * event logs
   * etc
 
-Defaults and interface properties are configurable via a user provided
-configuration file (for an example see the provided \fBnyxrc.sample\fR).
-Releases and information are available at \fIhttp://www.atagar.com/nyx\fR.
+As a curses interface Nyx is particularly well suited for ssh connections, tty 
+terminals, and command-line aficionados to check the status of tor.
+
+Nyx can be customized through a configuration file located at
+\fB~/.nyx/config\fR. For options see our \fBnyxrc.sample\fR.
 
 .SH OPTIONS
 .TP
 \fB\-i\fR, \fB\-\-interface [ADDRESS:]PORT\fR
-tor control port nyx should attach to (default is \fB127.0.0.1:9051\fR)
+tor control port we should attach to (default is \fB127.0.0.1:9051\fR)
+
+.TP
+\fB\-s\fR, \fB\-\-socket SOCKET_PATH\fR
+tor control socket we should attach to (default is \fB/var/run/tor/control\fR)
 
 .TP
 \fB\-c\fR, \fB\-\-config CONFIG_PATH\fR
-user provided configuration file (default is \fB~/.nyx/nyxrc\fR)
+user configuration preferences (default is \fB~/.nyx/config\fR)
 
 .TP
-\fB\-d\fR, \fB\-\-debug\fR
-writes all nyx logs to ~/.nyx/log
+\fB\-d\fR, \fB\-\-debug LOG_PATH\fR
+writes all nyx logs to the given location
 
 .TP
-\fB\-e\fR, \fB\-\-event EVENT_FLAGS\fR
-flags for tor, nyx, and torctl events to be logged (default is \fBN3\fR)
-
-  d DEBUG      a ADDRMAP           k DESCCHANGED   s STREAM
-  i INFO       f AUTHDIR_NEWDESCS  g GUARD         r STREAM_BW
-  n NOTICE     h BUILDTIMEOUT_SET  l NEWCONSENSUS  t STATUS_CLIENT
-  w WARN       b BW                m NEWDESC       u STATUS_GENERAL
-  e ERR        c CIRC              p NS            v STATUS_SERVER
-               j CLIENTS_SEEN      q ORCONN
-    DINWE tor runlevel+            A All Events
-    12345 nyx runlevel+            X No Events
-    67890 torctl runlevel+         U Unknown Events
+\fB\-l\fR, \fB\-\-log EVENTS\fR
+comma separated list of events to log
 
 .TP
 \fB\-v\fR, \fB\-\-version\fR
@@ -57,7 +52,7 @@ provides usage information
 
 .SH FILES
 .TP
-\fB~/.nyx/nyxrc\fR
+\fB~/.nyx/config\fR
 Your personal nyx configuration file
 
 .TP
