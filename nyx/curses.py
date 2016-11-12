@@ -19,6 +19,7 @@ if we want Windows support in the future too.
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
   asci_to_curses - converts terminal formatting to curses
+  demo_glyphs - renders a chart showing the ACS options
   halt - prevents further curses rendering during shutdown
 
   is_color_supported - checks if terminal supports color output
@@ -527,6 +528,50 @@ def asci_to_curses(msg):
     entries.append((msg, next_attr))
 
   return entries
+
+
+def demo_glyphs():
+  """
+  Renders a chart of all ACS options with their corresponding representation.
+  These are undocumented in the pydocs. For more information see the following
+  man page...
+
+    http://www.mkssoftware.com/docs/man5/terminfo.5.asp
+  """
+
+  def _render():
+    with raw_screen() as stdscr:
+      height, width = stdscr.getmaxyx()
+      columns = width / 30
+
+      if columns == 0:
+        return  # not wide enough to show anything
+
+      # mapping of keycodes to their ACS option names (for instance, ACS_LTEE)
+
+      acs_options = dict((v, k) for (k, v) in curses.__dict__.items() if k.startswith('ACS_'))
+
+      stdscr.addstr(0, 0, 'Curses Glyphs:', curses.A_STANDOUT)
+      x, y = 0, 2
+
+      for keycode in sorted(acs_options.keys()):
+        stdscr.addstr(y, x * 30, '%s (%i)' % (acs_options[keycode], keycode))
+        stdscr.addch(y, (x * 30) + 25, keycode)
+
+        x += 1
+
+        if x >= columns:
+          x, y = 0, y + 1
+
+          if y >= height:
+            break
+
+      stdscr.getch()  # quit on keyboard input
+
+  try:
+    start(_render, transparent_background = True, cursor = False)
+  except KeyboardInterrupt:
+    pass  # quit
 
 
 def halt():

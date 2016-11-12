@@ -2,7 +2,13 @@
 # Copyright 2009-2016, Damian Johnson and The Tor Project
 # See LICENSE for licensing information
 
+import sys
+
 import nyx
+import nyx.curses
 
 if __name__ == '__main__':
-  nyx.main()
+  if '--demo-glyphs' in sys.argv:
+    nyx.curses.demo_glyphs()
+  else:
+    nyx.main()
