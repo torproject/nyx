@@ -43,7 +43,7 @@ class NyxInstaller(install):
     install.run(self)
 
     self.install_bin_script('run_nyx', os.path.join(self.install_scripts, 'nyx'))
-    self.install_file('man page', os.path.join('nyx', 'resources', 'nyx.1'), self.man_page)
+    self.install_file('man page', 'nyx.1', self.man_page)
     self.install_file('nyxrc sample', 'nyxrc.sample', self.sample_path)
 
   def install_bin_script(self, source, dest):
@@ -102,6 +102,6 @@ setup(
   packages = ['nyx', 'nyx.panel'],
   keywords = 'tor onion controller',
   install_requires = ['stem>=1.4.1'],
-  package_data = {'nyx': ['settings/*', 'resources/*']},
+  package_data = {'nyx': ['settings/*']},
   cmdclass = {'install': NyxInstaller},
 )
