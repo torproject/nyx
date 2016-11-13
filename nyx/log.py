@@ -551,7 +551,7 @@ def read_tor_log(path, read_limit = None):
     count += 1
     yield LogEntry(timestamp, runlevel, msg)
 
-    if 'opening log file' in msg:
+    if 'opening log file' in msg or 'opening new log file' in msg:
       break  # this entry marks the start of this tor instance
 
   info('panel.log.read_from_log_file', count = count, path = path, read_limit = read_limit if read_limit else 'none', runtime = '%0.3f' % (time.time() - start_time))
