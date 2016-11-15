@@ -3,8 +3,9 @@
 # See LICENSE for licensing information
 
 """
-Runs nyx's unit tests. This is a curses application so we're pretty limited on
-the test coverage we can achieve, but exercising what we can.
+Runs nyx's unit tests. When running this you may notice your screen flicker.
+This is because we're a curses application, and so testing requires us to
+render to the screen.
 """
 
 import os
@@ -21,6 +22,7 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
   'nyx',
   'test',
   'run_tests.py',
+  'setup.py',
   'run_nyx',
 )]
 
