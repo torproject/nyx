@@ -886,8 +886,8 @@ class _Subwindow(object):
 
     scrollbar_height = self.height - top - 1  # -1 is for the bottom border
     bottom_index = top_index + scrollbar_height + 1
-    slider_top = scrollbar_height * top_index // size
-    slider_size = scrollbar_height * (bottom_index - top_index) // size
+    slider_top = (scrollbar_height * top_index) // size
+    slider_size = (scrollbar_height * (bottom_index - top_index)) // size
     max_slider_top = scrollbar_height - slider_size - 1
 
     # ensures slider isn't at top or bottom unless really at those extreme bounds
