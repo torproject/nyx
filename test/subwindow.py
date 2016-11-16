@@ -34,7 +34,7 @@ EXPECTED_SCROLLBAR_TOP = """
 *|
 *|
 *|
- |
+*|
  |
  |
  |
@@ -48,7 +48,7 @@ EXPECTED_SCROLLBAR_MIDDLE = """
 *|
 *|
 *|
- |
+*|
  |
  |
  |
@@ -62,7 +62,7 @@ EXPECTED_SCROLLBAR_BOTTOM = """
  |
  |
  |
- |
+*|
 *|
 *|
 *|
