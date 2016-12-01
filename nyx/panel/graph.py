@@ -23,7 +23,7 @@ import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import nyx_interface, tor_controller, msg, join, show_message
+from nyx import nyx_interface, tor_controller, join, show_message
 from nyx.curses import RED, GREEN, CYAN, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.control import EventType, Listener
@@ -278,7 +278,7 @@ class BandwidthStats(GraphCategory):
           entry_comp = entry.split(',')
 
           if len(entry_comp) != 2 or not entry_comp[0].isdigit() or not entry_comp[1].isdigit():
-            log.warn(msg('panel.graphing.bw_event_cache_malformed', response = bw_entries))
+            log.warn("Tor's 'GETINFO bw-event-cache' provided malformed output: %s" % bw_entries)
             is_successful = False
             break
 
@@ -286,7 +286,7 @@ class BandwidthStats(GraphCategory):
           self.secondary.update(int(entry_comp[1]))
 
         if is_successful:
-          log.info(msg('panel.graphing.prepopulation_successful', duration = str_tools.time_label(len(bw_entries.split()), is_long = True)))
+          log.info('Bandwidth graph has information for the last %s' % str_tools.time_label(len(bw_entries.split()), is_long = True))
 
       read_total = controller.get_info('traffic/read', None)
       write_total = controller.get_info('traffic/written', None)

@@ -13,7 +13,7 @@ import nyx.curses
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu
-from nyx import expand_path, msg, panel, tor_controller
+from nyx import expand_path, panel, tor_controller
 
 from stem import ControllerError
 from stem.control import State
@@ -62,12 +62,12 @@ class TorrcPanel(panel.Panel):
         self._torrc_location = expand_path(controller.get_info('config-file'))
         self._torrc_content = _read_torrc(self._torrc_location)
       except ControllerError as exc:
-        self._torrc_load_error = msg('panel.torrc.unable_to_find_torrc', error = exc)
+        self._torrc_load_error = 'Unable to determine our torrc location: %s' % exc
         self._torrc_location = None
         self._torrc_content = None
       except Exception as exc:
         exc_msg = exc.strerror if (hasattr(exc, 'strerror') and exc.strerror) else str(exc)
-        self._torrc_load_error = msg('panel.torrc.unable_to_load_torrc', error = exc_msg)
+        self._torrc_load_error = 'Unable to read our torrc: %s' % exc_msg
         self._torrc_content = None
 
   def key_handlers(self):

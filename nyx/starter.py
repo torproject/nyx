@@ -23,7 +23,23 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from nyx import log, init_controller, msg, uses_settings, nyx_interface
+from nyx import log, init_controller, uses_settings, nyx_interface
+
+DEBUG_HEADER = """
+Nyx {nyx_version} Debug Dump
+Stem Version: {stem_version}
+Python Version: {python_version}
+Platform: {system} ({platform})
+--------------------------------------------------------------------------------
+Nyx Configuration ({nyxrc_path}):
+{nyxrc_content}
+--------------------------------------------------------------------------------
+""".strip()
+
+UNKNOWN_TERM = """\
+Unknown $TERM: (%s)
+Either update your terminfo database or run nyx using "TERM=xterm nyx".
+"""
 
 
 @uses_settings
@@ -47,9 +63,9 @@ def main(config):
   if args.debug_path is not None:
     try:
       _setup_debug_logging(args)
-      print(msg('debug.saving_to_path', path = args.debug_path))
+      print('Saving a debug log to %s, please check it for sensitive information before sharing it.' % args.debug_path)
     except IOError as exc:
-      print(msg('debug.unable_to_write_file', path = args.debug_path, error = exc.strerror))
+      print('Unable to write to our debug log file (%s): %s' % (args.debug_path, exc.strerror))
       sys.exit(1)
 
   _load_user_nyxrc(args.config)
@@ -88,7 +104,7 @@ def main(config):
     nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
   except UnboundLocalError as exc:
     if os.environ['TERM'] != 'xterm':
-      print(msg('setup.unknown_term', term = os.environ['TERM']))
+      print(UNKNOWN_TERM % os.environ['TERM'])
     else:
       raise exc
   except KeyboardInterrupt:
@@ -128,8 +144,7 @@ def _setup_debug_logging(args):
     except IOError as exc:
       nyxrc_content = '[unable to read file: %s]' % exc.strerror
 
-  log.trace(
-    'debug.header',
+  stem.util.log.trace(DEBUG_HEADER.format(
     nyx_version = nyx.__version__,
     stem_version = stem.__version__,
     python_version = '.'.join(map(str, sys.version_info[:3])),
@@ -137,7 +152,7 @@ def _setup_debug_logging(args):
     platform = ' '.join(platform.dist()),
     nyxrc_path = args.config,
     nyxrc_content = nyxrc_content,
-  )
+  ))
 
 
 @uses_settings
@@ -156,14 +171,14 @@ def _load_user_nyxrc(path, config):
       chroot = config.get('tor_chroot', '').strip().rstrip(os.path.sep)
 
       if chroot and not os.path.exists(chroot):
-        log.notice('setup.chroot_doesnt_exist', path = chroot)
+        stem.util.log.notice("The chroot path set in your config (%s) doesn't exist." % chroot)
         config.set('tor_chroot', '')
       else:
         config.set('tor_chroot', chroot)  # use the normalized path
     except IOError as exc:
-      log.warn('config.unable_to_read_file', error = exc.strerror)
+      stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
   else:
-    log.notice('config.nothing_loaded', path = path)
+    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see the nyxrc.sample for its options).' % path)
 
 
 def _warn_if_root(controller):
@@ -172,9 +187,9 @@ def _warn_if_root(controller):
   """
 
   if controller.get_user(None) == 'root':
-    log.notice('setup.tor_is_running_as_root')
+    stem.util.log.notice("Tor is currently running with root permissions. This isn't a good idea, nor should it be necessary. See the 'User UID' option on Tor's man page for an easy method of reducing its permissions after startup.")
   elif os.getuid() == 0:
-    log.notice('setup.nyx_is_running_as_root')
+    stem.util.log.notice("Nyx is currently running with root permissions. This isn't a good idea, nor should it be necessary.")
 
 
 def _warn_if_unable_to_get_pid(controller):
@@ -186,7 +201,7 @@ def _warn_if_unable_to_get_pid(controller):
   try:
     controller.get_pid()
   except ValueError:
-    log.warn('setup.unable_to_determine_pid')
+    stem.util.log.warn("Unable to determine Tor's pid. Some information, like its resource usage will be unavailable.")
 
 
 @uses_settings
@@ -210,7 +225,7 @@ def _setup_freebsd_chroot(controller, config):
     jail_chroot = stem.util.system.bsd_jail_path(controller.get_pid(0))
 
     if jail_chroot and os.path.exists(jail_chroot):
-      log.info('setup.set_freebsd_chroot', path = jail_chroot)
+      stem.util.log.info('Adjusting paths to account for Tor running in a FreeBSD jail at: %s' % jail_chroot)
       config.set('tor_chroot', jail_chroot)
 
 

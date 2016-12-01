@@ -95,10 +95,9 @@ import threading
 
 import stem.util.conf
 import stem.util.enum
+import stem.util.log
 import stem.util.str_tools
 import stem.util.system
-
-from nyx import msg, log
 
 # Curses screen we've initialized and lock for interacting with it. Curses
 # isn't thread safe and concurrency bugs produce especially sinister glitches.
@@ -170,7 +169,7 @@ Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
 def conf_handler(key, value):
   if key == 'color_override':
     if value not in Color and value != 'None':
-      raise ValueError(msg('usage.unable_to_set_color_override', color = value))
+      raise ValueError('"%s" isn\'t a valid color' % value)
   elif key == 'max_line_wrap':
     return max(1, value)
 
@@ -625,7 +624,7 @@ def set_color_override(color = None):
   elif color in Color:
     nyx_config.set('color_override', color)
   else:
-    raise ValueError(msg('usage.unable_to_set_color_override', color = color))
+    raise ValueError('"%s" isn\'t a valid color' % color)
 
 
 def _color_attr():
@@ -648,10 +647,10 @@ def _color_attr():
         curses.init_pair(color_pair + 1, foreground_color, background_color)
         color_attr[color_name] = curses.color_pair(color_pair + 1)
 
-      log.info('setup.color_support_available')
+      stem.util.log.info('Terminal color support detected and enabled')
       COLOR_ATTR = color_attr
     else:
-      log.info('setup.color_support_unavailable')
+      stem.util.log.info('Terminal color support unavailable')
       COLOR_ATTR = DEFAULT_COLOR_ATTR
 
   return COLOR_ATTR

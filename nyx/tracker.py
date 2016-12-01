@@ -56,8 +56,9 @@ import threading
 
 import stem.control
 import stem.descriptor.router_status_entry
+import stem.util.log
 
-from nyx import log, tor_controller
+from nyx import tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
@@ -65,6 +66,13 @@ CONFIG = conf.config_dict('nyx', {
   'resource_rate': 5,
   'port_usage_rate': 5,
 })
+
+UNABLE_TO_USE_ANY_RESOLVER_MSG = """
+We were unable to use any of your system's resolvers to get tor's connections.
+This is fine, but means that the connections page will be empty. This is
+usually permissions related so if you would like to fix this then run nyx with
+the same user as tor (ie, "sudo -u <tor user> nyx").
+""".strip()
 
 CONNECTION_TRACKER = None
 RESOURCE_TRACKER = None
@@ -508,7 +516,7 @@ class ConnectionTracker(Daemon):
     else:
       self._resolvers = [CustomResolver.INFERENCE]
 
-    log.info('tracker.available_resolvers', os = os.uname()[0], resolvers = ', '.join(self._resolvers))
+    stem.util.log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(self._resolvers)))
 
   def _task(self, process_pid, process_name):
     if self._custom_resolver:
@@ -569,13 +577,13 @@ class ConnectionTracker(Daemon):
           min_rate += 1  # little extra padding so we don't frequently update this
           self.set_rate(min_rate)
           self._rate_too_low_count = 0
-          log.debug('tracker.lookup_rate_increased', seconds = "%0.1f" % min_rate)
+          stem.util.log.debug('connection lookup time increasing to %0.1f seconds per call' % min_rate)
       else:
         self._rate_too_low_count = 0
 
       return True
     except IOError as exc:
-      log.info('wrap', text = exc)
+      stem.util.log.info(str(exc))
 
       # Fail over to another resolver if we've repeatedly been unable to use
       # this one.
@@ -588,13 +596,9 @@ class ConnectionTracker(Daemon):
           self._failure_count = 0
 
           if self._resolvers:
-            log.notice(
-              'tracker.unable_to_use_resolver',
-              old_resolver = resolver,
-              new_resolver = self._resolvers[0],
-            )
+            stem.util.log.notice('Unable to query connections with %s, trying %s' % (resolver, self._resolvers[0]))
           else:
-            log.notice('tracker.unable_to_use_all_resolvers')
+            stem.util.log.notice(UNABLE_TO_USE_ANY_RESOLVER_MSG)
 
       return False
 
@@ -686,28 +690,17 @@ class ResourceTracker(Daemon):
           self._use_proc = False
           self._failure_count = 0
 
-          log.info(
-            'tracker.abort_getting_resources',
-            resolver = 'proc',
-            response = 'falling back to ps',
-            exc = exc,
-          )
+          stem.util.log.info('Failed three attempts to get process resource usage from proc, falling back to ps (%s)' % exc)
         else:
-          log.debug('tracker.unable_to_get_resources', resolver = 'proc', exc = exc)
+          stem.util.log.debug('Unable to query process resource usage from proc (%s)' % exc)
       else:
         if self._failure_count >= 3:
           # Give up on further attempts.
 
-          log.info(
-            'tracker.abort_getting_resources',
-            resolver = 'ps',
-            response = 'giving up on getting resource usage information',
-            exc = exc,
-          )
-
+          stem.util.log.info('Failed three attempts to get process resource usage from ps, giving up on getting resource usage information (%s)' % exc)
           self.stop()
         else:
-          log.debug('tracker.unable_to_get_resources', resolver = 'ps', exc = exc)
+          stem.util.log.debug('Unable to query process resource usage from ps (%s)' % exc)
 
       return False
 
@@ -799,10 +792,10 @@ class PortUsageTracker(Daemon):
       self._failure_count += 1
 
       if self._failure_count >= 3:
-        log.info('tracker.abort_getting_port_usage', exc = exc)
+        stem.util.log.info('Failed three attempts to determine the process using active ports (%s)' % exc)
         self.stop()
       else:
-        log.debug('tracker.unable_to_get_port_usages', exc = exc)
+        stem.util.log.debug('Unable to query the processes using ports usage lsof (%s)' % exc)
 
       return False
 

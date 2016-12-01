@@ -14,8 +14,6 @@ import nyx.log
 
 import stem.util.connection
 
-from nyx import msg
-
 DEFAULT_ARGS = {
   'control_address': '127.0.0.1',
   'control_port': 9051,
@@ -41,6 +39,25 @@ OPT_EXPANDED = [
   'help',
 ]
 
+HELP_OUTPUT = """
+Usage nyx [OPTION]
+Terminal status monitor for Tor relays.
+
+  -i, --interface [ADDRESS:]PORT  change control interface from {address}:{port}
+  -s, --socket SOCKET_PATH        attach using unix domain socket if present,
+                                    SOCKET_PATH defaults to: {socket}
+  -c, --config CONFIG_PATH        loaded configuration options, CONFIG_PATH
+                                    defaults to: {config_path}
+  -d, --debug LOG_PATH            writes all nyx logs to the given location
+  -l, --log EVENTS                comma separated list of events to log
+  -v, --version                   provides version information
+  -h, --help                      presents this help
+
+Example:
+nyx -i 1643             attach to control port 1643
+nyx -l we -c /tmp/cfg   use this configuration file with 'WARN'/'ERR' events
+""".strip()
+
 
 def parse(argv):
   """
@@ -62,7 +79,7 @@ def parse(argv):
       error_msg = "aren't recognized arguments" if len(unrecognized_args) > 1 else "isn't a recognized argument"
       raise getopt.GetoptError("'%s' %s" % ("', '".join(unrecognized_args), error_msg))
   except getopt.GetoptError as exc:
-    raise ValueError(msg('usage.invalid_arguments', error = exc))
+    raise ValueError('%s (for usage provide --help)' % exc)
 
   for opt, arg in recognized_args:
     if opt in ('-i', '--interface'):
@@ -73,12 +90,12 @@ def parse(argv):
 
       if address is not None:
         if not stem.util.connection.is_valid_ipv4_address(address):
-          raise ValueError(msg('usage.not_a_valid_address', address_input = address))
+          raise ValueError("'%s' isn't a valid IPv4 address" % address)
 
         args['control_address'] = address
 
       if not stem.util.connection.is_valid_port(port):
-        raise ValueError(msg('usage.not_a_valid_port', port_input = port))
+        raise ValueError("'%s' isn't a valid port number" % port)
 
       args['control_port'] = int(port)
       args['user_provided_port'] = True
@@ -109,8 +126,7 @@ def get_help():
   :returns: **str** with our usage information
   """
 
-  return msg(
-    'usage.help_output',
+  return HELP_OUTPUT.format(
     address = DEFAULT_ARGS['control_address'],
     port = DEFAULT_ARGS['control_port'],
     socket = DEFAULT_ARGS['control_socket'],
@@ -125,8 +141,4 @@ def get_version():
   :returns: **str** with our versioning information
   """
 
-  return msg(
-    'usage.version_output',
-    version = nyx.__version__,
-    date = nyx.__release_date__,
-  )
+  return 'nyx version %s (released %s)\n' % (nyx.__version__, nyx.__release_date__)

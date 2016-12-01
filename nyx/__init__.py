@@ -14,7 +14,6 @@ Tor curses monitoring application.
   init_controller - initializes our connection to tor
   expand_path - expands path with respect to our chroot
   join - joins a series of strings up to a set length
-  msg - string from our configuration
 
   Interface - overall nyx interface
     |- get_page - page we're showing
@@ -85,7 +84,6 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
-TESTING = False
 
 # technically can change but we use this query a *lot* so needs to be cached
 
@@ -125,7 +123,7 @@ def draw_loop():
   interface = nyx_interface()
   next_key = None  # use this as the next user input
 
-  stem.util.log.info(msg('startup_time', start_time = time.time() - CONFIG['start_time']))
+  stem.util.log.info('nyx started (initialization took %0.1f seconds)' % (time.time() - CONFIG['start_time']))
 
   while not interface._quit:
     interface.redraw()
@@ -148,14 +146,14 @@ def draw_loop():
       nyx.menu.show_menu()
     elif key.match('q'):
       if CONFIG['confirm_quit']:
-        confirmation_key = show_message(msg('confirm_quit'), nyx.curses.BOLD, max_wait = 30)
+        confirmation_key = show_message('Are you sure (q again to confirm)?', nyx.curses.BOLD, max_wait = 30)
 
         if not confirmation_key.match('q'):
           continue
 
       break
     elif key.match('x'):
-      confirmation_key = show_message(msg('confirm_reload'), nyx.curses.BOLD, max_wait = 30)
+      confirmation_key = show_message("This will reset Tor's internal state. Are you sure (x again to confirm)?", nyx.curses.BOLD, max_wait = 30)
 
       if confirmation_key.match('x'):
         try:
@@ -300,29 +298,6 @@ def join(entries, joiner = ' ', size = None):
       result = new_result
 
   return result
-
-
-@uses_settings
-def msg(message, config, **attr):
-  """
-  Provides the given message.
-
-  :param str message: message handle to log
-  :param dict attr: attributes to format the message with
-
-  :returns: **str** that was requested
-  """
-
-  try:
-    return config.get('msg.%s' % message).format(**attr)
-  except:
-    msg = 'BUG: We attempted to use an undefined string resource (%s)' % message
-
-    if TESTING:
-      raise ValueError(msg)
-
-    stem.util.log.notice(msg)
-    return ''
 
 
 class Interface(object):

@@ -7,13 +7,6 @@ runlevels.
 
 ::
 
-  trace - logs a message at the TRACE runlevel
-  debug - logs a message at the DEBUG runlevel
-  info - logs a message at the INFO runlevel
-  notice - logs a message at the NOTICE runlevel
-  warn - logs a message at the WARN runlevel
-  error - logs a message at the ERROR runlevel
-
   day_count - number of days since a given timestamp
   log_file_path - path of tor's log file if one is present on disk
   condense_runlevels - condensed displayable listing of log events
@@ -193,7 +186,7 @@ def listen_for_events(listener, events):
     try:
       controller.add_event_listener(listener, event_type)
     except stem.ProtocolError:
-      warn('panel.log.unsupported_event', event = event_type)
+      stem.util.log.warn("%s isn't an event tor supports" % event_type)
       tor_events.remove(event_type)
 
   return sorted(tor_events.union(nyx_events))
@@ -385,11 +378,9 @@ class LogFileOutput(object):
           os.makedirs(path_dir)
 
         self._file = open(path, 'a')
-        notice('panel.log.opening_log_file', version = nyx.__version__, path = path)
-      except IOError as exc:
-        error('msg.panel.log.unable_to_open_log_file', reason = exc.strerror)
-      except OSError as exc:
-        error('msg.panel.log.unable_to_open_log_file', reason = exc)
+        stem.util.log.notice('nyx %s opening log file (%s)' % (nyx.__version__, path))
+      except (IOError, OSError) as exc:
+        stem.util.log.error('Unable to write to log file: %s' % exc.strerror)
 
   def write(self, msg):
     if self._file:
@@ -397,7 +388,7 @@ class LogFileOutput(object):
         self._file.write(msg + '\n')
         self._file.flush()
       except IOError as exc:
-        error('msg.panel.log.unable_to_open_log_file', reason = exc.strerror)
+        stem.util.log.error('Unable to write to log file: %s' % exc.strerror)
         self._file = None
 
 
@@ -437,7 +428,7 @@ class LogFilters(object):
         if len(self._past_filters) > self._max_filters:
           self._past_filters.popitem(False)
       except re.error as exc:
-        notice('panel.log.bad_filter_regex', reason = exc, pattern = regex)
+        stem.util.log.notice('Invalid regular expression pattern (%s): %s' % (exc, regex))
 
   def selection(self):
     return self._selected
@@ -456,42 +447,6 @@ class LogFilters(object):
       copy._past_filters = self._past_filters
 
       return copy
-
-
-def trace(msg, **attr):
-  _log(stem.util.log.TRACE, msg, **attr)
-
-
-def debug(msg, **attr):
-  _log(stem.util.log.DEBUG, msg, **attr)
-
-
-def info(msg, **attr):
-  _log(stem.util.log.INFO, msg, **attr)
-
-
-def notice(msg, **attr):
-  _log(stem.util.log.NOTICE, msg, **attr)
-
-
-def warn(msg, **attr):
-  _log(stem.util.log.WARN, msg, **attr)
-
-
-def error(msg, **attr):
-  _log(stem.util.log.ERROR, msg, **attr)
-
-
-def _log(runlevel, message, **attr):
-  """
-  Logs the given message, formatted with optional attributes.
-
-  :param stem.util.log.Runlevel runlevel: runlevel at which to log the message
-  :param str message: message handle to log
-  :param dict attr: attributes to format the message with
-  """
-
-  stem.util.log.log(runlevel, nyx.msg(message, **attr))
 
 
 def read_tor_log(path, read_limit = None):
@@ -554,4 +509,4 @@ def read_tor_log(path, read_limit = None):
     if 'opening log file' in msg or 'opening new log file' in msg:
       break  # this entry marks the start of this tor instance
 
-  info('panel.log.read_from_log_file', count = count, path = path, read_limit = read_limit if read_limit else 'none', runtime = '%0.3f' % (time.time() - start_time))
+  stem.util.log.info("Read %s entries from tor's log file: %s (read limit: %s, runtime: %0.3f)" % (count, path, read_limit if read_limit else 'none', time.time() - start_time))

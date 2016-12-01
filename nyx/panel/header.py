@@ -22,7 +22,7 @@ import nyx.popups
 import nyx.tracker
 
 from stem.util import conf, log
-from nyx import nyx_interface, tor_controller, msg, input_prompt
+from nyx import nyx_interface, tor_controller, input_prompt
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
@@ -193,14 +193,14 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     self._vals = Sampling.create(self._vals)
 
     if self._vals.fd_used and self._vals.fd_limit != -1:
-      fd_percent = 100 * self._vals.fd_used / self._vals.fd_limit
+      fd_percent = 100 * self._vals.fd_used // self._vals.fd_limit
 
       if fd_percent >= 90:
-        log_msg = msg('panel.header.fd_used_at_ninety_percent', percentage = fd_percent)
+        log_msg = "Tor's file descriptor usage is at %s%%. If you run out Tor will be unable to continue functioning." % fd_percent
         log.log_once('fd_used_at_ninety_percent', log.WARN, log_msg)
         log.DEDUPLICATION_MESSAGE_IDS.add('fd_used_at_sixty_percent')
       elif fd_percent >= 60:
-        log_msg = msg('panel.header.fd_used_at_sixty_percent', percentage = fd_percent)
+        log_msg = "Tor's file descriptor usage is at %s%%." % fd_percent
         log.log_once('fd_used_at_sixty_percent', log.NOTICE, log_msg)
 
     if self._vals.is_connected:
