@@ -481,9 +481,7 @@ class GraphPanel(nyx.panel.Panel):
             # don't grow the graph if it's already consuming the whole display
             # (plus an extra line for the graph/log gap)
 
-            with nyx.curses.raw_screen() as stdscr:
-              max_height = stdscr.getmaxyx()[0] - self.get_top()
-
+            max_height = nyx.curses.screen_size().height - self.get_top()
             current_height = self.get_height()
 
             if current_height < max_height + 1:

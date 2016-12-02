@@ -128,8 +128,7 @@ def draw_loop():
   while not interface._quit:
     interface.redraw()
 
-    with nyx.curses.raw_screen() as stdscr:
-      stdscr.refresh()
+    nyx.curses.refresh()  # TODO: is this necessary?
 
     if next_key:
       key, next_key = next_key, None
@@ -446,8 +445,7 @@ class Interface(object):
     # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
 
     if force:
-      with nyx.curses.raw_screen() as stdscr:
-        stdscr.clear()
+      nyx.curses.clear()
 
     occupied = 0
 

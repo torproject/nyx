@@ -12,10 +12,11 @@ if we want Windows support in the future too.
 ::
 
   start - initializes curses with the given function
-  raw_screen - provides direct access to the curses screen
   key_input - get keypress by user
   str_input - text field where user can input a string
   curses_attr - curses encoded text attribute
+  refresh - flushes content to the screen
+  clear - wipes all content from the screen
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
   asci_to_curses - converts terminal formatting to curses
@@ -214,35 +215,6 @@ def start(function, acs_support = True, transparent_background = False, cursor =
     function()
 
   curses.wrapper(_wrapper)
-
-
-def raw_screen():
-  """
-  Provides the curses screen. This can only be called after
-  :func:`~nyx.curses.start`, and is used as follows...
-
-  ::
-
-    with nyx.curses.raw_screen() as stdscr:
-      ... work with curses...
-
-  In the future this will never be called directly. This is just an
-  intermediate function as we migrate.
-  """
-
-  class _Wrapper(object):
-    def __enter__(self):
-      # TODO: We should be wrapping this with CURSES_LOCK.acquire/release(),
-      # but doing so seems to be causing frequent terminal gliches when
-      # shutting down. Strange since this should be strictly safer. Oh well -
-      # something to dig into later.
-
-      return CURSES_SCREEN
-
-    def __exit__(self, exit_type, value, traceback):
-      pass
-
-  return _Wrapper()
 
 
 def key_input(input_timeout = None):
@@ -460,6 +432,22 @@ def curses_attr(*attributes):
   return encoded
 
 
+def refresh():
+  """
+  Ensure content is flushed to the screen.
+  """
+
+  CURSES_SCREEN.refresh()
+
+
+def clear():
+  """
+  Clears all content from the screen.
+  """
+
+  CURSES_SCREEN.clear()
+
+
 def screen_size():
   """
   Provides the current dimensions of our screen.
@@ -540,33 +528,32 @@ def demo_glyphs():
   """
 
   def _render():
-    with raw_screen() as stdscr:
-      height, width = stdscr.getmaxyx()
-      columns = width / 30
+    height, width = CURSES_SCREEN.getmaxyx()
+    columns = width / 30
 
-      if columns == 0:
-        return  # not wide enough to show anything
+    if columns == 0:
+      return  # not wide enough to show anything
 
-      # mapping of keycodes to their ACS option names (for instance, ACS_LTEE)
+    # mapping of keycodes to their ACS option names (for instance, ACS_LTEE)
 
-      acs_options = dict((v, k) for (k, v) in curses.__dict__.items() if k.startswith('ACS_'))
+    acs_options = dict((v, k) for (k, v) in curses.__dict__.items() if k.startswith('ACS_'))
 
-      stdscr.addstr(0, 0, 'Curses Glyphs:', curses.A_STANDOUT)
-      x, y = 0, 2
+    CURSES_SCREEN.addstr(0, 0, 'Curses Glyphs:', curses.A_STANDOUT)
+    x, y = 0, 2
 
-      for keycode in sorted(acs_options.keys()):
-        stdscr.addstr(y, x * 30, '%s (%i)' % (acs_options[keycode], keycode))
-        stdscr.addch(y, (x * 30) + 25, keycode)
+    for keycode in sorted(acs_options.keys()):
+      CURSES_SCREEN.addstr(y, x * 30, '%s (%i)' % (acs_options[keycode], keycode))
+      CURSES_SCREEN.addch(y, (x * 30) + 25, keycode)
 
-        x += 1
+      x += 1
 
-        if x >= columns:
-          x, y = 0, y + 1
+      if x >= columns:
+        x, y = 0, y + 1
 
-          if y >= height:
-            break
+        if y >= height:
+          break
 
-      stdscr.getch()  # quit on keyboard input
+    CURSES_SCREEN.getch()  # quit on keyboard input
 
   try:
     start(_render, transparent_background = True, cursor = False)
