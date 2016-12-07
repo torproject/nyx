@@ -15,7 +15,6 @@ if we want Windows support in the future too.
   key_input - get keypress by user
   str_input - text field where user can input a string
   curses_attr - curses encoded text attribute
-  refresh - flushes content to the screen
   clear - wipes all content from the screen
   screen_size - provides the dimensions of our screen
   screenshot - dump of the present on-screen content
@@ -430,14 +429,6 @@ def curses_attr(*attributes):
       raise ValueError("'%s' isn't a valid curses text attribute" % attr)
 
   return encoded
-
-
-def refresh():
-  """
-  Ensure content is flushed to the screen.
-  """
-
-  CURSES_SCREEN.refresh()
 
 
 def clear():

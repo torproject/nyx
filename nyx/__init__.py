@@ -128,8 +128,6 @@ def draw_loop():
   while not interface._quit:
     interface.redraw()
 
-    nyx.curses.refresh()  # TODO: is this necessary?
-
     if next_key:
       key, next_key = next_key, None
     else:
