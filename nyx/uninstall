@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2010-2016, Damian Johnson and The Tor Project
+# Copyright 2010-2017, Damian Johnson and The Tor Project
 # See LICENSE for licensing information
 
 files="/usr/bin/nyx /usr/share/man/man1/nyx.1.gz /usr/share/nyx"
