@@ -325,7 +325,7 @@ def _draw_selection_details(subwindow, selected):
   subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
 
   subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
-  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, subwindow.width - len(selected.value()) - 13)), selected_color, BOLD)
+  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, max(0, subwindow.width - len(selected.value()) - 13))), selected_color, BOLD)
 
   description = 'Description: %s' % selected.manual.description
 
