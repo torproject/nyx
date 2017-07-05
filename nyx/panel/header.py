@@ -386,7 +386,7 @@ def _draw_resource_usage(subwindow, x, y, width, vals, pause_time):
     else:
       now = time.time()
 
-    uptime = stem.util.str_tools.short_time_label(now - vals.start_time)
+    uptime = stem.util.str_tools.short_time_label(max(0, now - vals.start_time))
   else:
     uptime = ''
 
