@@ -90,12 +90,17 @@ a:hover {
   text-align: center;
 }
 
-.header-line {
+.content p {
+  margin: 20px 0px 0px;
+  text-align: justify;
+}
+
+.section {
   border-top: 1px solid #856231;
   margin-bottom: -16px;
 }
 
-.content h1 {
+.section-title {
   background: white;
   color: #856231;
   display: inline-block;
@@ -103,10 +108,5 @@ a:hover {
   margin: 0px auto;
   padding: 0 15px;
   position: relative;
-}
-
-.content p {
-  margin: 20px 0px 0px;
-  text-align: justify;
 }
 
