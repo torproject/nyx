@@ -1,11 +1,13 @@
 body {
-  background: #202228 url("images/diagonal-stripes.png");
+  background: #202228 url("images/grid.png");
+  font-family: "FreeSans", "Arial", "Helvetica", sans-serif;
   line-height: 1.231;
-  color: white;
   margin: 0px;
 }
 
 a {
+  color: #856231;
+  font-weight: bold;
   text-decoration: none;
 }
 
@@ -19,7 +21,6 @@ a {
 .header-body {
   margin: 0px auto;
   text-align: center;
-  font-family: "FreeSans", "Arial", "Helvetica", sans-serif;
   max-width: 770px;
 }
 
@@ -42,6 +43,7 @@ a {
 }
 
 .nav a { 
+  font-weight: normal;
   display: inline-block;
   padding: 6px 15px;
   background: #825d27;
@@ -71,5 +73,39 @@ a {
   border: 1px solid #885CA4;
   border-top: none;
   color: #666666;
+}
+
+.content {
+  background: white;
+  margin: 50px auto 0px auto;
+  max-width: 630px;
+  border-radius: 10px;
+  text-align: center;
+  padding: 50px;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
+}
+
+.header-line {
+  border-top: 1px solid #856231;
+  margin-bottom: -16px;
+}
+
+.first {
+  margin-top: 5px;
+}
+
+.content h1 {
+  display: inline-block;
+  position: relative;
+  color: #856231;
+  margin: 0px auto;
+  background: white;
+  font-size: 28px;
+  padding: 0 15px;
+}
+
+.content p {
+  margin: 20px 0px 0px;
+  text-align: justify;
 }
 
