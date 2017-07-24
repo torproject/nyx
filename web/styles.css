@@ -1,5 +1,5 @@
 body {
-  background: #202228 url("images/grid.png");
+  background: url("images/grid.png");
   font-family: "FreeSans", "Arial", "Helvetica", sans-serif;
   line-height: 1.231;
   margin: 0px;
@@ -11,31 +11,35 @@ a {
   text-decoration: none;
 }
 
+a:hover {
+  color: #dca85f;
+}
+
 .header {
-  height: 97px;
   background-color: black;
   border-bottom: 10px solid #825d27;
   box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
+  height: 97px;
 }
 
 .header-body {
   margin: 0px auto;
-  text-align: center;
   max-width: 770px;
+  text-align: center;
 }
 
 #logo {
-  float: left;
-  width: 300px;
-  height: 120px;
   background: url("images/logo.png") no-repeat 0px 20px;
+  float: left;
+  height: 120px;
   margin: 0px;
+  width: 300px;
 }
 
 .nav {
   float: right;
-  margin: 0px;
   font-size: 14px;
+  margin: 0px;
 }
 
 .nav li {
@@ -43,15 +47,15 @@ a {
 }
 
 .nav a { 
-  font-weight: normal;
-  display: inline-block;
-  padding: 6px 15px;
   background: #825d27;
   border: 1px solid #47351c;
-  border-top: none;
-  color: #FFFFFF;
   border-bottom-right-radius: 7px;
   border-bottom-left-radius: 7px;
+  border-top: none;
+  color: #FFFFFF;
+  display: inline-block;
+  font-weight: normal;
+  padding: 6px 15px;
 }
 
 .nav a:hover {
@@ -77,12 +81,12 @@ a {
 
 .content {
   background: white;
+  border-radius: 10px;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
   margin: 50px auto 0px auto;
   max-width: 630px;
-  border-radius: 10px;
-  text-align: center;
   padding: 50px;
-  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
+  text-align: center;
 }
 
 .header-line {
@@ -95,13 +99,13 @@ a {
 }
 
 .content h1 {
-  display: inline-block;
-  position: relative;
-  color: #856231;
-  margin: 0px auto;
   background: white;
+  color: #856231;
+  display: inline-block;
   font-size: 28px;
+  margin: 0px auto;
   padding: 0 15px;
+  position: relative;
 }
 
 .content p {
