@@ -86,16 +86,13 @@ a:hover {
   margin: 50px auto 0px auto;
   max-width: 630px;
   padding: 50px;
+  padding-top: 55px;
   text-align: center;
 }
 
 .header-line {
   border-top: 1px solid #856231;
   margin-bottom: -16px;
-}
-
-.first {
-  margin-top: 5px;
 }
 
 .content h1 {
