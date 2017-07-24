@@ -6,6 +6,9 @@
     <title>Nyx</title>
     <link rel="shortcut icon" href="images/favicon.png"/>
     <link rel="stylesheet" type="text/css" href="styles.css" />
+
+    <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
+    <script src="jquery.tools.min.js"></script>
   </head>
 
   <body>
@@ -22,65 +25,82 @@
       </div>
     </div>
 
-    <div class="content" id="home">
-      <div class="section" id="welcome"></div>
-      <a href="#welcome" class="section-title">Welcome to Nyx</a>
+    <div class="panes">
+      <div id="home" class="content">
+        <div id="welcome" class="section"></div>
+        <a href="#welcome" class="section-title">Welcome to Nyx</a>
 
-      <p>Nyx is a command-line monitor for <a href="https://www.torproject.org/">Tor</a>. With this you can get detailed real-time information about your relay such as bandwidth usage, connections, logs, and much more.</p>
+        <p>Nyx is a command-line monitor for <a href="https://www.torproject.org/">Tor</a>. With this you can get detailed real-time information about your relay such as bandwidth usage, connections, logs, and much more.</p>
 
-      <p>Nyx's latest version is <b>1.4.5</b>, released April 28th, 2012. Prior to our upcoming release this application went under the name of '<b>arm</b>'. Sorry about the confusion!</p>
+        <p>Nyx's latest version is <b>1.4.5</b>, released April 28th, 2012. Prior to our upcoming release this application went under the name of '<b>arm</b>'. Sorry about the confusion!</p>
 
-      <div class="section" id="features"></div>
-      <a href="#features" class="section-title">What does Nyx provide?</a>
+        <div id="features" class="section"></div>
+        <a href="#features" class="section-title">What does Nyx provide?</a>
 
-      <div class="feature">
-        <a id="bandwidth"></a>
-        <a href="images/screenshots/front_page.png"><img src="images/features/bandwidth.png" alt="bandwidth" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#bandwidth" class="feature-title">Bandwidth Graph</a>
-        <p>Bandwidth used by Tor. You can press 'i' to pick the graphing <b>interval</b>, or 's' to show other usage <b>statistics</b>.</p>
+        <div class="feature">
+          <a id="bandwidth"></a>
+          <a href="images/screenshots/front_page.png"><img src="images/features/bandwidth.png" alt="bandwidth" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#bandwidth" class="feature-title">Bandwidth Graph</a>
+          <p>Bandwidth used by Tor. You can press 'i' to pick the graphing <b>interval</b>, or 's' to show other usage <b>statistics</b>.</p>
+        </div>
+
+        <div class="feature">
+          <a id="events"></a>
+          <a href="images/screenshots/front_page.png"><img src="images/features/events.png" alt="event log" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#events" class="feature-title">Event Log</a>
+          <p>Tor logs a wealth of information about itself. We present it, colorized and deuplicated. Press 'e' to select what <b>events</b> are logged and 'f' to <b>filter</b> to just what you want.</p>
+        </div>
+
+        <div class="feature">
+          <a id="connections"></a>
+          <a href="images/screenshots/connections.png"><img src="images/features/connections.png" alt="connections" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#connections" class="feature-title">Connections</a>
+          <p>Connection data similar to netstat or lsof, but correlated with Tor relay information to make it much richer. Press 'enter' for more <b>details</b>, 's' to <b>sort</b>, and 'd' to see raw <b>descriptor</b> data.</p>
+        </div>
+
+        <div class="feature">
+          <a id="config_editor"></a>
+          <a href="images/screenshots/config_editor.png"><img src="images/features/config_editor.png" alt="configuration editor" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#config_editor" class="feature-title">Configuration Editor</a>
+          <p>Editor to change Tor's setting on the fly, with usage information from its manual. Press 'enter' to <b>change</b> Tor settings and 'w' to <b>write</b> your changes to disk.</p>
+        </div>
+
+        <div class="feature">
+          <a id="torrc"></a>
+          <a href="images/screenshots/torrc.png"><img src="images/features/torrc.png" alt="torrc" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#torrc" class="feature-title">Torrc</a>
+          <p>Provides your torrc with line numbers and syntax highlighting. Comments can be <b>stripped</b> by pressing 's'.</p>
+        </div>
+
+        <div class="feature">
+          <a id="interpreter"></a>
+          <a href="images/screenshots/interpreter.png"><img src="images/features/interpreter.png" alt="interpreter" /></a>
+          <span class="feature-arrow">&laquo;</span><a href="#interpreter" class="feature-title">Interpreter</a>
+          <p>Integration with <a href="https://stem.torproject.org/">Stem's</a> <a href="https://stem.torproject.org/tutorials/down_the_rabbit_hole.html">interpreter</a>, providing <a href="https://gitweb.torproject.org/torspec.git/tree/control-spec.txt">raw controller access</a>, irc-style commands like <b>/help</b>, tab completion, history scrollback, and a python prompt.</p>
+        </div>
+
+        <div class="feature">
+          <a id="and_more"></a>
+          <img src="images/features/menu.png" alt="menu" />
+          <span class="feature-arrow">&laquo;</span><a href="#and_more" class="feature-title">... and more!</a>
+          <p>That's just the tip of the iceburg. All pages within Nyx provide <b>help</b> information when you press 'h' and <b>menu</b> in response to 'm'. So go explore!</p>
+        </div>
       </div>
 
-      <div class="feature">
-        <a id="events"></a>
-        <a href="images/screenshots/front_page.png"><img src="images/features/events.png" alt="event log" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#events" class="feature-title">Event Log</a>
-        <p>Tor logs a wealth of information about itself. We present it, colorized and deuplicated. Press 'e' to select what <b>events</b> are logged and 'f' to <b>filter</b> to just what you want.</p>
+      <div id="faq" class="content">
+        <h1>FAQ coming soon</h1>
       </div>
 
-      <div class="feature">
-        <a id="connections"></a>
-        <a href="images/screenshots/connections.png"><img src="images/features/connections.png" alt="connections" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#connections" class="feature-title">Connections</a>
-        <p>Connection data similar to netstat or lsof, but correlated with Tor relay information to make it much richer. Press 'enter' for more <b>details</b>, 's' to <b>sort</b>, and 'd' to see raw <b>descriptor</b> data.</p>
-      </div>
-
-      <div class="feature">
-        <a id="config_editor"></a>
-        <a href="images/screenshots/config_editor.png"><img src="images/features/config_editor.png" alt="configuration editor" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#config_editor" class="feature-title">Configuration Editor</a>
-        <p>Editor to change Tor's setting on the fly, with usage information from its manual. Press 'enter' to <b>change</b> Tor settings and 'w' to <b>write</b> your changes to disk.</p>
-      </div>
-
-      <div class="feature">
-        <a id="torrc"></a>
-        <a href="images/screenshots/torrc.png"><img src="images/features/torrc.png" alt="torrc" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#torrc" class="feature-title">Torrc</a>
-        <p>Provides your torrc with line numbers and syntax highlighting. Comments can be <b>stripped</b> by pressing 's'.</p>
-      </div>
-
-      <div class="feature">
-        <a id="interpreter"></a>
-        <a href="images/screenshots/interpreter.png"><img src="images/features/interpreter.png" alt="interpreter" /></a>
-        <span class="feature-arrow">&laquo;</span><a href="#interpreter" class="feature-title">Interpreter</a>
-        <p>Integration with <a href="https://stem.torproject.org/">Stem's</a> <a href="https://stem.torproject.org/tutorials/down_the_rabbit_hole.html">interpreter</a>, providing <a href="https://gitweb.torproject.org/torspec.git/tree/control-spec.txt">raw controller access</a>, irc-style commands like <b>/help</b>, tab completion, history scrollback, and a python prompt.</p>
-      </div>
-
-      <div class="feature">
-        <a id="and_more"></a>
-        <img src="images/features/menu.png" alt="menu" />
-        <span class="feature-arrow">&laquo;</span><a href="#and_more" class="feature-title">... and more!</a>
-        <p>That's just the tip of the iceburg. All pages within Nyx provide <b>help</b> information when you press 'h' and <b>menu</b> in response to 'm'. So go explore!</p>
+      <div id="download" class="content">
+        <h1>Download page coming soon</h1>
       </div>
     </div>
+
+    <!-- activate tabs with JavaScript -->
+    <script>
+    $(function() {
+        $(".tabs").tabs(".panes > .content", { history: true });
+    });
+    </script>
   </body>
 </html>
