@@ -83,10 +83,10 @@ a:hover {
   background: white;
   border-radius: 10px;
   box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
-  margin: 50px auto 0px auto;
+  margin: 50px auto 30px auto;
   max-width: 630px;
   padding: 50px;
-  padding-top: 55px;
+  padding-top: 0px;
   text-align: center;
 }
 
@@ -96,17 +96,41 @@ a:hover {
 }
 
 .section {
-  border-top: 1px solid #856231;
+  border-bottom: 1px solid #856231;
   margin-bottom: -16px;
+  padding-top: 55px;
 }
 
 .section-title {
   background: white;
-  color: #856231;
   display: inline-block;
   font-size: 28px;
   margin: 0px auto;
   padding: 0 15px;
   position: relative;
+}
+
+.feature {
+  height: 150px;
+  margin-top: 25px;
+  text-align: left;
+}
+
+.feature-title {
+  font-size: 24px;
+}
+
+.feature-arrow {
+  color: #523a17;
+  float: left;
+  font-size: 50px;
+  margin-right: 8px;
+  margin-left: -10px;
+  margin-top: -20px;
+}
+
+.feature img {
+  float: left;
+  margin-right: 25px;
 }
 
