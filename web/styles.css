@@ -1,3 +1,7 @@
+/*============================================================
+General Tag Attributes
+============================================================*/
+
 body {
   background: url("images/grid.png");
   font-family: "FreeSans", "Arial", "Helvetica", sans-serif;
@@ -14,6 +18,10 @@ a {
 a:hover {
   color: #dca85f;
 }
+
+/*============================================================
+Header Bar (logo and nav)
+============================================================*/
 
 .header {
   background-color: black;
@@ -79,6 +87,10 @@ a:hover {
   color: #666666;
 }
 
+/*============================================================
+Common Page Attributes
+============================================================*/
+
 .content {
   background: white;
   border-radius: 10px;
@@ -110,6 +122,10 @@ a:hover {
   position: relative;
 }
 
+/*============================================================
+Front Page
+============================================================*/
+
 .feature {
   height: 150px;
   margin-top: 25px;
@@ -132,5 +148,42 @@ a:hover {
 .feature img {
   float: left;
   margin-right: 25px;
+}
+
+/*============================================================
+Download Page
+============================================================*/
+
+.platform {
+  border-top: 1px solid black;
+  height: 128px;
+  margin-top: 15px;
+  padding-top: 10px;
+  text-align: left;
+}
+
+.platform-title {
+  color: #856231;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.platform img {
+  float: left;
+  margin-right: 25px;
+}
+
+.platform p {
+  margin-top: 10px;
+}
+
+.platform pre {
+  background: #dddddd;
+  border: 1px solid #bbbbbb;
+  border-radius: 3px;
+  margin-left: 145px;
+  padding-bottom: 4px;
+  padding-top: 4px;
+  width: 500px;
 }
 

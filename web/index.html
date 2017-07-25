@@ -92,7 +92,78 @@
       </div>
 
       <div id="download" class="content">
-        <h1>Download page coming soon</h1>
+        <div class="section"></div>
+        <a href="#download" class="section-title">Download</a>
+
+        <p>Nyx is available Mac OSX, Linux, and BSD but <a href="#windows">not Windows</a>. Find your platform below to get started.</p>
+
+        <div class="platform">
+          <a href="https://pypi.python.org/pypi/nyx/"><img src="images/download/pypi.png" alt="PyPI" /></a>
+          <a href="https://pypi.python.org/pypi/nyx/" class="platform-title">Python Package Index</a>
+          <p>Signed releases and instructions for both Python 2.x and 3.x. You can easily install from its <a href="https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2">tarball</a> (<a href="https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2.asc">sig</a>), or with <b>pip</b>...</p>
+          <pre>
+% sudo easy_install pip
+% sudo pip install nyx
+</pre>
+        </div>
+
+        <div class="platform">
+          <img src="images/download/osx.png" alt="OSX" />
+          <span class="platform-title">Mac OSX</span>
+          <p>As of OSX 10.8 the platform bundles Python 2.7 by default. This makes installation easy...</p>
+          <pre>
+% sudo easy_install pip
+% sudo pip install nyx
+</pre>
+        </div>
+
+        <div class="platform">
+          <a href="http://packages.debian.org/sid/tor-arm"><img src="images/download/debian.png" alt="Debian" /></a>
+          <a href="http://packages.debian.org/sid/tor-arm" class="platform-title">Debian</a>
+          <p>Package maintained by Dererk for Debian.</p>
+          <pre>% sudo apt-get install tor-arm</pre>
+        </div>
+
+        <div class="platform">
+          <a href="https://launchpad.net/ubuntu/+source/tor-arm"><img src="images/download/ubuntu.png" alt="Ubuntu" /></a>
+          <a href="https://launchpad.net/ubuntu/+source/tor-arm" class="platform-title">Ubuntu</a>
+          <p>Package derived from Debian for Ubuntu.</p>
+          <pre>% sudo apt-get install tor-arm</pre>
+        </div>
+
+        <div class="platform">
+          <a href="https://apps.fedoraproject.org/packages/tor-arm"><img src="images/download/fedora.png" alt="Fedora" /></a>
+          <a href="https://apps.fedoraproject.org/packages/tor-arm" class="platform-title">Fedora</a>
+          <p>Packages maintained by Juan for Fedora.</p>
+          <pre>% sudo yum install tor-arm</pre>
+        </div>
+
+        <div class="platform">
+          <a href="http://packages.gentoo.org/package/net-misc/arm"><img src="images/download/gentoo.png" alt="Gentoo" /></a>
+          <a href="http://packages.gentoo.org/package/net-misc/arm" class="platform-title">Gentoo</a>
+          <p>Package maintained by Jesse for Gentoo.</p>
+          <pre>% sudo emerge arm</pre>
+        </div>
+
+        <div class="platform">
+          <a href="https://slackbuilds.org/repository/13.37/network/arm/"><img src="images/download/slackware.png" alt="Slackware" /></a>
+          <a href="https://slackbuilds.org/repository/13.37/network/arm/" class="platform-title">Slackware</a>
+          <p>Package maintained by pyllyukko for <a href="http://slackbuilds.org/howto/">Slackware</a>.</p>
+        </div>
+
+        <div class="platform">
+          <a href="http://www.freshports.org/security/arm"><img src="images/download/freebsd.png" alt="FreeBSD" /></a>
+          <a href="http://www.freshports.org/security/arm" class="platform-title">FreeBSD</a>
+          <p>Port maintained by Carlo for <a href="http://www.freebsd.org/doc/en_US.ISO8859-1/books/handbook/ports.html">FreeBSD</a>.</p>
+          <pre>% pkg install security/arm</pre>
+        </div>
+
+        <div class="platform">
+          <a href="https://gitweb.torproject.org/nyx.git"><img src="images/download/git.png" alt="Git" /></a>
+          <a href="https://gitweb.torproject.org/nyx.git" class="platform-title">Source Repository</a>
+          <p>For those that want to live on the bleeding edge or contribute, Nyx's git repository can be fetched with...</p>
+          <pre>% git clone https://git.torproject.org/nyx.git</pre>
+        </div>
       </div>
     </div>
 
