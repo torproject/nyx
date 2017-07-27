@@ -169,10 +169,22 @@
       </div>
     </div>
 
-    <!-- activate tabs with JavaScript -->
     <script>
     $(function() {
-        $(".tabs").tabs(".panes > .content", { history: true });
+      $(".tabs").tabs(".panes > .content", { history: true });
+
+      // when provided an anchor select the tab it resides within
+
+      var anchor = window.location.hash;
+      var tabs = $(".tabs").data("tabs");
+
+      if ($("#home").find(anchor).length) {
+        tabs.click("home");
+      } else if ($("#faq").find(anchor).length) {
+        tabs.click("faq");
+      } else if ($("#download").find(anchor).length) {
+        tabs.click("download");
+      }
     });
     </script>
   </body>
