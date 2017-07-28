@@ -95,15 +95,15 @@
 
         <div class="question" id="question_1">
           <span>Demo question 1</span>
-          <div class="answer_container">
-            <div class="answer">answer 1</div>
+          <div class="answer">
+            <p>answer 1</p>
           </div>
         </div>
 
         <div class="question" id="question_2">
           <span>Demo question 2</span>
-          <div class="answer_container">
-            <div class="answer">answer 2</div>
+          <div class="answer">
+            <p>answer 2</p>
           </div>
         </div>
       </div>
@@ -206,13 +206,18 @@
       // show/hide for FAQ questions
 
       $('.question').click(function() {
-        var answer = $(this).find('.answer_container');
+        var answer = $(this).find('.answer');
 
         if (answer.is('.open')) {
           answer.animate({'height': '0'}, 100);
           answer.removeClass('open');
         } else {
-          var newHeight = $(this).find('.answer').height() + 'px';
+          var newHeight = 0;
+
+          answer.children().each(function () {
+            newHeight += $(this).outerHeight(true);
+          });
+
           answer.animate({'height': newHeight}, 100);
           answer.addClass('open');
          }

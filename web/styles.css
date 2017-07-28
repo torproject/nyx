@@ -155,19 +155,22 @@ FAQ Page
 ============================================================*/
 
 .question {
-    color: #523a17;
-    cursor: pointer;
-    font-size: 24px;
-    font-weight: bold;
-    margin: 0px;
-    padding: 0px 0px 5px 0px;
-    text-align: left;
+  cursor: pointer;
+  margin: 0px;
+  padding: 0px 0px 5px 0px;
+  text-align: left;
 }
 
-.answer_container {
-    height: 0px;
-    overflow: hidden;
-    padding: 0px;
+.question span {
+  color: #523a17;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.answer {
+  height: 0px;
+  overflow: hidden;
+  padding: 0px;
 }
 
 /*============================================================
