@@ -167,6 +167,12 @@ FAQ Page
   font-weight: bold;
 }
 
+.question img {
+  float: right;
+  margin-top: 20px;
+  margin-left: 20px;
+}
+
 .answer {
   height: 0px;
   overflow: hidden;

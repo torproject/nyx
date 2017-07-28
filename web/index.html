@@ -93,17 +93,21 @@
 
         <br /><br />
 
-        <div class="question" id="question_1">
-          <span>Demo question 1</span>
+        <div class="question" id="what_is_nyx">
+          <span>What is Nyx?</span>
           <div class="answer">
-            <p>answer 1</p>
+            <a href="images/screenshots/front_page.png"><img src="images/faq/front_page.png" alt="screenshot" /></a>
+            <p>Nyx is a command-line application for monitoring real time <a href="https://www.torproject.org/">Tor</a> status information. This includes bandwidth usage, logs, connections, configuration, and more.</p>
+            <p>As a curses interface Nyx is particularly well suited for ssh connections, tty terminals, and command-line aficionados.</p>
           </div>
         </div>
 
-        <div class="question" id="question_2">
-          <span>Demo question 2</span>
+        <div class="question" id="why_is_it_called_nyx">
+          <span>Why is it called Nyx?</span>
           <div class="answer">
-            <p>answer 2</p>
+            <a href="http://fallenlights.net/"><img src="images/faq/shadowgirl.jpg" alt="greek goddess" title="Nyx by Shadowgirl, used with permission." /></a>
+            <p>Simple - because it's short and memorable. Terminal applications are handiest when they're easy to remember and type, such as top, ssh, etc. Anything longer is just begging to be aliased down.</p>
+            <p>That, and because Nyx is the <a href="https://en.wikipedia.org/wiki/Nyx">Greek goddess of night</a>.</p>
           </div>
         </div>
       </div>
@@ -214,7 +218,9 @@
           var newHeight = 0;
 
           answer.children().each(function () {
-            newHeight += $(this).outerHeight(true);
+            if (this.tagName == "P") {
+              newHeight += $(this).outerHeight(true);
+            }
           });
 
           answer.animate({'height': newHeight}, 100);
