@@ -207,8 +207,8 @@
 
       // show/hide for FAQ questions
 
-      $('.question').click(function() {
-        var answer = $(this).find('.answer');
+      $('.question > span').click(function() {
+        var answer = $(this).parent().find('.answer');
 
         if (answer.is('.open')) {
           answer.animate({'height': '0'}, 100);

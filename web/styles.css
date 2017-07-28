@@ -168,6 +168,7 @@ FAQ Page
 }
 
 .answer {
+  cursor: default;
   height: 0px;
   overflow: hidden;
   padding: 0px;
@@ -175,7 +176,7 @@ FAQ Page
 
 .answer img {
   float: right;
-  margin-top: 0px;
+  margin-top: 5px;
   margin-left: 20px;
 }
 
