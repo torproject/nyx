@@ -188,19 +188,17 @@
 
     <script>
     $(function() {
-      $(".tabs").tabs(".panes > .content", { history: true });
-
       // when provided an anchor select the tab it resides within
 
       var anchor = window.location.hash;
-      var tabs = $(".tabs").data("tabs");
+      $(".tabs").tabs(".panes > .content", { history: true });
 
-      if ($("#home").find(anchor).length) {
-        tabs.click("home");
-      } else if ($("#faq").find(anchor).length) {
-        tabs.click("faq");
-      } else if ($("#download").find(anchor).length) {
-        tabs.click("download");
+      if (anchor) {
+        $(".panes").children().each(function () {
+          if ($(this).find(anchor).length) {
+            $(".tabs").data("tabs").click(this.id);
+          }
+        });
       }
 
       // show/hide for FAQ questions
