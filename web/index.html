@@ -88,7 +88,24 @@
       </div>
 
       <div id="faq" class="content">
-        <h1>FAQ coming soon</h1>
+        <div class="section"></div>
+        <a href="#faq" class="section-title">Fact &amp; Question</a>
+
+        <br /><br />
+
+        <div class="question" id="question_1">
+          <span>Demo question 1</span>
+          <div class="answer_container">
+            <div class="answer">answer 1</div>
+          </div>
+        </div>
+
+        <div class="question" id="question_2">
+          <span>Demo question 2</span>
+          <div class="answer_container">
+            <div class="answer">answer 2</div>
+          </div>
+        </div>
       </div>
 
       <div id="download" class="content">
@@ -185,6 +202,21 @@
       } else if ($("#download").find(anchor).length) {
         tabs.click("download");
       }
+
+      // show/hide for FAQ questions
+
+      $('.question').click(function() {
+        var answer = $(this).find('.answer_container');
+
+        if (answer.is('.open')) {
+          answer.animate({'height': '0'}, 100);
+          answer.removeClass('open');
+        } else {
+          var newHeight = $(this).find('.answer').height() + 'px';
+          answer.animate({'height': newHeight}, 100);
+          answer.addClass('open');
+         }
+      });
     });
     </script>
   </body>
