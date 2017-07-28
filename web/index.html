@@ -197,6 +197,7 @@
         $(".panes").children().each(function () {
           if ($(this).find(anchor).length) {
             $(".tabs").data("tabs").click(this.id);
+            document.getElementById(anchor.substr(1)).scrollIntoView();
           }
         });
       }
