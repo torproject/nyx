@@ -91,7 +91,7 @@ Header Bar (logo and nav)
 Common Page Attributes
 ============================================================*/
 
-.content {
+.page {
   background: white;
   border-radius: 10px;
   box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
@@ -102,7 +102,7 @@ Common Page Attributes
   text-align: center;
 }
 
-.content p {
+.page p {
   margin: 20px 0px 0px;
   text-align: justify;
 }
