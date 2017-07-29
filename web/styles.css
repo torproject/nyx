@@ -154,16 +154,21 @@ Front Page
 FAQ Page
 ============================================================*/
 
-.question {
+.questions {
+  margin: 0px;
+  padding-left: 15px;
+}
+
+.questions li {
   cursor: pointer;
   margin: 0px;
   padding: 0px 0px 5px 0px;
   text-align: left;
 }
 
-.question span {
-  color: #523a17;
-  font-size: 24px;
+.questions span {
+  color: #302000;
+  font-size: 18px;
   font-weight: bold;
 }
 
