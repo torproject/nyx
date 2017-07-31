@@ -103,7 +103,7 @@
         <li id="why_is_it_called_nyx">
           <span>Why is it called Nyx?</span>
           <div class="answer">
-            <a href="http://fallenlights.net/"><img src="images/faq/shadowgirl.jpg" alt="greek goddess" title="Nyx by Shadowgirl, used with permission." /></a>
+            <a class="nyx-img" href="http://fallenlights.net/"><img src="images/faq/shadowgirl.jpg" alt="greek goddess" title="Nyx by Shadowgirl, used with permission." /></a>
             <p style="min-height: 340px">Simple - because the <a href="https://en.wikipedia.org/wiki/Nyx">Greek goddess of night</a> is short and memorable. Terminal applications are handiest when they're brief and easy to type. Top, ssh, scp - anything longer is just begging to be aliased down.</p>
           </div>
         </li>
@@ -111,7 +111,7 @@
         <li id="does_nyx_have_any_dependencies">
           <span>Does Nyx have any dependencies?</span>
           <div class="answer">
-            <p><b>Yes</b>, Nyx requires <a href="https://stem.torproject.org/>">Stem 1.4.5 or later</a>.
+            <p><b>Yes</b>, Nyx requires <a href="https://stem.torproject.org/">Stem 1.5.4 or later</a>.
           </div>
         </li>
 
@@ -125,9 +125,9 @@
         <li id="are_there_any_other_tor_uis">
           <span>Are there any other user interfaces for Tor?</span>
           <div class="answer">
-            <img src="images/faq/vidalia.jpg" alt="vidalia" />
-            <p>Yes, though sadly this isn't a space that gets much attention.</p>
-            <p>For years <a href="https://en.wikipedia.org/wiki/Vidalia_%28software%29">Vidalia</a> was the default interface of Tor until it was replaced in 2013 by <a href="https://www.torproject.org/projects/torbrowser.html.en">Tor Browser</a>. Vidalia includes a launcher, settings editor, map, and more. <a href="https://sourceforge.net/projects/tork/">TorK</a> is similar, providing connection information as well but never reached the same level of prominence. Both interfaces are now unmaintained.</p>
+            <p>Yes, though sadly this space doesn't get much attention.</p>
+            <p>For years <a href="https://en.wikipedia.org/wiki/Vidalia_%28software%29">Vidalia</a> was the default interface of Tor until it was replaced by <a href="https://www.torproject.org/projects/torbrowser.html.en">Tor Browser</a> in 2013. Vidalia includes a launcher, settings editor, map, and more. <a href="https://sourceforge.net/projects/tork/">TorK</a> is similar, providing connection information as well but never reached the same level of prominence. Both interfaces are now unmaintained.</p>
+            <img class="vidalia-img" src="images/faq/vidalia.jpg" alt="vidalia" />
             <p>Smaller widgets include...</p>
 
             <ul>
@@ -151,36 +151,36 @@
         </li>
       </ul>
 
-      <div class="section"></div>
+      <div class="faq-section" style="padding-top: 35px;"></div>
       <a href="#usage" class="section-title">Usage</a>
       <br /><br />
 
       <ul class="questions">
-        <li id="will_exits_include_user_traffic">
-          <span>When running an exit will I see people's traffic?</span>
+        <li id="will_i_see_other_peoples_traffic">
+          <span>Will I see other people's traffic?</span>
           <div class="answer">
-            <p><b>No</b>. Potential client and exit connections are scrubbed of sensitive information. Be aware that it's highly discouraged (and possibly illegal) for relay operators to view this data, so please don't.</p>
+            <p><b>No</b>. Potential client and exit connections are scrubbed of sensitive information. Be aware that it's highly discouraged (and likely illegal) for relay operators to view this data, so please don't.</p>
           </div>
         </li>
 
-        <li id="is_it_harmful_to_share_data">
-          <span>Is it harmful to share the information provided by Nyx?</span>
+        <li id="is_it_harmful_to_share_information_i_see">
+          <span>Is it harmful to share information I see?</span>
           <div class="answer">
             <p><b>Not really</b>, but show some moderation. Screenshots of Nyx are unlikely to do any harm but try to avoid exposing data en mass.</p>
           </div>
         </li>
 
-        <li id="can_nyx_leak_data">
-          <span>Is there any chance that nyx will leak data?</span>
+        <li id="can_running_nyx_leak_data">
+          <span>Can running Nyx leak data?</span>
           <div class="answer">
-            <p><b>No</b>. Nyx is a completely passive listener, fetching all information from either Tor or the local system.</p>
+            <p><b>No</b>. As a passive listener Nyx retrieves everything it needs from your local system. Nothing goes over the network.</p>
           </div>
         </li>
 
-        <li id="why_dont_i_see_the_bandwith_graph">
-          <span>Why don't I see the bandwidth graph?</span>
+        <li id="why_cant_i_see_the_bandwith_graph">
+          <span>Why can't I see the bandwidth graph?</span>
           <div class="answer">
-            <p>On some terminals such as Gentoo screen sessions appear to have a bug where highlighted spaces aren't shown. Try running...</p>
+            <p>Some terminals, such as screen sessions on Gentoo, apparently have a bug where highlighted space characters are not shown. Try running...</p>
             <pre>export TERM="rxvt-unicode"</pre>
           </div>
         </li>
@@ -188,20 +188,19 @@
         <li id="why_are_borders_broken">
           <span>Why are there borders like 'mwqqqqqqqqj'?</span>
           <div class="answer">
-            <p>If you're getting something that looks like...</p>
-            <a href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure" /></a>
-            <p>... you are encountering a terminal bug where alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a>.</p>
-            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect or correct this. To work around this you can set the following in your nyxrc to not use ACS borders...</p>
+            <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure" /></a>
+            <p>When alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a> borders become characters like the picture above. This is a terminal bug.</p>
+            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your nyxrc...</p>
             <pre>features.acsSupport false</pre>
           </div>
         </li>
 
         <li id="why_are_relay_details_missing">
-          <span>Why are relay details for connections missing?</span>
+          <span>Why are connections missing relay details?</span>
           <div class="answer">
-            <p>Relays publish information about themselves in documents called <i>descriptors</i>. These documents are downloaded by Tor. New documents available on an hourly basis but Tor will only download them if it needs them, so the descriptors you have may be older.</p>
-            <p>Nyx's connections page use these descriptors to enrich connection information with data about the relay you're connected with. If Tor doesn't have this information the data may be stale or missing.</p>
-            <p><b>This is fine.</b> Descriptor information we use changes infrequently so even if they're a few hours old it won't matter. However, if you really need up-to-date information you can add the following to your torrc...</p>
+            <p>Nyx presents your <a href="images/features/connections.png">active connections</a> correlated with tor consensus data. This means that in addition to the IP/port we also provide Tor-specific information such as your connection's relay fingerprint, nickname, contact address, and much more.</p>
+            <p>However, sometimes this extra information is missing <b>and that's fine</b>. Relays publish information about themselves on an hourly basis in documents called <a href="https://stem.torproject.org/tutorials/mirror_mirror_on_the_wall.html#what-is-a-descriptor">descriptors</a>. Tor downloads only the descriptors it needs to run, so Tor may not have information about all the relays you're connecting to. And that's ok.</p>
+            <p>However, if you need up-to-date information you can add the following to your torrc...</p>
 
             <pre># download new descriptors even if our cache is still valid
 
@@ -212,7 +211,7 @@ FetchUselessDescriptors 1</pre>
         </li>
       </ul>
 
-      <div class="section"></div>
+      <div class="faq-section"></div>
       <a href="#development" class="section-title">Development</a>
       <br /><br />
 
@@ -220,29 +219,36 @@ FetchUselessDescriptors 1</pre>
         <li id="how_do_i_get_started">
           <span>How do I get started?</span>
           <div class="answer">
-            <p>The best way of getting involved with any project is to jump right in! Our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> lists several development tasks. In particular look for the 'easy' keyword when getting started. If you have any questions then I'm always more than happy to help! I'm <b>atagar</b> on <a href="http://www.oftc.net/">oftc</a> and also available <a href="https://www.atagar.com/contact/">via email</a>.</p>
-            <p>To start hacking on Nyx please do the following and don't hesitate to let me know if you get stuck or would like to discuss anything!</p>
+            <p>The best way of getting involved with any project is to jump right in! In particular look for the <i>easy</i> keyword on our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> for a handy spot to start.</p>
+            <p>Got questions? I'm <b>atagar</b> on <a href="http://www.oftc.net/">oftc</a> and available <a href="https://www.atagar.com/contact/">via email</a>. To get started...</p>
 
             <ol>
-              <li>Clone our <a href="http://git-scm.com/">git</a> repository: <b>git clone https://git.torproject.org/nyx.git</b></li>
-              <li>Install the development version of <a href="https://stem.torproject.org/">Stem</a>: <b>git clone https://git.torproject.org/stem.git; cd stem; sudo python setup.py install</b>.</li>
-              <li>Get our test dependencies: <b>sudo pip install mock pep8 pyflakes</b>.</li>
-              <li>Find a <a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug or feature</a> that sounds interesting.</li>
-              <li>When you have something that you would like to contribute back do the following...
+              <li>Clone our <a href="http://git-scm.com/">git</a> repository...<pre>git clone https://git.torproject.org/nyx.git</pre><br /></li>
+              <li>Install our test dependencies<pre>sudo pip install mock pyflakes pycodestyle</pre><br /></li>
+              <li>Install the development version of <a href="https://stem.torproject.org/">Stem</a>...<pre>git clone https://git.torproject.org/stem.git
+cd stem
+sudo python setup.py install</pre><br /></li>
+              <li>Find a <a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug or feature</a> that sounds fun and dig in!</li>
+            </ol>
+          </div>
+        </li>
+
+        <li id="how_do_i_file_a_pull_request">
+          <span>How do I file a pull request?</span>
+          <div class="answer">
+            <p>Got something to send my way? It's easy...</p>
+            <ol>
+              <li>Make a publicly accessible repository for me to pull from. If you don't already have one <a href="https://github.com/">GitHub</a> is great for this.<br /><br /></li>
+              <li>File a <a href="https://trac.torproject.org/projects/tor/newticket">trac ticket</a>. Only fields you'll need are...<br /><br />
                 <ul>
-                  <li>If you don't already have a publicly accessible Nyx repository then set one up. <a href="https://github.com/">GitHub</a> in particular is great for this.</li>
-                  <li>File a <a href="https://trac.torproject.org/projects/tor/newticket">trac ticket</a>, the only fields you'll need are...
-                    <ul>
-                      <li><b>Summary</b>: short description of your change</li>
-                      <li><b>Description</b>: longer description and a link to your repository with either the git commits or branch that has your change</li>
-                      <li><b>Type</b>: 'defect' if this is a bug fix and 'enhancement' otherwise</li>
-                      <li><b>Priority</b>: rough guess at the priority of your change</li>
-                      <li><b>Component</b>: Core Tor / Nyx</li>
-                    </ul>
-                  </li>
-                  <li>I'll review the change and give suggestions. When we're both happy with it I'll push your change to the official repository.</li>
+                  <li><b>Summary</b>: brief description of your change</li>
+                  <li><b>Description</b>: description of your change and a link to your repository for me to pull from</li>
+                  <li><b>Type</b>: 'defect' if this is a bug fix and 'enhancement' otherwise</li>
+                  <li><b>Component</b>: Core Tor &#8594; Nyx</li>
                 </ul>
+                <br />
               </li>
+              <li>I'll review your change and give suggestions. When we're both happy with it I'll push your change to the official repository.</li>
             </ol>
           </div>
         </li>
@@ -250,9 +256,8 @@ FetchUselessDescriptors 1</pre>
         <li id="how_do_i_run_the_tests">
           <span>How do I run the tests?</span>
           <div class="answer">
-            <p>Nyx has unit tests, including tests that exercise our curses functionality. When you run the tests you may notice your console flicker as these are exercised.</p>
-            <p>If you have them installed we run <a href="https://launchpad.net/pyflakes">pyflakes</a> to do static error checking and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> for style checking as part of our tests.</p>
-            <p>Tests are run with...</p>
+            <p>Nyx has unit tests that exercise our curses functionality. When you run the tests you'll probably notice your console flicker as these tests are exercised. This is normal. Testing also runs <a href="https://launchpad.net/pyflakes">pyflakes</a> and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> in the background.<p>
+            <p>Running our tests is simple...</p>
             <pre>% run_tests.py</pre>
           </div>
         </li>
@@ -372,7 +377,7 @@ FetchUselessDescriptors 1</pre>
           var newHeight = 0;
 
           answer.children().each(function () {
-            if (this.tagName == "P") {
+            if (["nyx-img", "vidalia-img"].indexOf(this.className) == -1) {
               newHeight += $(this).outerHeight(true);
             }
           });

@@ -154,9 +154,16 @@ Front Page
 FAQ Page
 ============================================================*/
 
+.faq-section {
+  border-bottom: 1px solid #856231;
+  margin-bottom: -16px;
+  padding-top: 30px;
+}
+
 .questions {
   margin: 0px;
   padding-left: 15px;
+  padding-bottom: 0px;
 }
 
 .questions li {
@@ -179,15 +186,36 @@ FAQ Page
   padding: 0px;
 }
 
-.answer img {
+.answer p {
+  margin-bottom: 10px;
+  margin-top: 5px;
+}
+
+.answer pre {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+
+.answer ol {
+  margin-top: 20px;
+}
+
+.nyx-img {
   float: right;
   margin-top: 5px;
   margin-left: 20px;
 }
 
-.answer p {
+.vidalia-img {
+  float: right;
+  margin-top: -15px;
+  margin-left: 20px;
+}
+
+.acs-img {
+  display: block;  /* needed so expanding uses the content's height */
   margin-bottom: 10px;
-  margin-top: 5px;
+  margin-top: 10px;
 }
 
 /*============================================================
