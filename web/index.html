@@ -108,21 +108,21 @@
           </div>
         </li>
 
-        <li id="does_nyx_have_any_dependencies">
+        <li id="dependencies">
           <span>Does Nyx have any dependencies?</span>
           <div class="answer">
             <p><b>Yes</b>, Nyx requires <a href="https://stem.torproject.org/">Stem 1.5.4 or later</a>.
           </div>
         </li>
 
-        <li id="what_python_versions_is_nyx_compatible_with">
+        <li id="python_requirement">
           <span>What Python versions is Nyx compatible with?</span>
           <div class="answer">
             <p>Nyx works with <b>Python 2.6 and greater</b>, including the Python 3.x series.</p>
           </div>
         </li>
 
-        <li id="are_there_any_other_tor_uis">
+        <li id="other_tor_uis">
           <span>Are there any other user interfaces for Tor?</span>
           <div class="answer">
             <p>Yes, though sadly this space doesn't get much attention.</p>
@@ -143,7 +143,7 @@
           </div>
         </li>
 
-        <li id="what_license_is_nyx_under">
+        <li id="license">
           <span>What license is Nyx under?</span>
           <div class="answer">
             <p>Nyx is under the <a href="https://www.gnu.org/licenses/gpl">GPLv3</a>.</p>
@@ -156,28 +156,28 @@
       <br /><br />
 
       <ul class="questions">
-        <li id="will_i_see_other_peoples_traffic">
+        <li id="other_peoples_traffic">
           <span>Will I see other people's traffic?</span>
           <div class="answer">
             <p><b>No</b>. Potential client and exit connections are scrubbed of sensitive information. Be aware that it's highly discouraged (and likely illegal) for relay operators to view this data, so please don't.</p>
           </div>
         </li>
 
-        <li id="is_it_harmful_to_share_information_i_see">
+        <li id="sharing_information">
           <span>Is it harmful to share information I see?</span>
           <div class="answer">
             <p><b>Not really</b>, but show some moderation. Screenshots of Nyx are unlikely to do any harm but try to avoid exposing data en mass.</p>
           </div>
         </li>
 
-        <li id="can_running_nyx_leak_data">
+        <li id="leaking">
           <span>Can running Nyx leak data?</span>
           <div class="answer">
             <p><b>No</b>. As a passive listener Nyx retrieves everything it needs from your local system. Nothing goes over the network.</p>
           </div>
         </li>
 
-        <li id="why_cant_i_see_the_bandwith_graph">
+        <li id="missing_bandwith_graph">
           <span>Why can't I see the bandwidth graph?</span>
           <div class="answer">
             <p>Some terminals, such as screen sessions on Gentoo, apparently have a bug where highlighted space characters are not shown. Try running...</p>
@@ -185,7 +185,7 @@
           </div>
         </li>
 
-        <li id="why_are_borders_broken">
+        <li id="broken_borders">
           <span>Why are there borders like 'mwqqqqqqqqj'?</span>
           <div class="answer">
             <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure" /></a>
@@ -195,7 +195,7 @@
           </div>
         </li>
 
-        <li id="why_are_relay_details_missing">
+        <li id="missing_relay_details">
           <span>Why are connections missing relay details?</span>
           <div class="answer">
             <p>Nyx presents your <a href="images/features/connections.png">active connections</a> correlated with tor consensus data. This means that in addition to the IP/port we also provide Tor-specific information such as your connection's relay fingerprint, nickname, contact address, and much more.</p>
@@ -216,7 +216,7 @@ FetchUselessDescriptors 1</pre>
       <br /><br />
 
       <ul class="questions">
-        <li id="how_do_i_get_started">
+        <li id="getting_started">
           <span>How do I get started?</span>
           <div class="answer">
             <p>The best way of getting involved with any project is to jump right in! In particular look for the <i>easy</i> keyword on our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> for a handy spot to start.</p>
@@ -233,7 +233,7 @@ sudo python setup.py install</pre><br /></li>
           </div>
         </li>
 
-        <li id="how_do_i_file_a_pull_request">
+        <li id="pull_requests">
           <span>How do I file a pull request?</span>
           <div class="answer">
             <p>Got something to send my way? It's easy...</p>
@@ -253,7 +253,7 @@ sudo python setup.py install</pre><br /></li>
           </div>
         </li>
 
-        <li id="how_do_i_run_the_tests">
+        <li id="running_tests">
           <span>How do I run the tests?</span>
           <div class="answer">
             <p>Nyx has unit tests that exercise our curses functionality. When you run the tests you'll probably notice your console flicker as these tests are exercised. This is normal. Testing also runs <a href="https://launchpad.net/pyflakes">pyflakes</a> and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> in the background.<p>
@@ -262,7 +262,7 @@ sudo python setup.py install</pre><br /></li>
           </div>
         </li>
 
-        <li id="what_is_the_copyright_for_patches">
+        <li id="patch_copyright">
           <span>What is the copyright for patches?</span>
           <div class="answer">
             <p>Nyx is under the <a href="https://www.gnu.org/licenses/gpl">GPLv3</a> which is a fine license, but poses a bit of a problem for sharing code with our other projects (which are mostly BSD). To share code without needing to hunt down prior contributors we need Tor to have the copyright for the whole Nyx codebase. Presently the copyright of Nyx is jointly held by its main author (<a href="https://www.atagar.com/">Damian</a>) and the <a href="https://www.torproject.org/">Tor Project</a>.
