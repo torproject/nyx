@@ -351,25 +351,11 @@ sudo python setup.py install</pre><br /></li>
 
     <script>
     $(function() {
-      // when provided an anchor select the tab it resides within
-
-      var anchor = window.location.hash;
       $(".tabs").tabs(".page", { history: true });
-
-      if (anchor) {
-        $(".page").each(function () {
-          if ($(this).find(anchor).length) {
-            $(".tabs").data("tabs").click(this.id);
-            document.getElementById(anchor.substr(1)).scrollIntoView();
-          }
-        });
-      }
 
       // show/hide for FAQ questions
 
-      $('.questions > li > span').click(function() {
-        var answer = $(this).parent().find('.answer');
-
+      var toggleFaq = function(answer) {
         if (answer.is('.open')) {
           answer.animate({'height': '0'}, 100);
           answer.removeClass('open');
@@ -385,7 +371,29 @@ sudo python setup.py install</pre><br /></li>
           answer.animate({'height': newHeight}, 100);
           answer.addClass('open');
          }
+      }
+
+      $('.questions > li > span').click(function() {
+        toggleFaq($(this).parent().find('.answer'));
       });
+
+      // when provided an anchor select the tab it resides within
+
+      var anchor = window.location.hash;
+
+      if (anchor) {
+        $(".page").each(function () {
+          if ($(this).find(anchor).length) {
+            $(".tabs").data("tabs").click(this.id);
+
+            if (this.id == "faq" && anchor != "#faq") {
+              toggleFaq($(anchor + " > .answer"));
+            }
+
+            document.getElementById(anchor.substr(1)).scrollIntoView();
+          }
+        });
+      }
     });
     </script>
   </body>
