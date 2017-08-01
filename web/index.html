@@ -9,6 +9,19 @@
 
     <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
     <script src="jquery.tools.min.js"></script>
+
+    <!-- hide faq since it doesn't work without JS -->
+    <noscript>
+      <style>
+#t2 {
+  display: none;
+}
+
+#faq {
+  display: none;
+}
+      </style>
+    </noscript>
   </head>
 
   <body>
@@ -17,8 +30,8 @@
         <span id="logo"></span>
         <div class="nav">
           <ul class="tabs nav">
-            <li><a id="t1" href="#what_is_it">What Is It?</a></li>
-            <li><a id="t3" href="#faq">FAQ</a></li>
+            <li><a id="t1" href="#home">What Is It?</a></li>
+            <li><a id="t2" href="#faq">FAQ</a></li>
             <li><a id="t3" href="#download">Download</a></li>
           </ul>
         </div>
