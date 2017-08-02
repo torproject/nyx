@@ -10,14 +10,13 @@
     <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
     <script src="jquery.tools.min.js"></script>
 
-    <!-- hide faq since it doesn't work without JS -->
     <noscript>
       <style>
-#t2 {
+#js_nav {
   display: none;
 }
 
-#faq {
+#faq_section {
   display: none;
 }
       </style>
@@ -29,16 +28,24 @@
       <div class="header-body">
         <span id="logo"></span>
         <div class="nav">
-          <ul class="tabs nav">
+          <ul class="tabs nav" id="js_nav">
             <li><a id="t1" href="#home">What Is It?</a></li>
             <li><a id="t2" href="#faq">FAQ</a></li>
             <li><a id="t3" href="#download">Download</a></li>
           </ul>
+
+          <noscript>
+            <!-- hide faq since it doesn't work without JS -->
+            <ul class="tabs nav">
+              <li><a href="#home_section">What Is It?</a></li>
+              <li><a href="#download_section">Download</a></li>
+            </ul>
+          </noscript>
         </div>
       </div>
     </div>
 
-    <div id="home" class="page">
+    <div id="home_section" class="page">
       <div id="welcome" class="section"></div>
       <a href="#welcome" class="section-title">Welcome to Nyx</a>
 
@@ -99,7 +106,7 @@
       </div>
     </div>
 
-    <div id="faq" class="page">
+    <div id="faq_section" class="page">
       <div class="section"></div>
       <a href="#faq" class="section-title">Fact &amp; Question</a>
       <br /><br />
@@ -311,7 +318,7 @@ sudo python setup.py install</pre><br /></li>
       </ul>
     </div>
 
-    <div id="download" class="page">
+    <div id="download_section" class="page">
       <div class="section"></div>
       <a href="#download" class="section-title">Download</a>
 
