@@ -259,3 +259,14 @@ Download Page
   width: 500px;
 }
 
+/*============================================================
+Change Log Page
+============================================================*/
+
+.component {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 12px;
+  margin-top: 12px;
+}
+
