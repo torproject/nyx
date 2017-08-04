@@ -431,9 +431,9 @@ sudo python setup.py install</pre><br /></li>
       if (anchor) {
         $(".page").each(function () {
           if ($(this).find(anchor).length) {
-            $(".tabs").data("tabs").click(this.id);
+            $(".tabs").data("tabs").click(this.id.split("_section")[0]);
 
-            if (this.id == "faq" && anchor != "#faq") {
+            if (this.id == "faq_section" && anchor != "#faq") {
               toggleFaq($(anchor + " > .answer"));
             }
 
