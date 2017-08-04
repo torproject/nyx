@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+  "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+  <head>
+    <title>Nyx</title>
+    <link rel="shortcut icon" href="../images/favicon.png">
+    <link rel="stylesheet" type="text/css" href="../styles.css">
+  </head>
+
+  <body>
+    <div class="header">
+      <div class="header-body">
+        <span id="logo"></span>
+        <div class="nav">
+          <ul class="tabs nav" id="js_nav">
+            <li><a href="../index.html#home">What Is It?</a></li>
+            <li><a href="../index.html#faq">FAQ</a></li>
+            <li><a href="../index.html#download">Download</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="page changelog">
+      <div class="section" style="padding-top: 55px"></div>
+      <a href="#" class="section-title">Change Log</a>
+
+      <p>The following is a log of all user-facing changes to Nyx, both released and unreleased. For a monthly report on work being done see my <a href="http://blog.atagar.com/">development log</a>.</p>
+
+      <ul>
+        <li><b><a href="#versioning">Versioning</a></b></li>
+        <li><b><a href="#unreleased">Unreleased</a></b></li>
+        <li><b><a href="legacy.html">Version 1.x</a></b></li>
+      </ul>
+
+      <div id="versioning" class="section"></div>
+      <a href="#versioning" class="section-title">Versioning</a>
+
+      <p>As of the 2.x release Nyx uses <a href="http://semver.org/">semantic versioning</a>, which means that <b>versions consist of three numbers</b> (such as '<b>1.2.4</b>'). These are used to convey the kind of backward compatibility a release has...</p>
+
+      <ul>
+        <li><p>The first value is the <b>major version</b>. This changes infrequently, and indicates that backward incompatible changes have been made (such as the removal of deprecated functions).</p></li>
+        <li><p>The second value is the <b>minor version</b>. This is the most common kind of release, and denotes that the improvements are backward compatible.</p></li>
+        <li><p>The third value is the <b>patch version</b>. When a Nyx release has a major issue another release is made which fixes just that problem. These do not contain substantial improvements or new features. This value is sometimes left off to indicate all releases with a given major/minor version.</p></li>
+      </ul>
+
+      <p>Prior to version 2.x nyx did not follow any particular versioning scheme.</p>
+
+      <div id="unreleased" class="section"></div>
+      <a href="#unreleased" class="section-title">Unreleased</a>
+
+      <p>The following are only available within Nyx's <a href="#git">git repository</a>.</p>
+      <p>From a user perspective little has changed, but this release is nothing less than a complete rewrite of our codebase. This adds long overdue <b>support for python 3.x</b>, test coverage, and migrate from TorCtl to <a href="https://stem.torproject.org/">Stem</a>.</p>
+      <p>Python 2.5 is no longer supported. Hopefully by now nobody will miss it. :P</p>
+
+      <br />
+
+      <ul>
+        <li><span class="component">Startup</span>
+          <ul>
+            <li>Startup is several seconds faster when ran for the first time</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Graph</span>
+          <ul>
+            <li>Graph prepopulation no longer requires shifting to 15 minute intervals</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Connections</span>
+          <ul>
+            <li>Connections are now shown despite DisableDebuggerAttachment</li>
+            <li>Support for showing IPv6 connections</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Logging</span>
+          <ul>
+            <li>Order of magnitude faster log deduplication</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Interpreter</span>
+          <ul>
+            <li>Integrate Stem's richer <a href="https://stem.torproject.org/tutorials/down_the_rabbit_hole.html">control interpreter</a></li>
+            <li>Functions as a Python prompt, like IDLE</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Curses</span>
+          <ul>
+            <li>Interface continues to update while awaiting user input</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Website</span>
+          <ul>
+            <li>Entirely new website</li>
+            <li>Moved site to nyx.torproject.org</li>
+            <li>Added FAQ section</li>
+          </ul>
+        </li>
+      </ul>
+
+      <div id="version_1.x" class="section"></div>
+      <a href="#version_1.x" class="section-title">Version 1.x</a>
+
+      <p>Prior to its 2.x release Nyx went under the name of <b>arm</b>. This series was under active development 2009 to 2012. Changelog for the series is available <a href="legacy.html">here</a>.</p>
+    </div>
+  </body>
+</html>
+
