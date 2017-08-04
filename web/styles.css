@@ -263,6 +263,14 @@ Download Page
 Change Log Page
 ============================================================*/
 
+.changelog ul {
+  margin-bottom: 0px;
+}
+
+.changelog > .section {
+  padding-top: 40px;
+}
+
 .component {
   display: block;
   font-weight: bold;
