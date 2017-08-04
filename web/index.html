@@ -6,21 +6,10 @@
     <title>Nyx</title>
     <link rel="shortcut icon" href="images/favicon.png"/>
     <link rel="stylesheet" type="text/css" href="styles.css" />
+    <noscript><link rel="stylesheet" type="text/css" href="styles_no_js.css"></noscript>
 
     <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
-    <script src="jquery.tools.min.js"></script>
-
-    <noscript>
-      <style>
-#js_nav {
-  display: none;
-}
-
-#faq_section {
-  display: none;
-}
-      </style>
-    </noscript>
+    <script src="jquery.tools.min.js" type="text/javascript"></script>
   </head>
 
   <body>
@@ -28,19 +17,11 @@
       <div class="header-body">
         <span id="logo"></span>
         <div class="nav">
-          <ul class="tabs nav" id="js_nav">
-            <li><a id="t1" href="#home">What Is It?</a></li>
-            <li><a id="t2" href="#faq">FAQ</a></li>
-            <li><a id="t3" href="#download">Download</a></li>
+          <ul class="tabs nav">
+            <li><a id="t1" href="#home_section">What Is It?</a></li>
+            <li><a id="t2" href="#faq_section">FAQ</a></li>
+            <li><a id="t3" href="#download_section">Download</a></li>
           </ul>
-
-          <noscript>
-            <!-- hide faq since it doesn't work without JS -->
-            <ul class="tabs nav">
-              <li><a href="#home_section">What Is It?</a></li>
-              <li><a href="#download_section">Download</a></li>
-            </ul>
-          </noscript>
         </div>
       </div>
     </div>
@@ -395,9 +376,16 @@ sudo python setup.py install</pre><br /></li>
       </div>
     </div>
 
-    <script>
+    <script type="text/javascript">
     $(function() {
       $(".tabs").tabs(".page", { history: true });
+
+      // when javascript is enabled change nav anchors so they're both shorter
+      // and don't move focus
+
+      document.getElementById("t1").href = "#home";
+      document.getElementById("t2").href = "#faq";
+      document.getElementById("t3").href = "#download";
 
       // show/hide for FAQ questions
 
