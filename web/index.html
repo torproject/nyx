@@ -19,6 +19,10 @@
 #faq_section {
   display: none;
 }
+
+#changelog_section {
+  display: none;
+}
       </style>
     </noscript>
   </head>
@@ -198,7 +202,7 @@
         </li>
       </ul>
 
-      <div class="faq-section" style="padding-top: 35px;"></div>
+      <div class="faq-section"></div>
       <a href="#usage" class="section-title">Usage</a>
       <br /><br />
 
@@ -397,6 +401,29 @@ sudo python setup.py install</pre><br /></li>
     </div>
 
     <div id="changelog_section" class="page">
+      <div class="section"></div>
+      <a href="#changelog" class="section-title">Change Log</a>
+
+      <p>The following is a log of all user-facing changes to Nyx, both released and unreleased. For a monthly report on work being done see my <a href="http://blog.atagar.com/">development log</a>.</p>
+
+      <ul>
+        <li><b><a href="#versioning">Versioning</a></b></li>
+        <li><b><a href="#unreleased">Unreleased</a></b></li>
+        <li><b><a href="#version_1">Version 1.x</a></b></li>
+      </ul>
+
+      <div id="versioning" class="section" style="padding-top: 15px"></div>
+      <a href="#versioning" class="section-title">Versioning</a>
+
+      <p>As of the 2.x release Nyx uses <a href="http://semver.org/">semantic versioning</a>, which means that <b>versions consist of three numbers</b> (such as '<b>1.2.4</b>'). These are used to convey the kind of backward compatibility a release has...</p>
+
+      <ul>
+        <li><p>The first value is the <b>major version</b>. This changes infrequently, and indicates that backward incompatible changes have been made (such as the removal of deprecated functions).</p></li>
+        <li><p>The second value is the <b>minor version</b>. This is the most common kind of release, and denotes that the improvements are backward compatible.</p></li>
+        <li><p>The third value is the <b>patch version</b>. When a Nyx release has a major issue another release is made which fixes just that problem. These do not contain substantial improvements or new features. This value is sometimes left off to indicate all releases with a given major/minor version.</p></li>
+      </ul>
+
+      <p>Prior to version 2.x nyx did not follow any particular versioning scheme.</p>
     </div>
 
     <script>

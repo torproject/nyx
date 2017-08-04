@@ -107,6 +107,10 @@ Common Page Attributes
   text-align: justify;
 }
 
+.page ul {
+  text-align: justify;
+}
+
 .section {
   border-bottom: 1px solid #856231;
   margin-bottom: -16px;
