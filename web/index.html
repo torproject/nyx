@@ -416,7 +416,7 @@ sudo python setup.py install</pre><br /></li>
 
           answer.animate({'height': newHeight}, 100);
           answer.addClass('open');
-          window.location.hash = "#" + answer.parent().attr('id');
+          history.replaceState(undefined, undefined, "#" + answer.parent().attr('id'));
          }
       }
 
