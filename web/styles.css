@@ -171,20 +171,19 @@ FAQ Page
 }
 
 .questions li {
-  cursor: pointer;
   margin: 0px;
   padding: 0px 0px 5px 0px;
   text-align: left;
 }
 
 .questions span {
+  cursor: pointer;
   color: #302000;
   font-size: 18px;
   font-weight: bold;
 }
 
 .answer {
-  cursor: default;
   height: 0px;
   overflow: hidden;
   padding: 0px;
