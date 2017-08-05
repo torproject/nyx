@@ -212,13 +212,22 @@
           </div>
         </li>
 
+        <li id="bits_or_bytes">
+          <span>Is bandwidth graphed in bits or bytes?</span>
+          <div class="answer">
+            <p><b>Bytes</b>. Most tools measure in bytes so for consistency we do the same. Unfortunately hosting providers advertise in bits to inflate their numbers ("5 Mbit connection"). If graphs show just one eighth of what you expect this is why.</p>
+            <p>To graph in bits rather than bytes add the following to your nyxrc...</p>
+            <pre>show_bits true</pre>
+          </div>
+        </li>
+
         <li id="broken_borders">
           <span>Why are there borders like 'mwqqqqqqqqj'?</span>
           <div class="answer">
             <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure"></a>
             <p>When alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a> borders become characters like the picture above. This is a terminal bug.</p>
             <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your nyxrc...</p>
-            <pre>features.acsSupport false</pre>
+            <pre>acs_support false</pre>
           </div>
         </li>
 

@@ -81,7 +81,7 @@ CONFIG = conf.config_dict('nyx', {
   'graph_stat': GraphStat.BANDWIDTH,
   'max_graph_width': 300,  # we need some sort of max size so we know how much graph data to retain
   'show_accounting': True,
-  'show_bytes': False,
+  'show_bits': False,
   'show_connections': True,
 }, conf_handler)
 
@@ -708,4 +708,4 @@ def _size_label(byte_count, decimal = 1):
   or bytes.
   """
 
-  return str_tools.size_label(byte_count, decimal, is_bytes = CONFIG['show_bytes'])
+  return str_tools.size_label(byte_count, decimal, is_bytes = not CONFIG['show_bits'])
