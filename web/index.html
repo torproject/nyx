@@ -1,0 +1,435 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+  "http://www.w3.org/TR/html4/strict.dtd">
+
+<html lang="en">
+  <head>
+    <title>Nyx</title>
+    <link rel="shortcut icon" href="images/favicon.png">
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <noscript><link rel="stylesheet" type="text/css" href="styles_no_js.css"></noscript>
+
+    <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
+    <script src="jquery.tools.min.js" type="text/javascript"></script>
+  </head>
+
+  <body>
+    <div class="header">
+      <div class="header-body">
+        <span id="logo"></span>
+        <div class="nav">
+          <ul class="tabs nav">
+            <li><a id="t1" href="#home_section">What Is It?</a></li>
+            <li><a id="t2" href="#faq_section">FAQ</a></li>
+            <li><a id="t3" href="#download_section">Download</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="home_section" class="page">
+      <div id="welcome" class="section"></div>
+      <a href="#welcome" class="section-title">Welcome to Nyx</a>
+
+      <p>Nyx is a command-line monitor for <a href="https://www.torproject.org/">Tor</a>. With this you can get detailed real-time information about your relay such as bandwidth usage, connections, logs, and much more.</p>
+
+      <p>Nyx's latest version is <b>1.4.5</b>, released April 28th, 2012. Prior to our upcoming release this application went under the name of '<b>arm</b>'. Sorry for the confusion!</p>
+
+      <div id="features" class="section"></div>
+      <a href="#features" class="section-title">What does Nyx provide?</a>
+
+      <div class="feature">
+        <a id="bandwidth"></a>
+        <a href="images/screenshots/front_page.png"><img src="images/features/bandwidth.png" alt="bandwidth"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#bandwidth" class="feature-title">Bandwidth Graph</a>
+        <p>Bandwidth used by Tor. You can press 'i' to pick the graphing <b>interval</b>, or 's' to show other usage <b>statistics</b>.</p>
+      </div>
+
+      <div class="feature">
+        <a id="events"></a>
+        <a href="images/screenshots/front_page.png"><img src="images/features/events.png" alt="event log"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#events" class="feature-title">Event Log</a>
+        <p>Tor logs a wealth of information about itself. We present it, colorized and deduplicated. Press 'e' to select what <b>events</b> are logged and 'f' to <b>filter</b> to just what you want.</p>
+      </div>
+
+      <div class="feature">
+        <a id="connections"></a>
+        <a href="images/screenshots/connections.png"><img src="images/features/connections.png" alt="connections"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#connections" class="feature-title">Connections</a>
+        <p>Connection data similar to netstat or lsof, but correlated with Tor relay information to make it much richer. Press 'enter' for more <b>details</b>, 's' to <b>sort</b>, and 'd' to see raw <b>descriptor</b> data.</p>
+      </div>
+
+      <div class="feature">
+        <a id="config_editor"></a>
+        <a href="images/screenshots/config_editor.png"><img src="images/features/config_editor.png" alt="configuration editor"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#config_editor" class="feature-title">Configuration Editor</a>
+        <p>Editor to change Tor's setting on the fly, with usage information from its manual. Press 'enter' to <b>change</b> Tor settings and 'w' to <b>write</b> your changes to disk.</p>
+      </div>
+
+      <div class="feature">
+        <a id="torrc"></a>
+        <a href="images/screenshots/torrc.png"><img src="images/features/torrc.png" alt="torrc"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#torrc" class="feature-title">Torrc</a>
+        <p>Provides your torrc with line numbers and syntax highlighting. Comments can be <b>stripped</b> by pressing 's'.</p>
+      </div>
+
+      <div class="feature">
+        <a id="interpreter"></a>
+        <a href="images/screenshots/interpreter.png"><img src="images/features/interpreter.png" alt="interpreter"></a>
+        <span class="feature-arrow">&laquo;</span><a href="#interpreter" class="feature-title">Interpreter</a>
+        <p>Integration with <a href="https://stem.torproject.org/">Stem's</a> <a href="https://stem.torproject.org/tutorials/down_the_rabbit_hole.html">interpreter</a>, providing <a href="https://gitweb.torproject.org/torspec.git/tree/control-spec.txt">raw controller access</a>, irc-style commands like <b>/help</b>, tab completion, history scrollback, and a python prompt.</p>
+      </div>
+
+      <div class="feature">
+        <a id="and_more"></a>
+        <img src="images/features/menu.png" alt="menu">
+        <span class="feature-arrow">&laquo;</span><a href="#and_more" class="feature-title">... and more!</a>
+        <p>That's just the tip of the iceberg. All pages within Nyx provide <b>help</b> information when you press 'h' and <b>menu</b> in response to 'm'. So go explore!</p>
+      </div>
+    </div>
+
+    <div id="faq_section" class="page">
+      <div class="section"></div>
+      <a href="#faq" class="section-title">Fact &amp; Question</a>
+      <br><br>
+
+      <ul class="questions">
+        <li id="what_is_nyx">
+          <span>What is Nyx?</span>
+          <div class="answer">
+            <p>Nyx is a command-line application for monitoring real time <a href="https://www.torproject.org/">Tor</a> status information. This includes bandwidth usage, logs, connections, configuration, and more.</p>
+            <p>As a curses interface Nyx is particularly well suited for ssh connections, tty terminals, and command-line aficionados.</p>
+          </div>
+        </li>
+
+        <li id="why_is_it_called_nyx">
+          <span>Why is it called Nyx?</span>
+          <div class="answer">
+            <a class="nyx-img" href="http://fallenlights.net/"><img src="images/faq/shadowgirl.jpg" alt="greek goddess" title="Nyx by Shadowgirl, used with permission."></a>
+            <p style="min-height: 340px">Simple - because the <a href="https://en.wikipedia.org/wiki/Nyx">Greek goddess of night</a> is short and memorable. Terminal applications are handiest when they're brief and easy to type. Top, ssh, scp - anything longer is just begging to be aliased down.</p>
+          </div>
+        </li>
+
+        <li id="dependencies">
+          <span>Does Nyx have any dependencies?</span>
+          <div class="answer">
+            <p><b>Yes</b>, Nyx requires <a href="https://stem.torproject.org/">Stem 1.5.4 or later</a>.
+          </div>
+        </li>
+
+        <li id="python_requirement">
+          <span>What Python versions is Nyx compatible with?</span>
+          <div class="answer">
+            <p>Nyx works with <b>Python 2.6 and greater</b>, including the Python 3.x series.</p>
+          </div>
+        </li>
+
+        <li id="other_tor_uis">
+          <span>Are there any other user interfaces for Tor?</span>
+          <div class="answer">
+            <p>Yes, though sadly this space doesn't get much attention.</p>
+            <p>For years <a href="https://en.wikipedia.org/wiki/Vidalia_%28software%29">Vidalia</a> was the default interface of Tor until it was replaced by <a href="https://www.torproject.org/projects/torbrowser.html.en">Tor Browser</a> in 2013. Vidalia includes a launcher, settings editor, map, and more. <a href="https://sourceforge.net/projects/tork/">TorK</a> is similar, providing connection information as well but never reached the same level of prominence. Both interfaces are now unmaintained.</p>
+            <img class="vidalia-img" src="images/faq/vidalia.jpg" alt="vidalia">
+            <p>Smaller widgets include...</p>
+
+            <ul>
+              <li><a href="https://gitorious.org/syboa/syboa">Syboa</a> - General interface</li>
+              <li><a href="https://github.com/neelchauhan/OnionLauncher">OnionLauncher</a> - Tor launcher</li>
+              <li><a href="https://github.com/neelchauhan/TorNova">TorNova</a> - Tor launcher</li>
+              <li><a href="https://github.com/skyguy/onionview">OnionView</a> - Circuit information</li>
+              <li><a href="https://git-tails.immerda.ch/onioncircuits/">OnionCircuits</a> - Circuit information</li>
+              <li><a href="https://github.com/Yawning/or-applet">or-applet</a> - Circuit information</li>
+            </ul>
+
+            <p>If I missed any then please <a href="https://www.atagar.com/contact/">let me know</a>!</p>
+          </div>
+        </li>
+
+        <li id="report_bug">
+          <span>How can I report a bug?</span>
+          <div class="answer">
+            <p>Ran into a problem? Reporting issues is easy...</p>
+
+            <ol>
+              <li>Go to our <b><a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a></b>.<br><br></li>
+              <li>Log in. If you'd rather not make an account you can use these credentials to file an issue anonymously...<br><br>
+                <ul>
+                  <li>Username: <b>cypherpunks</b></li>
+                  <li>Password: <b>writecode</b></li>
+                </ul>
+                <br>
+              </li>
+              <li>Fill in the following fields...<br><br>
+                <ul>
+                  <li><b>Summary</b>: Brief description of your issue.</li>
+                  <li><b>Description</b>: Detailed description of your issue. Please provide steps to reproduce your issue, stacktrace if you got one, and screenshot if applicable.</li>
+                  <li><b>Type</b>: defect</li>
+                  <li><b>Component</b>: Core Tor &#8594; Nyx</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+        </li>
+
+        <li id="license">
+          <span>What license is Nyx under?</span>
+          <div class="answer">
+            <p>Nyx is under the <a href="https://www.gnu.org/licenses/gpl">GPLv3</a>.</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="faq-section"></div>
+      <a href="#usage" class="section-title">Usage</a>
+      <br><br>
+
+      <ul class="questions">
+        <li id="other_peoples_traffic">
+          <span>Will I see other people's traffic?</span>
+          <div class="answer">
+            <p><b>No</b>. Potential client and exit connections are scrubbed of sensitive information. Be aware that it's highly discouraged (and likely illegal) for relay operators to view this data, so please don't.</p>
+          </div>
+        </li>
+
+        <li id="sharing_information">
+          <span>Is it harmful to share information I see?</span>
+          <div class="answer">
+            <p><b>Not really</b>, but show some moderation. Screenshots of Nyx are unlikely to do any harm but try to avoid exposing data en mass.</p>
+          </div>
+        </li>
+
+        <li id="leaking">
+          <span>Can running Nyx leak data?</span>
+          <div class="answer">
+            <p><b>No</b>. As a passive listener Nyx retrieves everything it needs from your local system. Nothing goes over the network.</p>
+          </div>
+        </li>
+
+        <li id="missing_bandwith_graph">
+          <span>Why can't I see the bandwidth graph?</span>
+          <div class="answer">
+            <p>Some terminals, such as screen sessions on Gentoo, apparently have a bug where highlighted space characters are not shown. Try running...</p>
+            <pre>export TERM="rxvt-unicode"</pre>
+          </div>
+        </li>
+
+        <li id="broken_borders">
+          <span>Why are there borders like 'mwqqqqqqqqj'?</span>
+          <div class="answer">
+            <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure"></a>
+            <p>When alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a> borders become characters like the picture above. This is a terminal bug.</p>
+            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your nyxrc...</p>
+            <pre>features.acsSupport false</pre>
+          </div>
+        </li>
+
+        <li id="missing_relay_details">
+          <span>Why are connections missing relay details?</span>
+          <div class="answer">
+            <p>Nyx presents your <a href="images/features/connections.png">active connections</a> correlated with tor consensus data. This means that in addition to the IP/port we also provide Tor-specific information such as your connection's relay fingerprint, nickname, contact address, and much more.</p>
+            <p>However, sometimes this extra information is missing <b>and that's fine</b>. Relays publish information about themselves on an hourly basis in documents called <a href="https://stem.torproject.org/tutorials/mirror_mirror_on_the_wall.html#what-is-a-descriptor">descriptors</a>. Tor downloads only the descriptors it needs to run, so Tor may not have information about all the relays you're connecting to. And that's ok.</p>
+            <p>However, if you need up-to-date information you can add the following to your torrc...</p>
+
+            <pre># download new descriptors even if our cache is still valid
+
+FetchDirInfoEarly 1
+FetchDirInfoExtraEarly 1
+FetchUselessDescriptors 1</pre>
+          </div>
+        </li>
+      </ul>
+
+      <div class="faq-section"></div>
+      <a href="#development" class="section-title">Development</a>
+      <br><br>
+
+      <ul class="questions">
+        <li id="getting_started">
+          <span>How do I get started?</span>
+          <div class="answer">
+            <p>The best way of getting involved with any project is to jump right in! In particular look for the 'easy' keyword on our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> for a handy spot to start.</p>
+            <p>Got questions? I'm <b>atagar</b> on <a href="http://www.oftc.net/">oftc</a> and available <a href="https://www.atagar.com/contact/">via email</a>. To get started...</p>
+
+            <ol>
+              <li>Clone our <a href="http://git-scm.com/">git</a> repository...<pre>git clone https://git.torproject.org/nyx.git</pre><br></li>
+              <li>Install our test dependencies<pre>sudo pip install mock pyflakes pycodestyle</pre><br></li>
+              <li>Install the development version of <a href="https://stem.torproject.org/">Stem</a>...<pre>git clone https://git.torproject.org/stem.git
+cd stem
+sudo python setup.py install</pre><br></li>
+              <li>Find a <a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug or feature</a> that sounds fun and dig in!</li>
+            </ol>
+          </div>
+        </li>
+
+        <li id="running_tests">
+          <span>How do I run the tests?</span>
+          <div class="answer">
+            <p>Nyx has unit tests that exercise our curses functionality. When you run the tests you'll probably notice your console flicker as these tests are exercised. This is normal. Testing also runs <a href="https://launchpad.net/pyflakes">pyflakes</a> and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> in the background.<p>
+            <p>Running our tests is simple...</p>
+            <pre>% run_tests.py</pre>
+          </div>
+        </li>
+
+        <li id="pull_requests">
+          <span>How do I file a pull request?</span>
+          <div class="answer">
+            <p>Got something to send my way? It's easy...</p>
+            <ol>
+              <li>Make a publicly accessible repository for me to pull from. If you don't already have one <a href="https://github.com/">GitHub</a> is great for this.<br><br></li>
+              <li>File a <a href="https://trac.torproject.org/projects/tor/newticket">trac ticket</a>. Only fields you'll need are...<br><br>
+                <ul>
+                  <li><b>Summary</b>: brief description of your change</li>
+                  <li><b>Description</b>: description of your change and a link to your repository for me to pull from</li>
+                  <li><b>Type</b>: 'defect' if this is a bug fix and 'enhancement' otherwise</li>
+                  <li><b>Component</b>: Core Tor &#8594; Nyx</li>
+                </ul>
+                <br>
+              </li>
+              <li>I'll review your change and give suggestions. When we're both happy with it I'll push your change to the official repository.</li>
+            </ol>
+          </div>
+        </li>
+
+        <li id="patch_copyright">
+          <span>What is the copyright for patches?</span>
+          <div class="answer">
+            <p>Nyx is under the <a href="https://www.gnu.org/licenses/gpl">GPLv3</a> which is a fine license, but poses a bit of a problem for sharing code with our other projects (which are mostly BSD). To share code without needing to hunt down prior contributors we need Tor to have the copyright for the whole Nyx codebase. Presently the copyright of Nyx is jointly held by its main author (<a href="https://www.atagar.com/">Damian</a>) and the <a href="https://www.torproject.org/">Tor Project</a>.
+            <p>If you submit a substantial patch I'll ask if you're fine with it being in the public domain. This would mean that there are no legal restrictions for using your contribution, and hence won't pose a problem if we reuse Nyx code in other projects.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div id="download_section" class="page">
+      <div class="section"></div>
+      <a href="#download" class="section-title">Download</a>
+
+      <p>Nyx is available Mac OSX, Linux, and BSD but <a href="#windows">not Windows</a>. Find your platform below to get started. For what's changed see our <a href="changelog/index.html">change log</a>.</p>
+
+      <br>
+
+      <div class="platform">
+        <a href="https://pypi.python.org/pypi/nyx/" id="pypi"><img src="images/download/pypi.png" alt="PyPI"></a>
+        <a href="https://pypi.python.org/pypi/nyx/" class="platform-title">Python Package Index</a>
+        <p>Signed releases and instructions for both Python 2.x and 3.x. You can easily install from its <a href="https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2">tarball</a> (<a href="https://www.atagar.com/arm/resources/static/arm-1.4.5.0.tar.bz2.asc">sig</a>), or with <b>pip</b>...</p>
+        <pre>
+% sudo easy_install pip
+% sudo pip install nyx
+</pre>
+      </div>
+
+      <div class="platform">
+        <a id="osx"><img src="images/download/osx.png" alt="OSX"></a>
+        <span class="platform-title">Mac OSX</span>
+        <p>As of OSX 10.8 the platform bundles Python 2.7 by default. This makes installation easy...</p>
+        <pre>
+% sudo easy_install pip
+% sudo pip install nyx
+</pre>
+      </div>
+
+      <div class="platform">
+        <a href="http://packages.debian.org/sid/tor-arm" id="debian"><img src="images/download/debian.png" alt="Debian"></a>
+        <a href="http://packages.debian.org/sid/tor-arm" class="platform-title">Debian</a>
+        <p>Package maintained by Dererk for Debian.</p>
+        <pre>% sudo apt-get install tor-arm</pre>
+      </div>
+
+      <div class="platform">
+        <a href="https://launchpad.net/ubuntu/+source/tor-arm" id="ubuntu"><img src="images/download/ubuntu.png" alt="Ubuntu"></a>
+        <a href="https://launchpad.net/ubuntu/+source/tor-arm" class="platform-title">Ubuntu</a>
+        <p>Package derived from Debian for Ubuntu.</p>
+        <pre>% sudo apt-get install tor-arm</pre>
+      </div>
+
+      <div class="platform">
+        <a href="https://apps.fedoraproject.org/packages/tor-arm" id="fedora"><img src="images/download/fedora.png" alt="Fedora"></a>
+        <a href="https://apps.fedoraproject.org/packages/tor-arm" class="platform-title">Fedora</a>
+        <p>Packages maintained by Juan for Fedora.</p>
+        <pre>% sudo yum install tor-arm</pre>
+      </div>
+
+      <div class="platform">
+        <a href="http://packages.gentoo.org/package/net-misc/arm" id="gentoo"><img src="images/download/gentoo.png" alt="Gentoo"></a>
+        <a href="http://packages.gentoo.org/package/net-misc/arm" class="platform-title">Gentoo</a>
+        <p>Package maintained by Jesse for Gentoo.</p>
+        <pre>% sudo emerge arm</pre>
+      </div>
+
+      <div class="platform">
+        <a href="https://slackbuilds.org/repository/13.37/network/arm/" id="slackware"><img src="images/download/slackware.png" alt="Slackware"></a>
+        <a href="https://slackbuilds.org/repository/13.37/network/arm/" class="platform-title">Slackware</a>
+        <p>Package maintained by pyllyukko for <a href="http://slackbuilds.org/howto/">Slackware</a>.</p>
+      </div>
+
+      <div class="platform">
+        <a href="http://www.freshports.org/security/arm" id="freebsd"><img src="images/download/freebsd.png" alt="FreeBSD"></a>
+        <a href="http://www.freshports.org/security/arm" class="platform-title">FreeBSD</a>
+        <p>Port maintained by Carlo for <a href="http://www.freebsd.org/doc/en_US.ISO8859-1/books/handbook/ports.html">FreeBSD</a>.</p>
+        <pre>% pkg install security/arm</pre>
+      </div>
+
+      <div class="platform">
+        <a href="https://gitweb.torproject.org/nyx.git" id="git"><img src="images/download/git.png" alt="Git"></a>
+        <a href="https://gitweb.torproject.org/nyx.git" class="platform-title">Source Repository</a>
+        <p>For those that want to live on the bleeding edge or contribute, Nyx's git repository can be fetched with...</p>
+        <pre>% git clone https://git.torproject.org/nyx.git</pre>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+    $(function() {
+      $(".tabs").tabs(".page", { history: true });
+
+      // when javascript is enabled change nav anchors so they're both shorter
+      // and don't move focus
+
+      document.getElementById("t1").href = "#home";
+      document.getElementById("t2").href = "#faq";
+      document.getElementById("t3").href = "#download";
+
+      // show/hide for FAQ questions
+
+      var toggleFaq = function(answer) {
+        if (answer.is('.open')) {
+          answer.animate({'height': '0'}, 100);
+          answer.removeClass('open');
+        } else {
+          var newHeight = 0;
+
+          answer.children().each(function () {
+            if (["nyx-img", "vidalia-img"].indexOf(this.className) == -1) {
+              newHeight += $(this).outerHeight(true);
+            }
+          });
+
+          answer.animate({'height': newHeight}, 100);
+          answer.addClass('open');
+          history.replaceState(undefined, undefined, "#" + answer.parent().attr('id'));
+         }
+      }
+
+      $('.questions > li > span').click(function() {
+        toggleFaq($(this).parent().find('.answer'));
+      });
+
+      // when provided an anchor select the tab it resides within
+
+      var anchor = window.location.hash;
+
+      if (anchor) {
+        $(".page").each(function () {
+          if ($(this).find(anchor).length) {
+            $(".tabs").data("tabs").click(this.id.split("_section")[0]);
+
+            if (this.id == "faq_section" && anchor != "#faq") {
+              toggleFaq($(anchor + " > .answer"));
+            }
+
+            document.getElementById(anchor.substr(1)).scrollIntoView();
+          }
+        });
+      }
+    });
+    </script>
+  </body>
+</html>

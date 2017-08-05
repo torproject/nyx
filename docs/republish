@@ -1,7 +1,0 @@
-#!/bin/sh
-
-export PATH=/home/nyx/bin:$PATH
-export PYTHONPATH=/home/nyx/lib/python
-
-python /home/nyx/nyx/docs/republish.py $*&
-

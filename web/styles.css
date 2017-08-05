@@ -1,0 +1,286 @@
+/*============================================================
+General Tag Attributes
+============================================================*/
+
+body {
+  background: url("images/grid.png");
+  font-family: "FreeSans", "Arial", "Helvetica", sans-serif;
+  line-height: 1.231;
+  margin: 0px;
+}
+
+a {
+  color: #856231;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #dca85f;
+}
+
+/*============================================================
+Header Bar (logo and nav)
+============================================================*/
+
+.header {
+  background-color: black;
+  border-bottom: 10px solid #825d27;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
+  height: 97px;
+}
+
+.header-body {
+  margin: 0px auto;
+  max-width: 770px;
+  text-align: center;
+}
+
+#logo {
+  background: url("images/logo.png") no-repeat 0px 20px;
+  float: left;
+  height: 120px;
+  margin: 0px;
+  width: 300px;
+}
+
+.nav {
+  float: right;
+  font-size: 14px;
+  margin: 0px;
+}
+
+.nav li {
+  display: inline;
+}
+
+.nav a { 
+  background: #825d27;
+  border: 1px solid #47351c;
+  border-bottom-right-radius: 7px;
+  border-bottom-left-radius: 7px;
+  border-top: none;
+  color: #FFFFFF;
+  display: inline-block;
+  font-weight: normal;
+  padding: 6px 15px;
+}
+
+.nav a:hover {
+  background: #FFFFFF;
+  border: 1px solid #885CA4;
+  border-top: none;
+  color: #333333;
+}
+
+.nav a.current {
+  background: #FFFFFF;
+  border: 1px solid #4d4d4d;
+  border-top: none;
+  color: #333333;
+  font-weight: bold;
+}
+
+.nav a.active:hover {
+  border: 1px solid #885CA4;
+  border-top: none;
+  color: #666666;
+}
+
+/*============================================================
+Common Page Attributes
+============================================================*/
+
+.page {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.80);
+  margin: 50px auto 30px auto;
+  max-width: 630px;
+  padding: 50px;
+  padding-top: 0px;
+  text-align: center;
+}
+
+.page p {
+  margin: 20px 0px 0px;
+  text-align: justify;
+}
+
+.page ul {
+  text-align: justify;
+}
+
+.section {
+  border-bottom: 1px solid #856231;
+  margin-bottom: -16px;
+  padding-top: 55px;
+}
+
+.section-title {
+  background: white;
+  display: inline-block;
+  font-size: 28px;
+  margin: 0px auto;
+  padding: 0 15px;
+  position: relative;
+}
+
+/*============================================================
+Front Page
+============================================================*/
+
+.feature {
+  height: 150px;
+  margin-top: 25px;
+  text-align: left;
+}
+
+.feature-title {
+  font-size: 24px;
+}
+
+.feature-arrow {
+  color: #523a17;
+  float: left;
+  font-size: 50px;
+  margin-right: 8px;
+  margin-left: -10px;
+  margin-top: -20px;
+}
+
+.feature img {
+  float: left;
+  margin-right: 25px;
+}
+
+/*============================================================
+FAQ Page
+============================================================*/
+
+.faq-section {
+  border-bottom: 1px solid #856231;
+  margin-bottom: -16px;
+  padding-top: 30px;
+}
+
+.questions {
+  margin: 0px;
+  padding-left: 15px;
+  padding-bottom: 0px;
+}
+
+.questions li {
+  cursor: pointer;
+  margin: 0px;
+  padding: 0px 0px 5px 0px;
+  text-align: left;
+}
+
+.questions span {
+  color: #302000;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.answer {
+  cursor: default;
+  height: 0px;
+  overflow: hidden;
+  padding: 0px;
+}
+
+.answer p {
+  margin-bottom: 10px;
+  margin-top: 5px;
+}
+
+.answer pre {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+
+.answer ol {
+  margin-top: 20px;
+}
+
+.nyx-img {
+  float: right;
+  margin-top: 5px;
+  margin-left: 20px;
+}
+
+.vidalia-img {
+  float: right;
+  margin-top: -15px;
+  margin-left: 20px;
+}
+
+.acs-img {
+  display: block;  /* needed so expanding uses the content's height */
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+
+/*============================================================
+Download Page
+============================================================*/
+
+.platform {
+  border-top: 1px solid black;
+  height: 128px;
+  margin-top: 15px;
+  padding-top: 10px;
+  text-align: left;
+}
+
+.platform-title {
+  color: #856231;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.platform img {
+  float: left;
+  margin-right: 25px;
+}
+
+.platform p {
+  margin-top: 10px;
+}
+
+.platform pre {
+  background: #dddddd;
+  border: 1px solid #bbbbbb;
+  border-radius: 3px;
+  margin-left: 145px;
+  padding-bottom: 4px;
+  padding-top: 4px;
+  width: 500px;
+}
+
+/*============================================================
+Change Log Page
+============================================================*/
+
+.changelog ul {
+  margin-bottom: 0px;
+}
+
+.changelog > .section {
+  padding-top: 40px;
+}
+
+.component {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 12px;
+  margin-top: 12px;
+}
+
+.hotfix {
+  display: block;
+  margin-bottom: 12px;
+  margin-top: 12px;
+}
+
