@@ -246,7 +246,7 @@ FetchUselessDescriptors 1</pre>
         <li id="getting_started">
           <span>How do I get started?</span>
           <div class="answer">
-            <p>The best way of getting involved with any project is to jump right in! In particular look for the <i>easy</i> keyword on our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> for a handy spot to start.</p>
+            <p>The best way of getting involved with any project is to jump right in! In particular look for the 'easy' keyword on our <a href="http://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a> for a handy spot to start.</p>
             <p>Got questions? I'm <b>atagar</b> on <a href="http://www.oftc.net/">oftc</a> and available <a href="https://www.atagar.com/contact/">via email</a>. To get started...</p>
 
             <ol>
@@ -257,6 +257,15 @@ cd stem
 sudo python setup.py install</pre><br></li>
               <li>Find a <a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug or feature</a> that sounds fun and dig in!</li>
             </ol>
+          </div>
+        </li>
+
+        <li id="running_tests">
+          <span>How do I run the tests?</span>
+          <div class="answer">
+            <p>Nyx has unit tests that exercise our curses functionality. When you run the tests you'll probably notice your console flicker as these tests are exercised. This is normal. Testing also runs <a href="https://launchpad.net/pyflakes">pyflakes</a> and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> in the background.<p>
+            <p>Running our tests is simple...</p>
+            <pre>% run_tests.py</pre>
           </div>
         </li>
 
@@ -277,15 +286,6 @@ sudo python setup.py install</pre><br></li>
               </li>
               <li>I'll review your change and give suggestions. When we're both happy with it I'll push your change to the official repository.</li>
             </ol>
-          </div>
-        </li>
-
-        <li id="running_tests">
-          <span>How do I run the tests?</span>
-          <div class="answer">
-            <p>Nyx has unit tests that exercise our curses functionality. When you run the tests you'll probably notice your console flicker as these tests are exercised. This is normal. Testing also runs <a href="https://launchpad.net/pyflakes">pyflakes</a> and <a href="http://pycodestyle.readthedocs.org/en/latest/">pycodestyle</a> in the background.<p>
-            <p>Running our tests is simple...</p>
-            <pre>% run_tests.py</pre>
           </div>
         </li>
 
