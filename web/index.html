@@ -144,6 +144,22 @@
           </div>
         </li>
 
+        <li id="nyxrc">
+          <span>How can I configure Nyx?</span>
+          <div class="answer">
+            <p>Like most terminal applications Nyx can be customized through a configuration file. By default <b>~/.nyx/nyxrc</b>, though you can specify one with <b>nyx --config /path/to/nyxrc</b>.</p>
+            <p>Configurations are a simple series of key/value pairs. For example...</p>
+
+            <pre>
+acs_support false
+color_override blue  # make our UI predominately blue
+logged_events BW, NOTICE, WARN, ERR
+            </pre>
+
+            <p>For available options see <b><a href="nyxrc.sample">our sample nyxrc</a></b>.</p>
+          </div>
+        </li>
+
         <li id="report_bug">
           <span>How can I report a bug?</span>
           <div class="answer">
