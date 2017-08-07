@@ -69,8 +69,11 @@ EXPECTED_SCROLLBAR_BOTTOM = """
 -+
 """.strip()
 
-NO_OP_HANDLER = lambda textbox, key: key
 DIMENSIONS = (40, 80)
+
+
+def no_op_handler(textbox, key):
+  return key
 
 
 def _textbox(x = 0, text = ''):
@@ -185,31 +188,27 @@ class TestCurses(unittest.TestCase):
     self.assertEqual(curses.ascii.BEL, nyx.curses._handle_key(_textbox(), 410))
 
   def test_handle_tab_completion_no_op(self):
-    tab_completion = lambda txt_input: ['GETINFO version']
-    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, _textbox(), ord('a'))
+    result = nyx.curses._handle_tab_completion(no_op_handler, lambda txt_input: ['GETINFO version'], _textbox(), ord('a'))
     self.assertEqual(ord('a'), result)
 
   def test_handle_tab_completion_no_matches(self):
-    tab_completion = lambda txt_input: []
     textbox = _textbox(text = 'GETINF')
-    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+    result = nyx.curses._handle_tab_completion(no_op_handler, lambda txt_input: [], textbox, 9)
 
     self.assertEqual(None, result)  # consumes input
     self.assertFalse(textbox.win.addstr.called)
 
   def test_handle_tab_completion_single_match(self):
-    tab_completion = lambda txt_input: ['GETINFO version']
     textbox = _textbox(text = 'GETINF')
-    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+    result = nyx.curses._handle_tab_completion(no_op_handler, lambda txt_input: ['GETINFO version'], textbox, 9)
 
     self.assertEqual(None, result)  # consumes input
     self.assertEquals(call(0, 15), textbox.win.move.call_args)  # move cursor to end
     self.assertEqual(call(0, 0, 'GETINFO version'), textbox.win.addstr.call_args)
 
   def test_handle_tab_completion_multiple_matches(self):
-    tab_completion = lambda txt_input: ['GETINFO version', 'GETINFO info/events']
     textbox = _textbox(text = 'GETINF')
-    result = nyx.curses._handle_tab_completion(NO_OP_HANDLER, tab_completion, textbox, 9)
+    result = nyx.curses._handle_tab_completion(no_op_handler, lambda txt_input: ['GETINFO version', 'GETINFO info/events'], textbox, 9)
 
     self.assertEqual(None, result)  # consumes input
     self.assertEquals(call(0, 8), textbox.win.move.call_args)  # move cursor to end
@@ -219,22 +218,22 @@ class TestCurses(unittest.TestCase):
     backlog = nyx.curses._TextBacklog(['GETINFO version'])
     textbox = _textbox()
 
-    self.assertEqual(ord('a'), backlog._handler(NO_OP_HANDLER, textbox, ord('a')))
+    self.assertEqual(ord('a'), backlog._handler(no_op_handler, textbox, ord('a')))
     self.assertFalse(textbox.win.addstr.called)
 
   def test_text_backlog_fills_history(self):
     backlog = nyx.curses._TextBacklog(['GETINFO version'])
     textbox = _textbox()
 
-    self.assertEqual(None, backlog._handler(NO_OP_HANDLER, textbox, curses.KEY_UP))
+    self.assertEqual(None, backlog._handler(no_op_handler, textbox, curses.KEY_UP))
     self.assertEqual(call(0, 0, 'GETINFO version'), textbox.win.addstr.call_args)
 
   def test_text_backlog_remembers_custom_input(self):
     backlog = nyx.curses._TextBacklog(['GETINFO version'])
     textbox = _textbox(text = 'hello')
 
-    self.assertEqual(None, backlog._handler(NO_OP_HANDLER, textbox, curses.KEY_UP))
+    self.assertEqual(None, backlog._handler(no_op_handler, textbox, curses.KEY_UP))
     self.assertEqual(call(0, 0, 'GETINFO version'), textbox.win.addstr.call_args)
 
-    self.assertEqual(None, backlog._handler(NO_OP_HANDLER, textbox, curses.KEY_DOWN))
+    self.assertEqual(None, backlog._handler(no_op_handler, textbox, curses.KEY_DOWN))
     self.assertEqual(call(0, 0, 'hello'), textbox.win.addstr.call_args)

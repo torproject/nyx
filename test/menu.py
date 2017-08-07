@@ -33,7 +33,10 @@ def menu_cursor(*key_inputs):
   return cursor
 
 
-NO_OP = lambda: None
+def no_op():
+  pass
+
+
 IS_CALLED = Container()
 
 TEST_MENU = Submenu('Root Submenu', [
@@ -59,7 +62,7 @@ class TestMenuItem(unittest.TestCase):
     IS_CALLED.value = False
 
   def test_parameters(self):
-    menu_item = MenuItem('Test Item', NO_OP)
+    menu_item = MenuItem('Test Item', no_op)
 
     self.assertEqual('', menu_item.prefix)
     self.assertEqual('Test Item', menu_item.label)
@@ -84,11 +87,11 @@ class TestMenuItem(unittest.TestCase):
     root_submenu = Submenu('Root Submenu')
     middle_submenu = Submenu('Middle Submenu')
 
-    root_submenu.add(MenuItem('Middle Item 1', NO_OP))
-    root_submenu.add(MenuItem('Middle Item 2', NO_OP))
+    root_submenu.add(MenuItem('Middle Item 1', no_op))
+    root_submenu.add(MenuItem('Middle Item 2', no_op))
     root_submenu.add(middle_submenu)
 
-    bottom_item = MenuItem('Bottom Item', NO_OP)
+    bottom_item = MenuItem('Bottom Item', no_op)
     middle_submenu.add(bottom_item)
 
     self.assertEqual(middle_submenu, bottom_item.parent)
@@ -118,16 +121,16 @@ class TestSubmenu(unittest.TestCase):
     self.assertEqual([], menu_item.children)
 
     menu_item = Submenu('Test Item', [
-      MenuItem('Test Item 1', NO_OP),
-      MenuItem('Test Item 2', NO_OP),
+      MenuItem('Test Item 1', no_op),
+      MenuItem('Test Item 2', no_op),
     ])
 
     self.assertEqual(2, len(menu_item.children))
 
   def test_add(self):
     submenu = Submenu('Menu')
-    item_1 = MenuItem('Test Item 1', NO_OP)
-    item_2 = MenuItem('Test Item 2', NO_OP)
+    item_1 = MenuItem('Test Item 1', no_op)
+    item_2 = MenuItem('Test Item 2', no_op)
 
     self.assertEqual([], submenu.children)
 
@@ -140,7 +143,7 @@ class TestSubmenu(unittest.TestCase):
   def test_add_raises_when_already_in_menu(self):
     submenu_1 = Submenu('Menu 1')
     submenu_2 = Submenu('Menu 2')
-    item = MenuItem('Test Item', NO_OP)
+    item = MenuItem('Test Item', no_op)
 
     submenu_1.add(item)
     self.assertRaises(ValueError, submenu_2.add, item)
@@ -151,7 +154,7 @@ class TestRadioMenuItem(unittest.TestCase):
     IS_CALLED.value = False
 
   def test_parameters(self):
-    group = RadioGroup(NO_OP, 'selected_item')
+    group = RadioGroup(no_op, 'selected_item')
     menu_item = RadioMenuItem('Test Item', group, 'selected_item')
 
     self.assertEqual('[X] ', menu_item.prefix)

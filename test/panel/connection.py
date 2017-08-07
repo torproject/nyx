@@ -199,20 +199,24 @@ class TestConnectionPanel(unittest.TestCase):
     tor_controller_mock().get_info.return_value = '82.121.9.9'
     tor_controller_mock().is_geoip_unavailable.return_value = False
 
-    test_data = {
-      line():
-        ' 75.119.206.243:22 (de)  -->  82.121.9.9:3531                  15.4s (INBOUND)',
-      line(entry = MockEntry(entry_type = Category.CIRCUIT), line_type = LineType.CIRCUIT_HEADER):
-        ' 82.121.9.9             -->  75.119.206.243:22 (de)            15.4s (CIRCUIT)',
-      line(line_type = LineType.CIRCUIT, fingerprint = '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86'):
-        ' |  82.121.9.9                                                    1 / Guard',
-      line(line_type = LineType.CIRCUIT, fingerprint = 'B6D83EC2D9E18B0A7A33428F8CFA9C536769E209'):
-        ' |  82.121.9.9                                                    2 / Middle',
-      line(line_type = LineType.CIRCUIT, fingerprint = 'E0BD57A11F00041A9789577C53A1B784473669E4'):
-        ' +- 82.121.9.9                                                    3 / Exit',
-    }
+    test_data = ((
+      line(),
+      ' 75.119.206.243:22 (de)  -->  82.121.9.9:3531                  15.4s (INBOUND)',
+    ), (
+      line(entry = MockEntry(entry_type = Category.CIRCUIT), line_type = LineType.CIRCUIT_HEADER),
+      ' 82.121.9.9             -->  75.119.206.243:22 (de)            15.4s (CIRCUIT)',
+    ), (
+      line(line_type = LineType.CIRCUIT, fingerprint = '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86'),
+      ' |  82.121.9.9                                                    1 / Guard',
+    ), (
+      line(line_type = LineType.CIRCUIT, fingerprint = 'B6D83EC2D9E18B0A7A33428F8CFA9C536769E209'),
+      ' |  82.121.9.9                                                    2 / Middle',
+    ), (
+      line(line_type = LineType.CIRCUIT, fingerprint = 'E0BD57A11F00041A9789577C53A1B784473669E4'),
+      ' +- 82.121.9.9                                                    3 / Exit',
+    ))
 
-    for test_line, expected in test_data.items():
+    for test_line, expected in test_data:
       rendered = test.render(nyx.panel.connection._draw_line, 0, 0, test_line, False, 80, TIMESTAMP + 15.4)
       self.assertEqual(expected, rendered.content)
 
@@ -222,18 +226,21 @@ class TestConnectionPanel(unittest.TestCase):
     tor_controller_mock().get_info.return_value = '82.121.9.9'
     tor_controller_mock().is_geoip_unavailable.return_value = False
 
-    test_data = {
-      line():
-        '75.119.206.243:22 (de)  -->  82.121.9.9:3531',
-      line(entry = MockEntry(entry_type = Category.EXIT)):
-        '82.121.9.9:3531        -->  75.119.206.243:22 (SSH)',
-      line(line_type = LineType.CIRCUIT_HEADER, circ = MockCircuit(status = 'EXTENDING')):
-        'Building...            -->  82.121.9.9',
-      line(line_type = LineType.CIRCUIT):
-        '82.121.9.9',
-    }
+    test_data = ((
+      line(),
+      '75.119.206.243:22 (de)  -->  82.121.9.9:3531',
+    ), (
+      line(entry = MockEntry(entry_type = Category.EXIT)),
+      '82.121.9.9:3531        -->  75.119.206.243:22 (SSH)',
+    ), (
+      line(line_type = LineType.CIRCUIT_HEADER, circ = MockCircuit(status = 'EXTENDING')),
+      'Building...            -->  82.121.9.9',
+    ), (
+      line(line_type = LineType.CIRCUIT),
+      '82.121.9.9',
+    ))
 
-    for test_line, expected in test_data.items():
+    for test_line, expected in test_data:
       rendered = test.render(nyx.panel.connection._draw_address_column, 0, 0, test_line, ())
       self.assertEqual(expected, rendered.content)
 
@@ -246,16 +253,18 @@ class TestConnectionPanel(unittest.TestCase):
 
     port_usage_tracker_mock().fetch.return_value = process
 
-    test_data = {
-      line():
-        '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86  Unnamed',
-      line(line_type = LineType.CIRCUIT_HEADER):
-        'Purpose: General, Circuit ID: 7',
-      line(entry = MockEntry(entry_type = Category.CONTROL)):
-        'firefox (722)',
-    }
+    test_data = ((
+      line(),
+      '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86  Unnamed',
+    ), (
+      line(line_type = LineType.CIRCUIT_HEADER),
+      'Purpose: General, Circuit ID: 7',
+    ), (
+      line(entry = MockEntry(entry_type = Category.CONTROL)),
+      'firefox (722)',
+    ))
 
-    for test_line, expected in test_data.items():
+    for test_line, expected in test_data:
       rendered = test.render(nyx.panel.connection._draw_line_details, 0, 0, test_line, 80, ())
       self.assertEqual(expected, rendered.content)
 
