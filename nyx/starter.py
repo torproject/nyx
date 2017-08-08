@@ -212,7 +212,7 @@ def _warn_about_unused_config_keys(config):
 
   for key in sorted(config.unused_keys()):
     if not key.startswith('msg.') and not key.startswith('dedup.'):
-      log.notice('Unused configuration entry: %s' % key)
+      stem.util.log.notice('Unused configuration entry: %s' % key)
 
 
 @uses_settings
