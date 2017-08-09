@@ -872,10 +872,11 @@ class _Subwindow(object):
     slider_size = (scrollbar_height * (bottom_index - top_index + 1)) // size
     max_slider_top = scrollbar_height - slider_size - 1
 
-    # ensures slider isn't at top or bottom unless really at those extreme bounds
+    # Ensures slider isn't at top or bottom unless really at those extreme
+    # bounds. This is an index vs size comparison, hence the -1 offset.
 
     slider_top = 0 if top_index == 0 else max(slider_top, 1)
-    slider_top = max_slider_top if bottom_index == size else min(slider_top, max_slider_top - 1)
+    slider_top = max_slider_top if bottom_index == size - 1 else min(slider_top, max_slider_top - 1)
 
     # draws scrollbar slider
 
