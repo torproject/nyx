@@ -16,26 +16,26 @@ from mock import patch
 
 EXPECTED_BLANK_GRAPH = """
 Download:
-0 b
+0 B
 
 
 
-0 b
+0 B
         5s   10   15
 """.rstrip()
 
 EXPECTED_ACCOUNTING = """
 Accounting (awake)                 Time to reset: 01:02
-  37.7 Kb / 842.0 Kb                 16.0 Kb / 74.1 Kb
+  4.7 KB / 105.2 KB                  2.0 KB / 9.2 KB
 """.strip()
 
 EXPECTED_GRAPH = """
 Download:
-5 Kb      *
+6 KB      *
           *
-2 Kb      ** *
+3 KB      ** *
      *    ****
-0 b  *********
+0 B  *********
          5s   10   15
 """.rstrip()
 
@@ -103,7 +103,7 @@ class TestGraphPanel(unittest.TestCase):
   @require_curses
   @patch('nyx.panel.graph.tor_controller')
   def test_draw_subgraph(self, tor_controller_mock):
-    tor_controller_mock().get_info.return_value = '543,543 421,421 551,551 710,710 200,200 175,175 188,188 250,250 377,377'
+    tor_controller_mock().get_info.return_value = '5430,5430 4210,4210 5510,5510 7100,7100 2000,2000 1750,1750 1880,1880 2500,2500 3770,3770'
     data = nyx.panel.graph.BandwidthStats()
 
     rendered = test.render(nyx.panel.graph._draw_subgraph, data.primary, 0, 30, 7, nyx.panel.graph.Bounds.LOCAL_MAX, nyx.panel.graph.Interval.EACH_SECOND, nyx.curses.Color.CYAN, '*')

@@ -44,7 +44,7 @@ class NyxInstaller(install):
 
     self.install_bin_script('run_nyx', os.path.join(self.install_scripts, 'nyx'))
     self.install_file('man page', 'nyx.1', self.man_page)
-    self.install_file('web/nyxrc sample', 'nyxrc.sample', self.sample_path)
+    self.install_file('nyxrc sample', os.path.join('web', 'nyxrc.sample'), self.sample_path)
 
   def install_bin_script(self, source, dest):
     # Install our bin script. We do this ourselves rather than with the setup()

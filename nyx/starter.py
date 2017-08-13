@@ -23,7 +23,7 @@ import stem
 import stem.util.log
 import stem.util.system
 
-from nyx import log, init_controller, uses_settings, nyx_interface
+from nyx import init_controller, uses_settings, nyx_interface
 
 DEBUG_HEADER = """
 Nyx {nyx_version} Debug Dump
