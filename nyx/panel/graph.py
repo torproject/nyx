@@ -338,7 +338,7 @@ class BandwidthStats(GraphCategory):
       stats.append('limit: %s/s' % bw_rate_label)
       stats.append('burst: %s/s' % bw_burst_label)
 
-    my_router_status_entry = controller.get_network_status(default = None)
+    my_router_status_entry = nyx.tracker.get_consensus_tracker().my_router_status_entry()
     measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
 
     if measured_bw:

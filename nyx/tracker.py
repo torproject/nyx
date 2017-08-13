@@ -33,6 +33,7 @@ Background tasks for gathering information about the tor process.
 
   ConsensusTracker - performant lookups for consensus related information
     |- update - updates the consensus information we're based on
+    |- my_router_status_entry - provides the router status entry for ourselves
     |- get_relay_nickname - provides the nickname for a given relay
     |- get_relay_fingerprints - provides relays running at a location
     +- get_relay_address - provides the address a relay is running at
@@ -810,6 +811,9 @@ class ConsensusTracker(object):
     self._nickname_cache = {}  # fingerprint => nickname lookup cache
     self._address_cache = {}
 
+    self._my_router_status_entry = None
+    self._my_router_status_entry_time = 0
+
     # Stem's get_network_statuses() is slow, and overkill for what we need
     # here. Just parsing the raw GETINFO response to cut startup time down.
 
@@ -842,15 +846,35 @@ class ConsensusTracker(object):
     new_fingerprint_cache = {}
     new_address_cache = {}
     new_nickname_cache = {}
+    our_fingerprint = tor_controller().get_info('fingerprint', None)
 
     for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
       new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
       new_nickname_cache[desc.fingerprint] = desc.nickname
 
+      if desc.fingerprint == our_fingerprint:
+        self._my_router_status_entry = desc
+        self._my_router_status_entry_time = time.time()
+
     self._fingerprint_cache = new_fingerprint_cache
     self._address_cache = new_address_cache
     self._nickname_cache = new_nickname_cache
+
+  def my_router_status_entry(self):
+    """
+    Provides the router status entry of ourselves. Descriptors are published
+    hourly, and results are cached for five minutes.
+
+    :returns: :class:`~stem.descriptor.router_status_entry.RouterStatusEntryV3`
+      for ourselves, **None** if it cannot be retrieved
+    """
+
+    if self._my_router_status_entry is None or (time.time() - self._my_router_status_entry_time) > 300:
+      self._my_router_status_entry = tor_controller().get_network_status(default = None)
+      self._my_router_status_entry_time = time.time()
+
+    return self._my_router_status_entry
 
   def get_relay_nickname(self, fingerprint):
     """

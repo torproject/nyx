@@ -232,6 +232,7 @@ class Sampling(object):
 
     or_listeners = controller.get_listeners(stem.control.Listener.OR, [])
     control_listeners = controller.get_listeners(stem.control.Listener.CONTROL, [])
+    my_router_status_entry = nyx.tracker.get_consensus_tracker().my_router_status_entry()
 
     if controller.get_conf('HashedControlPassword', None):
       auth_type = 'password'
@@ -262,7 +263,7 @@ class Sampling(object):
       'nickname': controller.get_conf('Nickname', ''),
       'newnym_wait': controller.get_newnym_wait(),
       'exit_policy': controller.get_exit_policy(None),
-      'flags': getattr(controller.get_network_status(default = None), 'flags', []),
+      'flags': getattr(my_router_status_entry, 'flags', []),
 
       'version': str(controller.get_version('Unknown')).split()[0],
       'version_status': controller.get_info('status/version/current', 'Unknown'),

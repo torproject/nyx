@@ -83,18 +83,18 @@ class TestHeaderPanel(unittest.TestCase):
 
   @patch('nyx.panel.header.tor_controller')
   @patch('nyx.tracker.get_resource_tracker')
+  @patch('nyx.tracker.get_consensus_tracker')
   @patch('time.time', Mock(return_value = 1234.5))
   @patch('os.times', Mock(return_value = (0.08, 0.03, 0.0, 0.0, 18759021.31)))
   @patch('os.uname', Mock(return_value = ('Linux', 'odin', '3.5.0-54-generic', '#81~precise1-Ubuntu SMP Tue Jul 15 04:05:58 UTC 2014', 'i686')))
   @patch('stem.util.system.start_time', Mock(return_value = 5678))
   @patch('stem.util.proc.file_descriptors_used', Mock(return_value = 89))
-  def test_sample(self, resource_tracker_mock, tor_controller_mock):
+  def test_sample(self, consensus_tracker_mock, resource_tracker_mock, tor_controller_mock):
     tor_controller_mock().is_alive.return_value = True
     tor_controller_mock().connection_time.return_value = 567.8
     tor_controller_mock().get_latest_heartbeat.return_value = 89.0
     tor_controller_mock().get_newnym_wait.return_value = 0
     tor_controller_mock().get_exit_policy.return_value = stem.exit_policy.ExitPolicy('reject *:*')
-    tor_controller_mock().get_network_status.return_value = None
     tor_controller_mock().get_version.return_value = stem.version.Version('0.1.2.3-tag')
     tor_controller_mock().get_pid.return_value = '123'
 
@@ -125,6 +125,8 @@ class TestHeaderPanel(unittest.TestCase):
 
     resource_tracker_mock().get_value.return_value = resources
     stem.util.system.SYSTEM_CALL_TIME = 0.0
+
+    consensus_tracker_mock().my_router_status_entry.return_value = None
 
     vals = nyx.panel.header.Sampling.create()
 
