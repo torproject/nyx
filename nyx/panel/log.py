@@ -276,7 +276,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     if is_scrollbar_visible:
       subwindow.scrollbar(1, scroll, last_content_height)
 
-    x, y = 3 if is_scrollbar_visible else 1, 1 - scroll
+    x, y = 2 if is_scrollbar_visible else 0, 1 - scroll
     y = _draw_entries(subwindow, x, y, event_log, show_duplicates)
 
     # drawing the title after the content, so we'll clear content from the top line
@@ -378,16 +378,16 @@ def _draw_entries(subwindow, x, y, event_log, show_duplicates):
   for day in sorted(day_to_entries.keys(), reverse = True):
     if day == today:
       for entry in day_to_entries[day]:
-        y = _draw_entry(subwindow, x, y, subwindow.width, entry, show_duplicates)
+        y = _draw_entry(subwindow, x + 1, y, subwindow.width, entry, show_duplicates)
     else:
       original_y, y = y, y + 1
 
       for entry in day_to_entries[day]:
-        y = _draw_entry(subwindow, x, y, subwindow.width - 1, entry, show_duplicates)
+        y = _draw_entry(subwindow, x + 1, y, subwindow.width - 1, entry, show_duplicates)
 
-      subwindow.box(original_y, x - 1, subwindow.width - x + 1, y - original_y + 1, YELLOW, BOLD)
+      subwindow.box(x, original_y, subwindow.width - x + 2, y - original_y + 1, YELLOW, BOLD)
       time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
-      subwindow.addstr(x + 1, original_y, time_label, YELLOW, BOLD)
+      subwindow.addstr(x + 2, original_y, time_label, YELLOW, BOLD)
 
       y += 1
 

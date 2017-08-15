@@ -905,14 +905,14 @@ class _Subwindow(object):
   def hline(self, x, y, length, *attr):
     if self.width > x and self.height > y:
       try:
-        self._curses_subwindow.hline(y, x, curses.ACS_HLINE | curses_attr(*attr), min(length, self.width - x))
+        self._curses_subwindow.hline(max(0, y), max(0, x), curses.ACS_HLINE | curses_attr(*attr), min(length, self.width - x))
       except:
         pass
 
   def vline(self, x, y, length, *attr):
     if self.width > x and self.height > y:
       try:
-        self._curses_subwindow.vline(y, x, curses.ACS_VLINE | curses_attr(*attr), min(length, self.height - y))
+        self._curses_subwindow.vline(max(0, y), max(0, x), curses.ACS_VLINE | curses_attr(*attr), min(length, self.height - y))
       except:
         pass
 
