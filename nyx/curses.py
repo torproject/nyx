@@ -819,11 +819,11 @@ class _Subwindow(object):
     :param list attr: text attributes to apply
     """
 
-    max_width = self.width - left
-    max_height = self.height - top
+    if width is None:
+      width = self.width - left
 
-    width = max_width if width is None else min(width, max_width)
-    height = max_height if height is None else min(height, max_height)
+    if height is None:
+      height = self.height - top
 
     self.hline(left + 1, top, width - 2, *attr)  # top
     self.hline(left + 1, top + height - 1, width - 2, *attr)  # bottom

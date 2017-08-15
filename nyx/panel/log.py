@@ -385,7 +385,7 @@ def _draw_entries(subwindow, x, y, event_log, show_duplicates):
       for entry in day_to_entries[day]:
         y = _draw_entry(subwindow, x + 1, y, subwindow.width - 1, entry, show_duplicates)
 
-      subwindow.box(x, original_y, subwindow.width - x + 2, y - original_y + 1, YELLOW, BOLD)
+      subwindow.box(x, original_y, subwindow.width - x, y - original_y + 1, YELLOW, BOLD)
       time_label = time.strftime(' %B %d, %Y ', time.localtime(day_to_entries[day][0].timestamp))
       subwindow.addstr(x + 2, original_y, time_label, YELLOW, BOLD)
 
