@@ -9,10 +9,10 @@ render to the screen.
 """
 
 import os
-import multiprocessing
 import unittest
 
 import stem.util.conf
+import stem.util.system
 import stem.util.test_tools
 
 import nyx
@@ -28,12 +28,6 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
 )]
 
 
-def _run_wrapper(conn, runner, args):
-  os.nice(15)
-  conn.send(runner(*args) if args else runner())
-  conn.close()
-
-
 @nyx.uses_settings
 def main():
   nyx.TESTING = True
@@ -45,18 +39,13 @@ def main():
   for path in orphaned_pyc:
     print('Deleted orphaned pyc file: %s' % path)
 
-  pyflakes_task, pyflakes_pipe = None, None
-  pycodestyle_task, pycodestyle_pipe = None, None
+  pyflakes_task, pycodestyle_task = None, None
 
   if stem.util.test_tools.is_pyflakes_available():
-    pyflakes_pipe, child_pipe = multiprocessing.Pipe()
-    pyflakes_task = multiprocessing.Process(target = _run_wrapper, args = (child_pipe, stem.util.test_tools.pyflakes_issues, (SRC_PATHS,)))
-    pyflakes_task.start()
+    pyflakes_task = stem.util.system.DaemonTask(stem.util.test_tools.pyflakes_issues, (SRC_PATHS,), start = True)
 
   if stem.util.test_tools.is_pep8_available():
-    pycodestyle_pipe, child_pipe = multiprocessing.Pipe()
-    pycodestyle_task = multiprocessing.Process(target = _run_wrapper, args = (child_pipe, stem.util.test_tools.stylistic_issues, (SRC_PATHS, True, True, True)))
-    pycodestyle_task.start()
+    pycodestyle_task = stem.util.system.DaemonTask(stem.util.test_tools.stylistic_issues, (SRC_PATHS,), start = True)
 
   tests = unittest.defaultTestLoader.discover('test', pattern = '*.py')
   test_runner = unittest.TextTestRunner()
@@ -67,18 +56,12 @@ def main():
   static_check_issues = {}
 
   if pyflakes_task:
-    pyflakes_issues = pyflakes_pipe.recv()
-    pyflakes_task.join()
-
-    for path, issues in pyflakes_issues.items():
+    for path, issues in pyflakes_task.join().items():
       for issue in issues:
         static_check_issues.setdefault(path, []).append(issue)
 
   if pycodestyle_task:
-    pycodestyle_issues = pycodestyle_pipe.recv()
-    pycodestyle_task.join()
-
-    for path, issues in pycodestyle_issues.items():
+    for path, issues in pycodestyle_task.join().items():
       for issue in issues:
         static_check_issues.setdefault(path, []).append(issue)
 
