@@ -432,23 +432,15 @@ class Interface(object):
       for panel in self.page_panels():
         panel.redraw()
 
-  def redraw(self, force = True):
+  def redraw(self):
     """
     Renders our displayed content.
-
-    :param bool force: if **False** only redraws content if resized
     """
-
-    # Curses may overly cache content without clearing here...
-    # https://trac.torproject.org/projects/tor/ticket/2830#comment:9
-
-    if force:
-      nyx.curses.clear()
 
     occupied = 0
 
     for panel in self.page_panels():
-      panel.redraw(force = force, top = occupied)
+      panel.redraw(force = False, top = occupied)
       occupied += panel.get_height()
 
   def quit(self):
