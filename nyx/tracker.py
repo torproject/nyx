@@ -52,6 +52,7 @@ Background tasks for gathering information about the tor process.
 
 import collections
 import os
+import sys
 import time
 import threading
 
@@ -817,6 +818,7 @@ class ConsensusTracker(object):
     # Stem's get_network_statuses() is slow, and overkill for what we need
     # here. Just parsing the raw GETINFO response to cut startup time down.
 
+    start_time = time.time()
     controller = tor_controller()
     ns_response = controller.get_info('ns/all', None)
 
@@ -834,6 +836,8 @@ class ConsensusTracker(object):
           self._address_cache[fingerprint] = (address, or_port)
           self._nickname_cache[fingerprint] = nickname
 
+      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for addresses, and %s for nicknames' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._address_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._nickname_cache))))
+
     controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 
   def update(self, router_status_entries):
@@ -846,6 +850,8 @@ class ConsensusTracker(object):
     new_fingerprint_cache = {}
     new_address_cache = {}
     new_nickname_cache = {}
+
+    start_time = time.time()
     our_fingerprint = tor_controller().get_info('fingerprint', None)
 
     for desc in router_status_entries:
@@ -860,6 +866,8 @@ class ConsensusTracker(object):
     self._fingerprint_cache = new_fingerprint_cache
     self._address_cache = new_address_cache
     self._nickname_cache = new_nickname_cache
+
+    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for addresses, and %s for nicknames' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._address_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._nickname_cache))))
 
   def my_router_status_entry(self):
     """
