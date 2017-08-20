@@ -809,8 +809,7 @@ class ConsensusTracker(object):
 
   def __init__(self):
     self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
-    self._nickname_cache = {}  # fingerprint => nickname lookup cache
-    self._address_cache = {}
+    self._relay_cache = {}  # fingerprint => address, orport, nickname lookup cache
 
     self._my_router_status_entry = None
     self._my_router_status_entry_time = 0
@@ -833,10 +832,9 @@ class ConsensusTracker(object):
           nickname = r_comp[1]
 
           self._fingerprint_cache.setdefault(address, []).append((or_port, fingerprint))
-          self._address_cache[fingerprint] = (address, or_port)
-          self._nickname_cache[fingerprint] = nickname
+          self._relay_cache[fingerprint] = (address, or_port, nickname)
 
-      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for addresses, and %s for nicknames' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._address_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._nickname_cache))))
+      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._relay_cache))))
 
     controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 
@@ -848,26 +846,23 @@ class ConsensusTracker(object):
     """
 
     new_fingerprint_cache = {}
-    new_address_cache = {}
-    new_nickname_cache = {}
+    new_relay_cache = {}
 
     start_time = time.time()
     our_fingerprint = tor_controller().get_info('fingerprint', None)
 
     for desc in router_status_entries:
       new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
-      new_address_cache[desc.fingerprint] = (desc.address, desc.or_port)
-      new_nickname_cache[desc.fingerprint] = desc.nickname
+      new_relay_cache[desc.fingerprint] = (desc.address, desc.or_port, desc.nickname)
 
       if desc.fingerprint == our_fingerprint:
         self._my_router_status_entry = desc
         self._my_router_status_entry_time = time.time()
 
     self._fingerprint_cache = new_fingerprint_cache
-    self._address_cache = new_address_cache
-    self._nickname_cache = new_nickname_cache
+    self._relay_cache = new_relay_cache
 
-    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for addresses, and %s for nicknames' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._address_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._nickname_cache))))
+    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._relay_cache))))
 
   def my_router_status_entry(self):
     """
@@ -901,7 +896,7 @@ class ConsensusTracker(object):
     elif fingerprint == controller.get_info('fingerprint', None):
       return controller.get_conf('Nickname', 'Unnamed')
     else:
-      return self._nickname_cache.get(fingerprint)
+      return self._relay_cache.get(fingerprint)[2]
 
   def get_relay_fingerprints(self, address):
     """
@@ -941,4 +936,4 @@ class ConsensusTracker(object):
       if my_address and len(my_or_ports) == 1:
         return (my_address, my_or_ports[0])
 
-    return self._address_cache.get(fingerprint, default)
+    return self._relay_cache.get(fingerprint, default)[:2]
