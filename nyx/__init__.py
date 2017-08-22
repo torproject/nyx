@@ -232,9 +232,22 @@ def init_controller(*args, **kwargs):
 
 
 @uses_settings
-def data_directory(config):
+def data_directory(config, filename):
   path = config.get('data_directory', '~/.nyx')
-  return None if path == 'disabled' else os.path.expanduser(path)
+
+  if path == 'disabled':
+    return None
+
+  data_dir = os.path.expanduser(path)
+
+  if not os.path.exists(data_dir):
+    try:
+      os.mkdir(data_dir)
+    except OSError as exc:
+      stem.util.log.log_once('nyx.data_directory_unavailable', stem.util.log.NOTICE, 'Unable to create a data directory at %s (%s). This is fine, but caching is disabled meaning performance will be diminished a bit.' % (data_dir, exc))
+      return None
+
+  return os.path.join(data_dir, filename)
 
 
 @uses_settings

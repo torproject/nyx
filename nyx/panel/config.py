@@ -130,11 +130,9 @@ class ConfigPanel(nyx.panel.Panel):
     self._sort_order = CONFIG['config_order']
     self._show_all = False  # show all options, or just the important ones
 
-    data_dir = data_directory()
+    cached_manual_path = data_directory('manual')
 
-    if data_dir:
-      cached_manual_path = os.path.join(data_dir, 'manual')
-
+    if cached_manual_path:
       if os.path.exists(cached_manual_path):
         manual = stem.manual.Manual.from_cache(cached_manual_path)
       else:
