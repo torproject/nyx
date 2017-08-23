@@ -52,7 +52,6 @@ Background tasks for gathering information about the tor process.
 
 import collections
 import os
-import sys
 import time
 import threading
 
@@ -834,7 +833,7 @@ class ConsensusTracker(object):
           self._fingerprint_cache.setdefault(address, []).append((or_port, fingerprint))
           self._relay_cache[fingerprint] = (address, or_port, nickname)
 
-      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._relay_cache))))
+      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(system.size_of(self._fingerprint_cache), 2), stem.util.str_tools.size_label(system.size_of(self._relay_cache), 2)))
 
     controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 
@@ -862,7 +861,7 @@ class ConsensusTracker(object):
     self._fingerprint_cache = new_fingerprint_cache
     self._relay_cache = new_relay_cache
 
-    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(sys.getsizeof(self._fingerprint_cache)), stem.util.str_tools.size_label(sys.getsizeof(self._relay_cache))))
+    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(system.size_of(self._fingerprint_cache), 2), stem.util.str_tools.size_label(system.size_of(self._relay_cache), 2)))
 
   def my_router_status_entry(self):
     """
