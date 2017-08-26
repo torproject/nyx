@@ -232,7 +232,7 @@ def init_controller(*args, **kwargs):
 
 
 @uses_settings
-def data_directory(config, filename):
+def data_directory(filename, config):
   path = config.get('data_directory', '~/.nyx')
 
   if path == 'disabled':
