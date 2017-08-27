@@ -7,7 +7,6 @@ and the resulting configuration files saved.
 """
 
 import curses
-import os
 
 import nyx.curses
 import nyx.panel
@@ -17,9 +16,9 @@ import stem.control
 import stem.manual
 import stem.util.connection
 
+from nyx import tor_controller, input_prompt, show_message
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu
-from nyx import tor_controller, data_directory, input_prompt, show_message
 
 from stem.util import conf, enum, log, str_tools
 
@@ -50,14 +49,18 @@ class ConfigEntry(object):
 
   :var str name: name of the configuration option
   :var str value_type: type of value
-  :var stem.manual.ConfigOption manual: manual information about the option
   """
 
-  def __init__(self, name, value_type, manual):
+  def __init__(self, name, value_type):
     self.name = name
     self.value_type = value_type
-    self.manual = manual.config_options.get(name, stem.manual.ConfigOption(name))
-    self._index = list(manual.config_options.keys()).index(name) if name in manual.config_options else 99999
+
+    self._is_fetched = False
+    self._category = None
+    self._usage = None
+    self._summary = None
+    self._description = None
+    self._position = None
 
   def value(self):
     """
@@ -98,7 +101,7 @@ class ConfigEntry(object):
     """
 
     if attr == SortAttr.CATEGORY:
-      return self.manual.category
+      return self.category
     elif attr == SortAttr.NAME:
       return self.name
     elif attr == SortAttr.VALUE:
@@ -106,15 +109,59 @@ class ConfigEntry(object):
     elif attr == SortAttr.VALUE_TYPE:
       return self.value_type
     elif attr == SortAttr.USAGE:
-      return self.manual.usage
+      return self.usage
     elif attr == SortAttr.SUMMARY:
-      return self.manual.summary
+      return self.summary
     elif attr == SortAttr.DESCRIPTION:
-      return self.manual.description
+      return self.description
     elif attr == SortAttr.MAN_PAGE_ENTRY:
-      return self._index
+      return self.position
     elif attr == SortAttr.IS_SET:
       return not self.is_set()
+
+  @property
+  def category(self):
+    if not self._category:
+      self._fetch_attr()
+
+    return self._category
+
+  @property
+  def usage(self):
+    if not self._usage:
+      self._fetch_attr()
+
+    return self._usage
+
+  @property
+  def summary(self):
+    if not self._is_fetched:
+      self._fetch_attr()
+
+    return self._summary
+
+  @property
+  def description(self):
+    if not self._is_fetched:
+      self._fetch_attr()
+
+    return self._description
+
+  @property
+  def position(self):
+    if not self._is_fetched:
+      self._fetch_attr()
+
+    return 99999 if self._position is None else self._position
+
+  def _fetch_attr(self):
+    result = stem.manual.query('SELECT category, usage, summary, description, position FROM torrc WHERE key=?', self.name.upper()).fetchone()
+    self._is_fetched = True
+
+    if result:
+      self._category, self._usage, self._summary, self._description, self._position = result
+    else:
+      log.info("No manual information found for '%s'" % self.name)
 
 
 class ConfigPanel(nyx.panel.Panel):
@@ -125,27 +172,11 @@ class ConfigPanel(nyx.panel.Panel):
   def __init__(self):
     nyx.panel.Panel.__init__(self)
 
-    self._contents = []
+    self._all_content = []
+    self._important_content = []
     self._scroller = nyx.curses.CursorScroller()
     self._sort_order = CONFIG['config_order']
     self._show_all = False  # show all options, or just the important ones
-
-    cached_manual_path = data_directory('manual')
-
-    if cached_manual_path:
-      if os.path.exists(cached_manual_path):
-        manual = stem.manual.Manual.from_cache(cached_manual_path)
-      else:
-        try:
-          manual = stem.manual.Manual.from_man()
-
-          try:
-            manual.save(cached_manual_path)
-          except IOError as exc:
-            log.debug("Unable to cache manual information to '%s'. This is fine, but means starting Nyx takes a little longer than usual: " % (cached_manual_path, exc))
-        except IOError as exc:
-          log.debug("Unable to use 'man tor' to get information about config options (%s), using bundled information instead" % exc)
-          manual = stem.manual.Manual.from_cache()
 
     try:
       for line in tor_controller().get_info('config/names').splitlines():
@@ -165,9 +196,13 @@ class ConfigPanel(nyx.panel.Panel):
         elif value_type == 'Virtual' and not CONFIG['show_virtual_options']:
           continue
 
-        self._contents.append(ConfigEntry(name, value_type, manual))
+        entry = ConfigEntry(name, value_type)
+        self._all_content.append(entry)
 
-      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+        if stem.manual.is_important(entry.name):
+          self._important_content.append(entry)
+
+      self._sort_content()
     except stem.ControllerError as exc:
       log.warn('Unable to determine the configuration options tor supports: %s' % exc)
 
@@ -181,7 +216,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     if results:
       self._sort_order = results
-      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._sort_content()
 
   def _show_write_dialog(self):
     """
@@ -232,6 +267,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     def _toggle_show_all():
       self._show_all = not self._show_all
+      self._sort_content()
       self.redraw()
 
     return (
@@ -294,7 +330,13 @@ class ConfigPanel(nyx.panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else list(filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents))
+    return self._all_content if self._show_all else self._important_content
+
+  def _sort_content(self):
+    if self._show_all:
+      self._all_content = sorted(self._all_content, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    else:
+      self._important_content = sorted(self._important_content, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
 
 def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):
@@ -302,13 +344,13 @@ def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_wid
   Show an individual configuration line.
   """
 
-  attr = [CONFIG['attr.config.category_color'].get(entry.manual.category, WHITE)]
+  attr = [CONFIG['attr.config.category_color'].get(entry.category, WHITE)]
   attr.append(BOLD if entry.is_set() else NORMAL)
   attr.append(HIGHLIGHT if is_selected else NORMAL)
 
   option_label = str_tools.crop(entry.name, NAME_WIDTH).ljust(NAME_WIDTH + 1)
   value_label = str_tools.crop(entry.value(), value_width).ljust(value_width + 1)
-  summary_label = str_tools.crop(entry.manual.summary, description_width).ljust(description_width)
+  summary_label = str_tools.crop(entry.summary, description_width).ljust(description_width)
 
   subwindow.addstr(x, y, option_label + value_label + summary_label, *attr)
 
@@ -318,14 +360,14 @@ def _draw_selection_details(subwindow, selected):
   Shows details of the currently selected option.
   """
 
-  attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.manual.usage))
-  selected_color = CONFIG['attr.config.category_color'].get(selected.manual.category, WHITE)
+  attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.usage))
+  selected_color = CONFIG['attr.config.category_color'].get(selected.category, WHITE)
   subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
 
-  subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.manual.category), selected_color, BOLD)
+  subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.category), selected_color, BOLD)
   subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, max(0, subwindow.width - len(selected.value()) - 13))), selected_color, BOLD)
 
-  description = 'Description: %s' % selected.manual.description
+  description = 'Description: %s' % selected.description
 
   for i in range(DETAILS_HEIGHT - 4):
     if not description:

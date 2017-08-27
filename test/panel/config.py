@@ -4,7 +4,6 @@ Unit tests for nyx.panel.config.
 
 import unittest
 
-import stem.manual
 import nyx.panel.config
 import test
 
@@ -32,8 +31,7 @@ class TestConfigPanel(unittest.TestCase):
     tor_controller_mock().get_info.return_value = True
     tor_controller_mock().get_conf.return_value = ['9051']
 
-    manual = stem.manual.Manual.from_cache()
-    entry = nyx.panel.config.ConfigEntry('ControlPort', 'LineList', manual)
+    entry = nyx.panel.config.ConfigEntry('ControlPort', 'LineList')
 
     rendered = test.render(nyx.panel.config._draw_line, 0, 0, entry, False, 10, 35)
     self.assertEqual(EXPECTED_LINE, rendered.content)
@@ -44,8 +42,7 @@ class TestConfigPanel(unittest.TestCase):
     tor_controller_mock().get_info.return_value = True
     tor_controller_mock().get_conf.return_value = ['9051']
 
-    manual = stem.manual.Manual.from_cache()
-    selected = nyx.panel.config.ConfigEntry('ControlPort', 'LineList', manual)
+    selected = nyx.panel.config.ConfigEntry('ControlPort', 'LineList')
 
     rendered = test.render(nyx.panel.config._draw_selection_details, selected)
     self.assertEqual(EXPECTED_DETAIL_DIALOG, rendered.content)
