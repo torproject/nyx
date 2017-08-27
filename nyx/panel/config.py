@@ -54,6 +54,8 @@ class ConfigEntry(object):
   def __init__(self, name, value_type):
     self.name = name
     self.value_type = value_type
+
+    self._is_fetched = False
     self._category = None
     self._usage = None
     self._summary = None
@@ -133,27 +135,28 @@ class ConfigEntry(object):
 
   @property
   def summary(self):
-    if not self._summary:
+    if not self._is_fetched:
       self._fetch_attr()
 
     return self._summary
 
   @property
   def description(self):
-    if not self._description:
+    if not self._is_fetched:
       self._fetch_attr()
 
     return self._description
 
   @property
   def position(self):
-    if not self._position:
+    if not self._is_fetched:
       self._fetch_attr()
 
-    return self._position
+    return 99999 if self._position is None else self._position
 
   def _fetch_attr(self):
     result = stem.manual.query('SELECT category, usage, summary, description, position FROM torrc WHERE key=?', self.name.upper()).fetchone()
+    self._is_fetched = True
 
     if result:
       self._category, self._usage, self._summary, self._description, self._position = result
