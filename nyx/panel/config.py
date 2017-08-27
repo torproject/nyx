@@ -172,7 +172,8 @@ class ConfigPanel(nyx.panel.Panel):
   def __init__(self):
     nyx.panel.Panel.__init__(self)
 
-    self._contents = []
+    self._all_content = []
+    self._important_content = []
     self._scroller = nyx.curses.CursorScroller()
     self._sort_order = CONFIG['config_order']
     self._show_all = False  # show all options, or just the important ones
@@ -195,9 +196,13 @@ class ConfigPanel(nyx.panel.Panel):
         elif value_type == 'Virtual' and not CONFIG['show_virtual_options']:
           continue
 
-        self._contents.append(ConfigEntry(name, value_type))
+        entry = ConfigEntry(name, value_type)
+        self._all_content.append(entry)
 
-      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+        if stem.manual.is_important(entry.name):
+          self._important_content.append(entry)
+
+      self._sort_content()
     except stem.ControllerError as exc:
       log.warn('Unable to determine the configuration options tor supports: %s' % exc)
 
@@ -211,7 +216,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     if results:
       self._sort_order = results
-      self._contents = sorted(self._contents, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+      self._sort_content()
 
   def _show_write_dialog(self):
     """
@@ -262,6 +267,7 @@ class ConfigPanel(nyx.panel.Panel):
 
     def _toggle_show_all():
       self._show_all = not self._show_all
+      self._sort_content()
       self.redraw()
 
     return (
@@ -324,7 +330,13 @@ class ConfigPanel(nyx.panel.Panel):
         break
 
   def _get_config_options(self):
-    return self._contents if self._show_all else list(filter(lambda entry: stem.manual.is_important(entry.name) or entry.is_set(), self._contents))
+    return self._all_content if self._show_all else self._important_content
+
+  def _sort_content(self):
+    if self._show_all:
+      self._all_content = sorted(self._all_content, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
+    else:
+      self._important_content = sorted(self._important_content, key = lambda entry: [entry.sort_value(field) for field in self._sort_order])
 
 
 def _draw_line(subwindow, x, y, entry, is_selected, value_width, description_width):
