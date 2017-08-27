@@ -6,6 +6,7 @@ Panel presenting the configuration state for tor or nyx. Options can be edited
 and the resulting configuration files saved.
 """
 
+import collections
 import curses
 
 import nyx.curses
@@ -22,7 +23,14 @@ from nyx.menu import MenuItem, Submenu
 
 from stem.util import conf, enum, log, str_tools
 
+try:
+  # added in python 3.2
+  from functools import lru_cache
+except ImportError:
+  from stem.util.lru_cache import lru_cache
+
 SortAttr = enum.Enum('NAME', 'VALUE', 'VALUE_TYPE', 'CATEGORY', 'USAGE', 'SUMMARY', 'DESCRIPTION', 'MAN_PAGE_ENTRY', 'IS_SET')
+ManualEntry = collections.namedtuple('ManualEntry', ['category', 'usage', 'summary', 'description', 'position'])
 
 DETAILS_HEIGHT = 8
 NAME_WIDTH = 25
@@ -43,6 +51,17 @@ CONFIG = conf.config_dict('nyx', {
 }, conf_handler)
 
 
+@lru_cache()
+def manual(option):
+  result = stem.manual.query('SELECT category, usage, summary, description, position FROM torrc WHERE key=?', option.upper()).fetchone()
+
+  if result:
+    return ManualEntry(*result)
+  else:
+    log.info("No manual information found for '%s'" % option)
+    return None
+
+
 class ConfigEntry(object):
   """
   Configuration option presented in the panel.
@@ -54,13 +73,6 @@ class ConfigEntry(object):
   def __init__(self, name, value_type):
     self.name = name
     self.value_type = value_type
-
-    self._is_fetched = False
-    self._category = None
-    self._usage = None
-    self._summary = None
-    self._description = None
-    self._position = None
 
   def value(self):
     """
@@ -121,47 +133,23 @@ class ConfigEntry(object):
 
   @property
   def category(self):
-    if not self._category:
-      self._fetch_attr()
-
-    return self._category
+    return getattr(manual(self.name), 'category')
 
   @property
   def usage(self):
-    if not self._usage:
-      self._fetch_attr()
-
-    return self._usage
+    return getattr(manual(self.name), 'usage')
 
   @property
   def summary(self):
-    if not self._is_fetched:
-      self._fetch_attr()
-
-    return self._summary
+    return getattr(manual(self.name), 'summary')
 
   @property
   def description(self):
-    if not self._is_fetched:
-      self._fetch_attr()
-
-    return self._description
+    return getattr(manual(self.name), 'description')
 
   @property
   def position(self):
-    if not self._is_fetched:
-      self._fetch_attr()
-
-    return 99999 if self._position is None else self._position
-
-  def _fetch_attr(self):
-    result = stem.manual.query('SELECT category, usage, summary, description, position FROM torrc WHERE key=?', self.name.upper()).fetchone()
-    self._is_fetched = True
-
-    if result:
-      self._category, self._usage, self._summary, self._description, self._position = result
-    else:
-      log.info("No manual information found for '%s'" % self.name)
+    return getattr(manual(self.name), 'position', 99999)
 
 
 class ConfigPanel(nyx.panel.Panel):
