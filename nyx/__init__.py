@@ -33,6 +33,7 @@ Tor curses monitoring application.
 
 import distutils.spawn
 import os
+import sqlite3
 import sys
 import threading
 import time
@@ -84,6 +85,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
+CACHE = None
 
 # technically can change but we use this query a *lot* so needs to be cached
 
@@ -248,6 +250,22 @@ def data_directory(filename, config):
       return None
 
   return os.path.join(data_dir, filename)
+
+
+def cache():
+  """
+  Provides the sqlite cache for application data.
+
+  :returns: **sqlite3.Connection** for our applicaion cache
+  """
+
+  global CACHE
+
+  if CACHE is None:
+    cache_path = data_directory('cache.sqlite')
+    CACHE = sqlite3.connect(cache_path if cache_path else ':memory:')
+
+  return CACHE
 
 
 @uses_settings
