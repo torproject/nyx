@@ -31,6 +31,7 @@ Tor curses monitoring application.
     +- halt - stops daemon panels
 """
 
+import contextlib
 import distutils.spawn
 import os
 import sqlite3
@@ -86,6 +87,14 @@ NYX_INTERFACE = None
 TOR_CONTROLLER = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 CACHE = None
+CACHE_LOCK = threading.RLock()
+
+SCHEMA_VERSION = 1  # version of our scheme, bump this if you change the following
+SCHEMA = (
+  'CREATE TABLE schema(version NUMBER)',
+  'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
+)
+
 
 # technically can change but we use this query a *lot* so needs to be cached
 
@@ -252,6 +261,7 @@ def data_directory(filename, config):
   return os.path.join(data_dir, filename)
 
 
+@contextlib.contextmanager
 def cache():
   """
   Provides the sqlite cache for application data.
@@ -261,11 +271,33 @@ def cache():
 
   global CACHE
 
-  if CACHE is None:
-    cache_path = data_directory('cache.sqlite')
-    CACHE = sqlite3.connect(cache_path if cache_path else ':memory:')
+  with CACHE_LOCK:
+    if CACHE is None:
+      cache_path = data_directory('cache.sqlite')
 
-  return CACHE
+      if cache_path:
+        try:
+          CACHE = sqlite3.connect(cache_path)
+          schema = CACHE.execute('SELECT version FROM schema').fetchone()[0]
+        except:
+          schema = 'no schema'
+
+        if schema != SCHEMA_VERSION:
+          stem.util.log.info('Cache schema of %s is out of date (has %s but current version is %s). Clearing the cache.' % (cache_path, schema, SCHEMA_VERSION))
+
+          CACHE.close()
+          os.remove(cache_path)
+          CACHE = sqlite3.connect(cache_path)
+
+          for cmd in SCHEMA:
+            CACHE.execute(cmd)
+      else:
+        CACHE = sqlite3.connect(':memory:')
+
+        for cmd in SCHEMA:
+          CACHE.execute(cmd)
+
+    yield CACHE
 
 
 @uses_settings
