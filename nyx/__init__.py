@@ -93,6 +93,8 @@ SCHEMA_VERSION = 1  # version of our scheme, bump this if you change the followi
 SCHEMA = (
   'CREATE TABLE schema(version NUMBER)',
   'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
+
+  'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port NUMBER, nickname TEXT)',
 )
 
 

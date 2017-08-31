@@ -9,6 +9,11 @@ import nyx
 
 from mock import Mock, patch
 
+FINGERPRINT = '3EA8E960F6B94CE30062AA8EF02894C00F8D1E66'
+ADDRESS = '208.113.165.162'
+PORT = 1443
+NICKNAME = 'caersidi'
+
 
 class TestCache(unittest.TestCase):
   def setUp(self):
@@ -16,26 +21,28 @@ class TestCache(unittest.TestCase):
 
   @patch('nyx.data_directory', Mock(return_value = None))
   def test_memory_cache(self):
+    """
+    Create a cache in memory.
+    """
+
     with nyx.cache() as cache:
       self.assertEqual((0, 'main', ''), cache.execute("PRAGMA database_list").fetchone())
-
-      cache.execute('CREATE TABLE aliases(alias TEXT, command TEXT)')
-      cache.execute('INSERT INTO aliases(alias, command) VALUES (?,?)', ('l', 'ls -xF --color=auto'))
-      cache.execute('INSERT INTO aliases(alias, command) VALUES (?,?)', ('ll', 'ls -hlA --color=auto'))
-      self.assertEqual('ls -hlA --color=auto', cache.execute('SELECT command FROM aliases WHERE alias=?', ('ll',)).fetchone()[0])
+      cache.execute('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', (FINGERPRINT, ADDRESS, PORT, NICKNAME))
+      self.assertEqual(NICKNAME, cache.execute('SELECT nickname FROM relays WHERE fingerprint=?', (FINGERPRINT,)).fetchone()[0])
 
   def test_file_cache(self):
+    """
+    Create a new cache file, and ensure we can reload cached results.
+    """
+
     with tempfile.NamedTemporaryFile(suffix = '.sqlite') as tmp:
       with patch('nyx.data_directory', Mock(return_value = tmp.name)):
         with nyx.cache() as cache:
           self.assertEqual((0, 'main', tmp.name), cache.execute("PRAGMA database_list").fetchone())
-
-          cache.execute('CREATE TABLE aliases(alias TEXT, command TEXT)')
-          cache.execute('INSERT INTO aliases(alias, command) VALUES (?,?)', ('l', 'ls -xF --color=auto'))
-          cache.execute('INSERT INTO aliases(alias, command) VALUES (?,?)', ('ll', 'ls -hlA --color=auto'))
+          cache.execute('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', (FINGERPRINT, ADDRESS, PORT, NICKNAME))
           cache.commit()
 
         nyx.CACHE = None
 
         with nyx.cache() as cache:
-          self.assertEqual('ls -hlA --color=auto', cache.execute('SELECT command FROM aliases WHERE alias=?', ('ll',)).fetchone()[0])
+          self.assertEqual(NICKNAME, cache.execute('SELECT nickname FROM relays WHERE fingerprint=?', (FINGERPRINT,)).fetchone()[0])
