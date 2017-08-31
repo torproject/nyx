@@ -5,7 +5,7 @@ Unit tests for nyx.cache.
 import tempfile
 import unittest
 
-import nyx.cache
+import nyx
 
 from mock import Mock, patch
 
@@ -17,7 +17,7 @@ NICKNAME = 'caersidi'
 
 class TestCache(unittest.TestCase):
   def setUp(self):
-    nyx.cache.CACHE = None  # drop cached database reference
+    nyx.CACHE = None  # drop cached database reference
 
   @patch('nyx.data_directory', Mock(return_value = None))
   def test_memory_cache(self):
@@ -25,7 +25,7 @@ class TestCache(unittest.TestCase):
     Create a cache in memory.
     """
 
-    cache = nyx.cache.cache()
+    cache = nyx.cache()
 
     self.assertEqual((0, 'main', ''), cache.query('PRAGMA database_list').fetchone())
     cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
@@ -38,13 +38,13 @@ class TestCache(unittest.TestCase):
 
     with tempfile.NamedTemporaryFile(suffix = '.sqlite') as tmp:
       with patch('nyx.data_directory', Mock(return_value = tmp.name)):
-        cache = nyx.cache.cache()
+        cache = nyx.cache()
 
         self.assertEqual((0, 'main', tmp.name), cache.query('PRAGMA database_list').fetchone())
         cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
         cache._conn.commit()
 
-        nyx.cache.CACHE = None
+        nyx.CACHE = None
 
-        cache = nyx.cache.cache()
+        cache = nyx.cache()
         self.assertEqual(NICKNAME, cache.query('SELECT nickname FROM relays WHERE fingerprint=?', FINGERPRINT).fetchone()[0])

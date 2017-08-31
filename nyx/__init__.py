@@ -33,6 +33,7 @@ Tor curses monitoring application.
 
 import distutils.spawn
 import os
+import sqlite3
 import sys
 import threading
 import time
@@ -84,6 +85,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
+CACHE = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 
 # technically can change but we use this query a *lot* so needs to be cached
@@ -93,6 +95,15 @@ stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARA
 # disable trace level messages about cache hits
 
 stem.control.LOG_CACHE_FETCHES = False
+
+SCHEMA_VERSION = 1  # version of our scheme, bump this if you change the following
+SCHEMA = (
+  'CREATE TABLE schema(version NUMBER)',
+  'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
+
+  'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port NUMBER, nickname TEXT)',
+)
+
 
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'settings'), lazy_load = False)
@@ -187,6 +198,21 @@ def tor_controller():
   """
 
   return TOR_CONTROLLER
+
+
+def cache():
+  """
+  Provides the sqlite cache for application data.
+
+  :returns: :class:`~nyx.cache.Cache` for our applicaion
+  """
+
+  global CACHE
+
+  if CACHE is None:
+    CACHE = Cache()
+
+  return CACHE
 
 
 def show_message(message = None, *attr, **kwargs):
@@ -309,6 +335,52 @@ def join(entries, joiner = ' ', size = None):
       result = new_result
 
   return result
+
+
+class Cache(object):
+  """
+  Cache for frequently used information.
+  """
+
+  def __init__(self):
+    self._conn_lock = threading.RLock()
+    cache_path = nyx.data_directory('cache.sqlite')
+
+    if cache_path:
+      try:
+        self._conn = sqlite3.connect(cache_path)
+        schema = self._conn.execute('SELECT version FROM schema').fetchone()[0]
+      except:
+        schema = None
+
+      if schema == SCHEMA_VERSION:
+        stem.util.log.info('Cache loaded from %s' % cache_path)
+      else:
+        if schema is None:
+          stem.util.log.info('Cache at %s is missing a schema, clearing it.' % cache_path)
+        else:
+          stem.util.log.info('Cache at %s has schema version %s but the current version is %s, clearing it.' % (cache_path, schema, SCHEMA_VERSION))
+
+        self._conn.close()
+        os.remove(cache_path)
+        self._conn = sqlite3.connect(cache_path)
+
+        for cmd in SCHEMA:
+          self._conn.execute(cmd)
+    else:
+      stem.util.log.info('Unable to cache to disk. Using an in-memory cache instead.')
+      self._conn = sqlite3.connect(':memory:')
+
+      for cmd in SCHEMA:
+        self._conn.execute(cmd)
+
+  def query(self, query, *param):
+    """
+    Performs a query on our cache.
+    """
+
+    with self._conn_lock:
+      return self._conn.execute(query, param)
 
 
 class Interface(object):
