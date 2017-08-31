@@ -3,7 +3,6 @@ Cache for frequently needed information. This persists to disk if we can, and
 otherwise is an in-memory cache.
 """
 
-import contextlib
 import os
 import sqlite3
 import threading
@@ -13,7 +12,6 @@ import stem.util.log
 import nyx
 
 CACHE = None
-CACHE_LOCK = threading.RLock()
 
 SCHEMA_VERSION = 1  # version of our scheme, bump this if you change the following
 SCHEMA = (
@@ -24,7 +22,6 @@ SCHEMA = (
 )
 
 
-@contextlib.contextmanager
 def cache():
   """
   Provides the sqlite cache for application data.
@@ -34,11 +31,10 @@ def cache():
 
   global CACHE
 
-  with CACHE_LOCK:
-    if CACHE is None:
-      CACHE = Cache()
+  if CACHE is None:
+    CACHE = Cache()
 
-    yield CACHE
+  return CACHE
 
 
 class Cache(object):
@@ -47,6 +43,7 @@ class Cache(object):
   """
 
   def __init__(self):
+    self._conn_lock = threading.RLock()
     cache_path = nyx.data_directory('cache.sqlite')
 
     if cache_path:
@@ -82,4 +79,5 @@ class Cache(object):
     Performs a query on our cache.
     """
 
-    return self._conn.execute(query, param)
+    with self._conn_lock:
+      return self._conn.execute(query, param)

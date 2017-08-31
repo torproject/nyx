@@ -25,10 +25,11 @@ class TestCache(unittest.TestCase):
     Create a cache in memory.
     """
 
-    with nyx.cache.cache() as cache:
-      self.assertEqual((0, 'main', ''), cache.query('PRAGMA database_list').fetchone())
-      cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
-      self.assertEqual(NICKNAME, cache.query('SELECT nickname FROM relays WHERE fingerprint=?', FINGERPRINT).fetchone()[0])
+    cache = nyx.cache.cache()
+
+    self.assertEqual((0, 'main', ''), cache.query('PRAGMA database_list').fetchone())
+    cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
+    self.assertEqual(NICKNAME, cache.query('SELECT nickname FROM relays WHERE fingerprint=?', FINGERPRINT).fetchone()[0])
 
   def test_file_cache(self):
     """
@@ -37,12 +38,13 @@ class TestCache(unittest.TestCase):
 
     with tempfile.NamedTemporaryFile(suffix = '.sqlite') as tmp:
       with patch('nyx.data_directory', Mock(return_value = tmp.name)):
-        with nyx.cache.cache() as cache:
-          self.assertEqual((0, 'main', tmp.name), cache.query('PRAGMA database_list').fetchone())
-          cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
-          cache._conn.commit()
+        cache = nyx.cache.cache()
+
+        self.assertEqual((0, 'main', tmp.name), cache.query('PRAGMA database_list').fetchone())
+        cache.query('INSERT INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', FINGERPRINT, ADDRESS, PORT, NICKNAME)
+        cache._conn.commit()
 
         nyx.cache.CACHE = None
 
-        with nyx.cache.cache() as cache:
-          self.assertEqual(NICKNAME, cache.query('SELECT nickname FROM relays WHERE fingerprint=?', FINGERPRINT).fetchone()[0])
+        cache = nyx.cache.cache()
+        self.assertEqual(NICKNAME, cache.query('SELECT nickname FROM relays WHERE fingerprint=?', FINGERPRINT).fetchone()[0])
