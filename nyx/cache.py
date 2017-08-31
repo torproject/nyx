@@ -54,10 +54,15 @@ class Cache(object):
         self._conn = sqlite3.connect(cache_path)
         schema = self._conn.execute('SELECT version FROM schema').fetchone()[0]
       except:
-        schema = 'no schema'
+        schema = None
 
-      if schema != SCHEMA_VERSION:
-        stem.util.log.info('Cache schema of %s is out of date (has %s but current version is %s). Clearing the cache.' % (cache_path, schema, SCHEMA_VERSION))
+      if schema == SCHEMA_VERSION:
+        stem.util.log.info('Cache loaded from %s' % cache_path)
+      else:
+        if schema is None:
+          stem.util.log.info('Cache at %s is missing a schema, clearing it.' % cache_path)
+        else:
+          stem.util.log.info('Cache at %s has schema version %s but the current version is %s, clearing it.' % (cache_path, schema, SCHEMA_VERSION))
 
         self._conn.close()
         os.remove(cache_path)
@@ -66,6 +71,7 @@ class Cache(object):
         for cmd in SCHEMA:
           self._conn.execute(cmd)
     else:
+      stem.util.log.info('Unable to cache to disk. Using an in-memory cache instead.')
       self._conn = sqlite3.connect(':memory:')
 
       for cmd in SCHEMA:
