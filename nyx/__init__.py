@@ -31,6 +31,7 @@ Tor curses monitoring application.
     +- halt - stops daemon panels
 """
 
+import contextlib
 import distutils.spawn
 import os
 import sqlite3
@@ -42,8 +43,10 @@ import stem
 import stem.connection
 import stem.control
 import stem.util.conf
+import stem.util.connection
 import stem.util.log
 import stem.util.system
+import stem.util.tor_tools
 
 __version__ = '1.4.6-dev'
 __release_date__ = 'April 28, 2011'
@@ -339,7 +342,8 @@ def join(entries, joiner = ' ', size = None):
 
 class Cache(object):
   """
-  Cache for frequently used information.
+  Cache for frequently needed information. This persists to disk if we can, and
+  otherwise is an in-memory cache.
   """
 
   def __init__(self):
@@ -374,13 +378,77 @@ class Cache(object):
       for cmd in SCHEMA:
         self._conn.execute(cmd)
 
-  def query(self, query, *param):
+  @contextlib.contextmanager
+  def write(self):
+    """
+    Provides a context in which we can modify the cache.
+
+    :returns: :class:`~nyx.CacheWriter` that can modify the cache
+    """
+
+    with self._conn:
+      yield CacheWriter(self)
+
+  def relay_nickname(self, fingerprint):
+    """
+    Provides the nickname associated with the given relay.
+
+    :param str fingerprint: relay to look up
+
+    :returns: **str** with the nickname ("Unnamed" if unset), and **None** if
+      no such relay exists
+    """
+
+    result = self._query('SELECT nickname FROM relays WHERE fingerprint=?', fingerprint).fetchone()
+    return result[0] if result else None
+
+  def relay_address(self, fingerprint):
+    """
+    Provides the (address, port) tuple where a relay is running.
+
+    :param str fingerprint: fingerprint to be checked
+
+    :returns: **tuple** with a **str** address and **int** port
+    """
+
+    result = self._query('SELECT address, or_port FROM relays WHERE fingerprint=?', fingerprint).fetchone()
+    return result if result else None  # TODO: does this raise if fingerprint doesn't exist?
+
+  def _query(self, query, *param):
     """
     Performs a query on our cache.
     """
 
     with self._conn_lock:
       return self._conn.execute(query, param)
+
+
+class CacheWriter(object):
+  def __init__(self, cache):
+    self._cache = cache
+
+  def record_relay(self, fingerprint, address, or_port, nickname):
+    """
+    Records relay metadata.
+
+    :param str fingerprint: relay fingerprint
+    :param str address: ipv4 or ipv6 address
+    :param int or_port: ORPort of the relay
+    :param str nickname: relay nickname
+
+    :raises: **ValueError** if provided data is malformed
+    """
+
+    if not stem.util.tor_tools.is_valid_fingerprint(fingerprint):
+      raise ValueError("'%s' isn't a valid fingerprint" % fingerprint)
+    elif not stem.util.tor_tools.is_valid_nickname(nickname):
+      raise ValueError("'%s' isn't a valid nickname" % nickname)
+    elif not stem.util.connection.is_valid_ipv4_address(address) and not stem.util.connection.is_valid_ipv6_address(address):
+      raise ValueError("'%s' isn't a valid address" % address)
+    elif not stem.util.connection.is_valid_port(or_port):
+      raise ValueError("'%s' isn't a valid port" % or_port)
+
+    self._cache._query('INSERT OR REPLACE INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', fingerprint, address, or_port, nickname)
 
 
 class Interface(object):
