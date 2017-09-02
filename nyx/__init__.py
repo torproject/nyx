@@ -362,7 +362,7 @@ class Cache(object):
 
     if cache_path:
       try:
-        self._conn = sqlite3.connect(cache_path)
+        self._conn = sqlite3.connect(cache_path, check_same_thread = False)
         schema = self._conn.execute('SELECT version FROM schema').fetchone()[0]
       except:
         schema = None
@@ -377,13 +377,13 @@ class Cache(object):
 
         self._conn.close()
         os.remove(cache_path)
-        self._conn = sqlite3.connect(cache_path)
+        self._conn = sqlite3.connect(cache_path, check_same_thread = False)
 
         for cmd in SCHEMA:
           self._conn.execute(cmd)
     else:
       stem.util.log.info('Unable to cache to disk. Using an in-memory cache instead.')
-      self._conn = sqlite3.connect(':memory:')
+      self._conn = sqlite3.connect(':memory:', check_same_thread = False)
 
       for cmd in SCHEMA:
         self._conn.execute(cmd)
