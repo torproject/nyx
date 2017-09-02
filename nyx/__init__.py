@@ -8,12 +8,22 @@ Tor curses monitoring application.
 
   nyx_interface - nyx interface singleton
   tor_controller - tor connection singleton
+  cache - provides our application cache
 
   show_message - shows a message to the user
   input_prompt - prompts the user for text input
   init_controller - initializes our connection to tor
   expand_path - expands path with respect to our chroot
   join - joins a series of strings up to a set length
+
+  Cache - application cache
+    |- write - provides a content where we can write to the cache
+    |
+    |- relay_nickname - provides the nickname of a relay
+    +- relay_address - provides the address and orport of a relay
+
+  CacheWriter - context in which we can write to the cache
+    +- record_relay - caches information about a relay
 
   Interface - overall nyx interface
     |- get_page - page we're showing
@@ -389,30 +399,31 @@ class Cache(object):
     with self._conn:
       yield CacheWriter(self)
 
-  def relay_nickname(self, fingerprint):
+  def relay_nickname(self, fingerprint, default = None):
     """
     Provides the nickname associated with the given relay.
 
     :param str fingerprint: relay to look up
+    :param str default: response if no such relay exists
 
-    :returns: **str** with the nickname ("Unnamed" if unset), and **None** if
-      no such relay exists
+    :returns: **str** with the nickname ("Unnamed" if unset)
     """
 
     result = self._query('SELECT nickname FROM relays WHERE fingerprint=?', fingerprint).fetchone()
-    return result[0] if result else None
+    return result[0] if result else default
 
-  def relay_address(self, fingerprint):
+  def relay_address(self, fingerprint, default = None):
     """
     Provides the (address, port) tuple where a relay is running.
 
     :param str fingerprint: fingerprint to be checked
+    :param str default: response if no such relay exists
 
     :returns: **tuple** with a **str** address and **int** port
     """
 
     result = self._query('SELECT address, or_port FROM relays WHERE fingerprint=?', fingerprint).fetchone()
-    return result if result else None  # TODO: does this raise if fingerprint doesn't exist?
+    return result if result else default
 
   def _query(self, query, *param):
     """
