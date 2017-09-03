@@ -55,6 +55,7 @@ import os
 import time
 import threading
 
+import nyx
 import stem.control
 import stem.descriptor.router_status_entry
 import stem.util.log
@@ -807,33 +808,38 @@ class ConsensusTracker(object):
   """
 
   def __init__(self):
-    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
-    self._relay_cache = {}  # fingerprint => address, orport, nickname lookup cache
-
     self._my_router_status_entry = None
     self._my_router_status_entry_time = 0
 
     # Stem's get_network_statuses() is slow, and overkill for what we need
     # here. Just parsing the raw GETINFO response to cut startup time down.
+    #
+    # Only fetching this if our cache is at least an hour old (and hence a new
+    # consensus available).
 
-    start_time = time.time()
+    cache_age = time.time() - nyx.cache().relays_updated_at()
     controller = tor_controller()
-    ns_response = controller.get_info('ns/all', None)
 
-    if ns_response:
-      for line in ns_response.splitlines():
-        if line.startswith('r '):
-          r_comp = line.split(' ')
+    if cache_age < 3600:
+      stem.util.log.info('Cached is only %i seconds old, no need to refresh it.' % cache_age)
+    else:
+      start_time = time.time()
+      ns_response = controller.get_info('ns/all', None)
 
-          address = r_comp[6]
-          or_port = int(r_comp[7])
-          fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
-          nickname = r_comp[1]
+      if ns_response:
+        with nyx.cache().write() as writer:
+          for line in ns_response.splitlines():
+            if line.startswith('r '):
+              r_comp = line.split(' ')
 
-          self._fingerprint_cache.setdefault(address, []).append((or_port, fingerprint))
-          self._relay_cache[fingerprint] = (address, or_port, nickname)
+              address = r_comp[6]
+              or_port = int(r_comp[7])
+              fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
+              nickname = r_comp[1]
 
-      stem.util.log.info('Cached consensus data. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(system.size_of(self._fingerprint_cache), 2), stem.util.str_tools.size_label(system.size_of(self._relay_cache), 2)))
+              writer.record_relay(fingerprint, address, or_port, nickname)
+
+        stem.util.log.info('Cached consensus data, took %0.2fs.' % (time.time() - start_time))
 
     controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 
@@ -844,24 +850,18 @@ class ConsensusTracker(object):
     :param list router_status_entries: router status entries to populate our cache with
     """
 
-    new_fingerprint_cache = {}
-    new_relay_cache = {}
-
     start_time = time.time()
     our_fingerprint = tor_controller().get_info('fingerprint', None)
 
-    for desc in router_status_entries:
-      new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
-      new_relay_cache[desc.fingerprint] = (desc.address, desc.or_port, desc.nickname)
+    with nyx.cache().write() as writer:
+      for desc in router_status_entries:
+        writer.record_relay(desc.fingerprint, desc.address, desc.or_port, desc.nickname)
 
-      if desc.fingerprint == our_fingerprint:
-        self._my_router_status_entry = desc
-        self._my_router_status_entry_time = time.time()
+        if desc.fingerprint == our_fingerprint:
+          self._my_router_status_entry = desc
+          self._my_router_status_entry_time = time.time()
 
-    self._fingerprint_cache = new_fingerprint_cache
-    self._relay_cache = new_relay_cache
-
-    stem.util.log.info('Updated consensus cache. Took %0.2fs. Cache size is %s for fingerprints, %s for relays' % (time.time() - start_time, stem.util.str_tools.size_label(system.size_of(self._fingerprint_cache), 2), stem.util.str_tools.size_label(system.size_of(self._relay_cache), 2)))
+    stem.util.log.info('Updated consensus cache, took %0.2fs.' % (time.time() - start_time))
 
   def my_router_status_entry(self):
     """
@@ -895,7 +895,7 @@ class ConsensusTracker(object):
     elif fingerprint == controller.get_info('fingerprint', None):
       return controller.get_conf('Nickname', 'Unnamed')
     else:
-      return self._relay_cache.get(fingerprint)[2]
+      return nyx.cache().relay_nickname(fingerprint)
 
   def get_relay_fingerprints(self, address):
     """
@@ -915,7 +915,7 @@ class ConsensusTracker(object):
       if fingerprint and ports:
         return dict([(port, fingerprint) for port in ports])
 
-    return dict([(port, fp) for (port, fp) in self._fingerprint_cache.get(address, [])])
+    return nyx.cache().relays_for_address(address)
 
   def get_relay_address(self, fingerprint, default):
     """
@@ -935,4 +935,4 @@ class ConsensusTracker(object):
       if my_address and len(my_or_ports) == 1:
         return (my_address, my_or_ports[0])
 
-    return self._relay_cache.get(fingerprint, default)[:2]
+    return nyx.cache().relay_address(fingerprint, default)

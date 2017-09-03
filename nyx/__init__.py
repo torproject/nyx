@@ -8,12 +8,22 @@ Tor curses monitoring application.
 
   nyx_interface - nyx interface singleton
   tor_controller - tor connection singleton
+  cache - provides our application cache
 
   show_message - shows a message to the user
   input_prompt - prompts the user for text input
   init_controller - initializes our connection to tor
   expand_path - expands path with respect to our chroot
   join - joins a series of strings up to a set length
+
+  Cache - application cache
+    |- write - provides a content where we can write to the cache
+    |
+    |- relay_nickname - provides the nickname of a relay
+    +- relay_address - provides the address and orport of a relay
+
+  CacheWriter - context in which we can write to the cache
+    +- record_relay - caches information about a relay
 
   Interface - overall nyx interface
     |- get_page - page we're showing
@@ -31,8 +41,10 @@ Tor curses monitoring application.
     +- halt - stops daemon panels
 """
 
+import contextlib
 import distutils.spawn
 import os
+import sqlite3
 import sys
 import threading
 import time
@@ -41,8 +53,10 @@ import stem
 import stem.connection
 import stem.control
 import stem.util.conf
+import stem.util.connection
 import stem.util.log
 import stem.util.system
+import stem.util.tor_tools
 
 __version__ = '1.4.6-dev'
 __release_date__ = 'April 28, 2011'
@@ -53,6 +67,7 @@ __license__ = 'GPLv3'
 
 __all__ = [
   'arguments',
+  'cache',
   'controller',
   'curses',
   'log',
@@ -83,6 +98,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
+CACHE = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 
 # technically can change but we use this query a *lot* so needs to be cached
@@ -92,6 +108,19 @@ stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARA
 # disable trace level messages about cache hits
 
 stem.control.LOG_CACHE_FETCHES = False
+
+SCHEMA_VERSION = 2  # version of our scheme, bump this if you change the following
+SCHEMA = (
+  'CREATE TABLE schema(version INTEGER)',
+  'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
+
+  'CREATE TABLE metadata(relays_updated_at REAL)',
+  'INSERT INTO metadata(relays_updated_at) VALUES (0.0)',
+
+  'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port INTEGER, nickname TEXT)',
+  'CREATE INDEX addresses ON relays(address)',
+)
+
 
 try:
   uses_settings = stem.util.conf.uses_settings('nyx', os.path.join(BASE_DIR, 'settings'), lazy_load = False)
@@ -186,6 +215,21 @@ def tor_controller():
   """
 
   return TOR_CONTROLLER
+
+
+def cache():
+  """
+  Provides the sqlite cache for application data.
+
+  :returns: :class:`~nyx.cache.Cache` for our applicaion
+  """
+
+  global CACHE
+
+  if CACHE is None:
+    CACHE = Cache()
+
+  return CACHE
 
 
 def show_message(message = None, *attr, **kwargs):
@@ -308,6 +352,145 @@ def join(entries, joiner = ' ', size = None):
       result = new_result
 
   return result
+
+
+class Cache(object):
+  """
+  Cache for frequently needed information. This persists to disk if we can, and
+  otherwise is an in-memory cache.
+  """
+
+  def __init__(self):
+    self._conn_lock = threading.RLock()
+    cache_path = nyx.data_directory('cache.sqlite')
+
+    if cache_path:
+      try:
+        self._conn = sqlite3.connect(cache_path, check_same_thread = False)
+        schema = self._conn.execute('SELECT version FROM schema').fetchone()[0]
+      except:
+        schema = None
+
+      if schema == SCHEMA_VERSION:
+        stem.util.log.info('Cache loaded from %s' % cache_path)
+      else:
+        if schema is None:
+          stem.util.log.info('Cache at %s is missing a schema, clearing it.' % cache_path)
+        else:
+          stem.util.log.info('Cache at %s has schema version %s but the current version is %s, clearing it.' % (cache_path, schema, SCHEMA_VERSION))
+
+        self._conn.close()
+        os.remove(cache_path)
+        self._conn = sqlite3.connect(cache_path, check_same_thread = False)
+
+        for cmd in SCHEMA:
+          self._conn.execute(cmd)
+    else:
+      stem.util.log.info('Unable to cache to disk. Using an in-memory cache instead.')
+      self._conn = sqlite3.connect(':memory:', check_same_thread = False)
+
+      for cmd in SCHEMA:
+        self._conn.execute(cmd)
+
+  @contextlib.contextmanager
+  def write(self):
+    """
+    Provides a context in which we can modify the cache.
+
+    :returns: :class:`~nyx.CacheWriter` that can modify the cache
+    """
+
+    with self._conn:
+      yield CacheWriter(self)
+
+  def relays_for_address(self, address):
+    """
+    Provides the relays running at a given location.
+
+    :param str address: address to be checked
+
+    :returns: **dict** of ORPorts to their fingerprint
+    """
+
+    result = {}
+
+    for entry in self._query('SELECT or_port, fingerprint FROM relays WHERE address=?', address).fetchall():
+      result[entry[0]] = entry[1]
+
+    return result
+
+  def relay_nickname(self, fingerprint, default = None):
+    """
+    Provides the nickname associated with the given relay.
+
+    :param str fingerprint: relay to look up
+    :param str default: response if no such relay exists
+
+    :returns: **str** with the nickname ("Unnamed" if unset)
+    """
+
+    result = self._query('SELECT nickname FROM relays WHERE fingerprint=?', fingerprint).fetchone()
+    return result[0] if result else default
+
+  def relay_address(self, fingerprint, default = None):
+    """
+    Provides the (address, port) tuple where a relay is running.
+
+    :param str fingerprint: fingerprint to be checked
+    :param str default: response if no such relay exists
+
+    :returns: **tuple** with a **str** address and **int** port
+    """
+
+    result = self._query('SELECT address, or_port FROM relays WHERE fingerprint=?', fingerprint).fetchone()
+    return result if result else default
+
+  def relays_updated_at(self):
+    """
+    Provides the unix timestamp when relay information was last updated.
+
+    :returns: **float** with the unix timestamp when relay information was last
+      updated, zero if it has never been set
+    """
+
+    return self._query('SELECT relays_updated_at FROM metadata').fetchone()[0]
+
+  def _query(self, query, *param):
+    """
+    Performs a query on our cache.
+    """
+
+    with self._conn_lock:
+      return self._conn.execute(query, param)
+
+
+class CacheWriter(object):
+  def __init__(self, cache):
+    self._cache = cache
+
+  def record_relay(self, fingerprint, address, or_port, nickname):
+    """
+    Records relay metadata.
+
+    :param str fingerprint: relay fingerprint
+    :param str address: ipv4 or ipv6 address
+    :param int or_port: ORPort of the relay
+    :param str nickname: relay nickname
+
+    :raises: **ValueError** if provided data is malformed
+    """
+
+    if not stem.util.tor_tools.is_valid_fingerprint(fingerprint):
+      raise ValueError("'%s' isn't a valid fingerprint" % fingerprint)
+    elif not stem.util.tor_tools.is_valid_nickname(nickname):
+      raise ValueError("'%s' isn't a valid nickname" % nickname)
+    elif not stem.util.connection.is_valid_ipv4_address(address) and not stem.util.connection.is_valid_ipv6_address(address):
+      raise ValueError("'%s' isn't a valid address" % address)
+    elif not stem.util.connection.is_valid_port(or_port):
+      raise ValueError("'%s' isn't a valid port" % or_port)
+
+    self._cache._query('INSERT OR REPLACE INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', fingerprint, address, or_port, nickname)
+    self._cache._query('UPDATE metadata SET relays_updated_at=?', time.time())
 
 
 class Interface(object):

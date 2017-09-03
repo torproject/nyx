@@ -36,11 +36,6 @@ Nyx Configuration ({nyxrc_path}):
 --------------------------------------------------------------------------------
 """.strip()
 
-UNKNOWN_TERM = """\
-Unknown $TERM: (%s)
-Either update your terminfo database or run nyx using "TERM=xterm nyx".
-"""
-
 
 @uses_settings
 def main(config):
@@ -102,11 +97,6 @@ def main(config):
 
   try:
     nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
-  except UnboundLocalError as exc:
-    if os.environ['TERM'] != 'xterm':
-      print(UNKNOWN_TERM % os.environ['TERM'])
-    else:
-      raise exc
   except KeyboardInterrupt:
     pass  # skip printing a stack trace
   finally:
