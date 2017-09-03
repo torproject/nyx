@@ -818,12 +818,12 @@ class ConsensusTracker(object):
     # consensus available).
 
     cache_age = time.time() - nyx.cache().relays_updated_at()
+    controller = tor_controller()
 
     if cache_age < 3600:
       stem.util.log.info('Cached is only %i seconds old, no need to refresh it.' % cache_age)
     else:
       start_time = time.time()
-      controller = tor_controller()
       ns_response = controller.get_info('ns/all', None)
 
       if ns_response:
