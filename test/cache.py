@@ -4,6 +4,7 @@ Unit tests for nyx.cache.
 
 import re
 import tempfile
+import time
 import unittest
 
 import nyx
@@ -49,7 +50,7 @@ class TestCache(unittest.TestCase):
   @patch('nyx.data_directory', Mock(return_value = None))
   def test_relays_for_address(self):
     """
-    Basic checks for registering and fetching nicknames.
+    Basic checks for fetching relays by their address.
     """
 
     cache = nyx.cache()
@@ -101,6 +102,25 @@ class TestCache(unittest.TestCase):
     self.assertEqual(('208.113.165.162', 1443), cache.relay_address('3EA8E960F6B94CE30062AA8EF02894C00F8D1E66'))
 
     self.assertEqual(None, cache.relay_address('66E1D8F00C49820FE8AA26003EC49B6F069E8AE3'))
+
+  @patch('nyx.data_directory', Mock(return_value = None))
+  def test_relays_updated_at(self):
+    """
+    Basic checks for getting when relay information was last updated.
+    """
+
+    before = time.time()
+    time.sleep(0.01)
+
+    cache = nyx.cache()
+
+    with cache.write() as writer:
+      writer.record_relay('3EA8E960F6B94CE30062AA8EF02894C00F8D1E66', '208.113.165.162', 1443, 'caersidi1')
+
+    time.sleep(0.01)
+    after = time.time()
+
+    self.assertTrue(before < cache.relays_updated_at() < after)
 
   @patch('nyx.data_directory', Mock(return_value = None))
   def test_record_relay_when_updating(self):

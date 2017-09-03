@@ -813,25 +813,33 @@ class ConsensusTracker(object):
 
     # Stem's get_network_statuses() is slow, and overkill for what we need
     # here. Just parsing the raw GETINFO response to cut startup time down.
+    #
+    # Only fetching this if our cache is at least an hour old (and hence a new
+    # consensus available).
 
-    start_time = time.time()
-    controller = tor_controller()
-    ns_response = controller.get_info('ns/all', None)
+    cache_age = time.time() - nyx.cache().relays_updated_at()
 
-    if ns_response:
-      with nyx.cache().write() as writer:
-        for line in ns_response.splitlines():
-          if line.startswith('r '):
-            r_comp = line.split(' ')
+    if cache_age < 3600:
+      stem.util.log.info('Cached is only %i seconds old, no need to refresh it.' % cache_age)
+    else:
+      start_time = time.time()
+      controller = tor_controller()
+      ns_response = controller.get_info('ns/all', None)
 
-            address = r_comp[6]
-            or_port = int(r_comp[7])
-            fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
-            nickname = r_comp[1]
+      if ns_response:
+        with nyx.cache().write() as writer:
+          for line in ns_response.splitlines():
+            if line.startswith('r '):
+              r_comp = line.split(' ')
 
-            writer.record_relay(fingerprint, address, or_port, nickname)
+              address = r_comp[6]
+              or_port = int(r_comp[7])
+              fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
+              nickname = r_comp[1]
 
-      stem.util.log.info('Cached consensus data, took %0.2fs.' % (time.time() - start_time))
+              writer.record_relay(fingerprint, address, or_port, nickname)
+
+        stem.util.log.info('Cached consensus data, took %0.2fs.' % (time.time() - start_time))
 
     controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
 

@@ -114,6 +114,9 @@ SCHEMA = (
   'CREATE TABLE schema(version INTEGER)',
   'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
 
+  'CREATE TABLE metadata(relays_updated_at REAL)',
+  'INSERT INTO metadata(relays_updated_at) VALUES (0.0)',
+
   'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port INTEGER, nickname TEXT)',
   'CREATE INDEX addresses ON relays(address)',
 )
@@ -442,6 +445,16 @@ class Cache(object):
     result = self._query('SELECT address, or_port FROM relays WHERE fingerprint=?', fingerprint).fetchone()
     return result if result else default
 
+  def relays_updated_at(self):
+    """
+    Provides the unix timestamp when relay information was last updated.
+
+    :returns: **float** with the unix timestamp when relay information was last
+      updated, zero if it has never been set
+    """
+
+    return self._query('SELECT relays_updated_at FROM metadata').fetchone()[0]
+
   def _query(self, query, *param):
     """
     Performs a query on our cache.
@@ -477,6 +490,7 @@ class CacheWriter(object):
       raise ValueError("'%s' isn't a valid port" % or_port)
 
     self._cache._query('INSERT OR REPLACE INTO relays(fingerprint, address, or_port, nickname) VALUES (?,?,?,?)', fingerprint, address, or_port, nickname)
+    self._cache._query('UPDATE metadata SET relays_updated_at=?', time.time())
 
 
 class Interface(object):
