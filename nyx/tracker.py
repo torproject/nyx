@@ -808,8 +808,6 @@ class ConsensusTracker(object):
   """
 
   def __init__(self):
-    self._fingerprint_cache = {}  # {address => [(port, fingerprint), ..]} for relays
-
     self._my_router_status_entry = None
     self._my_router_status_entry_time = 0
 
@@ -831,7 +829,6 @@ class ConsensusTracker(object):
             fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
             nickname = r_comp[1]
 
-            self._fingerprint_cache.setdefault(address, []).append((or_port, fingerprint))
             writer.record_relay(fingerprint, address, or_port, nickname)
 
       stem.util.log.info('Cached consensus data, took %0.2fs.' % (time.time() - start_time))
@@ -845,21 +842,16 @@ class ConsensusTracker(object):
     :param list router_status_entries: router status entries to populate our cache with
     """
 
-    new_fingerprint_cache = {}
-
     start_time = time.time()
     our_fingerprint = tor_controller().get_info('fingerprint', None)
 
     with nyx.cache().write() as writer:
       for desc in router_status_entries:
-        new_fingerprint_cache.setdefault(desc.address, []).append((desc.or_port, desc.fingerprint))
         writer.record_relay(desc.fingerprint, desc.address, desc.or_port, desc.nickname)
 
         if desc.fingerprint == our_fingerprint:
           self._my_router_status_entry = desc
           self._my_router_status_entry_time = time.time()
-
-    self._fingerprint_cache = new_fingerprint_cache
 
     stem.util.log.info('Updated consensus cache, took %0.2fs.' % (time.time() - start_time))
 
@@ -915,7 +907,7 @@ class ConsensusTracker(object):
       if fingerprint and ports:
         return dict([(port, fingerprint) for port in ports])
 
-    return dict([(port, fp) for (port, fp) in self._fingerprint_cache.get(address, [])])
+    return nyx.cache().relays_for_address(address)
 
   def get_relay_address(self, fingerprint, default):
     """

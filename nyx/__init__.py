@@ -109,12 +109,13 @@ stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARA
 
 stem.control.LOG_CACHE_FETCHES = False
 
-SCHEMA_VERSION = 1  # version of our scheme, bump this if you change the following
+SCHEMA_VERSION = 2  # version of our scheme, bump this if you change the following
 SCHEMA = (
-  'CREATE TABLE schema(version NUMBER)',
+  'CREATE TABLE schema(version INTEGER)',
   'INSERT INTO schema(version) VALUES (%i)' % SCHEMA_VERSION,
 
-  'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port NUMBER, nickname TEXT)',
+  'CREATE TABLE relays(fingerprint TEXT PRIMARY KEY, address TEXT, or_port INTEGER, nickname TEXT)',
+  'CREATE INDEX addresses ON relays(address)',
 )
 
 
@@ -398,6 +399,22 @@ class Cache(object):
 
     with self._conn:
       yield CacheWriter(self)
+
+  def relays_for_address(self, address):
+    """
+    Provides the relays running at a given location.
+
+    :param str address: address to be checked
+
+    :returns: **dict** of ORPorts to their fingerprint
+    """
+
+    result = {}
+
+    for entry in self._query('SELECT or_port, fingerprint FROM relays WHERE address=?', address).fetchall():
+      result[entry[0]] = entry[1]
+
+    return result
 
   def relay_nickname(self, fingerprint, default = None):
     """

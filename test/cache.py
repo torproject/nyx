@@ -47,6 +47,24 @@ class TestCache(unittest.TestCase):
         self.assertEqual('caersidi', cache.relay_nickname('3EA8E960F6B94CE30062AA8EF02894C00F8D1E66'))
 
   @patch('nyx.data_directory', Mock(return_value = None))
+  def test_relays_for_address(self):
+    """
+    Basic checks for registering and fetching nicknames.
+    """
+
+    cache = nyx.cache()
+
+    with cache.write() as writer:
+      writer.record_relay('3EA8E960F6B94CE30062AA8EF02894C00F8D1E66', '208.113.165.162', 1443, 'caersidi1')
+      writer.record_relay('9695DFC35FFEB861329B9F1AB04C46397020CE31', '128.31.0.34', 9101, 'moria1')
+      writer.record_relay('74A910646BCEEFBCD2E874FC1DC997430F968145', '208.113.165.162', 1543, 'caersidi2')
+
+    self.assertEqual({9101: '9695DFC35FFEB861329B9F1AB04C46397020CE31'}, cache.relays_for_address('128.31.0.34'))
+    self.assertEqual({1443: '3EA8E960F6B94CE30062AA8EF02894C00F8D1E66', 1543: '74A910646BCEEFBCD2E874FC1DC997430F968145'}, cache.relays_for_address('208.113.165.162'))
+
+    self.assertEqual({}, cache.relays_for_address('199.254.238.53'))
+
+  @patch('nyx.data_directory', Mock(return_value = None))
   def test_relay_nickname(self):
     """
     Basic checks for registering and fetching nicknames.
