@@ -15,11 +15,8 @@ import nyx.log
 import stem.util.connection
 
 DEFAULT_ARGS = {
-  'control_address': '127.0.0.1',
-  'control_port': 9051,
-  'user_provided_port': False,
+  'control_port': ('127.0.0.1', 9051),
   'control_socket': '/var/run/tor/control',
-  'user_provided_socket': False,
   'config': os.path.join(os.path.expanduser('~/.nyx'), 'config'),
   'debug_path': None,
   'logged_events': 'NOTICE,WARN,ERR,NYX_NOTICE,NYX_WARNING,NYX_ERROR',
@@ -81,27 +78,27 @@ def parse(argv):
   except getopt.GetoptError as exc:
     raise ValueError('%s (for usage provide --help)' % exc)
 
+  has_port_arg, has_socket_arg = False, False
+
   for opt, arg in recognized_args:
     if opt in ('-i', '--interface'):
       if ':' in arg:
         address, port = arg.split(':', 1)
       else:
-        address, port = None, arg
+        address, port = args['control_port'][0], arg
 
       if address is not None:
         if not stem.util.connection.is_valid_ipv4_address(address):
           raise ValueError("'%s' isn't a valid IPv4 address" % address)
 
-        args['control_address'] = address
-
       if not stem.util.connection.is_valid_port(port):
         raise ValueError("'%s' isn't a valid port number" % port)
 
-      args['control_port'] = int(port)
-      args['user_provided_port'] = True
+      args['control_port'] = (address, int(port))
+      has_port_arg = True
     elif opt in ('-s', '--socket'):
       args['control_socket'] = arg
-      args['user_provided_socket'] = True
+      has_socket_arg = True
     elif opt in ('-c', '--config'):
       args['config'] = arg
     elif opt in ('-d', '--debug'):
@@ -112,6 +109,14 @@ def parse(argv):
       args['print_version'] = True
     elif opt in ('-h', '--help'):
       args['print_help'] = True
+
+  # If the user explicitely specified an endpoint then just try to connect to
+  # that.
+
+  if has_socket_arg and not has_port_arg:
+    args['control_port'] = None
+  elif has_port_arg and not has_socket_arg:
+    args['control_socket'] = None
 
   # translates our args dict into a named tuple
 
@@ -127,8 +132,8 @@ def get_help():
   """
 
   return HELP_OUTPUT.format(
-    address = DEFAULT_ARGS['control_address'],
-    port = DEFAULT_ARGS['control_port'],
+    address = DEFAULT_ARGS['control_port'][0],
+    port = DEFAULT_ARGS['control_port'][1],
     socket = DEFAULT_ARGS['control_socket'],
     config_path = DEFAULT_ARGS['config'],
   )

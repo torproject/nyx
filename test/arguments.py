@@ -16,12 +16,10 @@ class TestArgumentParsing(unittest.TestCase):
 
   def test_that_we_load_arguments(self):
     args = parse(['--interface', '10.0.0.25:80'])
-    self.assertEqual('10.0.0.25', args.control_address)
-    self.assertEqual(80, args.control_port)
+    self.assertEqual(('10.0.0.25', 80), args.control_port)
 
     args = parse(['--interface', '80'])
-    self.assertEqual(DEFAULT_ARGS['control_address'], args.control_address)
-    self.assertEqual(80, args.control_port)
+    self.assertEqual((DEFAULT_ARGS['control_port'][0], 80), args.control_port)
 
     args = parse(['--socket', '/tmp/my_socket', '--config', '/tmp/my_config'])
     self.assertEqual('/tmp/my_socket', args.control_socket)
@@ -41,7 +39,7 @@ class TestArgumentParsing(unittest.TestCase):
 
   def test_examples(self):
     args = parse(['-i', '1643'])
-    self.assertEqual(1643, args.control_port)
+    self.assertEqual((DEFAULT_ARGS['control_port'][0], 1643), args.control_port)
 
     args = parse(['-l', 'WARN,ERR', '-c', '/tmp/cfg'])
     self.assertEqual('WARN,ERR', args.logged_events)
@@ -49,6 +47,23 @@ class TestArgumentParsing(unittest.TestCase):
 
   def test_that_we_reject_unrecognized_arguments(self):
     self.assertRaises(ValueError, parse, ['--blarg', 'stuff'])
+
+  def test_that_port_and_socket_unset_other(self):
+    args = parse([])
+    self.assertEqual(DEFAULT_ARGS['control_port'], args.control_port)
+    self.assertEqual(DEFAULT_ARGS['control_socket'], args.control_socket)
+
+    args = parse(['--interface', '10.0.0.25:80'])
+    self.assertEqual(('10.0.0.25', 80), args.control_port)
+    self.assertEqual(None, args.control_socket)
+
+    args = parse(['--socket', '/tmp/my_socket'])
+    self.assertEqual(None, args.control_port)
+    self.assertEqual('/tmp/my_socket', args.control_socket)
+
+    args = parse(['--interface', '10.0.0.25:80', '--socket', '/tmp/my_socket'])
+    self.assertEqual(('10.0.0.25', 80), args.control_port)
+    self.assertEqual('/tmp/my_socket', args.control_socket)
 
   def test_that_we_reject_invalid_interfaces(self):
     invalid_inputs = (

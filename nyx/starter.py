@@ -65,20 +65,9 @@ def main(config):
 
   _load_user_nyxrc(args.config)
 
-  control_port = (args.control_address, args.control_port)
-  control_socket = args.control_socket
-
-  # If the user explicitely specified an endpoint then just try to connect to
-  # that.
-
-  if args.user_provided_socket and not args.user_provided_port:
-    control_port = None
-  elif args.user_provided_port and not args.user_provided_socket:
-    control_socket = None
-
   controller = init_controller(
-    control_port = control_port,
-    control_socket = control_socket,
+    control_port = args.control_port,
+    control_socket = args.control_socket,
     password_prompt = True,
     chroot_path = config.get('tor_chroot', ''),
   )

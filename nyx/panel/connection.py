@@ -5,11 +5,11 @@
 Listing of the currently established connections tor has made.
 """
 
-import re
-import time
 import collections
 import curses
 import itertools
+import re
+import time
 
 import nyx.curses
 import nyx.panel
