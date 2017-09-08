@@ -69,7 +69,7 @@ def main(config):
     control_port = args.control_port,
     control_socket = args.control_socket,
     password_prompt = True,
-    chroot_path = config.get('tor_chroot', ''),
+    chroot_path = nyx.chroot(),
   )
 
   if controller is None:
@@ -78,7 +78,6 @@ def main(config):
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
   _warn_about_unused_config_keys()
-  _setup_freebsd_chroot(controller)
   _use_english_subcommands()
   _use_no_esc_delay()
   _use_unicode()
@@ -143,17 +142,6 @@ def _load_user_nyxrc(path, config):
   if os.path.exists(path):
     try:
       config.load(path)
-
-      # If the user provided us with a chroot then validate and normalize the
-      # path.
-
-      chroot = config.get('tor_chroot', '').strip().rstrip(os.path.sep)
-
-      if chroot and not os.path.exists(chroot):
-        stem.util.log.notice("The chroot path set in your config (%s) doesn't exist." % chroot)
-        config.set('tor_chroot', '')
-      else:
-        config.set('tor_chroot', chroot)  # use the normalized path
     except IOError as exc:
       stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
   else:
@@ -192,20 +180,6 @@ def _warn_about_unused_config_keys(config):
   for key in sorted(config.unused_keys()):
     if not key.startswith('msg.') and not key.startswith('dedup.'):
       stem.util.log.notice('Unused configuration entry: %s' % key)
-
-
-@uses_settings
-def _setup_freebsd_chroot(controller, config):
-  """
-  If we're running under FreeBSD then check the system for a chroot path.
-  """
-
-  if not config.get('tor_chroot', None) and platform.system() == 'FreeBSD':
-    jail_chroot = stem.util.system.bsd_jail_path(controller.get_pid(0))
-
-    if jail_chroot and os.path.exists(jail_chroot):
-      stem.util.log.info('Adjusting paths to account for Tor running in a FreeBSD jail at: %s' % jail_chroot)
-      config.set('tor_chroot', jail_chroot)
 
 
 def _use_english_subcommands():

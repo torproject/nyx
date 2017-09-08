@@ -16,13 +16,14 @@ import stem.util.proc
 import stem.util.str_tools
 import stem.util.system
 
+import nyx
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
 from stem.util import conf, log
-from nyx import nyx_interface, tor_controller, input_prompt
+from nyx import nyx_interface, tor_controller
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
@@ -33,7 +34,6 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 CONFIG = conf.config_dict('nyx', {
   'attr.flag_colors': {},
   'attr.version_status_colors': {},
-  'tor_chroot': '',
 })
 
 
@@ -129,9 +129,9 @@ class HeaderPanel(nyx.panel.DaemonPanel):
 
       try:
         try:
-          controller.reconnect(chroot_path = CONFIG['tor_chroot'])
+          controller.reconnect(chroot_path = nyx.chroot())
         except stem.connection.MissingPassword:
-          password = input_prompt('Controller Password: ')
+          password = nyx.input_prompt('Controller Password: ')
 
           if password:
             controller.authenticate(password)

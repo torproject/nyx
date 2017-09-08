@@ -14,6 +14,7 @@ Tor curses monitoring application.
   input_prompt - prompts the user for text input
   init_controller - initializes our connection to tor
   expand_path - expands path with respect to our chroot
+  chroot - provides the chroot path we reside within
   join - joins a series of strings up to a set length
 
   Cache - application cache
@@ -44,6 +45,7 @@ Tor curses monitoring application.
 import contextlib
 import distutils.spawn
 import os
+import platform
 import sqlite3
 import sys
 import threading
@@ -99,6 +101,7 @@ CONFIG = stem.util.conf.config_dict('nyx', {
 NYX_INTERFACE = None
 TOR_CONTROLLER = None
 CACHE = None
+CHROOT = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 
 # technically can change but we use this query a *lot* so needs to be cached
@@ -294,8 +297,7 @@ def data_directory(filename, config):
   return os.path.join(data_dir, filename)
 
 
-@uses_settings
-def expand_path(path, config):
+def expand_path(path):
   """
   Expands relative paths and include our chroot if one was set.
 
@@ -308,12 +310,39 @@ def expand_path(path, config):
     return None
 
   try:
-    chroot = config.get('tor_chroot', '')
     tor_cwd = stem.util.system.cwd(tor_controller().get_pid(None))
-    return chroot + stem.util.system.expand_path(path, tor_cwd)
+    return chroot() + stem.util.system.expand_path(path, tor_cwd)
   except IOError as exc:
     stem.util.log.info('Unable to expand a relative path (%s): %s' % (path, exc))
     return path
+
+
+@uses_settings
+def chroot(config):
+  global CHROOT
+
+  if CHROOT is None:
+    # If the user provided us with a chroot then validate and normalize the
+    # path.
+
+    chroot = config.get('tor_chroot', '').strip().rstrip(os.path.sep)
+
+    if chroot and not os.path.exists(chroot):
+      stem.util.log.notice("The chroot path set in your config (%s) doesn't exist." % chroot)
+      chroot = ''
+
+    if not chroot and platform.system() == 'FreeBSD':
+      controller = tor_controller()
+      pid = controller.get_pid(None) if controller else stem.util.system.pid_by_name('tor')
+      jail_chroot = stem.util.system.bsd_jail_path(pid) if pid else None
+
+      if jail_chroot and os.path.exists(jail_chroot):
+        stem.util.log.info('Adjusting paths to account for Tor running in a FreeBSD jail at: %s' % jail_chroot)
+        chroot = jail_chroot
+
+    CHROOT = chroot
+
+  return CHROOT
 
 
 def join(entries, joiner = ' ', size = None):

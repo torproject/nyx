@@ -9,7 +9,7 @@ import unittest
 
 import nyx.curses
 
-from nyx import expand_path, join, uses_settings
+from nyx import expand_path, chroot, join, uses_settings
 from mock import patch, Mock
 
 __all__ = [
@@ -107,18 +107,40 @@ def render(func, *args, **kwargs):
 
 
 class TestBaseUtil(unittest.TestCase):
-  @patch('nyx.tor_controller')
+  def setUp(self):
+    nyx.CHROOT = None
+
+  def tearDown(self):
+    nyx.CHROOT = None
+
+  @patch('nyx.chroot', Mock(return_value = ''))
+  @patch('nyx.tor_controller', Mock())
   @patch('stem.util.system.cwd', Mock(return_value = '/your_cwd'))
-  @uses_settings
-  def test_expand_path(self, tor_controller_mock, config):
-    tor_controller_mock().get_pid.return_value = 12345
+  def test_expand_path(self):
     self.assertEqual('/absolute/path/to/torrc', expand_path('/absolute/path/to/torrc'))
     self.assertEqual('/your_cwd/torrc', expand_path('torrc'))
 
-    config.set('tor_chroot', '/chroot')
+  @patch('nyx.chroot', Mock(return_value = '/chroot'))
+  @patch('nyx.tor_controller', Mock())
+  @patch('stem.util.system.cwd', Mock(return_value = '/your_cwd'))
+  def test_expand_path_with_chroot(self):
     self.assertEqual('/chroot/absolute/path/to/torrc', expand_path('/absolute/path/to/torrc'))
     self.assertEqual('/chroot/your_cwd/torrc', expand_path('torrc'))
 
+  @patch('platform.system', Mock(return_value = 'Linux'))
+  @patch('os.path.exists', Mock(return_value = True))
+  @uses_settings
+  def test_chroot_uses_config(self, config):
+    config.set('tor_chroot', '/chroot/path')
+    self.assertEqual('/chroot/path', chroot())
+    config.set('tor_chroot', None)
+
+  @patch('platform.system', Mock(return_value = 'Linux'))
+  @patch('os.path.exists', Mock(return_value = False))
+  @uses_settings
+  def test_chroot_requires_path_to_exist(self, config):
+    config.set('tor_chroot', '/chroot/path')
+    self.assertEqual('', chroot())
     config.set('tor_chroot', None)
 
   def test_join(self):
