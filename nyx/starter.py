@@ -78,10 +78,11 @@ def main(config):
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
   _warn_about_unused_config_keys()
-  _use_english_subcommands()
-  _use_no_esc_delay()
   _use_unicode()
   _set_process_name()
+
+  os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
+  os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
 
   try:
     nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
@@ -180,25 +181,6 @@ def _warn_about_unused_config_keys(config):
   for key in sorted(config.unused_keys()):
     if not key.startswith('msg.') and not key.startswith('dedup.'):
       stem.util.log.notice('Unused configuration entry: %s' % key)
-
-
-def _use_english_subcommands():
-  """
-  Make subcommands we run (ps, netstat, etc) provide us with English results.
-  This is important so we can parse the output.
-  """
-
-  os.putenv('LANG', 'C')
-
-
-def _use_no_esc_delay():
-  """
-  Make it so pressing 'esc' takes effect right away...
-
-    https://stackoverflow.com/questions/27372068/why-does-the-escape-key-have-a-delay-in-python-curses/28020568#28020568
-  """
-
-  os.putenv('ESCDELAY', '0')
 
 
 @uses_settings
