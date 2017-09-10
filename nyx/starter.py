@@ -145,7 +145,7 @@ def _load_user_nyxrc(path, config):
     except IOError as exc:
       stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
   else:
-    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see the nyxrc.sample for its options).' % path)
+    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxrc.sample for its options).' % path)
 
 
 def _warn_if_root(controller):
