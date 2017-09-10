@@ -63,7 +63,13 @@ def main(config):
       print('Unable to write to our debug log file (%s): %s' % (args.debug_path, exc.strerror))
       sys.exit(1)
 
-  _load_user_nyxrc(args.config)
+  if os.path.exists(args.config):
+    try:
+      config.load(args.config)
+    except IOError as exc:
+      stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
+  else:
+    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxrc.sample for its options).' % args.config)
 
   controller = init_controller(
     control_port = args.control_port,
@@ -134,21 +140,6 @@ def _setup_debug_logging(args):
   ))
 
 
-@uses_settings
-def _load_user_nyxrc(path, config):
-  """
-  Loads user's personal nyxrc if it's available.
-  """
-
-  if os.path.exists(path):
-    try:
-      config.load(path)
-    except IOError as exc:
-      stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
-  else:
-    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxrc.sample for its options).' % path)
-
-
 def _warn_if_root(controller):
   """
   Give a notice if tor or nyx are running with root.
@@ -191,13 +182,11 @@ def _use_unicode(config):
   initializing curses.
   """
 
-  if not config.get('unicode_support', True):
-    return
+  if config.get('unicode_support', True):
+    is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()
 
-  is_lang_unicode = 'utf-' in os.getenv('LANG', '').lower()
-
-  if is_lang_unicode and nyx.curses.is_wide_characters_supported():
-    locale.setlocale(locale.LC_ALL, '')
+    if is_lang_unicode and nyx.curses.is_wide_characters_supported():
+      locale.setlocale(locale.LC_ALL, '')
 
 
 def _set_process_name():
