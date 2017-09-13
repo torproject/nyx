@@ -155,6 +155,15 @@ def draw_loop():
   interface = nyx_interface()
   next_key = None  # use this as the next user input
 
+  # Redrawing before starting daemons is important so our interface is rendered
+  # right away and the 'top' positions are set for our panels.
+
+  interface.redraw()
+
+  for panel in interface:
+    if isinstance(panel, nyx.panel.DaemonPanel):
+      panel.start()
+
   stem.util.log.info('nyx started (initialization took %0.1f seconds)' % (time.time() - CONFIG['start_time']))
 
   while not interface._quit:
@@ -566,9 +575,6 @@ class Interface(object):
 
     for panel in self:
       panel.set_visible(panel in visible_panels)
-
-      if isinstance(panel, nyx.panel.DaemonPanel):
-        panel.start()
 
   def get_page(self):
     """
