@@ -332,8 +332,8 @@ class BandwidthStats(GraphCategory):
       # if both are using rounded values then strip off the '.0' decimal
 
       if '.0' in bw_rate_label and '.0' in bw_burst_label:
-        bw_rate_label = bw_rate_label.split('.', 1)[0]
-        bw_burst_label = bw_burst_label.split('.', 1)[0]
+        bw_rate_label = bw_rate_label.replace('.0', '')
+        bw_burst_label = bw_burst_label.replace('.0', '')
 
       stats.append('limit: %s/s' % bw_rate_label)
       stats.append('burst: %s/s' % bw_burst_label)
