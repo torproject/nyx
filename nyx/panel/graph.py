@@ -708,4 +708,4 @@ def _size_label(byte_count, decimal = 1):
   or bytes.
   """
 
-  return str_tools.size_label(byte_count, decimal, is_bytes = not CONFIG['show_bits'])
+  return str_tools.size_label(byte_count, decimal, is_bytes = not CONFIG['show_bits'], round = True)

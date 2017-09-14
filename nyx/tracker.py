@@ -821,7 +821,7 @@ class ConsensusTracker(object):
     controller = tor_controller()
 
     if cache_age < 3600:
-      stem.util.log.info('Cached is only %i seconds old, no need to refresh it.' % cache_age)
+      stem.util.log.info('Cache is only %s old, no need to refresh it.' % str_tools.time_label(cache_age, is_long = True))
     else:
       start_time = time.time()
       ns_response = controller.get_info('ns/all', None)
