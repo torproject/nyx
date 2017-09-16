@@ -26,12 +26,12 @@ Download:
 
 EXPECTED_ACCOUNTING = """
 Accounting (awake)                 Time to reset: 01:02
-  4.7 KB / 105.2 KB                  2.0 KB / 9.2 KB
+  4.7 KB / 105.3 KB                  2.0 KB / 9.3 KB
 """.strip()
 
 EXPECTED_GRAPH = """
 Download:
-6 KB      *
+7 KB      *
           *
 3 KB      ** *
      *    ****

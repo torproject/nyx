@@ -16,6 +16,7 @@ Downloaded (0.0 B/sec):           Uploaded (0.0 B/sec):
 
 import copy
 import functools
+import threading
 import time
 
 import nyx.curses
@@ -425,6 +426,7 @@ class GraphPanel(nyx.panel.Panel):
       GraphStat.SYSTEM_RESOURCES: ResourceStats(),
     }
 
+    self._stats_lock = threading.RLock()
     self._stats_paused = None
 
     if CONFIG['show_connections']:
@@ -559,18 +561,18 @@ class GraphPanel(nyx.panel.Panel):
       stat = self._stats_paused[self._displayed_stat]
       accounting_stats = self._accounting_stats_paused
 
-    stat = type(stat)(stat)  # clone the GraphCategory
-    subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
-    subgraph_width = min(subwindow.width // 2, CONFIG['max_graph_width'])
-    interval, bounds_type = self._update_interval, self._bounds_type
+    with self._stats_lock:
+      subgraph_height = self._graph_height + 2  # graph rows + header + x-axis label
+      subgraph_width = min(subwindow.width // 2, CONFIG['max_graph_width'])
+      interval, bounds_type = self._update_interval, self._bounds_type
 
-    subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
+      subwindow.addstr(0, 0, stat.title(subwindow.width), HIGHLIGHT)
 
-    _draw_subgraph(subwindow, stat.primary, 0, subgraph_width, subgraph_height, bounds_type, interval, PRIMARY_COLOR)
-    _draw_subgraph(subwindow, stat.secondary, subgraph_width, subgraph_width, subgraph_height, bounds_type, interval, SECONDARY_COLOR)
+      _draw_subgraph(subwindow, stat.primary, 0, subgraph_width, subgraph_height, bounds_type, interval, PRIMARY_COLOR)
+      _draw_subgraph(subwindow, stat.secondary, subgraph_width, subgraph_width, subgraph_height, bounds_type, interval, SECONDARY_COLOR)
 
-    if stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
-      _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + subgraph_height - 2, accounting_stats)
+      if stat.stat_type() == GraphStat.BANDWIDTH and accounting_stats:
+        _draw_accounting_stats(subwindow, DEFAULT_CONTENT_HEIGHT + subgraph_height - 2, accounting_stats)
 
   def _update_accounting(self, event):
     if not CONFIG['show_accounting']:
@@ -587,15 +589,16 @@ class GraphPanel(nyx.panel.Panel):
           nyx_interface().redraw()
 
   def _update_stats(self, event):
-    for stat in self._stats.values():
-      stat.bandwidth_event(event)
+    with self._stats_lock:
+      for stat in self._stats.values():
+        stat.bandwidth_event(event)
 
-    if self._displayed_stat:
-      param = self._stats[self._displayed_stat]
-      update_rate = INTERVAL_SECONDS[self._update_interval]
+      if self._displayed_stat:
+        param = self._stats[self._displayed_stat]
+        update_rate = INTERVAL_SECONDS[self._update_interval]
 
-      if param.primary.tick % update_rate == 0:
-        self.redraw()
+        if param.primary.tick % update_rate == 0:
+          self.redraw()
 
 
 def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):
@@ -622,9 +625,7 @@ def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, col
   for col in range(columns):
     column_count = int(data.values[interval][col]) - min_bound
     column_height = int(min(height - 2, (height - 2) * column_count / (max(1, max_bound) - min_bound)))
-
-    for row in range(column_height):
-      subwindow.addstr(x + col + axis_offset + 1, height - 1 - row, fill_char, color, HIGHLIGHT)
+    subwindow.vline(x + col + axis_offset + 1, height - column_height, column_height, color, HIGHLIGHT, char = fill_char)
 
 
 def _x_axis_labels(interval, columns):

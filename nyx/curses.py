@@ -902,17 +902,23 @@ class _Subwindow(object):
 
     return x
 
-  def hline(self, x, y, length, *attr):
+  def hline(self, x, y, length, *attr, **kwargs):
+    char = kwargs.get('char', curses.ACS_HLINE)
+    char = ord(char) if isinstance(char, str) else char
+
     if self.width > x and self.height > y:
       try:
-        self._curses_subwindow.hline(max(0, y), max(0, x), curses.ACS_HLINE | curses_attr(*attr), min(length, self.width - x))
+        self._curses_subwindow.hline(max(0, y), max(0, x), char | curses_attr(*attr), min(length, self.width - x))
       except:
         pass
 
-  def vline(self, x, y, length, *attr):
+  def vline(self, x, y, length, *attr, **kwargs):
+    char = kwargs.get('char', curses.ACS_VLINE)
+    char = ord(char) if isinstance(char, str) else char
+
     if self.width > x and self.height > y:
       try:
-        self._curses_subwindow.vline(max(0, y), max(0, x), curses.ACS_VLINE | curses_attr(*attr), min(length, self.height - y))
+        self._curses_subwindow.vline(max(0, y), max(0, x), char | curses_attr(*attr), min(length, self.height - y))
       except:
         pass
 
