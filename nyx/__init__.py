@@ -634,6 +634,9 @@ class Interface(object):
     :returns: **list** of panels on that page
     """
 
+    if not self._page_panels:
+      return [self._header_panel]  # all panels disabled
+
     page_number = self._page if page_number is None else page_number
     return [self._header_panel] + self._page_panels[page_number]
 
