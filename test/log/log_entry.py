@@ -1,27 +1,29 @@
 import unittest
 
+import nyx.log
+
 from nyx.log import LogEntry
 
 
 class TestLogEntry(unittest.TestCase):
-  def test_deduplication_matches_identical_messages(self):
-    # Simple case is that we match the same message but different timestamp.
+  def setUp(self):
+    nyx.log.GROUP_BY_DAY = False
 
+  def tearDown(self):
+    nyx.log.GROUP_BY_DAY = True
+
+  def test_dedup_key_by_messages(self):
     entry = LogEntry(1333738434, 'INFO', 'tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"')
-    self.assertTrue(entry.is_duplicate_of(LogEntry(1333738457, 'INFO', 'tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"')))
+    self.assertEqual('INFO:tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"', entry.dedup_key)
 
-    # ... but we shouldn't match if the runlevel differs.
-
-    self.assertFalse(entry.is_duplicate_of(LogEntry(1333738457, 'DEBUG', 'tor_lockfile_lock(): Locking "/home/atagar/.tor/lock"')))
-
-  def test_deduplication_matches_based_on_prefix(self):
+  def test_dedup_key_by_prefix(self):
     # matches using a prefix specified in dedup.cfg
 
     entry = LogEntry(1333738434, 'NYX_DEBUG', 'GETCONF MyFamily (runtime: 0.0007)')
-    self.assertTrue(entry.is_duplicate_of(LogEntry(1333738457, 'NYX_DEBUG', 'GETCONF MyFamily (runtime: 0.0015)')))
+    self.assertEqual('NYX_DEBUG:GETCONF MyFamily (', entry.dedup_key)
 
-  def test_deduplication_matches_with_wildcard(self):
+  def test_dedup_key_with_wildcard(self):
     # matches using a wildcard specified in dedup.cfg
 
     entry = LogEntry(1333738434, 'NOTICE', 'Bootstrapped 72%: Loading relay descriptors.')
-    self.assertTrue(entry.is_duplicate_of(LogEntry(1333738457, 'NOTICE', 'Bootstrapped 55%: Loading relay descriptors.')))
+    self.assertEqual('NOTICE:*Loading relay descriptors.', entry.dedup_key)

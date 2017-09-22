@@ -56,6 +56,7 @@ except ImportError:
 TOR_RUNLEVELS = ['DEBUG', 'INFO', 'NOTICE', 'WARN', 'ERR']
 NYX_RUNLEVELS = ['NYX_DEBUG', 'NYX_INFO', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
 TIMEZONE_OFFSET = time.altzone if time.localtime()[8] else time.timezone
+GROUP_BY_DAY = True
 
 
 def day_count(timestamp):
@@ -218,23 +219,15 @@ class LogGroup(object):
   and supports deduplication.
   """
 
-  def __init__(self, max_size, group_by_day = False):
+  def __init__(self, max_size):
     self._max_size = max_size
-    self._group_by_day = group_by_day
     self._entries = []
+    self._dedup_map = {}  # dedup key => most recent entry
     self._lock = threading.RLock()
 
   def add(self, entry):
     with self._lock:
-      duplicate = None
-      our_day = entry.day_count()
-
-      for existing_entry in self._entries:
-        if self._group_by_day and our_day != existing_entry.day_count():
-          break
-        elif entry.is_duplicate_of(existing_entry):
-          duplicate = existing_entry
-          break
+      duplicate = self._dedup_map.get(entry.dedup_key, None)
 
       if duplicate:
         if not duplicate.duplicates:
@@ -245,6 +238,7 @@ class LogGroup(object):
         entry.duplicates.insert(0, entry)
 
       self._entries.insert(0, entry)
+      self._dedup_map[entry.dedup_key] = entry
 
       while len(self._entries) > self._max_size:
         self.pop()
@@ -259,9 +253,12 @@ class LogGroup(object):
       if last_entry.is_duplicate:
         last_entry.duplicates.pop()
 
+      if self._dedup_map.get(last_entry.dedup_key, None) == last_entry:
+        del self._dedup_map[last_entry.dedup_key]
+
   def clone(self):
     with self._lock:
-      copy = LogGroup(self._max_size, self._group_by_day)
+      copy = LogGroup(self._max_size)
       copy._entries = [entry.clone() for entry in self._entries]
       return copy
 
@@ -287,6 +284,7 @@ class LogEntry(object):
   :var str message: event's message
   :var str display_message: message annotated with our time and runlevel
 
+  :var str dedup_key: key that can be used for deduplication
   :var bool is_duplicate: true if this matches other messages in the group and
     isn't the first
   :var list duplicates: messages that are identical to this one
@@ -303,37 +301,34 @@ class LogEntry(object):
     self.is_duplicate = False
     self.duplicates = None
 
-  @lru_cache()
-  def is_duplicate_of(self, entry):
+    if GROUP_BY_DAY:
+      self.dedup_key = '%s:%s:%s' % (self.type, self.day_count(), self._message_dedup_key())
+    else:
+      self.dedup_key = '%s:%s' % (self.type, self._message_dedup_key())
+
+  def _message_dedup_key(self):
     """
-    Checks if we are a duplicate of the given message or not.
+    Provides key we can use for deduplication for the message portion of our entry.
 
-    :returns: **True** if the given log message is a duplicate of us and **False** otherwise
+    :returns: **str** key for deduplication purposes
     """
 
-    if self.type != entry.type:
-      return False
-    elif self.message == entry.message:
-      return True
-
-    if self.type == 'NYX_DEBUG' and 'runtime:' in self.message and 'runtime:' in entry.message:
+    if self.type == 'NYX_DEBUG' and 'runtime:' in self.message:
       # most nyx debug messages show runtimes so try matching without that
-
-      if self.message[:self.message.find('runtime:')] == entry.message[:self.message.find('runtime:')]:
-        return True
+      return self.message[:self.message.find('runtime:')]
 
     for common_msg in _common_log_messages().get(self.type, []):
       # if it starts with an asterisk then check the whole message rather
       # than just the start
 
       if common_msg[0] == '*':
-        if common_msg[1:] in self.message and common_msg[1:] in entry.message:
-          return True
+        if common_msg[1:] in self.message:
+          return common_msg
       else:
-        if self.message.startswith(common_msg) and entry.message.startswith(common_msg):
-          return True
+        if self.message.startswith(common_msg):
+          return common_msg
 
-    return False
+    return self.message
 
   def day_count(self):
     """

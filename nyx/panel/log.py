@@ -77,7 +77,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       logged_events = ['NOTICE', 'WARN', 'ERR', 'NYX_NOTICE', 'NYX_WARNING', 'NYX_ERROR']
       log.warn("Your --log argument had the following events tor doesn't recognize: %s" % ', '.join(invalid_events))
 
-    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'], group_by_day = True)
+    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'])
     self._event_log_paused = None
     self._event_types = nyx.log.listen_for_events(self._register_tor_event, logged_events)
     self._log_file = nyx.log.LogFileOutput(CONFIG['write_logs_to'])
@@ -152,7 +152,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     Clears the contents of the event log.
     """
 
-    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'], group_by_day = True)
+    self._event_log = nyx.log.LogGroup(CONFIG['max_log_size'])
     self.redraw()
 
   def save_snapshot(self, path):
