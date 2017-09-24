@@ -190,18 +190,14 @@ class ConnectionEntry(Entry):
           return Category.HIDDEN
 
     fingerprint = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
+    exit_policy = controller.get_exit_policy(None)
 
     if fingerprint and LAST_RETRIEVED_CIRCUITS:
       for circ in LAST_RETRIEVED_CIRCUITS:
         if circ.path and len(circ.path) == 1 and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
           return Category.DIRECTORY  # one-hop circuit to retrieve directory information
-    else:
-      # not a known relay, might be an exit connection
-
-      exit_policy = controller.get_exit_policy(None)
-
-      if exit_policy and exit_policy.can_exit_to(self._connection.remote_address, self._connection.remote_port):
-        return Category.EXIT
+    elif exit_policy and exit_policy.can_exit_to(self._connection.remote_address, self._connection.remote_port):
+      return Category.EXIT
 
     return Category.OUTBOUND
 
