@@ -82,7 +82,7 @@ CONFIG = conf.config_dict('nyx', {
 
 class Entry(object):
   @staticmethod
-  @lru_cache()
+  @lru_cache(maxsize = 10000)
   def from_connection(connection):
     return ConnectionEntry(connection)
 
