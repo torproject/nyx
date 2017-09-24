@@ -337,7 +337,7 @@ def _process_for_ports(local_ports, remote_ports):
   if lsof_call:
     results = {}
 
-    if lsof_call[0].startswith('COMMAND  '):
+    if lsof_call[0].startswith('COMMAND'):
       lsof_call = lsof_call[1:]  # strip the title line
 
     for line in lsof_call:
