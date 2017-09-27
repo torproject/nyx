@@ -167,8 +167,6 @@ def draw_loop():
   stem.util.log.info('nyx started (initialization took %0.1f seconds)' % (time.time() - CONFIG['start_time']))
 
   while not interface._quit:
-    interface.redraw()
-
     if next_key:
       key, next_key = next_key, None
     else:
@@ -200,10 +198,12 @@ def draw_loop():
           stem.util.log.error('Error detected when reloading tor: %s' % exc.strerror)
     elif key.match('h'):
       next_key = nyx.popups.show_help()
-    else:
+    elif not key.is_null():
       for panel in interface.page_panels():
         for keybinding in panel.key_handlers():
           keybinding.handle(key)
+
+    interface.redraw(force = not key.is_null())
 
 
 def nyx_interface():
@@ -666,7 +666,7 @@ class Interface(object):
       for panel in self.page_panels():
         panel.redraw()
 
-  def redraw(self):
+  def redraw(self, force = False):
     """
     Renders our displayed content.
     """
@@ -674,7 +674,7 @@ class Interface(object):
     occupied = 0
 
     for panel in self.page_panels():
-      panel.redraw(force = False, top = occupied)
+      panel.redraw(force = force, top = occupied)
       occupied += panel.get_height()
 
   def quit(self):

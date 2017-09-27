@@ -938,6 +938,9 @@ class KeyInput(object):
     page_up, page_down, and esc.
     """
 
+    if self.is_null():
+      return False
+
     for key in keys:
       if key in SPECIAL_KEYS:
         if self._key == SPECIAL_KEYS[key]:
@@ -949,6 +952,13 @@ class KeyInput(object):
         raise ValueError("%s wasn't among our recognized key codes" % key)
 
     return False
+
+  def is_null(self):
+    """
+    True if there wasn't a key event (key_input() timed out).
+    """
+
+    return self._key == -1
 
   def is_scroll(self):
     """
