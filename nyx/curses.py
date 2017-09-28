@@ -906,7 +906,7 @@ class _Subwindow(object):
     char = kwargs.get('char', curses.ACS_HLINE)
     char = ord(char) if isinstance(char, str) else char
 
-    if self.width > x and self.height > y:
+    if self.width > x and self.height > y and length > 0:
       try:
         self._curses_subwindow.hline(max(0, y), max(0, x), char | curses_attr(*attr), min(length, self.width - x))
       except:
@@ -916,7 +916,7 @@ class _Subwindow(object):
     char = kwargs.get('char', curses.ACS_VLINE)
     char = ord(char) if isinstance(char, str) else char
 
-    if self.width > x and self.height > y:
+    if self.width > x and self.height > y and length > 0:
       try:
         self._curses_subwindow.vline(max(0, y), max(0, x), char | curses_attr(*attr), min(length, self.height - y))
       except:

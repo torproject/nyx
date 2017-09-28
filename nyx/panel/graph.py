@@ -50,6 +50,7 @@ PRIMARY_COLOR, SECONDARY_COLOR = GREEN, CYAN
 ACCOUNTING_RATE = 5
 DEFAULT_CONTENT_HEIGHT = 4  # space needed for labeling above and below the graph
 WIDE_LABELING_GRAPH_COL = 50  # minimum graph columns to use wide spacing for x-axis labels
+TITLE_UPDATE_RATE = 30
 
 
 def conf_handler(key, value):
@@ -85,6 +86,41 @@ CONFIG = conf.config_dict('nyx', {
   'show_bits': False,
   'show_connections': True,
 }, conf_handler)
+
+
+def _bandwidth_title_stats():
+  controller = tor_controller()
+
+  stats = []
+  bw_rate = controller.get_effective_rate(None)
+  bw_burst = controller.get_effective_rate(None, burst = True)
+
+  if bw_rate and bw_burst:
+    bw_rate_label = _size_label(bw_rate)
+    bw_burst_label = _size_label(bw_burst)
+
+    # if both are using rounded values then strip off the '.0' decimal
+
+    if '.0' in bw_rate_label and '.0' in bw_burst_label:
+      bw_rate_label = bw_rate_label.replace('.0', '')
+      bw_burst_label = bw_burst_label.replace('.0', '')
+
+    stats.append('limit: %s/s' % bw_rate_label)
+    stats.append('burst: %s/s' % bw_burst_label)
+
+  my_router_status_entry = nyx.tracker.get_consensus_tracker().my_router_status_entry()
+  measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
+
+  if measured_bw:
+    stats.append('measured: %s/s' % _size_label(measured_bw))
+  else:
+    my_server_descriptor = controller.get_server_descriptor(default = None)
+    observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
+
+    if observed_bw:
+      stats.append('observed: %s/s' % _size_label(observed_bw))
+
+  return stats
 
 
 class GraphData(object):
@@ -267,6 +303,7 @@ class BandwidthStats(GraphCategory):
 
   def __init__(self, clone = None):
     GraphCategory.__init__(self, clone)
+    self._title_last_updated = None
 
     if not clone:
       # fill in past bandwidth information
@@ -320,38 +357,9 @@ class BandwidthStats(GraphCategory):
       ', total: %s' % _size_label(self.secondary.total),
     ]
 
-    controller = tor_controller()
-
-    stats = []
-    bw_rate = controller.get_effective_rate(None)
-    bw_burst = controller.get_effective_rate(None, burst = True)
-
-    if bw_rate and bw_burst:
-      bw_rate_label = _size_label(bw_rate)
-      bw_burst_label = _size_label(bw_burst)
-
-      # if both are using rounded values then strip off the '.0' decimal
-
-      if '.0' in bw_rate_label and '.0' in bw_burst_label:
-        bw_rate_label = bw_rate_label.replace('.0', '')
-        bw_burst_label = bw_burst_label.replace('.0', '')
-
-      stats.append('limit: %s/s' % bw_rate_label)
-      stats.append('burst: %s/s' % bw_burst_label)
-
-    my_router_status_entry = nyx.tracker.get_consensus_tracker().my_router_status_entry()
-    measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
-
-    if measured_bw:
-      stats.append('measured: %s/s' % _size_label(measured_bw))
-    else:
-      my_server_descriptor = controller.get_server_descriptor(default = None)
-      observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
-
-      if observed_bw:
-        stats.append('observed: %s/s' % _size_label(observed_bw))
-
-    self._title_stats = stats
+    if not self._title_last_updated or time.time() - self._title_last_updated > TITLE_UPDATE_RATE:
+      self._title_stats = _bandwidth_title_stats()
+      self._title_last_updated = time.time()
 
 
 class ConnectionStats(GraphCategory):
