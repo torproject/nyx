@@ -43,7 +43,7 @@ CONFIG = conf.config_dict('nyx', {
   'write_logs_to': '',
 }, conf_handler)
 
-UPDATE_RATE = 0.3
+UPDATE_RATE = 0.7
 
 # The height of the drawn content is estimated based on the last time we redrew
 # the panel. It's chiefly used for scrolling and the bar indicating its

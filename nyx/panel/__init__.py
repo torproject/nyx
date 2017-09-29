@@ -207,7 +207,7 @@ class DaemonPanel(Panel, threading.Thread):
       if nyx_interface().is_paused() or (time.time() - last_ran) < self._update_rate:
         with self._pause_condition:
           if not self._halt:
-            self._pause_condition.wait(0.2)
+            self._pause_condition.wait(max(0.2, self._update_rate - 0.01))
 
         continue  # done waiting, try again
 
