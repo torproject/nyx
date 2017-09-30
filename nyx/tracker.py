@@ -541,15 +541,15 @@ class ConnectionTracker(Daemon):
         controller = tor_controller()
         consensus_tracker = get_consensus_tracker()
 
+        relay_ports = set(controller.get_ports(stem.control.Listener.OR, []))
+        relay_ports.update(controller.get_ports(stem.control.Listener.DIR, []))
+        relay_ports.update(controller.get_ports(stem.control.Listener.CONTROL, []))
+
         for conn in proc.connections(user = controller.get_user(None)):
           if conn.remote_port in consensus_tracker.get_relay_fingerprints(conn.remote_address):
             connections.append(conn)  # outbound to another relay
-          elif conn.local_port in controller.get_ports(stem.control.Listener.OR, []):
-            connections.append(conn)  # inbound to our ORPort
-          elif conn.local_port in controller.get_ports(stem.control.Listener.DIR, []):
-            connections.append(conn)  # inbound to our DirPort
-          elif conn.local_port in controller.get_ports(stem.control.Listener.CONTROL, []):
-            connections.append(conn)  # controller connection
+          elif conn.local_port in relay_ports:
+            connections.append(conn)
       else:
         connections = connection.get_connections(resolver, process_pid = process_pid, process_name = process_name)
 
