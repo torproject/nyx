@@ -16,7 +16,7 @@ import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import nyx_interface, tor_controller
+from nyx import PAUSE_TIME, nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 
@@ -472,10 +472,6 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       start_time = time.time()
 
       while True:
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(0.5)
-
         resolution_count = conn_resolver.run_counter()
 
         if resolution_count != 0:
@@ -484,6 +480,8 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
           break
         elif self._halt:
           return
+        else:
+          time.sleep(PAUSE_TIME)
 
     controller = tor_controller()
     LAST_RETRIEVED_CIRCUITS = controller.get_circuits([])

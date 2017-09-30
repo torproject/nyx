@@ -60,7 +60,7 @@ import stem.control
 import stem.descriptor.router_status_entry
 import stem.util.log
 
-from nyx import tor_controller
+from nyx import PAUSE_TIME, tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
@@ -378,7 +378,6 @@ class Daemon(threading.Thread):
     self._run_counter = 0  # counter for the number of successful runs
 
     self._is_paused = False
-    self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
 
     controller = tor_controller()
@@ -387,14 +386,11 @@ class Daemon(threading.Thread):
 
   def run(self):
     while not self._halt:
-      time_since_last_ran = time.time() - self._last_ran
+      if self._is_paused or time.time() - self._last_ran < self._rate:
+        sleep_until = self._last_ran + self._rate + 0.1
 
-      if self._is_paused or time_since_last_ran < self._rate:
-        sleep_duration = max(0.02, self._rate - time_since_last_ran)
-
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(sleep_duration)
+        while not self._halt and time.time() < sleep_until:
+          time.sleep(PAUSE_TIME)
 
         continue  # done waiting, try again
 
@@ -465,9 +461,7 @@ class Daemon(threading.Thread):
     Halts further work and terminates the thread.
     """
 
-    with self._pause_condition:
-      self._halt = True
-      self._pause_condition.notifyAll()
+    self._halt = True
 
   def _tor_status_listener(self, controller, event_type, _):
     with self._process_lock:

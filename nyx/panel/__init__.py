@@ -33,7 +33,7 @@ import time
 
 import nyx.curses
 
-from nyx import nyx_interface
+from nyx import PAUSE_TIME, nyx_interface
 
 __all__ = [
   'config',
@@ -189,7 +189,6 @@ class DaemonPanel(Panel, threading.Thread):
     threading.Thread.__init__(self)
     self.setDaemon(True)
 
-    self._pause_condition = threading.Condition()
     self._halt = False  # terminates thread if true
     self._update_rate = update_rate
 
@@ -201,13 +200,14 @@ class DaemonPanel(Panel, threading.Thread):
     Performs our _update() action at the given rate.
     """
 
-    last_ran = -1
+    last_ran = None
 
     while not self._halt:
-      if nyx_interface().is_paused() or (time.time() - last_ran) < self._update_rate:
-        with self._pause_condition:
-          if not self._halt:
-            self._pause_condition.wait(max(0.2, self._update_rate - 0.01))
+      if nyx_interface().is_paused() or (last_ran and time.time() - last_ran < self._update_rate):
+        sleep_until = last_ran + self._update_rate + 0.1
+
+        while not self._halt and time.time() < sleep_until:
+          time.sleep(PAUSE_TIME)
 
         continue  # done waiting, try again
 
@@ -219,6 +219,4 @@ class DaemonPanel(Panel, threading.Thread):
     Halts further resolutions and terminates the thread.
     """
 
-    with self._pause_condition:
-      self._halt = True
-      self._pause_condition.notifyAll()
+    self._halt = True

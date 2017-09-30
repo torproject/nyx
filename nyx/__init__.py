@@ -112,6 +112,12 @@ stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARA
 
 stem.control.LOG_CACHE_FETCHES = False
 
+# Duration for threads to pause when there's no work left to do. This is a
+# compromise - lower means fater shutdown when quit but higher means lower cpu
+# usage when running.
+
+PAUSE_TIME = 0.4
+
 SCHEMA_VERSION = 2  # version of our scheme, bump this if you change the following
 SCHEMA = (
   'CREATE TABLE schema(version INTEGER)',
