@@ -60,7 +60,7 @@ import stem.control
 import stem.descriptor.router_status_entry
 import stem.util.log
 
-from nyx import PAUSE_TIME, tor_controller
+from nyx import PAUSE_TIME, tor_controller, our_address
 from stem.util import conf, connection, enum, proc, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
@@ -902,7 +902,7 @@ class ConsensusTracker(object):
 
     controller = tor_controller()
 
-    if address == controller.get_info('address', None):
+    if our_address() == address:
       fingerprint = controller.get_info('fingerprint', None)
       ports = controller.get_ports(stem.control.Listener.OR, None)
 
@@ -923,10 +923,9 @@ class ConsensusTracker(object):
     controller = tor_controller()
 
     if fingerprint == controller.get_info('fingerprint', None):
-      my_address = controller.get_info('address', None)
       my_or_ports = controller.get_ports(stem.control.Listener.OR, [])
 
-      if my_address and len(my_or_ports) == 1:
+      if our_address() and len(my_or_ports) == 1:
         return (my_address, my_or_ports[0])
 
     return nyx.cache().relay_address(fingerprint, default)

@@ -16,7 +16,7 @@ import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import PAUSE_TIME, nyx_interface, tor_controller
+from nyx import PAUSE_TIME, nyx_interface, tor_controller, our_address
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 
@@ -571,8 +571,7 @@ def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
 
 
 def _draw_address_column(subwindow, x, y, line, attr):
-  src = tor_controller().get_info('address', line.connection.local_address)
-  src += ':%s' % line.connection.local_port if line.line_type == LineType.CONNECTION else ''
+  src = '%s:%s' % (our_address(line.connection.local_address), line.connection.local_port if line.line_type == LineType.CONNECTION else '')
 
   if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
     dst = 'Building...'

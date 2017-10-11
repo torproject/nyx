@@ -9,6 +9,7 @@ Tor curses monitoring application.
   nyx_interface - nyx interface singleton
   tor_controller - tor connection singleton
   cache - provides our application cache
+  our_address - provides our ip address
 
   show_message - shows a message to the user
   input_prompt - prompts the user for text input
@@ -104,9 +105,9 @@ CACHE = None
 CHROOT = None
 BASE_DIR = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 
-# technically can change but we use this query a *lot* so needs to be cached
-
-stem.control.CACHEABLE_GETINFO_PARAMS = list(stem.control.CACHEABLE_GETINFO_PARAMS) + ['address']
+CACHED_ADDRESS = None
+ADDRESS_FETCHED = None
+ADDRESS_FETCH_RATE = 60
 
 # disable trace level messages about cache hits
 
@@ -249,6 +250,23 @@ def cache():
 
   return CACHE
 
+
+def our_address(default = None):
+  """
+  Provides our ip address.
+
+  :param str default: response if address is unavailable
+
+  :returns: **str** with our address
+  """
+
+  global CACHED_ADDRESS, ADDRESS_FETCHED
+
+  if ADDRESS_FETCHED is None or (time.time() - ADDRESS_FETCHED) > ADDRESS_FETCH_RATE:
+    CACHED_ADDRESS = tor_controller().get_info('address', None)
+    ADDRESS_FETCHED = time.time()
+
+  return CACHED_ADDRESS if CACHED_ADDRESS is not None else default
 
 def show_message(message = None, *attr, **kwargs):
   """
