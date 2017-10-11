@@ -343,7 +343,7 @@ def expand_path(path):
     return None
 
   try:
-    tor_cwd = stem.util.system.cwd(tor_controller().get_pid(None))
+    tor_cwd = stem.util.system.cwd(tor_controller().get_pid(None)) if not os.path.isabs(path) else None
     return chroot() + stem.util.system.expand_path(path, tor_cwd)
   except IOError as exc:
     stem.util.log.info('Unable to expand a relative path (%s): %s' % (path, exc))

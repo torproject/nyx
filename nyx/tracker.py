@@ -817,6 +817,7 @@ class ConsensusTracker(object):
     if cache_age < 3600:
       stem.util.log.info('Cache is only %s old, no need to refresh it.' % str_tools.time_label(cache_age, is_long = True))
     else:
+      stem.util.log.info('Cache is %s old, refreshing relay information.' % str_tools.time_label(cache_age, is_long = True))
       start_time = time.time()
       ns_response = controller.get_info('ns/all', None)
 
