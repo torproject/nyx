@@ -203,7 +203,7 @@ class DaemonPanel(Panel, threading.Thread):
     last_ran = None
 
     while not self._halt:
-      if nyx_interface().is_paused() or (last_ran and time.time() - last_ran < self._update_rate):
+      if last_ran and time.time() - last_ran < self._update_rate:
         sleep_until = last_ran + self._update_rate + 0.1
 
         while not self._halt and time.time() < sleep_until:
