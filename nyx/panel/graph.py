@@ -601,12 +601,12 @@ class GraphPanel(nyx.panel.Panel):
       for stat in self._stats.values():
         stat.bandwidth_event(event)
 
-      if self._displayed_stat:
-        param = self._stats[self._displayed_stat]
-        update_rate = INTERVAL_SECONDS[self._update_interval]
+    if self._displayed_stat:
+      param = self._stats[self._displayed_stat]
+      update_rate = INTERVAL_SECONDS[self._update_interval]
 
-        if param.primary.tick % update_rate == 0:
-          self.redraw()
+      if param.primary.tick % update_rate == 0:
+        self.redraw()
 
 
 def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, color, fill_char = ' '):
