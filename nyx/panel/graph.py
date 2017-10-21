@@ -566,6 +566,9 @@ class GraphPanel(nyx.panel.Panel):
       stat = self._stats[self._displayed_stat]
       accounting_stats = self._accounting_stats
     else:
+      if not self._stats_paused:
+        return  # when first paused concurrency could mean this isn't set yet
+
       stat = self._stats_paused[self._displayed_stat]
       accounting_stats = self._accounting_stats_paused
 
