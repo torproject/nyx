@@ -91,6 +91,11 @@ class Entry(object):
   def from_circuit(circuit):
     return CircuitEntry(circuit)
 
+  def __init__(self):
+    self._lines = None
+    self._type = None
+    self._is_private_val = None
+
   def get_lines(self):
     """
     Provides individual lines of connection information.
@@ -98,7 +103,10 @@ class Entry(object):
     :returns: **list** of **ConnectionLine** concerning this entry
     """
 
-    raise NotImplementedError('should be implemented by subclasses')
+    if self._lines is None:
+      self._lines = self._get_lines()
+
+    return self._lines
 
   def get_type(self):
     """
@@ -107,7 +115,10 @@ class Entry(object):
     :returns: **Category** for the connection's type
     """
 
-    raise NotImplementedError('should be implemented by subclasses')
+    if self._type is None:
+      self._type = self._get_type()
+
+    return self._type
 
   def is_private(self):
     """
@@ -118,7 +129,10 @@ class Entry(object):
     :returns: **bool** indicating if connection information is sensive or not
     """
 
-    raise NotImplementedError('should be implemented by subclasses')
+    if self._is_private_val is None:
+      self._is_private_val = self._is_private()
+
+    return self._is_private_val
 
   def sort_value(self, attr):
     """
@@ -153,13 +167,22 @@ class Entry(object):
     else:
       return ''
 
+  def _get_lines(self):
+    raise NotImplementedError('should be implemented by subclasses')
+
+  def _get_type(self):
+    raise NotImplementedError('should be implemented by subclasses')
+
+  def _is_private(self):
+    raise NotImplementedError('should be implemented by subclasses')
+
 
 class ConnectionEntry(Entry):
   def __init__(self, connection):
+    super(ConnectionEntry, self).__init__()
     self._connection = connection
 
-  @lru_cache()
-  def get_lines(self):
+  def _get_lines(self):
     fingerprint, nickname, locale = None, None, None
 
     if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
@@ -171,8 +194,7 @@ class ConnectionEntry(Entry):
 
     return [Line(self, LineType.CONNECTION, self._connection, None, fingerprint, nickname, locale)]
 
-  @lru_cache()
-  def get_type(self):
+  def _get_type(self):
     controller = tor_controller()
 
     if self._connection.local_port in controller.get_ports(Listener.OR, []):
@@ -201,8 +223,7 @@ class ConnectionEntry(Entry):
 
     return Category.OUTBOUND
 
-  @lru_cache()
-  def is_private(self):
+  def _is_private(self):
     if not CONFIG['show_addresses']:
       return True
 
@@ -222,10 +243,10 @@ class ConnectionEntry(Entry):
 
 class CircuitEntry(Entry):
   def __init__(self, circuit):
+    super(CircuitEntry, self).__init__()
     self._circuit = circuit
 
-  @lru_cache()
-  def get_lines(self):
+  def _get_lines(self):
     def line(fingerprint, line_type):
       address, port, nickname, locale = '0.0.0.0', 0, None, None
       consensus_tracker = nyx.tracker.get_consensus_tracker()
@@ -241,10 +262,10 @@ class CircuitEntry(Entry):
     header_line = line(self._circuit.path[-1][0] if self._circuit.status == 'BUILT' else None, LineType.CIRCUIT_HEADER)
     return [header_line] + [line(fp, LineType.CIRCUIT) for fp, _ in self._circuit.path]
 
-  def get_type(self):
+  def _get_type(self):
     return Category.CIRCUIT
 
-  def is_private(self):
+  def _is_private(self):
     return False
 
 
