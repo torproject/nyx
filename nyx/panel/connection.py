@@ -23,12 +23,6 @@ from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 from stem.control import Listener
 from stem.util import datetime_to_unix, conf, connection, enum, str_tools
 
-try:
-  # added in python 3.2
-  from functools import lru_cache
-except ImportError:
-  from stem.util.lru_cache import lru_cache
-
 # height of the detail panel content, not counting top and bottom border
 
 DETAILS_HEIGHT = 7
@@ -40,6 +34,9 @@ UPDATE_RATE = 5  # rate in seconds at which we refresh
 
 LAST_RETRIEVED_HS_CONF = None
 LAST_RETRIEVED_CIRCUITS = None
+
+ENTRY_CACHE = {}
+ENTRY_CACHE_REFERENCED = {}
 
 # Connection Categories:
 #   Inbound      Relay connection, coming to us.
@@ -82,14 +79,20 @@ CONFIG = conf.config_dict('nyx', {
 
 class Entry(object):
   @staticmethod
-  @lru_cache(maxsize = 10000)
   def from_connection(connection):
-    return ConnectionEntry(connection)
+    if connection not in ENTRY_CACHE:
+      ENTRY_CACHE[connection] = ConnectionEntry(connection)
+
+    ENTRY_CACHE_REFERENCED[connection] = time.time()
+    return ENTRY_CACHE[connection]
 
   @staticmethod
-  @lru_cache()
   def from_circuit(circuit):
-    return CircuitEntry(circuit)
+    if circuit not in ENTRY_CACHE:
+      ENTRY_CACHE[circuit] = CircuitEntry(circuit)
+
+    ENTRY_CACHE_REFERENCED[circuit] = time.time()
+    return ENTRY_CACHE[circuit]
 
   def __init__(self):
     self._lines = None
@@ -550,6 +553,18 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
           remote_ports.append(line.connection.local_port)
 
       nyx.tracker.get_port_usage_tracker().query(local_ports, remote_ports)
+
+    # clear cache of anything that hasn't been referenced in the last five minutes
+
+    now = time.time()
+    to_clear = [k for k, v in ENTRY_CACHE_REFERENCED.items() if (now - v) >= 300]
+
+    for entry in to_clear:
+      for cache in (ENTRY_CACHE, ENTRY_CACHE_REFERENCED):
+        try:
+          del cache[entry]
+        except KeyError:
+          pass
 
     self.redraw()
 
