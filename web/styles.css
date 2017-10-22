@@ -54,7 +54,7 @@ Header Bar (logo and nav)
   display: inline;
 }
 
-.nav a { 
+.nav a {
   background: #825d27;
   border: 1px solid #47351c;
   border-bottom-right-radius: 7px;
@@ -85,6 +85,73 @@ Header Bar (logo and nav)
   border: 1px solid #885CA4;
   border-top: none;
   color: #666666;
+}
+
+#more {
+  background: #825d27 url("images/down_arrow_white.png") no-repeat;
+  background-position: center;
+  border: 1px solid #47351c;
+  border-bottom-right-radius: 7px;
+  border-bottom-left-radius: 7px;
+  border-top: none;
+  float: right;
+  height: 29px;
+  margin-left: 3px;
+  width: 25px;
+}
+
+#more:hover {
+  background: #ffffff url("images/down_arrow_brown.png") no-repeat;
+  background-position: center;
+  border: 1px solid #885CA4;
+  border-top: none;
+}
+
+#more-menu {
+  float: right;
+  margin-top: 30px;
+  display: none;
+  text-align: left;
+}
+
+#more:hover #more-menu {
+  display: block; /* show the menu when hoving over the arrow */
+}
+
+#more-menu li {
+  background: #825d27;
+  border: 1px solid #47351c;
+  border-bottom: none;
+  border-top: none;
+  display: inline-block;
+  padding-left: 10px;
+  width: 125px;
+}
+
+#more-menu li:hover {
+  background: #ffffff;
+}
+
+#more-menu a {
+  color: #fafafa;
+  display: block;
+  font-weight: normal;
+  padding-bottom: 4px;
+  padding-top: 4px;
+}
+
+#more-menu li:hover a {
+  color: #000000;
+}
+
+#more-menu li:first-child {
+  border-top-right-radius: 7px;
+  border-top-left-radius: 7px;
+}
+
+#more-menu li:last-child {
+  border-bottom-right-radius: 7px;
+  border-bottom-left-radius: 7px;
 }
 
 /*============================================================
