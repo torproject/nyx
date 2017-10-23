@@ -34,6 +34,7 @@
             <li><a id="t1" href="#home_section">What Is It?</a></li>
             <li><a id="t2" href="#faq_section">FAQ</a></li>
             <li><a id="t3" href="#download_section">Download</a></li>
+            <li style="display: none"><a id="t4" href="#contact_section">Contact</a></li>
           </ul>
         </div>
       </div>
@@ -416,6 +417,33 @@ sudo python setup.py install</pre><br></li>
       </div>
     </div>
 
+    <div id="contact_section" class="page">
+      <div class="section"></div>
+      <a href="#contact" class="section-title">Contact</a>
+
+      <p>Issues? Feedback? Tor has a few support forums for relay operators...</p>
+
+      <br>
+
+      <ul>
+        <li><h2><a href="https://lists.torproject.org/cgi-bin/mailman/listinfo/tor-relays">Email</a></h2>
+          <p><a href="https://lists.torproject.org/cgi-bin/mailman/listinfo/tor-relays">tor-relays@</a> is a list of relay operators for relay operators. System administration question? Tips for handling an abuse complaint? Then this is the place for you.</p><br>
+        </li>
+
+        <li><h2><a href="https://www.torproject.org/about/contact.html.en#irc">IRC</a></h2>
+          <p>Need real-time help? Give OFTC's <a href="https://www.torproject.org/about/contact.html.en#irc">#tor channel</a> a try.</p><br>
+        </li>
+
+        <li><h2><a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">Bug Tracker</a></h2>
+          <p>Nyx glitch? Stacktrace? To report technical problems drop us a line on our <a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">bug tracker</a>.</p><br>
+        </li>
+
+        <li><h2><a href="https://www.atagar.com/contact/">Author</a></h2>
+          <p>Got general feedback or a feature idea you'd like to float? <a href="https://www.atagar.com/contact/">Let me know!</a></p><br>
+        </li>
+      </ul>
+    </div>
+
     <script type="text/javascript">
     $(function() {
       $(".tabs").tabs(".page", { history: true });
@@ -426,6 +454,7 @@ sudo python setup.py install</pre><br></li>
       document.getElementById("t1").href = "#home";
       document.getElementById("t2").href = "#faq";
       document.getElementById("t3").href = "#download";
+      document.getElementById("t4").href = "#contact";
 
       // show/hide for FAQ questions
 
