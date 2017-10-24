@@ -94,7 +94,7 @@ class TestResourceTracker(unittest.TestCase):
     tor_controller_mock().get_pid.return_value = 12345
 
     with ResourceTracker(0.01) as daemon:
-      time.sleep(0.03)
+      time.sleep(0.015)
 
       self.assertEqual(True, daemon._use_proc)
       resources = daemon.get_value()

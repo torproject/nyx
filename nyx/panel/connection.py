@@ -11,12 +11,13 @@ import itertools
 import re
 import time
 
+import nyx
 import nyx.curses
 import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-from nyx import PAUSE_TIME, nyx_interface, tor_controller, our_address
+from nyx import nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
 
@@ -505,7 +506,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
         elif self._halt:
           return
         else:
-          time.sleep(PAUSE_TIME)
+          time.sleep(nyx.PAUSE_TIME)
 
     controller = tor_controller()
     LAST_RETRIEVED_CIRCUITS = controller.get_circuits([])
@@ -607,7 +608,10 @@ def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
 
 
 def _draw_address_column(subwindow, x, y, line, attr):
-  src = '%s:%s' % (our_address(line.connection.local_address), line.connection.local_port if line.line_type == LineType.CONNECTION else '')
+  if line.line_type == LineType.CONNECTION:
+    src = '%s:%s' % (nyx.our_address(line.connection.local_address), line.connection.local_port)
+  else:
+    src = nyx.our_address(line.connection.local_address)
 
   if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
     dst = 'Building...'

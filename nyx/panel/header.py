@@ -23,7 +23,7 @@ import nyx.popups
 import nyx.tracker
 
 from stem.util import conf, log
-from nyx import nyx_interface, tor_controller, our_address
+from nyx import nyx_interface, tor_controller
 
 from nyx.curses import RED, GREEN, YELLOW, CYAN, WHITE, BOLD, HIGHLIGHT
 
@@ -268,7 +268,7 @@ class Sampling(object):
       'version': str(controller.get_version('Unknown')).split()[0],
       'version_status': controller.get_info('status/version/current', 'Unknown'),
 
-      'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else our_address('Unknown'),
+      'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else nyx.our_address('Unknown'),
       'or_port': or_listeners[0][1] if or_listeners else '',
       'dir_port': controller.get_conf('DirPort', '0'),
       'control_port': str(control_listeners[0][1]) if control_listeners else None,

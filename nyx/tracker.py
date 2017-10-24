@@ -60,7 +60,7 @@ import stem.control
 import stem.descriptor.router_status_entry
 import stem.util.log
 
-from nyx import PAUSE_TIME, tor_controller, our_address
+from nyx import tor_controller
 from stem.util import conf, connection, enum, proc, str_tools, system
 
 CONFIG = conf.config_dict('nyx', {
@@ -387,10 +387,10 @@ class Daemon(threading.Thread):
   def run(self):
     while not self._halt:
       if self._is_paused or time.time() - self._last_ran < self._rate:
-        sleep_until = self._last_ran + self._rate + 0.1
+        sleep_until = self._last_ran + self._rate
 
         while not self._halt and time.time() < sleep_until:
-          time.sleep(PAUSE_TIME)
+          time.sleep(nyx.PAUSE_TIME)
 
         continue  # done waiting, try again
 
@@ -903,7 +903,7 @@ class ConsensusTracker(object):
 
     controller = tor_controller()
 
-    if our_address() == address:
+    if nyx.our_address() == address:
       fingerprint = controller.get_info('fingerprint', None)
       ports = controller.get_ports(stem.control.Listener.OR, None)
 
@@ -924,9 +924,10 @@ class ConsensusTracker(object):
     controller = tor_controller()
 
     if fingerprint == controller.get_info('fingerprint', None):
+      my_address = nyx.our_address()
       my_or_ports = controller.get_ports(stem.control.Listener.OR, [])
 
-      if our_address() and len(my_or_ports) == 1:
+      if my_address and len(my_or_ports) == 1:
         return (my_address, my_or_ports[0])
 
     return nyx.cache().relay_address(fingerprint, default)

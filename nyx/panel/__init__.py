@@ -31,9 +31,8 @@ import inspect
 import threading
 import time
 
+import nyx
 import nyx.curses
-
-from nyx import PAUSE_TIME, nyx_interface
 
 __all__ = [
   'config',
@@ -207,7 +206,7 @@ class DaemonPanel(Panel, threading.Thread):
         sleep_until = last_ran + self._update_rate + 0.1
 
         while not self._halt and time.time() < sleep_until:
-          time.sleep(PAUSE_TIME)
+          time.sleep(nyx.PAUSE_TIME)
 
         continue  # done waiting, try again
 

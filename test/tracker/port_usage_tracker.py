@@ -111,7 +111,7 @@ class TestPortUsageTracker(unittest.TestCase):
       self.assertEqual(0, daemon._failure_count)
 
       daemon.query([37277, 51849], [])
-      time.sleep(0.03)
+      time.sleep(0.015)
       self.assertTrue(daemon.is_alive())
       time.sleep(0.1)
       self.assertFalse(daemon.is_alive())

@@ -30,7 +30,7 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
 
 @nyx.uses_settings
 def main():
-  nyx.TESTING = True
+  nyx.PAUSE_TIME = 0.000001  # make pauses negligibly low since our tests trigger things rapidly
   test_config = stem.util.conf.get_config('test')
   test_config.load(os.path.join(NYX_BASE, 'test', 'settings.cfg'))
 

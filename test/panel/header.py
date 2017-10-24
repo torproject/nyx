@@ -87,6 +87,7 @@ class TestHeaderPanel(unittest.TestCase):
   @patch('time.time', Mock(return_value = 1234.5))
   @patch('os.times', Mock(return_value = (0.08, 0.03, 0.0, 0.0, 18759021.31)))
   @patch('os.uname', Mock(return_value = ('Linux', 'odin', '3.5.0-54-generic', '#81~precise1-Ubuntu SMP Tue Jul 15 04:05:58 UTC 2014', 'i686')))
+  @patch('nyx.our_address', Mock(return_value = '174.21.17.28'))
   @patch('stem.util.system.start_time', Mock(return_value = 5678))
   @patch('stem.util.proc.file_descriptors_used', Mock(return_value = 89))
   def test_sample(self, consensus_tracker_mock, resource_tracker_mock, tor_controller_mock):
@@ -101,7 +102,6 @@ class TestHeaderPanel(unittest.TestCase):
     tor_controller_mock().get_info.side_effect = lambda param, default = None: {
       'fingerprint': '1A94D1A794FCB2F8B6CBC179EF8FDD4008A98D3B',
       'status/version/current': 'recommended',
-      'address': '174.21.17.28',
       'process/descriptor-limit': 678,
     }[param]
 

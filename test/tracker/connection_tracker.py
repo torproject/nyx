@@ -49,17 +49,17 @@ class TestConnectionTracker(unittest.TestCase):
     get_value_mock.side_effect = IOError()
 
     with ConnectionTracker(0.01) as daemon:
-      time.sleep(0.03)
+      time.sleep(0.015)
 
       self.assertEqual([connection.Resolver.NETSTAT, connection.Resolver.LSOF], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
-      time.sleep(0.05)
+      time.sleep(0.025)
 
       self.assertEqual([connection.Resolver.LSOF], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
-      time.sleep(0.05)
+      time.sleep(0.035)
 
       self.assertEqual([], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
@@ -96,7 +96,7 @@ class TestConnectionTracker(unittest.TestCase):
       self.assertEqual(1, len(connections))
 
       self.assertEqual(STEM_CONNECTIONS[0].remote_address, connections[0].remote_address)
-      self.assertTrue(first_start_time < connections[0].start_time < time.time())
+      self.assertTrue(first_start_time <= connections[0].start_time <= time.time())
       self.assertTrue(connections[0].is_legacy)
 
       second_start_time = time.time()

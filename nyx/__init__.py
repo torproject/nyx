@@ -268,6 +268,7 @@ def our_address(default = None):
 
   return CACHED_ADDRESS if CACHED_ADDRESS is not None else default
 
+
 def show_message(message = None, *attr, **kwargs):
   """
   Shows a message in our header.

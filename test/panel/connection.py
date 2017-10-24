@@ -195,8 +195,8 @@ class TestConnectionPanel(unittest.TestCase):
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
+  @patch('nyx.our_address', Mock(return_value = '82.121.9.9'))
   def test_draw_line(self, tor_controller_mock):
-    tor_controller_mock().get_info.return_value = '82.121.9.9'
     tor_controller_mock().is_geoip_unavailable.return_value = False
 
     test_data = ((
@@ -222,8 +222,8 @@ class TestConnectionPanel(unittest.TestCase):
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
+  @patch('nyx.our_address', Mock(return_value = '82.121.9.9'))
   def test_draw_address_column(self, tor_controller_mock):
-    tor_controller_mock().get_info.return_value = '82.121.9.9'
     tor_controller_mock().is_geoip_unavailable.return_value = False
 
     test_data = ((
