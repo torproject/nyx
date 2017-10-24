@@ -326,6 +326,34 @@ Download Page
 }
 
 /*============================================================
+Configuration Page
+============================================================*/
+
+#nyxrc-example {
+  text-align: left;
+}
+
+.nyxrc-section {
+  margin-bottom: 10px;
+  font-size: 23px;
+  text-align: left;
+}
+
+.nyxrc-options {
+  text-align: left;
+  border-collapse: collapse;
+}
+
+.nyxrc-options table, th, td {
+  border: 1px solid #ccc;
+}
+
+.nyxrc-options td {
+  padding: 5px;
+  vertical-align: top;
+}
+
+/*============================================================
 Change Log Page
 ============================================================*/
 

@@ -22,6 +22,7 @@
         <div id="more">
           <ul id="more-menu">
             <li><a href="changelog/index.html">Changelog</a></li>
+            <li><a href="#configuration">Configuration</a></li>
             <li><a href="https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs">Bug Tracker</a></li>
             <li><a href="#contact">Contact</a></li>
           </ul>
@@ -34,7 +35,8 @@
             <li><a id="t1" href="#home_section">What Is It?</a></li>
             <li><a id="t2" href="#faq_section">FAQ</a></li>
             <li><a id="t3" href="#download_section">Download</a></li>
-            <li style="display: none"><a id="t4" href="#contact_section">Contact</a></li>
+            <li style="display: none"><a id="t4" href="#configuration_section">Configuration</a></li>
+            <li style="display: none"><a id="t5" href="#contact_section">Contact</a></li>
           </ul>
         </div>
       </div>
@@ -158,22 +160,6 @@
           </div>
         </li>
 
-        <li id="nyxrc">
-          <span>How can I configure Nyx?</span>
-          <div class="answer">
-            <p>Like most terminal applications Nyx can be customized through a configuration file. By default <b>~/.nyx/nyxrc</b>, though you can specify one with <b>nyx --config /path/to/nyxrc</b>.</p>
-            <p>Configurations are a simple series of key/value pairs. For example...</p>
-
-            <pre>
-acs_support false
-color_override blue  # make our UI predominately blue
-logged_events BW, NOTICE, WARN, ERR
-            </pre>
-
-            <p>For available options see <b><a href="nyxrc.sample">our sample nyxrc</a></b>.</p>
-          </div>
-        </li>
-
         <li id="report_bug">
           <span>How can I report a bug?</span>
           <div class="answer">
@@ -246,7 +232,7 @@ logged_events BW, NOTICE, WARN, ERR
           <span>Is bandwidth graphed in bits or bytes?</span>
           <div class="answer">
             <p><b>Bytes</b>. Most tools measure in bytes so for consistency we do the same. Unfortunately hosting providers advertise in bits to inflate their numbers ("5 Mbit connection"). If graphs show just one eighth of what you expect this is why.</p>
-            <p>To graph in bits rather than bytes add the following to your nyxrc...</p>
+            <p>To graph in bits rather than bytes add the following to your <a href="#configuration">nyxrc</a>...</p>
             <pre>show_bits true</pre>
           </div>
         </li>
@@ -256,7 +242,7 @@ logged_events BW, NOTICE, WARN, ERR
           <div class="answer">
             <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure"></a>
             <p>When alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a> borders become characters like the picture above. This is a terminal bug.</p>
-            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your nyxrc...</p>
+            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your <a href="#configuration">nyxrc</a>...</p>
             <pre>acs_support false</pre>
           </div>
         </li>
@@ -417,6 +403,352 @@ sudo python setup.py install</pre><br></li>
       </div>
     </div>
 
+    <div id="configuration_section" class="page">
+      <div class="section"></div>
+      <a href="#configuration" class="section-title">Configuration</a>
+
+      <p>Like many terminal applications Nyx can be customized through a configuration file. By default <b>~/.nyx/nyxrc</b>, though you can specify one with <b>nyx --config /path/to/nyxrc</b>.</p>
+      <p>Configurations are a simple series of key/value pairs. <a href="https://stem.torproject.org/api/util/conf.html">See Stem</a> for details. For example...</p>
+
+      <pre id="nyxrc-example">
+acs_support false
+color_override blue  # make our UI predominately blue
+logged_events BW, NOTICE, WARN, ERR
+      </pre>
+
+      <h2 class="nyxrc-section">General Options</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>data_directory</b></td>
+          <td><b>~/.nyx</b></td>
+          <td>Location data is cached to. To avoid caching anything to disk specify '<b>data_directory disabled</b>'.</td>
+        </tr>
+
+        <tr>
+          <td><b>tor_chroot</b></td>
+          <td></td>
+          <td>Chroot jail tor resides within. Most common on FreeBSD, if tor is running within a jail then use this to specify the path prefix we should use when looking for tor files on disk.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_bits</b></td>
+          <td><b>false</b></td>
+          <td>Shows bandwidth measurements in bits if <b>true</b>, and bytes if <b>false</b>.</td>
+        </tr>
+
+        <tr>
+          <td><b>confirm_quit</b></td>
+          <td><b>true</b></td>
+          <td>Asks the user to confirm when pressing 'q' to quit if <b>true</b>.</td>
+        </tr>
+
+        <tr>
+          <td><b>color_interface</b></td>
+          <td><b>true</b></td>
+          <td>Uses colors in Nyx's interface if <b>true</b>. Monochrome is <b>false</b>.</td>
+        </tr>
+
+        <tr>
+          <td><b>color_override</b></td>
+          <td></td>
+          <td>Replaces most color with this hue. Options available are <b>red</b>, <b>green</b>, <b>blue</b>, <b>cyan</b>, <b>magenta</b>, <b>yellow</b>, and <b>black</b>.</td>
+        </tr>
+
+        <tr>
+          <td><b>unicode_support</b></td>
+          <td><b>true</b></td>
+          <td>Render text as unicode if <b>true</b>. Only ASCII is rendered if <b>false</b>.</td>
+        </tr>
+
+        <tr>
+          <td><b>acs_support</b></td>
+          <td><b>true</b></td>
+          <td>Uses ACS (alternate character set) for nice borders if <b>true</b>. Borders are replaced with ASCII pipe characters if <b>false</b>.</td>
+        </tr>
+      </table>
+
+      <h2 class="nyxrc-section">Update Rates</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>redraw_rate</b></td>
+          <td><b>5</b></td>
+          <td>Seconds to await user input before redrawing.</td>
+        </tr>
+
+        <tr>
+          <td><b>connection_rate</b></td>
+          <td><b>5</b></td>
+          <td>Seconds between querying connections.</td>
+        </tr>
+
+        <tr>
+          <td><b>resource_rate</b></td>
+          <td><b>5</b></td>
+          <td>Seconds between querying process resource usage.</td>
+        </tr>
+
+        <tr>
+          <td><b>port_usage_rate</b></td>
+          <td><b>5</b></td>
+          <td>Seconds between querying processes using ports.</td>
+        </tr>
+      </table>
+
+      <h2 class="nyxrc-section">Logging</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>logged_events</b></td>
+          <td><b>NOTICE,<br>WARN,<br>ERR,<br>NYX_NOTICE,<br>NYX_WARNING,<br>NYX_ERROR</b></td>
+          <td>Comma separated list of events to be initially logged, similar to the <b>--log</b> argument.</td>
+        </tr>
+
+        <tr>
+          <td><b>deduplicate_log</b></td>
+          <td><b>true</b></td>
+          <td>Hides duplicate log messages.</td>
+        </tr>
+
+        <tr>
+          <td><b>prepopulate_log</b></td>
+          <td><b>true</b></td>
+          <td>Populates with events that occure before we started.</td>
+        </tr>
+
+        <tr>
+          <td><b>logging_filter</b></td>
+          <td></td>
+          <td>Regex filter for log messages that are shown.</td>
+        </tr>
+
+        <tr>
+          <td><b>write_logs_to</b></td>
+          <td></td>
+          <td>Writes logs that occure as we run to this path.</td>
+        </tr>
+
+        <tr>
+          <td><b>max_log_size</b></td>
+          <td><b>1000</b></td>
+          <td>Maximum number of log messages.</td>
+        </tr>
+      </table>
+
+      <h2 class="nyxrc-section">Graphing</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>graph_stat</b></td>
+          <td><b>bandwidth</b></td>
+          <td>Statistic to be graphed. Options are...
+            <ul>
+              <li><b>none</b> - hide the graph</li>
+              <li><b>bandwidth</b> - downloaded/uploaded</li>
+              <li><b>connections</b> - inbound/outbound connections</li>
+              <li><b>resources</b> - cpu/memory usage</li>
+            </ul>
+          </td>
+        </tr>
+
+        <tr>
+          <td><b>graph_interval</b></td>
+          <td><b>each second</b></td>
+          <td>Graph sampling interval. Options are...
+            <ul>
+              <li><b>each second</b></li>
+              <li><b>5 seconds</b></li>
+              <li><b>30 seconds</b></li>
+              <li><b>minutely</b></li>
+              <li><b>15 minute</b></li>
+              <li><b>30 minute</b></li>
+              <li><b>hourly</b></li>
+              <li><b>daily</b></li>
+            </ul>
+          </td>
+        </tr>
+
+        <tr>
+          <td><b>graph_bound</b></td>
+          <td><b>max_local</b></td>
+          <td>Bounding for the graph min and max. Options are...
+            <ul>
+              <li><b>global_max</b> - global maximum</li>
+              <li><b>local_max</b> - local maximum</li>
+              <li><b>tight</b> - local maximum/minimum</li>
+            </ul>
+          </td>
+        </tr>
+
+        <tr>
+          <td><b>graph_height</b></td>
+          <td><b>7</b></td>
+          <td>Height of the graph.</td>
+        </tr>
+
+        <tr>
+          <td><b>max_graph_width</b></td>
+          <td><b>300</b></td>
+          <td>Maximum number of samplings.</td>
+        </td>
+      </table>
+
+      <h2 class="nyxrc-section">Tor Configuration</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>config_order</b></td>
+          <td><b>MAN_PAGE_ENTRY,<br>NAME,<br>IS_SET</b></td>
+          <td>Order for tor config options. Options are...
+            <ul>
+              <li><b>NAME</b></li>
+              <li><b>VALUE</b></li>
+              <li><b>VALUE_TYPE</b></li>
+              <li><b>CATEGORY</b></li>
+              <li><b>USAGE</b></li>
+              <li><b>SUMMARY</b></li>
+              <li><b>DESCRIPTION</b></li>
+              <li><b>MAN_PAGE_ENTRY</b></li>
+              <li><b>IS_SET</b></li>
+            </li>
+          </td>
+        </tr>
+
+        <tr>
+          <td><b>show_private_options</b></td>
+          <td><b>false</b></td>
+          <td>Shows configurations with a '__option' prefix.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_virtual_options</b></td>
+          <td><b>false</b></td>
+          <td>Shows unsettable tor configurations.</td>
+        </tr>
+      </table>
+
+      <h2 class="nyxrc-section">Connections</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>connection_order</b></td>
+          <td><b>CATEGORY,<br>IP_ADDRESS,<br>UPTIME</b></td>
+          <td>Order for connections. Options are...
+            <ul>
+              <li><b>CATEGORY</b></li>
+              <li><b>UPTIME</b></li>
+              <li><b>IP_ADDRESS</b></li>
+              <li><b>PORT</b></li>
+              <li><b>FINGERPRINT</b></li>
+              <li><b>NICKNAME</b></li>
+              <li><b>COUNTRY</b></li>
+            </ul>
+          </td>
+        </tr>
+
+        <tr>
+          <td><b>resolve_processes</b></td>
+          <td><b>true</b></td>
+          <td>Shows processes for SOCKS and CONTROL connections.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_addresses</b></td>
+          <td><b>true</b></td>
+          <td>Shows addresses of connections.</td>
+        </tr>
+      </table>
+
+      <h2 class="nyxrc-section">Compenent Visability</h2>
+
+      <table class="nyxrc-options">
+        <tr>
+          <td width="125"><b>Option</b></td>
+          <td width="100"><b>Default</b></td>
+          <td><b>Description</b></td>
+        </tr>
+
+        <tr>
+          <td><b>show_graph</b></td>
+          <td><b>true</b></td>
+          <td>Shows the graph.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_accounting</b></td>
+          <td><b>true</b></td>
+          <td>Shows accounting stats if AccountingMax is set.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_log</b></td>
+          <td><b>true</b></td>
+          <td>Shows the event log.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_connections</b></td>
+          <td><b>true</b></td>
+          <td>Shows connection information.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_config</b></td>
+          <td><b>true</b></td>
+          <td>Shows tor's configuration.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_torrc</b></td>
+          <td><b>true</b></td>
+          <td>Shows the torrc.</td>
+        </tr>
+
+        <tr>
+          <td><b>show_interpreter</b></td>
+          <td><b>true</b></td>
+          <td>Shows the control interpreter.</td>
+        </tr>
+      </table>
+    </div>
+
     <div id="contact_section" class="page">
       <div class="section"></div>
       <a href="#contact" class="section-title">Contact</a>
@@ -454,7 +786,8 @@ sudo python setup.py install</pre><br></li>
       document.getElementById("t1").href = "#home";
       document.getElementById("t2").href = "#faq";
       document.getElementById("t3").href = "#download";
-      document.getElementById("t4").href = "#contact";
+      document.getElementById("t4").href = "#configuration";
+      document.getElementById("t5").href = "#contact";
 
       // show/hide for FAQ questions
 
