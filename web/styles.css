@@ -354,6 +354,38 @@ Configuration Page
 }
 
 /*============================================================
+Contact Page
+============================================================*/
+
+#contact {
+  margin-top: 15px;
+}
+
+#contact table, tr, td {
+  border: none;
+  margin-bottom: 0px;
+  padding: 15px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.contact-description {
+  padding-top: 20px;
+}
+
+#email-contact {
+  padding-bottom: 25px;
+}
+
+#irc-contact {
+  padding-bottom: 10px;
+}
+
+#bugtracker-contact {
+  padding-bottom: 0px;
+}
+
+/*============================================================
 Change Log Page
 ============================================================*/
 

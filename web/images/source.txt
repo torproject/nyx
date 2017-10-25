@@ -1,0 +1,14 @@
+Images in this folder originate from the following...
+
+* bugtracker
+  Source: Nuvola
+  License: LGPL v2
+
+* email
+  Source: https://commons.wikimedia.org/wiki/File:Email_Silk.svg
+  License: CC v2.5 (A)
+
+* irc
+  Source: https://commons.wikimedia.org/wiki/File:Linecons_speech-bubble.svg
+  Licence: CC v3 (A)
+
