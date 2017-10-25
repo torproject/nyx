@@ -721,7 +721,7 @@ def _draw_right_column(subwindow, x, y, line, current_time, attr):
     circ_index = circ_path.index(line.fingerprint)
 
     if circ_index == len(circ_path) - 1:
-      placement_type = 'Exit' if line.circuit.status == 'BUILT' else 'Extending'
+      placement_type = 'End' if line.circuit.status == 'BUILT' else 'Extending'
     elif circ_index == 0:
       placement_type = 'Guard'
     else:
