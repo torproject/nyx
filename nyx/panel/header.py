@@ -268,7 +268,7 @@ class Sampling(object):
       'version': str(controller.get_version('Unknown')).split()[0],
       'version_status': controller.get_info('status/version/current', 'Unknown'),
 
-      'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else nyx.our_address('Unknown'),
+      'address': or_listeners[0][0] if (or_listeners and or_listeners[0][0] != '0.0.0.0') else controller.get_info('address', 'Unknown'),
       'or_port': or_listeners[0][1] if or_listeners else '',
       'dir_port': controller.get_conf('DirPort', '0'),
       'control_port': str(control_listeners[0][1]) if control_listeners else None,

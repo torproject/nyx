@@ -903,7 +903,7 @@ class ConsensusTracker(object):
 
     controller = tor_controller()
 
-    if nyx.our_address() == address:
+    if controller.get_info('address', None) == address:
       fingerprint = controller.get_info('fingerprint', None)
       ports = controller.get_ports(stem.control.Listener.OR, None)
 
@@ -924,7 +924,7 @@ class ConsensusTracker(object):
     controller = tor_controller()
 
     if fingerprint == controller.get_info('fingerprint', None):
-      my_address = nyx.our_address()
+      my_address = controller.get_info('address', None)
       my_or_ports = controller.get_ports(stem.control.Listener.OR, [])
 
       if my_address and len(my_or_ports) == 1:

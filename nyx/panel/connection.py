@@ -608,10 +608,10 @@ def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
 
 
 def _draw_address_column(subwindow, x, y, line, attr):
+  src = tor_controller().get_info('address', line.connection.local_address)
+
   if line.line_type == LineType.CONNECTION:
-    src = '%s:%s' % (nyx.our_address(line.connection.local_address), line.connection.local_port)
-  else:
-    src = nyx.our_address(line.connection.local_address)
+    src = '%s:%s' % (src, line.connection.local_port)
 
   if line.line_type == LineType.CIRCUIT_HEADER and line.circuit.status != 'BUILT':
     dst = 'Building...'

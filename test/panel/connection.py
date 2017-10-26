@@ -195,9 +195,9 @@ class TestConnectionPanel(unittest.TestCase):
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
-  @patch('nyx.our_address', Mock(return_value = '82.121.9.9'))
   def test_draw_line(self, tor_controller_mock):
     tor_controller_mock().is_geoip_unavailable.return_value = False
+    tor_controller_mock().get_info.return_value = '82.121.9.9'
 
     test_data = ((
       line(),
@@ -213,7 +213,7 @@ class TestConnectionPanel(unittest.TestCase):
       ' |  82.121.9.9                                                    2 / Middle',
     ), (
       line(line_type = LineType.CIRCUIT, fingerprint = 'E0BD57A11F00041A9789577C53A1B784473669E4'),
-      ' +- 82.121.9.9                                                    3 / Exit',
+      ' +- 82.121.9.9                                                    3 / End',
     ))
 
     for test_line, expected in test_data:
@@ -222,9 +222,9 @@ class TestConnectionPanel(unittest.TestCase):
 
   @require_curses
   @patch('nyx.panel.connection.tor_controller')
-  @patch('nyx.our_address', Mock(return_value = '82.121.9.9'))
   def test_draw_address_column(self, tor_controller_mock):
     tor_controller_mock().is_geoip_unavailable.return_value = False
+    tor_controller_mock().get_info.return_value = '82.121.9.9'
 
     test_data = ((
       line(),
@@ -282,7 +282,7 @@ class TestConnectionPanel(unittest.TestCase):
     test_data = {
       '1F43EE37A0670301AD9CB555D94AFEC2C89FDE86': '    1 / Guard',
       'B6D83EC2D9E18B0A7A33428F8CFA9C536769E209': '    2 / Middle',
-      'E0BD57A11F00041A9789577C53A1B784473669E4': '    3 / Exit',
+      'E0BD57A11F00041A9789577C53A1B784473669E4': '    3 / End',
     }
 
     for fp, expected in test_data.items():
