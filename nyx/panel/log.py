@@ -406,7 +406,7 @@ def _draw_entry(subwindow, x, y, width, entry, show_duplicates):
   for line in entry.display_message.splitlines():
     x, y = subwindow.addstr_wrap(x, y, line, width, min_x, boldness, color)
 
-  if entry.duplicates and not show_duplicates:
+  if entry.duplicates and len(entry.duplicates) != 1 and not show_duplicates:
     duplicate_count = len(entry.duplicates) - 1
     plural = 's' if duplicate_count > 1 else ''
     duplicate_msg = ' [%i duplicate%s hidden]' % (duplicate_count, plural)
