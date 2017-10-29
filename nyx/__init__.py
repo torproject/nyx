@@ -112,6 +112,10 @@ stem.control.CACHE_ADDRESS_FOR = 30
 
 stem.control.LOG_CACHE_FETCHES = False
 
+# don't parse NEWCONSENSUS events since we just care about the content
+
+stem.response.events.PARSE_NEWCONSENSUS_EVENTS = False
+
 # Duration for threads to pause when there's no work left to do. This is a
 # compromise - lower means fater shutdown when quit but higher means lower cpu
 # usage when running.

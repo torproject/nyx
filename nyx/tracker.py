@@ -818,43 +818,32 @@ class ConsensusTracker(object):
       stem.util.log.info('Cache is only %s old, no need to refresh it.' % str_tools.time_label(cache_age, is_long = True))
     else:
       stem.util.log.info('Cache is %s old, refreshing relay information.' % str_tools.time_label(cache_age, is_long = True))
-      start_time = time.time()
       ns_response = controller.get_info('ns/all', None)
 
       if ns_response:
-        with nyx.cache().write() as writer:
-          for line in ns_response.splitlines():
-            if line.startswith('r '):
-              r_comp = line.split(' ')
+        self._update(ns_response)
 
-              address = r_comp[6]
-              or_port = int(r_comp[7])
-              fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
-              nickname = r_comp[1]
+    controller.add_event_listener(lambda event: self._update(event.consensus_content), stem.control.EventType.NEWCONSENSUS)
 
-              writer.record_relay(fingerprint, address, or_port, nickname)
-
-        stem.util.log.info('Cached consensus data, took %0.2fs.' % (time.time() - start_time))
-
-    controller.add_event_listener(lambda event: self.update(event.desc), stem.control.EventType.NEWCONSENSUS)
-
-  def update(self, router_status_entries):
-    """
-    Updates our cache with the given router status entries.
-
-    :param list router_status_entries: router status entries to populate our cache with
-    """
-
+  def _update(self, consensus_content):
     start_time = time.time()
     our_fingerprint = tor_controller().get_info('fingerprint', None)
 
     with nyx.cache().write() as writer:
-      for desc in router_status_entries:
-        writer.record_relay(desc.fingerprint, desc.address, desc.or_port, desc.nickname)
+      for line in consensus_content.splitlines():
+        if line.startswith('r '):
+          r_comp = line.split(' ')
 
-        if desc.fingerprint == our_fingerprint:
-          self._my_router_status_entry = desc
-          self._my_router_status_entry_time = time.time()
+          address = r_comp[6]
+          or_port = int(r_comp[7])
+          fingerprint = stem.descriptor.router_status_entry._base64_to_hex(r_comp[2])
+          nickname = r_comp[1]
+
+          if fingerprint == our_fingerprint:
+            self._my_router_status_entry = None
+            self._my_router_status_entry_time = 0
+
+          writer.record_relay(fingerprint, address, or_port, nickname)
 
     stem.util.log.info('Updated consensus cache, took %0.2fs.' % (time.time() - start_time))
 
