@@ -228,7 +228,7 @@ def show_descriptor(fingerprint, color, is_close_key):
     subwindow.box()
     subwindow.addstr(0, 0, title, HIGHLIGHT)
 
-  width, height = 0, len(lines) + 2
+  width, height = len(title), len(lines) + 2
   screen_size = nyx.curses.screen_size()
 
   for line in lines:
