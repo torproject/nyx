@@ -429,7 +429,7 @@ class LogFilters(object):
     return self._selected
 
   def latest_selections(self):
-    return list(reversed(self._past_filters.keys()))
+    return list(reversed(list(self._past_filters.keys())))
 
   def match(self, message):
     regex_filter = self._past_filters.get(self._selected)
