@@ -89,12 +89,12 @@ def main(config):
 
   try:
     os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
-  except:
+  except OSError:
     pass
 
   try:
     os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
-  except:
+  except OSError:
     pass
 
   try:
