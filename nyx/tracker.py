@@ -396,7 +396,10 @@ class Daemon(threading.Thread):
 
       with self._process_lock:
         if self._process_pid is not None:
-          is_successful = self._task(self._process_pid, self._process_name)
+          try:
+            is_successful = self._task(self._process_pid, self._process_name)
+          except Exception as exc:
+            stem.util.log.notice('BUG: Unexpected exception from %s: %s' % (type(self).__name__, exc))
         else:
           is_successful = False
 
