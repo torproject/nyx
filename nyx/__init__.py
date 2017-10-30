@@ -60,7 +60,7 @@ import stem.util.system
 import stem.util.tor_tools
 
 SQLITE_UNAVAILABLE = """\
-Python's sqlite3 module is unavailable. Unfortunatley some platforms
+Python's sqlite3 module is unavailable. Unfortunately some platforms
 don't bundle this with the interpreter. Please let us know at...
 
   https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs
