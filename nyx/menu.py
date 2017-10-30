@@ -210,7 +210,7 @@ def show_menu():
       selection_x = _draw_top_menubar(menu, cursor.selection)
       _draw_submenu(cursor.selection, cursor.selection.submenu, 1, selection_x)
       cursor.handle_key(nyx.curses.key_input())
-      nyx_interface().redraw()
+      nyx_interface().redraw(True)
 
     show_message()
 
