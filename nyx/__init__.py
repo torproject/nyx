@@ -46,7 +46,6 @@ import contextlib
 import distutils.spawn
 import os
 import platform
-import sqlite3
 import sys
 import threading
 import time
@@ -59,6 +58,29 @@ import stem.util.connection
 import stem.util.log
 import stem.util.system
 import stem.util.tor_tools
+
+SQLITE_UNAVAILABLE = """\
+Python's sqlite3 module is unavailable. Unfortunatley some platforms
+don't bundle this with the interpreter. Please let us know at...
+
+  https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs
+"""
+
+SQLITE_UNAVAILABLE_FREEBSD = """\
+Python's sqlite3 module is unavailable. Please run...
+
+  sudo pkg install py27-sqlite3
+"""
+
+try:
+  import sqlite3
+except ImportError:
+  if stem.util.system.is_bsd():
+    print(SQLITE_UNAVAILABLE_FREEBSD)
+  else:
+    print(SQLITE_UNAVAILABLE)
+
+  sys.exit(1)
 
 __version__ = '1.4.6-dev'
 __release_date__ = 'April 28, 2011'
