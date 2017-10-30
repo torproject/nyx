@@ -661,9 +661,10 @@ class ResourceTracker(Daemon):
     try:
       resolver = _resources_via_proc if self._use_proc else _resources_via_ps
       total_cpu_time, uptime, memory_in_bytes, memory_in_percent = resolver(process_pid)
+      now = time.time()
 
       if self._resources:
-        cpu_sample = (total_cpu_time - self._resources.cpu_total) / self._resources.cpu_total
+        cpu_sample = (total_cpu_time - self._resources.cpu_total) / (now - self._resources.timestamp)
       else:
         cpu_sample = 0.0  # we need a prior datapoint to give a sampling
 
@@ -673,7 +674,7 @@ class ResourceTracker(Daemon):
         cpu_total = total_cpu_time,
         memory_bytes = memory_in_bytes,
         memory_percent = memory_in_percent,
-        timestamp = time.time(),
+        timestamp = now,
       )
 
       self._failure_count = 0
