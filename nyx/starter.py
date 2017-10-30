@@ -87,8 +87,15 @@ def main(config):
   _use_unicode()
   _set_process_name()
 
-  os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
-  os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
+  try:
+    os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
+  except:
+    pass
+
+  try:
+    os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
+  except:
+    pass
 
   try:
     nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
