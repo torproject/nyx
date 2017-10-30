@@ -43,6 +43,16 @@ CONFIG = conf.config_dict('nyx', {
   'write_logs_to': '',
 }, conf_handler)
 
+# Users may understanably mix up 'WARN/WARNING' and 'ERR/ERROR' in their --log
+# argument or config, so fixing those.
+
+EVENT_ALIASES = {
+  'WARNING': 'WARN',
+  'ERROR': 'ERR',
+  'NYX_WARN': 'NYX_WARNING',
+  'NYX_ERR': 'NYX_ERROR',
+}
+
 UPDATE_RATE = 0.7
 
 # The height of the drawn content is estimated based on the last time we redrew
@@ -70,6 +80,12 @@ class LogPanel(nyx.panel.DaemonPanel):
     nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
     logged_events = CONFIG['logged_events'].split(',')
+
+    for alias, actual_event in EVENT_ALIASES.items():
+      if alias in logged_events:
+        logged_events.remove(alias)
+        logged_events.append(actual_event)
+
     tor_events = tor_controller().get_info('events/names', '').split()
     invalid_events = list(filter(lambda event: not event.startswith('NYX_') and event not in tor_events, logged_events))
 
