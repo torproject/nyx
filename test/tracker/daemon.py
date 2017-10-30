@@ -3,7 +3,11 @@ import unittest
 
 from nyx.tracker import Daemon
 
-from mock import Mock, patch
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 
 class TestDaemon(unittest.TestCase):

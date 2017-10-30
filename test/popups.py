@@ -11,7 +11,12 @@ import nyx.popups
 import test
 
 from test import require_curses, mock_keybindings
-from mock import patch, Mock
+
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 EXPECTED_HELP_POPUP = """
 Page 1 Commands:---------------------------------------------------------------+

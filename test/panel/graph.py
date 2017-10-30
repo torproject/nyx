@@ -12,7 +12,12 @@ import nyx.panel.graph
 import test
 
 from test import require_curses
-from mock import patch
+
+try:
+  # added in python 3.3
+  from unittest.mock import patch
+except ImportError:
+  from mock import patch
 
 EXPECTED_BLANK_GRAPH = """
 Download:

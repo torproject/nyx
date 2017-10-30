@@ -3,7 +3,11 @@ import unittest
 
 from nyx.tracker import ResourceTracker, _resources_via_ps, _resources_via_proc
 
-from mock import Mock, patch
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 PS_OUTPUT = """\
     TIME     ELAPSED   RSS %MEM
@@ -38,7 +42,7 @@ class TestResourceTracker(unittest.TestCase):
       resources = daemon.get_value()
 
       self.assertEqual(2, daemon.run_counter())
-      self.assertEqual(6.600189933523267, resources.cpu_sample)
+      self.assertTrue(17000 < resources.cpu_sample < 18000)
       self.assertEqual(250.09374999999997, resources.cpu_average)
       self.assertEqual(800.3, resources.cpu_total)
       self.assertEqual(6020, resources.memory_bytes)

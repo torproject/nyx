@@ -14,7 +14,12 @@ import nyx.panel.header
 import test
 
 from test import require_curses
-from mock import patch, Mock
+
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 EXPECTED_PANEL = """
 nyx - odin (Linux 3.5.0-54-generic)        Tor 0.2.8.1-alpha-dev

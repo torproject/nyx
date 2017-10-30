@@ -8,7 +8,12 @@ import nyx.panel.torrc
 import test
 
 from test import require_curses
-from mock import patch, Mock
+
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 TORRC = """
 ORPort 9050

@@ -10,7 +10,12 @@ import unittest
 import nyx.curses
 
 from nyx import expand_path, chroot, join, uses_settings
-from mock import patch, Mock
+
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 __all__ = [
   'arguments',

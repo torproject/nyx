@@ -10,7 +10,12 @@ import test
 
 from nyx.log import LogEntry, LogFilters
 from test import require_curses
-from mock import patch, Mock
+
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 EXPECTED_WRAPPED_MSG = """\
 16:41:37 [NOTICE] ho hum, ho hum, ho hum, ho hum, ho hum, ho hum, ho hum, ho

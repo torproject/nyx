@@ -3,7 +3,11 @@ import unittest
 
 from nyx.tracker import Process, PortUsageTracker, _process_for_ports
 
-from mock import Mock, patch
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 LSOF_OUTPUT = """\
 COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME

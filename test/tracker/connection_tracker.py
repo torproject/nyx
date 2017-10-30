@@ -5,7 +5,11 @@ from nyx.tracker import ConnectionTracker
 
 from stem.util import connection
 
-from mock import Mock, patch
+try:
+  # added in python 3.3
+  from unittest.mock import Mock, patch
+except ImportError:
+  from mock import Mock, patch
 
 STEM_CONNECTIONS = [
   connection.Connection('127.0.0.1', 3531, '75.119.206.243', 22, 'tcp', False),

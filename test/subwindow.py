@@ -11,10 +11,14 @@ import nyx.curses
 import nyx.panel.interpreter
 import test
 
-from mock import call, Mock
-
 from test import require_curses
 from nyx.curses import Color, Attr
+
+try:
+  # added in python 3.3
+  from unittest.mock import call, Mock
+except ImportError:
+  from mock import call, Mock
 
 EXPECTED_ADDSTR_WRAP = """
 0123456789 0123456789

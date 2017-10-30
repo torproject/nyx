@@ -8,7 +8,12 @@ import nyx.panel.config
 import test
 
 from test import require_curses
-from mock import patch
+
+try:
+  # added in python 3.3
+  from unittest.mock import patch
+except ImportError:
+  from mock import patch
 
 EXPECTED_LINE = 'ControlPort               9051       Port providing access to tor...'
 
