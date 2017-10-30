@@ -66,6 +66,11 @@ don't bundle this with the interpreter. Please let us know at...
   https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs
 """
 
+SQLITE_UNAVAILABLE_GENTOO = """\
+Python's sqlite3 module is unavailable. For Gentoo please run
+emerge dev-lang/python with USE=sqlite.
+"""
+
 SQLITE_UNAVAILABLE_FREEBSD = """\
 Python's sqlite3 module is unavailable. Please run...
 
@@ -75,7 +80,9 @@ Python's sqlite3 module is unavailable. Please run...
 try:
   import sqlite3
 except ImportError:
-  if stem.util.system.is_bsd():
+  if stem.util.system.is_gentoo():
+    print(SQLITE_UNAVAILABLE_GENTOO)
+  elif stem.util.system.is_bsd():
     print(SQLITE_UNAVAILABLE_FREEBSD)
   else:
     print(SQLITE_UNAVAILABLE)
