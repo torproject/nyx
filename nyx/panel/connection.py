@@ -709,7 +709,7 @@ def _draw_line_details(subwindow, x, y, line, width, attr):
     comp = ['%-40s' % (line.fingerprint if line.fingerprint else 'UNKNOWN'), '  ' + (line.nickname if line.nickname else 'UNKNOWN')]
 
   for entry in comp:
-    if width >= x + len(entry):
+    if width >= len(entry):
       x = subwindow.addstr(x, y, entry, *attr)
     else:
       return
