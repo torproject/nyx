@@ -283,7 +283,7 @@ class Sampling(object):
 
       'nyx_total_cpu_time': nyx_total_cpu_time,
       'tor_cpu': '%0.1f' % (100 * tor_resources.cpu_sample),
-      'nyx_cpu': '%0.1f' % (nyx_cpu),
+      'nyx_cpu': '%0.1f' % (100 * nyx_cpu),
       'memory': stem.util.str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
       'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
 
