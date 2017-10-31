@@ -75,7 +75,7 @@ SQLITE_UNAVAILABLE_FREEBSD = """\
 Python's sqlite3 module is unavailable. Please run...
 
   sudo pkg install py%i%i-sqlite3
-""" % (sys.version_info[:2]
+""" % (sys.version_info[:2])
 
 try:
   import sqlite3
