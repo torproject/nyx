@@ -87,15 +87,14 @@ def main(config):
   _use_unicode()
   _set_process_name()
 
-  try:
-    os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
-  except OSError:
-    pass
+  # These os.putenv calls fail on FreeBSD, and even attempting causes python to
+  # print the following to stdout...
+  #
+  #   nyx: environment corrupt; missing value for
 
-  try:
+  if not stem.util.system.is_bsd():
+    os.putenv('LANG', 'C')  # make subcommands (ps, netstat, etc) provide english results
     os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
-  except OSError:
-    pass
 
   try:
     nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
