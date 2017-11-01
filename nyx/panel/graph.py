@@ -389,8 +389,8 @@ class ConnectionStats(GraphCategory):
     self.primary.update(inbound_count)
     self.secondary.update(outbound_count)
 
-    self._primary_header_stats = [str(self.primary.latest_value), ', avg: %s' % self.primary.average()]
-    self._secondary_header_stats = [str(self.secondary.latest_value), ', avg: %s' % self.secondary.average()]
+    self._primary_header_stats = [str(self.primary.latest_value), ', avg: %i' % self.primary.average()]
+    self._secondary_header_stats = [str(self.secondary.latest_value), ', avg: %i' % self.secondary.average()]
 
 
 class ResourceStats(GraphCategory):
