@@ -92,6 +92,7 @@ import functools
 import os
 import re
 import threading
+import time
 
 import stem.util.conf
 import stem.util.enum
@@ -709,7 +710,15 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
   :returns: :class:`~nyx.curses.Dimension` for the space we drew within
   """
 
-  with CURSES_LOCK:
+  start = time.time()
+
+  while not CURSES_LOCK.acquire(False):
+    if (time.time() - start) > 1:
+      return  # if we've been blocked from drawing for a full second then abort
+
+    time.sleep(0.05)
+
+  try:
     if HALT_ACTIVITY:
       return
 
@@ -738,6 +747,8 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
     curses_subwindow.refresh()
 
     return subwindow_dimensions
+  finally:
+    CURSES_LOCK.release()
 
 
 class _Subwindow(object):
