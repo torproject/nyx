@@ -531,6 +531,12 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
     for entry in new_entries:
       line = entry.get_lines()[0]
 
+      # This loop is the lengthiest part of our update. If our thread's stopped
+      # we should abort further work.
+
+      if self._halt:
+        return
+
       if entry.is_private() and line.connection not in self._counted_connections:
         if entry.get_type() == Category.INBOUND and line.locale:
           self._client_locale_usage[line.locale] = self._client_locale_usage.get(line.locale, 0) + 1
