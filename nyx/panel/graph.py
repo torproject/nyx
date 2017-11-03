@@ -462,7 +462,7 @@ class GraphPanel(nyx.panel.Panel):
       return 0
 
     height = DEFAULT_CONTENT_HEIGHT + self._graph_height
-    accounting_stats = self._accounting_stats if nyx_interface().is_paused() else self._accounting_stats_paused
+    accounting_stats = self._accounting_stats if not nyx_interface().is_paused() else self._accounting_stats_paused
 
     if self._displayed_stat == GraphStat.BANDWIDTH and accounting_stats:
       height += 3
