@@ -608,9 +608,9 @@ def _draw_line(subwindow, x, y, line, is_selected, width, current_time):
   else:
     x += 1  # offset from edge
 
-  _draw_address_column(subwindow, x, y, line, attr)
-  _draw_line_details(subwindow, 57, y, line, width - 57 - 20, attr)
-  _draw_right_column(subwindow, width - 18, y, line, current_time, attr)
+  x = _draw_address_column(subwindow, x, y, line, attr)
+  x = _draw_line_details(subwindow, x + 2, y, line, width - 57 - 20, attr)
+  _draw_right_column(subwindow, max(x, width - 18), y, line, current_time, attr)
 
 
 def _draw_address_column(subwindow, x, y, line, attr):
@@ -637,9 +637,9 @@ def _draw_address_column(subwindow, x, y, line, attr):
     dst, src = src, dst
 
   if line.line_type == LineType.CIRCUIT:
-    subwindow.addstr(x, y, dst, *attr)
+    return subwindow.addstr(x, y, dst, *attr)
   else:
-    subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
+    return subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
 
 
 def _draw_details(subwindow, selected):
@@ -718,7 +718,9 @@ def _draw_line_details(subwindow, x, y, line, width, attr):
     if width >= len(entry):
       x = subwindow.addstr(x, y, entry, *attr)
     else:
-      return
+      return x
+
+  return x
 
 
 def _draw_right_column(subwindow, x, y, line, current_time, attr):
