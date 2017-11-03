@@ -36,6 +36,13 @@ Nyx Configuration ({nyxrc_path}):
 --------------------------------------------------------------------------------
 """.strip()
 
+TORRC = """
+--------------------------------------------------------------------------------
+Torrc ({torrc_path}):
+{torrc_content}
+--------------------------------------------------------------------------------
+""".rstrip()
+
 
 @uses_settings
 def main(config):
@@ -80,6 +87,17 @@ def main(config):
 
   if controller is None:
     exit(1)
+
+  if args.debug_path is not None:
+    torrc_path = controller.get_info('config-file')
+
+    try:
+      with open(torrc_path) as torrc_file:
+        torrc_content = torrc_file.read()
+    except Exception as exc:
+      torrc_content = 'Unable to read %s: %s' % (torrc_path, exc)
+
+    stem.util.log.trace(TORRC.format(torrc_path = torrc_path, torrc_content = torrc_content))
 
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
