@@ -511,7 +511,7 @@ class ConnectionTracker(Daemon):
     # in town.
 
     if tor_controller().get_conf('DisableDebuggerAttachment', None) == '0':
-      self._resolvers = connection.system_resolvers()
+      self._resolvers = connection.system_resolvers() + [CustomResolver.INFERENCE]
     else:
       self._resolvers = [CustomResolver.INFERENCE]
 
