@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from nyx.tracker import ConnectionTracker
+from nyx.tracker import CustomResolver, ConnectionTracker
 
 from stem.util import connection
 
@@ -55,17 +55,17 @@ class TestConnectionTracker(unittest.TestCase):
     with ConnectionTracker(0.01) as daemon:
       time.sleep(0.015)
 
-      self.assertEqual([connection.Resolver.NETSTAT, connection.Resolver.LSOF], daemon._resolvers)
+      self.assertEqual([connection.Resolver.NETSTAT, connection.Resolver.LSOF, CustomResolver.INFERENCE], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       time.sleep(0.025)
 
-      self.assertEqual([connection.Resolver.LSOF], daemon._resolvers)
+      self.assertEqual([connection.Resolver.LSOF, CustomResolver.INFERENCE], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       time.sleep(0.035)
 
-      self.assertEqual([], daemon._resolvers)
+      self.assertEqual([CustomResolver.INFERENCE], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       # Now make connection resolution work. We still shouldn't provide any
