@@ -17,6 +17,8 @@ import nyx.panel
 import nyx.popups
 import nyx.tracker
 
+import stem.util.log
+
 from nyx import nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup
@@ -222,7 +224,7 @@ class ConnectionEntry(Entry):
       for circ in LAST_RETRIEVED_CIRCUITS:
         if circ.path and len(circ.path) == 1 and circ.path[0][0] == fingerprint and circ.status == 'BUILT':
           return Category.DIRECTORY  # one-hop circuit to retrieve directory information
-    elif exit_policy and exit_policy.can_exit_to(self._connection.remote_address, self._connection.remote_port):
+    elif not fingerprint and exit_policy and exit_policy.can_exit_to(self._connection.remote_address, self._connection.remote_port):
       return Category.EXIT
 
     return Category.OUTBOUND
