@@ -636,7 +636,7 @@ def _draw_address_column(subwindow, x, y, line, attr):
       dst += ' (%s)' % (line.locale if line.locale else '??')
 
   src = '%-21s' % src
-  dst = '%-26s' % dst
+  dst = '%-21s' % dst if tor_controller().is_geoip_unavailable() else '%-26s' % dst
 
   if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
     dst, src = src, dst
