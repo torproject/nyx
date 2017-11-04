@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from nyx.tracker import CustomResolver, ConnectionTracker
+from nyx.tracker import ConnectionTracker
 
 from stem.util import connection
 
@@ -22,6 +22,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.tracker.tor_controller')
   @patch('nyx.tracker.connection.get_connections')
   @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('stem.util.proc.is_available', Mock(return_value = False))
   @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_fetching_connections(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
@@ -46,6 +47,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.tracker.tor_controller')
   @patch('nyx.tracker.connection.get_connections')
   @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('stem.util.proc.is_available', Mock(return_value = False))
   @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT, connection.Resolver.LSOF]))
   def test_resolver_failover(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345
@@ -55,17 +57,17 @@ class TestConnectionTracker(unittest.TestCase):
     with ConnectionTracker(0.01) as daemon:
       time.sleep(0.015)
 
-      self.assertEqual([connection.Resolver.NETSTAT, connection.Resolver.LSOF, CustomResolver.INFERENCE], daemon._resolvers)
+      self.assertEqual([connection.Resolver.NETSTAT, connection.Resolver.LSOF], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       time.sleep(0.025)
 
-      self.assertEqual([connection.Resolver.LSOF, CustomResolver.INFERENCE], daemon._resolvers)
+      self.assertEqual([connection.Resolver.LSOF], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       time.sleep(0.035)
 
-      self.assertEqual([CustomResolver.INFERENCE], daemon._resolvers)
+      self.assertEqual([], daemon._resolvers)
       self.assertEqual([], daemon.get_value())
 
       # Now make connection resolution work. We still shouldn't provide any
@@ -86,6 +88,7 @@ class TestConnectionTracker(unittest.TestCase):
   @patch('nyx.tracker.tor_controller')
   @patch('nyx.tracker.connection.get_connections')
   @patch('nyx.tracker.system', Mock(return_value = Mock()))
+  @patch('stem.util.proc.is_available', Mock(return_value = False))
   @patch('nyx.tracker.connection.system_resolvers', Mock(return_value = [connection.Resolver.NETSTAT]))
   def test_tracking_uptime(self, get_value_mock, tor_controller_mock):
     tor_controller_mock().get_pid.return_value = 12345

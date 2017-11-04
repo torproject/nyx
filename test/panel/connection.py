@@ -206,7 +206,7 @@ class TestConnectionPanel(unittest.TestCase):
 
     test_data = ((
       line(),
-      ' 75.119.206.243:22 (de)  -->  82.121.9.9:3531                  15.4s (INBOUND)',
+      ' 75.119.206.243:22 (de)      -->  82.121.9.9:3531              15.4s (INBOUND)',
     ), (
       line(entry = MockEntry(entry_type = Category.CIRCUIT), line_type = LineType.CIRCUIT_HEADER),
       ' 82.121.9.9             -->  75.119.206.243:22 (de)            15.4s (CIRCUIT)',
@@ -233,13 +233,13 @@ class TestConnectionPanel(unittest.TestCase):
 
     test_data = ((
       line(),
-      '75.119.206.243:22 (de)  -->  82.121.9.9:3531',
+      '75.119.206.243:22 (de)      -->  82.121.9.9:3531',
     ), (
       line(entry = MockEntry(entry_type = Category.EXIT)),
       '82.121.9.9:3531        -->  75.119.206.243:22 (SSH)',
     ), (
       line(line_type = LineType.CIRCUIT_HEADER, circ = MockCircuit(status = 'EXTENDING')),
-      'Building...            -->  82.121.9.9',
+      'Building...                 -->  82.121.9.9',
     ), (
       line(line_type = LineType.CIRCUIT),
       '82.121.9.9',
