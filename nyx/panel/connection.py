@@ -17,8 +17,6 @@ import nyx.panel
 import nyx.popups
 import nyx.tracker
 
-import stem.util.log
-
 from nyx import nyx_interface, tor_controller
 from nyx.curses import WHITE, NORMAL, BOLD, HIGHLIGHT
 from nyx.menu import MenuItem, Submenu, RadioMenuItem, RadioGroup

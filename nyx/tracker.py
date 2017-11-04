@@ -510,10 +510,13 @@ class ConnectionTracker(Daemon):
     # resolution. Otherwise connection resolution by inference is the only game
     # in town.
 
+    self._resolvers = []
+
     if tor_controller().get_conf('DisableDebuggerAttachment', None) == '0':
-      self._resolvers = [CustomResolver.INFERENCE] + connection.system_resolvers()
-    else:
-      self._resolvers = [CustomResolver.INFERENCE]
+      self._resolvers = connection.system_resolvers()
+
+    if stem.util.proc.is_available():
+      self._resolvers = [CustomResolver.INFERENCE] + self._resolvers
 
     stem.util.log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(self._resolvers)))
 
