@@ -635,13 +635,16 @@ def _draw_address_column(subwindow, x, y, line, attr):
     elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
       dst += ' (%s)' % (line.locale if line.locale else '??')
 
+  src = '%-21s' % src
+  dst = '%-26s' % dst
+
   if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
     dst, src = src, dst
 
   if line.line_type == LineType.CIRCUIT:
     return subwindow.addstr(x, y, dst, *attr)
   else:
-    return subwindow.addstr(x, y, '%-21s  -->  %-26s' % (src, dst), *attr)
+    return subwindow.addstr(x, y, '%s  -->  %s' % (src, dst), *attr)
 
 
 def _draw_details(subwindow, selected):
