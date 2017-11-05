@@ -89,11 +89,11 @@ except ImportError:
 
   sys.exit(1)
 
-__version__ = '1.4.6-dev'
-__release_date__ = 'April 28, 2011'
+__version__ = '2.0.0'
+__release_date__ = 'November 5, 2017'
 __author__ = 'Damian Johnson'
 __contact__ = 'atagar@torproject.org'
-__url__ = 'http://www.atagar.com/arm/'
+__url__ = 'https://nyx.torproject.org/'
 __license__ = 'GPLv3'
 
 __all__ = [

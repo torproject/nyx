@@ -5,6 +5,7 @@
 import gzip
 import os
 import stat
+import sys
 import sysconfig
 
 import nyx
@@ -13,6 +14,30 @@ from distutils import log
 from distutils.core import setup
 from distutils.command.install import install
 
+
+if '--dryrun' in sys.argv:
+  DRY_RUN = True
+  sys.argv.remove('--dryrun')
+else:
+  DRY_RUN = False
+
+SUMMARY = 'Terminal status monitor for Tor (https://www.torproject.org/).'
+DRY_RUN_SUMMARY = 'Ignore this package. This is dry-run release creation to work around PyPI limitations (https://github.com/pypa/packaging-problems/issues/74#issuecomment-260716129).'
+
+DESCRIPTION = """
+Nyx is a command-line monitor for Tor. With this you can get detailed real-time information about your relay such as bandwidth usage, connections, logs, and much more. For more information see `Nyx's homepage <https://nyx.torproject.org/>`_
+
+Quick Start
+-----------
+
+To install you can either use...
+
+::
+
+  pip install nyx
+
+... or install from the source tarball. Nyx supports both the python 2.x and 3.x series.
+"""
 
 class NyxInstaller(install):
   """
@@ -92,16 +117,24 @@ setup_dir = os.path.dirname(os.path.join(os.getcwd(), __file__))
 os.chdir(setup_dir)
 
 setup(
-  name = 'nyx',
+  name = 'nyx-dry-run' if DRY_RUN else 'nyx',
   version = nyx.__version__,
-  description = 'Terminal status monitor for Tor <https://www.torproject.org/>',
+  description = DRY_RUN_SUMMARY if DRY_RUN else SUMMARY,
+  long_description = DESCRIPTION,
   license = nyx.__license__,
   author = nyx.__author__,
   author_email = nyx.__contact__,
   url = nyx.__url__,
   packages = ['nyx', 'nyx.panel'],
   keywords = 'tor onion controller',
-  install_requires = ['stem>=1.4.1'],
+  install_requires = ['stem>=1.6.0'],
   package_data = {'nyx': ['settings/*']},
   cmdclass = {'install': NyxInstaller},
+  classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Environment :: Console :: Curses',
+    'Intended Audience :: System Administrators',
+    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+    'Topic :: Security',
+  ],
 )
