@@ -4,16 +4,14 @@
 
 import gzip
 import os
+import re
 import stat
 import sys
 import sysconfig
 
-import nyx
-
 from distutils import log
 from distutils.core import setup
 from distutils.command.install import install
-
 
 if '--dryrun' in sys.argv:
   DRY_RUN = True
@@ -53,6 +51,19 @@ global-exclude *.swp
 global-exclude *.swo
 global-exclude *~
 """.strip()
+
+# We cannot import our own modules since if they import stem it'll break
+# installation. As such, just reading our file for the parameters we need.
+
+ATTR = {}
+ATTR_LINE = re.compile("^__(\S+)__ = '(.+)'")
+
+with open('nyx/__init__.py') as init_file:
+  for line in init_file:
+    m = ATTR_LINE.match(line)
+
+    if m:
+      ATTR[m.group(1)] = m.group(2)
 
 
 class NyxInstaller(install):
@@ -138,13 +149,13 @@ with open('MANIFEST.in', 'w') as manifest_file:
 try:
   setup(
     name = 'nyx-dry-run' if DRY_RUN else 'nyx',
-    version = nyx.__version__,
+    version = ATTR['version'],
     description = DRY_RUN_SUMMARY if DRY_RUN else SUMMARY,
     long_description = DESCRIPTION,
-    license = nyx.__license__,
-    author = nyx.__author__,
-    author_email = nyx.__contact__,
-    url = nyx.__url__,
+    license = ATTR['license'],
+    author = ATTR['author'],
+    author_email = ATTR['contact'],
+    url = ATTR['url'],
     packages = ['nyx', 'nyx.panel'],
     keywords = 'tor onion controller',
     install_requires = ['stem>=1.6.0'],
