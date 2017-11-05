@@ -41,6 +41,7 @@ MANIFEST = """
 include LICENSE
 include MANIFEST.in
 include nyx.1
+include run_nyx
 include run_tests.py
 graft test
 graft web
