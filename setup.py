@@ -82,15 +82,39 @@ class NyxInstaller(install):
   ... will cause that resource to be omitted.
   """
 
+  # We don't actually use single-version-externally-managed. Unfortunately pip
+  # has a bug where it expects any cmdclass to be setuptools, otherwise it
+  # fails with...
+  #
+  #   % sudo pip install nyx
+  #   ...
+  #   Installing collected packages: nyx
+  #    Running setup.py install for nyx ... error
+  #      Complete output from command /usr/bin/python -u -c "import setuptools, tokenize;__file__='/tmp/pip-build-EOQT9b/nyx/setup.py';f=getattr(tokenize, 'open', open)(__file__);code=f.read().replace('\r\n', '\n');f.close();exec(compile(code, __file__, 'exec'))" install --record /tmp/pip-PHiCsl-record/install-record.txt --single-version-externally-managed --compile:
+  #      usage: -c [global_opts] cmd1 [cmd1_opts] [cmd2 [cmd2_opts] ...]
+  #         or: -c --help [cmd1 cmd2 ...]
+  #         or: -c --help-commands
+  #         or: -c cmd --help
+  #
+  #      error: option --single-version-externally-managed not recognized
+  #
+  # We have a few options to sidestep this...
+  #
+  #   * Have users install with 'sudo pip install --egg nyx' instead.
+  #   * Extend setuptools.command.install, which has the argument.
+  #   * Hack in a no-op argument to sidestep as we do here.
+
   user_options = install.user_options + [
     ('man-page=', None, 'man page location'),
     ('sample-path=', None, 'example nyxrc location'),
+    ('single-version-externally-managed', None, ''),  # needed to sidestep pip bug
   ]
 
   def initialize_options(self):
     install.initialize_options(self)
     self.man_page = None
     self.sample_path = None
+    self.single_version_externally_managed = None
 
   def run(self):
     install.run(self)
