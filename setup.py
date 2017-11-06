@@ -81,7 +81,6 @@ try:
     keywords = 'tor onion controller',
     install_requires = ['stem>=1.6.0'],
     package_data = {'nyx': ['settings/*']},
-    data_files = [('man/man1', ['nyx.1'])],
     entry_points = {'console_scripts': ['nyx = nyx.__init__:main']},
     classifiers = [
       'Development Status :: 5 - Production/Stable',
