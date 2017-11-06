@@ -20,7 +20,7 @@ class TestInstallation(unittest.TestCase):
 
     try:
       os.chdir(base_directory)
-      stem.util.system.call(sys.executable + ' setup.py install --prefix /tmp/nyx_test --man-page /tmp/nyx_test/nyx.1.gz --sample-path /tmp/nyx_test/nyxrc.sample')
+      stem.util.system.call(sys.executable + ' setup.py install --prefix /tmp/nyx_test')
       stem.util.system.call(sys.executable + ' setup.py clean --all')  # tidy up the build directory
       site_packages_paths = glob.glob('/tmp/nyx_test/lib*/*/site-packages')
 
