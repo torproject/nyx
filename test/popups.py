@@ -5,6 +5,7 @@ Unit tests for nyx.popups.
 import curses
 import unittest
 
+import nyx
 import nyx.curses
 import nyx.panel
 import nyx.popups
@@ -30,17 +31,19 @@ Page 1 Commands:---------------------------------------------------------------+
 +------------------------------------------------------------------------------+
 """.strip()
 
-EXPECTED_ABOUT_POPUP = """
+VERSION_LINE = "Nyx, version %s (released %s)" % (nyx.__version__, nyx.__release_date__)
+
+EXPECTED_ABOUT_POPUP = ("""
 About:-------------------------------------------------------------------------+
-| Nyx, version 1.4.6-dev (released April 28, 2011)                             |
+| %-77s|
 |   Written by Damian Johnson (atagar@torproject.org)                          |
-|   Project page: http://www.atagar.com/arm/                                   |
+|   Project page: https://nyx.torproject.org/                                  |
 |                                                                              |
 | Released under the GPL v3 (http://www.gnu.org/licenses/gpl.html)             |
 |                                                                              |
 | Press any key...                                                             |
 +------------------------------------------------------------------------------+
-""".strip()
+""" % VERSION_LINE).strip()
 
 EXPECTED_EMPTY_COUNTS = """
 Client Locales---------------------------------------+
