@@ -75,7 +75,7 @@ SQLITE_UNAVAILABLE_FREEBSD = """\
 Python's sqlite3 module is unavailable. Please run...
 
   sudo pkg install py%i%i-sqlite3
-""" % (sys.version_info[:2])
+""" % sys.version_info[:2]
 
 try:
   import sqlite3
@@ -337,7 +337,7 @@ def data_directory(filename, config):
 
   if not os.path.exists(data_dir):
     try:
-      os.mkdir(data_dir)
+      os.makedirs(data_dir)
     except OSError as exc:
       stem.util.log.log_once('nyx.data_directory_unavailable', stem.util.log.NOTICE, 'Unable to create a data directory at %s (%s). This is fine, but caching is disabled meaning performance will be diminished a bit.' % (data_dir, exc))
       return None
