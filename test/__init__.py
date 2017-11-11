@@ -4,6 +4,7 @@ Unit tests for nyx.
 
 import collections
 import inspect
+import os
 import time
 import unittest
 
@@ -28,6 +29,7 @@ __all__ = [
   'tracker',
 ]
 
+NYX_BASE = os.path.sep.join(__file__.split(os.path.sep)[:-2])
 OUR_SCREEN_SIZE = None
 TEST_SCREEN_SIZE = nyx.curses.Dimensions(80, 25)
 

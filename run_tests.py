@@ -16,10 +16,9 @@ import stem.util.system
 import stem.util.test_tools
 
 import nyx
+import test
 
-NYX_BASE = os.path.dirname(__file__)
-
-SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
+SRC_PATHS = [os.path.join(test.NYX_BASE, path) for path in (
   'nyx',
   'test',
   'run_tests.py',
@@ -32,9 +31,9 @@ SRC_PATHS = [os.path.join(NYX_BASE, path) for path in (
 def main():
   nyx.PAUSE_TIME = 0.000001  # make pauses negligibly low since our tests trigger things rapidly
   test_config = stem.util.conf.get_config('test')
-  test_config.load(os.path.join(NYX_BASE, 'test', 'settings.cfg'))
+  test_config.load(os.path.join(test.NYX_BASE, 'test', 'settings.cfg'))
 
-  orphaned_pyc = stem.util.test_tools.clean_orphaned_pyc(NYX_BASE)
+  orphaned_pyc = stem.util.test_tools.clean_orphaned_pyc([test.NYX_BASE])
 
   for path in orphaned_pyc:
     print('Deleted orphaned pyc file: %s' % path)

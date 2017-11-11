@@ -6,6 +6,7 @@ import unittest
 
 import nyx
 import stem.util.system
+import test
 
 
 class TestInstallation(unittest.TestCase):
@@ -35,7 +36,8 @@ class TestInstallation(unittest.TestCase):
 
       self.assertTrue(stdout.startswith(b'Usage nyx [OPTION]'))
     finally:
-      if os.path.exists('/tmp/nyx_test'):
-        shutil.rmtree('/tmp/nyx_test')
+      for path in ('/tmp/nyx_test', os.path.join(test.NYX_BASE, 'dist'), os.path.join(test.NYX_BASE, 'nyx.egg-info')):
+        if os.path.exists(path):
+          shutil.rmtree(path)
 
       os.chdir(original_cwd)
