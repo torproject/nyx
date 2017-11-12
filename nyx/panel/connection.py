@@ -187,15 +187,15 @@ class ConnectionEntry(Entry):
     self._connection = connection
 
   def _get_lines(self):
-    fingerprint, nickname, locale = None, None, None
+    fingerprint, nickname = None, None
 
     if self.get_type() in (Category.OUTBOUND, Category.CIRCUIT, Category.DIRECTORY, Category.EXIT):
       fingerprint = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address).get(self._connection.remote_port)
-      locale = tor_controller().get_info('ip-to-country/%s' % self._connection.remote_address, None)
 
       if fingerprint:
         nickname = nyx.tracker.get_consensus_tracker().get_relay_nickname(fingerprint)
 
+    locale = tor_controller().get_info('ip-to-country/%s' % self._connection.remote_address, None)
     return [Line(self, LineType.CONNECTION, self._connection, None, fingerprint, nickname, locale)]
 
   def _get_type(self):
@@ -252,7 +252,7 @@ class CircuitEntry(Entry):
 
   def _get_lines(self):
     def line(fingerprint, line_type):
-      address, port, nickname, locale = '0.0.0.0', 0, None, None
+      address, port, nickname = '0.0.0.0', 0, None
       consensus_tracker = nyx.tracker.get_consensus_tracker()
 
       if fingerprint is not None:
