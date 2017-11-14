@@ -46,6 +46,12 @@ Platform images in this folder originate from the following...
   Source: https://en.wikipedia.org/wiki/File:Freebsd_logo.svg
   Author: Anton Gural
 
+* OpenBSD
+  Source: NuoveXT (http://nuovext.pwsp.net/)
+  Author: Alexandre Moore (http://sa-ki.deviantart.com/)
+  License: GPL v2
+  File: NuoveXT/128x128/apps/openbsd.png
+
 * Git
   Source: https://en.wikipedia.org/wiki/File:Git-logo.svg
   Author: Jason Long
