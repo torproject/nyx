@@ -133,19 +133,19 @@ class ConfigEntry(object):
 
   @property
   def category(self):
-    return getattr(manual(self.name), 'category')
+    return getattr(manual(self.name), 'category', '')
 
   @property
   def usage(self):
-    return getattr(manual(self.name), 'usage')
+    return getattr(manual(self.name), 'usage', '')
 
   @property
   def summary(self):
-    return getattr(manual(self.name), 'summary')
+    return getattr(manual(self.name), 'summary', '')
 
   @property
   def description(self):
-    return getattr(manual(self.name), 'description')
+    return getattr(manual(self.name), 'description', '')
 
   @property
   def position(self):
@@ -348,12 +348,20 @@ def _draw_selection_details(subwindow, selected):
   Shows details of the currently selected option.
   """
 
-  attr = ', '.join(('custom' if selected.is_set() else 'default', selected.value_type, 'usage: %s' % selected.usage))
+  attr = ['custom' if selected.is_set() else 'default', selected.value_type]
+
+  if selected.usage:
+    attr.append('usage: %s' % selected.usage)
+
   selected_color = CONFIG['attr.config.category_color'].get(selected.category, WHITE)
   subwindow.box(0, 0, subwindow.width, DETAILS_HEIGHT)
 
-  subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.category), selected_color, BOLD)
-  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(attr, max(0, subwindow.width - len(selected.value()) - 13))), selected_color, BOLD)
+  if selected.category:
+    subwindow.addstr(2, 1, '%s (%s Option)' % (selected.name, selected.category), selected_color, BOLD)
+  else:
+    subwindow.addstr(2, 1, selected.name, selected_color, BOLD)
+
+  subwindow.addstr(2, 2, 'Value: %s (%s)' % (selected.value(), str_tools.crop(', '.join(attr), max(0, subwindow.width - len(selected.value()) - 13))), selected_color, BOLD)
 
   description = 'Description: %s' % selected.description
 
