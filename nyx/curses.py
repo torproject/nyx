@@ -747,6 +747,8 @@ def draw(func, left = 0, top = 0, width = None, height = None, background = None
     curses_subwindow.refresh()
 
     return subwindow_dimensions
+  except curses.error:
+    return  # raw curses access, such as subwin, can raise in edge cases such as resizing
   finally:
     CURSES_LOCK.release()
 
