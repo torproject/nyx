@@ -339,7 +339,8 @@ def data_directory(filename, config):
     try:
       os.makedirs(data_dir)
     except OSError as exc:
-      stem.util.log.log_once('nyx.data_directory_unavailable', stem.util.log.NOTICE, 'Unable to create a data directory at %s (%s). This is fine, but caching is disabled meaning performance will be diminished a bit.' % (data_dir, exc))
+      msg_runlevel = stem.util.log.INFO if 'Permission denied' in str(exc) else stem.util.log.NOTICE
+      stem.util.log.log_once('nyx.data_directory_unavailable', msg_runlevel, 'Unable to create a data directory at %s (%s). This is fine, but caching is disabled meaning performance will be diminished a bit.' % (data_dir, exc))
       return None
 
   return os.path.join(data_dir, filename)
