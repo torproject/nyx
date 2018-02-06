@@ -155,7 +155,7 @@ class HeaderPanel(nyx.panel.DaemonPanel):
     # space available for content
 
     interface = nyx_interface()
-    left_width = max(subwindow.width / 2, 77) if is_wide else subwindow.width
+    left_width = max(subwindow.width // 2, 77) if is_wide else subwindow.width
     right_width = subwindow.width - left_width
 
     _draw_platform_section(subwindow, 0, 0, left_width, vals)
