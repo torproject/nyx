@@ -218,8 +218,10 @@ class ConfigPanel(nyx.panel.Panel):
       try:
         controller.save_conf()
         show_message('Saved configuration to %s' % controller.get_info('config-file', '<unknown>'), HIGHLIGHT, max_wait = 2)
+      except stem.OperationFailed as exc:
+        show_message('Unable to save configuration ([%s] %s)' % (exc.code, exc.message), HIGHLIGHT, max_wait = 2)
       except stem.ControllerError as exc:
-        show_message('Unable to save configuration (%s)' % exc.strerror, HIGHLIGHT, max_wait = 2)
+        show_message('Unable to save configuration (%s)' % exc, HIGHLIGHT, max_wait = 2)
 
     self.redraw()
 
