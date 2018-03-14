@@ -275,7 +275,7 @@ class LogPanel(nyx.panel.DaemonPanel):
       ]),
     ])
 
-  def _draw(self, subwindow):
+  def _draw(self, subwindow, is_correction = False):
     scroll = self._scroller.location(self._last_content_height, subwindow.height - 1)
 
     event_filter = self._filter.clone()
@@ -321,9 +321,9 @@ class LogPanel(nyx.panel.DaemonPanel):
     self._last_content_height = new_content_height
     self._has_new_event = False
 
-    if force_redraw:
+    if force_redraw and not is_correction:
       log.debug('redrawing the log panel with the corrected content height (%s)' % force_redraw_reason)
-      self.redraw()
+      self._draw(subwindow, True)
 
   def _update(self):
     """
