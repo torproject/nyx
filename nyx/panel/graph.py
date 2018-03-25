@@ -109,16 +109,12 @@ def _bandwidth_title_stats():
     stats.append('burst: %s/s' % bw_burst_label)
 
   my_router_status_entry = nyx.tracker.get_consensus_tracker().my_router_status_entry()
-  measured_bw = getattr(my_router_status_entry, 'bandwidth', None)
 
-  if measured_bw:
-    stats.append('measured: %s/s' % _size_label(measured_bw))
-  else:
-    my_server_descriptor = controller.get_server_descriptor(default = None)
-    observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
+  my_server_descriptor = controller.get_server_descriptor(default = None)
+  observed_bw = getattr(my_server_descriptor, 'observed_bandwidth', None)
 
-    if observed_bw:
-      stats.append('observed: %s/s' % _size_label(observed_bw))
+  if observed_bw:
+    stats.append('observed: %s/s' % _size_label(observed_bw))
 
   return stats
 
