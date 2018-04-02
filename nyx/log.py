@@ -494,7 +494,7 @@ def read_tor_log(path, read_limit = None):
       if timestamp > time.time():
         # log entry is from before a year boundary
         timestamp_comp[0] -= 1
-        timestamp = int(time.mktime(timestamp_comp))
+        timestamp = int(time.mktime(tuple(timestamp_comp)))
     except ValueError:
       raise ValueError("Log located at %s has a timestamp we don't recognize: %s" % (path, ' '.join(line_comp[:3])))
 
