@@ -161,6 +161,21 @@
           </div>
         </li>
 
+        <li id="no_apt_get">
+          <span>Why can't I install with apt-get?</span>
+          <div class="answer">
+            <p>Installing with Debian and Ubuntu might fail with...</p>
+            <pre>% sudo apt-get install nyx
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+E: Unable to locate package nyx</pre>
+            <br>
+            <p>If so, Nyx is not yet available in your distribution's repositories. Nyx is present in <a href="https://packages.debian.org/sid/nyx">Debian Sid</a> and <a href="https://launchpad.net/ubuntu/+source/nyx">Ubuntu 2.0.4 (Bionic)</a>, but it will take time before it's available elsewhere.</p>
+            <p>In the meantime if you see the above we suggest installing with '<b>sudo pip install nyx</b>' instead.</p>
+          </div>
+        </li>
+
         <li id="report_bug">
           <span>How can I report a bug?</span>
           <div class="answer">
@@ -353,7 +368,7 @@ sudo python setup.py install</pre><br></li>
       <div class="platform">
         <a href="http://packages.debian.org/sid/nyx" id="debian"><img src="images/download/debian.png" alt="Debian"></a>
         <a href="http://packages.debian.org/sid/nyx" class="platform-title">Debian</a>
-        <p>Package maintained by Dererk for Debian.</p>
+        <p>Package maintained by Dererk for Debian. Use <a class="faq_no_apt_get" href="#no_apt_get">sudo pip install nyx</a> if this doesn't work.</p>
         <pre>% sudo apt-get install nyx</pre>
       </div>
 
@@ -823,6 +838,12 @@ logged_events BW, NOTICE, WARN, ERR
 
       $('.questions > li > span').click(function() {
         toggleFaq($(this).parent().find('.answer'));
+      });
+
+      $('.faq_no_apt_get').click(function() {
+        $(".tabs").data("tabs").click("faq");
+        toggleFaq($('#no_apt_get > .answer'));
+        document.getElementById('no_apt_get').scrollIntoView();
       });
 
       // when provided an anchor select the tab it resides within
