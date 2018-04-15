@@ -391,7 +391,7 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
 
     def _show_exiting_port_usage():
       counts = {}
-      key_width = max(map(len, self._exit_port_usage.keys()))
+      key_width = max(map(len, self._exit_port_usage.keys())) if self._exit_port_usage else 0
 
       for k, v in self._exit_port_usage.items():
         usage = connection.port_usage(k)
