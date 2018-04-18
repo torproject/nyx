@@ -616,13 +616,14 @@ def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, col
 
   x_axis_labels = _x_axis_labels(interval, columns)
   y_axis_labels = _y_axis_labels(height, data, min_bound, max_bound)
-  columns = max(columns, width - max([len(label) for label in y_axis_labels.values()]) - 2)
-  axis_offset = max([len(label) for label in y_axis_labels.values()])
+
+  x_axis_offset = max([len(label) for label in y_axis_labels.values()])
+  columns = max(columns, width - x_axis_offset - 2)
 
   subwindow.addstr(x, 1, data.header(width), color, BOLD)
 
   for x_offset, label in x_axis_labels.items():
-    subwindow.addstr(x + x_offset + axis_offset, height, label, color)
+    subwindow.addstr(x + x_offset + x_axis_offset, height, label, color)
 
   for y, label in y_axis_labels.items():
     subwindow.addstr(x, y, label, color)
@@ -630,7 +631,7 @@ def _draw_subgraph(subwindow, data, x, width, height, bounds_type, interval, col
   for col in range(columns):
     column_count = int(data.values[interval][col]) - min_bound
     column_height = int(min(height - 2, (height - 2) * column_count / (max(1, max_bound) - min_bound)))
-    subwindow.vline(x + col + axis_offset + 1, height - column_height, column_height, color, HIGHLIGHT, char = fill_char)
+    subwindow.vline(x + col + x_axis_offset + 1, height - column_height, column_height, color, HIGHLIGHT, char = fill_char)
 
 
 def _x_axis_labels(interval, columns):
