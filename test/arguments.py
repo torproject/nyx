@@ -83,7 +83,7 @@ class TestArgumentParsing(unittest.TestCase):
 
   def test_help(self):
     self.assertTrue(get_help().startswith('Usage nyx [OPTION]'))
-    self.assertTrue('change control interface from 127.0.0.1:9051' in get_help())
+    self.assertTrue('change control interface from 127.0.0.1:default' in get_help())
 
   def test_version(self):
     self.assertTrue(get_version().startswith('nyx version'))
