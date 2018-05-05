@@ -169,6 +169,8 @@ Dimensions = collections.namedtuple('Dimensions', ['width', 'height'])
 
 def conf_handler(key, value):
   if key == 'color_override':
+    value = stem.util.str_tools._to_camel_case(value)
+
     if value not in Color and value != 'None':
       raise ValueError('"%s" isn\'t a valid color' % value)
   elif key == 'max_line_wrap':
