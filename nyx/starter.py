@@ -131,7 +131,7 @@ def _setup_debug_logging(args):
 
   debug_dir = os.path.dirname(args.debug_path)
 
-  if not os.path.exists(debug_dir):
+  if debug_dir and not os.path.exists(debug_dir):
     os.makedirs(debug_dir)
 
   debug_handler = logging.FileHandler(args.debug_path, mode = 'w')
