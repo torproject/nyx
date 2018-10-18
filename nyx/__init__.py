@@ -44,6 +44,7 @@ Tor curses monitoring application.
 
 import contextlib
 import distutils.spawn
+import getpass
 import os
 import platform
 import sys
@@ -442,10 +443,14 @@ class Cache(object):
     self._conn_lock = threading.RLock()
     cache_path = nyx.data_directory('cache.sqlite')
 
+    if cache_path and os.path.isfile(cache_path) and not os.access(cache_path, os.W_OK):
+      stem.util.log.notice("Nyx's cache at %s is not writable by our user (%s). That's ok, but we'll have better performance if we can write to it." % (cache_path, getpass.getuser()))
+      cache_path = None
+
     if cache_path:
       try:
         self._conn = sqlite3.connect(cache_path, check_same_thread = False)
-        schema = self._conn.execute('SELECT version FROM schema').fetchone()[0]
+        schema = self._query('SELECT version FROM schema').fetchone()[0]
       except:
         schema = None
 
