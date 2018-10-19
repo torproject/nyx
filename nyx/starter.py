@@ -219,7 +219,12 @@ def _set_process_name():
   "nyx <input args>".
   """
 
-  stem.util.system.set_process_name('nyx\0%s' % '\0'.join(sys.argv[1:]))
+  process_name = 'nyx\0%s' % '\0'.join(sys.argv[1:])
+
+  try:
+    stem.util.system.set_process_name(process_name)
+  except IOError as exc:
+    stem.util.log.info("Unable to rename our process from '%s' to '%s' (%s)." % (stem.util.system.get_process_name(), process_name.replace('\0', ' '), exc))
 
 
 def _shutdown_daemons(controller):
