@@ -72,7 +72,7 @@
           <ul>
             <li>Connect by default to Tor Browser's default port (9151) when it's available</li>
             <li>Nyxrc <b>color_override</b> configuration values only worked if camel case (<a href="https://trac.torproject.org/projects/tor/ticket/26026">ticket</a>)</li>
-            <li>Crashed with a 'sqlite3.OperationalError' if ran with different users that share a home directory (<a href="https://trac.torproject.org/projects/tor/ticket/27938">ticket</a>)</li>
+            <li>'<b>sqlite3.OperationalError</b>' crash when ran with multiple users that share a home directory (<a href="https://trac.torproject.org/projects/tor/ticket/27938">ticket</a>)</li>
             <li>Blank debug path caused us to crash (<a href="https://trac.torproject.org/projects/tor/ticket/27350">ticket</a>)</li>
           </ul>
         </li>
@@ -83,10 +83,22 @@
           </ul>
         </li>
 
+        <li><span class="component">Graph</span>
+          <ul>
+            <li>Removed confusing, unit-less 'measured' statistic</li>
+          </ul>
+        </li>
+
         <li><span class="component">Connections</span>
           <ul>
             <li>Geoip information unavailable for inbound connections</li>
             <li>Dialog showing exit statistics crashed when no data was available (<a href="https://trac.torproject.org/projects/tor/ticket/25801">ticket</a>)</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Logging</span>
+          <ul>
+            <li>Python3 crashed when dates are on year boundaries (<a href="https://trac.torproject.org/projects/tor/ticket/24820">ticket</a>)</li>
           </ul>
         </li>
 
@@ -100,6 +112,13 @@
         <li><span class="component">Curses</span>
           <ul>
             <li>Resizing could crash the interface (<b><a href="https://trac.torproject.org/projects/tor/ticket/24382">ticket</a></b>)</li>
+          </ul>
+        </li>
+
+        <li><span class="component">Website</span>
+          <ul>
+            <li>Greatly expanded platforms available on the <a href="../index.html#download">download page</a></li>
+            <li>Added '<a href="../index.html#getting_started">How do I get started?</a>' section to the FAQ</li>
           </ul>
         </li>
       </ul>
