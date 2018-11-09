@@ -657,7 +657,7 @@ def _draw_details(subwindow, selected):
   else:
     address = '<scrubbed>' if selected.entry.is_private() else selected.connection.remote_address
     subwindow.addstr(2, 1, 'address: %s:%s' % (address, selected.connection.remote_port), *attr)
-    subwindow.addstr(2, 2, 'locale: %s' % ('??' if selected.entry.is_private() else (selected.locale if selected.locale else '??')), *attr)
+    subwindow.addstr(2, 2, 'locale: %s' % (selected.locale if selected.locale and not selected.entry.is_private() else '??'), *attr)
 
     matches = nyx.tracker.get_consensus_tracker().get_relay_fingerprints(selected.connection.remote_address)
 
