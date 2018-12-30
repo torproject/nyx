@@ -82,14 +82,18 @@ def parse(argv):
 
   for opt, arg in recognized_args:
     if opt in ('-i', '--interface'):
+      address = None
+
       if ':' in arg:
         address, port = arg.split(':', 1)
       else:
-        address, port = args['control_port'][0], arg
+        port = arg
 
-      if address is not None:
+      if address:
         if not stem.util.connection.is_valid_ipv4_address(address):
           raise ValueError("'%s' isn't a valid IPv4 address" % address)
+      else:
+        address = args['control_port'][0]
 
       if not stem.util.connection.is_valid_port(port):
         raise ValueError("'%s' isn't a valid port number" % port)
