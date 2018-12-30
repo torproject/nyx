@@ -7,6 +7,7 @@
 #   % nyx --config /path/to/config
 
 data_directory ~/.nyx   # Caching location, can be set to 'disabled'.
+password none           # Control port password of tor.
 tor_chroot /path        # Chroot jail tor resides within if there is one. (*)
 show_bits false         # Bandwidth rate as bits if true, bytes otherwise.
 confirm_quit true       # Confirm before quitting.

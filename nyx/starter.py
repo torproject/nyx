@@ -20,6 +20,7 @@ import nyx.curses
 import nyx.tracker
 
 import stem
+import stem.connection
 import stem.util.log
 import stem.util.system
 
@@ -78,9 +79,18 @@ def main(config):
   else:
     stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxrc.sample for its options).' % args.config)
 
+  # If a password is provided via the user's nyxrc that will be use, otherwise
+  # users are prompted for a password if required.
+
+  controller_password = config.get('password', None)
+
+  if controller_password:
+    stem.connection.CONNECT_MESSAGES['incorrect_password'] = 'Unable to authenticate to tor using the controller password in %s' % args.config
+
   controller = init_controller(
     control_port = args.control_port,
     control_socket = args.control_socket,
+    password = controller_password,
     password_prompt = True,
     chroot_path = nyx.chroot(),
   )

@@ -483,6 +483,12 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
 
         <tr>
+          <td><b>password</b></td>
+          <td></td>
+          <td><a href="https://stem.torproject.org/faq.html#i-m-using-password-authentication">Tor controller password</a>. If unset you will be prompted for a password when one is required to authenticate.<br><br><b>Use of this is discouraged.</b> To authenticate with tor non-interactively please use <a href="https://stem.torproject.org/faq.html#i-m-using-cookie-authentication">cookie authentication</a> instead.</td>
+        </tr>
+
+        <tr>
           <td><b>tor_chroot</b></td>
           <td></td>
           <td>Chroot jail tor resides within. Most common on FreeBSD, if tor is running within a jail then use this to specify the path prefix we should use when looking for tor files on disk.</td>
