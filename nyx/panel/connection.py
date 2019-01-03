@@ -232,10 +232,7 @@ class ConnectionEntry(Entry):
       return True
 
     if self.get_type() == Category.INBOUND:
-      controller = tor_controller()
-
-      if controller.is_user_traffic_allowed().inbound:
-        return len(nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address)) == 0
+      return len(nyx.tracker.get_consensus_tracker().get_relay_fingerprints(self._connection.remote_address)) == 0
     elif self.get_type() == Category.EXIT:
       # DNS connections exiting us aren't private (since they're hitting our
       # resolvers). Everything else is.
