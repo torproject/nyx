@@ -21,6 +21,9 @@ class TestArgumentParsing(unittest.TestCase):
     args = parse(['--interface', '80'])
     self.assertEqual((DEFAULT_ARGS['control_port'][0], 80), args.control_port)
 
+    args = parse(['--interface', ':80'])
+    self.assertEqual((DEFAULT_ARGS['control_port'][0], 80), args.control_port)
+
     args = parse(['--socket', '/tmp/my_socket', '--config', '/tmp/my_config'])
     self.assertEqual('/tmp/my_socket', args.control_socket)
     self.assertEqual('/tmp/my_config', args.config)
@@ -72,7 +75,6 @@ class TestArgumentParsing(unittest.TestCase):
       'blarg',
       '127.0.0.1',
       '127.0.0.1:',
-      ':80',
       '400.0.0.1:80',
       '127.0.0.1:-5',
       '127.0.0.1:500000',
