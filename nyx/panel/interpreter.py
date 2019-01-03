@@ -130,9 +130,13 @@ class InterpreterPanel(nyx.panel.Panel):
       self._x_offset = 2
       subwindow.scrollbar(1, scroll, len(self._lines) + 1)
 
-    for i, line in enumerate(self._lines + [prompt]):
-      x, y = self._x_offset, i + 1 - scroll
+    visible_lines = self._lines[scroll:scroll + subwindow.height - 1]
 
-      if y > 0:
-        for text, attr in line:
-          x = subwindow.addstr(x, y, text, *attr)
+    if len(visible_lines) < subwindow.height - 1:
+      visible_lines.append(prompt)
+
+    for y, line in enumerate(visible_lines):
+      x = self._x_offset
+
+      for text, attr in line:
+        x = subwindow.addstr(x, y + 1, text, *attr)
