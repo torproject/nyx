@@ -240,7 +240,9 @@ class ConfigPanel(nyx.panel.Panel):
 
       if new_value is not None and new_value != initial_value:
         try:
-          if selected.value_type == 'Boolean':
+          if new_value == '':
+            new_value = None  # unset the value
+          elif selected.value_type == 'Boolean':
             # if the value's a boolean then allow for 'true' and 'false' inputs
 
             if new_value.lower() == 'true':
@@ -250,7 +252,11 @@ class ConfigPanel(nyx.panel.Panel):
           elif selected.value_type == 'LineList':
             new_value = new_value.split(',')  # set_conf accepts list inputs
 
-          tor_controller().set_conf(selected.name, new_value)
+          if new_value is None:
+            tor_controller().reset_conf(selected.name)
+          else:
+            tor_controller().set_conf(selected.name, new_value)
+
           self.redraw()
         except Exception as exc:
           show_message('%s (press any key)' % exc, HIGHLIGHT, max_wait = 30)
