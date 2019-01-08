@@ -238,7 +238,7 @@ class ConfigPanel(nyx.panel.Panel):
       initial_value = selected.value() if selected.is_set() else ''
       new_value = input_prompt('%s Value (esc to cancel): ' % selected.name, initial_value)
 
-      if new_value != initial_value:
+      if new_value is not None and new_value != initial_value:
         try:
           if selected.value_type == 'Boolean':
             # if the value's a boolean then allow for 'true' and 'false' inputs
