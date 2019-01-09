@@ -280,6 +280,27 @@ E: Unable to locate package nyx</pre>
           </div>
         </li>
 
+        <li id="no_connections">
+          <span>Why can't I see Tor's connections?</span>
+          <div class="answer">
+            <p>Nyx can provide you with information about <a href="images/features/connections.png">tor's active connections</a>. This information is retrieved from your system's <b>/proc</b> content or tools such as <i>netstat</i> and <i>lsof</i>.</p>
+
+            <p>Unfortunately Tor inadvertently breaks the tools Nyx falls back to through a featurure called <a href="https://www.torproject.org/docs/tor-manual.html.en#DisableDebuggerAttachment"><b>DisableDebuggerAttachment</b></a>, which makes tor's process memory only readable by root.</p>
+
+            <p>This leaves you with three options...</p>
+
+            <ol>
+              <li><p>Use Nyx without connection data. <b>Nyx does not require connection information</b>, and aside a sparse connection list you probably won't even notice.</p></li>
+              <li><p>Run Nyx as root. <b>This is not recommended.</b></p></li>
+              <li><p>Turn off <a href="https://www.torproject.org/docs/tor-manual.html.en#DisableDebuggerAttachment"><b>DisableDebuggerAttachment</b></a> by adding the following to your <a href="https://www.torproject.org/docs/faq.html.en#torrc">torrc</a> and restarting tor...</p>
+                <pre>DisableDebuggerAttachment 0</pre>
+              </li>
+            </ol>
+
+            <p>Don't fret overly much about this decision. Nothing at play here is important - connection data is unimportant <b>and</b> DisableDebuggerAttachment's <a href="https://trac.torproject.org/projects/tor/ticket/3313">security benefit</a> is insignificant. Either decision is fine.</p>
+          </div>
+        </li>
+
         <li id="missing_relay_details">
           <span>Why are connections missing relay details?</span>
           <div class="answer">
