@@ -318,6 +318,18 @@ def _handle_key(textbox, key):
       textbox.win.move(y, msg_length - 1)  # if we're in the content then move to the end
     elif key == curses.KEY_RIGHT and x < msg_length - 1:
       textbox.win.move(y, x + 1)  # only move cursor if there's content after it
+  elif key == curses.KEY_DC:
+    # Delete key. Remove the character after the cursor if there is one.
+
+    y, x = textbox.win.getyx()
+    content = textbox.gather()
+
+    if x < len(content):
+      content = content[:x] + content[x + 1:]
+      textbox.win.clear()
+      textbox.win.addstr(y, 0, content)
+
+    textbox.win.move(y, x)  # revert cursor to its prior position
   elif key == 410:
     # if we're resizing the display during text entry then cancel it
     # (otherwise the input field is filled with nonprintable characters)
