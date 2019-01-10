@@ -3,10 +3,24 @@ import shutil
 import subprocess
 import sys
 import unittest
+import urllib2
 
 import nyx
 import stem.util.system
 import test
+
+
+def is_online():
+  """
+  Confirm we can reach PyPI. If we can't then our installation test will fail
+  due to being unable to install Stem.
+  """
+
+  try:
+    urllib2.urlopen('https://pypi.org/', timeout = 1)
+    return True
+  except urllib2.URLError:
+    return False
 
 
 class TestInstallation(unittest.TestCase):
@@ -15,6 +29,8 @@ class TestInstallation(unittest.TestCase):
 
     if not os.path.exists(os.path.sep.join([base_directory, 'setup.py'])):
       self.skipTest('(only for git checkout)')
+    elif not is_online():
+      self.skipTest('(only when online)')
 
     original_cwd = os.getcwd()
     site_packages = '/tmp/nyx_test/lib/python%i.%i/site-packages/' % sys.version_info[:2]
