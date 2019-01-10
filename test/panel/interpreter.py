@@ -99,10 +99,8 @@ class TestInterpreter(unittest.TestCase):
     tor_controller_mock()._handle_event = lambda event: None
 
     panel = nyx.panel.interpreter.InterpreterPanel()
-    panel._lines = [
-      [('>>> ', ('Green', 'Bold')), ('GETINFO', ('Green', 'Bold')), (' version', ('Cyan',))],
-      [('250-version=0.2.4.27 (git-412e3f7dc9c6c01a)', ('Blue',))]
-    ]
+    panel._add_line([('>>> ', ('Green', 'Bold')), ('GETINFO', ('Green', 'Bold')), (' version', ('Cyan',))])
+    panel._add_line([('250-version=0.2.4.27 (git-412e3f7dc9c6c01a)', ('Blue',))])
 
     self.assertEqual(EXPECTED_MULTILINE_PANEL, test.render(panel._draw).content)
 
@@ -112,9 +110,10 @@ class TestInterpreter(unittest.TestCase):
     tor_controller_mock()._handle_event = lambda event: None
 
     panel = nyx.panel.interpreter.InterpreterPanel()
-    panel._lines = [
-      [('>>> ', ('Green', 'Bold')), ('GETINFO', ('Green', 'Bold')), (' version', ('Cyan',))],
-      [('250-version=0.2.4.27 (git-412e3f7dc9c6c01a)', ('Blue',))]
-    ] + [()] * (panel.get_height() - 2)
+    panel._add_line([('>>> ', ('Green', 'Bold')), ('GETINFO', ('Green', 'Bold')), (' version', ('Cyan',))])
+    panel._add_line([('250-version=0.2.4.27 (git-412e3f7dc9c6c01a)', ('Blue',))])
+
+    for i in range(panel.get_height() - 2):
+      panel._add_line([])
 
     self.assertEqual(EXPECTED_WITH_SCROLLBAR, test.render(panel._draw).content)
