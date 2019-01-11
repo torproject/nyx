@@ -43,7 +43,6 @@ Tor curses monitoring application.
 """
 
 import contextlib
-import distutils.spawn
 import getpass
 import os
 import platform
@@ -177,9 +176,9 @@ def main():
     nyx.starter.main()
   except ImportError as exc:
     if exc.message == 'No module named stem':
-      if distutils.spawn.find_executable('pip') is not None:
+      if stem.util.system.is_available('pip'):
         advice = ", try running 'sudo pip install stem'"
-      elif distutils.spawn.find_executable('apt-get') is not None:
+      elif stem.util.system.is_available('apt-get'):
         advice = ", try running 'sudo apt-get install python-stem'"
       else:
         advice = ', you can find it at https://stem.torproject.org/download.html'
