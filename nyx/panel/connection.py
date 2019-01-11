@@ -104,7 +104,7 @@ class Entry(object):
     """
     Provides individual lines of connection information.
 
-    :returns: **list** of **ConnectionLine** concerning this entry
+    :returns: **list** of :class:`nyx.panel.connection.Line` concerning this entry
     """
 
     if self._lines is None:
@@ -534,13 +534,13 @@ class ConnectionPanel(nyx.panel.DaemonPanel):
       if self._halt:
         return
 
-      if entry.is_private() and line.connection not in self._counted_connections:
+      if entry.is_private() and line.connection.remote_address not in self._counted_connections:
         if entry.get_type() == Category.INBOUND and line.locale:
           self._client_locale_usage[line.locale] = self._client_locale_usage.get(line.locale, 0) + 1
         elif entry.get_type() == Category.EXIT:
           self._exit_port_usage[line.connection.remote_port] = self._exit_port_usage.get(line.connection.remote_port, 0) + 1
 
-        self._counted_connections.add(line.connection)
+        self._counted_connections.add(line.connection.remote_address)
 
     self._entries = sorted(new_entries, key = lambda entry: [entry.sort_value(attr) for attr in self._sort_order])
     self._last_resource_fetch = resolution_count
