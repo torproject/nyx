@@ -3,11 +3,16 @@ import shutil
 import subprocess
 import sys
 import unittest
-import urllib2
 
 import nyx
 import stem.util.system
 import test
+
+try:
+  # account for urllib's change between python 2.x and 3.x
+  import urllib.request as urllib
+except ImportError:
+  import urllib2 as urllib
 
 
 def is_online():
@@ -17,9 +22,9 @@ def is_online():
   """
 
   try:
-    urllib2.urlopen('https://pypi.org/', timeout = 1)
+    urllib.urlopen('https://pypi.org/', timeout = 1)
     return True
-  except urllib2.URLError:
+  except urllib.URLError:
     return False
 
 
