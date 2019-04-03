@@ -277,7 +277,7 @@ class Sampling(object):
 
       'auth_type': auth_type,
       'pid': pid,
-      'start_time': stem.util.system.start_time(pid),
+      'start_time': controller.get_start_time(0),
       'fd_limit': int(controller.get_info('process/descriptor-limit', '-1')),
       'fd_used': fd_used,
 
