@@ -49,15 +49,63 @@ import platform
 import sys
 import threading
 import time
+import shutil
 
-import stem
-import stem.connection
-import stem.control
-import stem.util.conf
-import stem.util.connection
-import stem.util.log
-import stem.util.system
-import stem.util.tor_tools
+def is_available(command):
+   return shutil.which(command) if True else False
+
+class PkgManagers:
+  ARCHLINUX = 'pacman'
+  GENTOO = 'emerge'
+  DEBIAN = 'apt'
+  DEBIAN_OLD = 'apt-get'
+  RED_HAT = 'yum'
+  PIP = 'pip'
+
+
+try:
+  import stem
+  import stem.connection
+  import stem.control
+  import stem.util.conf
+  import stem.util.connection
+  import stem.util.log
+  import stem.util.system
+  import stem.util.tor_tools
+except ImportError as exc:
+  if isinstance(exc, ModuleNotFoundError) and str(exc) == "No module named 'stem'":
+    missing_pkg_name = 'python-stem'
+    pkg_manager_not_found = False
+    if is_available(PkgManagers.DEBIAN):
+      pkg_install_procedure = PkgManagers.DEBIAN + ' install'
+    elif is_available(PkgManagers.DEBIAN_OLD):
+      pkg_install_procedure = PkgManagers.DEBIAN_OLD + ' install'
+    elif is_available(PkgManagers.GENTOO):
+      missing_pkg_name = 'net-libs/stem'
+      pkg_install_procedure = PkgManagers.GENTOO + ' --ask'
+    elif is_available(PkgManagers.RED_HAT):
+      pkg_install_procedure = PkgManagers.RED_HAT + ' install'
+    elif is_available(PkgManagers.ARCHLINUX):
+      pkg_install_procedure = PkgManagers.ARCHLINUX + ' -Syu'
+    elif is_available(PkgManagers.PIP):
+      missing_pkg_name = 'stem'
+      pkg_install_procedure = PkgManagers.PIP + ' install'
+    else:
+      pkg_manager_not_found = True
+      pkg_install_procedure = ', you can find it at https://stem.torproject.org/download.html'
+    
+    require_message = 'nyx requires python-stem'
+    if pkg_manager_not_found:
+      final_message = require_message + pkg_install_procedure
+    else:
+      final_message = require_message + ', try running:\n\nsudo ' + pkg_install_procedure + ' ' + missing_pkg_name + '\n'
+
+    print(final_message)
+  else:
+    print('Unable to start nyx: %s' % exc)
+
+  sys.exit(1)
+
 
 SQLITE_UNAVAILABLE = """\
 Python's sqlite3 module is unavailable. Unfortunately some platforms
@@ -113,7 +161,6 @@ __all__ = [
 def conf_handler(key, value):
   if key == 'redraw_rate':
     return max(1, value)
-
 
 CONFIG = stem.util.conf.config_dict('nyx', {
   'confirm_quit': True,
@@ -175,18 +222,7 @@ def main():
   try:
     nyx.starter.main()
   except ImportError as exc:
-    if exc.message == 'No module named stem':
-      if stem.util.system.is_available('pip'):
-        advice = ", try running 'sudo pip install stem'"
-      elif stem.util.system.is_available('apt-get'):
-        advice = ", try running 'sudo apt-get install python-stem'"
-      else:
-        advice = ', you can find it at https://stem.torproject.org/download.html'
-
-      print('nyx requires stem' + advice)
-    else:
-      print('Unable to start nyx: %s' % exc)
-
+    print('Unable to start nyx: %s' % exc)
     sys.exit(1)
 
 
