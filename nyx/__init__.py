@@ -51,8 +51,10 @@ import threading
 import time
 import shutil
 
+
 def is_available(command):
-   return shutil.which(command) if True else False
+   return bool(shutil.which(command))
+
 
 class PkgManagers:
   ARCHLINUX = 'pacman'
@@ -93,7 +95,7 @@ except ImportError as exc:
     else:
       pkg_manager_not_found = True
       pkg_install_procedure = ', you can find it at https://stem.torproject.org/download.html'
-    
+
     require_message = 'nyx requires python-stem'
     if pkg_manager_not_found:
       final_message = require_message + pkg_install_procedure
