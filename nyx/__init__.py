@@ -42,28 +42,27 @@ Tor curses monitoring application.
     +- halt - stops daemon panels
 """
 
+import collections
 import contextlib
+import distutils.spawn
 import getpass
 import os
 import platform
 import sys
 import threading
 import time
-import shutil
 
+# mapping of package managers to their stem installation command
 
-def is_available(command):
-   return bool(shutil.which(command))
-
-
-class PkgManagers:
-  ARCHLINUX = 'pacman'
-  GENTOO = 'emerge'
-  DEBIAN = 'apt'
-  DEBIAN_OLD = 'apt-get'
-  RED_HAT = 'yum'
-  PIP = 'pip'
-
+PACKAGE_MANAGERS = collections.OrderedDict((
+  ('apt-get', 'sudo apt-get install python-stem'),  # Debian
+  ('dnf', 'sudo dnf install python-stem'),          # Redhat
+  ('pacman', 'sudo pacman -S python-stem'),         # Archlinux
+  ('emerge', 'sudo emerge stem'),                   # Gentoo
+  ('pkg', 'pkg install security/py-stem'),          # FreeBSD
+  ('pkg_add', 'pkg_add py-stem'),                   # OpenBSD
+  ('pip', 'pip install stem'),                      # PyPI
+))
 
 try:
   import stem
@@ -74,38 +73,13 @@ try:
   import stem.util.log
   import stem.util.system
   import stem.util.tor_tools
-except ImportError as exc:
-  if isinstance(exc, ModuleNotFoundError) and str(exc) == "No module named 'stem'":
-    missing_pkg_name = 'python-stem'
-    pkg_manager_not_found = False
-    if is_available(PkgManagers.DEBIAN):
-      pkg_install_procedure = PkgManagers.DEBIAN + ' install'
-    elif is_available(PkgManagers.DEBIAN_OLD):
-      pkg_install_procedure = PkgManagers.DEBIAN_OLD + ' install'
-    elif is_available(PkgManagers.GENTOO):
-      missing_pkg_name = 'net-libs/stem'
-      pkg_install_procedure = PkgManagers.GENTOO + ' --ask'
-    elif is_available(PkgManagers.RED_HAT):
-      pkg_install_procedure = PkgManagers.RED_HAT + ' install'
-    elif is_available(PkgManagers.ARCHLINUX):
-      pkg_install_procedure = PkgManagers.ARCHLINUX + ' -Syu'
-    elif is_available(PkgManagers.PIP):
-      missing_pkg_name = 'stem'
-      pkg_install_procedure = PkgManagers.PIP + ' install'
-    else:
-      pkg_manager_not_found = True
-      pkg_install_procedure = ', you can find it at https://stem.torproject.org/download.html'
+except ImportError:
+  for cmd, stem_install in PACKAGE_MANAGERS.items():
+    if distutils.spawn.find_executable(cmd):
+      print("nyx requires stem, try running '%s'" % stem_install)
+      sys.exit(1)
 
-    require_message = 'nyx requires python-stem'
-    if pkg_manager_not_found:
-      final_message = require_message + pkg_install_procedure
-    else:
-      final_message = require_message + ', try running:\n\nsudo ' + pkg_install_procedure + ' ' + missing_pkg_name + '\n'
-
-    print(final_message)
-  else:
-    print('Unable to start nyx: %s' % exc)
-
+  print('nyx requires stem, you can find it at https://stem.torproject.org/download.html')
   sys.exit(1)
 
 
