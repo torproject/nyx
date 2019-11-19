@@ -42,7 +42,9 @@ Tor curses monitoring application.
     +- halt - stops daemon panels
 """
 
+import collections
 import contextlib
+import distutils.spawn
 import getpass
 import os
 import platform
@@ -50,14 +52,36 @@ import sys
 import threading
 import time
 
-import stem
-import stem.connection
-import stem.control
-import stem.util.conf
-import stem.util.connection
-import stem.util.log
-import stem.util.system
-import stem.util.tor_tools
+# mapping of package managers to their stem installation command
+
+PACKAGE_MANAGERS = collections.OrderedDict((
+  ('apt-get', 'sudo apt-get install python-stem'),  # Debian
+  ('dnf', 'sudo dnf install python-stem'),          # Redhat
+  ('pacman', 'sudo pacman -S python-stem'),         # Archlinux
+  ('emerge', 'sudo emerge stem'),                   # Gentoo
+  ('pkg', 'pkg install security/py-stem'),          # FreeBSD
+  ('pkg_add', 'pkg_add py-stem'),                   # OpenBSD
+  ('pip', 'pip install stem'),                      # PyPI
+))
+
+try:
+  import stem
+  import stem.connection
+  import stem.control
+  import stem.util.conf
+  import stem.util.connection
+  import stem.util.log
+  import stem.util.system
+  import stem.util.tor_tools
+except ImportError:
+  for cmd, stem_install in PACKAGE_MANAGERS.items():
+    if distutils.spawn.find_executable(cmd):
+      print("nyx requires stem, try running '%s'" % stem_install)
+      sys.exit(1)
+
+  print('nyx requires stem, you can find it at https://stem.torproject.org/download.html')
+  sys.exit(1)
+
 
 SQLITE_UNAVAILABLE = """\
 Python's sqlite3 module is unavailable. Unfortunately some platforms
@@ -113,7 +137,6 @@ __all__ = [
 def conf_handler(key, value):
   if key == 'redraw_rate':
     return max(1, value)
-
 
 CONFIG = stem.util.conf.config_dict('nyx', {
   'confirm_quit': True,
@@ -175,18 +198,7 @@ def main():
   try:
     nyx.starter.main()
   except ImportError as exc:
-    if exc.message == 'No module named stem':
-      if stem.util.system.is_available('pip'):
-        advice = ", try running 'sudo pip install stem'"
-      elif stem.util.system.is_available('apt-get'):
-        advice = ", try running 'sudo apt-get install python-stem'"
-      else:
-        advice = ', you can find it at https://stem.torproject.org/download.html'
-
-      print('nyx requires stem' + advice)
-    else:
-      print('Unable to start nyx: %s' % exc)
-
+    print('Unable to start nyx: %s' % exc)
     sys.exit(1)
 
 
