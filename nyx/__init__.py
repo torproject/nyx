@@ -87,7 +87,7 @@ SQLITE_UNAVAILABLE = """\
 Python's sqlite3 module is unavailable. Unfortunately some platforms
 don't bundle this with the interpreter. Please let us know at...
 
-  https://trac.torproject.org/projects/tor/wiki/doc/nyx/bugs
+  https://github.com/torproject/nyx/issues/
 """
 
 SQLITE_UNAVAILABLE_GENTOO = """\
