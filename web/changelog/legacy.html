@@ -74,8 +74,8 @@
       <ul>
         <li><span class="component">Startup</span>
           <ul>
-            <li>Check auth cookie is 32 bytes before reading (<a href="https://trac.torproject.org/projects/tor/ticket/4305">ticket</a>)</li>
-            <li>Crash when tor log file contains leap year dates (<a href="https://trac.torproject.org/projects/tor/ticket/5265">ticket</a>)</li>
+            <li>Check auth cookie is 32 bytes before reading (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4305">ticket</a>)</li>
+            <li>Crash when tor log file contains leap year dates (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/5265">ticket</a>)</li>
             <li>Crash when using unrecognized authentication methods like 'SAFECOOKIE'</li>
           </ul>
         </li>
@@ -89,16 +89,16 @@
         <li><span class="component">Connections</span>
           <ul>
             <li>Notify when DisableDebuggerAttachment prevents connection lookups</li>
-            <li>Better validation of circuit-staus output (<a href="https://trac.torproject.org/projects/tor/ticket/5267">ticket</a>)</li>
-            <li>Help information for 'enter' mislabeled (<a href="https://trac.torproject.org/projects/tor/ticket/4621">ticket</a>)</li>
+            <li>Better validation of circuit-staus output (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/5267">ticket</a>)</li>
+            <li>Help information for 'enter' mislabeled (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4621">ticket</a>)</li>
             <li>Circuits failed to show when connection information was unavailable</li>
           </ul>
         </li>
 
         <li><span class="component">Torrc</span>
           <ul>
-            <li>Validation was case sensitive (<a href="https://trac.torproject.org/projects/tor/ticket/4601">ticket</a>)</li>
-            <li>Misleading DirReqStatistics warnings with new tor versions (<a href="https://trac.torproject.org/projects/tor/ticket/4237">ticket</a>)</li>
+            <li>Validation was case sensitive (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4601">ticket</a>)</li>
+            <li>Misleading DirReqStatistics warnings with new tor versions (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4237">ticket</a>)</li>
           </ul>
         </li>
 
@@ -111,11 +111,11 @@
 
         <li><span class="component">Cross-Platform Support</span>
           <ul>
-            <li><b>OSX/BSD:</b> support for pwd lookups (<a href="https://trac.torproject.org/projects/tor/ticket/4236">ticket</a>)</li>
+            <li><b>OSX/BSD:</b> support for pwd lookups (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4236">ticket</a>)</li>
             <li><b>OSX/BSD:</b> ps checks couldn't detect tor process</li>
             <li><b>OpenBSD:</b> only use lsof for connection lookups</li>
-            <li><b>Linux:</b> proc utils didn't account for big-endian architectures (<a href="https://trac.torproject.org/projects/tor/ticket/4777">ticket</a>)</li>
-            <li><b>Debian:</b> misleading warning about default Logging value (<a href="https://trac.torproject.org/projects/tor/ticket/4602">ticket</a>)</li>
+            <li><b>Linux:</b> proc utils didn't account for big-endian architectures (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4777">ticket</a>)</li>
+            <li><b>Debian:</b> misleading warning about default Logging value (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4602">ticket</a>)</li>
             <li><b>RedHat:</b> specify python version in rpm dependencies</li>
           </ul>
         </li>
@@ -129,11 +129,11 @@
       <ul>
         <li><span class="component">Startup</span>
           <ul>
-            <li>ControlSocket support (<a href="https://trac.torproject.org/projects/tor/ticket/3638">ticket</a>)</li>
+            <li>ControlSocket support (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3638">ticket</a>)</li>
             <li>Notify when tor or nyx are running as root</li>
             <li>Take chroot into consideration for auth cookie path</li>
             <li>Don't start wizard when there's a tor process running, even if we can't connect to it</li>
-            <li>Try all authentication methods rather than just the first (<a href="https://trac.torproject.org/projects/tor/ticket/3958">ticket</a>)</li>
+            <li>Try all authentication methods rather than just the first (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3958">ticket</a>)</li>
           </ul>
         </li>
 
@@ -160,7 +160,7 @@
 
         <li><span class="component">Configuration Editor</span>
           <ul>
-            <li>Optional system wide torrc integration (<a href="https://trac.torproject.org/projects/tor/ticket/3629">ticket</a>)</li>
+            <li>Optional system wide torrc integration (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3629">ticket</a>)</li>
             <li>We wrote a blank torrc when 'GETINFO config-text' was unavailable</li>
             <li>Hotkey for saving the torrc conflicted with the relay setup wizard</li>
             <li>Crash when pressing 'enter' if never attached to tor</li>
@@ -169,13 +169,13 @@
 
         <li><span class="component">Wizard</span>
           <ul>
-            <li>Quit wizard when the user presses 'q' rather than just esc (<a href="https://trac.torproject.org/projects/tor/ticket/3995">ticket</a>)</li>
+            <li>Quit wizard when the user presses 'q' rather than just esc (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3995">ticket</a>)</li>
           </ul>
         </li>
 
         <li><span class="component">Curses</span>
           <ul>
-            <li>Force manual redraw when user presses ctrl+L (<a href="https://trac.torproject.org/projects/tor/ticket/2830">ticket</a>)</li>
+            <li>Force manual redraw when user presses ctrl+L (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2830">ticket</a>)</li>
             <li>Quitting could cause unclean curses shutdown</li>
             <li>Periodically redraw content to prevent terminal issues from persisting</li>
           </ul>
@@ -195,9 +195,9 @@
 
         <li><span class="hotfix"><b>Hotfix release</b> (September 29th, 2011) corrected the following...</span>
           <ul>
-            <li>Crash when esc was pressed in the interpreter prompt (<a href="https://trac.torproject.org/projects/tor/ticket/4098">ticket</a>)</li>
-            <li>Deduplicating couple common log messages (<a href="https://trac.torproject.org/projects/tor/ticket/4096">ticket</a>)</li>
-            <li>Ctrl+L redraw wasn't always being triggered (<a href="https://trac.torproject.org/projects/tor/ticket/2830">ticket</a>)</li>
+            <li>Crash when esc was pressed in the interpreter prompt (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4098">ticket</a>)</li>
+            <li>Deduplicating couple common log messages (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/4096">ticket</a>)</li>
+            <li>Ctrl+L redraw wasn't always being triggered (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2830">ticket</a>)</li>
             <li>Dropped gtk/cagraph requirements</li>
           </ul>
         </li>
@@ -212,14 +212,14 @@
         <li><span class="component">Startup</span>
           <ul>
             <li>Renamed our process from &quot;python src/starter.py&quot; to &quot;nyx&quot;</li>
-            <li>Moved connection negotiation into torctl (<a href="https://trac.torproject.org/projects/tor/ticket/3409">ticket</a>)</li>
-            <li>Avoid excessive torctl memory allocation, lowering memory usage by 2.5 MB (12%) (<a href="https://trac.torproject.org/projects/tor/ticket/3406">ticket</a>)</li>
+            <li>Moved connection negotiation into torctl (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3409">ticket</a>)</li>
+            <li>Avoid excessive torctl memory allocation, lowering memory usage by 2.5 MB (12%) (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3406">ticket</a>)</li>
             <li>More descriptive controller password prompt</li>
-            <li>Crash when a sighup crashes tor (<a href="https://trac.torproject.org/projects/tor/ticket/1329">ticket</a>)</li>
+            <li>Crash when a sighup crashes tor (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/1329">ticket</a>)</li>
             <li>Crash from unjoined threads during shutdown</li>
             <li>Crash when pressing ctrl+c due to improper daemon shutdown</li>
             <li>Crash when using the --debug argument with old tor versions</li>
-            <li>Crash when tor's socks port was used rather than the control port (<a href="https://trac.torproject.org/projects/tor/ticket/2580">ticket</a>)</li>
+            <li>Crash when tor's socks port was used rather than the control port (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2580">ticket</a>)</li>
           </ul>
         </li>
 
@@ -245,9 +245,9 @@
           <ul>
             <li>Reintroduced descriptor popup</li>
             <li>Provide nickname for circuit connections</li>
-            <li>Shut down torctl zombie connections to the control port (<a href="https://trac.torproject.org/projects/tor/ticket/2812">ticket</a>)</li>
+            <li>Shut down torctl zombie connections to the control port (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2812">ticket</a>)</li>
             <li>Misparsed circuit paths for tor versions prior to 0.2.2.1</li>
-            <li>Crash when pressing enter on a blank connection page (<a href="https://trac.torproject.org/projects/tor/ticket/3128">ticket</a>)</li>
+            <li>Crash when pressing enter on a blank connection page (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/3128">ticket</a>)</li>
             <li>Crash when querying locales if geoip information was unavailable</li>
           </ul>
         </li>
@@ -273,7 +273,7 @@
             <li>Option to exclude panels from the interface</li>
             <li>Option to override all displayed color</li>
             <li>Speeding nyx's startup time from 0.84s to 0.14s (83% improvement by fetching connections in background)</li>
-            <li>Speeding nyx's shutdown time form ~1s to instantaneous (<a href="https://trac.torproject.org/projects/tor/ticket/2412">ticket</a>)</li>
+            <li>Speeding nyx's shutdown time form ~1s to instantaneous (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2412">ticket</a>)</li>
             <li>Display was cropped by an extra cell</li>
             <li>Closing all message prompts when a key is pressed</li>
             <li>Crash when cropping whitespace-only strings</li>
@@ -310,10 +310,10 @@
           <ul>
             <li>Faster startup by lazy loading 'address =&gt; fingerprint' mappings</li>
             <li>Dropped warning suggesting users set FetchUselessDescriptors</li>
-            <li>Failed connection attempts caused zombie connections (<a href="https://trac.torproject.org/projects/tor/ticket/2812">ticket</a>)</li>
+            <li>Failed connection attempts caused zombie connections (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2812">ticket</a>)</li>
             <li>nyxrc option 'startup.dataDirectory' didn't work</li>
             <li>Crash when using python 2.5 due to missing bin built-in</li>
-            <li>Crash when family entries have a trailing comma (<a href="https://trac.torproject.org/projects/tor/ticket/2414">ticket</a>)</li>
+            <li>Crash when family entries have a trailing comma (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2414">ticket</a>)</li>
             <li>Crash from uncaught OSError when making directories failed</li>
             <li>Crash joining with torctl thread during shutdown</li>
             <li>Crash citing 'syshook' during shutdown</li>
@@ -322,7 +322,7 @@
 
         <li><span class="component">Header</span>
           <ul>
-            <li>Displayed wrong address if changed since first started (<a href="https://trac.torproject.org/projects/tor/ticket/2776">ticket</a>)</li>
+            <li>Displayed wrong address if changed since first started (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2776">ticket</a>)</li>
           </ul>
         </li>
 
@@ -360,7 +360,7 @@
 
         <li><span class="component">Torrc</span>
           <ul>
-            <li>Validation requires 'GETINFO config-text' from Tor version 0.2.2.7 (<a href="https://trac.torproject.org/projects/tor/ticket/2501">ticket</a>)</li>
+            <li>Validation requires 'GETINFO config-text' from Tor version 0.2.2.7 (<a href="https://gitlab.torproject.org/legacy/trac/-/issues/2501">ticket</a>)</li>
             <li>Line numbers for torrc issues were off by one</li>
             <li>Allowed sorting by 'is default' attribute</li>
           </ul>

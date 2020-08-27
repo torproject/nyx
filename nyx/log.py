@@ -277,7 +277,9 @@ class LogEntry(object):
   Individual tor or nyx log entry.
 
   **Note:** Tor doesn't include the date in its timestamps so the year
-  component may be inaccurate. (:trac:`15607`)
+  component may be inaccurate.
+
+    https://gitlab.torproject.org/tpo/core/tor/-/issues/15607
 
   :var int timestamp: unix timestamp for when the event occured
   :var str type: event type
