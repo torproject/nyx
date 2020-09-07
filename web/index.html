@@ -157,6 +157,37 @@
           </div>
         </li>
 
+        <li id="pgp_validation">
+          <span>How do I validate the PGP signature?</span>
+          <div class="answer">
+            <p>Most <a href="#download">download options</a> are maintained by their operating system's community. Nyx's author only provides <b>PyPI</b>, <b>File</b>, and <b>Source</b>.</p>
+            <p>Releases are <a href="https://en.wikipedia.org/wiki/Pretty_Good_Privacy">PGP signed</a> and can be validated with the <a href="https://www.atagar.com/pgp.html">author's key</a>...</p>
+
+            <ul>
+              <li><a href="https://gnupg.org/">Install GPG</a> if you don't already have it.</li>
+              <li>Download Nyx's <a href="#download">latest release and signature</a>.</li>
+              <li>Get the key of Nyx's author...
+                <pre>% gpg --keyserver keyserver.ubuntu.com --recv-keys 0x9ABBEEC6
+gpg: requesting key 9ABBEEC6 from hkp server keyserver.ubuntu.com
+gpg: key 9ABBEEC6: public key "Damian Johnson (www.atagar.com) <atagar1@gmail.com>" imported
+gpg: no ultimately trusted keys found
+gpg: Total number processed: 1
+gpg:               imported: 1  (RSA: 1)</pre>
+              <br /></li>
+              <li>Validate the downloaded file with the signature...
+                <pre>gpg --verify nyx-2.0.4.tar.gz.asc nyx-2.0.4.tar.gz
+gpg: Signature made Mon 06 Nov 2017 12:28:13 PM PST using RSA key ID 87F30690
+gpg: Good signature from "Damian Johnson (www.atagar.com) <atagar1@gmail.com>"
+gpg:                 aka "Damian Johnson <atagar@torproject.org>"
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 6827 8CC5 DD2D 1E85 C4E4  5AD9 0445 B7AB 9ABB EEC6
+     Subkey fingerprint: 2AE2 24F5 C424 990A E520  6C85 8884 04C1 87F3 0690</pre>
+              <br /></li>
+            </ul>
+          </div>
+        </li>
+
         <li id="other_tor_uis">
           <span>Are there any other user interfaces for Tor?</span>
           <div class="answer">
@@ -354,31 +385,30 @@ sudo python setup.py install</pre><br></li>
       <div class="section"></div>
       <a href="#download" class="section-title">Download</a>
 
-      <p>Nyx is available Mac OSX, Linux, and BSD but <a href="#windows">not Windows</a>. Find your platform below to get started. For what's changed see our <a href="changelog/index.html">change log</a>.</p>
+      <p>Nyx is available Mac OS, Linux, and BSD but <a href="#windows">not Windows</a>. Find your platform below to get started. For what's changed see our <a href="changelog/index.html">change log</a>.</p>
 
       <br>
 
       <div class="platform">
         <a href="https://pypi.python.org/pypi/nyx/" id="pypi"><img src="images/download/pypi.png" alt="PyPI"></a>
         <a href="https://pypi.python.org/pypi/nyx/" class="platform-title">Python Package Index</a>
-        <p>Signed releases and instructions for both Python 2.x and 3.x. You can easily install from its <a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz">tarball</a> (<a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz.asc">sig</a>), or with <b>pip</b>...</p>
+        <p>You can install our latest release from the Python Package Index (PyPI) with <b>pip</b>...</p>
         <pre>
-% sudo easy_install pip
 % sudo pip install nyx
 </pre>
       </div>
 
       <div class="platform">
-        <a href="https://formulae.brew.sh/formula/nyx" id="osx"><img src="images/download/osx.png" alt="OSX"></a>
-        <a href="https://formulae.brew.sh/formula/nyx"><span class="platform-title">Mac OSX</span></a>
-        <p>On OSX you can easily install with both the <b>pip</b> command above and <b>brew</b>...</p>
+        <a href="https://formulae.brew.sh/formula/nyx" id="mac"><img src="images/download/mac.png" alt="Mac"></a>
+        <a href="https://formulae.brew.sh/formula/nyx"><span class="platform-title">Mac OS</span></a>
+        <p>On Mac OS you can easily install with both the <b>pip</b> command above and <b>brew</b>...</p>
         <pre>% brew install nyx</pre>
       </div>
 
       <div class="platform">
         <a href="http://packages.debian.org/sid/nyx" id="debian"><img src="images/download/debian.png" alt="Debian"></a>
         <a href="http://packages.debian.org/sid/nyx" class="platform-title">Debian</a>
-        <p>Package maintained by Dererk for Debian. Use <a class="faq_no_apt_get" href="#no_apt_get">sudo pip install nyx</a> if this doesn't work.</p>
+        <p>Package maintained by <a href="https://nm.debian.org/person/dererk/">Dererk</a>. Use <a class="faq_no_apt_get" href="#no_apt_get">sudo pip install nyx</a> if this doesn't work.</p>
         <pre>% sudo apt-get install nyx</pre>
       </div>
 
@@ -392,14 +422,14 @@ sudo python setup.py install</pre><br></li>
       <div class="platform">
         <a href="https://apps.fedoraproject.org/packages/nyx" id="fedora"><img src="images/download/fedora.png" alt="Fedora"></a>
         <a href="https://apps.fedoraproject.org/packages/nyx" class="platform-title">Fedora</a>
-        <p>Package maintained by Juan for Fedora using <b>dnf</b> or <b>yum</b>.</p>
+        <p>Package maintained by <a href="https://fedoraproject.org/wiki/User:Jorti">Juan</a>.</p>
         <pre>% sudo dnf install nyx</pre>
       </div>
 
       <div class="platform">
         <a href="https://packages.gentoo.org/packages/net-misc/nyx" id="gentoo"><img src="images/download/gentoo.png" alt="Gentoo"></a>
         <a href="https://packages.gentoo.org/packages/net-misc/nyx" class="platform-title">Gentoo</a>
-        <p>Package by Anthony Basile for Gentoo.</p>
+        <p>Package by <a href="https://packages.gentoo.org/maintainer/blueness@gentoo.org">Anthony Basile</a> for Gentoo.</p>
         <pre>% sudo emerge nyx</pre>
       </div>
 
@@ -415,7 +445,7 @@ sudo python setup.py install</pre><br></li>
       <div class="platform">
         <a href="https://slackbuilds.org/repository/14.2/python/nyx/" id="slackware"><img src="images/download/slackware.png" alt="Slackware"></a>
         <a href="https://slackbuilds.org/repository/14.2/python/nyx/" class="platform-title">Slackware</a>
-        <p>Package maintained by Markus for <a href="http://slackbuilds.org/howto/">Slackware</a>.</p>
+        <p>Package maintained by <a href="https://docs.slackware.com/wiki:user:markush">Markus</a> for <a href="http://slackbuilds.org/howto/">Slackware</a>.</p>
       </div>
 
       <div class="platform">
@@ -440,9 +470,16 @@ sudo python setup.py install</pre><br></li>
       </div>
 
       <div class="platform">
+        <a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz" id="file"><img src="images/download/file.png" alt="File"></a>
+        <a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz" class="platform-title">File</a>
+        <p><a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz">File</a> and <a href="https://pypi.python.org/packages/42/37/85890dae5680f36f5b1c964ad41674ebb8d1186383fbca58f82e76de734c/nyx-2.0.4.tar.gz.asc">signature</a> upon which the above packages are based (<a class="faq_pgp_validation" href="#pgp_validation">instructions</a>). You can directly install from this with...</p>
+        <pre>% pip install nyx-2.0.4.tar.gz</pre>
+      </div>
+
+      <div class="platform">
         <a href="https://gitweb.torproject.org/nyx.git" id="git"><img src="images/download/git.png" alt="Git"></a>
         <a href="https://gitweb.torproject.org/nyx.git" class="platform-title">Source Repository</a>
-        <p>For those that want to live on the bleeding edge or contribute, Nyx's git repository can be fetched with...</p>
+        <p>For those who want to live on the bleeding edge or contribute, you can download Nyx's git repository with...</p>
         <pre>% git clone https://git.torproject.org/nyx.git</pre>
       </div>
     </div>
@@ -863,6 +900,12 @@ logged_events BW, NOTICE, WARN, ERR
         $(".tabs").data("tabs").click("faq");
         toggleFaq($('#no_apt_get > .answer'));
         document.getElementById('no_apt_get').scrollIntoView();
+      });
+
+      $('.faq_pgp_validation').click(function() {
+        $(".tabs").data("tabs").click("faq");
+        toggleFaq($('#pgp_validation > .answer'));
+        document.getElementById('pgp_validation').scrollIntoView();
       });
 
       // when provided an anchor select the tab it resides within

@@ -52,6 +52,12 @@ Platform images in this folder originate from the following...
   License: GPL v2
   File: NuoveXT/128x128/apps/openbsd.png
 
+* File
+  Source: NuoveXT (http://nuovext.pwsp.net/)
+  Author: Alexandre Moore (http://sa-ki.deviantart.com/)
+  License: GPL v2
+  File: NuoveXT/128x128/mimetypes/gnome-mime-application-x-archive.png 
+
 * Git
   Source: https://en.wikipedia.org/wiki/File:Git-logo.svg
   Author: Jason Long
