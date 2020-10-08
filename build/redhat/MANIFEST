@@ -1,5 +1,5 @@
-arm
-armrc.sample
+nyx
+config.sample
 ChangeLog
 install
 LICENSE
@@ -65,7 +65,7 @@ src/cli/menu/actions.py
 src/cli/menu/__init__.py
 src/cli/menu/item.py
 src/cli/menu/menu.py
-src/gui/arm.xml
+src/gui/nyx.xml
 src/gui/configPanel.py
 src/gui/controller.py
 src/gui/generalPanel.py
@@ -94,7 +94,7 @@ src/util/torConfig.py
 src/util/torInterpretor.py
 src/util/torTools.py
 src/util/uiTools.py
-src/resources/arm.1
+src/resources/nyx.1
 src/resources/startTor
 src/resources/torConfigDesc.txt
 src/resources/torrcTemplate.txt
