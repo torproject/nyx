@@ -1,6 +1,6 @@
 To rebuild this deb run the following...
 
-git clone git://git.torproject.org/arm.git
+git clone https://github.com/torproject/nyx.git
 cd arm
 git checkout -b release remotes/origin/release
 git checkout -b packaging remotes/origin/packaging
