@@ -860,6 +860,14 @@ logged_events BW, NOTICE, WARN, ERR
 
     <script type="text/javascript">
     $(function() {
+      $('.answer').toggle(); // hide answers on launch
+      $('.questions li').each(function() { 
+        var $thisSection = $(this);
+        $thisSection.click(function(){ 
+          $thisSection.find('.answer').toggle() // un/rehide them when the question title is clicked
+        });
+      });
+      
       $(".tabs").tabs(".page", { history: true });
 
       // when javascript is enabled change nav anchors so they're both shorter
@@ -870,31 +878,6 @@ logged_events BW, NOTICE, WARN, ERR
       document.getElementById("t3").href = "#download";
       document.getElementById("t4").href = "#configuration";
       document.getElementById("t5").href = "#contact";
-
-      // show/hide for FAQ questions
-
-      var toggleFaq = function(answer) {
-        if (answer.is('.open')) {
-          answer.animate({'height': '0'}, 100);
-          answer.removeClass('open');
-        } else {
-          var newHeight = 0;
-
-          answer.children().each(function () {
-            if (["nyx-img", "vidalia-img"].indexOf(this.className) == -1) {
-              newHeight += $(this).outerHeight(true);
-            }
-          });
-
-          answer.animate({'height': newHeight}, 100);
-          answer.addClass('open');
-          history.replaceState(undefined, undefined, "#" + answer.parent().attr('id'));
-         }
-      }
-
-      $('.questions > li > span').click(function() {
-        toggleFaq($(this).parent().find('.answer'));
-      });
 
       $('.faq_no_apt_get').click(function() {
         $(".tabs").data("tabs").click("faq");
