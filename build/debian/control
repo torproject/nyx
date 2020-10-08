@@ -1,4 +1,4 @@
-Source: tor-arm
+Source: nyx
 Section: comm
 Priority: extra
 Maintainer: Damian Johnson <atagar@torproject.org>
@@ -6,20 +6,20 @@ Uploaders: Ulises Vitulli <dererk@debian.org>
 Build-Depends: debhelper (>= 5), python-support (>= 0.6), cdbs (>= 0.4.49), python
 Standards-Version: 3.9.2.0
 XS-Python-Version: >= 2.5
-Vcs-Git: git://git.torproject.org/arm.git
-Vcs-Browser: https://gitweb.torproject.org/arm.git
-Homepage: http://www.atagar.com/arm/
+Vcs-Git: git://github.com/torproject/nyx.git
+Vcs-Browser: https://github.com/torproject/nyx.git
+Homepage: https://nyx.torproject.org/
 
-Package: tor-arm
+Package: nyx
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-torctl
 Suggests: tor
 XB-Python-Version: ${python:Versions}
 Description: terminal status monitor for tor
- The anonymizing relay monitor (arm) is a terminal status monitor for Tor
- relays, intended for command-line aficionados, ssh connections, and anyone
- stuck with a tty terminal. This works much like top does for system usage,
- providing real time statistics for:
+ Nyx, f/k/a the anonymizing relay monitor (arm), is a terminal status monitor
+ for Tor relays, intended for command-line aficionados, ssh connections, and
+ anyone stuck with a tty terminal. This works much like top does for system
+ usage, providing real time statistics for:
  .
   - bandwidth, cpu, and memory usage
   - relay's current configuration
