@@ -32,7 +32,7 @@ def _read_torrc(path):
 
 class TorrcPanel(panel.Panel):
   """
-  Renders the current torrc or nyxrc with syntax highlighting in a scrollable
+  Renders the current torrc or nyxconfig with syntax highlighting in a scrollable
   area.
   """
 
