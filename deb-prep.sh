@@ -16,7 +16,7 @@
 
 if [ $# -lt 1 ]
   then
-    echo "Usage: ./deb-prep.sh <arm version>"
+    echo "Usage: ./deb-prep.sh <nyx version>"
     exit 1
   else debVersion=$1
 fi
@@ -24,12 +24,12 @@ fi
 mkdir release_deb
 git archive --format=tar release | (cd ./release_deb && tar xf -)
 
-# edits the man page path for the sample armrc to reflect where it's located
+# edits the man page path for the sample nyxconfig to reflect where it's located
 # on debian:
-# /usr/share/doc/arm/armrc.sample -> /usr/share/doc/tor-arm/armrc.sample.gz
-sed -i 's/\/usr\/share\/doc\/arm\/armrc.sample/\/usr\/share\/doc\/tor-arm\/armrc.sample.gz/g' release_deb/src/resources/arm.1
+# /usr/share/doc/nyx/config.sample -> /usr/share/doc/nyx/config.sample.gz
+sed -i 's/\/usr\/share\/doc\/nyx\/config.sample/\/usr\/share\/doc\/nyx\/config.sample.gz/g' release_deb/src/resources/nyx.1
 
-tar czf tor-arm_${debVersion}.orig.tar.gz release_deb
+tar czf nyx_${debVersion}.orig.tar.gz release_deb
 
 (cd build && git archive --format=tar packaging debian) | (cd ./release_deb && tar xf -)
 
