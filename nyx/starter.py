@@ -77,9 +77,9 @@ def main(config):
     except IOError as exc:
       stem.util.log.warn('Failed to load configuration (using defaults): "%s"' % exc.strerror)
   else:
-    stem.util.log.notice('No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxrc.sample for its options).' % args.config)
+    stem.util.log.notice('No nyxconfig loaded, using defaults. You can customize nyx by placing a configuration file at %s (see https://nyx.torproject.org/nyxconfig.sample for its options).' % args.config)
 
-  # If a password is provided via the user's nyxrc that will be use, otherwise
+  # If a password is provided via the user's nyxconfig that will be use, otherwise
   # users are prompted for a password if required.
 
   controller_password = config.get('password', None)
@@ -154,14 +154,14 @@ def _setup_debug_logging(args):
   logger = stem.util.log.get_logger()
   logger.addHandler(debug_handler)
 
-  nyxrc_content = "[file doesn't exist]"
+  nyxconfig_content = "[file doesn't exist]"
 
   if os.path.exists(args.config):
     try:
-      with open(args.config) as nyxrc_file:
-        nyxrc_content = nyxrc_file.read()
+      with open(args.config) as nyxconfig_file:
+        nyxconfig_content = nyxconfig_file.read()
     except IOError as exc:
-      nyxrc_content = '[unable to read file: %s]' % exc.strerror
+      nyxconfig_content = '[unable to read file: %s]' % exc.strerror
 
   stem.util.log.trace(DEBUG_HEADER.format(
     nyx_version = nyx.__version__,
@@ -169,8 +169,8 @@ def _setup_debug_logging(args):
     python_version = '.'.join(map(str, sys.version_info[:3])),
     system = platform.system(),
     platform = ' '.join(platform.dist()),
-    nyxrc_path = args.config,
-    nyxrc_content = nyxrc_content,
+    nyxconfig_path = args.config,
+    nyxconfig_content = nyxconfig_content,
   ))
 
 
@@ -200,7 +200,7 @@ def _warn_if_unable_to_get_pid(controller):
 @uses_settings
 def _warn_about_unused_config_keys(config):
   """
-  Provides a notice if the user's nyxrc has any entries that are unused.
+  Provides a notice if the user's nyxconfig has any entries that are unused.
   """
 
   for key in sorted(config.unused_keys()):
