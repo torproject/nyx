@@ -25,8 +25,8 @@ EXPECTED_WRAPPED_MSG = """\
 
 EXPECTED_ENTRIES = """\
  16:41:37 [NYX_WARNING] Tor's geoip database is unavailable.
- 16:41:37 [NYX_NOTICE] No nyxrc loaded, using defaults. You can customize nyx by
-   placing a configuration file at /home/atagar/.nyx/nyxrc (see the nyxrc.sample
+ 16:41:37 [NYX_NOTICE] No nyxconfig loaded, using defaults. You can customize nyx by
+   placing a configuration file at /home/atagar/.nyx/config (see the config.sample
    for its options).
  16:41:37 [NOTICE] New control connection opened from 127.0.0.1.
  16:41:37 [NOTICE] Opening OR listener on 0.0.0.0:7000
@@ -39,20 +39,20 @@ EXPECTED_ENTRIES = """\
 """.rstrip()
 
 EXPECTED_ENTRIES_WITH_BORDER = """\
-+-October 26, 2011-------------------------------------------------------------+
-|16:41:37 [NYX_WARNING] Tor's geoip database is unavailable.                   |
-|16:41:37 [NYX_NOTICE] No nyxrc loaded, using defaults. You can customize nyx  |
-|  by placing a configuration file at /home/atagar/.nyx/nyxrc (see the         |
-|  nyxrc.sample for its options).                                              |
-|16:41:37 [NOTICE] New control connection opened from 127.0.0.1.               |
-|16:41:37 [NOTICE] Opening OR listener on 0.0.0.0:7000                         |
-|16:41:37 [NOTICE] Opening Control listener on 127.0.0.1:9051                  |
-|16:41:37 [NOTICE] Opening Socks listener on 127.0.0.1:9050                    |
-|16:41:37 [NOTICE] Tor v0.2.9.0-alpha-dev (git-44ea3dc3311564a9) running on    |
-|  Linux with Libevent 2.0.16-stable, OpenSSL 1.0.1 and Zlib 1.2.3.4.          |
-|16:41:37 [NOTICE] Tor 0.2.9.0-alpha-dev (git-44ea3dc3311564a9) opening log    |
-|  file.                                                                       |
-+------------------------------------------------------------------------------+
++-October 26, 2011-----------------------------------------------------------------+
+|16:41:37 [NYX_WARNING] Tor's geoip database is unavailable.                       |
+|16:41:37 [NYX_NOTICE] No nyxconfig loaded, using defaults. You can customize nyx  |
+|  by placing a configuration file at /home/atagar/.nyx/config (see the            |
+|  nyconfig.sample for its options).                                               |
+|16:41:37 [NOTICE] New control connection opened from 127.0.0.1.                   |
+|16:41:37 [NOTICE] Opening OR listener on 0.0.0.0:7000                             |
+|16:41:37 [NOTICE] Opening Control listener on 127.0.0.1:9051                      |
+|16:41:37 [NOTICE] Opening Socks listener on 127.0.0.1:9050                        |
+|16:41:37 [NOTICE] Tor v0.2.9.0-alpha-dev (git-44ea3dc3311564a9) running on        |
+|  Linux with Libevent 2.0.16-stable, OpenSSL 1.0.1 and Zlib 1.2.3.4.              |
+|16:41:37 [NOTICE] Tor 0.2.9.0-alpha-dev (git-44ea3dc3311564a9) opening log        |
+|  file.                                                                           |
++----------------------------------------------------------------------------------+
 """.rstrip()
 
 NOW = 467656897.08663
@@ -62,7 +62,7 @@ TIME_STRUCT = time.gmtime(NOW)
 def entries():
   return [
     LogEntry(NOW, 'NYX_WARNING', "Tor's geoip database is unavailable."),
-    LogEntry(NOW, 'NYX_NOTICE', 'No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at /home/atagar/.nyx/nyxrc (see the nyxrc.sample for its options).'),
+    LogEntry(NOW, 'NYX_NOTICE', 'No nyxconfig loaded, using defaults. You can customize nyx by placing a configuration file at /home/atagar/.nyx/config (see the config.sample for its options).'),
     LogEntry(NOW, 'NOTICE', 'New control connection opened from 127.0.0.1.'),
     LogEntry(NOW, 'NOTICE', 'Opening OR listener on 0.0.0.0:7000'),
     LogEntry(NOW, 'NOTICE', 'Opening Control listener on 127.0.0.1:9051'),
