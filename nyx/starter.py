@@ -32,8 +32,8 @@ Stem Version: {stem_version}
 Python Version: {python_version}
 Platform: {system} ({platform})
 --------------------------------------------------------------------------------
-Nyx Configuration ({nyxrc_path}):
-{nyxrc_content}
+Nyx Configuration ({nyxconfig_path}):
+{nyxconfig_content}
 --------------------------------------------------------------------------------
 """.strip()
 
