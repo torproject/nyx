@@ -9,6 +9,9 @@ regular expressions.
 
 import functools
 import os
+import logging
+import logging.handlers
+import queue
 import time
 
 import stem.response.events
@@ -66,7 +69,10 @@ CONTENT_HEIGHT_REDRAW_THRESHOLD = 3
 # to make our LogPanel when curses initializes.
 
 stem_logger = log.get_logger()
-NYX_LOGGER = log.LogBuffer(log.Runlevel.DEBUG, yield_records = True)
+NYX_LOG_BUFFER = queue.Queue()
+
+NYX_LOGGER = logging.handlers.QueueHandler(NYX_LOG_BUFFER)
+NYX_LOGGER.setLevel(logging.DEBUG)
 stem_logger.addHandler(NYX_LOGGER)
 
 
@@ -123,8 +129,8 @@ class LogPanel(nyx.panel.DaemonPanel):
 
     # merge NYX_LOGGER into us, and listen for its future events
 
-    for event in NYX_LOGGER:
-      self._register_nyx_event(event)
+    while not NYX_LOG_BUFFER.empty():
+      self._register_nyx_event(NYX_LOG_BUFFER.get_nowait())
 
     NYX_LOGGER.emit = self._register_nyx_event
 
