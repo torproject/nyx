@@ -627,11 +627,11 @@ def _draw_address_column(subwindow, x, y, line, attr):
 
       if purpose:
         dst += ' (%s)' % str_tools.crop(purpose, 26 - len(dst) - 3)
-    elif not tor_controller().is_geoip_unavailable() and not line.entry.is_private():
+    elif tor_controller().get_info('ip-to-country/ipv4-available', '0') == '1' and not line.entry.is_private():
       dst += ' (%s)' % (line.locale if line.locale else '??')
 
   src = '%-21s' % src
-  dst = '%-21s' % dst if tor_controller().is_geoip_unavailable() else '%-26s' % dst
+  dst = '%-21s' % dst if tor_controller().get_info('ip-to-country/ipv4-available', '0') != '1' else '%-26s' % dst
 
   if line.entry.get_type() in (Category.INBOUND, Category.SOCKS, Category.CONTROL):
     dst, src = src, dst
