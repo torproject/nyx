@@ -6,7 +6,6 @@
     <title>Nyx</title>
     <link rel="shortcut icon" href="images/favicon.png">
     <link rel="stylesheet" type="text/css" href="styles.css">
-    <noscript><link rel="stylesheet" type="text/css" href="styles_no_js.css"></noscript>
 
     <!-- jQueryTools 1.2.6 (https://jquerytools.github.io/download/), copied July 24, 2017 -->
     <script src="jquery.tools.min.js" type="text/javascript"></script>
@@ -860,6 +859,7 @@ logged_events BW, NOTICE, WARN, ERR
 
     <script type="text/javascript">
     $(function() {
+      $('.answer').toggle(); // hide answers on launch
       $(".tabs").tabs(".page", { history: true });
 
       // when javascript is enabled change nav anchors so they're both shorter
@@ -874,22 +874,8 @@ logged_events BW, NOTICE, WARN, ERR
       // show/hide for FAQ questions
 
       var toggleFaq = function(answer) {
-        if (answer.is('.open')) {
-          answer.animate({'height': '0'}, 100);
-          answer.removeClass('open');
-        } else {
-          var newHeight = 0;
-
-          answer.children().each(function () {
-            if (["nyx-img", "vidalia-img"].indexOf(this.className) == -1) {
-              newHeight += $(this).outerHeight(true);
-            }
-          });
-
-          answer.animate({'height': newHeight}, 100);
-          answer.addClass('open');
-          history.replaceState(undefined, undefined, "#" + answer.parent().attr('id'));
-         }
+        answer.toggle();
+        history.replaceState(undefined, undefined, "#" + answer.parent().attr('id'));
       }
 
       $('.questions > li > span').click(function() {
