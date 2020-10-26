@@ -30,7 +30,7 @@ DEBUG_HEADER = """
 Nyx {nyx_version} Debug Dump
 Stem Version: {stem_version}
 Python Version: {python_version}
-Platform: {system} ({platform})
+Platform: {system}
 --------------------------------------------------------------------------------
 Nyx Configuration ({nyxrc_path}):
 {nyxrc_content}
@@ -168,7 +168,6 @@ def _setup_debug_logging(args):
     stem_version = stem.__version__,
     python_version = '.'.join(map(str, sys.version_info[:3])),
     system = platform.system(),
-    platform = ' '.join(platform.dist()),
     nyxrc_path = args.config,
     nyxrc_content = nyxrc_content,
   ))
