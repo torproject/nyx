@@ -173,6 +173,8 @@ def conf_handler(key, value):
 
     if value not in Color and value != 'None':
       raise ValueError('"%s" isn\'t a valid color' % value)
+
+    return value
   elif key == 'max_line_wrap':
     return max(1, value)
 
