@@ -85,7 +85,7 @@ class LogPanel(nyx.panel.DaemonPanel):
   def __init__(self):
     nyx.panel.DaemonPanel.__init__(self, UPDATE_RATE)
 
-    logged_events = CONFIG['logged_events'].split(',')
+    logged_events = list(map(str.strip, CONFIG['logged_events'].split(',')))
 
     for alias, actual_event in EVENT_ALIASES.items():
       if alias in logged_events:
