@@ -109,11 +109,13 @@ def main(config):
 
     stem.util.log.trace(TORRC.format(torrc_path = torrc_path, torrc_content = torrc_content))
 
+  use_acs = config.get('acs_support', True)
+
   _warn_if_root(controller)
   _warn_if_unable_to_get_pid(controller)
-  _warn_about_unused_config_keys()
   _use_unicode()
   _set_process_name()
+  _warn_about_unused_config_keys()
 
   # These os.putenv calls fail on FreeBSD, and even attempting causes python to
   # print the following to stdout...
@@ -125,7 +127,7 @@ def main(config):
     os.putenv('ESCDELAY', '0')  # make 'esc' take effect right away
 
   try:
-    nyx.curses.start(nyx.draw_loop, acs_support = config.get('acs_support', True), transparent_background = True, cursor = False)
+    nyx.curses.start(nyx.draw_loop, acs_support = use_acs, transparent_background = True, cursor = False)
   except KeyboardInterrupt:
     pass  # skip printing a stack trace
   finally:
