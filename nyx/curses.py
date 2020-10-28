@@ -115,7 +115,7 @@ RED, GREEN, YELLOW, BLUE, CYAN, MAGENTA, BLACK, WHITE = list(Color)
 
 Attr = stem.util.enum.Enum('NORMAL', 'BOLD', 'UNDERLINE', 'HIGHLIGHT')
 NORMAL, BOLD, UNDERLINE, HIGHLIGHT = list(Attr)
-ANSI_RE = re.compile('\x1B\[([0-9;]+)m')
+ANSI_RE = re.compile('\x1B\\[([0-9;]+)m')
 
 CURSES_COLORS = {
   Color.RED: curses.COLOR_RED,

@@ -138,6 +138,7 @@ def conf_handler(key, value):
   if key == 'redraw_rate':
     return max(1, value)
 
+
 CONFIG = stem.util.conf.config_dict('nyx', {
   'confirm_quit': True,
   'redraw_rate': 5,

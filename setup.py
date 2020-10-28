@@ -51,7 +51,7 @@ global-exclude *~
 # installation. As such, just reading our file for the parameters we need.
 
 ATTR = {}
-ATTR_LINE = re.compile("^__(\S+)__ = '(.+)'")
+ATTR_LINE = re.compile("^__(\\S+)__ = '(.+)'")
 
 with open('nyx/__init__.py') as init_file:
   for line in init_file:

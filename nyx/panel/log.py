@@ -196,7 +196,7 @@ class LogPanel(nyx.panel.DaemonPanel):
     try:
       if not os.path.exists(base_dir):
         os.makedirs(base_dir)
-    except OSError as exc:
+    except OSError:
       raise IOError("unable to make directory '%s'" % base_dir)
 
     event_log = list(self._event_log)

@@ -43,7 +43,7 @@ def main():
   if stem.util.test_tools.is_pyflakes_available():
     pyflakes_task = stem.util.system.DaemonTask(stem.util.test_tools.pyflakes_issues, (SRC_PATHS,), start = True)
 
-  if stem.util.test_tools.is_pep8_available():
+  if stem.util.test_tools.is_pycodestyle_available():
     pycodestyle_task = stem.util.system.DaemonTask(stem.util.test_tools.stylistic_issues, (SRC_PATHS,), start = True)
 
   tests = unittest.defaultTestLoader.discover('test', pattern = '*.py')

@@ -20,7 +20,7 @@ EXPECTED_LINE = 'ControlPort               9051       Port providing access to t
 EXPECTED_DETAIL_DIALOG = """
 +------------------------------------------------------------------------------+
 | ControlPort (General Option)                                                 |
-| Value: 9051 (custom, LineList, usage: PORT|unix:path|auto [flags])           |
+| Value: 9051 (custom, LineList, usage: [address:]port|unix:path|auto [flags]) |
 | Description: If set, Tor will accept connections on this port and allow those|
 |   connections to control the Tor process using the Tor Control Protocol (des-|
 |   cribed in control-spec.txt in torspec). Note: unless you also specify one  |
