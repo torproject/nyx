@@ -327,26 +327,26 @@ Download Page
 Configuration Page
 ============================================================*/
 
-#nyxrc-example {
+#nyx-config-example {
   text-align: left;
 }
 
-.nyxrc-section {
+.nyx-config-section {
   margin-bottom: 10px;
   font-size: 23px;
   text-align: left;
 }
 
-.nyxrc-options {
+.nyx-config-options {
   text-align: left;
   border-collapse: collapse;
 }
 
-.nyxrc-options table, th, td {
+.nyx-config-options table, th, td {
   border: 1px solid #ccc;
 }
 
-.nyxrc-options td {
+.nyx-config-options td {
   padding: 5px;
   vertical-align: top;
 }

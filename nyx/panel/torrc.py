@@ -2,7 +2,7 @@
 # See LICENSE for licensing information
 
 """
-Panel displaying the torrc or nyxrc with the validation done against it.
+Panel displays our syntax highlighted torrc.
 """
 
 import functools
@@ -32,8 +32,7 @@ def _read_torrc(path):
 
 class TorrcPanel(panel.Panel):
   """
-  Renders the current torrc or nyxrc with syntax highlighting in a scrollable
-  area.
+  Renders our syntax highlighted torrc within a scrollable area.
   """
 
   def __init__(self):

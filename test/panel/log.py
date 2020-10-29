@@ -25,9 +25,9 @@ EXPECTED_WRAPPED_MSG = """\
 
 EXPECTED_ENTRIES = """\
  16:41:37 [NYX_WARNING] Tor's geoip database is unavailable.
- 16:41:37 [NYX_NOTICE] No nyxrc loaded, using defaults. You can customize nyx by
-   placing a configuration file at /home/atagar/.nyx/nyxrc (see the nyxrc.sample
-   for its options).
+ 16:41:37 [NYX_NOTICE] No nyx configuration loaded, using defaults. You can
+   customize nyx by placing a configuration file at /home/atagar/.nyx/config
+   (see https://nyx.torproject.org/nyxrc.sample for its options).
  16:41:37 [NOTICE] New control connection opened from 127.0.0.1.
  16:41:37 [NOTICE] Opening OR listener on 0.0.0.0:7000
  16:41:37 [NOTICE] Opening Control listener on 127.0.0.1:9051
@@ -41,9 +41,9 @@ EXPECTED_ENTRIES = """\
 EXPECTED_ENTRIES_WITH_BORDER = """\
 +-October 26, 2011-------------------------------------------------------------+
 |16:41:37 [NYX_WARNING] Tor's geoip database is unavailable.                   |
-|16:41:37 [NYX_NOTICE] No nyxrc loaded, using defaults. You can customize nyx  |
-|  by placing a configuration file at /home/atagar/.nyx/nyxrc (see the         |
-|  nyxrc.sample for its options).                                              |
+|16:41:37 [NYX_NOTICE] No nyx configuration loaded, using defaults. You can    |
+|  customize nyx by placing a configuration file at /home/atagar/.nyx/config   |
+|  (see https://nyx.torproject.org/nyxrc.sample for its options).              |
 |16:41:37 [NOTICE] New control connection opened from 127.0.0.1.               |
 |16:41:37 [NOTICE] Opening OR listener on 0.0.0.0:7000                         |
 |16:41:37 [NOTICE] Opening Control listener on 127.0.0.1:9051                  |
@@ -62,7 +62,7 @@ TIME_STRUCT = time.gmtime(NOW)
 def entries():
   return [
     LogEntry(NOW, 'NYX_WARNING', "Tor's geoip database is unavailable."),
-    LogEntry(NOW, 'NYX_NOTICE', 'No nyxrc loaded, using defaults. You can customize nyx by placing a configuration file at /home/atagar/.nyx/nyxrc (see the nyxrc.sample for its options).'),
+    LogEntry(NOW, 'NYX_NOTICE', 'No nyx configuration loaded, using defaults. You can customize nyx by placing a configuration file at /home/atagar/.nyx/config (see https://nyx.torproject.org/nyxrc.sample for its options).'),
     LogEntry(NOW, 'NOTICE', 'New control connection opened from 127.0.0.1.'),
     LogEntry(NOW, 'NOTICE', 'Opening OR listener on 0.0.0.0:7000'),
     LogEntry(NOW, 'NOTICE', 'Opening Control listener on 127.0.0.1:9051'),

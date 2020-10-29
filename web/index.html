@@ -275,7 +275,7 @@ E: Unable to locate package nyx</pre>
           <span>Is bandwidth graphed in bits or bytes?</span>
           <div class="answer">
             <p><b>Bytes</b>. Most tools measure in bytes so for consistency we do the same. Unfortunately hosting providers advertise in bits to inflate their numbers ("5 Mbit connection"). If graphs show just one eighth of what you expect this is why.</p>
-            <p>To graph in bits rather than bytes add the following to your <a href="#configuration">nyxrc</a>...</p>
+            <p>To graph in bits rather than bytes add the following to your <a href="#configuration">nyx configuration</a>...</p>
             <pre>show_bits true</pre>
           </div>
         </li>
@@ -285,7 +285,7 @@ E: Unable to locate package nyx</pre>
           <div class="answer">
             <a class="acs-img" href="images/screenshots/acs_failure.png"><img src="images/faq/acs_failure.png" alt="acs display failure"></a>
             <p>When alternate character support (ACS) <a href="http://invisible-island.net/ncurses/ncurses.faq.html#no_line_drawing">is unavailable</a> borders become characters like the picture above. This is a terminal bug.</p>
-            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your <a href="#configuration">nyxrc</a>...</p>
+            <p>Unfortunately there doesn't seem to be a way for Nyx to automatically detect this. However, when it happens this <b>can</b> be easily corrected. Simply run <i>reset</i>. To tell Nyx not to use ACS borders simply add the following to your <a href="#configuration">nyx configuration</a>...</p>
             <pre>acs_support false</pre>
           </div>
         </li>
@@ -487,18 +487,18 @@ sudo python setup.py install</pre><br></li>
       <div class="section"></div>
       <a href="#configuration" class="section-title">Configuration</a>
 
-      <p>Like many terminal applications Nyx can be customized through a configuration file. By default <b>~/.nyx/nyxrc</b>, though you can specify one with <b>nyx --config /path/to/nyxrc</b>.</p>
+      <p>Like many terminal applications Nyx can be customized through a configuration file. By default <b>~/.nyx/configc</b>, though you can specify one with <b>nyx --config /path/to/nyx_config</b>.</p>
       <p>Configurations are a simple series of key/value pairs. <a href="https://stem.torproject.org/api/util/conf.html">See Stem</a> for details. For example...</p>
 
-      <pre id="nyxrc-example">
+      <pre id="nyx-config-example">
 acs_support false
 color_override blue  # make our UI predominately blue
 logged_events BW, NOTICE, WARN, ERR
       </pre>
 
-      <h2 class="nyxrc-section">General Options</h2>
+      <h2 class="nyx-config-section">General Options</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -560,9 +560,9 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
       </table>
 
-      <h2 class="nyxrc-section">Update Rates</h2>
+      <h2 class="nyx-config-section">Update Rates</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -594,9 +594,9 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
       </table>
 
-      <h2 class="nyxrc-section">Logging</h2>
+      <h2 class="nyx-config-section">Logging</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -640,9 +640,9 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
       </table>
 
-      <h2 class="nyxrc-section">Graphing</h2>
+      <h2 class="nyx-config-section">Graphing</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -704,9 +704,9 @@ logged_events BW, NOTICE, WARN, ERR
         </td>
       </table>
 
-      <h2 class="nyxrc-section">Tor Configuration</h2>
+      <h2 class="nyx-config-section">Tor Configuration</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -744,9 +744,9 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
       </table>
 
-      <h2 class="nyxrc-section">Connections</h2>
+      <h2 class="nyx-config-section">Connections</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
@@ -782,9 +782,9 @@ logged_events BW, NOTICE, WARN, ERR
         </tr>
       </table>
 
-      <h2 class="nyxrc-section">Component Visibility</h2>
+      <h2 class="nyx-config-section">Component Visibility</h2>
 
-      <table class="nyxrc-options">
+      <table class="nyx-config-options">
         <tr>
           <td width="125"><b>Option</b></td>
           <td width="100"><b>Default</b></td>
