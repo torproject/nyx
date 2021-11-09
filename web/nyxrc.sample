@@ -30,7 +30,7 @@ max_log_size 1000       # Maximum number of log entries.
 
 graph_stat bandwidth        # Statistic to be graphed. [3]
 graph_interval each second  # Graph sampling interval. [4]
-graph_bound max_local       # Bounding for the graph min and max. [5]
+graph_bound local_max       # Bounding for the graph min and max. [5]
 graph_height 7              # Height of the graph.
 max_graph_width 300         # Maximum number of samplings.
 
