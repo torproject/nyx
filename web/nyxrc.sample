@@ -1,5 +1,5 @@
 # Nyx can be customized through a configuration file with the following
-# options. Values shown below are the default unless marked with a asterisk.
+# options.
 #
 # Place your configuration at ~/.nyx/config or run with the following to
 # apply the settings...
@@ -8,7 +8,7 @@
 
 data_directory ~/.nyx   # Caching location, can be set to 'disabled'.
 password none           # Control port password of tor.
-tor_chroot /path        # Chroot jail tor resides within if there is one. (*)
+#tor_chroot /path       # Chroot jail tor resides within if there is one.
 show_bits false         # Bandwidth rate as bits if true, bytes otherwise.
 confirm_quit true       # Confirm before quitting.
 color_interface true    # Uses color in our interface.
@@ -24,8 +24,8 @@ port_usage_rate 5       # Seconds between querying processes using ports.
 logged_events events    # Events that are shown by default in the log. [2]
 deduplicate_log true    # Hides duplicate log messages.
 prepopulate_log true    # Populates with events that occure before we started.
-logging_filter pattern  # Regex filter for log messages that are shown. (*)
-write_logs_to /path     # Writes events that occure while running here. (*)
+#logging_filter pattern # Regex filter for log messages that are shown.
+#write_logs_to /path    # Writes events that occure while running here.
 max_log_size 1000       # Maximum number of log entries.
 
 graph_stat bandwidth        # Statistic to be graphed. [3]
