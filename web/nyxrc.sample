@@ -12,7 +12,7 @@ tor_chroot /path        # Chroot jail tor resides within if there is one. (*)
 show_bits false         # Bandwidth rate as bits if true, bytes otherwise.
 confirm_quit true       # Confirm before quitting.
 color_interface true    # Uses color in our interface.
-color_override none     # Replaces instances of color with this hue.
+color_override none     # Replaces instances of color with this hue. [1]
 unicode_support true    # Render text as unicode.
 acs_support true        # Uses ACS (alternate character set) for nice borders.
 
@@ -21,24 +21,24 @@ connection_rate 5       # Seconds between querying connections.
 resource_rate 5         # Seconds between querying process resource usage.
 port_usage_rate 5       # Seconds between querying processes using ports.
 
-logged_events events    # Events that are shown by default in the log. [1]
+logged_events events    # Events that are shown by default in the log. [2]
 deduplicate_log true    # Hides duplicate log messages.
 prepopulate_log true    # Populates with events that occure before we started.
 logging_filter pattern  # Regex filter for log messages that are shown. (*)
 write_logs_to /path     # Writes events that occure while running here. (*)
 max_log_size 1000       # Maximum number of log entries.
 
-graph_stat bandwidth        # Statistic to be graphed. [2]
-graph_interval each second  # Graph sampling interval. [3]
-graph_bound max_local       # Bounding for the graph min and max. [4]
+graph_stat bandwidth        # Statistic to be graphed. [3]
+graph_interval each second  # Graph sampling interval. [4]
+graph_bound max_local       # Bounding for the graph min and max. [5]
 graph_height 7              # Height of the graph.
 max_graph_width 300         # Maximum number of samplings.
 
-config_order order          # Order for tor config options. [5]
+config_order order          # Order for tor config options. [6]
 show_private_options false  # Shows configurations with a '__option' prefix.
 show_virtual_options false  # Shows unsettable tor configurations.
 
-connection_order order  # Order for connections. [6]
+connection_order order  # Order for connections. [7]
 resolve_processes true  # Shows processes for SOCKS and CONTROL connections.
 show_addresses true     # Shows addresses of connections.
 
@@ -49,30 +49,37 @@ show_connections true   # Shows connection information.
 show_config true        # Shows tor's configuration.
 show_torrc true         # Shows the torrc.
 show_interpreter true   # Shows the control interpreter.
-
-# [1] logged_events is a comma separated list. Default value is...
+# [1] color_override options include...
+#
+#       none, red, green, blue, cyan, magenta, yellow, black
+#
+#   'none" means "use the default color that the developers picked".
+#
+#   Default is: none
+#
+# [2] logged_events is a comma separated list. Default value is...
 #
 #       NOTICE, WARN, ERR, NYX_NOTICE, NYX_WARNING, NYX_ERROR
 #
-# [2] graph_stat options include...
+# [3] graph_stat options include...
 #
 #       none - hide the graph
 #       bandwidth - bandwidth rate downloaded/uploaded
 #       connections- number of connections inbound/outbound
 #       resources - cpu/memory usage of tor
 #
-# [3] graph_interval options include...
+# [4] graph_interval options include...
 #
 #       each second,   5 seconds,     30 seconds,  minutely,
 #       15 minute,     30 minute,     hourly,      daily
 #
-# [4] graph_bound options include...
+# [5] graph_bound options include...
 #
 #       global_max - global maximum (highest value ever seen)
 #       local_max - local maximum (highest value currently on the graph)
 #       tight - local maximum and minimum
 #
-# [5] config_order is three comma separated values that can include...
+# [6] config_order is three comma separated values that can include...
 #
 #       * NAME
 #       * VALUE
@@ -86,7 +93,7 @@ show_interpreter true   # Shows the control interpreter.
 #
 #     Default is: MAN_PAGE_ENTRY, NAME, IS_SET
 #
-# [6] connection_order is three comma separated values that can include...
+# [7] connection_order is three comma separated values that can include...
 #
 #       * CATEGORY
 #       * UPTIME
