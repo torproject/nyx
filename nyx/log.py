@@ -83,7 +83,7 @@ def log_file_path(controller):
   """
 
   for log_entry in controller.get_conf('Log', [], True):
-    entry_comp = log_entry.split()  # looking for an entry like: notice file /var/log/tor/notices.log
+    entry_comp = log_entry.encode('ascii').decode('unicode_escape').split()  # compensating for tab delimitation, looking for an entry like: notice file /var/log/tor/notices.log
 
     if entry_comp[1] == 'file':
       return nyx.expand_path(entry_comp[2])
