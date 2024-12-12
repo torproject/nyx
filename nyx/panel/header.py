@@ -8,6 +8,7 @@ available.
 """
 
 import os
+import platform
 import time
 
 import stem
@@ -287,8 +288,8 @@ class Sampling(object):
       'memory': stem.util.str_tools.size_label(tor_resources.memory_bytes) if tor_resources.memory_bytes > 0 else 0,
       'memory_percent': '%0.1f' % (100 * tor_resources.memory_percent),
 
-      'hostname': os.uname()[1],
-      'platform': '%s %s' % (os.uname()[0], os.uname()[2]),  # [platform name] [version]
+      'hostname': platform.uname()[1],
+      'platform': '%s %s' % (platform.uname()[0], platform.uname()[2]),  # [platform name] [version]
     }
 
     return Sampling(**attr)

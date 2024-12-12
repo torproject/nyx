@@ -6,6 +6,7 @@ import setuptools
 import os
 import re
 import sys
+import platform
 
 if '--dryrun' in sys.argv:
   DRY_RUN = True
@@ -67,6 +68,11 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 with open('MANIFEST.in', 'w') as manifest_file:
   manifest_file.write(MANIFEST)
 
+# Detect if the system is Windows
+extra_install_requires = []
+if platform.system() == 'Windows':
+  extra_install_requires.append('windows-curses')
+
 try:
   setuptools.setup(
     name = 'nyx-dry-run' if DRY_RUN else 'nyx',
@@ -79,7 +85,7 @@ try:
     url = ATTR['url'],
     packages = ['nyx', 'nyx.panel'],
     keywords = 'tor onion controller',
-    install_requires = ['stem>=1.7.0'],
+    install_requires = ['stem>=1.7.0'] + extra_install_requires,
     package_data = {'nyx': ['settings/*']},
     entry_points = {'console_scripts': ['nyx = nyx.__init__:main']},
     classifiers = [

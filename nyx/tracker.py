@@ -52,6 +52,7 @@ Background tasks for gathering information about the tor process.
 
 import collections
 import os
+import platform
 import time
 import threading
 
@@ -517,7 +518,7 @@ class ConnectionTracker(Daemon):
     elif not self._resolvers:
       stem.util.log.notice("Tor connection information is unavailable. This is fine, but if you would like to have it please see https://nyx.torproject.org/#no_connections")
 
-    stem.util.log.info('Operating System: %s, Connection Resolvers: %s' % (os.uname()[0], ', '.join(self._resolvers)))
+    stem.util.log.info('Operating System: %s, Connection Resolvers: %s' % (platform.uname()[0], ', '.join(self._resolvers)))
 
   def _task(self, process_pid, process_name):
     if self._custom_resolver:

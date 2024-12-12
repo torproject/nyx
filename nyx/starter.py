@@ -184,7 +184,7 @@ def _warn_if_root(controller):
 
   if controller.get_user(None) == 'root':
     stem.util.log.notice("Tor is currently running with root permissions. This isn't a good idea, nor should it be necessary. See the 'User UID' option on Tor's man page for an easy method of reducing its permissions after startup.")
-  elif os.getuid() == 0:
+  elif os.name == 'posix' and os.getuid() == 0:
     stem.util.log.notice("Nyx is currently running with root permissions. This isn't a good idea, nor should it be necessary.")
 
 
